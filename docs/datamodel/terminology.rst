@@ -70,7 +70,7 @@ marked as **readonly**.
 .. rubric:: Link
 
 Links represent relationships between object types. Like properties, they can
-marked as readonly and augmented with constraints, annotations, and default
+be marked as readonly and augmented with constraints, annotations, and default
 values. They can optionally contain **link properties**.
 
 .. rubric:: Computed
