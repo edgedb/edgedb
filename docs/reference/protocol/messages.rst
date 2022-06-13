@@ -238,7 +238,7 @@ Use:
 * ``JSON_ELEMENTS`` to return a single JSON string per top-level set element.
   This can be used to iterate over a large result set efficiently.
 
-* ``NULL`` to prevent the server from returning data, even if the EdgeQL
+* ``NONE`` to prevent the server from returning data, even if the EdgeQL
   command does.
 
 Known headers:

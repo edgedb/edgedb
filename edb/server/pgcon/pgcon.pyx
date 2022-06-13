@@ -1213,7 +1213,7 @@ cdef class PGConnection:
                     if mtype == b'D':
                         # DataRow
                         if not has_result:
-                            # It's likely output_format=NULL_, so just discard
+                            # It's likely output_format=NONE, so just discard
                             self.buffer.discard_message()
                             continue
 

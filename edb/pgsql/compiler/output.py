@@ -597,7 +597,7 @@ def serialize_expr(
 
     elif env.output_format in (context.OutputFormat.NATIVE,
                                context.OutputFormat.NATIVE_INTERNAL,
-                               context.OutputFormat.NULL):
+                               context.OutputFormat.NONE):
         val = output_as_value(expr, env=env)
 
     else:
@@ -778,7 +778,7 @@ def top_output_as_value(
 
         return stmt
 
-    elif env.output_format is context.OutputFormat.NULL:
+    elif env.output_format is context.OutputFormat.NONE:
         return wrap_script_stmt(stmt, env=env)
 
     else:

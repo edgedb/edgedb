@@ -60,9 +60,9 @@ class OutputFormat(enum.Enum):
     JSONB = enum.auto()
     #: Result data output as a JSON string for each element in returned set.
     JSON_ELEMENTS = enum.auto()
-    #: Null mode: query result not returned, cardinality of result set
+    #: None mode: query result not returned, cardinality of result set
     #: is returned instead.
-    NULL = enum.auto()
+    NONE = enum.auto()
     #: Like NATIVE, but objects without an explicit shape are serialized
     #: as UUIDs.
     NATIVE_INTERNAL = enum.auto()

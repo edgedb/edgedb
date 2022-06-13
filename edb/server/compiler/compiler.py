@@ -125,7 +125,7 @@ _OUTPUT_FORMAT_MAP = {
     enums.OutputFormat.BINARY: pg_compiler.OutputFormat.NATIVE,
     enums.OutputFormat.JSON: pg_compiler.OutputFormat.JSON,
     enums.OutputFormat.JSON_ELEMENTS: pg_compiler.OutputFormat.JSON_ELEMENTS,
-    enums.OutputFormat.NULL: pg_compiler.OutputFormat.NULL,
+    enums.OutputFormat.NONE: pg_compiler.OutputFormat.NONE,
 }
 
 pg_ql = lambda o: pg_common.quote_literal(str(o))

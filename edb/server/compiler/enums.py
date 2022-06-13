@@ -75,4 +75,4 @@ class OutputFormat(strenum.StrEnum):
     BINARY = 'BINARY'
     JSON = 'JSON'
     JSON_ELEMENTS = 'JSON_ELEMENTS'
-    NULL = 'NULL'
+    NONE = 'NONE'

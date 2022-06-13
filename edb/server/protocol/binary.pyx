@@ -92,7 +92,7 @@ cdef object CARD_MANY = compiler.Cardinality.MANY
 cdef object FMT_BINARY = compiler.OutputFormat.BINARY
 cdef object FMT_JSON = compiler.OutputFormat.JSON
 cdef object FMT_JSON_ELEMENTS = compiler.OutputFormat.JSON_ELEMENTS
-cdef object FMT_NULL = compiler.OutputFormat.NULL
+cdef object FMT_NONE = compiler.OutputFormat.NONE
 
 cdef tuple DUMP_VER_MIN = (0, 7)
 cdef tuple DUMP_VER_MAX = (1, 0)
@@ -836,7 +836,7 @@ cdef class EdgeConnection:
         compiler_pool = self.server.get_compiler_pool()
 
         # XXX: Probably won't stay this way?
-        stmt_mode = 'all' if query_req.output_format == FMT_NULL else 'single'
+        stmt_mode = 'all' if query_req.output_format == FMT_NONE else 'single'
 
         started_at = time.monotonic()
         try:
@@ -1252,7 +1252,7 @@ cdef class EdgeConnection:
         elif mode == b'b':
             return FMT_BINARY
         elif mode == b'n':
-            return FMT_NULL
+            return FMT_NONE
         else:
             raise errors.BinaryProtocolError(
                 f'unknown output mode "{repr(mode)[2:-1]}"')
@@ -2850,7 +2850,7 @@ async def run_script(
             QueryRequestInfo(
                 source,
                 conn.protocol_version,
-                output_format=FMT_NULL,
+                output_format=FMT_NONE,
             )
         )
         compiled = CompiledQuery(

@@ -378,7 +378,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             kwargs=script.query.kwargs,
             reg=script.cache.codecs_registry,
             qc=script.cache.query_cache,
-            output_format=protocol.OutputFormat.NULL_,
+            output_format=protocol.OutputFormat.NONE,
             allow_capabilities=edgedb_enums.Capability.ALL,  # type: ignore
         )
 
