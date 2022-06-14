@@ -305,18 +305,11 @@ Input Shape Descriptor
         // Number of elements in shape.
         uint16          element_count;
 
-        InputShape      elements[element_count];
+        ShapeElement    elements[element_count];
     };
 
-    struct InputShape {
-        // Field name.
-        string          name;
-
-        // Field type descriptor index.
-        uint16          type_pos;
-    };
-
-Objects are encoded on the wire as :ref:`sparse tuples <...>`.
+Input objects are encoded on the wire as
+:ref:`sparse objects <ref_protocol_fmt_sparse_obj>`.
 
 
 Scalar Type Name Annotation

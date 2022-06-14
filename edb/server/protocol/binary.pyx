@@ -1468,6 +1468,14 @@ cdef class EdgeConnection:
         msg.write_int16(0)  # no headers
         msg.write_int64(<int64_t><uint64_t>query_unit_group.capabilities)
         msg.write_len_prefixed_bytes(query_unit_group[-1].status)
+
+        type_id, data = self.get_dbview().encode_state(
+            self.protocol_version
+        )
+        msg.write_bytes(type_id.bytes)
+        msg.write_int16(1)
+        msg.write_len_prefixed_bytes(data)
+
         return msg.end_message()
 
     async def _execute_system_config(self, query_unit, conn):

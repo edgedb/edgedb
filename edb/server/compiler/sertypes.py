@@ -32,6 +32,7 @@ from edb.common import uuidgen
 
 from edb.protocol import enums as p_enums
 
+from edb.edgeql import qltypes
 from edb.schema import globals as s_globals
 from edb.schema import links as s_links
 from edb.schema import objects as s_obj
@@ -417,12 +418,15 @@ class TypeSerializer:
         if t in input_shapes:
             element_names = []
             subtypes = []
-            for name, subtype in input_shapes[t].items():
+            cardinalities = []
+            for name, value in input_shapes[t].items():
+                subtype, cardinality = value
                 subtype_id = self.describe_input_shape(
                     subtype, input_shapes, protocol_version
                 )
                 element_names.append(name)
                 subtypes.append(subtype_id)
+                cardinalities.append(cardinality.value)
 
             if prepare_state:
                 return
@@ -444,8 +448,10 @@ class TypeSerializer:
             assert len(subtypes) == len(element_names)
             buf.append(_uint16_packer(len(subtypes)))
 
-            zipped_parts = zip(element_names, subtypes)
-            for el_name, el_type in zipped_parts:
+            zipped_parts = zip(element_names, subtypes, cardinalities)
+            for el_name, el_type, el_c in zipped_parts:
+                buf.append(_uint32_packer(0))  # flags
+                buf.append(_uint8_packer(el_c))
                 el_name_bytes = el_name.encode('utf-8')
                 buf.append(_uint32_packer(len(el_name_bytes)))
                 buf.append(el_name_bytes)
@@ -579,12 +585,13 @@ class TypeSerializer:
             pos = desc.read_ui16()
             return SetDesc(tid=tid, subtype=codecs_list[pos])
 
-        elif t == CTYPE_SHAPE:
+        elif t == CTYPE_SHAPE or t == CTYPE_INPUT_SHAPE:
             els = desc.read_ui16()
             fields = {}
             flags = {}
             cardinalities = {}
-            for _ in range(els):
+            fields_list = []
+            for idx in range(els):
                 if protocol_version >= (0, 11):
                     flag = desc.read_ui32()
                     cardinality = enums.Cardinality(desc.read_bytes(1)[0])
@@ -593,32 +600,25 @@ class TypeSerializer:
                     cardinality = None
                 name = desc.read_len32_prefixed_bytes().decode()
                 pos = desc.read_ui16()
-                fields[name] = codecs_list[pos]
+                codec = codecs_list[pos]
+                if t == CTYPE_INPUT_SHAPE:
+                    fields_list.append((name, codec))
+                    fields[name] = idx, codec
+                else:
+                    fields[name] = codec
                 flags[name] = flag
                 if cardinality:
                     cardinalities[name] = cardinality
-            return ShapeDesc(
+            args = dict(
                 tid=tid,
                 flags=flags,
                 fields=fields,
                 cardinalities=cardinalities,
             )
-
-        elif t == CTYPE_INPUT_SHAPE:
-            els = desc.read_ui16()
-            fields = {}
-            fields_list = []
-            for idx in range(els):
-                name = desc.read_len32_prefixed_bytes().decode()
-                pos = desc.read_ui16()
-                codec = codecs_list[pos]
-                fields[name] = idx, codec
-                fields_list.append((name, codec))
-            return InputShapeDesc(
-                tid=tid,
-                fields=fields,
-                fields_list=fields_list,
-            )
+            if t == CTYPE_SHAPE:
+                return ShapeDesc(**args)
+            else:
+                return InputShapeDesc(fields_list=fields_list, **args)
 
         elif t == CTYPE_BASE_SCALAR:
             return BaseScalarDesc(tid=tid)
@@ -719,14 +719,14 @@ class StateSerializerFactory:
         input_shapes[state_type] = state_shape = {}
 
         # module := 'default'
-        state_shape['module'] = str_type
+        state_shape['module'] = (str_type, enums.Cardinality.AT_MOST_ONE)
 
         # aliases := { ('alias1', 'mod::type'), ... }
         schema, alias_tuple = s_types.Tuple.from_subtypes(
             schema, [str_type, str_type])
         schema, aliases_array = s_types.Array.from_subtypes(
             schema, [alias_tuple])
-        state_shape['aliases'] = aliases_array
+        state_shape['aliases'] = (aliases_array, enums.Cardinality.AT_MOST_ONE)
 
         # config := cfg::Config { session_cfg1, session_cfg2, ... }
         schema, config_type = simple_derive_type(
@@ -736,8 +736,10 @@ class StateSerializerFactory:
         from edb.server.config import get_settings
         for setting in get_settings().values():
             if not setting.system:
-                config_shape[setting.name] = setting.s_type
-        state_shape['config'] = config_type
+                config_shape[setting.name] = (
+                    setting.s_type, enums.Cardinality.AT_MOST_ONE
+                )
+        state_shape['config'] = (config_type, enums.Cardinality.AT_MOST_ONE)
 
         self._schema = schema
         self._builders = {}
@@ -765,8 +767,17 @@ class StateSerializerFactory:
         input_shapes = self._input_shapes.copy()
         input_shapes[globals_type] = globals_shape = {}
         for g in schema.get_objects(type=s_globals.Global):
-            globals_shape[str(g.get_name(schema))] = g.get_target(schema)
-        input_shapes[self._state_type]['globals'] = globals_type
+            if g.is_computable(schema):
+                continue
+            globals_shape[str(g.get_name(schema))] = (
+                g.get_target(schema),
+                enums.Cardinality.AT_MOST_ONE
+                if g.get_cardinality(schema) == qltypes.SchemaCardinality.One
+                else enums.Cardinality.MANY
+            )
+        input_shapes[self._state_type]['globals'] = (
+            globals_type, enums.Cardinality.AT_MOST_ONE
+        )
 
         builder = builder.derive(schema)
         type_id = builder.describe_input_shape(
@@ -948,7 +959,7 @@ class ArrayDesc(TypeDesc):
 
 
 @dataclasses.dataclass(frozen=True)
-class InputShapeDesc(TypeDesc):
+class InputShapeDesc(ShapeDesc):
     fields: typing.Dict[str, typing.Tuple[int, TypeDesc]]
     fields_list: typing.List[typing.Tuple[str, TypeDesc]]
     data_raw: bool = False
