@@ -1754,6 +1754,7 @@ class Compiler:
                 status=status.get_status(stmt),
                 cardinality=default_cardinality,
                 capabilities=capabilities,
+                output_format=ctx.output_format,
             )
 
             if not comp.is_transactional:
@@ -1845,6 +1846,7 @@ class Compiler:
                     unit.tx_savepoint_declare = True
                     unit.sp_name = comp.sp_name
                     unit.sp_id = comp.sp_id
+                unit.tx_control = True
 
             elif isinstance(comp, dbstate.MigrationControlQuery):
                 unit.sql = comp.sql
@@ -1885,12 +1887,6 @@ class Compiler:
                     unit.system_config = True
                 elif comp.config_scope is qltypes.ConfigScope.GLOBAL:
                     unit.set_global = True
-                    # FIXME: We want to be able to do this in a block
-                    # with other commands.
-                    # if statements_len > 1:
-                    #     raise errors.UnsupportedFeatureError(
-                    #         'SET GLOBAL cannot be executed in a block '
-                    #         'with other commands')
 
                 elif comp.config_scope is qltypes.ConfigScope.DATABASE:
                     unit.database_config = True

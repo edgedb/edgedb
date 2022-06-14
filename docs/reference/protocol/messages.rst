@@ -239,7 +239,7 @@ Use:
   This can be used to iterate over a large result set efficiently.
 
 * ``NONE`` to prevent the server from returning data, even if the EdgeQL
-  command does.
+  statement does.
 
 Known headers:
 

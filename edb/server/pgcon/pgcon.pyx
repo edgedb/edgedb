@@ -87,6 +87,7 @@ DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 
 
 cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
+cdef object FMT_NONE = compiler.OutputFormat.NONE
 cdef dict POSTGRES_SHUTDOWN_ERR_CODES = {
     '57P01': 'admin_shutdown',
     '57P02': 'crash_shutdown',
@@ -1036,7 +1037,11 @@ cdef class PGConnection:
         else:
             await self._parse_apply_state_resp(state)
 
-    async def wait_for_command(self, *, bint ignore_data):
+    async def wait_for_command(
+        self, *, bint ignore_data, edgecon.EdgeConnection edgecon=None
+    ):
+        cdef WriteBuffer buf = None
+
         result = None
         while True:
             if not self.buffer.take_message():
@@ -1048,7 +1053,7 @@ cdef class PGConnection:
                     # DataRow
                     if ignore_data:
                         self.buffer.discard_message()
-                    else:
+                    elif edgecon is None:
                         ncol = self.buffer.read_int16()
                         row = []
                         for i in range(ncol):
@@ -1060,10 +1065,21 @@ cdef class PGConnection:
                         if result is None:
                             result = []
                         result.append(row)
+                    else:
+                        if buf is None:
+                            buf = WriteBuffer.new()
+
+                        self.buffer.redirect_messages(buf, b'D', 0)
+                        if buf.len() >= DATA_BUFFER_SIZE:
+                            edgecon.write(buf)
+                            buf = None
 
                 elif mtype == b'C':  ## result
                     # CommandComplete
                     self.buffer.discard_message()
+                    if buf is not None:
+                        edgecon.write(buf)
+                        buf = None
                     return result
 
                 elif mtype == b'1':
@@ -1117,6 +1133,7 @@ cdef class PGConnection:
             bint state_sync = 0
 
             bint has_result = query.cardinality is not CARD_NO_RESULT
+            bint discard_result = query.output_format == FMT_NONE
 
             uint64_t msgs_num = <uint64_t>(len(query.sql))
             uint64_t msgs_executed = 0
@@ -1212,10 +1229,14 @@ cdef class PGConnection:
                 try:
                     if mtype == b'D':
                         # DataRow
-                        if not has_result:
-                            # It's likely output_format=NONE, so just discard
+                        if discard_result:
                             self.buffer.discard_message()
                             continue
+                        if not has_result:
+                            raise errors.InternalServerError(
+                                f'query that was inferred to have '
+                                f'no data returned received a DATA package; '
+                                f'query: {query.sql}')
 
                         if buf is None:
                             buf = WriteBuffer.new()

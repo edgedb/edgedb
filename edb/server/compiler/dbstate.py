@@ -192,6 +192,9 @@ class QueryUnit:
     # EdgeQL queries, the status reflects the last query in the unit.
     status: bytes
 
+    # Output format of this query unit
+    output_format: enums.OutputFormat = enums.OutputFormat.NONE
+
     # Set only for units that contain queries that can be cached
     # as prepared statements in Postgres.
     sql_hash: bytes = b''
@@ -225,6 +228,12 @@ class QueryUnit:
     # 'ROLLBACK TO SAVEPOINT' is always compiled to a separate QueryUnit.
     tx_savepoint_rollback: bool = False
     tx_savepoint_declare: bool = False
+
+    # True if this unit is one of the *explicit* transaction control commands
+    # including `START TRANSACTION`, `COMMIT`, `ROLLBACK` and the SAVEPOINT
+    # commands, excluding migration control commands `START MIGRATION ...`,
+    # `COMMIT MIGRATION` and `ABORT MIGRATION`, even though they do control tx
+    tx_control: bool = False
 
     # For SAVEPOINT commands, the name and sp_id
     sp_name: Optional[str] = None
@@ -289,16 +298,6 @@ class QueryUnit:
     def has_ddl(self) -> bool:
         return bool(self.capabilities & enums.Capability.DDL)
 
-    @property
-    def tx_control(self) -> bool:
-        return (
-            bool(self.tx_id)
-            or self.tx_rollback
-            or self.tx_commit
-            or self.tx_savepoint_declare
-            or self.tx_savepoint_rollback
-        )
-
 
 @dataclasses.dataclass
 class QueryUnitGroup:
@@ -311,8 +310,9 @@ class QueryUnitGroup:
     # True if it is safe to cache this unit.
     cacheable: bool = True
 
-    # True if any query unit has transaction control commands, like COMMIT,
-    # ROLLBACK, START TRANSACTION or SAVEPOINT-related commands
+    # True if any query unit has explicit transaction control commands, like
+    # COMMIT, ROLLBACK, START TRANSACTION or SAVEPOINT-related commands,
+    # **excluding** migration control commands.
     tx_control: bool = False
 
     # Cardinality of the result set.  Set to NO_RESULT if the

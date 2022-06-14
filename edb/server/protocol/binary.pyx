@@ -1077,10 +1077,16 @@ cdef class EdgeConnection:
                                 config_ops = [
                                     config.Operation.from_json(r[0])
                                     for r in data]
-                        else:
+                        elif query_unit.output_format == FMT_NONE:
                             for sql in query_unit.sql:
                                 await conn.wait_for_command(
                                     ignore_data=True
+                                )
+                        else:
+                            for sql in query_unit.sql:
+                                await conn.wait_for_command(
+                                    ignore_data=False,
+                                    edgecon=self,
                                 )
 
                     if config_ops:
@@ -1088,7 +1094,10 @@ cdef class EdgeConnection:
                             conn,
                             config_ops)
 
-                    _dbview.on_success(query_unit, new_types)
+                    side_effects = _dbview.on_success(query_unit, new_types)
+                    if side_effects:
+                        # COMMIT MIGRATION breaks the atomicity as an exception
+                        self.signal_side_effects(side_effects)
 
         except Exception as e:
             _dbview.on_error()
@@ -1100,11 +1109,13 @@ cdef class EdgeConnection:
 
         else:
             if not in_tx:
-                side_effects = _dbview.commit_implicit_tx(
-                    user_schema, global_schema, cached_reflection
-                )
-                if side_effects:
-                    self.signal_side_effects(side_effects)
+                if _dbview.in_tx():
+                    # If COMMIT MIGRATION is not the last statement
+                    side_effects = _dbview.commit_implicit_tx(
+                        user_schema, global_schema, cached_reflection
+                    )
+                    if side_effects:
+                        self.signal_side_effects(side_effects)
                 state = _dbview.serialize_state()
                 if state is not orig_state:
                     conn.last_state = state
@@ -1563,7 +1574,6 @@ cdef class EdgeConnection:
                         orig_state = None
 
                 if query_unit.tx_savepoint_rollback:
-                    # await self.recover_current_tx_info(conn)
                     _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
 
                 if query_unit.tx_savepoint_declare:
