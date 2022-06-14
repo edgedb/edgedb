@@ -19,6 +19,7 @@
 from __future__ import annotations
 from typing import *
 
+import errno
 import logging
 import os
 import socket
@@ -74,9 +75,7 @@ def sd_notify(message: str) -> None:
             logger.info('Could not send systemd notification: %s', e)
 
 
-def sd_get_activation_listen_sockets(
-    names: list[str],
-) -> dict[str, socket.socket]:
+def sd_get_activation_listen_sockets() -> dict[str, socket.socket]:
     # Prevent socket activation variables from being inherited by
     # child processes (regardless of success below).
     listen_pid = os.environ.pop("LISTEN_PID", "")
@@ -123,13 +122,6 @@ def sd_get_activation_listen_sockets(
         except IndexError:
             name = f"LISTEN_FD_{fd}"
 
-        if names and name not in names:
-            logger.warning(
-                f"activation file descriptor {name} ({fd}) is not in any "
-                f"of the passed --activation-socket-name= options, ignoring"
-            )
-            continue
-
         sock = _stream_socket_from_fd(fd)
         if sock is not None:
             sockets[name] = sock
@@ -142,11 +134,15 @@ if sys.platform == "darwin":
     import ctypes.util
 
     syslib = ctypes.CDLL(ctypes.util.find_library('System'))
-    syslib.launch_activate_socket.argypes = [
+    syslib.launch_activate_socket.argypes = [  # type: ignore[attr-defined]
         ctypes.c_char_p,
         ctypes.POINTER(ctypes.POINTER(ctypes.c_int)),
         ctypes.POINTER(ctypes.c_size_t),
     ]
+
+    class LaunchActivateSocketError(Exception):
+        def __init__(self, errno: int) -> None:
+            self.errno = errno
 
     def _launch_activate_socket(name) -> list[int]:
         fds = ctypes.POINTER(ctypes.c_int)()
@@ -158,22 +154,27 @@ if sys.platform == "darwin":
         )
         if result == 0:
             return [fds[i] for i in range(num_fds.value)]
-        else:
-            logger.warning(f"launch_activate_socket({name}) returned {result}")
+        elif result == errno.ESRCH:
+            # Not running under launchd
             return []
+        else:
+            raise LaunchActivateSocketError(result)
 
-    def launchd_get_activation_listen_sockets(
-        names: list[str],
-    ) -> dict[str, socket.socket]:
-        if not names:
-            names = ["edgedb-server"]
-
+    def launchd_get_activation_listen_sockets() -> dict[str, socket.socket]:
+        names = ["edgedb-server"]
         sockets = {}
 
         for name in names:
-            fds = _launch_activate_socket(name)
+            try:
+                fds = _launch_activate_socket(name)
+            except LaunchActivateSocketError as e:
+                logger.warning(
+                    f"could not activate socket {name}: "
+                    f"launch_activate_socket() returned {e.errno}")
+                continue
+
             if len(fds) == 0:
-                logger.warning(f"could not activate socket {name}")
+                # No activation
                 continue
             elif len(fds) != 1:
                 logger.warning(
@@ -192,19 +193,15 @@ if sys.platform == "darwin":
         return sockets
 
 else:
-    def launchd_get_activation_listen_sockets(
-        names: list[str],
-    ) -> dict[str, socket.socket]:
+    def launchd_get_activation_listen_sockets() -> dict[str, socket.socket]:
         return {}
 
 
-def get_activation_listen_sockets(
-    names: list[str],
-) -> dict[str, socket.socket]:
+def get_activation_listen_sockets() -> dict[str, socket.socket]:
     if sys.platform == "darwin":
-        sockets = launchd_get_activation_listen_sockets(names)
+        sockets = launchd_get_activation_listen_sockets()
     else:
-        sockets = sd_get_activation_listen_sockets(names)
+        sockets = sd_get_activation_listen_sockets()
 
     port = 0
 
