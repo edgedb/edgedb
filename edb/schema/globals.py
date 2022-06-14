@@ -228,6 +228,13 @@ class GlobalCommand(
             default_type = default_expr.irast.stype
 
             source_context = self.get_attribute_source_context('default')
+
+            if is_computable:
+                raise errors.SchemaDefinitionError(
+                    f'computed globals may not have default values',
+                    context=source_context,
+                )
+
             if not default_type.assignment_castable_to(target, schema):
                 raise errors.SchemaDefinitionError(
                     f'default expression is of invalid type: '
