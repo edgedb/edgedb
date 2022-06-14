@@ -167,7 +167,7 @@ class CompositeConfigType(ConfigType):
                     and value is not None):
                 value = value.to_json_value()
             elif typing_inspect.is_generic_type(f_type):
-                value = list(value)
+                value = list(value) if value is not None else []
 
             dct[f.name] = value
 

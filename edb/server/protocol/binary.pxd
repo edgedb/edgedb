@@ -124,8 +124,11 @@ cdef class EdgeConnection:
         object started_idling_at
 
         bint _in_dump_restore
-
         bint _passive_mode
+
+        object _transport_proto
+        bytes _auth_data
+        dict  _conn_params
 
     cdef inline dbview.DatabaseConnectionView get_dbview(self)
 

@@ -39,6 +39,7 @@ import time
 import uuid
 
 import immutables
+from jwcrypto import jwk
 
 from edb import errors
 
@@ -68,6 +69,7 @@ from . import dbview
 
 if TYPE_CHECKING:
     import asyncio.base_events
+    import pathlib
 
 
 ADMIN_PLACEHOLDER = "<edgedb:admin>"
@@ -146,7 +148,8 @@ class Server(ha_base.ClusterProtocol):
         status_sinks: Sequence[Callable[[str], None]] = (),
         startup_script: Optional[srvargs.StartupScript] = None,
         backend_adaptive_ha: bool = False,
-        default_auth_method: srvargs.ServerAuthMethod,
+        default_auth_method: srvargs.ServerAuthMethods = (
+            srvargs.DEFAULT_AUTH_METHODS),
         admin_ui: bool = False,
         instance_name: Optional[str] = None,
     ):
@@ -246,6 +249,9 @@ class Server(ha_base.ClusterProtocol):
         self._tls_cert_file = None
         self._tls_cert_newly_generated = False
         self._sslctx = None
+
+        self._jws_public_key: jwk.JWK | None = None
+        self._jwe_private_key: jwk.JWK | None = None
 
         self._default_auth_method = default_auth_method
         self._binary_endpoint_security = binary_endpoint_security
@@ -1555,6 +1561,47 @@ class Server(ha_base.ClusterProtocol):
         self._tls_cert_file = str(tls_cert_file)
         self._tls_cert_newly_generated = tls_cert_newly_generated
 
+    def init_jwcrypto(
+        self,
+        jws_public_key_file: pathlib.Path | None,
+        jwe_private_key_file: pathlib.Path | None,
+    ) -> None:
+        if jws_public_key_file is not None:
+            try:
+                with open(jws_public_key_file, 'rb') as kf:
+                    self._jws_public_key = jwk.JWK.from_pem(kf.read())
+            except Exception as e:
+                raise StartupError(f"cannot load JWS public key: {e}") from e
+
+            if (
+                not self._jws_public_key.has_public
+                or self._jws_public_key['kty'] not in {"RSA", "EC"}
+            ):
+                raise StartupError(
+                    f"the provided JWS public key file does not "
+                    f"contain a valid RSA or EC public key")
+
+        if jwe_private_key_file is not None:
+            try:
+                with open(jwe_private_key_file, 'rb') as kf:
+                    self._jwe_private_key = jwk.JWK.from_pem(kf.read())
+            except Exception as e:
+                raise StartupError(f"cannot load JWE private key: {e}") from e
+
+            if (
+                not self._jwe_private_key.has_private
+                or self._jwe_private_key['kty'] not in {"RSA", "EC"}
+            ):
+                raise StartupError(
+                    f"the provided JWE private key file does not "
+                    f"contain a valid RSA or EC private key")
+
+    def get_jws_public_key(self) -> jwk.JWK | None:
+        return self._jws_public_key
+
+    def get_jwe_private_key(self) -> jwk.JWK | None:
+        return self._jwe_private_key
+
     async def _stop_servers(self, servers):
         async with taskgroup.TaskGroup() as g:
             for srv in servers:
@@ -1672,20 +1719,29 @@ class Server(ha_base.ClusterProtocol):
     async def serve_forever(self):
         await self._stop_evt.wait()
 
-    async def get_auth_method(self, user):
+    async def get_auth_method(
+        self,
+        user: str,
+        transport: srvargs.ServerConnTransport,
+    ) -> Any:
         authlist = self._sys_auth
 
         if authlist:
             for auth in authlist:
                 match = (
                     (user in auth.user or '*' in auth.user)
+                    and (
+                        not auth.method.transports
+                        or transport in auth.method.transports
+                    )
                 )
 
                 if match:
                     return auth.method
 
+        default_method = self._default_auth_method.get(transport)
         auth_type = config.get_settings().get_type_by_name(
-            self._default_auth_method)
+            default_method.value)
         return auth_type()
 
     def get_sys_query(self, key):
@@ -1747,7 +1803,7 @@ class Server(ha_base.ClusterProtocol):
                 tenant_id=self._tenant_id,
                 dev_mode=self._devmode,
                 test_mode=self._testmode,
-                default_auth_method=self._default_auth_method,
+                default_auth_method=str(self._default_auth_method),
                 listen_hosts=self._listen_hosts,
                 listen_port=self._listen_port,
             ),

@@ -85,8 +85,42 @@ class ServerTlsCertMode(enum.StrEnum):
 
 class ServerAuthMethod(enum.StrEnum):
 
+    Auto = "auto"
     Trust = "Trust"
     Scram = "SCRAM"
+    JWT = "JWT"
+
+
+class ServerConnTransport(enum.StrEnum):
+
+    HTTP = "HTTP"
+    TCP = "TCP"
+
+
+class ServerAuthMethods:
+
+    def __init__(
+        self,
+        methods: Mapping[ServerConnTransport, ServerAuthMethod],
+    ) -> None:
+        self._methods = dict(methods)
+
+    def get(self, transport: ServerConnTransport) -> ServerAuthMethod:
+        return self._methods[transport]
+
+    def items(self) -> ItemsView[ServerConnTransport, ServerAuthMethod]:
+        return self._methods.items()
+
+    def __str__(self):
+        return ','.join(
+            f'{t.lower()}:{m.lower()}' for t, m in self._methods.items()
+        )
+
+
+DEFAULT_AUTH_METHODS = ServerAuthMethods({
+    ServerConnTransport.TCP: ServerAuthMethod.Scram,
+    ServerConnTransport.HTTP: ServerAuthMethod.JWT,
+})
 
 
 class BackendCapabilitySets(NamedTuple):
@@ -148,7 +182,10 @@ class ServerConfig(NamedTuple):
     tls_key_file: Optional[pathlib.Path]
     tls_cert_mode: ServerTlsCertMode
 
-    default_auth_method: ServerAuthMethod
+    jws_public_key_file: Optional[pathlib.Path]
+    jwe_private_key_file: Optional[pathlib.Path]
+
+    default_auth_method: ServerAuthMethods
     security: ServerSecurityMode
     binary_endpoint_security: ServerEndpointSecurityMode
     http_endpoint_security: ServerEndpointSecurityMode
@@ -347,6 +384,63 @@ def _status_sink_fd(fileno: int) -> Callable[[str], None]:
                 f'could not write server status to fd://{fileno!r}: {e}')
 
     return _writer
+
+
+def _validate_default_auth_method(
+    ctx: click.Context,
+    param: click.Option | click.Parameter,
+    value: Any,
+) -> ServerAuthMethods | None:
+    if value is None:
+        return None
+
+    methods = dict(DEFAULT_AUTH_METHODS.items())
+
+    names = {v.lower(): v for v in ServerAuthMethod.__members__.values()}
+    method = names.get(value.lower())
+    if method is not None:
+        # Single auth method value.
+        #
+        # HTTP does not support SCRAM, but for backward compatibility
+        # if SCRAM is passed explicitly, default HTTP to JWT.
+        if method in {ServerAuthMethod.Auto, ServerAuthMethod.Scram}:
+            pass
+        else:
+            for m in methods:
+                methods[m] = method
+    elif "," not in value and ":" not in value:
+        raise click.BadParameter(
+            f"invalid authentication method: {value}, "
+            f"supported values are: {', '.join(names)})"
+        )
+    else:
+        # Per-transport configuration.
+        transport_specs = value.split(",")
+        transport_names = {
+            v.lower(): v
+            for v in ServerConnTransport.__members__.values()
+        }
+        for transport_spec in transport_specs:
+            transport_spec = transport_spec.strip()
+            transport_name, _, method_name = transport_spec.partition(':')
+            if not method_name:
+                raise click.BadParameter(
+                    "format is <transport>:<method>[,...]")
+            transport = transport_names.get(transport_name.lower())
+            if not transport:
+                raise click.BadParameter(
+                    f"invalid connection transport: {transport_name}, "
+                    f"supported values are: {', '.join(transport_names)})"
+                )
+            method = names.get(method_name)
+            if not method:
+                raise click.BadParameter(
+                    f"invalid authentication method: {method_name}, "
+                    f"supported values are: {', '.join(names)})"
+                )
+            methods[transport] = method
+
+    return ServerAuthMethods(methods)
 
 
 _server_options = [
@@ -595,15 +689,29 @@ _server_options = [
         ),
     ),
     click.option(
+        '--jws-public-key-file',
+        type=PathPath(),
+        envvar="EDGEDB_SERVER_JWS_PUBLIC_KEY_FILE",
+        hidden=True,
+        help='Specifies a path to a file containing a public key in PEM '
+             'format used to verify JWT signatures.'),
+    click.option(
+        '--jwe-private-key-file',
+        type=PathPath(),
+        envvar="EDGEDB_SERVER_JWE_PRIVATE_KEY_FILE",
+        hidden=True,
+        help='Specifies a path to a file containing a private key in PEM '
+             'format used to decrypt JWE tokens.'),
+    click.option(
         "--default-auth-method",
         envvar="EDGEDB_SERVER_DEFAULT_AUTH_METHOD",
-        type=click.Choice(
-            list(ServerAuthMethod.__members__.values()),
-            case_sensitive=True,
-        ),
+        callback=_validate_default_auth_method,
+        type=str,
         help=(
             "The default authentication method to use when none is "
-            "explicitly configured. Defaults to 'SCRAM'."
+            "explicitly configured. Defaults to 'auto', which means "
+            "the SCRAM authentication method for TCP connections and "
+            "the JWT authentication method for HTTP-tunneled connections."
         ),
     ),
     click.option(
@@ -810,11 +918,14 @@ def parse_args(**kwargs: Any):
         if kwargs['http_endpoint_security'] == 'default':
             kwargs['http_endpoint_security'] = 'optional'
         if not kwargs['default_auth_method']:
-            kwargs['default_auth_method'] = 'Trust'
+            kwargs['default_auth_method'] = {
+                t: ServerAuthMethod.Trust
+                for t in ServerConnTransport.__members__.values()
+            }
         if kwargs['tls_cert_mode'] == 'default':
             kwargs['tls_cert_mode'] = 'generate_self_signed'
     elif not kwargs['default_auth_method']:
-        kwargs['default_auth_method'] = 'SCRAM'
+        kwargs['default_auth_method'] = DEFAULT_AUTH_METHODS
 
     if kwargs['binary_endpoint_security'] == 'default':
         kwargs['binary_endpoint_security'] = 'tls'
@@ -831,8 +942,6 @@ def parse_args(**kwargs: Any):
     kwargs['http_endpoint_security'] = ServerEndpointSecurityMode(
         kwargs['http_endpoint_security'])
     kwargs['tls_cert_mode'] = ServerTlsCertMode(kwargs['tls_cert_mode'])
-    kwargs['default_auth_method'] = ServerAuthMethod(
-        kwargs['default_auth_method'])
 
     if kwargs['compiler_pool_mode'] == 'default':
         if devmode.is_in_dev_mode():
@@ -937,6 +1046,32 @@ def parse_args(**kwargs: Any):
             f"TLS private key file \"{kwargs['tls_key_file']}\""
             " is not a regular file"
         )
+
+    if kwargs['jws_public_key_file']:
+        if not kwargs['jws_public_key_file'].exists():
+            abort(
+                f"JWS public key file \"{kwargs['jws_public_key_file']}\""
+                " does not exist"
+            )
+
+        if not kwargs['jws_public_key_file'].is_file():
+            abort(
+                f"JWT public key file \"{kwargs['jws_public_key_file']}\""
+                " is not a regular file"
+            )
+
+    if kwargs['jwe_private_key_file']:
+        if not kwargs['jwe_private_key_file'].exists():
+            abort(
+                f"JWE private key file \"{kwargs['jwe_private_key_file']}\""
+                " does not exist"
+            )
+
+        if not kwargs['jwe_private_key_file'].is_file():
+            abort(
+                f"JWE private key file \"{kwargs['jwe_private_key_file']}\""
+                " is not a regular file"
+            )
 
     if kwargs['log_level']:
         kwargs['log_level'] = kwargs['log_level'].lower()[0]
