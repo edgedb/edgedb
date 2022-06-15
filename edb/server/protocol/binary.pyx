@@ -1096,8 +1096,9 @@ cdef class EdgeConnection:
 
                     side_effects = _dbview.on_success(query_unit, new_types)
                     if side_effects:
-                        # COMMIT MIGRATION breaks the atomicity as an exception
-                        self.signal_side_effects(side_effects)
+                        raise errors.InternalServerError(
+                            "Side-effects in implicit transaction!"
+                        )
 
         except Exception as e:
             _dbview.on_error()
@@ -1109,13 +1110,11 @@ cdef class EdgeConnection:
 
         else:
             if not in_tx:
-                if _dbview.in_tx():
-                    # If COMMIT MIGRATION is not the last statement
-                    side_effects = _dbview.commit_implicit_tx(
-                        user_schema, global_schema, cached_reflection
-                    )
-                    if side_effects:
-                        self.signal_side_effects(side_effects)
+                side_effects = _dbview.commit_implicit_tx(
+                    user_schema, global_schema, cached_reflection
+                )
+                if side_effects:
+                    self.signal_side_effects(side_effects)
                 state = _dbview.serialize_state()
                 if state is not orig_state:
                     conn.last_state = state

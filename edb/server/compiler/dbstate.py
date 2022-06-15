@@ -229,12 +229,6 @@ class QueryUnit:
     tx_savepoint_rollback: bool = False
     tx_savepoint_declare: bool = False
 
-    # True if this unit is one of the *explicit* transaction control commands
-    # including `START TRANSACTION`, `COMMIT`, `ROLLBACK` and the SAVEPOINT
-    # commands, excluding migration control commands `START MIGRATION ...`,
-    # `COMMIT MIGRATION` and `ABORT MIGRATION`, even though they do control tx
-    tx_control: bool = False
-
     # For SAVEPOINT commands, the name and sp_id
     sp_name: Optional[str] = None
     sp_id: Optional[str] = None
@@ -298,6 +292,16 @@ class QueryUnit:
     def has_ddl(self) -> bool:
         return bool(self.capabilities & enums.Capability.DDL)
 
+    @property
+    def tx_control(self) -> bool:
+        return (
+            bool(self.tx_id)
+            or self.tx_rollback
+            or self.tx_commit
+            or self.tx_savepoint_declare
+            or self.tx_savepoint_rollback
+        )
+
 
 @dataclasses.dataclass
 class QueryUnitGroup:
@@ -310,9 +314,8 @@ class QueryUnitGroup:
     # True if it is safe to cache this unit.
     cacheable: bool = True
 
-    # True if any query unit has explicit transaction control commands, like
-    # COMMIT, ROLLBACK, START TRANSACTION or SAVEPOINT-related commands,
-    # **excluding** migration control commands.
+    # True if any query unit has transaction control commands, like COMMIT,
+    # ROLLBACK, START TRANSACTION or SAVEPOINT-related commands
     tx_control: bool = False
 
     # Cardinality of the result set.  Set to NO_RESULT if the
@@ -487,6 +490,14 @@ class Transaction:
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
+        return self._declare_savepoint(name)
+
+    def start_migration(self) -> str:
+        name = str(uuid.uuid4())
+        self._declare_savepoint(name)
+        return name
+
+    def _declare_savepoint(self, name: str):
         sp_id = self._constate._new_txid()
         sp_state = self._current._replace(id=sp_id, name=name)
         self._savepoints[sp_id] = sp_state
@@ -498,6 +509,12 @@ class Transaction:
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
+        return self._rollback_to_savepoint(name)
+
+    def abort_migration(self, name: str):
+        self._rollback_to_savepoint(name)
+
+    def _rollback_to_savepoint(self, name) -> TransactionState:
         sp_ids_to_erase = []
         for sp in reversed(self._savepoints.values()):
             if sp.name == name:
@@ -518,6 +535,12 @@ class Transaction:
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
+        self._release_savepoint(name)
+
+    def commit_migration(self, name: str):
+        self._release_savepoint(name)
+
+    def _release_savepoint(self, name: str):
         sp_ids_to_erase = []
         for sp in reversed(self._savepoints.values()):
             sp_ids_to_erase.append(sp.id)

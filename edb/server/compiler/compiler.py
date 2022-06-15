@@ -995,6 +995,7 @@ class Compiler:
         self,
         ctx: CompileContext,
         ql: qlast.MigrationCommand,
+        in_script: bool,
     ):
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema(self._std_schema)
@@ -1007,14 +1008,28 @@ class Compiler:
         elif isinstance(ql, qlast.StartMigration):
             self._assert_not_in_migration_block(ctx, ql)
 
-            if current_tx.is_implicit():
+            if current_tx.is_implicit() and not in_script:
                 savepoint_name = None
                 tx_cmd = qlast.StartTransaction()
+                tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+                query = dbstate.MigrationControlQuery(
+                    sql=tx_query.sql,
+                    action=dbstate.MigrationAction.START,
+                    tx_action=tx_query.action,
+                    cacheable=False,
+                    modaliases=None,
+                    single_unit=tx_query.single_unit,
+                )
             else:
-                savepoint_name = str(uuid.uuid4())
-                tx_cmd = qlast.DeclareSavepoint(name=savepoint_name)
+                savepoint_name = current_tx.start_migration()
+                query = dbstate.MigrationControlQuery(
+                    sql=(b'SELECT LIMIT 0',),
+                    action=dbstate.MigrationAction.START,
+                    tx_action=None,
+                    cacheable=False,
+                    modaliases=None,
+                )
 
-            tx_query = self._compile_ql_transaction(ctx, tx_cmd)
             assert self._std_schema is not None
             base_schema = s_schema.ChainedSchema(
                 self._std_schema,
@@ -1041,15 +1056,6 @@ class Compiler:
                     accepted_cmds=tuple(),
                     last_proposed=None,
                 ),
-            )
-
-            query = dbstate.MigrationControlQuery(
-                sql=tx_query.sql,
-                action=dbstate.MigrationAction.START,
-                tx_action=tx_query.action,
-                cacheable=False,
-                modaliases=None,
-                single_unit=tx_query.single_unit,
             )
 
         elif isinstance(ql, qlast.PopulateMigration):
@@ -1352,18 +1358,20 @@ class Compiler:
             )
 
             if mstate.initial_savepoint:
-                savepoint_name = str(uuid.uuid4())
-                tx_cmd = qlast.DeclareSavepoint(name=savepoint_name)
+                current_tx.commit_migration(mstate.initial_savepoint)
+                sql = ddl_query.sql
+                tx_action = None
             else:
                 tx_cmd = qlast.CommitTransaction()
-
-            tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+                tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+                sql = ddl_query.sql + tx_query.sql
+                tx_action = tx_query.action
 
             query = dbstate.MigrationControlQuery(
-                sql=ddl_query.sql + tx_query.sql,
+                sql=sql,
                 ddl_stmt_id=ddl_query.ddl_stmt_id,
                 action=dbstate.MigrationAction.COMMIT,
-                tx_action=tx_query.action,
+                tx_action=tx_action,
                 cacheable=False,
                 modaliases=None,
                 single_unit=True,
@@ -1375,13 +1383,24 @@ class Compiler:
             mstate = self._assert_in_migration_block(ctx, ql)
 
             if mstate.initial_savepoint:
-                savepoint_name = str(uuid.uuid4())
-                tx_cmd = qlast.RollbackToSavepoint(name=savepoint_name)
+                current_tx.abort_migration(mstate.initial_savepoint)
+                sql = (b'SELECT LIMIT 0',)
+                tx_action = None
             else:
                 tx_cmd = qlast.RollbackTransaction()
+                tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+                sql = tx_query.sql
+                tx_action = tx_query.action
 
             current_tx.update_migration_state(None)
-            query = self._compile_ql_transaction(ctx, tx_cmd)
+            query = dbstate.MigrationControlQuery(
+                sql=sql,
+                action=dbstate.MigrationAction.ABORT,
+                tx_action=tx_action,
+                cacheable=False,
+                modaliases=None,
+                single_unit=True,
+            )
 
         elif isinstance(ql, qlast.DropMigration):
             self._assert_not_in_migration_block(ctx, ql)
@@ -1620,7 +1639,9 @@ class Compiler:
         script_info: Optional[irast.ScriptInfo] = None,
     ) -> Tuple[dbstate.BaseQuery, enums.Capability]:
         if isinstance(ql, qlast.MigrationCommand):
-            query = self._compile_ql_migration(ctx, ql)
+            query = self._compile_ql_migration(
+                ctx, ql, in_script=script_info is not None
+            )
             if isinstance(
                 query,
                 (dbstate.MigrationControlQuery, dbstate.DDLQuery),
@@ -1846,7 +1867,6 @@ class Compiler:
                     unit.tx_savepoint_declare = True
                     unit.sp_name = comp.sp_name
                     unit.sp_id = comp.sp_id
-                unit.tx_control = True
 
             elif isinstance(comp, dbstate.MigrationControlQuery):
                 unit.sql = comp.sql
@@ -1870,9 +1890,6 @@ class Compiler:
                     unit.tx_commit = True
                 elif comp.tx_action == dbstate.TxAction.ROLLBACK:
                     unit.tx_rollback = True
-                elif comp.tx_action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
-                    raise AssertionError('unexpected ROLLBACK_TO_SAVEPOINT')
-                    # unit.tx_savepoint_rollback = True
 
             elif isinstance(comp, dbstate.SessionStateQuery):
                 unit.sql = comp.sql

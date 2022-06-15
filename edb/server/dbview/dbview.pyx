@@ -496,10 +496,6 @@ cdef class DatabaseConnectionView:
         if self._tx_error:
             self.raise_in_tx_error()
 
-        if query_unit.tx_id is not None:
-            # Only START MIGRATION TO could reach here
-            self._txid = query_unit.tx_id
-
         if not self._in_tx:
             self._start_tx()
 
