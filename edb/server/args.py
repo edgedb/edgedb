@@ -127,7 +127,6 @@ class ServerConfig(NamedTuple):
     testmode: bool
     bind_addresses: list[str]
     port: int
-    activation_socket_names: list[str]
     background: bool
     pidfile_dir: pathlib.Path
     daemon_user: str
@@ -441,17 +440,6 @@ _server_options = [
         '-P', '--port', type=PortType(), default=None,
         help='port to listen on'),
     click.option(
-        '--activation-socket-name', type=str, multiple=True,
-        help='The names of the activation sockets to listen on, specify '
-             'multiple times for several sockets.  Should match a Sockets '
-             'entry in service plist on macOS, or FileDescriptorName= in '
-             'systemd .socket unit.  If not specified, defaults to '
-             '"edgedb-server" on macOS and all sockets passed by systemd '
-             'on Linux.  When the server is started via socket activation '
-             '--bind-address, --port, and the corresponding config settings '
-             'are ignored, and the server only listens on the socket passed '
-             'by the system service manager.'),
-    click.option(
         '-b', '--background', is_flag=True, help='daemonize'),
     click.option(
         '--pidfile-dir', type=PathPath(), default='/run/edgedb/',
@@ -698,7 +686,6 @@ def compiler_options(func):
 
 def parse_args(**kwargs: Any):
     kwargs['bind_addresses'] = kwargs.pop('bind_address')
-    kwargs['activation_socket_names'] = kwargs.pop('activation_socket_name')
 
     if kwargs['echo_runtime_info']:
         warnings.warn(

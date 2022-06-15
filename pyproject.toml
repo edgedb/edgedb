@@ -18,6 +18,7 @@ ignore_missing_imports = true
 warn_redundant_casts = true
 warn_unused_configs = true
 show_column_numbers = true
+show_error_codes = true
 
 [[tool.mypy.overrides]]
 module = [

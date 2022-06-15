@@ -166,8 +166,7 @@ async def _run_server(
     new_instance: bool,
 ):
 
-    sockets = service_manager.get_activation_listen_sockets(
-        args.activation_socket_names)
+    sockets = service_manager.get_activation_listen_sockets()
 
     if sockets:
         logger.info("detected service manager socket activation")
