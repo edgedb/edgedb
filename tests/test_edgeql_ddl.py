@@ -6039,6 +6039,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 create global foo -> float64 { set default := random(); };
             """)
 
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "computed globals may not have default values",
+        ):
+            await self.con.execute("""
+                create global test {
+                    using ('abc');
+                    set default := 'def';
+                }
+            """)
+
     async def test_edgeql_ddl_global_03(self):
         await self.con.execute("""
             create global foo -> str;
