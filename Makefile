@@ -34,7 +34,7 @@ casts:
 
 build:
 	find edb -name '*.pyx' | xargs touch
-	pip install --no-build-isolation -Ue .[docs,test]
+	pip install -Ue .[docs,test]
 
 
 clean:
