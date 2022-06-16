@@ -602,12 +602,6 @@ class Compiler:
 
         current_tx = ctx.state.current_tx()
 
-        native_out_format = (
-            ctx.output_format is enums.OutputFormat.BINARY
-        )
-
-        single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
-
         schema = current_tx.get_schema(self._std_schema)
         ir = qlcompiler.compile_ast_to_ir(
             ql,
@@ -665,78 +659,69 @@ class Compiler:
                 for glob in ir.globals
             ]
 
-        if single_stmt_mode:
-            if native_out_format:
-                out_type_data, out_type_id = sertypes.TypeSerializer.describe(
-                    ir.schema, ir.stype,
-                    ir.view_shapes, ir.view_shapes_metadata,
-                    inline_typenames=ctx.inline_typenames,
-                    protocol_version=ctx.protocol_version)
-            else:
-                out_type_data, out_type_id = \
-                    sertypes.TypeSerializer.describe_json()
-
-            if ctx.protocol_version >= (0, 12):
-                in_type_data, in_type_id = \
-                    sertypes.TypeSerializer.describe_params(
-                        schema=ir.schema,
-                        params=params,
-                        protocol_version=ctx.protocol_version,
-                    )
-            else:
-                # Legacy protocol support
-                if params:
-                    pschema, params_type = s_types.Tuple.create(
-                        ir.schema,
-                        element_types=collections.OrderedDict(
-                            # keep only param_name/param_type
-                            [param[:2] for param in params]
-                        ),
-                        named=has_named_params)
-                else:
-                    pschema, params_type = s_types.Tuple.create(
-                        ir.schema,
-                        element_types={},
-                        named=has_named_params)
-
-                in_type_data, in_type_id = sertypes.TypeSerializer.describe(
-                    pschema, params_type, {}, {},
-                    protocol_version=ctx.protocol_version)
-
-            sql_hash = self._hash_sql(
-                sql_bytes,
-                mode=str(ctx.output_format).encode(),
-                intype=in_type_id.bytes,
-                outtype=out_type_id.bytes)
-
-            return dbstate.Query(
-                sql=(sql_bytes,),
-                sql_hash=sql_hash,
-                cardinality=result_cardinality,
-                globals=globals,
-                in_type_id=in_type_id.bytes,
-                in_type_data=in_type_data,
-                in_type_args=in_type_args,
-                out_type_id=out_type_id.bytes,
-                out_type_data=out_type_data,
-                cacheable=cacheable,
-                has_dml=ir.dml_exprs,
-            )
-
+        if (
+            ctx.output_format is enums.OutputFormat.NONE or
+            ctx.stmt_mode is not enums.CompileStatementMode.SINGLE
+        ):
+            out_type_id = sertypes.NULL_TYPE_ID
+            out_type_data = sertypes.NULL_TYPE_DESC
+            result_cardinality = enums.Cardinality.NO_RESULT
+        elif ctx.output_format is enums.OutputFormat.BINARY:
+            out_type_data, out_type_id = sertypes.TypeSerializer.describe(
+                ir.schema, ir.stype,
+                ir.view_shapes, ir.view_shapes_metadata,
+                inline_typenames=ctx.inline_typenames,
+                protocol_version=ctx.protocol_version)
         else:
-            return dbstate.Query(
-                sql=(sql_bytes,),
-                sql_hash=b'',
-                cardinality=enums.Cardinality.NO_RESULT,
-                globals=globals,
-                in_type_id=sertypes.NULL_TYPE_ID.bytes,
-                in_type_data=sertypes.NULL_TYPE_DESC,
-                in_type_args=in_type_args,
-                out_type_id=sertypes.NULL_TYPE_ID.bytes,
-                out_type_data=sertypes.NULL_TYPE_DESC,
-                cacheable=cacheable,
-                has_dml=ir.dml_exprs,
-            )
+            out_type_data, out_type_id = \
+                sertypes.TypeSerializer.describe_json()
+
+        if ctx.protocol_version >= (0, 12):
+            in_type_data, in_type_id = \
+                sertypes.TypeSerializer.describe_params(
+                    schema=ir.schema,
+                    params=params,
+                    protocol_version=ctx.protocol_version,
+                )
+        else:
+            # Legacy protocol support
+            if params:
+                pschema, params_type = s_types.Tuple.create(
+                    ir.schema,
+                    element_types=collections.OrderedDict(
+                        # keep only param_name/param_type
+                        [param[:2] for param in params]
+                    ),
+                    named=has_named_params)
+            else:
+                pschema, params_type = s_types.Tuple.create(
+                    ir.schema,
+                    element_types={},
+                    named=has_named_params)
+
+            in_type_data, in_type_id = sertypes.TypeSerializer.describe(
+                pschema, params_type, {}, {},
+                protocol_version=ctx.protocol_version)
+
+        sql_hash = self._hash_sql(
+            sql_bytes,
+            mode=str(ctx.output_format).encode(),
+            intype=in_type_id.bytes,
+            outtype=out_type_id.bytes)
+
+        return dbstate.Query(
+            sql=(sql_bytes,),
+            sql_hash=sql_hash,
+            cardinality=result_cardinality,
+            globals=globals,
+            in_type_id=in_type_id.bytes,
+            in_type_data=in_type_data,
+            in_type_args=in_type_args,
+            out_type_id=out_type_id.bytes,
+            out_type_data=out_type_data,
+            cacheable=cacheable,
+            has_dml=ir.dml_exprs,
+        )
 
     def _extract_params(
         self,
@@ -1756,9 +1741,8 @@ class Compiler:
 
         rv = dbstate.QueryUnitGroup()
 
-        # XXX: only when not in single_stmt_mode?
         script_info = None
-        if not single_stmt_mode:
+        if statements_len > 1:
             script_info = qlcompiler.preprocess_script(
                 statements,
                 schema=ctx.state.current_tx().get_schema(self._std_schema),
@@ -1806,18 +1790,16 @@ class Compiler:
                 unit.globals = comp.globals
                 unit.in_type_args = comp.in_type_args
 
-                # XXX: ...
-                if single_stmt_mode:
-                    unit.sql_hash = comp.sql_hash
+                unit.sql_hash = comp.sql_hash
 
-                    unit.out_type_data = comp.out_type_data
-                    unit.out_type_id = comp.out_type_id
-                    unit.in_type_data = comp.in_type_data
-                    unit.in_type_id = comp.in_type_id
+                unit.out_type_data = comp.out_type_data
+                unit.out_type_id = comp.out_type_id
+                unit.in_type_data = comp.in_type_data
+                unit.in_type_id = comp.in_type_id
 
-                    unit.cacheable = comp.cacheable
+                unit.cacheable = comp.cacheable
 
-                    unit.cardinality = comp.cardinality
+                unit.cardinality = comp.cardinality
 
             elif isinstance(comp, dbstate.SimpleQuery):
                 assert not single_stmt_mode
