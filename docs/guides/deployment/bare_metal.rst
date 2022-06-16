@@ -24,14 +24,18 @@ Import the EdgeDB packaging key.
 
 .. code-block:: bash
 
-   $ curl https://packages.edgedb.com/keys/edgedb.asc \
-       | sudo apt-key add -
+   $ sudo mkdir -p /usr/local/share/keyrings && \
+       sudo curl --proto '=https' --tlsv1.2 -sSf \
+       -o /usr/local/share/keyrings/edgedb-keyring.gpg \
+       https://packages.edgedb.com/keys/edgedb-keyring.gpg
 
 Add the EdgeDB package repository.
 
 .. code-block:: bash
 
-   $ echo deb https://packages.edgedb.com/apt $(lsb_release -cs) main \
+   $ echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg] \
+       https://packages.edgedb.com/apt \
+       $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) main \
        | sudo tee /etc/apt/sources.list.d/edgedb.list
 
 Install the EdgeDB package.
@@ -47,8 +51,9 @@ Add the EdgeDB package repository.
 
 .. code-block:: bash
 
-   $ sudo curl -fL https://packages.edgedb.com/rpm/edgedb-rhel.repo \
-       > /etc/yum.repos.d/edgedb.repo
+   $ sudo curl --proto '=https' --tlsv1.2 -sSfL \
+      https://packages.edgedb.com/rpm/edgedb-rhel.repo \
+      > /etc/yum.repos.d/edgedb.repo
 
 Install the EdgeDB package.
 
