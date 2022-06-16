@@ -266,6 +266,7 @@ def _make_group_binding(
         preserve_shape=True, ctx=ctx)
 
     binding_set = setgen.class_set(binding_type, ctx=ctx)
+    binding_set.is_visible_binding_ref = True
 
     name = s_name.UnqualName(alias)
     ctx.aliased_views[name] = binding_type

@@ -205,7 +205,6 @@ class BasePointerRef(ImmutableBase):
     # The defaults set here are mostly to try to reduce debug spew output.
     name: sn.QualName
     shortname: sn.QualName
-    path_id_name: typing.Optional[sn.QualName]
     std_parent_name: typing.Optional[sn.QualName] = None
     out_source: TypeRef
     out_target: TypeRef
@@ -223,6 +222,7 @@ class BasePointerRef(ImmutableBase):
     out_cardinality: qltypes.Cardinality
     # Inbound cardinality of the pointer.
     in_cardinality: qltypes.Cardinality = qltypes.Cardinality.MANY
+    defined_here: bool = False
 
     def dir_target(self, direction: s_pointers.PointerDirection) -> TypeRef:
         if direction is s_pointers.PointerDirection.Outbound:

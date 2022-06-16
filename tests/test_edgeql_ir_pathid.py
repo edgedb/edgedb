@@ -25,8 +25,6 @@ from edb.ir import typeutils as irtyputils
 from edb.schema import name as s_name
 from edb.schema import pointers as s_pointers
 
-from edb.tools import test
-
 
 class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
     """Unit tests for path id logic."""
@@ -207,7 +205,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
         ptr_1b = irtyputils.replace_pathid_prefix(ptr_1, base_1, base_2)
 
-        self.assertEqual(ptr_2, ptr_1b)
+        self.assertEqual(repr(ptr_2), repr(ptr_1b))
 
     def test_edgeql_ir_pathid_replace_02(self):
         base_1 = self.mk_path('Card', ns={'ns1'})
@@ -218,7 +216,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
         ptr_1b = irtyputils.replace_pathid_prefix(ptr_1, base_1, base_2)
 
-        self.assertEqual(ptr_2, ptr_1b)
+        self.assertEqual(repr(ptr_2), repr(ptr_1b))
 
     def test_edgeql_ir_pathid_replace_03a(self):
         base_1 = self.mk_path('User', 'deck')
@@ -237,7 +235,6 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
         self.assertEqual(repr(ptr_2), repr(ptr_1b))
 
-    @test.xfail("We don't handle linkprops when doing type remapping")
     def test_edgeql_ir_pathid_replace_03b(self):
         base_1 = self.mk_path('User', 'deck')
         base_2 = self.mk_path('Bot', 'deck')
@@ -248,4 +245,4 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         ptr_1b = irtyputils.replace_pathid_prefix(
             ptr_1, base_1, base_2, permissive_ptr_path=True)
 
-        self.assertEqual(ptr_2, ptr_1b)
+        self.assertEqual(repr(ptr_2), repr(ptr_1b))

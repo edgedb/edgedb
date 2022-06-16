@@ -674,10 +674,6 @@ class CreateInheritingObject(
             schema, ancestors)
         self.set_attribute_value('ancestors', ancestors_coll.as_shell(schema))
 
-        if context.preserve_path_id and len(bases) == 1:
-            base_name = bases[0].get_name(schema)
-            self.set_attribute_value('path_id_name', base_name)
-
         if context.mark_derived:
             self.set_attribute_value('is_derived', True)
 

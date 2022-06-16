@@ -440,6 +440,15 @@ class Pointer(referencing.ReferencedInheritingObject,
         aux_cmd_data=True,
     )
 
+    # Is this pointer a "definition site" of some kind or just a
+    # trivial inheritor. Used to determine whether to use this pointer
+    # or a parent when computing path ids.
+    defined_here = so.SchemaField(
+        bool,
+        inheritable=False,
+        ephemeral=True,
+        default=False)
+
     # Computable pointers have this set to an expression
     # defining them.
     expr = so.SchemaField(

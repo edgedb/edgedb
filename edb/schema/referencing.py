@@ -272,7 +272,6 @@ class ReferencedInheritingObject(
         dctx: Optional[sd.CommandContext] = None,
         derived_name_base: Optional[sn.Name] = None,
         inheritance_merge: bool = True,
-        preserve_path_id: Optional[bool] = None,
         inheritance_refdicts: Optional[AbstractSet[str]] = None,
         transient: bool = False,
         name: Optional[sn.QualName] = None,
@@ -365,9 +364,6 @@ class ReferencedInheritingObject(
 
             if transient:
                 context.current().transient_derivation = True
-
-            if preserve_path_id:
-                context.current().preserve_path_id = True
 
             parent_cmd.add(cmd)
             schema = delta.apply(schema, context)

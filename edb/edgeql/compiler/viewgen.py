@@ -964,14 +964,9 @@ def _normalize_view_ptr_expr(
         if irexpr:
             setgen.maybe_materialize(ptrcls, irexpr, ctx=ctx)
 
-    if qlexpr is None:
-        # This is not a computable, just a pointer
-        # to a nested shape.  Have it reuse the original
-        # pointer name so that in `Foo.ptr.name` and
-        # `Foo { ptr: {name}}` are the same path.
-        path_id_name = base_ptrcls.get_name(ctx.env.schema)
+    if qlexpr is not None:
         ctx.env.schema = ptrcls.set_field_value(
-            ctx.env.schema, 'path_id_name', path_id_name
+            ctx.env.schema, 'defined_here', True
         )
 
     if qlexpr is not None:
@@ -1104,8 +1099,6 @@ def derive_ptrcls(
 
     if view_rptr.ptrcls is None:
         if view_rptr.base_ptrcls is None:
-            transparent = False
-
             if target_scls.is_object_type():
                 base = ctx.env.get_track_schema_object(
                     sn.QualName('std', 'link'), expr=None)
@@ -1123,32 +1116,21 @@ def derive_ptrcls(
             ),
             ctx=ctx)
 
-        attrs = {}
-        if transparent and not view_rptr.ptrcls_is_alias:
-            attrs['path_id_name'] = view_rptr.base_ptrcls.get_name(
-                ctx.env.schema)
-
         is_inbound_alias = (
             view_rptr.rptr_dir is s_pointers.PointerDirection.Inbound)
         view_rptr.ptrcls = schemactx.derive_ptr(
             view_rptr.base_ptrcls, view_rptr.source, target_scls,
             derived_name=derived_name,
             derive_backlink=is_inbound_alias,
-            attrs=attrs,
             ctx=ctx
         )
 
     else:
-        attrs = {}
-        if transparent and not view_rptr.ptrcls_is_alias:
-            attrs['path_id_name'] = view_rptr.ptrcls.get_name(ctx.env.schema)
-
         view_rptr.ptrcls = schemactx.derive_ptr(
             view_rptr.ptrcls, view_rptr.source, target_scls,
             derived_name_quals=(
                 str(view_rptr.source.get_name(ctx.env.schema)),
             ),
-            attrs=attrs,
             ctx=ctx
         )
 
@@ -1279,6 +1261,13 @@ def _inline_type_computable(
     view_shape = ctx.env.view_shapes[stype]
     view_shape_ptrs = {p for p, _ in view_shape}
     if ptr not in view_shape_ptrs:
+        if ptr not in ctx.env.pointer_specified_info:
+            ctx.env.pointer_specified_info[ptr] = (None, None, None)
+
+        ctx.env.schema = ptr.set_field_value(
+            ctx.env.schema, 'defined_here', True
+        )
+
         view_shape.insert(0, (ptr, qlast.ShapeOp.ASSIGN))
         shape_ptrs.insert(0, (ir_set, ptr, qlast.ShapeOp.ASSIGN, ptr_set))
 

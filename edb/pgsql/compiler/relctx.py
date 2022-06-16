@@ -111,7 +111,7 @@ def _pull_path_namespace(
 
             rvar = pathctx.maybe_get_path_rvar(
                 target, path_id, aspect=aspect, flavor=flavor, env=ctx.env)
-            if rvar is None:
+            if rvar is None or flavor == 'packed':
                 pathctx.put_path_rvar(
                     target, path_id, source, aspect=aspect, flavor=flavor,
                     env=ctx.env)
@@ -952,7 +952,7 @@ def unpack_var(
                 # Construct a path_id for the element
                 el_name = sn.QualName('__tuple__', st.element_name or str(i))
                 el_ref = irast.TupleIndirectionPointerRef(
-                    name=el_name, shortname=el_name, path_id_name=el_name,
+                    name=el_name, shortname=el_name,
                     out_source=path_id.target,
                     out_target=st,
                     out_cardinality=qltypes.Cardinality.ONE,
@@ -1020,17 +1020,7 @@ def unpack_var(
                 src_path, el_ptrref = el.path_id.src_path(), el.path_id.rptr()
                 assert src_path and el_ptrref
 
-                # We want to graft the ptrref for this element onto
-                # the main path_id. To get the right one (that will
-                # match code that wants to consume this), we need to
-                # find the ptrref that matches the path_id view type.
-                ptrref = irtyputils.maybe_find_actual_ptrref(
-                    path_id.target, el_ptrref, material=False)
-                if not ptrref:
-                    # A missing ptrref should mean that this computable isn't
-                    # actually used, so we don't need to worry too hard.
-                    ptrref = el_ptrref
-                el_id = path_id.ptr_path().extend(ptrref=ptrref)
+                el_id = path_id.ptr_path().extend(ptrref=el_ptrref)
 
                 assert el.rptr
                 card = el.rptr.ptrref.dir_cardinality(el.rptr.direction)
