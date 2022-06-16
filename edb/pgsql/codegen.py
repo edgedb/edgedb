@@ -70,10 +70,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     @classmethod
     def to_source(
             cls, node, indent_with=' ' * 4, add_line_information=False,
+            reordered=False,
             pretty=True):
         try:
             return super().to_source(
                 node, indent_with=indent_with,
+                reordered=reordered,
                 add_line_information=add_line_information, pretty=pretty)
         except SQLSourceGeneratorError as e:
             ctx = SQLSourceGeneratorContext(node)
