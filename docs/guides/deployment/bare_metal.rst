@@ -80,6 +80,38 @@ via the environment. The variables are largely the same as :ref:`those
 documented for Docker <ref_guides_deployment_docker_customization>`.
 
 
+Set a Password
+==============
+There is no default password. Set a password by connecting from localhost.
+
+.. code-block:: bash
+
+   $ echo -n "> " && read -s PASSWORD
+   $ sudo edgedb --port 5656 --tls-security insecure --admin query \
+      "ALTER ROLE edgedb SET password := '$PASSWORD'"
+
+The server listens on localhost by default. Changing this looks like this.
+
+.. code-block:: bash
+
+   $ edgedb --port 5656 --tls-security insecure --password query \
+      "CONFIGURE INSTANCE SET listen_addresses := {'0.0.0.0'};"
+
+The listen port can be changed from the default ``5656`` if your deployment
+scenario requires a different value.
+
+.. code-block:: bash
+
+   $ edgedb --port 5656 --tls-security insecure --password query \
+      "CONFIGURE INSTANCE SET listen_port := 1234;"
+
+You may need to restart the server after changing the listen port or addresses.
+
+.. code-block:: bash
+
+   $ sudo systemctl restart edgedb-server-1
+
+
 Upgrading EdgeDB
 ================
 
