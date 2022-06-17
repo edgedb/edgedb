@@ -277,9 +277,9 @@ transactions are started beforehand. Therefore, EdgeQL scripts have limitations
 on the EdgeQL commands they could contain:
 
 * Transaction control commands are not allowed, like ``start transaction``,
-  ``commit``, ``rollback to savepoint`` or ``commit migration``.
-* Non-transactional commands are not allowed, like ``create database``.
-* ``configure instance`` command is not allowed.
+  ``commit``, ``declare savepoint``, or ``rollback to savepoint``.
+* Non-transactional commands, like ``create database`` or
+  ``configure instance`` are not allowed.
 
 
 .. _ref_protocol_dump_flow:

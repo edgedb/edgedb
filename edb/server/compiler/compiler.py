@@ -684,7 +684,7 @@ class Compiler:
                     protocol_version=ctx.protocol_version,
                 )
         else:
-            # Legacy protocol support
+            # Legacy protocol support - for restoring pre-0.12 dumps
             if params:
                 pschema, params_type = s_types.Tuple.create(
                     ir.schema,
