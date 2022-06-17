@@ -3,6 +3,10 @@
 Group
 =====
 
+.. note::
+
+  The ``group`` statement is only available in EdgeDB 2.0 or later.
+
 EdgeQL supports a top-level ``group`` statement. These are used to partition
 sets into subsets based on some parameters. These subsets then can be
 additionally aggregated to provide some analytics.
