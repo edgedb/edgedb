@@ -1403,6 +1403,30 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT datetime_get(
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'millennium');
+            ''',
+            {3},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT datetime_get(
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'century');
+            ''',
+            {21},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT datetime_get(
+                    <datetime>'2018-05-07T15:01:22.306916-05', 'decade');
+            ''',
+            {201},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT datetime_get(
                     <datetime>'2018-05-07T15:01:22.306916-05', 'year');
             ''',
             {2018},
@@ -1532,6 +1556,255 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 r'''
                 SELECT <str>datetime_get(
                     <datetime>'2018-05-07T15:01:22.306916-05', 'epoch');
+                ''')
+
+    async def test_edgeql_functions_duration_get_01(self):
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <duration>'15:01:22.306916', 'hour');
+            ''',
+            {15},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <duration>'15:01:22.306916', 'minutes');
+            ''',
+            {1},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <duration>'15:01:22.306916', 'seconds');
+            ''',
+            {22.306916},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <duration>'15:01:22.306916', 'milliseconds');
+            ''',
+            {22306.916},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <duration>'15:01:22.306916', 'microseconds');
+            ''',
+            {22306916},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <duration>'15:01:22.306916', 'totalseconds');
+            ''',
+            {54082.306916},
+        )
+
+    async def test_edgeql_functions_duration_get_02(self):
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::relative_duration>'123 months', 'year');
+            ''',
+            {10},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::relative_duration>'123 months', 'month');
+            ''',
+            {3},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::relative_duration>'45 days', 'day');
+            ''',
+            {45},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::relative_duration>'15:01:22.306916', 'hour');
+            ''',
+            {15},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::relative_duration>'15:01:22.306916', 'minutes');
+            ''',
+            {1},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::relative_duration>'15:01:22.306916', 'seconds');
+            ''',
+            {22.306916},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::relative_duration>'15:01:22.306916', 'milliseconds'
+                );
+            ''',
+            {22306.916},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::relative_duration>'15:01:22.306916', 'microseconds'
+                );
+            ''',
+            {22306916},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::relative_duration>'15:01:22.306916', 'totalseconds'
+                );
+            ''',
+            {54082.306916},
+        )
+
+    async def test_edgeql_functions_duration_get_03(self):
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::date_duration>'123 months', 'year');
+            ''',
+            {10},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::date_duration>'123 months', 'month');
+            ''',
+            {3},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::date_duration>'45 days', 'day');
+            ''',
+            {45},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::date_duration>'13 months 12 days', 'day');
+            ''',
+            {12},
+        )
+
+        await self.assert_query_result(
+            r'''
+                select duration_get(
+                    <cal::date_duration>'2 days', 'totalseconds'
+                );
+            ''',
+            {2 * 24 * 3600},
+        )
+
+    async def test_edgeql_functions_duration_get_04(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::duration_get'):
+            await self.con.execute(
+                r'''
+                select duration_get(
+                    <duration>'15:01:22.306916', 'days');
+                ''')
+
+    async def test_edgeql_functions_duration_get_05(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::duration_get'):
+            await self.con.execute(
+                r'''
+                select duration_get(
+                    <duration>'15:01:22.306916', 'epoch');
+                ''')
+
+    async def test_edgeql_functions_duration_get_06(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::duration_get'):
+            await self.con.execute(
+                r'''
+                select duration_get(
+                    <duration>'15:01:22.306916', 'epochseconds');
+                ''')
+
+    async def test_edgeql_functions_duration_get_07(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::duration_get'):
+            await self.con.execute(
+                r'''
+                select duration_get(
+                    <cal::relative_duration>'15:01:22.306916', 'epoch'
+                );
+                ''')
+
+    async def test_edgeql_functions_duration_get_08(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::duration_get'):
+            await self.con.execute(
+                r'''
+                select duration_get(
+                    <cal::relative_duration>'15:01:22.306916', 'epochseconds'
+                );
+                ''')
+
+    async def test_edgeql_functions_duration_get_09(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::duration_get'):
+            await self.con.execute(
+                r'''
+                select duration_get(
+                    <cal::date_duration>'1 day', 'hours');
+                ''')
+
+    async def test_edgeql_functions_duration_get_10(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::duration_get'):
+            await self.con.execute(
+                r'''
+                select duration_get(
+                    <cal::date_duration>'1 day', 'epoch');
+                ''')
+
+    async def test_edgeql_functions_duration_get_11(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::duration_get'):
+            await self.con.execute(
+                r'''
+                select duration_get(
+                    <cal::date_duration>'1 day', 'epochseconds');
                 ''')
 
     async def test_edgeql_functions_date_get_01(self):
@@ -1744,6 +2017,203 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 r'''
                 SELECT <str>duration_truncate(
                     <duration>'73 hours', 'day');
+                ''')
+
+    async def test_edgeql_functions_duration_trunc_03(self):
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                <cal::relative_duration>'P1312Y',
+                'centuries'
+            );
+            ''',
+            {'P1300Y'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                <cal::relative_duration>'P1312Y',
+                'decades'
+            );
+            ''',
+            {'P1310Y'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                cal::duration_normalize_days(
+                    cal::duration_normalize_hours(
+                        <cal::relative_duration>'PT15000H',
+                    )
+                ),
+                'years'
+            );
+            ''',
+            {'P1Y'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                cal::duration_normalize_days(
+                    cal::duration_normalize_hours(
+                        <cal::relative_duration>'PT15000H'
+                    )
+                ),
+                'quarters'
+            );
+            ''',
+            {'P1Y6M'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                cal::duration_normalize_days(
+                    cal::duration_normalize_hours(
+                        <cal::relative_duration>'PT15000H'
+                    )
+                ),
+                'months'
+            );
+            ''',
+            {'P1Y8M'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                cal::duration_normalize_days(
+                    cal::duration_normalize_hours(
+                        <cal::relative_duration>'PT15000H'
+                    )
+                ),
+                'days'
+            );
+            ''',
+            {'P1Y8M25D'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                <cal::relative_duration>'15:01:22.306916', 'hours');
+            ''',
+            {'PT15H'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                <cal::relative_duration>'15:01:22.306916', 'minutes');
+            ''',
+            {'PT15H1M'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                <cal::relative_duration>'15:01:22.306916', 'seconds');
+            ''',
+            {'PT15H1M22S'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                <cal::relative_duration>'15:01:22.306916', 'milliseconds');
+            ''',
+            {'PT15H1M22.306S'},
+        )
+
+        # Currently no-op but may be useful if precision is improved
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                <cal::relative_duration>'15:01:22.306916', 'microseconds');
+            ''',
+            {'PT15H1M22.306916S'},
+        )
+
+    async def test_edgeql_functions_duration_trunc_04(self):
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                <cal::date_duration>'P1312Y',
+                'centuries'
+            );
+            ''',
+            {'P1300Y'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                <cal::date_duration>'P1312Y',
+                'decades'
+            );
+            ''',
+            {'P1310Y'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                cal::duration_normalize_days(
+                    <cal::date_duration>'P1312D'
+                ),
+                'years'
+            );
+            ''',
+            {'P3Y'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                cal::duration_normalize_days(
+                    <cal::date_duration>'P1312D'
+                ),
+                'quarters'
+            );
+            ''',
+            {'P3Y6M'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                cal::duration_normalize_days(
+                    <cal::date_duration>'P1312D'
+                ),
+                'months'
+            );
+            ''',
+            {'P3Y7M'},
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT <str>duration_truncate(
+                cal::duration_normalize_days(
+                    <cal::date_duration>'P1312D'
+                ),
+                'days'
+            );
+            ''',
+            {'P3Y7M22D'},
+        )
+
+    async def test_edgeql_functions_duration_trunc_05(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                'invalid unit for std::duration_truncate'):
+            await self.con.execute(
+                r'''
+                SELECT <str>duration_truncate(
+                    <cal::date_duration>'42 days', 'hours');
                 ''')
 
     async def test_edgeql_functions_to_datetime_01(self):
@@ -2140,6 +2610,46 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''SELECT duration_to_seconds(
                 <duration>'1801439850 seconds 123456 microseconds');''',
             [1801439850.123456],
+        )
+
+    async def test_edgeql_functions_duration_normalize_01(self):
+        # 350 days = 350 * 24 * 3600 seconds = 30240000 seconds
+        await self.assert_query_result(
+            r'''select <cal::relative_duration>'30240000 seconds';''',
+            ['PT8400H'],
+            [edgedb.RelativeDuration(microseconds=30_240_000_000_000)],
+        )
+
+        await self.assert_query_result(
+            r'''select cal::duration_normalize_hours(
+                <cal::relative_duration>'30240000 seconds');''',
+            ['P350D'],
+            [edgedb.RelativeDuration(days=350)],
+        )
+
+        await self.assert_query_result(
+            r'''select cal::duration_normalize_days(
+                <cal::relative_duration>'350 days');''',
+            ['P11M20D'],
+            [edgedb.RelativeDuration(months=11, days=20)],
+        )
+
+        await self.assert_query_result(
+            r'''select cal::duration_normalize_days(
+                    cal::duration_normalize_hours(
+                        <cal::relative_duration>'30240000 seconds'));''',
+            ['P11M20D'],
+            [edgedb.RelativeDuration(months=11, days=20)],
+        )
+
+    async def test_edgeql_functions_duration_normalize_02(self):
+        # duration_normalize_days has an overloaded version specifically for
+        # date_duration, so that the return type is also date_duration and
+        # doesn't require a cast.
+        await self.assert_query_result(
+            r'''select <str>cal::duration_normalize_days(
+                <cal::date_duration>'350 days');''',
+            ['P11M20D'],
         )
 
     async def test_edgeql_functions_to_str_01(self):

@@ -63,7 +63,7 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
     USING SQL $$
     SELECT CASE WHEN "el" IN (
             'century', 'day', 'decade', 'dow', 'doy', 'hour',
-            'isodow', 'isoyear', 'microseconds', 'millenium',
+            'isodow', 'isoyear', 'microseconds', 'millennium',
             'milliseconds', 'minutes', 'month', 'quarter',
             'seconds', 'week', 'year')
         THEN date_part("el", "dt")
@@ -80,7 +80,7 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
                 detail => (
                     '{"hint":"Supported units: epochseconds, century, day, '
                     || 'decade, dow, doy, hour, isodow, isoyear, '
-                    || 'microseconds, millenium, milliseconds, minutes, '
+                    || 'microseconds, millennium, milliseconds, minutes, '
                     || 'month, quarter, seconds, week, year."}'
                 )
             )
@@ -116,6 +116,37 @@ std::datetime_truncate(dt: std::datetime, unit: std::str) -> std::datetime
                     '{"hint":"Supported units: microseconds, milliseconds, '
                     || 'seconds, minutes, hours, days, weeks, months, '
                     || 'quarters, years, decades, centuries."}'
+                )
+            )
+        END
+    $$;
+};
+
+
+CREATE FUNCTION
+std::duration_get(dt: std::duration, el: std::str) -> std::float64
+{
+    CREATE ANNOTATION std::description :=
+        'Extract a specific element of input duration by name.';
+    SET volatility := 'Stable';
+    USING SQL $$
+    SELECT CASE WHEN "el" IN (
+            'hour', 'minutes', 'seconds', 'milliseconds', 'microseconds')
+        THEN date_part("el", "dt")
+        WHEN "el" = 'totalseconds'
+        THEN date_part('epoch', "dt")
+        ELSE
+            edgedb.raise(
+                NULL::float,
+                'invalid_datetime_format',
+                msg => (
+                    'invalid unit for std::duration_get: '
+                    || quote_literal("el")
+                ),
+                detail => (
+                    '{"hint":"Supported units: '
+                    || 'hour, minutes, seconds, milliseconds, microseconds, '
+                    || 'and totalseconds."}'
                 )
             )
         END
@@ -299,8 +330,7 @@ std::`-` (l: std::datetime, r: std::duration) -> std::datetime {
 CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
     CREATE ANNOTATION std::identifier := 'minus';
-    CREATE ANNOTATION std::description :=
-        'Time interval and date/time subtraction.';
+    CREATE ANNOTATION std::description := 'Date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
         SELECT EXTRACT(epoch FROM "l" - "r")::text::edgedb.duration_t
@@ -403,7 +433,7 @@ CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: std::duration) -> std::duration {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
-        'Time interval and date/time addition.';
+        'Time interval addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
@@ -416,7 +446,7 @@ CREATE INFIX OPERATOR
 std::`-` (l: std::duration, r: std::duration) -> std::duration {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
-        'Time interval and date/time subtraction.';
+        'Time interval subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT ("l"::interval - "r"::interval)::edgedb.duration_t;
@@ -428,7 +458,7 @@ CREATE PREFIX OPERATOR
 std::`-` (v: std::duration) -> std::duration {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
-        'Time interval and date/time subtraction.';
+        'Time interval negation.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT (-"v"::interval)::edgedb.duration_t;

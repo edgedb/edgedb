@@ -58,6 +58,8 @@ base_type_name_map = {
     s_obj.get_known_type_id('cal::local_time'): ('time',),
     s_obj.get_known_type_id('cal::relative_duration'):
         ('edgedb', 'relative_duration_t'),
+    s_obj.get_known_type_id('cal::date_duration'):
+        ('edgedb', 'date_duration_t'),
 
     s_obj.get_known_type_id('cfg::memory'): ('edgedb', 'memory_t'),
 }
@@ -86,6 +88,7 @@ base_type_name_map_r = {
     'edgedb.timestamptz_t': sn.QualName('std', 'datetime'),
     'timestamptz_t': sn.QualName('std', 'datetime'),
     'timestamptz': sn.QualName('std', 'datetime'),
+    'duration_t': sn.QualName('std', 'duration'),
     'edgedb.duration_t': sn.QualName('std', 'duration'),
     'interval': sn.QualName('std', 'duration'),
     'bytea': sn.QualName('std', 'bytes'),
@@ -98,7 +101,10 @@ base_type_name_map_r = {
     'date_t': sn.QualName('cal', 'local_date'),
     'edgedb.date_t': sn.QualName('cal', 'local_date'),
     'time': sn.QualName('cal', 'local_time'),
+    'relative_duration_t': sn.QualName('cal', 'relative_duration'),
     'edgedb.relative_duration_t': sn.QualName('cal', 'relative_duration'),
+    'date_duration_t': sn.QualName('cal', 'date_duration'),
+    'edgedb.date_duration_t': sn.QualName('cal', 'date_duration'),
 
     'edgedb.memory_t': sn.QualName('cfg', 'memory'),
     'memory_t': sn.QualName('cfg', 'memory'),

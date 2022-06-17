@@ -262,6 +262,24 @@ class RelativeDurationDomain(dbops.Domain):
         )
 
 
+class DateDurationDomain(dbops.Domain):
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'date_duration_t'),
+            base='interval',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'date_duration_t'),
+                    expr=r'''
+                        EXTRACT(hour from VALUE) = 0 AND
+                        EXTRACT(minute from VALUE) = 0 AND
+                        EXTRACT(second from VALUE) = 0
+                    ''',
+                ),
+            ),
+        )
+
+
 class StrToConfigMemoryFunction(dbops.Function):
     """An implementation of std::str to cfg::memory cast."""
     text = r'''
@@ -2245,6 +2263,49 @@ class DurationInFunction(dbops.Function):
         )
 
 
+class DateDurationInFunction(dbops.Function):
+    """
+    Cast text into date_duration, ensuring there is no unit smaller
+    than days.
+    """
+    text = r'''
+        SELECT
+            CASE WHEN
+                EXTRACT(HOUR FROM v.column1) != 0 OR
+                EXTRACT(MINUTE FROM v.column1) != 0 OR
+                EXTRACT(SECOND FROM v.column1) != 0
+            THEN
+                edgedb.raise(
+                    NULL::edgedb.date_duration_t,
+                    'invalid_datetime_format',
+                    msg => (
+                        'invalid input syntax for type cal::date_duration: '
+                        || quote_literal(val)
+                    ),
+                    detail => (
+                        '{"hint":"Units smaller than days cannot be used '
+                        || 'for cal::date_duration."}'
+                    )
+                )
+            ELSE v.column1::edgedb.date_duration_t
+            END
+        FROM
+            (VALUES (
+                val::interval
+            )) AS v
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'date_duration_in'),
+            args=[('val', ('text',))],
+            returns=('edgedb', 'date_duration_t'),
+            # Same volatility as raise() (stable)
+            volatility='stable',
+            text=self.text,
+        )
+
+
 class LocalDatetimeInFunction(dbops.Function):
     """Cast text into timestamp using ISO8601 spec."""
     text = r'''
@@ -3850,6 +3911,7 @@ async def bootstrap(
         dbops.CreateDomain(DateDomain()),
         dbops.CreateDomain(DurationDomain()),
         dbops.CreateDomain(RelativeDurationDomain()),
+        dbops.CreateDomain(DateDurationDomain()),
         dbops.CreateFunction(StrToConfigMemoryFunction()),
         dbops.CreateFunction(ConfigMemoryToStrFunction()),
         dbops.CreateFunction(StrToBigint()),
@@ -3876,6 +3938,7 @@ async def bootstrap(
         dbops.CreateFunction(JSONSliceFunction()),
         dbops.CreateFunction(DatetimeInFunction()),
         dbops.CreateFunction(DurationInFunction()),
+        dbops.CreateFunction(DateDurationInFunction()),
         dbops.CreateFunction(LocalDatetimeInFunction()),
         dbops.CreateFunction(LocalDateInFunction()),
         dbops.CreateFunction(LocalTimeInFunction()),

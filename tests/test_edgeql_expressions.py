@@ -73,7 +73,7 @@ VALUES = {
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, anynumeric=False),
 
-    '<cal::local_datetime>"2018-05-07T20:01:22.306916"':
+    '<cal::local_datetime>"2018-05-07T00:00:00"':
         value(typename='cal::local_datetime',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=False, anynumeric=False),
@@ -148,8 +148,15 @@ VALUES = {
               anyreal=True, anyint=False, anyfloat=False,
               datetime=False, signed=True, anynumeric=True),
 
-    '<cal::relative_duration>"P1Y2M3DT20H1M22.306916S"':
+    '<cal::relative_duration>"P1Y2M3D"':
         value(typename='cal::relative_duration',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=True, signed=True, anynumeric=False),
+
+    # Much like integer and flaot values are all setup to be 1 and equal to
+    # each other, so are relative_duration and date_duration equal.
+    '<cal::date_duration>"P1Y2M3D"':
+        value(typename='cal::date_duration',
               anyreal=False, anyint=False, anyfloat=False,
               datetime=True, signed=True, anynumeric=False),
 }
@@ -1231,24 +1238,80 @@ class TestExpressions(tb.QueryTestCase):
 
         ops = [('=', '!='), ('?=', '?!='), ('IN', 'NOT IN')]
         # compare all non-numerics to all scalars via equality
-        for left in get_test_values(anyreal=False):
-            for right in get_test_values():
+        for left, ldesc in get_test_items(anyreal=False):
+            for right, rdesc in get_test_items():
                 for op, not_op in ops:
                     await self._test_boolop(
                         left, right, op, not_op,
-                        True if left == right else expected_error_msg
+                        True if (
+                            (left == right)
+                            or
+                            # relative_duration and date_duration are
+                            # compatible for comparison due to implicit
+                            # casting
+                            (
+                                {
+                                    ldesc.typename,
+                                    rdesc.typename
+                                } == {
+                                    'cal::relative_duration',
+                                    'cal::date_duration'
+                                }
+                            )
+                            or
+                            # local_date and local_datetime are
+                            # compatible for comparison due to implicit
+                            # casting
+                            (
+                                {
+                                    ldesc.typename,
+                                    rdesc.typename
+                                } == {
+                                    'cal::local_date',
+                                    'cal::local_datetime'
+                                }
+                            )
+                        ) else expected_error_msg
                     )
 
     async def test_edgeql_expr_valid_comp_02(self):
         expected_error_msg = 'cannot be applied to operands'
         # compare all orderable non-numerics to all scalars via
         # ordering operator
-        for left in get_test_values(anyreal=False):
-            for right in get_test_values():
+        for left, ldesc in get_test_items(anyreal=False):
+            for right, rdesc in get_test_items():
                 for op, not_op in [('>=', '<'), ('<=', '>')]:
                     await self._test_boolop(
                         left, right, op, not_op,
-                        True if left == right else expected_error_msg
+                        True if (
+                            (left == right)
+                            or
+                            # relative_duration and date_duration are
+                            # compatible for comparison due to implicit
+                            # casting
+                            (
+                                {
+                                    ldesc.typename,
+                                    rdesc.typename
+                                } == {
+                                    'cal::relative_duration',
+                                    'cal::date_duration'
+                                }
+                            )
+                            or
+                            # local_date and local_datetime are
+                            # compatible for comparison due to implicit
+                            # casting
+                            (
+                                {
+                                    ldesc.typename,
+                                    rdesc.typename
+                                } == {
+                                    'cal::local_date',
+                                    'cal::local_datetime'
+                                }
+                            )
+                        ) else expected_error_msg
                     )
 
     async def test_edgeql_expr_valid_comp_03(self):
@@ -1639,21 +1702,53 @@ class TestExpressions(tb.QueryTestCase):
             for right, rdesc in get_test_items(datetime=True):
                 query = f"""SELECT count({left} + {right});"""
                 restype = None
+                argtypes = {ldesc.typename, rdesc.typename}
 
-                if 'cal::relative_duration' in [
-                        ldesc.typename, rdesc.typename] \
-                        and 'duration' in [ldesc.typename, rdesc.typename]:
-                    restype = 'cal::relative_duration'
-                elif ldesc.signed:  # duration/cal::relative_duration
-                    restype = rdesc.typename
-                elif rdesc.signed:  # duration/cal::relative_duration
-                    restype = ldesc.typename
+                if argtypes == {
+                    'cal::local_date',
+                    'cal::date_duration'
+                }:
+                    # whole day arithmetic
+                    restype = 'cal::local_date'
+                elif ldesc.typename == rdesc.typename == 'cal::date_duration':
+                    # whole day arithmetic
+                    restype = 'cal::date_duration'
+                elif argtypes.intersection({
+                    'duration',
+                    'cal::relative_duration',
+                    'cal::date_duration'
+                }):
+                    # Whole day arithemtic is accounted for, so what's left is
+                    # fractional date arithemtic. The result is always some
+                    # kind of fractional datetime scalar.
+                    otherarg = argtypes - {
+                        'duration',
+                        'cal::relative_duration',
+                        'cal::date_duration'
+                    }
+                    if ldesc.typename == rdesc.typename:
+                        # duration flavour is preserved
+                        restype = ldesc.typename
+                    elif len(otherarg) == 0:
+                        # Some combo of durations make relative_duration.
+                        restype = 'cal::relative_duration'
+                    else:
+                        othertype = otherarg.pop()
+                        if othertype == 'cal::local_date':
+                            # local_date + fractional durarion makes
+                            # local_datetime
+                            restype = 'cal::local_datetime'
+                        else:
+                            # Everything else is laready fractional, so just
+                            # use the type of the other argument.
+                            restype = othertype
 
                 if restype:
                     await self.assert_query_result(query, [1])
                     await self.assert_query_result(
                         f"""SELECT ({left} + {right}) IS {restype};""",
-                        [True])
+                        [True],
+                        msg=f'({left} + {right}) IS {restype}')
                 else:
                     # every other combination must produce an error
                     with self.assertRaisesRegex(edgedb.QueryError,
@@ -1669,27 +1764,48 @@ class TestExpressions(tb.QueryTestCase):
         for left, ldesc in get_test_items(datetime=True):
             for right, rdesc in get_test_items(datetime=True):
                 query = f"""SELECT count({left} - {right});"""
+                restype = None
 
-                if 'cal::relative_duration' in [
-                        ldesc.typename, rdesc.typename] \
-                        and 'duration' in [ldesc.typename, rdesc.typename]:
-                    restype = 'cal::relative_duration'
-                elif rdesc.signed:  # duration/cal::relative_duration
-                    restype = ldesc.typename
-                elif rdesc.typename == ldesc.typename:
-                    if rdesc.typename.startswith('cal::local_'):
-                        # TODO(tailhook) restype = 'cal::relative_duration'
-                        restype = None
+                if rdesc.signed and ldesc.signed:
+                    # some kind of duration
+                    if ldesc.typename == rdesc.typename:
+                        restype = rdesc.typename
                     else:
-                        restype = 'duration'
-                else:
-                    restype = None
+                        # mixing duration types makes relative_duration
+                        restype = 'cal::relative_duration'
+                elif (ldesc.typename == 'cal::local_date' and
+                        rdesc.typename == 'cal::local_date'):
+                    restype = 'cal::date_duration'
+                elif (ldesc.typename == 'cal::local_date' and
+                        rdesc.typename == 'cal::date_duration'):
+                    restype = 'cal::local_date'
+                elif rdesc.signed:
+                    # Subtracting some flavour of duration.
+                    if ldesc.typename == 'cal::local_date':
+                        restype = 'cal::local_datetime'
+                    else:
+                        # Preserve the [fractional] date/time type of the left
+                        # argument.
+                        restype = ldesc.typename
+                elif rdesc.typename == ldesc.typename == 'datetime':
+                    restype = 'duration'
+                elif rdesc.typename == ldesc.typename == 'cal::local_datetime':
+                    restype = 'cal::relative_duration'
+                elif rdesc.typename == ldesc.typename == 'cal::local_time':
+                    restype = 'cal::relative_duration'
+                elif {rdesc.typename, ldesc.typename} == {
+                    'cal::local_datetime',
+                    'cal::local_date',
+                }:
+                    # mix of local_date and local_datetime
+                    restype = 'cal::relative_duration'
 
                 if restype:
                     await self.assert_query_result(query, [1])
                     await self.assert_query_result(
                         f"""SELECT ({left} - {right}) IS {restype};""",
-                        [True])
+                        [True],
+                        msg=f'({left} - {right}) IS {restype}')
                 else:
                     # every other combination must produce an error
                     with self.assertRaisesRegex(edgedb.QueryError,
@@ -1922,17 +2038,50 @@ class TestExpressions(tb.QueryTestCase):
         for left, ldesc in get_test_items(anyreal=False):
             for right, rdesc in get_test_items():
                 query = f"""SELECT count({left} UNION {right});"""
+                argtypes = {ldesc.typename, rdesc.typename}
 
-                if ldesc.typename == rdesc.typename:
+                if (
+                    (ldesc.typename == rdesc.typename)
+                    or
+                    # relative_duration and date_duration are
+                    # compatible for union due to implicit
+                    # casting
+                    (
+                        argtypes == {
+                            'cal::relative_duration',
+                            'cal::date_duration'
+                        }
+                    )
+                    or
+                    # local_date and local_datetime are
+                    # compatible for union due to implicit
+                    # casting
+                    (
+                        argtypes == {
+                            'cal::local_date',
+                            'cal::local_datetime'
+                        }
+                    )
+                ):
                     # these scalars can only be UNIONed with
                     # themselves implicitly
                     await self.assert_query_result(query, [2])
 
                     query = f"""
-                        SELECT (INTROSPECT TYPEOF ({left} UNION {right})).name;
+                        SELECT (INTROSPECT TYPEOF ({left} UNION {right})).name
                     """
                     # this operation should always be valid
-                    if rdesc.typename.startswith('cal::'):
+                    if 'cal::relative_duration' in argtypes:
+                        # This is possible when relative_duration and
+                        # date_duration mix and the result is implicitly cast
+                        # to relative_duration.
+                        desc_typename = 'cal::relative_duration'
+                    elif 'cal::local_datetime' in argtypes:
+                        # This is possible when local_datetime and
+                        # local_date mix and the result is implicitly cast
+                        # to local_datetime.
+                        desc_typename = 'cal::local_datetime'
+                    elif rdesc.typename.startswith('cal::'):
                         desc_typename = rdesc.typename
                     else:
                         desc_typename = 'std::' + rdesc.typename
@@ -2064,18 +2213,57 @@ class TestExpressions(tb.QueryTestCase):
     async def test_edgeql_expr_valid_setop_10(self):
         expected_error_msg = "cannot be applied to operands"
         # test all non-numerics with all scalars
-        for left in get_test_values(anyreal=False):
+        for left, ldesc in get_test_items(anyreal=False):
             for right, rdesc in get_test_items():
                 for op in ['??', 'IF random() > 0.5 ELSE']:
                     query = f"""SELECT count({left} {op} {right});"""
+                    argtypes = {ldesc.typename, rdesc.typename}
 
-                    if left == right:
-                        # these scalars can only be combined with
+                    if (
+                        (ldesc.typename == rdesc.typename)
+                        or
+                        # relative_duration and date_duration are
+                        # compatible for union due to implicit
+                        # casting
+                        (
+                            argtypes == {
+                                'cal::relative_duration',
+                                'cal::date_duration'
+                            }
+                        )
+                        or
+                        # local_date and local_datetime are
+                        # compatible for union due to implicit
+                        # casting
+                        (
+                            argtypes == {
+                                'cal::local_date',
+                                'cal::local_datetime'
+                            }
+                        )
+                    ):
+                        # these scalars can only be UNIONed with
                         # themselves implicitly
                         await self.assert_query_result(query, [1])
 
+                        # this operation should always be valid
+                        if 'cal::relative_duration' in argtypes:
+                            # This is possible when relative_duration and
+                            # date_duration mix and the result is implicitly
+                            # cast to relative_duration.
+                            desc_typename = 'cal::relative_duration'
+                        elif 'cal::local_datetime' in argtypes:
+                            # This is possible when local_datetime and
+                            # local_date mix and the result is implicitly cast
+                            # to local_datetime.
+                            desc_typename = 'cal::local_datetime'
+                        elif rdesc.typename.startswith('cal::'):
+                            desc_typename = rdesc.typename
+                        else:
+                            desc_typename = 'std::' + rdesc.typename
+
                         query = f"""
-                            SELECT ({left} {op} {right}) IS {rdesc.typename};
+                            SELECT ({left} {op} {right}) IS {desc_typename};
                         """
                         # this operation should always be valid
                         await self.assert_query_result(query, {True})
