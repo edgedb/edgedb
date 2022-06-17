@@ -19,8 +19,9 @@ EdgeQL
     insert
     update
     delete
-    with
     for
+    group
+    with
     transactions
 
 EdgeQL is a next-generation query language designed to match SQL in power and
