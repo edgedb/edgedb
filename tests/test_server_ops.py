@@ -535,10 +535,16 @@ class TestServerOps(tb.TestCase):
 
     async def _test_connection(self, con):
         await con.send(
-            protocol.ExecuteScript(
+            protocol.Execute(
                 headers=[],
-                script='SELECT 1'
-            )
+                command_text='SELECT 1',
+                output_format=protocol.OutputFormat.NULL,
+                expected_cardinality=protocol.Cardinality.MANY,
+                input_typedesc_id=b'\0' * 16,
+                output_typedesc_id=b'\0' * 16,
+                arguments=b'',
+            ),
+            protocol.Sync(),
         )
         await con.recv_match(
             protocol.CommandComplete,

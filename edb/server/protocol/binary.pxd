@@ -54,7 +54,7 @@ cdef enum EdgeConnectionStatus:
 cdef class QueryRequestInfo:
     cdef public object source  # edgeql.Source
     cdef public tuple protocol_version
-    cdef public object io_format
+    cdef public object output_format
     cdef public bint expect_one
     cdef public int implicit_limit
     cdef public bint inline_typeids
@@ -67,10 +67,10 @@ cdef class QueryRequestInfo:
 
 @cython.final
 cdef class CompiledQuery:
-    cdef public object query_unit
+    cdef public object query_unit_group
     cdef public object first_extra  # Optional[int]
-    cdef public int extra_count
-    cdef public bytes extra_blob
+    cdef public object extra_counts
+    cdef public object extra_blobs
 
 
 cdef class EdgeConnection:
@@ -131,7 +131,7 @@ cdef class EdgeConnection:
 
     cdef interpret_backend_error(self, exc)
 
-    cdef parse_io_format(self, bytes mode)
+    cdef parse_output_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
     cdef parse_prepare_query_part(self)
     cdef char render_cardinality(self, query_unit) except -1
@@ -145,13 +145,25 @@ cdef class EdgeConnection:
 
     cdef sync_status(self)
 
+    cdef uint64_t _count_globals(
+        self,
+        query_unit: object,
+    )
+    cdef _inject_globals(
+        self,
+        query_unit: object,
+        WriteBuffer out_buf,
+    )
+
     cdef WriteBuffer recode_bind_args(self,
-        bytes bind_args, CompiledQuery compiled)
+        bytes bind_args, CompiledQuery compiled, object positions,
+    )
 
     cdef WriteBuffer make_command_data_description_msg(
         self, CompiledQuery query
     )
     cdef WriteBuffer make_command_complete_msg(self, query_unit)
+    cdef WriteBuffer make_command_complete_msg_by_group(self, query_unit_group)
 
     cdef inline reject_headers(self)
     cdef dict parse_headers(self)

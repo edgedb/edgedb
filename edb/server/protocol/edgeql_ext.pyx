@@ -32,7 +32,7 @@ from edb.common import debug
 from edb.common import markup
 
 from edb.server import compiler
-from edb.server.compiler import IoFormat
+from edb.server.compiler import OutputFormat
 from edb.server.compiler import enums
 
 
@@ -145,7 +145,7 @@ async def handle_request(
 async def compile(db, server, bytes query):
     compiler_pool = server.get_compiler_pool()
 
-    units, _, _ = await compiler_pool.compile(
+    unit_group, _, _ = await compiler_pool.compile(
         db.name,
         db.user_schema,
         server.get_global_schema(),
@@ -155,7 +155,7 @@ async def compile(db, server, bytes query):
         edgeql.Source.from_string(query.decode('utf-8')),
         None,           # modaliases
         None,           # session config
-        IoFormat.JSON,  # json mode
+        OutputFormat.JSON,  # json mode
         False,          # expected cardinality is MANY
         0,              # no implicit limit
         False,          # no inlining of type IDs
@@ -165,7 +165,7 @@ async def compile(db, server, bytes query):
         True,           # inline_objectids
         True,           # json parameters
     )
-    return units[0]
+    return unit_group[0]
 
 
 async def execute(db, server, bytes query, variables, globals):

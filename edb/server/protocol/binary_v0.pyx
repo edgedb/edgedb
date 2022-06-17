@@ -47,22 +47,25 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         buf.write_int16(SERVER_HEADER_CAPABILITIES)
         buf.write_int32(sizeof(uint64_t))
         buf.write_int64(<int64_t>(
-            <uint64_t>compiled_query.query_unit.capabilities
+            <uint64_t>compiled_query.query_unit_group.capabilities
         ))
 
-        buf.write_byte(self.render_cardinality(compiled_query.query_unit))
+        buf.write_byte(
+            self.render_cardinality(compiled_query.query_unit_group)
+        )
 
         if self.protocol_version >= (0, 14):
-            buf.write_bytes(compiled_query.query_unit.in_type_id)
+            buf.write_bytes(compiled_query.query_unit_group.in_type_id)
             buf.write_len_prefixed_bytes(
-                compiled_query.query_unit.in_type_data)
+                compiled_query.query_unit_group.in_type_data
+            )
 
-            buf.write_bytes(compiled_query.query_unit.out_type_id)
+            buf.write_bytes(compiled_query.query_unit_group.out_type_id)
             buf.write_len_prefixed_bytes(
-                compiled_query.query_unit.out_type_data)
+                compiled_query.query_unit_group.out_type_data)
         else:
-            buf.write_bytes(compiled_query.query_unit.in_type_id)
-            buf.write_bytes(compiled_query.query_unit.out_type_id)
+            buf.write_bytes(compiled_query.query_unit_group.in_type_id)
+            buf.write_bytes(compiled_query.query_unit_group.out_type_id)
 
         buf.end_message()
 
@@ -179,7 +182,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
                     elif mtype == b'Q':
                         flush_sync_on_error = True
-                        await self.simple_query()
+                        await self.legacy_simple_query()
 
                     elif mtype == b'S':
                         await self.sync()
@@ -304,33 +307,35 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         bind_args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 
-        query_unit = self.get_dbview().lookup_compiled_query(query_req)
-        if query_unit is None:
+        query_unit_group = self.get_dbview().lookup_compiled_query(query_req)
+        if query_unit_group is None:
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
 
             compiled = await self._parse(query, query_req)
             self._last_anon_compiled = compiled
-            query_unit = compiled.query_unit
+            query_unit_group = compiled.query_unit_group
             if self._cancelled:
                 raise ConnectionAbortedError
         else:
             compiled = CompiledQuery(
-                query_unit=query_unit,
+                query_unit_group=query_unit_group,
                 first_extra=query_req.source.first_extra(),
-                extra_count=query_req.source.extra_count(),
-                extra_blob=query_req.source.extra_blob(),
+                extra_counts=query_req.source.extra_counts(),
+                extra_blobs=query_req.source.extra_blobs(),
             )
             self._last_anon_compiled = compiled
 
-        if query_unit.capabilities & ~query_req.allow_capabilities:
-            raise query_unit.capabilities.make_error(
+        if query_unit_group.capabilities & ~query_req.allow_capabilities:
+            raise query_unit_group.capabilities.make_error(
                 query_req.allow_capabilities,
                 errors.DisabledCapabilityError,
             )
 
-        if (query_unit.in_type_id != in_tid or
-            query_unit.out_type_id != out_tid):
+        if (
+            query_unit_group.in_type_id != in_tid or
+            query_unit_group.out_type_id != out_tid
+        ):
             # The client has outdated information about type specs.
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /MISMATCH', query)
@@ -345,12 +350,15 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             self.debug_print('OPTIMISTIC EXECUTE', query)
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
-        await self._execute(
-            compiled, bind_args, bool(query_unit.sql_hash))
+        await self._legacy_execute(
+            compiled,
+            bind_args,
+            len(query_unit_group) == 1 and bool(query_unit_group[0].sql_hash),
+        )
 
     cdef legacy_parse_prepare_query_part(self, parse_stmt_name: bint):
         cdef:
-            object io_format
+            object output_format
             bytes eql
             dict headers
             uint64_t implicit_limit = 0
@@ -378,7 +386,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         f'unexpected message header: {k}'
                     )
 
-        io_format = self.parse_io_format(self.buffer.read_byte())
+        output_format = self.parse_output_format(self.buffer.read_byte())
         expect_one = (
             self.parse_cardinality(self.buffer.read_byte()) is CARD_AT_MOST_ONE
         )
@@ -398,7 +406,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         query_req = QueryRequestInfo(
             source,
             self.protocol_version,
-            io_format=io_format,
+            output_format=output_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
             inline_typeids=inline_typeids,
@@ -408,6 +416,107 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         )
 
         return eql, query_req, stmt_name
+
+    async def _legacy_execute(self, compiled: CompiledQuery, bind_args,
+                              bint use_prep_stmt):
+        cdef:
+            bytes state = None, orig_state = None
+            dbview.DatabaseConnectionView _dbview
+            pgcon.PGConnection conn
+
+        query_unit = compiled.query_unit_group[0]
+        _dbview = self.get_dbview()
+
+        if not _dbview.in_tx():
+            orig_state = state = _dbview.serialize_state()
+        new_types = None
+        conn = await self.get_pgcon()
+        try:
+            if conn.last_state == state:
+                # the current status in conn is in sync with dbview, skip the
+                # state restoring
+                state = None
+            _dbview.start(query_unit)
+            if query_unit.create_db_template:
+                await self.server._on_before_create_db_from_template(
+                    query_unit.create_db_template, _dbview.dbname
+                )
+            if query_unit.drop_db:
+                await self.server._on_before_drop_db(
+                    query_unit.drop_db, _dbview.dbname)
+            if query_unit.system_config or query_unit.set_global:
+                await self._execute_system_config(query_unit, conn)
+            else:
+                if query_unit.sql:
+                    if query_unit.ddl_stmt_id:
+                        ddl_ret = await conn.run_ddl(query_unit, state)
+                        if ddl_ret and ddl_ret['new_types']:
+                            new_types = ddl_ret['new_types']
+                    else:
+                        bound_args_buf = self.recode_bind_args(
+                            bind_args, compiled, None)
+                        await conn.parse_execute(
+                            query_unit,         # =query
+                            self,               # =edgecon
+                            bound_args_buf,     # =bind_data
+                            use_prep_stmt,      # =use_prep_stmt
+                            state,              # =state
+                            _dbview.dbver,      # =dbver
+                        )
+                    if state is not None:
+                        # state is restored, clear orig_state so that we can
+                        # set conn.last_state correctly later
+                        orig_state = None
+
+                if query_unit.tx_savepoint_rollback:
+                    # await self.recover_current_tx_info(conn)
+                    _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
+
+                if query_unit.tx_savepoint_declare:
+                    _dbview.declare_savepoint(
+                        query_unit.sp_name, query_unit.sp_id)
+
+                if query_unit.create_db:
+                    await self.server.introspect_db(
+                        query_unit.create_db
+                    )
+
+                if query_unit.drop_db:
+                    self.server._on_after_drop_db(
+                        query_unit.drop_db)
+
+                if query_unit.config_ops:
+                    await _dbview.apply_config_ops(
+                        conn,
+                        query_unit.config_ops)
+        except Exception as ex:
+            _dbview.on_error()
+
+            if (
+                query_unit.tx_commit and
+                not conn.in_tx() and
+                _dbview.in_tx()
+            ):
+                # The COMMIT command has failed. Our Postgres connection
+                # isn't in a transaction anymore. Abort the transaction
+                # in dbview.
+                _dbview.abort_tx()
+            raise
+        else:
+            side_effects = _dbview.on_success(query_unit, new_types)
+            if side_effects:
+                self.signal_side_effects(side_effects)
+            if not _dbview.in_tx():
+                state = _dbview.serialize_state()
+                if state is not orig_state:
+                    # In 3 cases the state is changed:
+                    #   1. The non-tx query changed the state
+                    #   2. The state is synced with dbview (orig_state is None)
+                    #   3. We came out from a transaction (orig_state is None)
+                    conn.last_state = state
+            self.write(self.make_command_complete_msg(query_unit))
+        finally:
+            self.maybe_release_pgcon(conn)
 
     async def legacy_execute(self):
         cdef:
@@ -427,7 +536,6 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         stmt_name = self.buffer.read_len_prefixed_bytes()
         bind_args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
-        query_unit = None
 
         if self.debug:
             self.debug_print('EXECUTE')
@@ -442,10 +550,266 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
             compiled = self._last_anon_compiled
 
-        if compiled.query_unit.capabilities & ~allow_capabilities:
-            raise compiled.query_unit.capabilities.make_error(
+        if compiled.query_unit_group.capabilities & ~allow_capabilities:
+            raise compiled.query_unit_group.capabilities.make_error(
                 allow_capabilities,
                 errors.DisabledCapabilityError,
             )
 
-        await self._execute(compiled, bind_args, False)
+        await self._legacy_execute(compiled, bind_args, False)
+
+    async def _legacy_compile_script(
+        self,
+        query: bytes,
+        *,
+        stmt_mode,
+    ):
+        cdef dbview.DatabaseConnectionView _dbview = self.get_dbview()
+        source = edgeql.Source.from_string(query.decode('utf-8'))
+
+        if _dbview.in_tx_error():
+            _dbview.raise_in_tx_error()
+
+        compiler_pool = self.server.get_compiler_pool()
+
+        started_at = time.monotonic()
+        try:
+            if _dbview.in_tx():
+                result = await compiler_pool.compile_in_tx(
+                    _dbview.txid,
+                    self.last_state,
+                    self.last_state_id,
+                    source,
+                    FMT_NONE,
+                    False,
+                    0,
+                    False,
+                    False,
+                    stmt_mode,
+                    self.protocol_version,
+                )
+            else:
+                result = await compiler_pool.compile(
+                    _dbview.dbname,
+                    _dbview.get_user_schema(),
+                    _dbview.get_global_schema(),
+                    _dbview.reflection_cache,
+                    _dbview.get_database_config(),
+                    _dbview.get_compilation_system_config(),
+                    source,
+                    _dbview.get_modaliases(),
+                    _dbview.get_session_config(),
+                    FMT_NONE,
+                    False,
+                    0,
+                    False,
+                    False,
+                    stmt_mode,
+                    self.protocol_version,
+                )
+            unit_group, self.last_state, self.last_state_id = result
+        finally:
+            metrics.edgeql_query_compilation_duration.observe(
+                time.monotonic() - started_at)
+        return unit_group
+
+    async def _legacy_recover_script_error(
+        self, eql: bytes, allow_capabilities
+    ):
+        assert self.get_dbview().in_tx_error()
+
+        query_unit_group, num_remain = await self._compile_rollback(eql)
+        query_unit = query_unit_group[0]
+
+        if not (allow_capabilities & enums.Capability.TRANSACTION):
+            raise errors.DisabledCapabilityError(
+                f"Cannot execute ROLLBACK command;"
+                f" the TRANSACTION capability is disabled"
+            )
+
+        conn = await self.get_pgcon()
+        try:
+            if query_unit.sql:
+                await conn.simple_query(
+                    b';'.join(query_unit.sql), ignore_data=True)
+
+            if query_unit.tx_savepoint_rollback:
+                if self.debug:
+                    self.debug_print(f'== RECOVERY: ROLLBACK TO SP')
+                self.get_dbview().rollback_tx_to_savepoint(query_unit.sp_name)
+            else:
+                if self.debug:
+                    self.debug_print('== RECOVERY: ROLLBACK')
+                assert query_unit.tx_rollback
+                self.get_dbview().abort_tx()
+        finally:
+            self.maybe_release_pgcon(conn)
+
+        if num_remain:
+            return 'skip_first', query_unit
+        else:
+            return 'done', query_unit
+
+    async def legacy_simple_query(self):
+        cdef:
+            WriteBuffer msg
+            WriteBuffer packet
+            uint64_t allow_capabilities = ALL_CAPABILITIES
+
+        headers = self.parse_headers()
+        if headers:
+            for k, v in headers.items():
+                if k == QUERY_HEADER_ALLOW_CAPABILITIES:
+                    allow_capabilities = parse_capabilities_header(v)
+                else:
+                    raise errors.BinaryProtocolError(
+                        f'unexpected message header: {k}'
+                    )
+
+        eql = self.buffer.read_len_prefixed_bytes()
+        self.buffer.finish_message()
+        if not eql:
+            raise errors.BinaryProtocolError('empty query')
+
+        if self.debug:
+            self.debug_print('SIMPLE QUERY', eql)
+
+        stmt_mode = 'all'
+        if self.get_dbview().in_tx_error():
+            stmt_mode, query_unit = await self._legacy_recover_script_error(
+                eql,
+                allow_capabilities,
+            )
+            if stmt_mode == 'done':
+                packet = WriteBuffer.new()
+                packet.write_buffer(
+                    self.make_command_complete_msg(query_unit))
+                packet.write_buffer(self.sync_status())
+                self.write(packet)
+                self.flush()
+                return
+
+        if self._cancelled:
+            raise ConnectionAbortedError
+
+        assert stmt_mode in {'all', 'skip_first'}
+        query_unit = await self._legacy_simple_query(
+            eql, allow_capabilities, stmt_mode)
+
+        packet = WriteBuffer.new()
+        packet.write_buffer(self.make_command_complete_msg(query_unit))
+        packet.write_buffer(self.sync_status())
+        self.write(packet)
+        self.flush()
+
+    async def _legacy_simple_query(
+        self,
+        eql: bytes,
+        allow_capabilities: uint64_t,
+        stmt_mode: str,
+    ):
+        cdef:
+            bytes state = None, orig_state = None
+            int i
+            dbview.DatabaseConnectionView _dbview
+            pgcon.PGConnection conn
+
+        unit_group = await self._legacy_compile_script(eql, stmt_mode=stmt_mode)
+        metrics.edgeql_query_compilations.inc(1.0, 'compiler')
+
+        if self._cancelled:
+            raise ConnectionAbortedError
+
+        if unit_group.capabilities & ~allow_capabilities:
+            raise unit_group.capabilities.make_error(
+                allow_capabilities,
+                errors.DisabledCapabilityError,
+            )
+
+        _dbview = self.get_dbview()
+        if not _dbview.in_tx():
+            orig_state = state = _dbview.serialize_state()
+
+        conn = await self.get_pgcon()
+        try:
+            if conn.last_state == state:
+                # the current status in conn is in sync with dbview, skip the
+                # state restoring
+                state = None
+            for query_unit in unit_group.units:
+                if self._cancelled:
+                    raise ConnectionAbortedError
+
+                new_types = None
+                _dbview.start(query_unit)
+                try:
+                    if query_unit.create_db_template:
+                        await self.server._on_before_create_db_from_template(
+                            query_unit.create_db_template, _dbview.dbname
+                        )
+                    if query_unit.drop_db:
+                        await self.server._on_before_drop_db(
+                            query_unit.drop_db, _dbview.dbname)
+
+                    if query_unit.system_config:
+                        await self._execute_system_config(query_unit, conn)
+                    else:
+                        if query_unit.sql:
+                            if query_unit.ddl_stmt_id:
+                                ddl_ret = await conn.run_ddl(query_unit, state)
+                                if ddl_ret and ddl_ret['new_types']:
+                                    new_types = ddl_ret['new_types']
+                            elif query_unit.is_transactional:
+                                await conn.simple_query(
+                                    b';'.join(query_unit.sql),
+                                    ignore_data=True,
+                                    state=state)
+                            else:
+                                i = 0
+                                for sql in query_unit.sql:
+                                    await conn.simple_query(
+                                        sql,
+                                        ignore_data=True,
+                                        state=state if i == 0 else None)
+                                    # only apply state to the first query.
+                                    i += 1
+                            if state is not None:
+                                # state is restored, clear orig_state so that
+                                # we can set conn.last_state correctly later
+                                orig_state = None
+
+                        if query_unit.create_db:
+                            await self.server.introspect_db(
+                                query_unit.create_db
+                            )
+
+                        if query_unit.drop_db:
+                            self.server._on_after_drop_db(
+                                query_unit.drop_db)
+
+                        if query_unit.config_ops:
+                            await _dbview.apply_config_ops(
+                                conn,
+                                query_unit.config_ops)
+                except Exception:
+                    _dbview.on_error()
+                    if not conn.in_tx() and _dbview.in_tx():
+                        # COMMIT command can fail, in which case the
+                        # transaction is aborted.  This check workarounds
+                        # that (until a better solution is found.)
+                        _dbview.abort_tx()
+                    raise
+                else:
+                    side_effects = _dbview.on_success(
+                        query_unit, new_types)
+                    if side_effects:
+                        self.signal_side_effects(side_effects)
+                    if not _dbview.in_tx():
+                        state = _dbview.serialize_state()
+                        if state is not orig_state:
+                            # see the same comments in _legacy_execute()
+                            conn.last_state = state
+        finally:
+            self.maybe_release_pgcon(conn)
+
+        return query_unit

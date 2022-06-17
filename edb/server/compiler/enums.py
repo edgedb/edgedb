@@ -71,8 +71,8 @@ CAPABILITY_TITLES = {
 }
 
 
-class IoFormat(strenum.StrEnum):
+class OutputFormat(strenum.StrEnum):
     BINARY = 'BINARY'
     JSON = 'JSON'
     JSON_ELEMENTS = 'JSON_ELEMENTS'
-    SCRIPT = 'SCRIPT'
+    NONE = 'NONE'

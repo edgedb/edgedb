@@ -22,7 +22,6 @@ import os.path
 import edgedb
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestEdgeQLGlobals(tb.QueryTestCase):
@@ -95,7 +94,6 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
             ['Bob'],
         )
 
-    @test.xfail("We can't execute multiple set globals in a block yet")
     async def test_edgeql_globals_02(self):
         await self.con.execute('''
             set global cur_user := "Bob";

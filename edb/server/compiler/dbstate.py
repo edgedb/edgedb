@@ -106,6 +106,8 @@ class SimpleQuery(BaseQuery):
     is_transactional: bool = True
     has_dml: bool = False
     single_unit: bool = False
+    # XXX: Temporary hack, since SimpleQuery will die
+    in_type_args: Optional[List[Param]] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -148,6 +150,9 @@ class TxControlQuery(BaseQuery):
     global_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
 
+    sp_name: Optional[str] = None
+    sp_id: Optional[str] = None
+
 
 @dataclasses.dataclass(frozen=True)
 class MigrationControlQuery(BaseQuery):
@@ -170,6 +175,7 @@ class Param:
     name: str
     required: bool
     array_type_id: Optional[uuid.UUID]
+    outer_idx: int
 
 
 #############################
@@ -185,6 +191,9 @@ class QueryUnit:
     # executed successfully.  When a QueryUnit contains multiple
     # EdgeQL queries, the status reflects the last query in the unit.
     status: bytes
+
+    # Output format of this query unit
+    output_format: enums.OutputFormat = enums.OutputFormat.NONE
 
     # Set only for units that contain queries that can be cached
     # as prepared statements in Postgres.
@@ -218,6 +227,11 @@ class QueryUnit:
     # True if this unit is single 'ROLLBACK TO SAVEPOINT' command.
     # 'ROLLBACK TO SAVEPOINT' is always compiled to a separate QueryUnit.
     tx_savepoint_rollback: bool = False
+    tx_savepoint_declare: bool = False
+
+    # For SAVEPOINT commands, the name and sp_id
+    sp_name: Optional[str] = None
+    sp_id: Optional[str] = None
 
     # True if it is safe to cache this unit.
     cacheable: bool = False
@@ -254,6 +268,8 @@ class QueryUnit:
     system_config: bool = False
     # Set only when this unit contains a CONFIGURE DATABASE command.
     database_config: bool = False
+    # Set only when this unit contains a SET_GLOBAL command.
+    set_global: bool = False
     # Whether any configuration change requires a server restart
     config_requires_restart: bool = False
     # Set only when this unit contains a CONFIGURE command which
@@ -275,6 +291,84 @@ class QueryUnit:
     @property
     def has_ddl(self) -> bool:
         return bool(self.capabilities & enums.Capability.DDL)
+
+    @property
+    def tx_control(self) -> bool:
+        return (
+            bool(self.tx_id)
+            or self.tx_rollback
+            or self.tx_commit
+            or self.tx_savepoint_declare
+            or self.tx_savepoint_rollback
+        )
+
+
+@dataclasses.dataclass
+class QueryUnitGroup:
+
+    _initialized_single: Optional[bool] = None
+
+    # All capabilities used by any query units in this group
+    capabilities: enums.Capability = enums.Capability(0)
+
+    # True if it is safe to cache this unit.
+    cacheable: bool = True
+
+    # True if any query unit has transaction control commands, like COMMIT,
+    # ROLLBACK, START TRANSACTION or SAVEPOINT-related commands
+    tx_control: bool = False
+
+    # Cardinality of the result set.  Set to NO_RESULT if the
+    # unit represents multiple queries compiled as one script.
+    cardinality: enums.Cardinality = enums.Cardinality.NO_RESULT
+
+    out_type_data: bytes = sertypes.NULL_TYPE_DESC
+    out_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
+    in_type_data: bytes = sertypes.NULL_TYPE_DESC
+    in_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
+    in_type_args: Optional[List[Param]] = None
+    globals: Optional[List[str]] = None
+
+    units: List[QueryUnit] = dataclasses.field(default_factory=list)
+
+    def __iter__(self):
+        return iter(self.units)
+
+    def __len__(self):
+        return len(self.units)
+
+    def __getitem__(self, item):
+        return self.units[item]
+
+    def append(self, query_unit: QueryUnit):
+        assert not self._initialized_single
+        self._initialized_single = False
+        assert query_unit.cardinality == enums.Cardinality.NO_RESULT
+        assert query_unit.out_type_data == sertypes.NULL_TYPE_DESC
+        assert query_unit.out_type_id == sertypes.NULL_TYPE_ID.bytes
+
+        self.capabilities |= query_unit.capabilities
+        if not query_unit.cacheable:
+            self.cacheable = False
+        if query_unit.tx_control:
+            self.tx_control = True
+        self.units.append(query_unit)
+
+    def init_with(self, query_unit: QueryUnit):
+        assert self._initialized_single is None
+        self._initialized_single = True
+        self.capabilities = query_unit.capabilities
+        self.cacheable = query_unit.cacheable
+        self.tx_control = query_unit.tx_control
+        self.cardinality = query_unit.cardinality
+        self.out_type_data = query_unit.out_type_data
+        self.out_type_id = query_unit.out_type_id
+        self.in_type_data = query_unit.in_type_data
+        self.in_type_id = query_unit.in_type_id
+        self.in_type_args = query_unit.in_type_args
+        self.globals = query_unit.globals
+        self.units[:] = [query_unit]
+        return self
 
 
 #############################
@@ -396,6 +490,14 @@ class Transaction:
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
+        return self._declare_savepoint(name)
+
+    def start_migration(self) -> str:
+        name = str(uuid.uuid4())
+        self._declare_savepoint(name)
+        return name
+
+    def _declare_savepoint(self, name: str):
         sp_id = self._constate._new_txid()
         sp_state = self._current._replace(id=sp_id, name=name)
         self._savepoints[sp_id] = sp_state
@@ -407,6 +509,12 @@ class Transaction:
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
+        return self._rollback_to_savepoint(name)
+
+    def abort_migration(self, name: str):
+        self._rollback_to_savepoint(name)
+
+    def _rollback_to_savepoint(self, name) -> TransactionState:
         sp_ids_to_erase = []
         for sp in reversed(self._savepoints.values()):
             if sp.name == name:
@@ -427,6 +535,12 @@ class Transaction:
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
+        self._release_savepoint(name)
+
+    def commit_migration(self, name: str):
+        self._release_savepoint(name)
+
+    def _release_savepoint(self, name: str):
         sp_ids_to_erase = []
         for sp in reversed(self._savepoints.values()):
             sp_ids_to_erase.append(sp.id)

@@ -1249,7 +1249,7 @@ class TestSeparateCluster(tb.TestCase):
         ) as sd:
             conn = await sd.connect_test_protocol()
 
-            await conn.simple_query('''
+            await conn.execute('''
                 configure system set session_idle_timeout := <duration>'10ms'
             ''')
 
@@ -1509,17 +1509,17 @@ class TestSeparateCluster(tb.TestCase):
         ) as sd:
             conn = await sd.connect_test_protocol()
 
-            await conn.simple_query('''
+            await conn.execute('''
                 configure session set
                     session_idle_transaction_timeout :=
                         <duration>'1 second'
             ''')
 
-            await conn.simple_query('''
+            await conn.execute('''
                 start transaction
             ''')
 
-            await conn.simple_query('''
+            await conn.execute('''
                 select sys::_sleep(4)
             ''')
 
@@ -1530,7 +1530,7 @@ class TestSeparateCluster(tb.TestCase):
             )
 
             with self.assertRaises(edgedb.ClientConnectionClosedError):
-                await conn.simple_query('''
+                await conn.execute('''
                     select 1
                 ''')
 

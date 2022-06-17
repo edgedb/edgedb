@@ -31,7 +31,7 @@ from edb.common import markup
 from edb.schema import schema as s_schema
 
 from edb.server import compiler
-from edb.server.compiler import IoFormat
+from edb.server.compiler import OutputFormat
 from edb.server.compiler import enums
 from edb.server import defines as edbdef
 
@@ -105,7 +105,7 @@ async def handle_status_request(
 async def compile(server, query):
     compiler_pool = server.get_compiler_pool()
 
-    units, _, _ = await compiler_pool.compile(
+    unit_group, _, _ = await compiler_pool.compile(
         edbdef.EDGEDB_SYSTEM_DB,
         s_schema.FlatSchema(),  # user schema
         server.get_global_schema(),
@@ -115,7 +115,7 @@ async def compile(server, query):
         edgeql.Source.from_string(query),
         None,           # modaliases
         None,           # session config
-        IoFormat.JSON_ELEMENTS,  # json mode
+        OutputFormat.JSON_ELEMENTS,  # json mode
         False,          # expected cardinality is MANY
         0,              # no implicit limit
         False,          # no inlining of type IDs
@@ -125,7 +125,7 @@ async def compile(server, query):
         True,           # inline_objectids
         True,           # json parameters
     )
-    return units[0]
+    return unit_group[0]
 
 
 async def execute(server, query, variables):

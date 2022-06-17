@@ -421,7 +421,7 @@ def compile_bootstrap_script(
     *,
     single_statement: bool = False,
     expected_cardinality_one: bool = False,
-    output_format: edbcompiler.IoFormat = edbcompiler.IoFormat.JSON,
+    output_format: edbcompiler.OutputFormat = edbcompiler.OutputFormat.JSON,
 ) -> Tuple[s_schema.Schema, str]:
 
     ctx = edbcompiler.new_compiler_context(
@@ -442,7 +442,7 @@ def compile_single_query(
     compilerctx: edbcompiler.CompileContext,
 ) -> str:
     ql_source = edgeql.Source.from_string(eql)
-    units = compiler._compile(ctx=compilerctx, source=ql_source)
+    units = compiler._compile(ctx=compilerctx, source=ql_source).units
     assert len(units) == 1 and len(units[0].sql) == 1
     return units[0].sql[0].decode()
 
@@ -575,7 +575,7 @@ async def _make_stdlib(
         user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         schema_reflection_mode=True,
-        output_format=edbcompiler.IoFormat.JSON_ELEMENTS,
+        output_format=edbcompiler.OutputFormat.JSON_ELEMENTS,
     )
 
     # The introspection query bits are returned in chunks
@@ -1159,10 +1159,10 @@ async def _compile_sys_queries(
             single_statement=True,
             expected_cardinality_one=True,
             json_parameters=False,
-            output_format=edbcompiler.IoFormat.BINARY,
+            output_format=edbcompiler.OutputFormat.BINARY,
             bootstrap_mode=True,
         ),
-        source=edgeql.Source.from_string(report_configs_query))
+        source=edgeql.Source.from_string(report_configs_query)).units
     assert len(units) == 1 and len(units[0].sql) == 1
 
     report_configs_typedesc = units[0].out_type_id + units[0].out_type_data

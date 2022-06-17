@@ -241,6 +241,11 @@ class Environment:
     alias_result_view_name: Optional[s_name.QualName]
     """The name of a view being defined as an alias."""
 
+    script_params: Dict[str, irast.Param]
+    """All parameter definitions from an enclosing multi-statement script.
+
+    Used to make sure the types are consistent."""
+
     def __init__(
         self,
         *,
@@ -283,6 +288,7 @@ class Environment:
         self.materialized_sets = {}
         self.compiled_stmts = {}
         self.alias_result_view_name = alias_result_view_name
+        self.script_params = {}
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:

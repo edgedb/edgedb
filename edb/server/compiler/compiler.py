@@ -51,6 +51,7 @@ from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
 
 from edb.ir import staeval as ireval
+from edb.ir import ast as irast
 
 from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
@@ -68,6 +69,7 @@ from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
+from edb.pgsql import ast as pgast
 from edb.pgsql import common as pg_common
 from edb.pgsql import delta as pg_delta
 from edb.pgsql import dbops as pg_dbops
@@ -97,7 +99,7 @@ class CompilerDatabaseState:
 class CompileContext:
 
     state: dbstate.CompilerConnectionState
-    output_format: enums.IoFormat
+    output_format: enums.OutputFormat
     expected_cardinality_one: bool
     stmt_mode: enums.CompileStatementMode
     protocol_version: Tuple[int, int]
@@ -114,27 +116,26 @@ class CompileContext:
     compat_ver: Optional[verutils.Version] = None
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
-    standalone_mode: bool = False
     log_ddl_as_migrations: bool = True
 
 
 DEFAULT_MODULE_ALIASES_MAP = immutables.Map(
     {None: defines.DEFAULT_MODULE_ALIAS})
-_IO_FORMAT_MAP = {
-    enums.IoFormat.BINARY: pg_compiler.OutputFormat.NATIVE,
-    enums.IoFormat.JSON: pg_compiler.OutputFormat.JSON,
-    enums.IoFormat.JSON_ELEMENTS: pg_compiler.OutputFormat.JSON_ELEMENTS,
-    enums.IoFormat.SCRIPT: pg_compiler.OutputFormat.SCRIPT,
+_OUTPUT_FORMAT_MAP = {
+    enums.OutputFormat.BINARY: pg_compiler.OutputFormat.NATIVE,
+    enums.OutputFormat.JSON: pg_compiler.OutputFormat.JSON,
+    enums.OutputFormat.JSON_ELEMENTS: pg_compiler.OutputFormat.JSON_ELEMENTS,
+    enums.OutputFormat.NONE: pg_compiler.OutputFormat.NONE,
 }
 
 pg_ql = lambda o: pg_common.quote_literal(str(o))
 
 
-def _convert_format(inp: enums.IoFormat) -> pg_compiler.OutputFormat:
+def _convert_format(inp: enums.OutputFormat) -> pg_compiler.OutputFormat:
     try:
-        return _IO_FORMAT_MAP[inp]
+        return _OUTPUT_FORMAT_MAP[inp]
     except KeyError:
-        raise RuntimeError(f"IO format {inp!r} is not supported")
+        raise RuntimeError(f"Output format {inp!r} is not supported")
 
 
 def compile_edgeql_script(
@@ -174,10 +175,9 @@ def new_compiler_context(
     expected_cardinality_one: bool = False,
     json_parameters: bool = False,
     schema_reflection_mode: bool = False,
-    output_format: enums.IoFormat = enums.IoFormat.BINARY,
+    output_format: enums.OutputFormat = enums.OutputFormat.BINARY,
     bootstrap_mode: bool = False,
     internal_schema_mode: bool = False,
-    standalone_mode: bool = False,
     protocol_version: Tuple[int, int] = defines.CURRENT_PROTOCOL,
 ) -> CompileContext:
     """Create and return an ad-hoc compiler context."""
@@ -200,7 +200,6 @@ def new_compiler_context(
         schema_reflection_mode=schema_reflection_mode,
         bootstrap_mode=bootstrap_mode,
         internal_schema_mode=internal_schema_mode,
-        standalone_mode=standalone_mode,
         stmt_mode=(
             enums.CompileStatementMode.SINGLE
             if single_statement else enums.CompileStatementMode.ALL
@@ -468,7 +467,7 @@ class Compiler:
                 stmt_mode=enums.CompileStatementMode.SINGLE,
                 json_parameters=True,
                 schema_reflection_mode=True,
-                output_format=enums.IoFormat.JSON,
+                output_format=enums.OutputFormat.JSON,
                 expected_cardinality_one=False,
                 bootstrap_mode=ctx.bootstrap_mode,
                 protocol_version=ctx.protocol_version,
@@ -518,10 +517,10 @@ class Compiler:
     ) -> Tuple[str, Dict[str, int]]:
 
         source = edgeql.Source.from_string(eql)
-        units = self._compile(ctx=ctx, source=source)
+        unit_group = self._compile(ctx=ctx, source=source)
 
         sql_stmts = []
-        for u in units:
+        for u in unit_group:
             for stmt in u.sql:
                 stmt = stmt.strip()
                 if not stmt.endswith(b';'):
@@ -536,7 +535,7 @@ class Compiler:
                     ' requested SINGLE statement mode'
                 )
             sql = sql_stmts[0].strip(b';')
-            argmap = units[0].in_type_args
+            argmap = unit_group[0].in_type_args
             if argmap is None:
                 argmap = ()
         else:
@@ -545,22 +544,15 @@ class Compiler:
 
         return sql.decode(), argmap
 
-    def _compile_ql_query(
+    def _get_compile_options(
         self,
         ctx: CompileContext,
-        ql: qlast.Base,
-        *,
-        cacheable: bool = True,
-        migration_block_query: bool = False,
-    ) -> dbstate.BaseQuery:
-
-        current_tx = ctx.state.current_tx()
+    ) -> qlcompiler.CompilerOptions:
+        single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
 
         native_out_format = (
-            ctx.output_format is enums.IoFormat.BINARY
+            ctx.output_format is enums.OutputFormat.BINARY
         )
-
-        single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
 
         can_have_implicit_fields = (
             native_out_format and
@@ -572,34 +564,50 @@ class Compiler:
             '__internal_no_const_folding',
         )
 
+        return qlcompiler.CompilerOptions(
+            modaliases=ctx.state.current_tx().get_modaliases(),
+            implicit_tid_in_shapes=(
+                can_have_implicit_fields and ctx.inline_typeids
+            ),
+            implicit_tname_in_shapes=(
+                can_have_implicit_fields and ctx.inline_typenames
+            ),
+            implicit_id_in_shapes=(
+                can_have_implicit_fields and ctx.inline_objectids
+            ),
+            constant_folding=not disable_constant_folding,
+            json_parameters=ctx.json_parameters,
+            implicit_limit=ctx.implicit_limit,
+            allow_writing_protected_pointers=ctx.schema_reflection_mode,
+            bootstrap_mode=ctx.bootstrap_mode,
+            apply_query_rewrites=(
+                not ctx.bootstrap_mode
+                and not ctx.schema_reflection_mode
+            ),
+            apply_user_access_policies=self.get_config_val(
+                ctx, 'apply_access_policies'),
+            testmode=self.get_config_val(ctx, '__internal_testmode'),
+            devmode=self._is_dev_instance(),
+        )
+
+    def _compile_ql_query(
+        self,
+        ctx: CompileContext,
+        ql: qlast.Base,
+        *,
+        script_info: Optional[irast.ScriptInfo] = None,
+        cacheable: bool = True,
+        migration_block_query: bool = False,
+    ) -> dbstate.BaseQuery:
+
+        current_tx = ctx.state.current_tx()
+
+        schema = current_tx.get_schema(self._std_schema)
         ir = qlcompiler.compile_ast_to_ir(
             ql,
-            schema=current_tx.get_schema(self._std_schema),
-            options=qlcompiler.CompilerOptions(
-                modaliases=current_tx.get_modaliases(),
-                implicit_tid_in_shapes=(
-                    can_have_implicit_fields and ctx.inline_typeids
-                ),
-                implicit_tname_in_shapes=(
-                    can_have_implicit_fields and ctx.inline_typenames
-                ),
-                implicit_id_in_shapes=(
-                    can_have_implicit_fields and ctx.inline_objectids
-                ),
-                constant_folding=not disable_constant_folding,
-                json_parameters=ctx.json_parameters,
-                implicit_limit=ctx.implicit_limit,
-                allow_writing_protected_pointers=ctx.schema_reflection_mode,
-                bootstrap_mode=ctx.bootstrap_mode,
-                apply_query_rewrites=(
-                    not ctx.bootstrap_mode
-                    and not ctx.schema_reflection_mode
-                ),
-                apply_user_access_policies=self.get_config_val(
-                    ctx, 'apply_access_policies'),
-                testmode=self.get_config_val(ctx, '__internal_testmode'),
-                devmode=self._is_dev_instance(),
-            ),
+            schema=schema,
+            script_info=script_info,
+            options=self._get_compile_options(ctx),
         )
 
         if ir.cardinality.is_single():
@@ -636,135 +644,150 @@ class Compiler:
 
         sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
-        if single_stmt_mode:
-            if native_out_format:
-                out_type_data, out_type_id = sertypes.TypeSerializer.describe(
-                    ir.schema, ir.stype,
-                    ir.view_shapes, ir.view_shapes_metadata,
-                    inline_typenames=ctx.inline_typenames,
-                    protocol_version=ctx.protocol_version)
-            else:
-                out_type_data, out_type_id = \
-                    sertypes.TypeSerializer.describe_json()
+        in_type_args = None
+        params: list[tuple[str, s_obj.Object, bool]] = []
+        has_named_params = False
+        if ir.params:
+            params, in_type_args = self._extract_params(
+                ir.params, argmap=argmap, script_info=script_info,
+                schema=ir.schema, ctx=ctx)
 
-            in_type_args = None
-            params: list[tuple[str, s_obj.Object, bool]] = []
-            has_named_params = False
+        globals = None
+        if ir.globals:
+            globals = [
+                (str(glob.global_name), glob.has_present_arg)
+                for glob in ir.globals
+            ]
 
-            if ir.params:
-                first_param = next(iter(ir.params))
-                has_named_params = not first_param.name.isdecimal()
-                if (src := ctx.source) is not None:
-                    first_extracted = src.first_extra()
-                else:
-                    first_extracted = None
-
-                if first_extracted is not None:
-                    user_params = first_extracted
-                else:
-                    user_params = len(ir.params)
-
-                params = [None] * user_params
-                in_type_args = [None] * user_params
-                for param in ir.params:
-                    sql_param = argmap[param.name]
-
-                    idx = sql_param.index - 1
-                    if first_extracted is not None and idx >= first_extracted:
-                        continue
-
-                    array_tid = None
-                    if (
-                        param.schema_type.is_array()
-                        and not ctx.standalone_mode
-                    ):
-                        el_type = param.schema_type.get_element_type(ir.schema)
-                        array_tid = el_type.id
-
-                    if not has_named_params and str(idx) != param.name:
-                        raise RuntimeError(
-                            'positional argument name disagrees '
-                            'with its actual position')
-
-                    params[idx] = (
-                        param.name,
-                        param.schema_type,
-                        sql_param.required,
-                    )
-
-                    in_type_args[idx] = dbstate.Param(
-                        name=param.name,
-                        required=sql_param.required,
-                        array_type_id=array_tid,
-                    )
-
-            globals = None
-            if ir.globals:
-                globals = [
-                    (str(glob.global_name), glob.has_present_arg)
-                    for glob in ir.globals
-                ]
-
-            if ctx.protocol_version >= (0, 12):
-                in_type_data, in_type_id = \
-                    sertypes.TypeSerializer.describe_params(
-                        schema=ir.schema,
-                        params=params,
-                        protocol_version=ctx.protocol_version,
-                    )
-            else:
-                # Legacy protocol support
-                if params:
-                    pschema, params_type = s_types.Tuple.create(
-                        ir.schema,
-                        element_types=collections.OrderedDict(
-                            # keep only param_name/param_type
-                            [param[:2] for param in params]
-                        ),
-                        named=has_named_params)
-                else:
-                    pschema, params_type = s_types.Tuple.create(
-                        ir.schema,
-                        element_types={},
-                        named=has_named_params)
-
-                in_type_data, in_type_id = sertypes.TypeSerializer.describe(
-                    pschema, params_type, {}, {},
-                    protocol_version=ctx.protocol_version)
-
-            sql_hash = self._hash_sql(
-                sql_bytes,
-                mode=str(ctx.output_format).encode(),
-                intype=in_type_id.bytes,
-                outtype=out_type_id.bytes)
-
-            return dbstate.Query(
-                sql=(sql_bytes,),
-                sql_hash=sql_hash,
-                cardinality=result_cardinality,
-                globals=globals,
-                in_type_id=in_type_id.bytes,
-                in_type_data=in_type_data,
-                in_type_args=in_type_args,
-                out_type_id=out_type_id.bytes,
-                out_type_data=out_type_data,
-                cacheable=cacheable,
-                has_dml=ir.dml_exprs,
-            )
-
+        if (
+            ctx.output_format is enums.OutputFormat.NONE or
+            ctx.stmt_mode is not enums.CompileStatementMode.SINGLE
+        ):
+            out_type_id = sertypes.NULL_TYPE_ID
+            out_type_data = sertypes.NULL_TYPE_DESC
+            result_cardinality = enums.Cardinality.NO_RESULT
+        elif ctx.output_format is enums.OutputFormat.BINARY:
+            out_type_data, out_type_id = sertypes.TypeSerializer.describe(
+                ir.schema, ir.stype,
+                ir.view_shapes, ir.view_shapes_metadata,
+                inline_typenames=ctx.inline_typenames,
+                protocol_version=ctx.protocol_version)
         else:
-            if ir.params:
-                raise errors.QueryError(
-                    'EdgeQL script queries cannot accept parameters')
+            out_type_data, out_type_id = \
+                sertypes.TypeSerializer.describe_json()
 
-            if ir.globals:
-                raise errors.QueryError(
-                    'EdgeQL script queries cannot use globals')
+        if ctx.protocol_version >= (0, 12):
+            in_type_data, in_type_id = \
+                sertypes.TypeSerializer.describe_params(
+                    schema=ir.schema,
+                    params=params,
+                    protocol_version=ctx.protocol_version,
+                )
+        else:
+            # Legacy protocol support - for restoring pre-0.12 dumps
+            if params:
+                pschema, params_type = s_types.Tuple.create(
+                    ir.schema,
+                    element_types=collections.OrderedDict(
+                        # keep only param_name/param_type
+                        [param[:2] for param in params]
+                    ),
+                    named=has_named_params)
+            else:
+                pschema, params_type = s_types.Tuple.create(
+                    ir.schema,
+                    element_types={},
+                    named=has_named_params)
 
-            return dbstate.SimpleQuery(
-                sql=(sql_bytes,),
-                has_dml=ir.dml_exprs,
+            in_type_data, in_type_id = sertypes.TypeSerializer.describe(
+                pschema, params_type, {}, {},
+                protocol_version=ctx.protocol_version)
+
+        sql_hash = self._hash_sql(
+            sql_bytes,
+            mode=str(ctx.output_format).encode(),
+            intype=in_type_id.bytes,
+            outtype=out_type_id.bytes)
+
+        return dbstate.Query(
+            sql=(sql_bytes,),
+            sql_hash=sql_hash,
+            cardinality=result_cardinality,
+            globals=globals,
+            in_type_id=in_type_id.bytes,
+            in_type_data=in_type_data,
+            in_type_args=in_type_args,
+            out_type_id=out_type_id.bytes,
+            out_type_data=out_type_data,
+            cacheable=cacheable,
+            has_dml=ir.dml_exprs,
+        )
+
+    def _extract_params(
+        self,
+        params: List[irast.Param],
+        *,
+        schema: s_schema.Schema,
+        argmap: Optional[Dict[str, pgast.Param]],
+        script_info: Optional[irast.ScriptInfo],
+        ctx: CompileContext,
+    ) -> Tuple[List[tuple], List[dbstate.Param]]:
+        first_param = next(iter(params)) if params else None
+        has_named_params = first_param and not first_param.name.isdecimal()
+
+        if (src := ctx.source) is not None:
+            first_extra = src.first_extra()
+        else:
+            first_extra = None
+
+        user_params = first_extra if first_extra is not None else len(params)
+
+        if script_info is not None:
+            outer_mapping = {n: i for i, n in enumerate(script_info.params)}
+            # Count however many of *our* arguments are user_params
+            user_params = sum(
+                outer_mapping[n.name] < user_params for n in params)
+        else:
+            outer_mapping = None
+
+        oparams = [None] * user_params
+        in_type_args = [None] * user_params
+        for idx, param in enumerate(params):
+            if argmap is not None:
+                sql_param = argmap[param.name]
+                idx = sql_param.index - 1
+            if idx >= user_params:
+                continue
+
+            array_tid = None
+            if param.schema_type.is_array():
+                el_type = param.schema_type.get_element_type(schema)
+                array_tid = el_type.id
+
+            # NB: We'll need to turn this off for script args
+            if (
+                not script_info
+                and not has_named_params
+                and str(idx) != param.name
+            ):
+                raise RuntimeError(
+                    'positional argument name disagrees '
+                    'with its actual position')
+
+            oparams[idx] = (
+                param.name,
+                param.schema_type,
+                param.required,
             )
+
+            in_type_args[idx] = dbstate.Param(
+                name=param.name,
+                required=param.required,
+                array_type_id=array_tid,
+                outer_idx=outer_mapping[param.name] if outer_mapping else None,
+            )
+
+        return oparams, in_type_args
 
     def _compile_and_apply_ddl_stmt(
         self,
@@ -957,6 +980,7 @@ class Compiler:
         self,
         ctx: CompileContext,
         ql: qlast.MigrationCommand,
+        in_script: bool,
     ):
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema(self._std_schema)
@@ -969,14 +993,28 @@ class Compiler:
         elif isinstance(ql, qlast.StartMigration):
             self._assert_not_in_migration_block(ctx, ql)
 
-            if current_tx.is_implicit():
+            if current_tx.is_implicit() and not in_script:
                 savepoint_name = None
                 tx_cmd = qlast.StartTransaction()
+                tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+                query = dbstate.MigrationControlQuery(
+                    sql=tx_query.sql,
+                    action=dbstate.MigrationAction.START,
+                    tx_action=tx_query.action,
+                    cacheable=False,
+                    modaliases=None,
+                    single_unit=tx_query.single_unit,
+                )
             else:
-                savepoint_name = str(uuid.uuid4())
-                tx_cmd = qlast.DeclareSavepoint(name=savepoint_name)
+                savepoint_name = current_tx.start_migration()
+                query = dbstate.MigrationControlQuery(
+                    sql=(b'SELECT LIMIT 0',),
+                    action=dbstate.MigrationAction.START,
+                    tx_action=None,
+                    cacheable=False,
+                    modaliases=None,
+                )
 
-            tx_query = self._compile_ql_transaction(ctx, tx_cmd)
             assert self._std_schema is not None
             base_schema = s_schema.ChainedSchema(
                 self._std_schema,
@@ -1003,15 +1041,6 @@ class Compiler:
                     accepted_cmds=tuple(),
                     last_proposed=None,
                 ),
-            )
-
-            query = dbstate.MigrationControlQuery(
-                sql=tx_query.sql,
-                action=dbstate.MigrationAction.START,
-                tx_action=tx_query.action,
-                cacheable=False,
-                modaliases=None,
-                single_unit=tx_query.single_unit,
             )
 
         elif isinstance(ql, qlast.PopulateMigration):
@@ -1314,18 +1343,20 @@ class Compiler:
             )
 
             if mstate.initial_savepoint:
-                savepoint_name = str(uuid.uuid4())
-                tx_cmd = qlast.DeclareSavepoint(name=savepoint_name)
+                current_tx.commit_migration(mstate.initial_savepoint)
+                sql = ddl_query.sql
+                tx_action = None
             else:
                 tx_cmd = qlast.CommitTransaction()
-
-            tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+                tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+                sql = ddl_query.sql + tx_query.sql
+                tx_action = tx_query.action
 
             query = dbstate.MigrationControlQuery(
-                sql=ddl_query.sql + tx_query.sql,
+                sql=sql,
                 ddl_stmt_id=ddl_query.ddl_stmt_id,
                 action=dbstate.MigrationAction.COMMIT,
-                tx_action=tx_query.action,
+                tx_action=tx_action,
                 cacheable=False,
                 modaliases=None,
                 single_unit=True,
@@ -1337,13 +1368,24 @@ class Compiler:
             mstate = self._assert_in_migration_block(ctx, ql)
 
             if mstate.initial_savepoint:
-                savepoint_name = str(uuid.uuid4())
-                tx_cmd = qlast.RollbackToSavepoint(name=savepoint_name)
+                current_tx.abort_migration(mstate.initial_savepoint)
+                sql = (b'SELECT LIMIT 0',)
+                tx_action = None
             else:
                 tx_cmd = qlast.RollbackTransaction()
+                tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+                sql = tx_query.sql
+                tx_action = tx_query.action
 
             current_tx.update_migration_state(None)
-            query = self._compile_ql_transaction(ctx, tx_cmd)
+            query = dbstate.MigrationControlQuery(
+                sql=sql,
+                action=dbstate.MigrationAction.ABORT,
+                tx_action=tx_action,
+                cacheable=False,
+                modaliases=None,
+                single_unit=True,
+            )
 
         elif isinstance(ql, qlast.DropMigration):
             self._assert_not_in_migration_block(ctx, ql)
@@ -1366,6 +1408,8 @@ class Compiler:
         final_user_schema: Optional[s_schema.Schema] = None
         final_cached_reflection = None
         final_global_schema: Optional[s_schema.Schema] = None
+        sp_name = None
+        sp_id = None
 
         if isinstance(ql, qlast.StartTransaction):
             self._assert_not_in_migration_block(ctx, ql)
@@ -1412,25 +1456,14 @@ class Compiler:
             tx = ctx.state.current_tx()
             sp_id = tx.declare_savepoint(ql.name)
 
-            if not ctx.bootstrap_mode:
-                pgname = pg_common.quote_ident(ql.name)
-                sql = (
-                    f'''
-                        INSERT INTO _edgecon_current_savepoint(sp_id)
-                        VALUES (
-                            {pg_ql(sp_id)}
-                        )
-                        ON CONFLICT (_sentinel) DO
-                        UPDATE
-                            SET sp_id = {pg_ql(sp_id)};
-                    '''.encode(),
-                    f'SAVEPOINT {pgname};'.encode()
-                )
-            else:  # pragma: no cover
-                sql = (f'SAVEPOINT {pgname};'.encode(),)
+            pgname = pg_common.quote_ident(ql.name)
+            sql = (f'SAVEPOINT {pgname}'.encode(),)
 
             cacheable = False
             action = dbstate.TxAction.DECLARE_SAVEPOINT
+
+            sp_name = ql.name
+            sp_id = sp_id
 
         elif isinstance(ql, qlast.ReleaseSavepoint):
             ctx.state.current_tx().release_savepoint(ql.name)
@@ -1445,10 +1478,11 @@ class Compiler:
             modaliases = new_state.modaliases
 
             pgname = pg_common.quote_ident(ql.name)
-            sql = (f'ROLLBACK TO SAVEPOINT {pgname}'.encode(),)
+            sql = (f'ROLLBACK TO SAVEPOINT {pgname};'.encode(),)
             single_unit = True
             cacheable = False
             action = dbstate.TxAction.ROLLBACK_TO_SAVEPOINT
+            sp_name = ql.name
 
         else:  # pragma: no cover
             raise ValueError(f'expected a transaction AST node, got {ql!r}')
@@ -1462,6 +1496,8 @@ class Compiler:
             user_schema=final_user_schema,
             cached_reflection=final_cached_reflection,
             global_schema=final_global_schema,
+            sp_name=sp_name,
+            sp_id=sp_id,
         )
 
     def _compile_ql_sess_state(self, ctx: CompileContext,
@@ -1470,20 +1506,6 @@ class Compiler:
         schema = current_tx.get_schema(self._std_schema)
 
         aliases = ctx.state.current_tx().get_modaliases()
-
-        sqlbuf = []
-
-        alias_tpl = lambda alias, module: f'''
-            INSERT INTO _edgecon_state(name, value, type)
-            VALUES (
-                {pg_ql(alias or '')},
-                to_jsonb({pg_ql(module)}::text),
-                'A'
-            )
-            ON CONFLICT (name, type) DO
-            UPDATE
-                SET value = to_jsonb({pg_ql(module)}::text);
-        '''.encode()
 
         if isinstance(ql, qlast.SessionSetAliasDecl):
             try:
@@ -1494,35 +1516,14 @@ class Compiler:
 
             aliases = aliases.set(ql.alias, ql.module)
 
-            if not ctx.bootstrap_mode:
-                sql = alias_tpl(ql.alias, ql.module)
-                sqlbuf.append(sql)
-
         elif isinstance(ql, qlast.SessionResetModule):
             aliases = aliases.set(None, defines.DEFAULT_MODULE_ALIAS)
-
-            if not ctx.bootstrap_mode:
-                sql = alias_tpl('', defines.DEFAULT_MODULE_ALIAS)
-                sqlbuf.append(sql)
 
         elif isinstance(ql, qlast.SessionResetAllAliases):
             aliases = DEFAULT_MODULE_ALIASES_MAP
 
-            if not ctx.bootstrap_mode:
-                sqlbuf.append(
-                    b"DELETE FROM _edgecon_state s WHERE s.type = 'A';")
-                sqlbuf.append(
-                    alias_tpl('', defines.DEFAULT_MODULE_ALIAS))
-
         elif isinstance(ql, qlast.SessionResetAliasDecl):
             aliases = aliases.delete(ql.alias)
-
-            if not ctx.bootstrap_mode:
-                sql = f'''
-                    DELETE FROM _edgecon_state s
-                    WHERE s.name = {pg_ql(ql.alias)} AND s.type = 'A';
-                '''.encode()
-                sqlbuf.append(sql)
 
         else:  # pragma: no cover
             raise errors.InternalServerError(
@@ -1530,17 +1531,8 @@ class Compiler:
 
         ctx.state.current_tx().update_modaliases(aliases)
 
-        if len(sqlbuf) == 1:
-            sql = sqlbuf[0]
-        else:
-            sql = b'''
-            DO LANGUAGE plpgsql $$ BEGIN
-            %b
-            END; $$;
-            ''' % (b''.join(sqlbuf))
-
         return dbstate.SessionStateQuery(
-            sql=(sql,),
+            sql=(),
         )
 
     def _compile_ql_config_op(self, ctx: CompileContext, ql: qlast.Base):
@@ -1628,9 +1620,13 @@ class Compiler:
         ctx: CompileContext,
         ql: qlast.Base,
         source: Optional[edgeql.Source] = None,
+        *,
+        script_info: Optional[irast.ScriptInfo] = None,
     ) -> Tuple[dbstate.BaseQuery, enums.Capability]:
         if isinstance(ql, qlast.MigrationCommand):
-            query = self._compile_ql_migration(ctx, ql)
+            query = self._compile_ql_migration(
+                ctx, ql, in_script=script_info is not None
+            )
             if isinstance(
                 query,
                 (dbstate.MigrationControlQuery, dbstate.DDLQuery),
@@ -1668,7 +1664,7 @@ class Compiler:
             )
 
         else:
-            query = self._compile_ql_query(ctx, ql)
+            query = self._compile_ql_query(ctx, ql, script_info=script_info)
             caps = enums.Capability(0)
             if (
                 isinstance(query, (dbstate.Query, dbstate.SimpleQuery))
@@ -1682,7 +1678,7 @@ class Compiler:
         *,
         ctx: CompileContext,
         source: edgeql.Source,
-    ) -> List[dbstate.QueryUnit]:
+    ) -> dbstate.QueryUnitGroup:
         current_tx = ctx.state.current_tx()
         if current_tx.get_migration_state() is not None:
             original = edgeql.Source.from_string(source.text())
@@ -1717,7 +1713,7 @@ class Compiler:
         *,
         ctx: CompileContext,
         source: edgeql.Source,
-    ) -> List[dbstate.QueryUnit]:
+    ) -> dbstate.QueryUnitGroup:
 
         # When True it means that we're compiling for "connection.query()".
         # That means that the returned QueryUnit has to have the in/out codec
@@ -1743,28 +1739,28 @@ class Compiler:
         if not len(statements):  # pragma: no cover
             raise errors.ProtocolError('nothing to compile')
 
-        units: list[dbstate.QueryUnit] = []
-        unit = None
+        rv = dbstate.QueryUnitGroup()
+
+        script_info = None
+        if statements_len > 1:
+            script_info = qlcompiler.preprocess_script(
+                statements,
+                schema=ctx.state.current_tx().get_schema(self._std_schema),
+                options=self._get_compile_options(ctx)
+            )
 
         for stmt in statements:
             comp, capabilities = self._compile_dispatch_ql(
-                ctx, stmt, source=source if len(statements) == 1 else None)
+                ctx, stmt, source=source if len(statements) == 1 else None,
+                script_info=script_info)
 
-            if unit is not None:
-                if comp.single_unit:
-                    units.append(unit)
-                    unit = None
-
-            if unit is None:
-                unit = dbstate.QueryUnit(
-                    sql=(),
-                    status=status.get_status(stmt),
-                    cardinality=default_cardinality,
-                )
-            else:
-                unit.status = status.get_status(stmt)
-
-            unit.capabilities |= capabilities
+            unit = dbstate.QueryUnit(
+                sql=(),
+                status=status.get_status(stmt),
+                cardinality=default_cardinality,
+                capabilities=capabilities,
+                output_format=ctx.output_format,
+            )
 
             if not comp.is_transactional:
                 if statements_len > 1:
@@ -1790,29 +1786,28 @@ class Compiler:
                 unit.is_transactional = False
 
             if isinstance(comp, dbstate.Query):
-                if single_stmt_mode:
-                    unit.sql = comp.sql
-                    unit.sql_hash = comp.sql_hash
+                unit.sql = comp.sql
+                unit.globals = comp.globals
+                unit.in_type_args = comp.in_type_args
 
-                    unit.out_type_data = comp.out_type_data
-                    unit.out_type_id = comp.out_type_id
-                    unit.in_type_data = comp.in_type_data
-                    unit.in_type_args = comp.in_type_args
-                    unit.in_type_id = comp.in_type_id
-                    unit.globals = comp.globals
+                unit.sql_hash = comp.sql_hash
 
-                    unit.cacheable = comp.cacheable
+                unit.out_type_data = comp.out_type_data
+                unit.out_type_id = comp.out_type_id
+                unit.in_type_data = comp.in_type_data
+                unit.in_type_id = comp.in_type_id
 
-                    unit.cardinality = comp.cardinality
-                else:
-                    unit.sql += comp.sql
+                unit.cacheable = comp.cacheable
+
+                unit.cardinality = comp.cardinality
 
             elif isinstance(comp, dbstate.SimpleQuery):
                 assert not single_stmt_mode
-                unit.sql += comp.sql
+                unit.sql = comp.sql
+                unit.in_type_args = comp.in_type_args
 
             elif isinstance(comp, dbstate.DDLQuery):
-                unit.sql += comp.sql
+                unit.sql = comp.sql
                 unit.create_db = comp.create_db
                 unit.drop_db = comp.drop_db
                 unit.create_db_template = comp.create_db_template
@@ -1826,12 +1821,8 @@ class Compiler:
                 if comp.global_schema is not None:
                     unit.global_schema = pickle.dumps(comp.global_schema, -1)
 
-                if comp.single_unit:
-                    units.append(unit)
-                    unit = None
-
             elif isinstance(comp, dbstate.TxControlQuery):
-                unit.sql += comp.sql
+                unit.sql = comp.sql
                 unit.cacheable = comp.cacheable
                 if comp.user_schema is not None:
                     unit.user_schema = pickle.dumps(comp.user_schema, -1)
@@ -1853,13 +1844,14 @@ class Compiler:
                     unit.tx_rollback = True
                 elif comp.action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
                     unit.tx_savepoint_rollback = True
-
-                if comp.single_unit:
-                    units.append(unit)
-                    unit = None
+                    unit.sp_name = comp.sp_name
+                elif comp.action is dbstate.TxAction.DECLARE_SAVEPOINT:
+                    unit.tx_savepoint_declare = True
+                    unit.sp_name = comp.sp_name
+                    unit.sp_id = comp.sp_id
 
             elif isinstance(comp, dbstate.MigrationControlQuery):
-                unit.sql += comp.sql
+                unit.sql = comp.sql
                 unit.cacheable = comp.cacheable
                 if comp.user_schema is not None:
                     unit.user_schema = pickle.dumps(comp.user_schema, -1)
@@ -1880,15 +1872,9 @@ class Compiler:
                     unit.tx_commit = True
                 elif comp.tx_action == dbstate.TxAction.ROLLBACK:
                     unit.tx_rollback = True
-                elif comp.tx_action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
-                    unit.tx_savepoint_rollback = True
-
-                if comp.single_unit:
-                    units.append(unit)
-                    unit = None
 
             elif isinstance(comp, dbstate.SessionStateQuery):
-                unit.sql += comp.sql
+                unit.sql = comp.sql
 
                 if comp.config_scope is qltypes.ConfigScope.INSTANCE:
                     if (not ctx.state.current_tx().is_implicit() or
@@ -1899,13 +1885,7 @@ class Compiler:
 
                     unit.system_config = True
                 elif comp.config_scope is qltypes.ConfigScope.GLOBAL:
-                    unit.system_config = True
-                    # FIXME: We want to be able to do this in a block
-                    # with other commands.
-                    if statements_len > 1:
-                        raise errors.UnsupportedFeatureError(
-                            'SET GLOBAL cannot be executed in a block '
-                            'with other commands')
+                    unit.set_global = True
 
                 elif comp.config_scope is qltypes.ConfigScope.DATABASE:
                     unit.database_config = True
@@ -1928,15 +1908,34 @@ class Compiler:
             else:  # pragma: no cover
                 raise errors.InternalServerError('unknown compile state')
 
-        if unit is not None:
-            units.append(unit)
+            if statements_len > 1:
+                rv.append(unit)
+            else:
+                rv.init_with(unit)
 
         if single_stmt_mode:
-            if len(units) != 1:  # pragma: no cover
+            if len(rv) != 1:  # pragma: no cover
                 raise errors.InternalServerError(
-                    f'expected 1 compiled unit; got {len(units)}')
+                    f'expected 1 compiled unit; got {len(rv)}')
+        elif script_info:
+            params, in_type_args = self._extract_params(
+                list(script_info.params.values()),
+                argmap=None, script_info=None, schema=script_info.schema,
+                ctx=ctx)
 
-        for unit in units:  # pragma: no cover
+            if ctx.protocol_version >= (0, 12):
+                in_type_data, in_type_id = \
+                    sertypes.TypeSerializer.describe_params(
+                        schema=ctx.state.current_tx().get_schema(
+                            self._std_schema),
+                        params=params,
+                        protocol_version=ctx.protocol_version,
+                    )
+                rv.in_type_id = in_type_id.bytes
+                rv.in_type_args = in_type_args
+                rv.in_type_data = in_type_data
+
+        for unit in rv:  # pragma: no cover
             if ctx.protocol_version < (0, 12):
                 if unit.in_type_id == sertypes.NULL_TYPE_ID.bytes:
                     unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
@@ -1969,7 +1968,7 @@ class Compiler:
                 raise errors.InternalServerError(
                     f'unit has invalid "cardinality": {unit!r}')
 
-        return units
+        return rv
 
     # API
 
@@ -1992,7 +1991,8 @@ class Compiler:
             unit = dbstate.QueryUnit(
                 status=b'ROLLBACK TO SAVEPOINT',
                 sql=(sql,),
-                tx_savepoint_rollback=True,
+                tx_savepoint_rollback=stmt.name,
+                sp_name=stmt.name,
                 cacheable=False)
 
         if unit is not None:
@@ -2001,7 +2001,9 @@ class Compiler:
                     unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
                     unit.in_type_data = sertypes.EMPTY_TUPLE_DESC
 
-            return unit, len(statements) - 1
+            return (
+                dbstate.QueryUnitGroup().init_with(unit), len(statements) - 1
+            )
 
         raise errors.TransactionError(
             'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
@@ -2031,7 +2033,7 @@ class Compiler:
 
         ctx = CompileContext(
             state=state,
-            output_format=enums.IoFormat.BINARY,
+            output_format=enums.OutputFormat.BINARY,
             expected_cardinality_one=False,
             implicit_limit=implicit_limit,
             inline_typenames=True,
@@ -2055,7 +2057,7 @@ class Compiler:
 
                 ctx = CompileContext(
                     state=state,
-                    output_format=enums.IoFormat.BINARY,
+                    output_format=enums.OutputFormat.BINARY,
                     expected_cardinality_one=False,
                     implicit_limit=implicit_limit,
                     inline_typeids=False,
@@ -2091,7 +2093,7 @@ class Compiler:
         source: edgeql.Source,
         sess_modaliases: Optional[immutables.Map],
         sess_config: Optional[immutables.Map],
-        io_format: enums.IoFormat,
+        output_format: enums.OutputFormat,
         expect_one: bool,
         implicit_limit: int,
         inline_typeids: bool,
@@ -2100,7 +2102,7 @@ class Compiler:
         protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
         json_parameters: bool = False,
-    ) -> Tuple[List[dbstate.QueryUnit],
+    ) -> Tuple[dbstate.QueryUnitGroup,
                Optional[dbstate.CompilerConnectionState]]:
 
         if sess_config is None:
@@ -2130,7 +2132,7 @@ class Compiler:
 
         ctx = CompileContext(
             state=state,
-            output_format=io_format,
+            output_format=output_format,
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,
             inline_typeids=inline_typeids,
@@ -2142,24 +2144,24 @@ class Compiler:
             protocol_version=protocol_version,
         )
 
-        units = self._compile(ctx=ctx, source=source)
-        tx_control = False
-        for unit in units:
+        unit_group = self._compile(ctx=ctx, source=source)
+        tx_started = False
+        for unit in unit_group:
             if unit.tx_id:
-                tx_control = True
+                tx_started = True
                 break
 
-        if tx_control:
-            return units, ctx.state
+        if tx_started:
+            return unit_group, ctx.state
         else:
-            return units, None
+            return unit_group, None
 
     def compile_in_tx(
         self,
         state: dbstate.CompilerConnectionState,
         txid: int,
         source: edgeql.Source,
-        io_format: enums.IoFormat,
+        output_format: enums.OutputFormat,
         expect_one: bool,
         implicit_limit: int,
         inline_typeids: bool,
@@ -2167,12 +2169,12 @@ class Compiler:
         stmt_mode: enums.CompileStatementMode,
         protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
-    ) -> Tuple[List[dbstate.QueryUnit], dbstate.CompilerConnectionState]:
+    ) -> Tuple[dbstate.QueryUnitGroup, dbstate.CompilerConnectionState]:
         state.sync_tx(txid)
 
         ctx = CompileContext(
             state=state,
-            output_format=io_format,
+            output_format=output_format,
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,
             inline_typeids=inline_typeids,
@@ -2448,7 +2450,7 @@ class Compiler:
 
         ctx = CompileContext(
             state=state,
-            output_format=enums.IoFormat.BINARY,
+            output_format=enums.OutputFormat.BINARY,
             expected_cardinality_one=False,
             stmt_mode=enums.CompileStatementMode.ALL,
             compat_ver=dump_server_ver,
@@ -2487,7 +2489,7 @@ class Compiler:
             )
 
         ddl_source = edgeql.Source.from_string(schema_ddl_text)
-        units = self._compile(ctx=ctx, source=ddl_source)
+        units = self._compile(ctx=ctx, source=ddl_source).units
         schema = ctx.state.current_tx().get_schema(self._std_schema)
 
         if allow_dml_in_functions:
@@ -2502,7 +2504,7 @@ class Compiler:
                 ddl_source = edgeql.Source.from_string(
                     'CONFIGURE CURRENT DATABASE RESET allow_dml_in_functions;',
                 )
-                units += self._compile(ctx=ctx, source=ddl_source)
+                units += self._compile(ctx=ctx, source=ddl_source).units
 
         restore_blocks = []
         tables = []

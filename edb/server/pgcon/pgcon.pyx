@@ -18,6 +18,7 @@
 
 
 import asyncio
+import contextlib
 import decimal
 import codecs
 import hashlib
@@ -86,6 +87,7 @@ DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 
 
 cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
+cdef object FMT_NONE = compiler.OutputFormat.NONE
 cdef dict POSTGRES_SHUTDOWN_ERR_CODES = {
     '57P01': 'admin_shutdown',
     '57P02': 'crash_shutdown',
@@ -119,10 +121,6 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     # * 'B': a session-level config setting that's implemented by setting
     #   a corresponding Postgres config setting.
     #
-    # * 'G': a global variable, its value base64 encoded
-    #
-    # * 'A': a module alias.
-    #
     # * 'R': a "variable=value" record.
 
     return textwrap.dedent(f'''
@@ -132,15 +130,8 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
             name text NOT NULL,
             value jsonb NOT NULL,
             type text NOT NULL CHECK(
-                type = 'C' OR type = 'A' OR type = 'R' OR type = 'B' OR
-                type = 'G'),
+                type = 'C' OR type = 'R' OR type = 'B'),
             UNIQUE(name, type)
-        );
-
-        CREATE TEMPORARY TABLE _edgecon_current_savepoint (
-            sp_id bigint NOT NULL,
-            _sentinel bigint DEFAULT -1,
-            UNIQUE(_sentinel)
         );
 
         PREPARE _clear_state AS
@@ -431,7 +422,7 @@ cdef class PGConnection:
         self.connected_fut = loop.create_future()
         self.connected = False
 
-        self.waiting_for_sync = False
+        self.waiting_for_sync = 0
         self.xact_status = PQTRANS_UNKNOWN
 
         self.backend_pid = -1
@@ -559,8 +550,8 @@ cdef class PGConnection:
 
         self.before_command()
         try:
-            self.waiting_for_sync = True
-            self.write(SYNC_MESSAGE)
+            self.waiting_for_sync += 1
+            self.write(_SYNC_MESSAGE)
 
             while True:
                 if not self.buffer.take_message():
@@ -623,6 +614,10 @@ cdef class PGConnection:
 
         return parse, store_stmt
 
+    cdef write_sync(self, WriteBuffer outbuf):
+        outbuf.write_bytes(_SYNC_MESSAGE)
+        self.waiting_for_sync += 1
+
     async def _parse_execute_to_buf(
         self,
         sql,
@@ -683,11 +678,10 @@ cdef class PGConnection:
         execute_buf.end_message()
         buf.write_buffer(execute_buf)
 
-        buf.write_bytes(SYNC_MESSAGE)
+        self.write_sync(buf)
 
         self.write(buf)
         error = None
-        self.waiting_for_sync = True
         data = None
         while True:
             if not self.buffer.take_message():
@@ -975,6 +969,152 @@ cdef class PGConnection:
             else:
                 self.fallthrough()
 
+    @contextlib.asynccontextmanager
+    async def parse_execute_script_context(self):
+        self.before_command()
+        started_at = time.monotonic()
+        try:
+            try:
+                yield
+            finally:
+                while self.waiting_for_sync:
+                    await self.wait_for_sync()
+        finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            await self.after_command()
+
+    cdef send_query_unit_group(
+        self, object query_unit_group, object bind_datas, bytes state,
+        ssize_t start, ssize_t end,
+    ):
+        cdef:
+            WriteBuffer out
+            WriteBuffer buf
+            WriteBuffer bind_data
+
+        out = WriteBuffer.new()
+
+        if state is not None and start == 0:
+            self._build_apply_state_req(state, out)
+
+        for query_unit, bind_data in zip(
+                query_unit_group.units[start:end], bind_datas):
+            if query_unit.system_config:
+                raise RuntimeError(
+                    "CONFIGURE INSTANCE command is not allowed in scripts"
+                )
+            for sql in query_unit.sql:
+                buf = WriteBuffer.new_message(b'P')
+                buf.write_bytestring(b'')  # statement name
+                buf.write_bytestring(sql)
+                buf.write_int16(0)
+                out.write_buffer(buf.end_message())
+
+                buf = WriteBuffer.new_message(b'B')
+                buf.write_bytestring(b'')  # portal name
+                buf.write_bytestring(b'')  # statement name
+                buf.write_buffer(bind_data)
+                out.write_buffer(buf.end_message())
+
+                buf = WriteBuffer.new_message(b'E')
+                buf.write_bytestring(b'')  # portal name
+                buf.write_int32(0)  # limit: 0 - return all rows
+                out.write_buffer(buf.end_message())
+
+        if end == len(query_unit_group.units):
+            self.write_sync(out)
+        else:
+            out.write_bytes(FLUSH_MESSAGE)
+
+        self.write(out)
+
+    async def wait_for_state_resp(self, bytes state, bint state_sync):
+        if state_sync:
+            try:
+                await self._parse_apply_state_resp(state)
+            finally:
+                await self.wait_for_sync()
+        else:
+            await self._parse_apply_state_resp(state)
+
+    async def wait_for_command(
+        self, *, bint ignore_data, edgecon.EdgeConnection edgecon=None
+    ):
+        cdef WriteBuffer buf = None
+
+        result = None
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            try:
+                if mtype == b'D':
+                    # DataRow
+                    if ignore_data:
+                        self.buffer.discard_message()
+                    elif edgecon is None:
+                        ncol = self.buffer.read_int16()
+                        row = []
+                        for i in range(ncol):
+                            coll = self.buffer.read_int32()
+                            if coll == -1:
+                                row.append(None)
+                            else:
+                                row.append(self.buffer.read_bytes(coll))
+                        if result is None:
+                            result = []
+                        result.append(row)
+                    else:
+                        if buf is None:
+                            buf = WriteBuffer.new()
+
+                        self.buffer.redirect_messages(buf, b'D', 0)
+                        if buf.len() >= DATA_BUFFER_SIZE:
+                            edgecon.write(buf)
+                            buf = None
+
+                elif mtype == b'C':  ## result
+                    # CommandComplete
+                    self.buffer.discard_message()
+                    if buf is not None:
+                        edgecon.write(buf)
+                        buf = None
+                    return result
+
+                elif mtype == b'1':
+                    # ParseComplete
+                    self.buffer.discard_message()
+
+                elif mtype == b'E':  ## result
+                    # ErrorResponse
+                    er_cls, er_fields = self.parse_error_message()
+                    raise er_cls(fields=er_fields)
+
+                elif mtype == b'n':
+                    # NoData
+                    self.buffer.discard_message()
+
+                elif mtype == b's':  ## result
+                    # PortalSuspended
+                    self.buffer.discard_message()
+                    return result
+
+                elif mtype == b'2':
+                    # BindComplete
+                    self.buffer.discard_message()
+
+                elif mtype == b'I':  ## result
+                    # EmptyQueryResponse
+                    self.buffer.discard_message()
+                    return result
+
+                else:
+                    self.fallthrough()
+
+            finally:
+                self.buffer.finish_message()
+
     async def _parse_execute(
         self,
         object query,
@@ -993,6 +1133,7 @@ cdef class PGConnection:
             bint state_sync = 0
 
             bint has_result = query.cardinality is not CARD_NO_RESULT
+            bint discard_result = query.output_format == FMT_NONE
 
             uint64_t msgs_num = <uint64_t>(len(query.sql))
             uint64_t msgs_executed = 0
@@ -1008,7 +1149,7 @@ cdef class PGConnection:
                 # implicit transaction (otherwise START TRANSACTION DEFERRABLE)
                 # would fail. Hence - inject a SYNC after a state restore step.
                 state_sync = 1
-                out.write_bytes(SYNC_MESSAGE)
+                self.write_sync(out)
 
         if use_prep_stmt:
             stmt_name = query.sql_hash
@@ -1072,19 +1213,12 @@ cdef class PGConnection:
             buf.write_int32(0)  # limit: 0 - return all rows
             out.write_buffer(buf.end_message())
 
-        out.write_bytes(SYNC_MESSAGE)
-        self.waiting_for_sync = True
+        self.write_sync(out)
         self.write(out)
 
         try:
             if state is not None:
-                await self._parse_apply_state_resp(state)
-                if state_sync:
-                    await self.wait_for_sync()
-                    # Every call to `wait_for_sync()` resets
-                    # `waiting_for_sync` to False; so set it back to True
-                    # as it was before this `try` block.
-                    self.waiting_for_sync = True
+                await self.wait_for_state_resp(state, state_sync)
 
             buf = None
             while True:
@@ -1095,6 +1229,9 @@ cdef class PGConnection:
                 try:
                     if mtype == b'D':
                         # DataRow
+                        if discard_result:
+                            self.buffer.discard_message()
+                            continue
                         if not has_result:
                             raise errors.InternalServerError(
                                 f'query that was inferred to have '
@@ -1197,11 +1334,12 @@ cdef class PGConnection:
             # scripts that contain `SET TRANSACTION ISOLATION LEVEL` would
             # complain that transaction has already started (by our state
             # sync query) and the type of the transaction cannot be changed.
-            out.write_bytes(SYNC_MESSAGE)
+            self.write_sync(out)
 
         buf = WriteBuffer.new_message(b'Q')
         buf.write_bytestring(sql)
         out.write_buffer(buf.end_message())
+        self.waiting_for_sync += 1
 
         self.write(out)
 
@@ -1210,10 +1348,8 @@ cdef class PGConnection:
 
         if state is not None:
             await self._parse_apply_state_resp(state)
-            self.waiting_for_sync = True
             await self.wait_for_sync()
 
-        self.waiting_for_sync = True
         while True:
             if not self.buffer.take_message():
                 await self.wait_for_message()
@@ -1295,21 +1431,31 @@ cdef class PGConnection:
                 ignore_data,
                 state,
             )
-
-            if query_unit.ddl_stmt_id:
-                if data:
-                    ret = json.loads(data[0][0])
-                    if ret['ddl_stmt_id'] != query_unit.ddl_stmt_id:
-                        raise RuntimeError(
-                            'unrecognized data packet after a DDL command: '
-                            'data_stmt_id do not match')
-                    return ret
-                else:
-                    raise RuntimeError(
-                        'missing the required data packet after a DDL command')
+            return self.load_ddl_return(query_unit, data)
         finally:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
+
+    def load_ddl_return(self, object query_unit, data):
+        if query_unit.ddl_stmt_id:
+            if data:
+                ret = json.loads(data[0][0])
+                if ret['ddl_stmt_id'] != query_unit.ddl_stmt_id:
+                    raise RuntimeError(
+                        'unrecognized data packet after a DDL command: '
+                        'data_stmt_id do not match'
+                    )
+                return ret
+            else:
+                raise RuntimeError(
+                    'missing the required data packet after a DDL command'
+                )
+
+    async def handle_ddl_in_script(self, object query_unit):
+        data = None
+        for sql in query_unit.sql:
+            data = await self.wait_for_command(ignore_data=bool(data)) or data
+        return self.load_ddl_return(query_unit, data)
 
     async def _dump(self, block, output_queue, fragment_suggested_size):
         cdef:
@@ -1322,7 +1468,7 @@ cdef class PGConnection:
         qbuf.end_message()
 
         self.write(qbuf)
-        self.waiting_for_sync = True
+        self.waiting_for_sync += 1
 
         er = None
         out = None
@@ -1422,7 +1568,7 @@ cdef class PGConnection:
         qbuf.end_message()
 
         self.write(qbuf)
-        self.waiting_for_sync = True
+        self.waiting_for_sync += 1
 
         er = None
         while True:
@@ -1755,7 +1901,7 @@ cdef class PGConnection:
         self.write(outbuf)
 
         # Need this to handle first ReadyForQuery
-        self.waiting_for_sync = True
+        self.waiting_for_sync += 1
 
         while True:
             if not self.buffer.take_message():
@@ -2007,7 +2153,7 @@ cdef class PGConnection:
 
         if not self.waiting_for_sync:
             raise RuntimeError('unexpected sync')
-        self.waiting_for_sync = False
+        self.waiting_for_sync -= 1
 
         assert self.buffer.get_message_type() == b'Z'
 
@@ -2220,7 +2366,9 @@ cdef class PGConnection:
         pass
 
 
-cdef bytes SYNC_MESSAGE = bytes(WriteBuffer.new_message(b'S').end_message())
+# Underscored name for _SYNC_MESSAGE because it should always be emitted
+# using write_sync(), which properly counts them
+cdef bytes _SYNC_MESSAGE = bytes(WriteBuffer.new_message(b'S').end_message())
 cdef bytes FLUSH_MESSAGE = bytes(WriteBuffer.new_message(b'H').end_message())
 
 cdef EdegDBCodecContext DEFAULT_CODEC_CONTEXT = EdegDBCodecContext()

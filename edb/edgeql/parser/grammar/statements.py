@@ -171,7 +171,8 @@ class DescribeFormat(Nonterm):
         self.val = DescribeFmt(
             language=qltypes.DescribeLanguage.TEXT,
             options=qlast.Options(
-                options={'VERBOSE': qlast.Flag(name='VERBOSE', val=True)}
+                options={'VERBOSE': qlast.Flag(
+                    name='VERBOSE', val=True, context=kids[2].context)}
             ),
         )
 

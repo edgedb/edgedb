@@ -53,11 +53,11 @@ class Source:
     def first_extra(self) -> Optional[int]:
         return None
 
-    def extra_count(self) -> int:
-        return 0
+    def extra_counts(self) -> Sequence[int]:
+        return ()
 
-    def extra_blob(self) -> bytes:
-        return b''
+    def extra_blobs(self) -> Sequence[bytes]:
+        return ()
 
     @classmethod
     def from_string(cls, text: str) -> Source:
@@ -75,8 +75,8 @@ class NormalizedSource(Source):
         self._tokens = normalized.tokens()
         self._variables = normalized.variables()
         self._first_extra = normalized.first_extra()
-        self._extra_count = normalized.extra_count()
-        self._extra_blob = normalized.extra_blob()
+        self._extra_counts = normalized.extra_counts()
+        self._extra_blobs = normalized.extra_blobs()
 
     def text(self) -> str:
         return self._text
@@ -93,11 +93,11 @@ class NormalizedSource(Source):
     def first_extra(self) -> Optional[int]:
         return self._first_extra
 
-    def extra_count(self) -> int:
-        return self._extra_count
+    def extra_counts(self) -> Sequence[int]:
+        return self._extra_counts
 
-    def extra_blob(self) -> bytes:
-        return self._extra_blob
+    def extra_blobs(self) -> Sequence[bytes]:
+        return self._extra_blobs
 
     @classmethod
     def from_string(cls, text: str) -> NormalizedSource:
@@ -130,7 +130,9 @@ def _derive_hint(
     position: Tuple[int, int, int],
 ) -> Optional[str]:
     _, _, off = position
-    if message == r"invalid string literal: invalid escape sequence '\ '":
+    if message.endswith(
+        r"invalid string literal: invalid escape sequence '\ '"
+    ):
         if TRAILING_WS_IN_CONTINUATION.search(input[off:]):
             return "consider removing trailing whitespace"
     return None

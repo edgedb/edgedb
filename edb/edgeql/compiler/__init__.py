@@ -186,6 +186,7 @@ def compile_ast_to_ir(
     tree: qlast.Base,
     schema: s_schema.Schema,
     *,
+    script_info: Optional[irast.ScriptInfo] = None,
     options: Optional[CompilerOptions] = None,
 ) -> irast.Command:
     """Compile given EdgeQL AST into EdgeDB IR.
@@ -228,20 +229,13 @@ def compile_ast_to_ir(
 
     ctx = stmtctx_mod.init_context(schema=schema, options=options)
 
+    if not script_info:
+        script_info = stmtctx_mod.preprocess_script([tree], ctx=ctx)
+
+    ctx.env.script_params = script_info.params
+
     ir_set = dispatch_mod.compile(tree, ctx=ctx)
     ir_expr = stmtctx_mod.fini_expression(ir_set, ctx=ctx)
-
-    if ctx.env.query_parameters:
-        first_argname = next(iter(ctx.env.query_parameters))
-        if first_argname.isdecimal():
-            args_decnames = {int(arg) for arg in ctx.env.query_parameters}
-            args_tpl = set(range(len(ctx.env.query_parameters)))
-            if args_decnames != args_tpl:
-                missing_args = args_tpl - args_decnames
-                missing_args_repr = ', '.join(f'${a}' for a in missing_args)
-                raise errors.QueryError(
-                    f'missing {missing_args_repr} positional argument'
-                    f'{"s" if len(missing_args) > 1 else ""}')
 
     if debug.flags.edgeql_compile or debug.flags.edgeql_compile_scope:
         debug.header('Scope Tree')
@@ -332,6 +326,17 @@ def compile_ast_fragment_to_ir(
         type_rewrites={},
         singletons=[],
     )
+
+
+@compiler_entrypoint
+def preprocess_script(
+    stmts: List[qlast.Base],
+    schema: s_schema.Schema,
+    *,
+    options: CompilerOptions,
+) -> irast.ScriptInfo:
+    ctx = stmtctx_mod.init_context(schema=schema, options=options)
+    return stmtctx_mod.preprocess_script(stmts, ctx=ctx)
 
 
 def evaluate_to_python_val(

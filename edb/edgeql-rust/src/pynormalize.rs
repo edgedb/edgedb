@@ -19,11 +19,11 @@ py_class!(pub class Entry |py| {
     data _key: PyBytes;
     data _processed_source: String;
     data _tokens: PyList;
-    data _extra_blob: PyBytes;
+    data _extra_blobs: PyList;
     data _extra_named: bool;
     data _first_extra: Option<usize>;
-    data _extra_count: usize;
-    data _variables: Vec<Variable>;
+    data _extra_counts: PyList;
+    data _variables: Vec<Vec<Variable>>;
     def key(&self) -> PyResult<PyBytes> {
         Ok(self._key(py).clone_ref(py))
     }
@@ -34,7 +34,7 @@ py_class!(pub class Entry |py| {
             Some(first) => first,
             None => return Ok(vars),
         };
-        for (idx, var) in self._variables(py).iter().enumerate() {
+        for (idx, var) in self._variables(py).iter().flatten().enumerate() {
             let s = if named {
                 format!("__edb_arg_{}", first + idx)
             } else {
@@ -71,11 +71,11 @@ py_class!(pub class Entry |py| {
     def first_extra(&self) -> PyResult<Option<PyInt>> {
         Ok(self._first_extra(py).map(|x| x.to_py_object(py)))
     }
-    def extra_count(&self) -> PyResult<PyInt> {
-        Ok(self._extra_count(py).to_py_object(py))
+    def extra_counts(&self) -> PyResult<PyList> {
+        Ok(self._extra_counts(py).to_py_object(py))
     }
-    def extra_blob(&self) -> PyResult<PyBytes> {
-        Ok(self._extra_blob(py).clone_ref(py))
+    def extra_blobs(&self) -> PyResult<PyList> {
+        Ok(self._extra_blobs(py).clone_ref(py))
     }
 });
 
@@ -128,23 +128,36 @@ pub fn serialize_extra(variables: &[Variable]) -> Result<Bytes, String> {
     Ok(buf.freeze())
 }
 
+pub fn serialize_all(py: Python<'_>, variables: &[Vec<Variable>])
+                       -> Result<PyList, String> {
+    let mut buf = Vec::with_capacity(variables.len());
+    for vars in variables {
+        let bytes = serialize_extra(&vars)?;
+        let pybytes = PyBytes::new(py, &bytes).into_object();
+        buf.push(pybytes);
+    }
+    Ok(PyList::new(py, &buf[..]))
+}
+
 pub fn normalize(py: Python<'_>, text: &PyString)
     -> PyResult<Entry>
 {
     let text = text.to_string(py)?;
     match _normalize(&text) {
         Ok(entry) => {
-            let blob = serialize_extra(&entry.variables)
+            let blobs = serialize_all(py, &entry.variables)
                 .map_err(|e| PyErr::new::<AssertionError, _>(py, e))?;
+            let counts: Vec<_> = entry.variables.iter().map(
+                |x| x.len().to_py_object(py).into_object()).collect();
 
             Ok(Entry::create_instance(py,
                 /* key: */ PyBytes::new(py, &entry.hash[..]),
                 /* processed_source: */ entry.processed_source,
                 /* tokens: */ convert_tokens(py, entry.tokens, entry.end_pos)?,
-                /* extra_blob: */ PyBytes::new(py, &blob),
+                /* extra_blobs: */ blobs,
                 /* extra_named: */ entry.named_args,
                 /* first_extra: */ entry.first_arg,
-                /* extra_count: */ entry.variables.len(),
+                /* extra_counts: */ PyList::new(py, &counts[..]),
                 /* variables: */ entry.variables,
             )?)
         }

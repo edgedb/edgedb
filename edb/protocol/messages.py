@@ -700,19 +700,12 @@ class AuthenticationSASLFinal(ServerMessage):
     sasl_data = Bytes()
 
 
-class ExecuteScript(ClientMessage):
-
-    mtype = MessageType('Q')
-    message_length = MessageLength
-    headers = Headers
-    script = String('EdgeQL script text to execute.')
-
-
-class IOFormat(enum.Enum):
+class OutputFormat(enum.Enum):
 
     BINARY = 0x62
     JSON = 0x6a
     JSON_ELEMENTS = 0x4a
+    NULL = 0x6e
 
 
 class Parse(ClientMessage):
@@ -720,7 +713,7 @@ class Parse(ClientMessage):
     mtype = MessageType('P')
     message_length = MessageLength
     headers = Headers
-    io_format = EnumOf(UInt8, IOFormat, 'Data I/O format.')
+    output_format = EnumOf(UInt8, OutputFormat, 'Data output format.')
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality')
     command = String('Command text.')
@@ -775,7 +768,7 @@ class Execute(ClientMessage):
     mtype = MessageType('O')
     message_length = MessageLength
     headers = Headers
-    io_format = EnumOf(UInt8, IOFormat, 'Data I/O format.')
+    output_format = EnumOf(UInt8, OutputFormat, 'Data output format.')
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality.')
     command_text = String('Command text.')

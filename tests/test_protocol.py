@@ -37,10 +37,16 @@ class TestProtocol(ProtocolTestCase):
         await self.con.connect()
 
         await self.con.send(
-            protocol.ExecuteScript(
+            protocol.Execute(
                 headers=[],
-                script='SELECT 1/0'
-            )
+                command_text='SELECT 1/0',
+                output_format=protocol.OutputFormat.NULL,
+                expected_cardinality=protocol.Cardinality.MANY,
+                input_typedesc_id=b'\0' * 16,
+                output_typedesc_id=b'\0' * 16,
+                arguments=b'',
+            ),
+            protocol.Sync(),
         )
         await self.con.recv_match(
             protocol.ErrorResponse,
@@ -54,10 +60,16 @@ class TestProtocol(ProtocolTestCase):
         # Test that the protocol has recovered.
 
         await self.con.send(
-            protocol.ExecuteScript(
+            protocol.Execute(
                 headers=[],
-                script='SELECT 1'
-            )
+                command_text='SELECT 1',
+                output_format=protocol.OutputFormat.NULL,
+                expected_cardinality=protocol.Cardinality.MANY,
+                input_typedesc_id=b'\0' * 16,
+                output_typedesc_id=b'\0' * 16,
+                arguments=b'',
+            ),
+            protocol.Sync(),
         )
         await self.con.recv_match(
             protocol.CommandComplete,
@@ -68,7 +80,7 @@ class TestProtocol(ProtocolTestCase):
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
 
-    async def test_proto_executescript_02(self):
+    async def _test_proto_executescript_02(self):
         # Test ReadyForCommand.transaction_state
 
         await self.con.connect()
@@ -129,7 +141,7 @@ class TestProtocol(ProtocolTestCase):
         await self.con.send(
             protocol.Parse(
                 headers=[],
-                io_format=protocol.IOFormat.BINARY,
+                output_format=protocol.OutputFormat.BINARY,
                 expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
                 command='SEL ECT 1',
             )
@@ -149,7 +161,7 @@ class TestProtocol(ProtocolTestCase):
         await self.con.send(
             protocol.Parse(
                 headers=[],
-                io_format=protocol.IOFormat.BINARY,
+                output_format=protocol.OutputFormat.BINARY,
                 expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
                 command='SELECT 1',
             ),
@@ -165,10 +177,16 @@ class TestProtocol(ProtocolTestCase):
         # be received.
         # While at it, rogue ROLLBACK should be allowed.
         await self.con.send(
-            protocol.ExecuteScript(
+            protocol.Execute(
                 headers=[],
-                script='ROLLBACK'
-            )
+                command_text='ROLLBACK',
+                output_format=protocol.OutputFormat.NULL,
+                expected_cardinality=protocol.Cardinality.MANY,
+                input_typedesc_id=b'\0' * 16,
+                output_typedesc_id=b'\0' * 16,
+                arguments=b'',
+            ),
+            protocol.Sync(),
         )
         await self.con.recv_match(
             protocol.CommandComplete,
@@ -206,13 +224,19 @@ class TestServerCancellation(tb.TestCase):
             # the row with an UPDATE, and then hold the transaction for 10
             # seconds, which is long enough for the upcoming cancellation
             await con1.send(
-                protocol.ExecuteScript(
+                protocol.Execute(
                     headers=[],
-                    script="""\
+                    command_text="""\
                     UPDATE tclcq SET { p := 'inner' };
                     SELECT sys::_sleep(10);
                     """,
-                )
+                    output_format=protocol.OutputFormat.NULL,
+                    expected_cardinality=protocol.Cardinality.MANY,
+                    input_typedesc_id=b'\0' * 16,
+                    output_typedesc_id=b'\0' * 16,
+                    arguments=b'',
+                ),
+                protocol.Sync(),
             )
 
             # Take up all free backend connections
@@ -266,10 +290,16 @@ class TestServerCancellation(tb.TestCase):
             con = await sd.connect_test_protocol()
             try:
                 await con.send(
-                    protocol.ExecuteScript(
+                    protocol.Execute(
                         headers=[],
-                        script='START TRANSACTION'
-                    )
+                        command_text='START TRANSACTION',
+                        output_format=protocol.OutputFormat.NULL,
+                        expected_cardinality=protocol.Cardinality.MANY,
+                        input_typedesc_id=b'\0' * 16,
+                        output_typedesc_id=b'\0' * 16,
+                        arguments=b'',
+                    ),
+                    protocol.Sync(),
                 )
                 await con.recv_match(
                     protocol.CommandComplete,

@@ -28,7 +28,7 @@ pub struct Entry<'a> {
     pub processed_source: String,
     pub hash: [u8; 64],
     pub tokens: Vec<CowToken<'a>>,
-    pub variables: Vec<Variable>,
+    pub variables: Vec<Vec<Variable>>,
     pub end_pos: Pos,
     pub named_args: bool,
     pub first_arg: Option<usize>,
@@ -123,16 +123,20 @@ pub fn normalize<'x>(text: &'x str)
         }
     };
     let mut rewritten_tokens = Vec::with_capacity(tokens.len());
+    let mut all_variables = Vec::new();
     let mut variables = Vec::new();
-    let next_var = |num: usize| {
+    let mut counter = var_idx;
+    let mut next_var = || {
+        let n = counter;
+        counter += 1;
         if named_args {
-            format!("$__edb_arg_{}", var_idx + num)
+            format!("$__edb_arg_{}", n)
         } else {
-            format!("${}", var_idx + num)
+            format!("${}", n)
         }
     };
     let mut last_was_set = false;
-    for tok in &tokens {
+    for (idx, tok) in tokens.iter().enumerate() {
         let mut is_set = false;
         match tok.kind {
             Kind::IntConst
@@ -147,7 +151,7 @@ pub fn normalize<'x>(text: &'x str)
             && tok.value != "9223372036854775808"
             => {
                 push_var(&mut rewritten_tokens, "__std__", "int64",
-                    next_var(variables.len()),
+                    next_var(),
                     tok.start, tok.end);
                 variables.push(Variable {
                     value: Value::Int(tok.value.replace("_", "").parse()
@@ -159,7 +163,7 @@ pub fn normalize<'x>(text: &'x str)
             }
             Kind::FloatConst => {
                 push_var(&mut rewritten_tokens, "__std__", "float64",
-                    next_var(variables.len()),
+                    next_var(),
                     tok.start, tok.end);
                 let value = float::convert(&tok.value)
                     .map_err(|msg| Error::Tokenizer(msg.into(), tok.start))?;
@@ -170,7 +174,7 @@ pub fn normalize<'x>(text: &'x str)
             }
             Kind::BigIntConst => {
                 push_var(&mut rewritten_tokens, "__std__", "bigint",
-                    next_var(variables.len()),
+                    next_var(),
                     tok.start, tok.end);
                 let dec: BigDecimal = tok.value[..tok.value.len()-1]
                         .replace("_", "").parse()
@@ -187,7 +191,7 @@ pub fn normalize<'x>(text: &'x str)
             }
             Kind::DecimalConst => {
                 push_var(&mut rewritten_tokens, "__std__", "decimal",
-                    next_var(variables.len()),
+                    next_var(),
                     tok.start, tok.end);
                 variables.push(Variable {
                     value: Value::Decimal(
@@ -202,7 +206,7 @@ pub fn normalize<'x>(text: &'x str)
             }
             Kind::Str => {
                 push_var(&mut rewritten_tokens, "__std__", "str",
-                    next_var(variables.len()),
+                    next_var(),
                     tok.start, tok.end);
                 variables.push(Variable {
                     value: Value::Str(unquote_string(&tok.value)
@@ -231,6 +235,17 @@ pub fn normalize<'x>(text: &'x str)
                     first_arg: None,
                 });
             }
+            // Split on semicolons.
+            // N.B: This naive statement splitting on semicolons works
+            // because the only statements with internal semis are DDL
+            // statements, which we don't support anyway.
+            Kind::Semicolon => {
+                if idx + 1 < tokens.len() {
+                    all_variables.push(variables);
+                    variables = Vec::new();
+                }
+                rewritten_tokens.push(tok.clone());
+            }
             Kind::Keyword
             if (matches!(&(&tok.value[..].to_uppercase())[..], "SET")) => {
                 is_set = true;
@@ -240,14 +255,16 @@ pub fn normalize<'x>(text: &'x str)
         }
         last_was_set = is_set;
     }
+
+    all_variables.push(variables);
     let processed_source = serialize_tokens(&rewritten_tokens[..]);
     return Ok(Entry {
         hash: hash(&processed_source),
         processed_source,
         named_args,
-        first_arg: if variables.is_empty() { None } else { Some(var_idx) },
+        first_arg: if counter <= var_idx { None } else { Some(var_idx) },
         tokens: rewritten_tokens,
-        variables,
+        variables: all_variables,
         end_pos,
     });
 }

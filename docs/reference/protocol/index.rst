@@ -134,8 +134,7 @@ There are two main phases in the lifetime of an EdgeDB connection: the
 connection phase, and the command phase.  The connection phase is responsible
 for negotiating the protocol and connection parameters, including
 authentication.  The command phase is the regular operation phase where the
-server is processing queries sent by the client.  In the command phase
-there are two possible command flows: script flow and granular flow.
+server is processing queries sent by the client.
 
 
 Connection Phase
@@ -239,46 +238,14 @@ Whenever a server switches to the *idle* state, it sends a
 :ref:`ref_protocol_msg_ready_for_command` message.
 
 Whenever a server encounters an error, it sends an
-:ref:`ref_protocol_msg_error` message.  If an error occurred
-during a *granular command flow*, the server switches into
-the *error* state, otherwise it switches into *idle* directly.
+:ref:`ref_protocol_msg_error` message and switches into
+the *error* state.
 
 To switch a server from the *error* state into the *idle* state, a
 :ref:`ref_protocol_msg_sync` message must be sent by the client.
 
-
-Script Flow
------------
-
-In a script command flow the client follows the server's
-:ref:`ref_protocol_msg_ready_for_command` message with an
-:ref:`ref_protocol_msg_execute_script` message.  The message includes one
-or more EdgeQL commands as a text string.  The server then sends
-a :ref:`ref_protocol_msg_command_complete` message if the command (or commands)
-completed successfully, or :ref:`ref_protocol_msg_error` in case of an error.
-The ``CommandComplete`` corresponds to the *last* command in the script.
-
-.. note::
-
-    The script flow is not designed to return any data beyond
-    that included in the ``CommandComplete`` message.
-
-.. note::
-
-    EdgeQL scripts are executed in an implicit transaction block, *except*
-    when a script contains a single command that cannot be executed inside
-    a transaction.
-
-
-Granular Flow
--------------
-
-*Granular flow* is designed to execute EdgeQL commands one-by-one
-with a series of messages.  This flow should be used whenever data
-needs to be returned from a command, or arguments passed to a command.
-
-In this mode the server expects the client to send one of the following
-messages:
+In the command phase, the server expects the client to send one of the
+following messages:
 
 :ref:`ref_protocol_msg_parse`
     Instructs the server to parse the provided command text for execution.
@@ -302,21 +269,17 @@ messages:
     expected to adjust the request data and send
     :ref:`ref_protocol_msg_execute` again.
 
+Each of the messages could contain one or more EdgeQL commands in the same text
+string. If more than one EdgeQL command is found in a single message, the
+server will treat the commands as an EdgeQL script. EdgeQL scripts are always
+atomic, they will be executed in an implicit transaction block if no explicit
+transactions are started beforehand. Therefore, EdgeQL scripts have limitations
+on the EdgeQL commands they could contain:
 
-Implicit Transactions
----------------------
-
-All EdgeDB commands (with the exception of a few DDL commands) execute in
-a transaction block.  An *explicit* transaction block is started by a
-:eql:stmt:`start transaction` command.  If not within an explicit transaction,
-an *implicit* transaction block is started when the first message is received
-by the server.  If a ``start transaction`` command is executed in an implicit
-transaction block, that block becomes explicit.  An implicit transaction block
-ends if:
-
-* a :eql:stmt:`commit` command is executed,
-* a :eql:stmt:`rollback` command is executed,
-* a :ref:`ref_protocol_msg_sync` message is received.
+* Transaction control commands are not allowed, like ``start transaction``,
+  ``commit``, ``declare savepoint``, or ``rollback to savepoint``.
+* Non-transactional commands, like ``create database`` or
+  ``configure instance`` are not allowed.
 
 
 .. _ref_protocol_dump_flow:

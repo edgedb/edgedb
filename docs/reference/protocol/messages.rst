@@ -75,9 +75,6 @@ Messages
     * - :ref:`ref_protocol_msg_dump`
       - Initiate database backup
 
-    * - :ref:`ref_protocol_msg_execute_script`
-      - Execute an EdgeQL script.
-
     * - :ref:`ref_protocol_msg_flush`
       - Force the server to flush its output buffers.
 
@@ -220,22 +217,6 @@ Known headers:
 
 Extra headers must be ignored.
 
-.. _ref_protocol_msg_execute_script:
-
-ExecuteScript
-=============
-
-Sent by: client.
-
-Format:
-
-.. eql:struct:: edb.protocol.ExecuteScript
-
-Known headers:
-
-* 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
-  capabilities allowed for this query.  See RFC1004_ for more information.
-
 .. _ref_protocol_msg_parse:
 
 Parse
@@ -245,7 +226,7 @@ Sent by: client.
 
 .. eql:struct:: edb.protocol.Parse
 
-.. eql:struct:: edb.protocol.IOFormat
+.. eql:struct:: edb.protocol.OutputFormat
 
 Use:
 
@@ -256,6 +237,9 @@ Use:
 
 * ``JSON_ELEMENTS`` to return a single JSON string per top-level set element.
   This can be used to iterate over a large result set efficiently.
+
+* ``NONE`` to prevent the server from returning data, even if the EdgeQL
+  statement does.
 
 Known headers:
 

@@ -56,6 +56,7 @@ from . import pathctx
 from . import setgen
 from . import viewgen
 from . import schemactx
+from . import typegen
 
 
 def init_context(
@@ -246,9 +247,13 @@ def fini_expression(
     assert isinstance(ir, irast.Set)
     source_map = {k: v for k, v in ctx.source_map.items()
                   if isinstance(k, s_pointers.Pointer)}
+    params = list(ctx.env.query_parameters.values())
+    if params and params[0].name.isdecimal():
+        params.sort(key=lambda x: int(x.name))
+
     result = irast.Statement(
         expr=ir,
-        params=list(ctx.env.query_parameters.values()),
+        params=params,
         globals=list(ctx.env.query_globals.values()),
         views=ctx.view_nodes,
         source_map=source_map,
@@ -673,3 +678,68 @@ def declare_view_from_schema(
         ctx.view_sets[vc] = subctx.view_sets[vc]
 
     return vc
+
+
+def check_params(params: Dict[str, irast.Param]) -> None:
+    first_argname = next(iter(params))
+    for param in params.values():
+        # FIXME: context?
+        if param.name.isdecimal() != first_argname.isdecimal():
+            raise errors.QueryError(
+                f'cannot combine positional and named parameters '
+                f'in the same query')
+
+    if first_argname.isdecimal():
+        args_decnames = {int(arg) for arg in params}
+        args_tpl = set(range(len(params)))
+        if args_decnames != args_tpl:
+            missing_args = args_tpl - args_decnames
+            missing_args_repr = ', '.join(f'${a}' for a in missing_args)
+            raise errors.QueryError(
+                f'missing {missing_args_repr} positional argument'
+                f'{"s" if len(missing_args) > 1 else ""}')
+
+
+def preprocess_script(
+    stmts: List[qlast.Base],
+    *,
+    ctx: context.ContextLevel
+) -> irast.ScriptInfo:
+    """Extract parameters from all statements in a script.
+
+    Doing this in advance makes it easy to check that they have
+    consistent types.
+    """
+    casts = [
+        cast
+        for stmt in stmts
+        for cast in astutils.find_parameters(stmt, ctx.modaliases)
+    ]
+    params = {}
+    for cast, modaliases in casts:
+        assert isinstance(cast.expr, qlast.Parameter)
+        name = cast.expr.name
+        if name in params:
+            continue
+        with ctx.new() as mctx:
+            mctx.modaliases = modaliases
+            target_stype = typegen.ql_typeexpr_to_type(cast.type, ctx=mctx)
+        target_typeref = typegen.type_to_typeref(target_stype, env=ctx.env)
+        required = cast.cardinality_mod != qlast.CardinalityModifier.Optional
+        params[name] = irast.Param(
+            name=name,
+            required=required,
+            schema_type=target_stype,
+            ir_type=target_typeref,
+        )
+
+    if params:
+        check_params(params)
+
+        # Put them in order if they are positional
+        lparams = list(params.items())
+        if lparams[0][0].isdecimal():
+            lparams.sort(key=lambda x: int(x[0]))
+            params = dict(lparams)
+
+    return irast.ScriptInfo(params=params, schema=ctx.env.schema)

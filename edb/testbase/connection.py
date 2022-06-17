@@ -273,9 +273,9 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
         result, _ = await self._connection.raw_query(query_context)
         return result
 
-    async def execute(self, query: str) -> None:
+    async def _execute(self, query: abstract.ScriptContext) -> None:
         await self._ensure_transaction()
-        await self._connection.execute(query)
+        await self._connection._execute(query)
 
     async def _ensure_transaction(self):
         if not self._managed:
@@ -370,10 +370,16 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         result, _ = await self.raw_query(query_context)
         return result
 
-    async def execute(self, query: str) -> None:
+    async def _execute(self, script: abstract.ScriptContext) -> None:
         await self.ensure_connected()
-        await self._protocol.simple_query(
-            query, edgedb_enums.Capability.ALL  # type: ignore
+        await self._protocol.execute(
+            query=script.query.query,
+            args=script.query.args,
+            kwargs=script.query.kwargs,
+            reg=script.cache.codecs_registry,
+            qc=script.cache.query_cache,
+            output_format=protocol.OutputFormat.NONE,
+            allow_capabilities=edgedb_enums.Capability.ALL,  # type: ignore
         )
 
     async def ensure_connected(self):
@@ -382,13 +388,13 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         return self
 
     async def raw_query(self, query_context: abstract.QueryContext):
-        return await self._protocol.execute_anonymous(
+        return await self._protocol.query(
             query=query_context.query.query,
             args=query_context.query.args,
             kwargs=query_context.query.kwargs,
             reg=query_context.cache.codecs_registry,
             qc=query_context.cache.query_cache,
-            io_format=query_context.query_options.io_format,
+            output_format=query_context.query_options.output_format,
             expect_one=query_context.query_options.expect_one,
             required_one=query_context.query_options.required_one,
             allow_capabilities=edgedb_enums.Capability.ALL,  # type: ignore
@@ -405,7 +411,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         **kwargs,
     ):
         await self.ensure_connected()
-        result, _ = await self._protocol.execute_anonymous(
+        result, _ = await self._protocol.query(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -414,7 +420,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             implicit_limit=__limit__,
             inline_typeids=__typeids__,
             inline_typenames=__typenames__,
-            io_format=protocol.IoFormat.BINARY,
+            output_format=protocol.OutputFormat.BINARY,
             allow_capabilities=__allow_capabilities__,
         )
         return result
@@ -430,7 +436,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         **kwargs,
     ):
         await self.ensure_connected()
-        return await self._protocol.execute_anonymous(
+        return await self._protocol.query(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -439,7 +445,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             implicit_limit=__limit__,
             inline_typeids=__typeids__,
             inline_typenames=__typenames__,
-            io_format=protocol.IoFormat.BINARY,
+            output_format=protocol.OutputFormat.BINARY,
             allow_capabilities=__allow_capabilities__,
         )
 
@@ -451,7 +457,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         **kwargs,
     ):
         await self.ensure_connected()
-        result, _ = await self._protocol.execute_anonymous(
+        result, _ = await self._protocol.query(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -459,19 +465,19 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             qc=self._query_cache.query_cache,
             implicit_limit=__limit__,
             inline_typenames=False,
-            io_format=protocol.IoFormat.JSON,
+            output_format=protocol.OutputFormat.JSON,
         )
         return result
 
     async def _fetchall_json_elements(self, query: str, *args, **kwargs):
         await self.ensure_connected()
-        result, _ = await self._protocol.execute_anonymous(
+        result, _ = await self._protocol.query(
             query=query,
             args=args,
             kwargs=kwargs,
             reg=self._query_cache.codecs_registry,
             qc=self._query_cache.query_cache,
-            io_format=protocol.IoFormat.JSON_ELEMENTS,
+            output_format=protocol.OutputFormat.JSON_ELEMENTS,
             allow_capabilities=edgedb_enums.Capability.EXECUTE,  # type: ignore
         )
         return result

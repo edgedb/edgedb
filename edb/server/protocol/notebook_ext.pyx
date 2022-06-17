@@ -32,7 +32,7 @@ from edb.common import markup
 
 from edb.server import compiler
 from edb.server import defines as edbdef
-from edb.server.compiler import IoFormat
+from edb.server.compiler import OutputFormat
 from edb.server.compiler import enums
 
 include "./consts.pxi"

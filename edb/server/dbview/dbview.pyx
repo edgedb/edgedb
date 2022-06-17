@@ -40,10 +40,7 @@ __all__ = ('DatabaseIndex', 'DatabaseConnectionView', 'SideEffects')
 cdef DEFAULT_MODALIASES = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
 cdef DEFAULT_CONFIG = immutables.Map()
 cdef DEFAULT_GLOBALS = immutables.Map()
-cdef DEFAULT_STATE = json.dumps([
-    {"name": n or '', "value": v, "type": "A"}
-    for n, v in DEFAULT_MODALIASES.items()
-]).encode('utf-8')
+cdef DEFAULT_STATE = json.dumps([]).encode('utf-8')
 
 cdef int VER_COUNTER = 0
 cdef DICTDEFAULT = (None, None)
@@ -58,7 +55,7 @@ cdef next_dbver():
 cdef class Database:
 
     # Global LRU cache of compiled anonymous queries
-    _eql_to_compiled: typing.Mapping[str, dbstate.QueryUnit]
+    _eql_to_compiled: typing.Mapping[str, dbstate.QueryUnitGroup]
 
     def __init__(
         self,
@@ -130,7 +127,7 @@ cdef class Database:
     cdef _invalidate_caches(self):
         self._eql_to_compiled.clear()
 
-    cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnit):
+    cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnitGroup):
         assert compiled.cacheable
 
         existing, dbver = self._eql_to_compiled.get(key, DICTDEFAULT)
@@ -163,7 +160,7 @@ cdef class Database:
 
 cdef class DatabaseConnectionView:
 
-    _eql_to_compiled: typing.Mapping[bytes, dbstate.QueryUnit]
+    _eql_to_compiled: typing.Mapping[bytes, dbstate.QueryUnitGroup]
 
     def __init__(self, db: Database, *, query_cache):
         self._db = db
@@ -195,6 +192,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_globals = None
         self._in_tx_db_config = None
         self._in_tx_modaliases = None
+        self._in_tx_savepoints = []
         self._in_tx_with_ddl = False
         self._in_tx_with_role_ddl = False
         self._in_tx_with_sysconfig = False
@@ -209,14 +207,32 @@ cdef class DatabaseConnectionView:
         self._in_tx_dbver = 0
         self._invalidate_local_cache()
 
-    cdef rollback_tx_to_savepoint(self, spid, modaliases, config, globals):
+    cdef rollback_tx_to_savepoint(self, name):
         self._tx_error = False
         # See also CompilerConnectionState.rollback_to_savepoint().
+        while self._in_tx_savepoints:
+            if self._in_tx_savepoints[-1][0] == name:
+                break
+            else:
+                self._in_tx_savepoints.pop()
+        else:
+            raise RuntimeError(
+                f'savepoint {name} not found')
+
+        _, spid, (modaliases, config, globals) = self._in_tx_savepoints[-1]
         self._txid = spid
         self.set_modaliases(modaliases)
         self.set_session_config(config)
         self.set_globals(globals)
         self._invalidate_local_cache()
+
+    cdef declare_savepoint(self, name, spid):
+        state = (
+            self.get_modaliases(),
+            self.get_session_config(),
+            self.get_globals(),
+        )
+        self._in_tx_savepoints.append((name, spid, state))
 
     cdef recover_aliases_and_config(self, modaliases, config, globals):
         assert not self._in_tx
@@ -359,26 +375,14 @@ cdef class DatabaseConnectionView:
         if self._in_tx:
             raise errors.InternalServerError(
                 'no need to serialize state while in transaction')
-        if (
-            self._config == DEFAULT_CONFIG and
-            self._modaliases == DEFAULT_MODALIASES and
-            self._globals == DEFAULT_GLOBALS
-        ):
+        if self._config == DEFAULT_CONFIG:
             return DEFAULT_STATE
 
         if self._session_state_cache is not None:
-            if (
-                self._session_state_cache[0] == self._config and
-                self._session_state_cache[1] == self._modaliases and
-                self._session_state_cache[2] == self._globals
-            ):
-                return self._session_state_cache[3]
+            if self._session_state_cache[0] == self._config:
+                return self._session_state_cache[1]
 
         state = []
-        for key, val in self._modaliases.items():
-            state.append(
-                {"name": key or '', "value": val, "type": "A"}
-            )
         if self._config:
             settings = config.get_settings()
             for sval in self._config.values():
@@ -386,14 +390,9 @@ cdef class DatabaseConnectionView:
                 kind = 'B' if setting.backend_setting else 'C'
                 jval = config.value_to_json_value(setting, sval.value)
                 state.append({"name": sval.name, "value": jval, "type": kind})
-        if self._globals:
-            for sval in self._globals.values():
-                jval = base64.b64encode(sval.value).decode('ascii')
-                state.append({"name": sval.name, "value": jval, "type": 'G'})
 
         spec = json.dumps(state).encode('utf-8')
-        self._session_state_cache = (
-            self._config, self._modaliases, self._globals, spec)
+        self._session_state_cache = (self._config, spec)
         return spec
 
     property txid:
@@ -420,15 +419,15 @@ cdef class DatabaseConnectionView:
     cpdef in_tx_error(self):
         return self._tx_error
 
-    cdef cache_compiled_query(self, object key, object query_unit):
-        assert query_unit.cacheable
+    cdef cache_compiled_query(self, object key, object query_unit_group):
+        assert query_unit_group.cacheable
 
         key = (key, self.get_modaliases(), self.get_session_config())
 
         if self._in_tx_with_ddl:
-            self._eql_to_compiled[key] = query_unit
+            self._eql_to_compiled[key] = query_unit_group
         else:
-            self._db._cache_compiled_query(key, query_unit)
+            self._db._cache_compiled_query(key, query_unit_group)
 
     cdef lookup_compiled_query(self, object key):
         if (self._tx_error or
@@ -439,14 +438,14 @@ cdef class DatabaseConnectionView:
         key = (key, self.get_modaliases(), self.get_session_config())
 
         if self._in_tx_with_ddl:
-            query_unit = self._eql_to_compiled.get(key)
+            query_unit_group = self._eql_to_compiled.get(key)
         else:
-            query_unit, qu_dbver = self._db._eql_to_compiled.get(
+            query_unit_group, qu_dbver = self._db._eql_to_compiled.get(
                 key, DICTDEFAULT)
-            if query_unit is not None and qu_dbver != self._db.dbver:
-                query_unit = None
+            if query_unit_group is not None and qu_dbver != self._db.dbver:
+                query_unit_group = None
 
-        return query_unit
+        return query_unit_group
 
     cdef tx_error(self):
         if self._in_tx:
@@ -457,37 +456,52 @@ cdef class DatabaseConnectionView:
             self.raise_in_tx_error()
 
         if query_unit.tx_id is not None:
-            self._in_tx = True
             self._txid = query_unit.tx_id
-            self._in_tx_config = self._config
-            self._in_tx_globals = self._globals
-            self._in_tx_db_config = self._db.db_config
-            self._in_tx_modaliases = self._modaliases
-            self._in_tx_user_schema = self._db.user_schema
-            self._in_tx_global_schema = self._db._index._global_schema
+            self._start_tx()
 
         if self._in_tx and not self._txid:
             raise errors.InternalServerError('unset txid in transaction')
 
         if self._in_tx:
-            if query_unit.has_ddl:
-                self._in_tx_with_ddl = True
-            if query_unit.system_config:
-                self._in_tx_with_sysconfig = True
-            if query_unit.database_config:
-                self._in_tx_with_dbconfig = True
-            if query_unit.has_set:
-                self._in_tx_with_set = True
-            if query_unit.has_role_ddl:
-                self._in_tx_with_role_ddl = True
-            if query_unit.user_schema is not None:
-                self._in_tx_user_schema_pickled = query_unit.user_schema
-                self._in_tx_user_schema = None
-            if query_unit.global_schema is not None:
-                self._in_tx_global_schema_pickled = query_unit.global_schema
-                self._in_tx_global_schema = None
+            self._apply_in_tx(query_unit)
 
-    cdef on_error(self, query_unit):
+    cdef _start_tx(self):
+        self._in_tx = True
+        self._in_tx_config = self._config
+        self._in_tx_globals = self._globals
+        self._in_tx_db_config = self._db.db_config
+        self._in_tx_modaliases = self._modaliases
+        self._in_tx_user_schema = self._db.user_schema
+        self._in_tx_global_schema = self._db._index._global_schema
+
+    cdef _apply_in_tx(self, query_unit):
+        if query_unit.has_ddl:
+            self._in_tx_with_ddl = True
+        if query_unit.system_config:
+            self._in_tx_with_sysconfig = True
+        if query_unit.database_config:
+            self._in_tx_with_dbconfig = True
+        if query_unit.has_set:
+            self._in_tx_with_set = True
+        if query_unit.has_role_ddl:
+            self._in_tx_with_role_ddl = True
+        if query_unit.user_schema is not None:
+            self._in_tx_user_schema_pickled = query_unit.user_schema
+            self._in_tx_user_schema = None
+        if query_unit.global_schema is not None:
+            self._in_tx_global_schema_pickled = query_unit.global_schema
+            self._in_tx_global_schema = None
+
+    cdef start_implicit(self, query_unit):
+        if self._tx_error:
+            self.raise_in_tx_error()
+
+        if not self._in_tx:
+            self._start_tx()
+
+        self._apply_in_tx(query_unit)
+
+    cdef on_error(self):
         self.tx_error()
 
     cdef on_success(self, query_unit, new_types):
@@ -571,6 +585,42 @@ cdef class DatabaseConnectionView:
             # is executed outside of a tx.
             self._reset_tx_state()
 
+        return side_effects
+
+    cdef commit_implicit_tx(
+        self, user_schema, global_schema, cached_reflection
+    ):
+        assert self._in_tx
+        side_effects = 0
+
+        self._config = self._in_tx_config
+        self._modaliases = self._in_tx_modaliases
+        self._globals = self._in_tx_globals
+
+        if self._in_tx_new_types:
+            self._db._update_backend_ids(self._in_tx_new_types)
+        if user_schema is not None:
+            self._db._set_and_signal_new_user_schema(
+                pickle.loads(user_schema),
+                pickle.loads(cached_reflection)
+                    if cached_reflection is not None
+                    else None
+            )
+            side_effects |= SideEffects.SchemaChanges
+        if self._in_tx_with_sysconfig:
+            side_effects |= SideEffects.InstanceConfigChanges
+        if self._in_tx_with_dbconfig:
+            self.update_database_config()
+            side_effects |= SideEffects.DatabaseConfigChanges
+        if global_schema is not None:
+            side_effects |= SideEffects.GlobalSchemaChanges
+            self._db._index.update_global_schema(
+                pickle.loads(global_schema))
+            self._db._index._server._fetch_roles()
+        if self._in_tx_with_role_ddl:
+            side_effects |= SideEffects.RoleChanges
+
+        self._reset_tx_state()
         return side_effects
 
     async def apply_config_ops(self, conn, ops):

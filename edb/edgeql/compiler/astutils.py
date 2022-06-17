@@ -23,6 +23,8 @@
 from __future__ import annotations
 from typing import *
 
+from edb.common import ast
+
 from edb.edgeql import ast as qlast
 
 
@@ -108,3 +110,42 @@ def extend_path(expr: qlast.Expr, field: str) -> qlast.Path:
         )
     else:
         return qlast.Path(steps=[expr, step])
+
+
+class FindParams(ast.NodeVisitor):
+    """Visitor to find all the parameters.
+
+    The annoying bit is that we also need all the modaliases.
+    """
+    def __init__(self, modaliases: Dict[Optional[str], str]) -> None:
+        super().__init__()
+        self.params: List[
+            Tuple[qlast.TypeCast, Dict[Optional[str], str]]] = []
+        self.modaliases = modaliases
+
+    def visit_Command(self, n: qlast.Command) -> None:
+        old = self.modaliases
+        for with_entry in (n.aliases or ()):
+            if isinstance(with_entry, qlast.ModuleAliasDecl):
+                self.modaliases = self.modaliases.copy()
+                self.modaliases[with_entry.alias] = with_entry.module
+            else:
+                self.visit(with_entry)
+
+        # The memoization will prevent us from redoing the aliases
+        self.generic_visit(n)
+        self.modaliases = old
+
+    def visit_TypeCast(self, n: qlast.TypeCast) -> None:
+        if isinstance(n.expr, qlast.Parameter):
+            self.params.append((n, self.modaliases))
+        self.generic_visit(n)
+
+
+def find_parameters(
+    ql: qlast.Base, modaliases: Dict[Optional[str], str]
+) -> List[Tuple[qlast.TypeCast, Dict[Optional[str], str]]]:
+    """Get all query parameters"""
+    v = FindParams(modaliases)
+    v.visit(ql)
+    return v.params

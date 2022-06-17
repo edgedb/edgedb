@@ -603,34 +603,23 @@ def compile_TypeCast(
                 ctx=ctx,
             )
 
+        if ex_param := ctx.env.script_params.get(param_name):
+            param_first_type = ex_param.schema_type
+            if param_first_type != pt:
+                raise errors.QueryError(
+                    f'parameter type '
+                    f'{pt.get_displayname(ctx.env.schema)} '
+                    f'does not match original type '
+                    f'{param_first_type.get_displayname(ctx.env.schema)}',
+                    context=expr.expr.context)
+
         if param_name not in ctx.env.query_parameters:
-            if ctx.env.query_parameters:
-                first_key: str = next(iter(ctx.env.query_parameters))
-                if first_key.isdecimal():
-                    if not param_name.isdecimal():
-                        raise errors.QueryError(
-                            f'cannot combine positional and named parameters '
-                            f'in the same query',
-                            context=expr.expr.context)
-                else:
-                    if param_name.isdecimal():
-                        raise errors.QueryError(
-                            f'expected a named argument',
-                            context=expr.expr.context)
             ctx.env.query_parameters[param_name] = irast.Param(
                 name=param_name,
                 required=required,
                 schema_type=pt,
                 ir_type=typeref,
             )
-        else:
-            param_first_type = ctx.env.query_parameters[param_name].schema_type
-            if not param_first_type.castable_to(pt, ctx.env.schema):
-                raise errors.QueryError(
-                    f'cannot cast '
-                    f'{param_first_type.get_displayname(ctx.env.schema)} to '
-                    f'{pt.get_displayname(ctx.env.schema)}',
-                    context=expr.expr.context)
 
         return param
 
