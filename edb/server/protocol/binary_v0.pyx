@@ -93,7 +93,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     raise errors.TypeSpecNotFoundError(
                         'no prepared anonymous statement found')
 
-                msg = self.make_command_data_description_msg(
+                msg = self.make_legacy_command_data_description_msg(
                     self._last_anon_compiled
                 )
                 self.write(msg)
@@ -340,7 +340,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /MISMATCH', query)
 
-            self.write(self.make_command_data_description_msg(compiled))
+            self.write(self.make_legacy_command_data_description_msg(compiled))
 
             if self._cancelled:
                 raise ConnectionAbortedError
@@ -514,7 +514,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     #   2. The state is synced with dbview (orig_state is None)
                     #   3. We came out from a transaction (orig_state is None)
                     conn.last_state = state
-            self.write(self.make_command_complete_msg(query_unit))
+            self.write(self.make_legacy_command_complete_msg(query_unit))
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -683,7 +683,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             if stmt_mode == 'done':
                 packet = WriteBuffer.new()
                 packet.write_buffer(
-                    self.make_command_complete_msg(query_unit))
+                    self.make_legacy_command_complete_msg(query_unit))
                 packet.write_buffer(self.sync_status())
                 self.write(packet)
                 self.flush()
@@ -697,7 +697,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             eql, allow_capabilities, stmt_mode)
 
         packet = WriteBuffer.new()
-        packet.write_buffer(self.make_command_complete_msg(query_unit))
+        packet.write_buffer(self.make_legacy_command_complete_msg(query_unit))
         packet.write_buffer(self.sync_status())
         self.write(packet)
         self.flush()
@@ -813,3 +813,44 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             self.maybe_release_pgcon(conn)
 
         return query_unit
+
+    cdef WriteBuffer make_legacy_command_data_description_msg(
+        self, CompiledQuery query
+    ):
+        cdef:
+            WriteBuffer msg
+
+        msg = WriteBuffer.new_message(b'T')
+        msg.write_int16(1)
+        msg.write_int16(SERVER_HEADER_CAPABILITIES)
+        msg.write_int32(sizeof(uint64_t))
+        msg.write_int64(
+            <int64_t>(<uint64_t>query.query_unit_group.capabilities)
+        )
+
+        msg.write_byte(self.render_cardinality(query.query_unit_group))
+
+        in_data = query.query_unit_group.in_type_data
+        msg.write_bytes(query.query_unit_group.in_type_id)
+        msg.write_len_prefixed_bytes(in_data)
+
+        out_data = query.query_unit_group.out_type_data
+        msg.write_bytes(query.query_unit_group.out_type_id)
+        msg.write_len_prefixed_bytes(out_data)
+
+        msg.end_message()
+        return msg
+
+    cdef WriteBuffer make_legacy_command_complete_msg(self, query_unit):
+        cdef:
+            WriteBuffer msg
+
+        msg = WriteBuffer.new_message(b'C')
+
+        msg.write_int16(1)
+        msg.write_int16(SERVER_HEADER_CAPABILITIES)
+        msg.write_int32(sizeof(uint64_t))
+        msg.write_int64(<int64_t><uint64_t>query_unit.capabilities)
+
+        msg.write_len_prefixed_bytes(query_unit.status)
+        return msg.end_message()

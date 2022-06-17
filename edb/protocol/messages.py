@@ -121,6 +121,20 @@ class UInt32(Scalar):
         buffer.write_ui32(val)
 
 
+class UInt64(Scalar):
+
+    cname = 'uint64'
+
+    def validate(self, val: typing.Any) -> bool:
+        return isinstance(val, int) and (0 <= val <= 2 ** 64 - 1)
+
+    def parse(self, buffer: binwrapper.BinWrapper) -> any:
+        return buffer.read_ui64()
+
+    def dump(self, val: int, buffer: binwrapper.BinWrapper) -> None:
+        buffer.write_ui64(val)
+
+
 class Bytes(Scalar):
 
     cname = 'bytes'
@@ -481,6 +495,29 @@ class ClientMessage(Message, abstract=True):
 ###############################################################################
 
 
+class OutputFormat(enum.Enum):
+
+    BINARY = 0x62
+    JSON = 0x6a
+    JSON_ELEMENTS = 0x4a
+    NULL = 0x6e
+
+
+class Capability(enum.IntFlag):
+
+    MODIFICATIONS     = 1 << 0    # noqa
+    SESSION_CONFIG    = 1 << 1    # noqa
+    TRANSACTION       = 1 << 2    # noqa
+    DDL               = 1 << 3    # noqa
+    PERSISTENT_CONFIG = 1 << 4    # noqa
+
+
+class CompilationFlag(enum.IntFlag):
+
+    INJECT_OUTPUT_TYPE_IDS   = 1 << 0    # noqa
+    INJECT_OUTPUT_TYPE_NAMES = 1 << 1    # noqa
+
+
 class ErrorSeverity(enum.Enum):
     ERROR = 120
     FATAL = 200
@@ -541,7 +578,8 @@ class CommandComplete(ServerMessage):
 
     mtype = MessageType('C')
     message_length = MessageLength
-    headers = Headers
+    capabilities = EnumOf(UInt64, Capability,
+                          'A bit mask of allowed capabilities.')
     status = String('Command status.')
 
 
@@ -550,6 +588,8 @@ class CommandDataDescription(ServerMessage):
     mtype = MessageType('T')
     message_length = MessageLength
     headers = Headers
+    capabilities = EnumOf(UInt64, Capability,
+                          'A bit mask of allowed capabilities.')
     result_cardinality = EnumOf(
         UInt8, Cardinality, 'Actual result cardinality.')
     input_typedesc_id = UUID('Argument data descriptor ID.')
@@ -700,25 +740,6 @@ class AuthenticationSASLFinal(ServerMessage):
     sasl_data = Bytes()
 
 
-class OutputFormat(enum.Enum):
-
-    BINARY = 0x62
-    JSON = 0x6a
-    JSON_ELEMENTS = 0x4a
-    NULL = 0x6e
-
-
-class Parse(ClientMessage):
-
-    mtype = MessageType('P')
-    message_length = MessageLength
-    headers = Headers
-    output_format = EnumOf(UInt8, OutputFormat, 'Data output format.')
-    expected_cardinality = EnumOf(UInt8, Cardinality,
-                                  'Expected result cardinality')
-    command = String('Command text.')
-
-
 class Dump(ClientMessage):
 
     mtype = MessageType('>')
@@ -768,6 +789,11 @@ class Execute(ClientMessage):
     mtype = MessageType('O')
     message_length = MessageLength
     headers = Headers
+    allowed_capabilities = EnumOf(UInt64, Capability,
+                                  'A bit mask of allowed capabilities.')
+    compilation_flags = EnumOf(UInt64, CompilationFlag,
+                               'A bit mask of query options.')
+    implicit_limit = UInt64('Implicit LIMIT clause on returned sets.')
     output_format = EnumOf(UInt8, OutputFormat, 'Data output format.')
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality.')
