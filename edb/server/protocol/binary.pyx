@@ -1523,7 +1523,6 @@ cdef class EdgeConnection:
             uint64_t allow_capabilities
             uint64_t compilation_flags
             uint64_t implicit_limit
-            bint force_parse
 
         self.parse_headers()
 
@@ -1566,14 +1565,11 @@ cdef class EdgeConnection:
         bind_args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 
-        force_parse = (
-            in_tid == sertypes.INVALID_TYPE_ID.bytes or
-            out_tid == sertypes.INVALID_TYPE_ID.bytes
-        )
         if (
-            not force_parse and
             self._last_anon_compiled is not None and
-            hash(query_req) == self._last_anon_compiled_hash
+            hash(query_req) == self._last_anon_compiled_hash and
+            in_tid == self._last_anon_compiled.query_unit_group.in_type_id and
+            out_tid == self._last_anon_compiled.query_unit_group.out_type_id
         ):
             compiled = self._last_anon_compiled
             query_unit_group = compiled.query_unit_group

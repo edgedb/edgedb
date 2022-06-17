@@ -76,7 +76,7 @@ Messages
       - Force the server to flush its output buffers.
 
     * - :ref:`ref_protocol_msg_execute`
-      - Optimistically parse and/or execute a query.
+      - Parse and/or execute a query.
 
     * - :ref:`ref_protocol_msg_restore`
       - Initiate database restore
