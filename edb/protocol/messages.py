@@ -500,7 +500,7 @@ class OutputFormat(enum.Enum):
     BINARY = 0x62
     JSON = 0x6a
     JSON_ELEMENTS = 0x4a
-    NULL = 0x6e
+    NONE = 0x6e
 
 
 class Capability(enum.IntFlag):
@@ -510,6 +510,9 @@ class Capability(enum.IntFlag):
     TRANSACTION       = 1 << 2    # noqa
     DDL               = 1 << 3    # noqa
     PERSISTENT_CONFIG = 1 << 4    # noqa
+
+
+ALL_CAPABILITIES = Capability(0xFFFFFFFFFFFFFFFF)
 
 
 class CompilationFlag(enum.IntFlag):
@@ -578,6 +581,7 @@ class CommandComplete(ServerMessage):
 
     mtype = MessageType('C')
     message_length = MessageLength
+    headers = Headers
     capabilities = EnumOf(UInt64, Capability,
                           'A bit mask of allowed capabilities.')
     status = String('Command status.')
@@ -668,18 +672,6 @@ class ParameterStatus_SystemConfig(Struct):
     typedesc = ArrayOf(UInt32, UInt8(), 'Type descriptor prefixed with '
                                         'type descriptor uuid.')
     data = FixedArrayOf(1, DataElement, 'Configuration settings data.')
-
-
-class ParseComplete(ServerMessage):
-
-    mtype = MessageType('1')
-    message_length = MessageLength
-    headers = Headers
-    cardinality = EnumOf(UInt8, Cardinality, 'Result cardinality.')
-    input_typedesc_id = UUID('Argument data descriptor ID.')
-    input_typedesc = Bytes('Argument data descriptor.')
-    output_typedesc_id = UUID('Result data descriptor ID.')
-    output_typedesc = Bytes('Output data descriptor.')
 
 
 class ProtocolExtension(Struct):

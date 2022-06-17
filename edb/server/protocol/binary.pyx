@@ -1320,6 +1320,7 @@ cdef class EdgeConnection:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'T')
+        msg.write_int16(0)  # no headers
         msg.write_int64(<int64_t><uint64_t>query.query_unit_group.capabilities)
         msg.write_byte(self.render_cardinality(query.query_unit_group))
 
@@ -1522,6 +1523,7 @@ cdef class EdgeConnection:
             uint64_t allow_capabilities
             uint64_t compilation_flags
             uint64_t implicit_limit
+            bint force_parse
 
         self.parse_headers()
 
@@ -1564,7 +1566,12 @@ cdef class EdgeConnection:
         bind_args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 
+        force_parse = (
+            in_tid == sertypes.INVALID_TYPE_ID.bytes or
+            out_tid == sertypes.INVALID_TYPE_ID.bytes
+        )
         if (
+            not force_parse and
             self._last_anon_compiled is not None and
             hash(query_req) == self._last_anon_compiled_hash
         ):
@@ -1734,7 +1741,7 @@ cdef class EdgeConnection:
                 try:
                     if mtype == b'P':
                         raise errors.BinaryProtocolError(
-                            "Legacy Execute message (P) is not supported in "
+                            "Prepare message (P) is not supported in "
                             "protocols greater 1.0")
 
                     elif mtype == b'D':

@@ -6,7 +6,7 @@ Type descriptors
 
 This section describes how type information for query input and results
 is encoded.  Specifically, this is needed to decode the server response to
-the :ref:`ref_protocol_msg_parse` message.
+the :ref:`ref_protocol_msg_command_data_description` message.
 
 The type descriptor is essentially a list of type information *blocks*:
 
@@ -291,7 +291,7 @@ Enumeration Type Descriptor
 Scalar Type Name Annotation
 ===========================
 
-Part of the type descriptor when the :ref:`ref_protocol_msg_parse`
+Part of the type descriptor when the :ref:`ref_protocol_msg_execute`
 client message has the ``INLINE_TYPENAMES`` header set.  Every non-builtin
 base scalar type and all enum types would have their full schema name
 provided via this annotation.
