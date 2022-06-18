@@ -45,9 +45,6 @@ Messages
     * - :ref:`ref_protocol_msg_server_parameter_status`
       - Server parameter value.
 
-    * - :ref:`ref_protocol_msg_parse_complete`
-      - Description of parsed command data input and output.
-
     * - :ref:`ref_protocol_msg_ready_for_command`
       - Server is ready for a command.
 
@@ -78,11 +75,8 @@ Messages
     * - :ref:`ref_protocol_msg_flush`
       - Force the server to flush its output buffers.
 
-    * - :ref:`ref_protocol_msg_parse`
-      - Parse EdgeQL command text.
-
     * - :ref:`ref_protocol_msg_execute`
-      - Optimistically parse and execute a query.
+      - Parse and/or execute a query.
 
     * - :ref:`ref_protocol_msg_restore`
       - Initiate database restore
@@ -210,60 +204,6 @@ Format:
 
 .. eql:struct:: edb.protocol.CommandComplete
 
-Known headers:
-
-* 0x1001 ``CAPABILITIES``: ``uint64`` -- capabilities actually used in the
-  query.  See RFC1004_ for more information.
-
-Extra headers must be ignored.
-
-.. _ref_protocol_msg_parse:
-
-Parse
-=====
-
-Sent by: client.
-
-.. eql:struct:: edb.protocol.Parse
-
-.. eql:struct:: edb.protocol.OutputFormat
-
-Use:
-
-* ``BINARY`` to return data encoded in binary.
-
-* ``JSON`` to return data as single row and single field that contains
-  the resultset as a single JSON array".
-
-* ``JSON_ELEMENTS`` to return a single JSON string per top-level set element.
-  This can be used to iterate over a large result set efficiently.
-
-* ``NONE`` to prevent the server from returning data, even if the EdgeQL
-  statement does.
-
-Known headers:
-
-* 0xFF01 ``IMPLICIT_LIMIT`` -- implicit limit for objects returned.
-  Valid format: decimal number encoded as UTF-8 text. Not set by default.
-
-* 0xFF02 ``IMPLICIT_TYPENAMES`` -- if set to "true" all returned objects have
-  a ``__tname__`` property set to their type name (equivalent to having
-  an implicit "__tname__ := .__type__.name" computed property.)
-  Note that specifying this header might slow down queries.
-
-* 0xFF03 ``IMPLICIT_TYPEIDS`` -- if set to "true" all returned objects have
-  a ``__tid__`` property set to their type ID (equivalent to having
-  an implicit "__tid__ := .__type__.id" computed property.)
-
-* 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
-  capabilities allowed for this query.  See RFC1004_ for more information.
-
-* 0xFF05 ``EXPLICIT_OBJECTIDS`` -- If set to "true" returned objects will
-  not have an implicit ``id`` property i.e. query shapes will have to
-  explicitly list id properties.
-
-.. eql:struct:: edb.protocol.enums.Cardinality
-
 
 .. _ref_protocol_msg_dump:
 
@@ -376,6 +316,20 @@ Format:
 
 .. eql:struct:: edb.protocol.Execute
 
+.. eql:struct:: edb.protocol.OutputFormat
+
+Use:
+
+* ``BINARY`` to return data encoded in binary.
+
+* ``JSON`` to return data as single row and single field that contains
+  the resultset as a single JSON array".
+
+* ``JSON_ELEMENTS`` to return a single JSON string per top-level set element.
+  This can be used to iterate over a large result set efficiently.
+
+* ``NONE`` to prevent the server from returning data, even if the EdgeQL
+  command does.
 
 The data in *arguments* must be encoded as a
 :ref:`tuple value <ref_protocol_fmt_tuple>` described by
@@ -401,6 +355,9 @@ Known headers:
 * 0xFF05 ``EXPLICIT_OBJECTIDS`` -- If set to "true" returned objects will
   not have an implicit ``id`` property i.e. query shapes will have to
   explicitly list id properties.
+
+.. eql:struct:: edb.protocol.enums.Cardinality
+
 
 .. _ref_protocol_msg_data:
 
@@ -508,27 +465,6 @@ Known statuses:
   :ref:`Data <ref_protocol_msg_data>` message:
 
   .. eql:struct:: edb.protocol.DataElement
-
-
-.. _ref_protocol_msg_parse_complete:
-
-ParseComplete
-=============
-
-Sent by: server.
-
-Format:
-
-.. eql:struct:: edb.protocol.ParseComplete
-
-.. eql:struct:: edb.protocol.enums.Cardinality
-
-Known headers:
-
-* 0x1001 ``CAPABILITIES``: ``uint64`` -- capabilities needed to execute the
-  query.  See RFC1004_ for more information.
-
-Extra headers must be ignored.
 
 
 .. _ref_protocol_msg_client_handshake:

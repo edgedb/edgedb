@@ -270,8 +270,7 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
 
     async def _query(self, query_context: abstract.QueryContext):
         await self._ensure_transaction()
-        result, _ = await self._connection.raw_query(query_context)
-        return result
+        return await self._connection.raw_query(query_context)
 
     async def _execute(self, query: abstract.ScriptContext) -> None:
         await self._ensure_transaction()
@@ -367,8 +366,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
 
     async def _query(self, query_context: abstract.QueryContext):
         await self.ensure_connected()
-        result, _ = await self.raw_query(query_context)
-        return result
+        return await self.raw_query(query_context)
 
     async def _execute(self, script: abstract.ScriptContext) -> None:
         await self.ensure_connected()
@@ -407,32 +405,8 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         __limit__: int = 0,
         __typeids__: bool = False,
         __typenames__: bool = False,
-        __allow_capabilities__: typing.Optional[int] = None,
-        **kwargs,
-    ):
-        await self.ensure_connected()
-        result, _ = await self._protocol.query(
-            query=query,
-            args=args,
-            kwargs=kwargs,
-            reg=self._query_cache.codecs_registry,
-            qc=self._query_cache.query_cache,
-            implicit_limit=__limit__,
-            inline_typeids=__typeids__,
-            inline_typenames=__typenames__,
-            output_format=protocol.OutputFormat.BINARY,
-            allow_capabilities=__allow_capabilities__,
-        )
-        return result
-
-    async def _fetchall_with_headers(
-        self,
-        query: str,
-        *args,
-        __limit__: int = 0,
-        __typeids__: bool = False,
-        __typenames__: bool = False,
-        __allow_capabilities__: typing.Optional[int] = None,
+        __allow_capabilities__: edgedb_enums.Capability = (
+            edgedb_enums.Capability.ALL),
         **kwargs,
     ):
         await self.ensure_connected()
@@ -457,7 +431,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         **kwargs,
     ):
         await self.ensure_connected()
-        result, _ = await self._protocol.query(
+        return await self._protocol.query(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -467,11 +441,10 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             inline_typenames=False,
             output_format=protocol.OutputFormat.JSON,
         )
-        return result
 
     async def _fetchall_json_elements(self, query: str, *args, **kwargs):
         await self.ensure_connected()
-        result, _ = await self._protocol.query(
+        return await self._protocol.query(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -480,7 +453,6 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             output_format=protocol.OutputFormat.JSON_ELEMENTS,
             allow_capabilities=edgedb_enums.Capability.EXECUTE,  # type: ignore
         )
-        return result
 
     def _clear_codecs_cache(self):
         self._query_cache.codecs_registry.clear_cache()
@@ -492,6 +464,14 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         if status is not None:
             status = status.decode()
         return status
+
+    def _get_last_capabilities(
+        self,
+    ) -> typing.Optional[edgedb_enums.Capability]:
+        if self._protocol is None:
+            return None
+        else:
+            return self._protocol.last_capabilities
 
     def is_closed(self):
         return self._protocol is None or not self._protocol.connected

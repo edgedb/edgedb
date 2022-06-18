@@ -537,8 +537,11 @@ class TestServerOps(tb.TestCase):
         await con.send(
             protocol.Execute(
                 headers=[],
+                allowed_capabilities=protocol.Capability.ALL,
+                compilation_flags=protocol.CompilationFlag(0),
+                implicit_limit=0,
                 command_text='SELECT 1',
-                output_format=protocol.OutputFormat.NULL,
+                output_format=protocol.OutputFormat.NONE,
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,

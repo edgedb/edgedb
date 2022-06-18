@@ -39,8 +39,11 @@ class TestProtocol(ProtocolTestCase):
         await self.con.send(
             protocol.Execute(
                 headers=[],
+                allowed_capabilities=protocol.Capability.ALL,
+                compilation_flags=protocol.CompilationFlag(0),
+                implicit_limit=0,
                 command_text='SELECT 1/0',
-                output_format=protocol.OutputFormat.NULL,
+                output_format=protocol.OutputFormat.NONE,
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
@@ -62,8 +65,11 @@ class TestProtocol(ProtocolTestCase):
         await self.con.send(
             protocol.Execute(
                 headers=[],
+                allowed_capabilities=protocol.Capability.ALL,
+                compilation_flags=protocol.CompilationFlag(0),
+                implicit_limit=0,
                 command_text='SELECT 1',
-                output_format=protocol.OutputFormat.NULL,
+                output_format=protocol.OutputFormat.NONE,
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
@@ -139,11 +145,17 @@ class TestProtocol(ProtocolTestCase):
         await self.con.connect()
 
         await self.con.send(
-            protocol.Parse(
+            protocol.Execute(
                 headers=[],
+                allowed_capabilities=protocol.Capability.ALL,
+                compilation_flags=protocol.CompilationFlag(0),
+                implicit_limit=0,
                 output_format=protocol.OutputFormat.BINARY,
                 expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
-                command='SEL ECT 1',
+                command_text='SEL ECT 1',
+                input_typedesc_id=b'\xff' * 16,
+                output_typedesc_id=b'\xff' * 16,
+                arguments=b'',
             )
         )
         # Should come through even without an explicit 'flush'
@@ -157,19 +169,25 @@ class TestProtocol(ProtocolTestCase):
             await self.con.sync(),
             protocol.TransactionState.NOT_IN_TRANSACTION)
 
-        # This Parse should be handled alright
+        # This parse-only Execute should be handled alright
         await self.con.send(
-            protocol.Parse(
+            protocol.Execute(
                 headers=[],
+                allowed_capabilities=protocol.Capability.ALL,
+                compilation_flags=protocol.CompilationFlag(0),
+                implicit_limit=0,
                 output_format=protocol.OutputFormat.BINARY,
                 expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
-                command='SELECT 1',
+                command_text='SELECT 1',
+                input_typedesc_id=b'\xff' * 16,
+                output_typedesc_id=b'\xff' * 16,
+                arguments=b'',
             ),
             protocol.Flush()
         )
         await self.con.recv_match(
-            protocol.ParseComplete,
-            cardinality=compiler.Cardinality.AT_MOST_ONE,
+            protocol.CommandDataDescription,
+            result_cardinality=compiler.Cardinality.AT_MOST_ONE,
         )
 
         # Test that Flush has completed successfully -- the
@@ -179,8 +197,11 @@ class TestProtocol(ProtocolTestCase):
         await self.con.send(
             protocol.Execute(
                 headers=[],
+                allowed_capabilities=protocol.Capability.ALL,
+                compilation_flags=protocol.CompilationFlag(0),
+                implicit_limit=0,
                 command_text='ROLLBACK',
-                output_format=protocol.OutputFormat.NULL,
+                output_format=protocol.OutputFormat.NONE,
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
@@ -226,11 +247,14 @@ class TestServerCancellation(tb.TestCase):
             await con1.send(
                 protocol.Execute(
                     headers=[],
+                    allowed_capabilities=protocol.Capability.ALL,
+                    compilation_flags=protocol.CompilationFlag(0),
+                    implicit_limit=0,
                     command_text="""\
                     UPDATE tclcq SET { p := 'inner' };
                     SELECT sys::_sleep(10);
                     """,
-                    output_format=protocol.OutputFormat.NULL,
+                    output_format=protocol.OutputFormat.NONE,
                     expected_cardinality=protocol.Cardinality.MANY,
                     input_typedesc_id=b'\0' * 16,
                     output_typedesc_id=b'\0' * 16,
@@ -292,8 +316,11 @@ class TestServerCancellation(tb.TestCase):
                 await con.send(
                     protocol.Execute(
                         headers=[],
+                        allowed_capabilities=protocol.Capability.ALL,
+                        compilation_flags=protocol.CompilationFlag(0),
+                        implicit_limit=0,
                         command_text='START TRANSACTION',
-                        output_format=protocol.OutputFormat.NULL,
+                        output_format=protocol.OutputFormat.NONE,
                         expected_cardinality=protocol.Cardinality.MANY,
                         input_typedesc_id=b'\0' * 16,
                         output_typedesc_id=b'\0' * 16,

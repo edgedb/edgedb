@@ -228,6 +228,38 @@ a command cycle.
 Command Phase
 -------------
 
+In the command phase, the server expects the client to send an
+:ref:`ref_protocol_msg_execute` message, carrying one or more EdgeQL commands
+to be executed on the server-side.
+
+If more than one EdgeQL command is found in a single message, the server will
+treat the commands as an EdgeQL script. EdgeQL scripts are always atomic, they
+will be executed in an implicit transaction block if no explicit transactions
+are started beforehand. Therefore, EdgeQL scripts have limitations on the
+EdgeQL commands they could contain:
+
+* Transaction control commands are not allowed, like ``start transaction``,
+  ``commit``, ``declare savepoint``, or ``rollback to savepoint``.
+* Non-transactional commands, like ``create database`` or
+  ``configure instance`` are not allowed.
+
+In the :ref:`ref_protocol_msg_execute` message, the client is supposed to send
+:ref:`type descriptor <ref_proto_typedesc>` IDs for the input arguments and
+output results. If the command(s) to be executed takes no input argument, or
+generates no output, the client should set the corresponding type id to
+``00000000-0000-0000-0000-000000000000`` ("null"). If the client
+doesn't know any of the type IDs, they should both be set to
+``FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`` ("invalid").
+
+If type descriptors match server's knowledge, the server executes the command
+text, and responds with zero or more :ref:`ref_protocol_msg_data` messages,
+followed by a :ref:`ref_protocol_msg_command_complete` message.
+
+If type descriptors mismatch, the server parses the command text, and sends
+:ref:`ref_protocol_msg_command_data_description`.  The client is expected to
+adjust the request data and send :ref:`ref_protocol_msg_execute` again. If any
+of the type IDs was set to "invalid", the server will always do parsing only.
+
 In the command phase, the server can be in one of the three main states:
 
 * *idle*: server is waiting for a command;
@@ -243,43 +275,6 @@ the *error* state.
 
 To switch a server from the *error* state into the *idle* state, a
 :ref:`ref_protocol_msg_sync` message must be sent by the client.
-
-In the command phase, the server expects the client to send one of the
-following messages:
-
-:ref:`ref_protocol_msg_parse`
-    Instructs the server to parse the provided command text for execution.
-    The server responds with a :ref:`ref_protocol_msg_parse_complete` message
-    containing the unique identifier of the statement :ref:`type descriptor
-    <ref_proto_typedesc>`, as well as the type descriptor data.
-
-:ref:`ref_protocol_msg_execute`
-    Execute the provided command text, assuming prior knowledge of the
-    :ref:`type descriptor <ref_proto_typedesc>` data.  This is often used upon
-    the same command text right after a :ref:`ref_protocol_msg_parse` message,
-    or a single-step execute with cached type descriptor data.
-
-    Client sends type descriptor ids in this query. If type descriptors match
-    server's knowledge, the server executes the command text directly, and
-    responds with zero or more :ref:`ref_protocol_msg_data` messages, followed
-    by a :ref:`ref_protocol_msg_command_complete` message.
-
-    If type descriptors mismatch, the server re-parses the command text, and
-    sends :ref:`ref_protocol_msg_command_data_description`.  The client is
-    expected to adjust the request data and send
-    :ref:`ref_protocol_msg_execute` again.
-
-Each of the messages could contain one or more EdgeQL commands in the same text
-string. If more than one EdgeQL command is found in a single message, the
-server will treat the commands as an EdgeQL script. EdgeQL scripts are always
-atomic, they will be executed in an implicit transaction block if no explicit
-transactions are started beforehand. Therefore, EdgeQL scripts have limitations
-on the EdgeQL commands they could contain:
-
-* Transaction control commands are not allowed, like ``start transaction``,
-  ``commit``, ``declare savepoint``, or ``rollback to savepoint``.
-* Non-transactional commands, like ``create database`` or
-  ``configure instance`` are not allowed.
 
 
 .. _ref_protocol_dump_flow:

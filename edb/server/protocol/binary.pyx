@@ -75,6 +75,8 @@ from edb.errors import base as base_errors, EdgeQLSyntaxError
 from edb.common import debug, taskgroup
 from edb.common import context as pctx
 
+from edb.protocol import messages
+
 from edgedb import scram
 
 
@@ -103,11 +105,6 @@ cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
 
 cdef object logger = logging.getLogger('edb.server')
 cdef object log_metrics = logging.getLogger('edb.server.metrics')
-
-cdef dict ERROR_CODES_PRE_0_10 = {
-    0x05_03_01_01: 0x05_03_00_01,  # TransactionSerializationError #2431
-    0x05_03_01_02: 0x05_03_00_02,  # TransactionDeadlockError      #2431
-}
 
 DEF QUERY_HEADER_IMPLICIT_LIMIT = 0xFF01
 DEF QUERY_HEADER_IMPLICIT_TYPENAMES = 0xFF02
@@ -155,7 +152,7 @@ cdef class QueryRequestInfo:
         inline_typeids: bint = False,
         inline_typenames: bint = False,
         inline_objectids: bint = True,
-        allow_capabilities: uint64_t = ALL_CAPABILITIES,
+        allow_capabilities: uint64_t = <uint64_t>ALL_CAPABILITIES,
     ):
         self.source = source
         self.protocol_version = protocol_version
@@ -480,8 +477,7 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unexpected initial message: "{chr(mtype)}", expected "V"')
 
-        params = await self._do_handshake()
-        return params
+        return await self._do_handshake()
 
     async def auth(self, params):
         cdef:
@@ -580,12 +576,13 @@ cdef class EdgeConnection:
             uint16_t major
             uint16_t minor
             int i
-            uint16_t nexts
-            dict exts = {}
+            uint16_t reserved
             dict params = {}
 
         major = <uint16_t>self.buffer.read_int16()
         minor = <uint16_t>self.buffer.read_int16()
+
+        self.protocol_version = major, minor
 
         nparams = <uint16_t>self.buffer.read_int16()
         for i in range(nparams):
@@ -593,16 +590,14 @@ cdef class EdgeConnection:
             v = self.buffer.read_len_prefixed_utf8()
             params[k] = v
 
-        nexts = <uint16_t>self.buffer.read_int16()
-
-        for i in range(nexts):
-            extname = self.buffer.read_len_prefixed_utf8()
-            exts[extname] = self.parse_headers()
+        reserved = <uint16_t>self.buffer.read_int16()
+        if reserved != 0:
+            raise errors.BinaryProtocolError(
+                f'unexpected value in reserved field of ClientHandshake')
 
         self.buffer.finish_message()
 
-        self.protocol_version = major, minor
-        negotiate = nexts > 0
+        negotiate = False
         if self.protocol_version < self.min_protocol:
             target_proto = self.min_protocol
             negotiate = True
@@ -613,17 +608,7 @@ cdef class EdgeConnection:
             target_proto = self.protocol_version
 
         if negotiate:
-            # NegotiateProtocolVersion
-            buf = WriteBuffer.new_message(b'v')
-            # Highest supported major version of the protocol.
-            buf.write_int16(target_proto[0])
-            # Highest supported minor version of the protocol.
-            buf.write_int16(target_proto[1])
-            # No extensions are currently supported.
-            buf.write_int16(0)
-            buf.end_message()
-
-            self.write(buf)
+            self.write(self.make_negotiate_protocol_version_msg(target_proto))
             self.flush()
 
         return params
@@ -1267,61 +1252,6 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unknown output mode "{repr(mode)[2:-1]}"')
 
-    cdef parse_prepare_query_part(self):
-        cdef:
-            object output_format
-            bytes eql
-            dict headers
-            uint64_t implicit_limit = 0
-            bint inline_typeids = False
-            uint64_t allow_capabilities = ALL_CAPABILITIES
-            bint inline_typenames = False
-            bint inline_objectids = True
-
-        headers = self.parse_headers()
-        if headers:
-            for k, v in headers.items():
-                if k == QUERY_HEADER_IMPLICIT_LIMIT:
-                    implicit_limit = self._parse_implicit_limit(v)
-                elif k == QUERY_HEADER_IMPLICIT_TYPEIDS:
-                    inline_typeids = parse_boolean(v, "IMPLICIT_TYPEIDS")
-                elif k == QUERY_HEADER_IMPLICIT_TYPENAMES:
-                    inline_typenames = parse_boolean(v, "IMPLICIT_TYPENAMES")
-                elif k == QUERY_HEADER_ALLOW_CAPABILITIES:
-                    allow_capabilities = parse_capabilities_header(v)
-                elif k == QUERY_HEADER_EXPLICIT_OBJECTIDS:
-                    inline_objectids = not parse_boolean(v, "EXPLICIT_OBJECTIDS")
-                else:
-                    raise errors.BinaryProtocolError(
-                        f'unexpected message header: {k}'
-                    )
-
-        output_format = self.parse_output_format(self.buffer.read_byte())
-        expect_one = (
-            self.parse_cardinality(self.buffer.read_byte()) is CARD_AT_MOST_ONE
-        )
-
-        eql = self.buffer.read_len_prefixed_bytes()
-        if not eql:
-            raise errors.BinaryProtocolError('empty query')
-
-        source = self._tokenize(eql)
-
-        query_req = QueryRequestInfo(
-            source,
-            self.protocol_version,
-            output_format=output_format,
-            expect_one=expect_one,
-            implicit_limit=implicit_limit,
-            inline_typeids=inline_typeids,
-            inline_typenames=inline_typenames,
-            inline_objectids=inline_objectids,
-            allow_capabilities=allow_capabilities,
-        )
-
-        return eql, query_req
-
-
     cdef inline reject_headers(self):
         cdef int16_t nheaders = self.buffer.read_int16()
         if nheaders != 0:
@@ -1331,84 +1261,48 @@ cdef class EdgeConnection:
         cdef:
             dict attrs
             uint16_t num_fields
-            uint16_t key
-            bytes value
+            str key
+            str value
 
         attrs = {}
         num_fields = <uint16_t>self.buffer.read_int16()
         while num_fields:
-            key = <uint16_t>self.buffer.read_int16()
-            value = self.buffer.read_len_prefixed_bytes()
+            key = self.buffer.read_len_prefixed_utf8()
+            value = self.buffer.read_len_prefixed_utf8()
             attrs[key] = value
             num_fields -= 1
         return attrs
 
-    cdef write_headers(self, buf: WriteBuffer, headers: dict):
-        buf.write_int16(len(headers))
-        for k, v in headers.items():
-            buf.write_int16(<int16_t><uint16_t>k)
-            buf.write_len_prefixed_utf8(str(v))
-
-    cdef uint64_t _parse_implicit_limit(self, v: bytes) except <uint64_t>-1:
-        cdef uint64_t implicit_limit
-
-        limit = cpythonx.PyLong_FromUnicodeObject(
-            v.decode(), 10)
-        if limit < 0:
-            raise errors.BinaryProtocolError(
-                f'implicit limit cannot be negative'
-            )
-        try:
-            implicit_limit = <uint64_t>cpython.PyLong_AsLongLong(
-                limit
-            )
-        except OverflowError:
-            raise errors.BinaryProtocolError(
-                f'implicit limit out of range: {limit}'
-            )
-
-        return implicit_limit
-
-    async def parse(self):
+    cdef inline ignore_headers(self):
         cdef:
-            bytes eql
-            QueryRequestInfo query_req
+            uint16_t num_fields
 
-        self._last_anon_compiled = None
-
-        eql, query_req = self.parse_prepare_query_part()
-        compiled_query = await self._parse(eql, query_req)
-
-        buf = WriteBuffer.new_message(b'1')  # ParseComplete
-
-        buf.write_int16(1)
-        buf.write_int16(SERVER_HEADER_CAPABILITIES)
-        buf.write_int32(sizeof(uint64_t))
-        buf.write_int64(<int64_t>(
-            <uint64_t>compiled_query.query_unit_group.capabilities
-        ))
-
-        buf.write_byte(
-            self.render_cardinality(compiled_query.query_unit_group)
-        )
-
-        buf.write_bytes(compiled_query.query_unit_group.in_type_id)
-        buf.write_len_prefixed_bytes(
-            compiled_query.query_unit_group.in_type_data
-        )
-
-        buf.write_bytes(compiled_query.query_unit_group.out_type_id)
-        buf.write_len_prefixed_bytes(
-            compiled_query.query_unit_group.out_type_data)
-
-        buf.end_message()
-
-        self._last_anon_compiled = compiled_query
-        self._last_anon_compiled_hash = hash(query_req)
-
-        self.write(buf)
+        num_fields = <uint16_t>self.buffer.read_int16()
+        while num_fields:
+            self.buffer.read_len_prefixed_utf8()
+            self.buffer.read_len_prefixed_utf8()
+            num_fields -= 1
 
     #############
+
+    cdef WriteBuffer make_negotiate_protocol_version_msg(
+        self,
+        tuple target_proto,
+    ):
+        cdef:
+            WriteBuffer msg
+
+        # NegotiateProtocolVersion
+        msg = WriteBuffer.new_message(b'v')
+        # Highest supported major version of the protocol.
+        msg.write_int16(target_proto[0])
+        # Highest supported minor version of the protocol.
+        msg.write_int16(target_proto[1])
+        # No extensions are currently supported.
+        msg.write_int16(0)
+
+        msg.end_message()
+        return msg
 
     cdef WriteBuffer make_command_data_description_msg(
         self, CompiledQuery query
@@ -1417,13 +1311,8 @@ cdef class EdgeConnection:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'T')
-        msg.write_int16(1)
-        msg.write_int16(SERVER_HEADER_CAPABILITIES)
-        msg.write_int32(sizeof(uint64_t))
-        msg.write_int64(
-            <int64_t>(<uint64_t>query.query_unit_group.capabilities)
-        )
-
+        msg.write_int16(0)  # no headers
+        msg.write_int64(<int64_t><uint64_t>query.query_unit_group.capabilities)
         msg.write_byte(self.render_cardinality(query.query_unit_group))
 
         in_data = query.query_unit_group.in_type_data
@@ -1442,12 +1331,8 @@ cdef class EdgeConnection:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'C')
-
-        msg.write_int16(1)
-        msg.write_int16(SERVER_HEADER_CAPABILITIES)
-        msg.write_int32(sizeof(uint64_t))
+        msg.write_int16(0)  # no headers
         msg.write_int64(<int64_t><uint64_t>query_unit.capabilities)
-
         msg.write_len_prefixed_bytes(query_unit.status)
         return msg.end_message()
 
@@ -1458,12 +1343,8 @@ cdef class EdgeConnection:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'C')
-
-        msg.write_int16(1)
-        msg.write_int16(SERVER_HEADER_CAPABILITIES)
-        msg.write_int32(sizeof(uint64_t))
+        msg.write_int16(0)  # no headers
         msg.write_int64(<int64_t><uint64_t>query_unit_group.capabilities)
-
         msg.write_len_prefixed_bytes(query_unit_group[-1].status)
         return msg.end_message()
 
@@ -1630,8 +1511,50 @@ cdef class EdgeConnection:
             bytes in_tid
             bytes out_tid
             bytes bound_args
+            uint64_t allow_capabilities
+            uint64_t compilation_flags
+            int64_t implicit_limit
 
-        query, query_req = self.parse_prepare_query_part()
+        self.ignore_headers()
+
+        allow_capabilities = <uint64_t>self.buffer.read_int64()
+        compilation_flags = <uint64_t>self.buffer.read_int64()
+        implicit_limit = self.buffer.read_int64()
+
+        if implicit_limit < 0:
+            raise errors.BinaryProtocolError(
+                f'implicit limit cannot be negative'
+            )
+
+        inline_typenames = (
+            compilation_flags
+            & messages.CompilationFlag.INJECT_OUTPUT_TYPE_NAMES
+        )
+        inline_typeids = (
+            compilation_flags
+            & messages.CompilationFlag.INJECT_OUTPUT_TYPE_IDS
+        )
+
+        output_format = self.parse_output_format(self.buffer.read_byte())
+        expect_one = (
+            self.parse_cardinality(self.buffer.read_byte()) is CARD_AT_MOST_ONE
+        )
+
+        query = self.buffer.read_len_prefixed_bytes()
+        if not query:
+            raise errors.BinaryProtocolError('empty query')
+
+        query_req = QueryRequestInfo(
+            self._tokenize(query),
+            self.protocol_version,
+            output_format=output_format,
+            expect_one=expect_one,
+            implicit_limit=implicit_limit,
+            inline_typeids=inline_typeids,
+            inline_typenames=inline_typenames,
+            inline_objectids=True,
+            allow_capabilities=allow_capabilities,
+        )
 
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
@@ -1640,7 +1563,9 @@ cdef class EdgeConnection:
 
         if (
             self._last_anon_compiled is not None and
-            hash(query_req) == self._last_anon_compiled_hash
+            hash(query_req) == self._last_anon_compiled_hash and
+            in_tid == self._last_anon_compiled.query_unit_group.in_type_id and
+            out_tid == self._last_anon_compiled.query_unit_group.out_type_id
         ):
             compiled = self._last_anon_compiled
             query_unit_group = compiled.query_unit_group
@@ -1807,7 +1732,9 @@ cdef class EdgeConnection:
 
                 try:
                     if mtype == b'P':
-                        await self.parse()
+                        raise errors.BinaryProtocolError(
+                            "Prepare message (P) is not supported in "
+                            "protocols greater 1.0")
 
                     elif mtype == b'D':
                         raise errors.BinaryProtocolError(
@@ -1998,15 +1925,16 @@ cdef class EdgeConnection:
             except Exception:
                 formatted_error = 'could not serialize error traceback'
 
+        fields[base_errors.FIELD_SERVER_TRACEBACK] = formatted_error
+
         buf = WriteBuffer.new_message(b'E')
         buf.write_byte(<char><uint8_t>EdgeSeverity.EDGE_SEVERITY_ERROR)
         buf.write_int32(<int32_t><uint32_t>exc_code)
-
         buf.write_len_prefixed_utf8(str(exc))
-
-        fields[base_errors.FIELD_SERVER_TRACEBACK] = formatted_error
-        self.write_headers(buf, fields)
-
+        buf.write_int16(len(fields))
+        for k, v in fields.items():
+            buf.write_int16(<int16_t><uint16_t>k)
+            buf.write_len_prefixed_utf8(str(v))
         buf.end_message()
 
         self.write(buf)

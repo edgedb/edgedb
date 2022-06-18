@@ -133,7 +133,6 @@ cdef class EdgeConnection:
 
     cdef parse_output_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
-    cdef parse_prepare_query_part(self)
     cdef char render_cardinality(self, query_unit) except -1
 
     cdef write(self, WriteBuffer buf)
@@ -159,6 +158,9 @@ cdef class EdgeConnection:
         bytes bind_args, CompiledQuery compiled, object positions,
     )
 
+    cdef WriteBuffer make_negotiate_protocol_version_msg(
+        self, tuple target_proto
+    )
     cdef WriteBuffer make_command_data_description_msg(
         self, CompiledQuery query
     )
@@ -166,17 +168,15 @@ cdef class EdgeConnection:
     cdef WriteBuffer make_command_complete_msg_by_group(self, query_unit_group)
 
     cdef inline reject_headers(self)
+    cdef inline ignore_headers(self)
     cdef dict parse_headers(self)
 
     cdef write_status(self, bytes name, bytes value)
-    cdef write_headers(self, WriteBuffer buf, dict headers)
     cdef write_error(self, exc)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
 
-    cdef uint64_t _parse_implicit_limit(self, bytes v) except <uint64_t>-1
 
-\
 @cython.final
 cdef class VirtualTransport:
     cdef:

@@ -31,6 +31,52 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         super().__init__(server, external_auth, passive)
         self.min_protocol = MIN_LEGACY_PROTOCOL
 
+    async def _do_handshake(self):
+        cdef:
+            uint16_t major
+            uint16_t minor
+            int i
+            uint16_t nexts
+            dict params = {}
+
+        major = <uint16_t>self.buffer.read_int16()
+        minor = <uint16_t>self.buffer.read_int16()
+
+        self.protocol_version = major, minor
+
+        nparams = <uint16_t>self.buffer.read_int16()
+        for i in range(nparams):
+            k = self.buffer.read_len_prefixed_utf8()
+            v = self.buffer.read_len_prefixed_utf8()
+            params[k] = v
+
+        if self.protocol_version <= MAX_LEGACY_PROTOCOL:
+            nexts = <uint16_t>self.buffer.read_int16()
+
+            for i in range(nexts):
+                extname = self.buffer.read_len_prefixed_utf8()
+                self.legacy_parse_headers()
+        else:
+            nexts = 0
+
+        self.buffer.finish_message()
+
+        negotiate = nexts > 0
+        if self.protocol_version < self.min_protocol:
+            target_proto = self.min_protocol
+            negotiate = True
+        elif self.protocol_version > self.max_protocol:
+            target_proto = self.max_protocol
+            negotiate = True
+        else:
+            target_proto = self.protocol_version
+
+        if negotiate:
+            self.write(self.make_negotiate_protocol_version_msg(target_proto))
+            self.flush()
+
+        return params
+
     async def legacy_parse(self):
         cdef:
             bytes eql
@@ -93,7 +139,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     raise errors.TypeSpecNotFoundError(
                         'no prepared anonymous statement found')
 
-                msg = self.make_command_data_description_msg(
+                msg = self.make_legacy_command_data_description_msg(
                     self._last_anon_compiled
                 )
                 self.write(msg)
@@ -340,7 +386,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /MISMATCH', query)
 
-            self.write(self.make_command_data_description_msg(compiled))
+            self.write(self.make_legacy_command_data_description_msg(compiled))
 
             if self._cancelled:
                 raise ConnectionAbortedError
@@ -368,7 +414,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             bint inline_objectids = True
             bytes stmt_name = b''
 
-        headers = self.parse_headers()
+        headers = self.legacy_parse_headers()
         if headers:
             for k, v in headers.items():
                 if k == QUERY_HEADER_IMPLICIT_LIMIT:
@@ -514,7 +560,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     #   2. The state is synced with dbview (orig_state is None)
                     #   3. We came out from a transaction (orig_state is None)
                     conn.last_state = state
-            self.write(self.make_command_complete_msg(query_unit))
+            self.write(self.make_legacy_command_complete_msg(query_unit))
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -523,7 +569,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             WriteBuffer bound_args_buf
             uint64_t allow_capabilities = ALL_CAPABILITIES
 
-        headers = self.parse_headers()
+        headers = self.legacy_parse_headers()
         if headers:
             for k, v in headers.items():
                 if k == QUERY_HEADER_ALLOW_CAPABILITIES:
@@ -656,7 +702,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             WriteBuffer packet
             uint64_t allow_capabilities = ALL_CAPABILITIES
 
-        headers = self.parse_headers()
+        headers = self.legacy_parse_headers()
         if headers:
             for k, v in headers.items():
                 if k == QUERY_HEADER_ALLOW_CAPABILITIES:
@@ -683,7 +729,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             if stmt_mode == 'done':
                 packet = WriteBuffer.new()
                 packet.write_buffer(
-                    self.make_command_complete_msg(query_unit))
+                    self.make_legacy_command_complete_msg(query_unit))
                 packet.write_buffer(self.sync_status())
                 self.write(packet)
                 self.flush()
@@ -697,7 +743,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             eql, allow_capabilities, stmt_mode)
 
         packet = WriteBuffer.new()
-        packet.write_buffer(self.make_command_complete_msg(query_unit))
+        packet.write_buffer(self.make_legacy_command_complete_msg(query_unit))
         packet.write_buffer(self.sync_status())
         self.write(packet)
         self.flush()
@@ -813,3 +859,80 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             self.maybe_release_pgcon(conn)
 
         return query_unit
+
+    cdef WriteBuffer make_legacy_command_data_description_msg(
+        self, CompiledQuery query
+    ):
+        cdef:
+            WriteBuffer msg
+
+        msg = WriteBuffer.new_message(b'T')
+        msg.write_int16(1)
+        msg.write_int16(SERVER_HEADER_CAPABILITIES)
+        msg.write_int32(sizeof(uint64_t))
+        msg.write_int64(
+            <int64_t>(<uint64_t>query.query_unit_group.capabilities)
+        )
+
+        msg.write_byte(self.render_cardinality(query.query_unit_group))
+
+        in_data = query.query_unit_group.in_type_data
+        msg.write_bytes(query.query_unit_group.in_type_id)
+        msg.write_len_prefixed_bytes(in_data)
+
+        out_data = query.query_unit_group.out_type_data
+        msg.write_bytes(query.query_unit_group.out_type_id)
+        msg.write_len_prefixed_bytes(out_data)
+
+        msg.end_message()
+        return msg
+
+    cdef WriteBuffer make_legacy_command_complete_msg(self, query_unit):
+        cdef:
+            WriteBuffer msg
+
+        msg = WriteBuffer.new_message(b'C')
+
+        msg.write_int16(1)
+        msg.write_int16(SERVER_HEADER_CAPABILITIES)
+        msg.write_int32(sizeof(uint64_t))
+        msg.write_int64(<int64_t><uint64_t>query_unit.capabilities)
+
+        msg.write_len_prefixed_bytes(query_unit.status)
+        return msg.end_message()
+
+    cdef uint64_t _parse_implicit_limit(self, v: bytes) except <uint64_t>-1:
+        cdef uint64_t implicit_limit
+
+        limit = cpythonx.PyLong_FromUnicodeObject(
+            v.decode(), 10)
+        if limit < 0:
+            raise errors.BinaryProtocolError(
+                f'implicit limit cannot be negative'
+            )
+        try:
+            implicit_limit = <uint64_t>cpython.PyLong_AsLongLong(
+                limit
+            )
+        except OverflowError:
+            raise errors.BinaryProtocolError(
+                f'implicit limit out of range: {limit}'
+            )
+
+        return implicit_limit
+
+    cdef dict legacy_parse_headers(self):
+        cdef:
+            dict attrs
+            uint16_t num_fields
+            uint16_t key
+            bytes value
+
+        attrs = {}
+        num_fields = <uint16_t>self.buffer.read_int16()
+        while num_fields:
+            key = <uint16_t>self.buffer.read_int16()
+            value = self.buffer.read_len_prefixed_bytes()
+            attrs[key] = value
+            num_fields -= 1
+        return attrs
