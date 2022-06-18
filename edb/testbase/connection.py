@@ -407,7 +407,8 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         __limit__: int = 0,
         __typeids__: bool = False,
         __typenames__: bool = False,
-        __allow_capabilities__: typing.Optional[int] = None,
+        __allow_capabilities__: edgedb_enums.Capability = (
+            edgedb_enums.Capability.ALL),
         **kwargs,
     ):
         await self.ensure_connected()
@@ -432,7 +433,8 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         __limit__: int = 0,
         __typeids__: bool = False,
         __typenames__: bool = False,
-        __allow_capabilities__: typing.Optional[int] = None,
+        __allow_capabilities__: edgedb_enums.Capability = (
+            edgedb_enums.Capability.ALL),
         **kwargs,
     ):
         await self.ensure_connected()
