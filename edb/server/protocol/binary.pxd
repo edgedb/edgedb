@@ -158,6 +158,9 @@ cdef class EdgeConnection:
         bytes bind_args, CompiledQuery compiled, object positions,
     )
 
+    cdef WriteBuffer make_negotiate_protocol_version_msg(
+        self, tuple target_proto
+    )
     cdef WriteBuffer make_command_data_description_msg(
         self, CompiledQuery query
     )
@@ -165,10 +168,10 @@ cdef class EdgeConnection:
     cdef WriteBuffer make_command_complete_msg_by_group(self, query_unit_group)
 
     cdef inline reject_headers(self)
+    cdef inline ignore_headers(self)
     cdef dict parse_headers(self)
 
     cdef write_status(self, bytes name, bytes value)
-    cdef write_headers(self, WriteBuffer buf, dict headers)
     cdef write_error(self, exc)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)

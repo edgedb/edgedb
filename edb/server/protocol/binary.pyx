@@ -477,8 +477,7 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unexpected initial message: "{chr(mtype)}", expected "V"')
 
-        params = await self._do_handshake()
-        return params
+        return await self._do_handshake()
 
     async def auth(self, params):
         cdef:
@@ -577,12 +576,13 @@ cdef class EdgeConnection:
             uint16_t major
             uint16_t minor
             int i
-            uint16_t nexts
-            dict exts = {}
+            uint16_t reserved
             dict params = {}
 
         major = <uint16_t>self.buffer.read_int16()
         minor = <uint16_t>self.buffer.read_int16()
+
+        self.protocol_version = major, minor
 
         nparams = <uint16_t>self.buffer.read_int16()
         for i in range(nparams):
@@ -590,16 +590,14 @@ cdef class EdgeConnection:
             v = self.buffer.read_len_prefixed_utf8()
             params[k] = v
 
-        nexts = <uint16_t>self.buffer.read_int16()
-
-        for i in range(nexts):
-            extname = self.buffer.read_len_prefixed_utf8()
-            exts[extname] = self.parse_headers()
+        reserved = <uint16_t>self.buffer.read_int16()
+        if reserved != 0:
+            raise errors.BinaryProtocolError(
+                f'unexpected value in reserved field of ClientHandshake')
 
         self.buffer.finish_message()
 
-        self.protocol_version = major, minor
-        negotiate = nexts > 0
+        negotiate = False
         if self.protocol_version < self.min_protocol:
             target_proto = self.min_protocol
             negotiate = True
@@ -610,17 +608,7 @@ cdef class EdgeConnection:
             target_proto = self.protocol_version
 
         if negotiate:
-            # NegotiateProtocolVersion
-            buf = WriteBuffer.new_message(b'v')
-            # Highest supported major version of the protocol.
-            buf.write_int16(target_proto[0])
-            # Highest supported minor version of the protocol.
-            buf.write_int16(target_proto[1])
-            # No extensions are currently supported.
-            buf.write_int16(0)
-            buf.end_message()
-
-            self.write(buf)
+            self.write(self.make_negotiate_protocol_version_msg(target_proto))
             self.flush()
 
         return params
@@ -1273,25 +1261,48 @@ cdef class EdgeConnection:
         cdef:
             dict attrs
             uint16_t num_fields
-            uint16_t key
-            bytes value
+            str key
+            str value
 
         attrs = {}
         num_fields = <uint16_t>self.buffer.read_int16()
         while num_fields:
-            key = <uint16_t>self.buffer.read_int16()
-            value = self.buffer.read_len_prefixed_bytes()
+            key = self.buffer.read_len_prefixed_utf8()
+            value = self.buffer.read_len_prefixed_utf8()
             attrs[key] = value
             num_fields -= 1
         return attrs
 
-    cdef write_headers(self, buf: WriteBuffer, headers: dict):
-        buf.write_int16(len(headers))
-        for k, v in headers.items():
-            buf.write_int16(<int16_t><uint16_t>k)
-            buf.write_len_prefixed_utf8(str(v))
+    cdef inline ignore_headers(self):
+        cdef:
+            uint16_t num_fields
+
+        num_fields = <uint16_t>self.buffer.read_int16()
+        while num_fields:
+            self.buffer.read_len_prefixed_utf8()
+            self.buffer.read_len_prefixed_utf8()
+            num_fields -= 1
 
     #############
+
+    cdef WriteBuffer make_negotiate_protocol_version_msg(
+        self,
+        tuple target_proto,
+    ):
+        cdef:
+            WriteBuffer msg
+
+        # NegotiateProtocolVersion
+        msg = WriteBuffer.new_message(b'v')
+        # Highest supported major version of the protocol.
+        msg.write_int16(target_proto[0])
+        # Highest supported minor version of the protocol.
+        msg.write_int16(target_proto[1])
+        # No extensions are currently supported.
+        msg.write_int16(0)
+
+        msg.end_message()
+        return msg
 
     cdef WriteBuffer make_command_data_description_msg(
         self, CompiledQuery query
@@ -1504,7 +1515,7 @@ cdef class EdgeConnection:
             uint64_t compilation_flags
             int64_t implicit_limit
 
-        self.parse_headers()
+        self.ignore_headers()
 
         allow_capabilities = <uint64_t>self.buffer.read_int64()
         compilation_flags = <uint64_t>self.buffer.read_int64()
@@ -1914,15 +1925,16 @@ cdef class EdgeConnection:
             except Exception:
                 formatted_error = 'could not serialize error traceback'
 
+        fields[base_errors.FIELD_SERVER_TRACEBACK] = formatted_error
+
         buf = WriteBuffer.new_message(b'E')
         buf.write_byte(<char><uint8_t>EdgeSeverity.EDGE_SEVERITY_ERROR)
         buf.write_int32(<int32_t><uint32_t>exc_code)
-
         buf.write_len_prefixed_utf8(str(exc))
-
-        fields[base_errors.FIELD_SERVER_TRACEBACK] = formatted_error
-        self.write_headers(buf, fields)
-
+        buf.write_int16(len(fields))
+        for k, v in fields.items():
+            buf.write_int16(<int16_t><uint16_t>k)
+            buf.write_len_prefixed_utf8(str(v))
         buf.end_message()
 
         self.write(buf)

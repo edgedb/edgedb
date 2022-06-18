@@ -25,3 +25,4 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
     )
     cdef WriteBuffer make_legacy_command_complete_msg(self, query_unit)
     cdef uint64_t _parse_implicit_limit(self, bytes v) except <uint64_t>-1
+    cdef dict legacy_parse_headers(self)

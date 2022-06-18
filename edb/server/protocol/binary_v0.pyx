@@ -31,6 +31,52 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         super().__init__(server, external_auth, passive)
         self.min_protocol = MIN_LEGACY_PROTOCOL
 
+    async def _do_handshake(self):
+        cdef:
+            uint16_t major
+            uint16_t minor
+            int i
+            uint16_t nexts
+            dict params = {}
+
+        major = <uint16_t>self.buffer.read_int16()
+        minor = <uint16_t>self.buffer.read_int16()
+
+        self.protocol_version = major, minor
+
+        nparams = <uint16_t>self.buffer.read_int16()
+        for i in range(nparams):
+            k = self.buffer.read_len_prefixed_utf8()
+            v = self.buffer.read_len_prefixed_utf8()
+            params[k] = v
+
+        if self.protocol_version <= MAX_LEGACY_PROTOCOL:
+            nexts = <uint16_t>self.buffer.read_int16()
+
+            for i in range(nexts):
+                extname = self.buffer.read_len_prefixed_utf8()
+                self.legacy_parse_headers()
+        else:
+            nexts = 0
+
+        self.buffer.finish_message()
+
+        negotiate = nexts > 0
+        if self.protocol_version < self.min_protocol:
+            target_proto = self.min_protocol
+            negotiate = True
+        elif self.protocol_version > self.max_protocol:
+            target_proto = self.max_protocol
+            negotiate = True
+        else:
+            target_proto = self.protocol_version
+
+        if negotiate:
+            self.write(self.make_negotiate_protocol_version_msg(target_proto))
+            self.flush()
+
+        return params
+
     async def legacy_parse(self):
         cdef:
             bytes eql
@@ -368,7 +414,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             bint inline_objectids = True
             bytes stmt_name = b''
 
-        headers = self.parse_headers()
+        headers = self.legacy_parse_headers()
         if headers:
             for k, v in headers.items():
                 if k == QUERY_HEADER_IMPLICIT_LIMIT:
@@ -523,7 +569,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             WriteBuffer bound_args_buf
             uint64_t allow_capabilities = ALL_CAPABILITIES
 
-        headers = self.parse_headers()
+        headers = self.legacy_parse_headers()
         if headers:
             for k, v in headers.items():
                 if k == QUERY_HEADER_ALLOW_CAPABILITIES:
@@ -656,7 +702,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             WriteBuffer packet
             uint64_t allow_capabilities = ALL_CAPABILITIES
 
-        headers = self.parse_headers()
+        headers = self.legacy_parse_headers()
         if headers:
             for k, v in headers.items():
                 if k == QUERY_HEADER_ALLOW_CAPABILITIES:
@@ -874,3 +920,19 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             )
 
         return implicit_limit
+
+    cdef dict legacy_parse_headers(self):
+        cdef:
+            dict attrs
+            uint16_t num_fields
+            uint16_t key
+            bytes value
+
+        attrs = {}
+        num_fields = <uint16_t>self.buffer.read_int16()
+        while num_fields:
+            key = <uint16_t>self.buffer.read_int16()
+            value = self.buffer.read_len_prefixed_bytes()
+            attrs[key] = value
+            num_fields -= 1
+        return attrs
