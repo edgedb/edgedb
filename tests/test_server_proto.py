@@ -20,7 +20,6 @@ import asyncio
 import decimal
 import json
 import uuid
-import struct
 import unittest
 
 import edgedb
@@ -30,15 +29,6 @@ from edb.common import taskgroup as tg
 from edb.testbase import server as tb
 from edb.server.compiler import enums
 from edb.tools import test
-
-
-SERVER_HEADER_CAPABILITIES = 0x1001
-ALL_CAPABILITIES = 0xFFFFFFFFFFFFFFFF
-
-
-def _capabilities(attrs):
-    bytes = attrs.pop(SERVER_HEADER_CAPABILITIES)
-    return enums.Capability(struct.unpack('>Q', bytes)[0])
 
 
 class TestServerProto(tb.QueryTestCase):
@@ -3025,31 +3015,40 @@ class TestServerCapabilities(tb.QueryTestCase):
     '''
 
     async def test_server_capabilities_01(self):
-        _, attrs = await self.con._fetchall_with_headers(
+        await self.con._fetchall(
             'SELECT {1, 2, 3}',
         )
-        self.assertEqual(_capabilities(attrs), enums.Capability(0))
+        self.assertEqual(
+            self.con._get_last_capabilities(),
+            enums.Capability(0),
+        )
 
         # selects are always allowed
-        _, attrs = await self.con._fetchall_with_headers(
+        await self.con._fetchall(
             'SELECT {1, 2, 3}',
             __allow_capabilities__=0,
         )
-        self.assertEqual(_capabilities(attrs), enums.Capability(0))
+        self.assertEqual(
+            self.con._get_last_capabilities(),
+            enums.Capability(0),
+        )
 
         # as well as describes
-        _, attrs = await self.con._fetchall_with_headers(
+        await self.con._fetchall(
             'DESCRIBE OBJECT cfg::Config',
             __allow_capabilities__=0,
         )
-        self.assertEqual(_capabilities(attrs), enums.Capability(0))
+        self.assertEqual(
+            self.con._get_last_capabilities(),
+            enums.Capability(0),
+        )
 
     async def test_server_capabilities_02(self):
-        _, attrs = await self.con._fetchall_with_headers(
+        await self.con._fetchall(
             'INSERT Modify { prop1 := "xx" }',
         )
         self.assertEqual(
-            _capabilities(attrs),
+            self.con._get_last_capabilities(),
             enums.Capability.MODIFICATIONS,
         )
         with self.assertRaises(edgedb.ProtocolError):
@@ -3069,25 +3068,25 @@ class TestServerCapabilities(tb.QueryTestCase):
                 __allow_capabilities__=0,
             )
         try:
-            _, attrs = await self.con._fetchall_with_headers(
+            await self.con._fetchall(
                 'CREATE TYPE Type1',
                 __allow_capabilities__=enums.Capability.DDL,
             )
             self.assertEqual(
-                _capabilities(attrs),
+                self.con._get_last_capabilities(),
                 enums.Capability.DDL,
             )
         finally:
-            _, attrs = await self.con._fetchall_with_headers(
+            await self.con._fetchall(
                 'DROP TYPE Type1',
             )
             self.assertEqual(
-                _capabilities(attrs),
+                self.con._get_last_capabilities(),
                 enums.Capability.DDL,
             )
 
     async def test_server_capabilities_04(self):
-        caps = ALL_CAPABILITIES & ~enums.Capability.SESSION_CONFIG
+        caps = enums.Capability.ALL & ~enums.Capability.SESSION_CONFIG
         with self.assertRaises(edgedb.ProtocolError):
             await self.con._fetchall(
                 'CONFIGURE SESSION SET singleprop := "42"',
@@ -3095,7 +3094,7 @@ class TestServerCapabilities(tb.QueryTestCase):
             )
 
     async def test_server_capabilities_05(self):
-        caps = ALL_CAPABILITIES & ~enums.Capability.PERSISTENT_CONFIG
+        caps = enums.Capability.ALL & ~enums.Capability.PERSISTENT_CONFIG
         with self.assertRaises(edgedb.ProtocolError):
             await self.con._fetchall(
                 'CONFIGURE INSTANCE SET singleprop := "42"',

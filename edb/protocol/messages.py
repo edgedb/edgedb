@@ -510,9 +510,7 @@ class Capability(enum.IntFlag):
     TRANSACTION       = 1 << 2    # noqa
     DDL               = 1 << 3    # noqa
     PERSISTENT_CONFIG = 1 << 4    # noqa
-
-
-ALL_CAPABILITIES = Capability(0xFFFFFFFFFFFFFFFF)
+    ALL               = 0xFFFFFFFFFFFFFFFF  # noqa
 
 
 class CompilationFlag(enum.IntFlag):

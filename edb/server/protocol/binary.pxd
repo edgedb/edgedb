@@ -173,9 +173,7 @@ cdef class EdgeConnection:
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
 
-    cdef uint64_t _parse_implicit_limit(self, bytes v) except <uint64_t>-1
 
-\
 @cython.final
 cdef class VirtualTransport:
     cdef:

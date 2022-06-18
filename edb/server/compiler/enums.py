@@ -45,6 +45,8 @@ class Capability(enum.IntFlag):
     DDL               = 1 << 3    # noqa
     PERSISTENT_CONFIG = 1 << 4    # noqa
 
+    ALL               = 0xFFFF_FFFF_FFFF_FFFF  # noqa
+
     def make_error(
         self,
         allowed: Capability,

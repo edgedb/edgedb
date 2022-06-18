@@ -1291,26 +1291,6 @@ cdef class EdgeConnection:
             buf.write_int16(<int16_t><uint16_t>k)
             buf.write_len_prefixed_utf8(str(v))
 
-    cdef uint64_t _parse_implicit_limit(self, v: bytes) except <uint64_t>-1:
-        cdef uint64_t implicit_limit
-
-        limit = cpythonx.PyLong_FromUnicodeObject(
-            v.decode(), 10)
-        if limit < 0:
-            raise errors.BinaryProtocolError(
-                f'implicit limit cannot be negative'
-            )
-        try:
-            implicit_limit = <uint64_t>cpython.PyLong_AsLongLong(
-                limit
-            )
-        except OverflowError:
-            raise errors.BinaryProtocolError(
-                f'implicit limit out of range: {limit}'
-            )
-
-        return implicit_limit
-
     #############
 
     cdef WriteBuffer make_command_data_description_msg(
@@ -1522,13 +1502,18 @@ cdef class EdgeConnection:
             bytes bound_args
             uint64_t allow_capabilities
             uint64_t compilation_flags
-            uint64_t implicit_limit
+            int64_t implicit_limit
 
         self.parse_headers()
 
         allow_capabilities = <uint64_t>self.buffer.read_int64()
         compilation_flags = <uint64_t>self.buffer.read_int64()
-        implicit_limit = <uint64_t>self.buffer.read_int64()
+        implicit_limit = self.buffer.read_int64()
+
+        if implicit_limit < 0:
+            raise errors.BinaryProtocolError(
+                f'implicit limit cannot be negative'
+            )
 
         inline_typenames = (
             compilation_flags

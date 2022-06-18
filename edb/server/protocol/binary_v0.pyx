@@ -854,3 +854,23 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
         msg.write_len_prefixed_bytes(query_unit.status)
         return msg.end_message()
+
+    cdef uint64_t _parse_implicit_limit(self, v: bytes) except <uint64_t>-1:
+        cdef uint64_t implicit_limit
+
+        limit = cpythonx.PyLong_FromUnicodeObject(
+            v.decode(), 10)
+        if limit < 0:
+            raise errors.BinaryProtocolError(
+                f'implicit limit cannot be negative'
+            )
+        try:
+            implicit_limit = <uint64_t>cpython.PyLong_AsLongLong(
+                limit
+            )
+        except OverflowError:
+            raise errors.BinaryProtocolError(
+                f'implicit limit out of range: {limit}'
+            )
+
+        return implicit_limit

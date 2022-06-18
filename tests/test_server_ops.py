@@ -537,7 +537,7 @@ class TestServerOps(tb.TestCase):
         await con.send(
             protocol.Execute(
                 headers=[],
-                allowed_capabilities=protocol.ALL_CAPABILITIES,
+                allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
                 command_text='SELECT 1',

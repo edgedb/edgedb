@@ -39,7 +39,7 @@ class TestProtocol(ProtocolTestCase):
         await self.con.send(
             protocol.Execute(
                 headers=[],
-                allowed_capabilities=protocol.ALL_CAPABILITIES,
+                allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
                 command_text='SELECT 1/0',
@@ -65,7 +65,7 @@ class TestProtocol(ProtocolTestCase):
         await self.con.send(
             protocol.Execute(
                 headers=[],
-                allowed_capabilities=protocol.ALL_CAPABILITIES,
+                allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
                 command_text='SELECT 1',
@@ -147,7 +147,7 @@ class TestProtocol(ProtocolTestCase):
         await self.con.send(
             protocol.Execute(
                 headers=[],
-                allowed_capabilities=protocol.ALL_CAPABILITIES,
+                allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
                 output_format=protocol.OutputFormat.BINARY,
@@ -173,7 +173,7 @@ class TestProtocol(ProtocolTestCase):
         await self.con.send(
             protocol.Execute(
                 headers=[],
-                allowed_capabilities=protocol.ALL_CAPABILITIES,
+                allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
                 output_format=protocol.OutputFormat.BINARY,
@@ -197,7 +197,7 @@ class TestProtocol(ProtocolTestCase):
         await self.con.send(
             protocol.Execute(
                 headers=[],
-                allowed_capabilities=protocol.ALL_CAPABILITIES,
+                allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
                 command_text='ROLLBACK',
@@ -247,7 +247,7 @@ class TestServerCancellation(tb.TestCase):
             await con1.send(
                 protocol.Execute(
                     headers=[],
-                    allowed_capabilities=protocol.ALL_CAPABILITIES,
+                    allowed_capabilities=protocol.Capability.ALL,
                     compilation_flags=protocol.CompilationFlag(0),
                     implicit_limit=0,
                     command_text="""\
@@ -316,7 +316,7 @@ class TestServerCancellation(tb.TestCase):
                 await con.send(
                     protocol.Execute(
                         headers=[],
-                        allowed_capabilities=protocol.ALL_CAPABILITIES,
+                        allowed_capabilities=protocol.Capability.ALL,
                         compilation_flags=protocol.CompilationFlag(0),
                         implicit_limit=0,
                         command_text='START TRANSACTION',

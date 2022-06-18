@@ -47,8 +47,11 @@ cdef class Connection:
             messages.Execute(
                 headers=[],
                 command_text=query,
-                output_format=messages.OutputFormat.NULL,
+                output_format=messages.OutputFormat.NONE,
                 expected_cardinality=messages.Cardinality.MANY,
+                allowed_capabilities=messages.Capability.ALL,
+                compilation_flags=messages.CompilationFlag(9),
+                implicit_limit=0,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
                 arguments=b'',
