@@ -101,8 +101,8 @@ class CompileContext:
     state: dbstate.CompilerConnectionState
     output_format: enums.OutputFormat
     expected_cardinality_one: bool
-    stmt_mode: enums.CompileStatementMode
     protocol_version: Tuple[int, int]
+    skip_first: bool = False
     json_parameters: bool = False
     schema_reflection_mode: bool = False
     implicit_limit: int = 0
@@ -144,7 +144,7 @@ def compile_edgeql_script(
     eql: str,
 ) -> Tuple[s_schema.Schema, str]:
 
-    sql, argmap = compiler._compile_ql_script(ctx, eql)
+    sql = compiler._compile_ql_script(ctx, eql)
     new_schema = ctx.state.current_tx().get_schema(compiler._std_schema)
     assert isinstance(new_schema, s_schema.ChainedSchema)
     return new_schema.get_top_schema(), sql
@@ -170,7 +170,6 @@ def new_compiler_context(
     *,
     user_schema: s_schema.Schema,
     global_schema: s_schema.Schema=s_schema.FlatSchema(),
-    single_statement: bool = False,
     modaliases: Optional[Mapping[Optional[str], str]] = None,
     expected_cardinality_one: bool = False,
     json_parameters: bool = False,
@@ -200,10 +199,6 @@ def new_compiler_context(
         schema_reflection_mode=schema_reflection_mode,
         bootstrap_mode=bootstrap_mode,
         internal_schema_mode=internal_schema_mode,
-        stmt_mode=(
-            enums.CompileStatementMode.SINGLE
-            if single_statement else enums.CompileStatementMode.ALL
-        ),
         protocol_version=protocol_version,
     )
 
@@ -464,7 +459,6 @@ class Compiler:
 
             newctx = CompileContext(
                 state=ctx.state,
-                stmt_mode=enums.CompileStatementMode.SINGLE,
                 json_parameters=True,
                 schema_reflection_mode=True,
                 output_format=enums.OutputFormat.JSON,
@@ -473,7 +467,30 @@ class Compiler:
                 protocol_version=ctx.protocol_version,
             )
 
-            return self._compile_ql_script(newctx, eql)
+            source = edgeql.Source.from_string(eql)
+            unit_group = self._compile(ctx=newctx, source=source)
+
+            sql_stmts = []
+            for u in unit_group:
+                for stmt in u.sql:
+                    stmt = stmt.strip()
+                    if not stmt.endswith(b';'):
+                        stmt += b';'
+
+                    sql_stmts.append(stmt)
+
+            if len(sql_stmts) > 1:
+                raise errors.InternalServerError(
+                    'compilation of schema update statement'
+                    ' yielded more than one SQL statement'
+                )
+
+            sql = sql_stmts[0].strip(b';').decode()
+            argmap = unit_group[0].in_type_args
+            if argmap is None:
+                argmap = ()
+
+            return sql, argmap
 
         finally:
             # Restore the regular schema.
@@ -514,7 +531,7 @@ class Compiler:
         self,
         ctx: CompileContext,
         eql: str,
-    ) -> Tuple[str, Dict[str, int]]:
+    ) -> str:
 
         source = edgeql.Source.from_string(eql)
         unit_group = self._compile(ctx=ctx, source=source)
@@ -528,36 +545,14 @@ class Compiler:
 
                 sql_stmts.append(stmt)
 
-        if ctx.stmt_mode is enums.CompileStatementMode.SINGLE:
-            if len(sql_stmts) > 1:
-                raise errors.InternalServerError(
-                    'compiler yielded multiple SQL statements despite'
-                    ' requested SINGLE statement mode'
-                )
-            sql = sql_stmts[0].strip(b';')
-            argmap = unit_group[0].in_type_args
-            if argmap is None:
-                argmap = ()
-        else:
-            sql = b'\n'.join(sql_stmts)
-            argmap = ()
-
-        return sql.decode(), argmap
+        return b'\n'.join(sql_stmts).decode()
 
     def _get_compile_options(
         self,
         ctx: CompileContext,
     ) -> qlcompiler.CompilerOptions:
-        single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
-
-        native_out_format = (
-            ctx.output_format is enums.OutputFormat.BINARY
-        )
-
         can_have_implicit_fields = (
-            native_out_format and
-            single_stmt_mode
-        )
+            ctx.output_format is enums.OutputFormat.BINARY)
 
         disable_constant_folding = self.get_config_val(
             ctx,
@@ -659,10 +654,7 @@ class Compiler:
                 for glob in ir.globals
             ]
 
-        if (
-            ctx.output_format is enums.OutputFormat.NONE or
-            ctx.stmt_mode is not enums.CompileStatementMode.SINGLE
-        ):
+        if ctx.output_format is enums.OutputFormat.NONE:
             out_type_id = sertypes.NULL_TYPE_ID
             out_type_data = sertypes.NULL_TYPE_DESC
             result_cardinality = enums.Cardinality.NO_RESULT
@@ -1726,55 +1718,55 @@ class Compiler:
         source: edgeql.Source,
     ) -> dbstate.QueryUnitGroup:
 
-        # When True it means that we're compiling for "connection.query()".
-        # That means that the returned QueryUnit has to have the in/out codec
-        # information, correctly inferred "singleton_result" field etc.
-        single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
         default_cardinality = enums.Cardinality.NO_RESULT
-
         statements = edgeql.parse_block(source)
         statements_len = len(statements)
 
-        if ctx.stmt_mode is enums.CompileStatementMode.SKIP_FIRST:
+        if ctx.skip_first:
             statements = statements[1:]
             if not statements:  # pragma: no cover
                 # Shouldn't ever happen as the server tracks the number
                 # of statements (via the "try_compile_rollback()" method)
-                # before using SKIP_FIRST.
+                # before using skip_first.
                 raise errors.ProtocolError(
-                    f'no statements to compile in SKIP_FIRST mode')
-        elif single_stmt_mode and statements_len != 1:
-            raise errors.ProtocolError(
-                f'expected one statement, got {statements_len}')
+                    f'no statements to compile in skip_first mode')
 
         if not len(statements):  # pragma: no cover
             raise errors.ProtocolError('nothing to compile')
 
         rv = dbstate.QueryUnitGroup()
 
+        is_script = statements_len > 1
         script_info = None
-        if statements_len > 1:
+        if is_script:
             script_info = qlcompiler.preprocess_script(
                 statements,
                 schema=ctx.state.current_tx().get_schema(self._std_schema),
                 options=self._get_compile_options(ctx)
             )
+            non_trailing_ctx = dataclasses.replace(
+                ctx, output_format=enums.OutputFormat.NONE)
 
-        for stmt in statements:
+        for i, stmt in enumerate(statements):
+            is_trailing_stmt = i == statements_len - 1
+            stmt_ctx = ctx if is_trailing_stmt else non_trailing_ctx
             comp, capabilities = self._compile_dispatch_ql(
-                ctx, stmt, source=source if len(statements) == 1 else None,
-                script_info=script_info)
+                stmt_ctx,
+                stmt,
+                source=source if not is_script else None,
+                script_info=script_info,
+            )
 
             unit = dbstate.QueryUnit(
                 sql=(),
                 status=status.get_status(stmt),
                 cardinality=default_cardinality,
                 capabilities=capabilities,
-                output_format=ctx.output_format,
+                output_format=stmt_ctx.output_format,
             )
 
             if not comp.is_transactional:
-                if statements_len > 1:
+                if is_script:
                     raise errors.QueryError(
                         f'cannot execute {status.get_status(stmt).decode()} '
                         f'with other commands in one block',
@@ -1810,10 +1802,10 @@ class Compiler:
 
                 unit.cacheable = comp.cacheable
 
-                unit.cardinality = comp.cardinality
+                if is_trailing_stmt:
+                    unit.cardinality = comp.cardinality
 
             elif isinstance(comp, dbstate.SimpleQuery):
-                assert not single_stmt_mode
                 unit.sql = comp.sql
                 unit.in_type_args = comp.in_type_args
 
@@ -1922,16 +1914,9 @@ class Compiler:
             else:  # pragma: no cover
                 raise errors.InternalServerError('unknown compile state')
 
-            if statements_len > 1:
-                rv.append(unit)
-            else:
-                rv.init_with(unit)
+            rv.append(unit)
 
-        if single_stmt_mode:
-            if len(rv) != 1:  # pragma: no cover
-                raise errors.InternalServerError(
-                    f'expected 1 compiled unit; got {len(rv)}')
-        elif script_info:
+        if script_info:
             params, in_type_args = self._extract_params(
                 list(script_info.params.values()),
                 argmap=None, script_info=None, schema=script_info.schema,
@@ -2015,9 +2000,9 @@ class Compiler:
                     unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
                     unit.in_type_data = sertypes.EMPTY_TUPLE_DESC
 
-            return (
-                dbstate.QueryUnitGroup().init_with(unit), len(statements) - 1
-            )
+            rv = dbstate.QueryUnitGroup()
+            rv.append(unit)
+            return rv, len(statements) - 1
 
         raise errors.TransactionError(
             'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
@@ -2051,7 +2036,6 @@ class Compiler:
             expected_cardinality_one=False,
             implicit_limit=implicit_limit,
             inline_typenames=True,
-            stmt_mode=enums.CompileStatementMode.SINGLE,
             json_parameters=False,
             protocol_version=protocol_version
         )
@@ -2076,7 +2060,6 @@ class Compiler:
                     implicit_limit=implicit_limit,
                     inline_typeids=False,
                     inline_typenames=True,
-                    stmt_mode=enums.CompileStatementMode.SINGLE,
                     json_parameters=False,
                     source=source,
                     protocol_version=protocol_version
@@ -2112,7 +2095,7 @@ class Compiler:
         implicit_limit: int,
         inline_typeids: bool,
         inline_typenames: bool,
-        stmt_mode: enums.CompileStatementMode,
+        skip_first: bool,
         protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
         json_parameters: bool = False,
@@ -2152,7 +2135,7 @@ class Compiler:
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
-            stmt_mode=enums.CompileStatementMode(stmt_mode),
+            skip_first=skip_first,
             json_parameters=json_parameters,
             source=source,
             protocol_version=protocol_version,
@@ -2180,7 +2163,7 @@ class Compiler:
         implicit_limit: int,
         inline_typeids: bool,
         inline_typenames: bool,
-        stmt_mode: enums.CompileStatementMode,
+        skip_first: bool,
         protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
     ) -> Tuple[dbstate.QueryUnitGroup, dbstate.CompilerConnectionState]:
@@ -2194,7 +2177,7 @@ class Compiler:
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
-            stmt_mode=enums.CompileStatementMode(stmt_mode),
+            skip_first=skip_first,
             source=source,
             protocol_version=protocol_version,
         )
@@ -2466,7 +2449,6 @@ class Compiler:
             state=state,
             output_format=enums.OutputFormat.BINARY,
             expected_cardinality_one=False,
-            stmt_mode=enums.CompileStatementMode.ALL,
             compat_ver=dump_server_ver,
             schema_object_ids=schema_object_ids,
             log_ddl_as_migrations=False,

@@ -22,6 +22,7 @@ import os
 import edgedb
 
 from edb.testbase import http as tb
+from edb.tools import test
 
 
 class TestHttpEdgeQL(tb.EdgeQLTestCase):
@@ -191,14 +192,15 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
             [],
         )
 
+    @test.xerror("this is not supported yet")
     def test_http_edgeql_query_08(self):
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    r'expected one statement, got 2'):
-            self.edgeql_query(
-                r"""
-                    SELECT 1;
-                    SELECT 2;
-                """)
+        self.assert_edgeql_query_result(
+            r"""
+                SELECT 1;
+                SELECT 2;
+            """,
+            [2],
+        )
 
     def test_http_edgeql_query_09(self):
         self.assert_edgeql_query_result(

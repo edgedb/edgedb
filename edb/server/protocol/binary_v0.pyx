@@ -652,7 +652,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         self,
         query: bytes,
         *,
-        stmt_mode,
+        skip_first: bint,
     ):
         cdef dbview.DatabaseConnectionView _dbview = self.get_dbview()
         source = edgeql.Source.from_string(query.decode('utf-8'))
@@ -675,7 +675,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     0,
                     False,
                     False,
-                    stmt_mode,
+                    skip_first,
                     self.protocol_version,
                 )
             else:
@@ -694,7 +694,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     0,
                     False,
                     False,
-                    stmt_mode,
+                    skip_first,
                     self.protocol_version,
                 )
             unit_group, self.last_state, self.last_state_id = result
@@ -736,9 +736,9 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             self.maybe_release_pgcon(conn)
 
         if num_remain:
-            return 'skip_first', query_unit
+            return query_unit, False
         else:
-            return 'done', query_unit
+            return query_unit, True
 
     async def legacy_simple_query(self):
         cdef:
@@ -764,13 +764,13 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         if self.debug:
             self.debug_print('SIMPLE QUERY', eql)
 
-        stmt_mode = 'all'
+        skip_first = False
         if self.get_dbview().in_tx_error():
-            stmt_mode, query_unit = await self._legacy_recover_script_error(
+            query_unit, recovered = await self._legacy_recover_script_error(
                 eql,
                 allow_capabilities,
             )
-            if stmt_mode == 'done':
+            if recovered:
                 packet = WriteBuffer.new()
                 packet.write_buffer(
                     self.make_legacy_command_complete_msg(query_unit))
@@ -778,13 +778,14 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                 self.write(packet)
                 self.flush()
                 return
+            else:
+                skip_first = True
 
         if self._cancelled:
             raise ConnectionAbortedError
 
-        assert stmt_mode in {'all', 'skip_first'}
         query_unit = await self._legacy_simple_query(
-            eql, allow_capabilities, stmt_mode)
+            eql, allow_capabilities, skip_first)
 
         packet = WriteBuffer.new()
         packet.write_buffer(self.make_legacy_command_complete_msg(query_unit))
@@ -796,7 +797,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         self,
         eql: bytes,
         allow_capabilities: uint64_t,
-        stmt_mode: str,
+        skip_first: bint,
     ):
         cdef:
             bytes state = None, orig_state = None
@@ -804,7 +805,8 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             dbview.DatabaseConnectionView _dbview
             pgcon.PGConnection conn
 
-        unit_group = await self._legacy_compile_script(eql, stmt_mode=stmt_mode)
+        unit_group = await self._legacy_compile_script(
+            eql, skip_first=skip_first)
         metrics.edgeql_query_compilations.inc(1.0, 'compiler')
 
         if self._cancelled:
