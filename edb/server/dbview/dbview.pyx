@@ -43,6 +43,8 @@ cdef DEFAULT_CONFIG = immutables.Map()
 cdef DEFAULT_GLOBALS = immutables.Map()
 cdef DEFAULT_STATE = json.dumps([]).encode('utf-8')
 
+cdef bytes ZERO_UUID = b'\x00' * 16
+
 cdef int VER_COUNTER = 0
 cdef DICTDEFAULT = (None, None)
 
@@ -418,27 +420,31 @@ cdef class DatabaseConnectionView:
         globals_ = self.get_globals()
         if self._session_state_cache is not None:
             if serializer.type_id != self._session_state_cache[3]:
-                raise ValueError('StateSerializationError')
+                if globals_:
+                    # State schema has changed, we assume the current
+                    # serialized global values do not match the new schema
+                    raise sertypes.StateSerializationError()
             if (
                 modaliases, session_config, globals_
             ) == self._session_state_cache[:3]:
                 return self._session_state_cache[3:]
+        state = {}
         try:
-            module = modaliases[None]
+            state['module'] = modaliases[None]
         except KeyError:
-            module = defines.DEFAULT_MODULE_ALIAS
+            pass
         else:
             modaliases = modaliases.delete(None)
-        state = {
-            'module': module,
-            'aliases': list(modaliases.items()),
-            'config': {k: v.value for k, v in session_config.items()},
-            'globals': {k: v.value for k, v in globals_.items()},
-        }
+        if modaliases:
+            state['aliases'] = list(modaliases.items())
+        if session_config:
+            state['config'] = {k: v.value for k, v in session_config.items()}
+        if globals_:
+            state['globals'] = {k: v.value for k, v in globals_.items()}
         return serializer.encode(state)
 
     cdef decode_state(self, type_id, data, protocol_version):
-        if type_id == b'\0' * 16:
+        if type_id == ZERO_UUID:
             self.set_modaliases(DEFAULT_MODALIASES)
             self.set_session_config(DEFAULT_CONFIG)
             self.set_globals(DEFAULT_GLOBALS)

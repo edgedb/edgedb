@@ -40,8 +40,8 @@ class Setting:
 
     name: str
     type: type
-    s_type: Any
     default: Any
+    s_type: Any = None
     set_of: bool = False
     system: bool = False
     internal: bool = False

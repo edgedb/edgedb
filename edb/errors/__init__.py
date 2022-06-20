@@ -22,6 +22,9 @@ __all__ = base.__all__ + (  # type: ignore
     'CapabilityError',
     'UnsupportedCapabilityError',
     'DisabledCapabilityError',
+    'StateError',
+    'StateSerializationError',
+    'StateMismatchError',
     'QueryError',
     'InvalidSyntaxError',
     'EdgeQLSyntaxError',
@@ -142,6 +145,18 @@ class UnsupportedCapabilityError(CapabilityError):
 
 class DisabledCapabilityError(CapabilityError):
     _code = 0x_03_04_02_00
+
+
+class StateError(ProtocolError):
+    _code = 0x_03_05_00_00
+
+
+class StateSerializationError(StateError):
+    _code = 0x_03_05_00_01
+
+
+class StateMismatchError(StateError):
+    _code = 0x_03_05_00_02
 
 
 class QueryError(EdgeDBError):

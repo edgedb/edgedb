@@ -44,6 +44,10 @@
 0x_03_04_01_00   UnsupportedCapabilityError
 0x_03_04_02_00   DisabledCapabilityError
 
+0x_03_05_00_00   StateError
+0x_03_05_00_01   StateSerializationError
+0x_03_05_00_02   StateMismatchError
+
 
 ####
 

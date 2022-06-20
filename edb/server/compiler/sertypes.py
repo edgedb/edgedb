@@ -26,11 +26,14 @@ import io
 import struct
 import typing
 
+import immutables
+
 from edb import errors
 from edb.common import binwrapper
 from edb.common import uuidgen
 
 from edb.protocol import enums as p_enums
+from edb.server import config
 
 from edb.edgeql import qltypes
 from edb.schema import globals as s_globals
@@ -711,36 +714,35 @@ class StateSerializerFactory:
         """
         schema = std_schema
         str_type = schema.get('std::str')
-        schema, state_type = simple_derive_type(
+        schema, self._state_type = simple_derive_type(
             schema, 'std::FreeObject', 'state_type'
         )
-        self._input_shapes = input_shapes = {}
-        self._state_type = state_type
-        input_shapes[state_type] = state_shape = {}
-
-        # module := 'default'
-        state_shape['module'] = (str_type, enums.Cardinality.AT_MOST_ONE)
 
         # aliases := { ('alias1', 'mod::type'), ... }
         schema, alias_tuple = s_types.Tuple.from_subtypes(
             schema, [str_type, str_type])
         schema, aliases_array = s_types.Array.from_subtypes(
             schema, [alias_tuple])
-        state_shape['aliases'] = (aliases_array, enums.Cardinality.AT_MOST_ONE)
 
         # config := cfg::Config { session_cfg1, session_cfg2, ... }
         schema, config_type = simple_derive_type(
             schema, 'cfg::Config', 'state_config'
         )
-        input_shapes[config_type] = config_shape = {}
-        from edb.server.config import get_settings
-        for setting in get_settings().values():
+        config_shape = {}
+        for setting in config.get_settings().values():
             if not setting.system:
                 config_shape[setting.name] = (
                     setting.s_type, enums.Cardinality.AT_MOST_ONE
                 )
-        state_shape['config'] = (config_type, enums.Cardinality.AT_MOST_ONE)
 
+        self._input_shapes = immutables.Map({
+            config_type: immutables.Map(config_shape),
+            self._state_type: immutables.Map(
+                module=(str_type, enums.Cardinality.AT_MOST_ONE),
+                aliases=(aliases_array, enums.Cardinality.AT_MOST_ONE),
+                config=(config_type, enums.Cardinality.AT_MOST_ONE),
+            )
+        })
         self._schema = schema
         self._builders = {}
 
@@ -764,8 +766,7 @@ class StateSerializerFactory:
             schema, 'std::FreeObject', 'state_globals'
         )
         schema = s_schema.ChainedSchema(schema, user_schema, global_schema)
-        input_shapes = self._input_shapes.copy()
-        input_shapes[globals_type] = globals_shape = {}
+        globals_shape = {}
         for g in schema.get_objects(type=s_globals.Global):
             if g.is_computable(schema):
                 continue
@@ -775,13 +776,17 @@ class StateSerializerFactory:
                 if g.get_cardinality(schema) == qltypes.SchemaCardinality.One
                 else enums.Cardinality.MANY
             )
-        input_shapes[self._state_type]['globals'] = (
-            globals_type, enums.Cardinality.AT_MOST_ONE
-        )
 
         builder = builder.derive(schema)
         type_id = builder.describe_input_shape(
-            self._state_type, input_shapes, protocol_version
+            self._state_type,
+            self._input_shapes.update({
+                globals_type: immutables.Map(globals_shape),
+                self._state_type: self._input_shapes[self._state_type].update(
+                    globals=(globals_type, enums.Cardinality.AT_MOST_ONE),
+                )
+            }),
+            protocol_version,
         )
         type_data = b''.join(builder.buffer)
         codec = TypeSerializer.parse(type_data, protocol_version)
@@ -810,8 +815,14 @@ class StateSerializer:
 
     def decode(self, type_id: bytes, state: bytes):
         if type_id != self._type_id.bytes:
-            raise RuntimeError("StateMismatchError")
+            raise errors.StateMismatchError(
+                "Cannot decode state: type mismatch"
+            )
         return self._type_id, self._codec.decode(state)
+
+
+class StateSerializationError(Exception):
+    pass
 
 
 def simple_derive_type(schema, parent, qualifier):

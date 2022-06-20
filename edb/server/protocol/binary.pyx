@@ -87,7 +87,6 @@ include "./consts.pxi"
 
 
 DEF FLUSH_BUFFER_AFTER = 100_000
-cdef bytes ZERO_UUID = b'\x00' * 16
 cdef bytes EMPTY_TUPLE_UUID = s_obj.get_known_type_id('empty-tuple').bytes
 
 cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
@@ -1440,38 +1439,36 @@ cdef class EdgeConnection:
         msg.end_message()
         return msg
 
-    cdef WriteBuffer make_command_complete_msg(self, query_unit):
+    cdef WriteBuffer make_command_complete_msg(self, capabilities, status):
         cdef:
             WriteBuffer msg
 
+        try:
+            type_id, data = self.get_dbview().encode_state(
+                self.protocol_version
+            )
+        except sertypes.StateSerializationError:
+            msg = WriteBuffer.new_message(b'c')
+            msg.write_int16(0)  # no headers
+            msg.write_int64(<int64_t><uint64_t>capabilities)
+            msg.write_len_prefixed_bytes(status)
+
+            msg.write_int32(
+                <int32_t><uint32_t>errors.StateSerializationError.get_code()
+            )
+            msg.write_len_prefixed_utf8(
+                "Command applied successfully, but the state cannot be "
+                "serialized due to global schema change."
+            )
+            msg.write_int16(0)  # no error attributes
+
+            return msg.end_message()
+
         msg = WriteBuffer.new_message(b'C')
         msg.write_int16(0)  # no headers
-        msg.write_int64(<int64_t><uint64_t>query_unit.capabilities)
-        msg.write_len_prefixed_bytes(query_unit.status)
+        msg.write_int64(<int64_t><uint64_t>capabilities)
+        msg.write_len_prefixed_bytes(status)
 
-        type_id, data = self.get_dbview().encode_state(
-            self.protocol_version
-        )
-        msg.write_bytes(type_id.bytes)
-        msg.write_int16(1)
-        msg.write_len_prefixed_bytes(data)
-
-        return msg.end_message()
-
-    cdef WriteBuffer make_command_complete_msg_by_group(
-        self, query_unit_group
-    ):
-        cdef:
-            WriteBuffer msg
-
-        msg = WriteBuffer.new_message(b'C')
-        msg.write_int16(0)  # no headers
-        msg.write_int64(<int64_t><uint64_t>query_unit_group.capabilities)
-        msg.write_len_prefixed_bytes(query_unit_group[-1].status)
-
-        type_id, data = self.get_dbview().encode_state(
-            self.protocol_version
-        )
         msg.write_bytes(type_id.bytes)
         msg.write_int16(1)
         msg.write_len_prefixed_bytes(data)
@@ -1528,7 +1525,9 @@ cdef class EdgeConnection:
                 assert query_unit.tx_rollback
                 _dbview.abort_tx()
 
-            self.write(self.make_command_complete_msg(query_unit))
+            self.write(self.make_command_complete_msg(
+                query_unit.capabilities, query_unit.status
+            ))
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -1830,8 +1829,9 @@ cdef class EdgeConnection:
         elif len(query_unit_group) > 1:
             await self._execute_script(compiled, args)
             self.write(
-                self.make_command_complete_msg_by_group(
-                    compiled.query_unit_group
+                self.make_command_complete_msg(
+                    compiled.query_unit_group.capabilities,
+                    compiled.query_unit_group[-1].status,
                 )
             )
         else:
@@ -1842,8 +1842,9 @@ cdef class EdgeConnection:
             await self._execute(compiled, args, use_prep)
             self.write(
                 self.make_command_complete_msg(
-                    compiled.query_unit_group[0],
-                ),
+                    compiled.query_unit_group[0].capabilities,
+                    compiled.query_unit_group[0].status,
+                )
             )
 
         if self._cancelled:
