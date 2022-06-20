@@ -767,11 +767,16 @@ class StateSerializerFactory:
         )
         schema = s_schema.ChainedSchema(schema, user_schema, global_schema)
         globals_shape = {}
+        array_type_ids = {}
         for g in schema.get_objects(type=s_globals.Global):
             if g.is_computable(schema):
                 continue
-            globals_shape[str(g.get_name(schema))] = (
-                g.get_target(schema),
+            name = str(g.get_name(schema))
+            s_type = g.get_target(schema)
+            if s_type.is_array():
+                array_type_ids[name] = s_type.get_element_type(schema).id
+            globals_shape[name] = (
+                s_type,
                 enums.Cardinality.AT_MOST_ONE
                 if g.get_cardinality(schema) == qltypes.SchemaCardinality.One
                 else enums.Cardinality.MANY
@@ -792,16 +797,21 @@ class StateSerializerFactory:
         codec = TypeSerializer.parse(type_data, protocol_version)
         codec.fields['globals'][1].__dict__['data_raw'] = True
 
-        return StateSerializer(type_id, type_data, codec)
+        return StateSerializer(type_id, type_data, codec, array_type_ids)
 
 
 class StateSerializer:
     def __init__(
-        self, type_id: uuidgen.UUID, type_data: bytes, codec: TypeDesc
+        self,
+        type_id: uuidgen.UUID,
+        type_data: bytes,
+        codec: TypeDesc,
+        globals_array_type_ids: typing.Dict[str, uuidgen.UUID],
     ):
         self._type_id = type_id
         self._type_data = type_data
         self._codec = codec
+        self._globals_array_type_ids = globals_array_type_ids
 
     @property
     def type_id(self):
@@ -819,6 +829,9 @@ class StateSerializer:
                 "Cannot decode state: type mismatch"
             )
         return self._type_id, self._codec.decode(state)
+
+    def get_global_array_type_id(self, global_name):
+        return self._globals_array_type_ids.get(global_name)
 
 
 class StateSerializationError(Exception):

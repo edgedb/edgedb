@@ -21,6 +21,7 @@ import base64
 import json
 import os.path
 import pickle
+import struct
 import typing
 import weakref
 
@@ -44,6 +45,7 @@ cdef DEFAULT_GLOBALS = immutables.Map()
 cdef DEFAULT_STATE = json.dumps([]).encode('utf-8')
 
 cdef bytes ZERO_UUID = b'\x00' * 16
+cdef INT32_PACKER = struct.Struct('!l').pack
 
 cdef int VER_COUNTER = 0
 cdef DICTDEFAULT = (None, None)
@@ -472,7 +474,7 @@ cdef class DatabaseConnectionView:
         globals_ = immutables.Map({
             k: config.SettingValue(
                 name=k,
-                value=v,
+                value=self.recode_global(serializer, k, v),
                 source='global',
                 scope=qltypes.ConfigScope.GLOBAL,
             ) for k, v in state.get('globals', {}).items()
@@ -483,6 +485,17 @@ cdef class DatabaseConnectionView:
         self._session_state_cache = (
             aliases, session_config, globals_, type_id, data
         )
+
+    cdef inline recode_global(self, serializer, k, v):
+        if v[:4] == b'\x00\x00\x00\x01':
+            array_type_id = serializer.get_global_array_type_id(k)
+            if array_type_id:
+                va = bytearray(v)
+                va[8:12] = INT32_PACKER(
+                    self.resolve_backend_type_id(array_type_id)
+                )
+                v = bytes(va)
+        return v
 
     property txid:
         def __get__(self):

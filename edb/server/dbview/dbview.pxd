@@ -159,3 +159,4 @@ cdef class DatabaseConnectionView:
     cdef describe_state(self, protocol_version)
     cdef encode_state(self, protocol_version)
     cdef decode_state(self, type_id, data, protocol_version)
+    cdef inline recode_global(self, serializer, k, v)
