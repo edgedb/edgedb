@@ -102,7 +102,10 @@ CREATE FUNCTION
 std::array_join(array: array<std::str>, delimiter: std::str) -> std::str
 {
     CREATE ANNOTATION std::description := 'Render an array to a string.';
-    SET volatility := 'Stable';
+    # The Postgres function array_to_string works for any array type, but we
+    # use it specifically for string arrays. For string arrays it should be
+    # "immutable".
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT array_to_string("array", "delimiter");
     $$;

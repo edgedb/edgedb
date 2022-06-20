@@ -255,13 +255,13 @@ CREATE CAST FROM std::json TO array<anytype> {
 # The function to_jsonb is STABLE in PostgreSQL, but this function is
 # generic and STABLE volatility may be an overestimation in many cases.
 CREATE CAST FROM std::bool TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::bytes TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT to_jsonb(encode(val, 'base64'));
     $$;
@@ -269,67 +269,67 @@ CREATE CAST FROM std::bytes TO std::json {
 
 
 CREATE CAST FROM std::uuid TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::str TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::datetime TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::duration TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::int16 TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::int32 TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::int64 TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::float32 TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::float64 TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::decimal TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::json TO std::bool  {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'boolean')::bool;
     $$;
@@ -337,7 +337,7 @@ CREATE CAST FROM std::json TO std::bool  {
 
 
 CREATE CAST FROM std::json TO std::uuid {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'string')::uuid;
     $$;
@@ -345,7 +345,7 @@ CREATE CAST FROM std::json TO std::uuid {
 
 
 CREATE CAST FROM std::json TO std::bytes {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT decode(edgedb.jsonb_extract_scalar(val, 'string'), 'base64')::bytea;
     $$;
@@ -353,7 +353,7 @@ CREATE CAST FROM std::json TO std::bytes {
 
 
 CREATE CAST FROM std::json TO std::str {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'string');
     $$;
@@ -361,6 +361,10 @@ CREATE CAST FROM std::json TO std::str {
 
 
 CREATE CAST FROM std::json TO std::datetime {
+    # Stable because the input string can contain an explicit time-zone. Time
+    # zones are externally defined things that can change suddenly and
+    # arbitrarily by human laws, thus potentially changing the interpretatio
+    # of the input string.
     SET volatility := 'Stable';
     USING SQL $$
     SELECT edgedb.datetime_in(edgedb.jsonb_extract_scalar(val, 'string'));
@@ -369,7 +373,7 @@ CREATE CAST FROM std::json TO std::datetime {
 
 
 CREATE CAST FROM std::json TO std::duration {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.duration_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
@@ -377,7 +381,7 @@ CREATE CAST FROM std::json TO std::duration {
 
 
 CREATE CAST FROM std::json TO std::int16 {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'number')::int2;
     $$;
@@ -385,7 +389,7 @@ CREATE CAST FROM std::json TO std::int16 {
 
 
 CREATE CAST FROM std::json TO std::int32 {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'number')::int4;
     $$;
@@ -393,7 +397,7 @@ CREATE CAST FROM std::json TO std::int32 {
 
 
 CREATE CAST FROM std::json TO std::int64 {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'number')::int8;
     $$;
@@ -401,7 +405,7 @@ CREATE CAST FROM std::json TO std::int64 {
 
 
 CREATE CAST FROM std::json TO std::float32 {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'number')::float4;
     $$;
@@ -409,7 +413,7 @@ CREATE CAST FROM std::json TO std::float32 {
 
 
 CREATE CAST FROM std::json TO std::float64 {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'number')::float8;
     $$;
@@ -417,7 +421,7 @@ CREATE CAST FROM std::json TO std::float64 {
 
 
 CREATE CAST FROM std::json TO std::decimal {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.str_to_decimal(
         edgedb.jsonb_extract_scalar(val, 'number')
@@ -427,7 +431,7 @@ CREATE CAST FROM std::json TO std::decimal {
 
 
 CREATE CAST FROM std::json TO std::bigint {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.str_to_bigint(
         edgedb.jsonb_extract_scalar(val, 'number')
