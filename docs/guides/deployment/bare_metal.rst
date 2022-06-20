@@ -112,6 +112,29 @@ You may need to restart the server after changing the listen port or addresses.
    $ sudo systemctl restart edgedb-server-1
 
 
+Linking a Bare Metal Instance
+=============================
+
+The following is an example of linking a bare metal instance that is running on
+``localhost``.
+
+.. code-block:: bash
+
+   $ edgedb instance link \
+      --host localhost \
+      --port 5656 \
+      --user edgedb \
+      --database edgedb \
+      --trust-tls-cert \
+      bare_metal_instance
+
+This allows connecting to the instance with it's name.
+
+.. code-block:: bash
+
+   $ edgedb -I bare_metal_instance
+
+
 Upgrading EdgeDB
 ================
 
