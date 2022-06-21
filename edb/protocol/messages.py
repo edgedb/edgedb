@@ -576,6 +576,11 @@ class RestoreReady(ServerMessage):
     jobs = UInt16('Number of parallel jobs for restore, currently always "1"')
 
 
+class DataElement(Struct):
+
+    data = ArrayOf(UInt32, UInt8(), 'Encoded output data.')
+
+
 class CommandComplete(ServerMessage):
 
     mtype = MessageType('C')
@@ -584,6 +589,14 @@ class CommandComplete(ServerMessage):
     capabilities = EnumOf(UInt64, Capability,
                           'A bit mask of allowed capabilities.')
     status = String('Command status.')
+
+    state_typedesc_id = UUID('Updated session state descriptor ID.')
+    state_data = ArrayOf(
+        UInt16,
+        DataElement,
+        'Encoded session state data array. '
+        'The array is currently always of size 1.'
+    )
 
 
 class CommandDataDescription(ServerMessage):
@@ -599,11 +612,6 @@ class CommandDataDescription(ServerMessage):
     input_typedesc = Bytes('Argument data descriptor.')
     output_typedesc_id = UUID('Output data descriptor ID.')
     output_typedesc = Bytes('Output data descriptor.')
-
-
-class DataElement(Struct):
-
-    data = ArrayOf(UInt32, UInt8(), 'Encoded output data.')
 
 
 class Data(ServerMessage):
@@ -805,6 +813,15 @@ class Execute(ClientMessage):
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality.')
     command_text = String('Command text.')
+
+    state_typedesc_id = UUID('Updated session state descriptor ID.')
+    state_data = ArrayOf(
+        UInt16,
+        DataElement,
+        'Encoded session state data array. '
+        'The array is currently always of size 1.'
+    )
+
     input_typedesc_id = UUID('Argument data descriptor ID.')
     output_typedesc_id = UUID('Output data descriptor ID.')
     arguments = Bytes('Encoded argument data.')

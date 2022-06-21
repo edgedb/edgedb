@@ -42,7 +42,7 @@ from edgedb import enums as edgedb_enums
 from edgedb import options
 from edgedb.protocol import protocol  # type: ignore
 
-from edb.protocol import protocol as edb_protocol
+from edb.protocol import protocol as edb_protocol  # type: ignore
 
 
 class TransactionState(enum.Enum):

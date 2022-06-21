@@ -37,7 +37,7 @@ class ScalarType:
         raise NotImplementedError
 
     @classmethod
-    def decode(cls, data: bytes):
+    def decode(cls, data: bytes) -> ScalarType:
         raise NotImplementedError
 
 
@@ -309,7 +309,7 @@ class Duration(ScalarType):
         return self._codec.pack(self._value, 0, 0)
 
     @classmethod
-    def decode(cls, data: bytes):
+    def decode(cls, data: bytes) -> Duration:
         return cls(microseconds=cls._codec.unpack(data)[0])
 
 

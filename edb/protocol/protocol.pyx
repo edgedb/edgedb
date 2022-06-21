@@ -66,6 +66,8 @@ cdef class Connection:
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
                 arguments=b'',
+                state_typedesc_id=b'\0' * 16,
+                state_data=[messages.DataElement(data=[])],
             ),
             messages.Sync(),
         )
