@@ -75,6 +75,9 @@ Messages
     * - :ref:`ref_protocol_msg_flush`
       - Force the server to flush its output buffers.
 
+    * - :ref:`ref_protocol_msg_parse`
+      - Parse EdgeQL command(s).
+
     * - :ref:`ref_protocol_msg_execute`
       - Parse and/or execute a query.
 
@@ -335,26 +338,55 @@ The data in *arguments* must be encoded as a
 :ref:`tuple value <ref_protocol_fmt_tuple>` described by
 a type descriptor identified by *input_typedesc_id*.
 
-Known headers:
 
-* 0xFF01 ``IMPLICIT_LIMIT`` -- implicit limit for objects returned.
-  Valid format: decimal number encoded as UTF-8 text. Not set by default.
+.. eql:struct:: edb.protocol.enums.Cardinality
 
-* 0xFF02 ``IMPLICIT_TYPENAMES`` -- if set to "true" all returned objects have
-  a ``__tname__`` property set to their type name (equivalent to having
-  an implicit "__tname__ := .__type__.name" computed property.)
-  Note that specifying this header might slow down queries.
 
-* 0xFF03 ``IMPLICIT_TYPEIDS`` -- if set to "true" all returned objects have
-  a ``__tid__`` property set to their type ID (equivalent to having
-  an implicit "__tid__ := .__type__.id" computed property.)
+.. _ref_protocol_msg_parse:
 
-* 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
-  capabilities allowed for this query.  See RFC1004_ for more information.
+Parse
+=====
 
-* 0xFF05 ``EXPLICIT_OBJECTIDS`` -- If set to "true" returned objects will
-  not have an implicit ``id`` property i.e. query shapes will have to
-  explicitly list id properties.
+Sent by: client.
+
+.. eql:struct:: edb.protocol.Parse
+
+.. eql:struct:: edb.protocol.Capability
+
+See RFC1004_ for more information on capability flags.
+
+.. eql:struct:: edb.protocol.CompilationFlag
+
+Use:
+
+* ``0x0000_0000_0000_0001`` (``INJECT_OUTPUT_TYPE_IDS``) -- if set, all
+  returned objects have a ``__tid__`` property set to their type ID
+  (equivalent to having an implicit ``__tid__ := .__type__.id`` computed
+  property.)
+
+* ``0x0000_0000_0000_0002`` (``INJECT_OUTPUT_TYPE_NAMES``) -- if set all
+  returned objects have a ``__tname__`` property set to their type name
+  (equivalent to having an implicit ``__tname__ := .__type__.name`` computed
+  property.)  Note that specifying this flag might slow down queries.
+
+* ``0x0000_0000_0000_0004`` (``INJECT_OUTPUT_OBJECT_IDS``) -- if set all
+  returned objects have an ``id`` property set to their identifier, even if
+  not specified explicitly in the output shape.
+
+.. eql:struct:: edb.protocol.OutputFormat
+
+Use:
+
+* ``BINARY`` to return data encoded in binary.
+
+* ``JSON`` to return data as single row and single field that contains
+  the resultset as a single JSON array".
+
+* ``JSON_ELEMENTS`` to return a single JSON string per top-level set element.
+  This can be used to iterate over a large result set efficiently.
+
+* ``NONE`` to prevent the server from returning data, even if the EdgeQL
+  statement does.
 
 .. eql:struct:: edb.protocol.enums.Cardinality
 

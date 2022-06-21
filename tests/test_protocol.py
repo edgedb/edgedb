@@ -145,7 +145,7 @@ class TestProtocol(ProtocolTestCase):
         await self.con.connect()
 
         await self.con.send(
-            protocol.Execute(
+            protocol.Parse(
                 headers=[],
                 allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
@@ -153,9 +153,6 @@ class TestProtocol(ProtocolTestCase):
                 output_format=protocol.OutputFormat.BINARY,
                 expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
                 command_text='SEL ECT 1',
-                input_typedesc_id=b'\xff' * 16,
-                output_typedesc_id=b'\xff' * 16,
-                arguments=b'',
             )
         )
         # Should come through even without an explicit 'flush'
@@ -169,9 +166,8 @@ class TestProtocol(ProtocolTestCase):
             await self.con.sync(),
             protocol.TransactionState.NOT_IN_TRANSACTION)
 
-        # This parse-only Execute should be handled alright
         await self.con.send(
-            protocol.Execute(
+            protocol.Parse(
                 headers=[],
                 allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
@@ -179,9 +175,6 @@ class TestProtocol(ProtocolTestCase):
                 output_format=protocol.OutputFormat.BINARY,
                 expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
                 command_text='SELECT 1',
-                input_typedesc_id=b'\xff' * 16,
-                output_typedesc_id=b'\xff' * 16,
-                arguments=b'',
             ),
             protocol.Flush()
         )
@@ -217,6 +210,37 @@ class TestProtocol(ProtocolTestCase):
             protocol.ReadyForCommand,
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
+
+    async def test_proto_args_mismatch(self):
+        await self.con.connect()
+
+        await self.con.send(
+            protocol.Execute(
+                headers=[],
+                allowed_capabilities=protocol.Capability.ALL,
+                compilation_flags=protocol.CompilationFlag(0),
+                implicit_limit=0,
+                command_text='SELECT <str>$0',
+                output_format=protocol.OutputFormat.NONE,
+                expected_cardinality=protocol.Cardinality.MANY,
+                input_typedesc_id=b'\0' * 16,
+                output_typedesc_id=b'\0' * 16,
+                arguments=b'',
+            ),
+        )
+        # Should come through even without an explicit 'flush'
+        await self.con.recv_match(
+            protocol.ErrorResponse,
+            message=(
+                r"specified parameter type\(s\) do not match the parameter "
+                r"types inferred from specified command\(s\)"
+            )
+        )
+
+        # Recover the protocol state from the error
+        self.assertEqual(
+            await self.con.sync(),
+            protocol.TransactionState.NOT_IN_TRANSACTION)
 
 
 class TestServerCancellation(tb.TestCase):

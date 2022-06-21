@@ -17,6 +17,7 @@ __all__ = base.__all__ + (  # type: ignore
     'TypeSpecNotFoundError',
     'UnexpectedMessageError',
     'InputDataError',
+    'ParameterTypeMismatchError',
     'ResultCardinalityMismatchError',
     'CapabilityError',
     'UnsupportedCapabilityError',
@@ -121,6 +122,10 @@ class UnexpectedMessageError(BinaryProtocolError):
 
 class InputDataError(ProtocolError):
     _code = 0x_03_02_00_00
+
+
+class ParameterTypeMismatchError(InputDataError):
+    _code = 0x_03_02_01_00
 
 
 class ResultCardinalityMismatchError(ProtocolError):

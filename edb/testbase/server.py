@@ -52,6 +52,7 @@ from edb.server import defines as edgedb_defines
 
 from edb.common import assert_data_shape
 from edb.common import devmode
+from edb.common import debug
 from edb.common import taskgroup
 
 from edb.protocol import protocol as test_protocol
@@ -402,11 +403,13 @@ async def init_cluster(
     if init_settings is None:
         init_settings = {}
 
+    log_level = 's' if not debug.flags.server else 'd'
+
     if backend_dsn:
         cluster = edgedb_cluster.TempClusterWithRemotePg(
             backend_dsn,
             testmode=True,
-            log_level='s',
+            log_level=log_level,
             data_dir_prefix='edb-test-',
             security=security,
             http_endpoint_security=http_endpoint_security,
@@ -416,7 +419,7 @@ async def init_cluster(
     elif data_dir is None:
         cluster = edgedb_cluster.TempCluster(
             testmode=True,
-            log_level='s',
+            log_level=log_level,
             data_dir_prefix='edb-test-',
             security=security,
             http_endpoint_security=http_endpoint_security,
@@ -426,7 +429,7 @@ async def init_cluster(
     else:
         cluster = edgedb_cluster.Cluster(
             data_dir=data_dir,
-            log_level='s',
+            log_level=log_level,
             security=security,
             http_endpoint_security=http_endpoint_security,
             compiler_pool_mode=compiler_pool_mode,

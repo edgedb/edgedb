@@ -134,6 +134,7 @@ cdef class EdgeConnection:
 
     cdef interpret_backend_error(self, exc)
 
+    cdef QueryRequestInfo parse_execute_request(self)
     cdef parse_output_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
     cdef char render_cardinality(self, query_unit) except -1
