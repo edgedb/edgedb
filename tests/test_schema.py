@@ -1649,7 +1649,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @test.xfail('''
         The error is not raised.
-    ''')
+    ''', allow_failure=True)
     def test_schema_recursive_02(self):
         schema = self.load_schema(r'''
             type Foo {
@@ -2779,7 +2779,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
     @test.xfail('''
         The error is not raised.
-    ''')
+    ''', allow_failure=True)
     def test_schema_get_migration_41(self):
         schema = r'''
         type Base {
@@ -8214,10 +8214,6 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
         )
 
-    @test.xfail('''
-        The edgeql/tracer.py seems to have an issue resolving the
-        alias 'x' in the expression.
-    ''')
     def test_schema_describe_computable_03(self):
         self._assert_describe(
             r"""
@@ -8234,8 +8230,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
-                CREATE OPTIONAL SINGLE PROPERTY comp := (WITH
+                CREATE PROPERTY name -> std::str;
+                CREATE PROPERTY comp := (WITH
                     x :=
                         std::count(std::Object)
                 SELECT

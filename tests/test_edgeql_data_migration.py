@@ -6219,7 +6219,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
         Currently this kind of works... by proposing we delete the property
         and recreate it.
-    ''')
+    ''', allow_failure=True)
     async def test_edgeql_migration_eq_function_06(self):
         await self.migrate(r"""
             function hello06(a: int64) -> str

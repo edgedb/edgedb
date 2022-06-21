@@ -7555,7 +7555,7 @@ type default::Foo {
         Default value ought to get reset back to non-existent, since it
         was inherited? (Or actually maybe not, since the prop is owned
         by then?)
-    ''')
+    ''', allow_failure=True)
     async def test_edgeql_ddl_extending_05(self):
         # Check that field alters are propagated.
         await self.con.execute(r"""
@@ -11707,10 +11707,11 @@ type default::Foo {
                 ''')
 
     @test.xfail('''
-        The test currently fails with "property 'spam' does not exist",
+        The test currently fails with the ugly
+        "'default::__|foo@default|Err2' exists, but is a property, not a link"
         but it should fail with "link 'foo' does not exist", as
         `ALTER LINK foo` is the preceeding invalid command.
-    ''')
+    ''', allow_failure=True)
     async def test_edgeql_ddl_errors_02(self):
         await self.con.execute('''
             CREATE TYPE Err2 {

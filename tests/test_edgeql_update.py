@@ -2213,7 +2213,7 @@ class TestUpdate(tb.QueryTestCase):
                 };
             ''')
 
-    @test.xfail("nested UPDATE not supported")
+    @test.xfail("nested UPDATE not supported", allow_failure=True)
     async def test_edgeql_update_protect_readonly_04(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -3474,7 +3474,7 @@ class TestUpdate(tb.QueryTestCase):
 
         The cases where there is inheritance would still fail.
         This is all pretty marginal but we need to think about it.
-    ''')
+    ''', allow_failure=True)
     async def test_edgeql_update_and_delete_01(self):
         # Updating something that would violate a constraint while
         # fixing the violation is still supposed to be an error.

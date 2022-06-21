@@ -181,6 +181,17 @@ def _is_exc_info(args):
     )
 
 
+def _is_assert_failure(args):
+    if _is_exc_info(args):
+        return issubclass(args[0], AssertionError)
+    elif isinstance(args, str):
+        # HACK: If we serialized the error on the client side... just
+        # detect it in the string.
+        return "\nAssertionError" in args
+    else:
+        return False
+
+
 @dataclasses.dataclass
 class SerializedServerError:
     test_error: str
@@ -733,17 +744,22 @@ class ParallelTextTestResult(unittest.result.TestResult):
         try:
             reason = method.__et_xfail_reason__
             not_impl = getattr(method, '__et_xfail_not_implemented__', False)
+            allow_fail = getattr(method, '__et_xfail_allow_failure__', False)
         except AttributeError:
             # Maybe the whole test case class is decorated?
             reason = getattr(test, '__et_xfail_reason__', None)
             not_impl = getattr(test, '__et_xfail_not_implemented__', False)
+            allow_fail = getattr(test, '__et_xfail_allow_failure__', False)
 
         marker = Markers.not_implemented if not_impl else Markers.xfailed
         if not_impl:
             self.notImplemented.append(
                 (test, self._exc_info_to_string(err, test)))
         else:
-            super().addExpectedFailure(test, err)
+            if allow_fail or not _is_assert_failure(err):
+                super().addExpectedFailure(test, err)
+            else:
+                super().addFailure(test, err)
 
         self.report_progress(test, marker, reason)
 

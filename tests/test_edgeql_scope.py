@@ -3310,7 +3310,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('Returns tags with all users')
+    @test.xfail('Returns tags with all users', allow_failure=True)
     async def test_edgeql_scope_ref_outer_06b(self):
         # Same as above, basically, but with an extra shape on Bc
         # that causes trouble.

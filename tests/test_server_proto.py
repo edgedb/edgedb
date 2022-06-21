@@ -1788,7 +1788,7 @@ class TestServerProto(tb.QueryTestCase):
             await self.con.query_single('SELECT 1;'),
             1)
 
-    @test.xfail("... we currently always use serializable")
+    @test.xfail("... we currently always use serializable", allow_failure=True)
     async def test_server_proto_tx_16(self):
         try:
             for isol, expected in [

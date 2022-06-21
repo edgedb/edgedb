@@ -7003,7 +7003,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         Publication is empty, and so even if we join in User to the result
         of the array dereference, that all gets optimized out on the pg
         side. I'm not really sure what we can reasonably do about this.
-    ''')
+    ''', allow_failure=True)
     async def test_edgeql_assert_fail_object_computed_02(self):
         # Publication is empty, and so
         async with self.assertRaisesRegexTx(
