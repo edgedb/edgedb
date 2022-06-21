@@ -1198,7 +1198,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             for row in res:
                 self.assertGreater(len(row['tgts']), 0)
 
-    @test.xfail("Arrays containing objects are hard; TODO: fail?")
+    @test.xerror("Arrays containing objects are hard; TODO: fail?")
     async def test_edgeql_volatility_select_arrays_01(self):
         for query in self.test_loop(single=True):
             res = await query("""
@@ -1445,7 +1445,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             for obj in res:
                 self.assertEqual(obj['x'], -obj['y'])
 
-    @test.xfail("column definition list is only allowed ...")
+    @test.xerror("column definition list is only allowed ...")
     async def test_edgeql_volatility_for_like_hard_02(self):
         # Weird stuff is happening here!
         # 1. Putting basically anything other than O as the 1st tuple el works
@@ -1462,7 +1462,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(len(res), 3)
             self.assertNotEqual(res[0]['o']['x'], res[1]['o']['x'])
 
-    @test.xfail("column definition list is only allowed ...")
+    @test.xerror("column definition list is only allowed ...")
     async def test_edgeql_volatility_for_like_hard_03(self):
         for query in self.test_loop():
             res = await query("""

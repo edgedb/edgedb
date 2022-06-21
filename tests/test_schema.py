@@ -1649,7 +1649,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @test.xfail('''
         The error is not raised.
-    ''', allow_failure=True)
+    ''')
     def test_schema_recursive_02(self):
         schema = self.load_schema(r'''
             type Foo {
@@ -1706,7 +1706,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             );
         ''', modname='default')
 
-    @test.xfail('''
+    @test.xerror('''
         RecursionError: maximum recursion depth exceeded in comparison
 
         This happens while processing '_alter_finalize'.
@@ -1782,7 +1782,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 };
             ''')
 
-    @test.xfail('''
+    @test.xerror('''
         ...File
           "/home/victor/dev/magicstack/edgedb/edb/edgeql/compiler/stmtctx.py",
           line 588, in declare_view_from_schema
@@ -1817,7 +1817,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 );
             ''')
 
-    @test.xfail('''
+    @test.xerror('''
         RecursionError: maximum recursion depth exceeded in comparison
     ''')
     def test_schema_recursive_08(self):
@@ -2779,7 +2779,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
     @test.xfail('''
         The error is not raised.
-    ''', allow_failure=True)
+    ''')
     def test_schema_get_migration_41(self):
         schema = r'''
         type Base {
@@ -3660,7 +3660,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """])
 
-    @test.xfail('''
+    @test.xerror('''
         This wants to transmute an object type into an alias. It
         produces DDL, but the DDL doesn't really make any sense. We
         are going to probably need to add DDL syntax to accomplish
@@ -4335,7 +4335,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''
+    @test.xerror('''
         edb.errors.SchemaError: cannot drop link 'user' of object type
         'default::Action' because other objects in the schema depend
         on it
@@ -6452,7 +6452,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''
+    @test.xerror('''
         Trips a SchemaError in the initial migration accessing a missing type
 
         The type produces from the default is a view type not in the schema

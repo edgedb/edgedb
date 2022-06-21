@@ -237,10 +237,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
         self.assertEqual(repr(ptr_2), repr(ptr_1b))
 
-    @test.xfail(
-        "We don't handle linkprops when doing type remapping",
-        allow_failure=True,
-    )
+    @test.xfail("We don't handle linkprops when doing type remapping")
     def test_edgeql_ir_pathid_replace_03b(self):
         base_1 = self.mk_path('User', 'deck')
         base_2 = self.mk_path('Bot', 'deck')

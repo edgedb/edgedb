@@ -38,6 +38,7 @@ from edb.tools.edb import edbcommands
 
 from .decorators import not_implemented
 from .decorators import xfail
+from .decorators import xerror
 from .decorators import skip
 
 from . import loader
@@ -46,7 +47,7 @@ from . import runner
 from . import styles
 
 
-__all__ = ('not_implemented', 'xfail', 'skip')
+__all__ = ('not_implemented', 'xerror', 'xfail', 'skip')
 
 
 @edbcommands.command()

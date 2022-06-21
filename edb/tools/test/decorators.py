@@ -25,7 +25,7 @@ import unittest
 skip = unittest.skip
 
 
-def xfail(reason, *, unless=False, allow_failure=False):
+def _xfail(reason, *, unless=False, allow_failure):
     def decorator(test_item):
         if unless:
             return test_item
@@ -35,6 +35,14 @@ def xfail(reason, *, unless=False, allow_failure=False):
             return unittest.expectedFailure(test_item)
 
     return decorator
+
+
+def xfail(reason, *, unless=False):
+    return _xfail(reason, unless=unless, allow_failure=True)
+
+
+def xerror(reason, *, unless=False):
+    return _xfail(reason, unless=unless, allow_failure=False)
 
 
 def not_implemented(reason):

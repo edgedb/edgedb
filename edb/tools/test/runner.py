@@ -756,10 +756,14 @@ class ParallelTextTestResult(unittest.result.TestResult):
             self.notImplemented.append(
                 (test, self._exc_info_to_string(err, test)))
         else:
-            if allow_fail or not _is_assert_failure(err):
+            is_fail = _is_assert_failure(err)
+            if allow_fail == is_fail:
                 super().addExpectedFailure(test, err)
             else:
-                super().addFailure(test, err)
+                if is_fail:
+                    super().addFailure(test, err)
+                else:
+                    super().addError(test, err)
 
         self.report_progress(test, marker, reason)
 

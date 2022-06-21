@@ -76,7 +76,7 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
@@ -108,7 +108,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
@@ -138,7 +138,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
@@ -195,7 +195,7 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
@@ -1122,7 +1122,7 @@ class TestIntrospection(tb.QueryTestCase):
             [True] * res
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
@@ -1252,7 +1252,7 @@ class TestIntrospection(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
@@ -1299,7 +1299,7 @@ class TestIntrospection(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )

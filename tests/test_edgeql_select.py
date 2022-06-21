@@ -1527,7 +1527,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
@@ -6251,7 +6251,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         )
 
-    @test.xfail('IS is broken for runtime type checks of object collections')
+    @test.xerror('IS is broken for runtime type checks of object collections')
     async def test_edgeql_select_is_13(self):
         await self.assert_query_result(
             r'''
@@ -6439,7 +6439,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ["Elvis", "Yury"],
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
@@ -7003,7 +7003,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         Publication is empty, and so even if we join in User to the result
         of the array dereference, that all gets optimized out on the pg
         side. I'm not really sure what we can reasonably do about this.
-    ''', allow_failure=True)
+    ''')
     async def test_edgeql_assert_fail_object_computed_02(self):
         # Publication is empty, and so
         async with self.assertRaisesRegexTx(

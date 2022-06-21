@@ -1270,10 +1270,7 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 '''
             )
 
-    @test.xfail(
-        'We are too permissive with intersections on supertypes',
-        allow_failure=True,
-    )
+    @test.xfail('We are too permissive with intersections on supertypes')
     async def test_edgeql_props_back_07(self):
         # This should not work
         with self.assertRaisesRegex(

@@ -572,7 +572,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
         )
 
-    @test.xfail("""
+    @test.xerror("""
         edb.errors.InternalServerError: return type record[] is not supported
         for SQL functions
     """)
@@ -582,7 +582,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [[(1, 'hello')] * 5],
         )
 
-    @test.xfail("""
+    @test.xerror("""
         edb.errors.InternalServerError: return type record[] is not supported
         for SQL functions
     """)
@@ -984,7 +984,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {'1', '2', '3', '4'},
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
@@ -1062,7 +1062,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 select re_match('\\', 'asdf')
             ''')
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
@@ -3488,7 +3488,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {1, 2},
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )

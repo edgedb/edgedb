@@ -528,7 +528,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             ['no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'yes'],
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
