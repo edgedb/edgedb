@@ -122,6 +122,7 @@ cdef class EdgeConnection:
 
         bint idling
         object started_idling_at
+        bint pending_state_desc_push
 
         bint _in_dump_restore
         bint _passive_mode
@@ -180,6 +181,7 @@ cdef class EdgeConnection:
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
 
     cdef bytes _describe_state(self)
+    cdef inline write_state_desc(self, bint flush=?)
 
 
 @cython.final

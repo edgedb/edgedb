@@ -600,14 +600,20 @@ cdef class EdgeConnection:
             b'system_config',
             self.server.get_report_config_data()
         )
-        self.write_status(
-            b'session_state_description',
-            self._describe_state(),
-        )
+        self.write_state_desc(False)
 
         self.write(self.sync_status())
 
         self.flush()
+
+    cdef inline write_state_desc(self, bint flush=True):
+        self.write_status(
+            b'session_state_description',
+            self._describe_state(),
+        )
+        if flush:
+            self.flush()
+        self.pending_state_desc_push = False
 
     async def _do_handshake(self):
         cdef:
@@ -1913,6 +1919,9 @@ cdef class EdgeConnection:
                 if self._stop_requested:
                     break
 
+                if self.pending_state_desc_push:
+                    self.write_state_desc()
+
                 if not self.buffer.take_message():
                     if self._passive_mode:
                         # In "passive" mode we only parse what's in the buffer
@@ -2475,6 +2484,14 @@ cdef class EdgeConnection:
         if not self._write_waiter or self._write_waiter.done():
             return
         self._write_waiter.set_result(True)
+
+    def push_state_desc(self):
+        if not self.authed or self._con_status == EDGECON_BAD:
+            return
+        if self.idling:
+            self.write_state_desc()
+        else:
+            self.pending_state_desc_push = True
 
     async def dump(self):
         cdef:
