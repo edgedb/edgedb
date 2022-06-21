@@ -431,7 +431,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
         await self.assert_query_result(query, res)
         await self.assert_query_result(query, res, implicit_limit=100)
 
-    @test.xfail("Eta-expansion breaks somehow with link properties")
+    @test.xerror("Eta-expansion breaks somehow with link properties")
     async def test_edgeql_scope_tuple_04f(self):
         # Similar to above tests, but forcing use of eta-expansion
         query = r'''
@@ -3067,7 +3067,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
+    @test.xerror('''
         Fails assert not ir_set.is_materialized_ref
         Broken in fix for #3898
     ''')

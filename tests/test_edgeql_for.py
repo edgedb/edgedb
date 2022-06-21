@@ -479,7 +479,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('deeply nested linkprop hoisting is currently broken')
+    @test.xerror('deeply nested linkprop hoisting is currently broken')
     async def test_edgeql_for_in_computable_03(self):
         await self.assert_query_result(
             r'''
@@ -513,7 +513,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
+    @test.xerror('''
         See comment on why this test doesn't contain a FOR.
 
         The result is *almost* correct, but oddly @letter is not a
@@ -698,7 +698,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail("'letter' does not exist")
+    @test.xerror("'letter' does not exist")
     async def test_edgeql_for_in_computable_09(self):
         # This is basically test_edgeql_for_in_computable_01 but with
         # a WITH binding in front of the whole shape
@@ -732,7 +732,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail("""
+    @test.xerror("""
         This outputs ["I", "B"] as letter for both objects.
     """)
     async def test_edgeql_for_in_computable_10(self):

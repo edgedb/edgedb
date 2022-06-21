@@ -52,7 +52,7 @@ class TestTree(tb.QueryTestCase):
             [],
         )
 
-    @test.xfail('''
+    @test.xerror('''
         This test fails with the following error:
 
         edgedb.errors.QueryError: invalid reference to Tree:
@@ -107,7 +107,7 @@ class TestTree(tb.QueryTestCase):
             }],
         )
 
-    @test.xfail('''
+    @test.xerror('''
         This test fails with the following error:
 
         edgedb.errors.EdgeQLSyntaxError:
@@ -162,7 +162,7 @@ class TestTree(tb.QueryTestCase):
             }],
         )
 
-    @test.xfail('''
+    @test.xerror('''
         This test fails with the following error:
 
         edgedb.errors.QueryError:
@@ -820,7 +820,7 @@ class TestTree(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('''
+    @test.xerror('''
         This test fails with the following error:
 
         InternalServerError: ON CONFLICT DO UPDATE command cannot

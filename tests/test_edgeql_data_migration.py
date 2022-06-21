@@ -3275,7 +3275,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         ])
         await self.fast_forward_describe_migration()
 
-    @test.xfail('Fails to rebase because the type is mismatched')
+    @test.xerror('Fails to rebase because the type is mismatched')
     async def test_edgeql_migration_reject_prop_05(self):
         await self.migrate('''
             scalar type Slug extending str;
@@ -4405,7 +4405,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }],
         )
 
-    @test.xfail('''
+    @test.xerror('''
         edgedb.errors.SchemaError: ObjectType 'test::Base' is already
         present in the schema <Schema gen:3757 at 0x7fc3319fa820>
 
@@ -8962,7 +8962,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         ''')
 
-    @test.xfail('''
+    @test.xerror('''
         This fails because we try to set the parent as required while the
         child is still optional.
 
@@ -10137,7 +10137,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 CONFIGURE CURRENT DATABASE SET _foo := 123;
             ''')
 
-    @test.xfail('''
+    @test.xerror('''
         Referring to alias unsupported from computable
     ''')
     async def test_edgeql_migration_alias_01(self):
@@ -10172,7 +10172,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             ],
         )
 
-    @test.xfail('''
+    @test.xerror('''
        Referring to alias unsupported from computable
        This is the only test that broke when we disallowed that!
     ''')
@@ -10232,7 +10232,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             ],
         )
 
-    @test.xfail('''
+    @test.xerror('''
         Referring to alias unsupported from computable
     ''')
     async def test_edgeql_migration_alias_03(self):
@@ -10291,7 +10291,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             ],
         )
 
-    @test.xfail('''
+    @test.xerror('''
         Referring to alias unsupported from computable
     ''')
     async def test_edgeql_migration_alias_04(self):
@@ -10348,7 +10348,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             ],
         )
 
-    @test.xfail('''
+    @test.xerror('''
         Referring to alias unsupported from computable
     ''')
     async def test_edgeql_migration_alias_05(self):
@@ -10390,7 +10390,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             ],
         )
 
-    @test.xfail('''
+    @test.xerror('''
         Referring to alias unsupported from computable
     ''')
     async def test_edgeql_migration_alias_06(self):
@@ -10454,7 +10454,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             ],
         )
 
-    @test.xfail('''
+    @test.xerror('''
         Referring to alias unsupported from computable
     ''')
     async def test_edgeql_migration_alias_07(self):

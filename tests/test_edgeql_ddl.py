@@ -307,7 +307,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
@@ -359,7 +359,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )
@@ -7741,7 +7741,7 @@ type default::Foo {
             DROP MODULE test_other;
         """)
 
-    @test.xfail('''
+    @test.xerror('''
         Currently declarative.py doesn't have the up-to-date module list
         at the time it tries interpreting the migration.
 
@@ -9106,7 +9106,7 @@ type default::Foo {
                     INSERT TypeCon03;
                 """)
 
-    @test.xfail('''
+    @test.xerror('''
         Reports an schema error. Maybe that is exactly what we want?
     ''')
     async def test_edgeql_ddl_constraint_04(self):
@@ -9165,7 +9165,7 @@ type default::Foo {
                     INSERT TypeCon05;
                 """)
 
-    @test.xfail('''
+    @test.xerror('''
         Reports an schema error. Maybe that is exactly what we want?
     ''')
     async def test_edgeql_ddl_constraint_06(self):
@@ -11707,7 +11707,8 @@ type default::Foo {
                 ''')
 
     @test.xfail('''
-        The test currently fails with "property 'spam' does not exist",
+        The test currently fails with the ugly
+        "'default::__|foo@default|Err2' exists, but is a property, not a link"
         but it should fail with "link 'foo' does not exist", as
         `ALTER LINK foo` is the preceeding invalid command.
     ''')

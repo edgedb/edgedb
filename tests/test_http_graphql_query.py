@@ -1287,7 +1287,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ],
         })
 
-    @test.xfail('''
+    @test.xerror('''
         'last' is not fully implemented in all cases and ideally
         requires negative OFFSET to be implemented
     ''')
@@ -2034,7 +2034,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         }, sort=lambda x: x['name'])
 
-    @test.xfail(
+    @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
     )

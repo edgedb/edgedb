@@ -1706,7 +1706,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             );
         ''', modname='default')
 
-    @test.xfail('''
+    @test.xerror('''
         RecursionError: maximum recursion depth exceeded in comparison
 
         This happens while processing '_alter_finalize'.
@@ -1782,7 +1782,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 };
             ''')
 
-    @test.xfail('''
+    @test.xerror('''
         ...File
           "/home/victor/dev/magicstack/edgedb/edb/edgeql/compiler/stmtctx.py",
           line 588, in declare_view_from_schema
@@ -1817,7 +1817,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 );
             ''')
 
-    @test.xfail('''
+    @test.xerror('''
         RecursionError: maximum recursion depth exceeded in comparison
     ''')
     def test_schema_recursive_08(self):
@@ -3660,7 +3660,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """])
 
-    @test.xfail('''
+    @test.xerror('''
         This wants to transmute an object type into an alias. It
         produces DDL, but the DDL doesn't really make any sense. We
         are going to probably need to add DDL syntax to accomplish
@@ -4335,7 +4335,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''
+    @test.xerror('''
         edb.errors.SchemaError: cannot drop link 'user' of object type
         'default::Action' because other objects in the schema depend
         on it
@@ -6452,7 +6452,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''
+    @test.xerror('''
         Trips a SchemaError in the initial migration accessing a missing type
 
         The type produces from the default is a view type not in the schema
@@ -8214,10 +8214,6 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
         )
 
-    @test.xfail('''
-        The edgeql/tracer.py seems to have an issue resolving the
-        alias 'x' in the expression.
-    ''')
     def test_schema_describe_computable_03(self):
         self._assert_describe(
             r"""
@@ -8234,8 +8230,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             CREATE TYPE test::Foo {
-                CREATE OPTIONAL SINGLE PROPERTY name -> std::str;
-                CREATE OPTIONAL SINGLE PROPERTY comp := (WITH
+                CREATE PROPERTY name -> std::str;
+                CREATE PROPERTY comp := (WITH
                     x :=
                         std::count(std::Object)
                 SELECT

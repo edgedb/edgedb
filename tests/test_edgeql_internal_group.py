@@ -611,7 +611,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
             always_typenames=True,
         )
 
-    @test.xfail('Broken when injecting types - is not a computed pointer')
+    @test.xerror('Broken when injecting types - is not a computed pointer')
     async def test_edgeql_igroup_returning_08(self):
         await self.assert_query_result(
             r'''
@@ -1166,7 +1166,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail("linkprops - can't find scope statement")
+    @test.xerror("linkprops - can't find scope statement")
     async def test_edgeql_igroup_linkproperty_nested_01(self):
         await self.assert_query_result(
             r"""
@@ -1238,7 +1238,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail("linkprops - can't find scope statement")
+    @test.xerror("linkprops - can't find scope statement")
     async def test_edgeql_igroup_linkproperty_multiple_01(self):
         await self.assert_query_result(
             r"""
