@@ -1583,7 +1583,7 @@ cdef class EdgeConnection:
             )
             if query_unit_group is None:
                 if self.debug:
-                    self.debug_print('EXECUTE /REPARSE', query)
+                    self.debug_print('EXECUTE /CACHE MISS', query)
 
                 compiled = await self._parse(query, query_req)
                 self._last_anon_compiled = compiled
@@ -1612,48 +1612,48 @@ cdef class EdgeConnection:
             query_unit_group.out_type_id != out_tid
         ):
             # The client has outdated information about type specs.
-            if self.debug:
-                self.debug_print('EXECUTE /MISMATCH', query)
-
             self.write(self.make_command_data_description_msg(compiled))
 
-            if self._cancelled:
-                raise ConnectionAbortedError
-            return
+        if query_unit_group.in_type_id == in_tid:
+            if self.debug:
+                self.debug_print('EXECUTE', query)
 
-        if self.debug:
-            self.debug_print('EXECUTE', query)
+            # Clear the _last_anon_compiled so that the next Execute - if
+            # identical - will always lookup in the cache and honor the
+            # `cacheable` flag to compile the query again. Put it another way,
+            # this is the legacy Execute of the "anonymous" prepared statement.
+            self._last_anon_compiled = None
 
-        # Clear the _last_anon_compiled so that the next Execute - if
-        # identical - will always lookup in the cache and honor the `cacheable`
-        # flag to compile the query again. Put it another way, this is the
-        # legacy Execute of the "anonymous" prepared statement.
-        self._last_anon_compiled = None
-
-        metrics.edgeql_query_compilations.inc(1.0, 'cache')
-        if (
-            self.get_dbview().in_tx_error() or
-            query_unit_group[0].tx_savepoint_rollback
-        ):
-            assert len(query_unit_group) == 1
-            await self._execute_rollback(compiled)
-        elif len(query_unit_group) > 1:
-            await self._execute_script(compiled, bind_args)
-            self.write(
-                self.make_command_complete_msg_by_group(
-                    compiled.query_unit_group
+            metrics.edgeql_query_compilations.inc(1.0, 'cache')
+            if (
+                self.get_dbview().in_tx_error() or
+                query_unit_group[0].tx_savepoint_rollback
+            ):
+                assert len(query_unit_group) == 1
+                await self._execute_rollback(compiled)
+            elif len(query_unit_group) > 1:
+                await self._execute_script(compiled, bind_args)
+                self.write(
+                    self.make_command_complete_msg_by_group(
+                        compiled.query_unit_group
+                    )
                 )
-            )
-            self.flush()
-        else:
-            use_prep = (
-                len(query_unit_group) == 1
-                and bool(query_unit_group[0].sql_hash)
-            )
-            await self._execute(compiled, bind_args, use_prep)
-            self.write(
-                self.make_command_complete_msg(compiled.query_unit_group[0])
-            )
+            else:
+                use_prep = (
+                    len(query_unit_group) == 1
+                    and bool(query_unit_group[0].sql_hash)
+                )
+                await self._execute(compiled, bind_args, use_prep)
+                self.write(
+                    self.make_command_complete_msg(
+                        compiled.query_unit_group[0],
+                    ),
+                )
+
+        if self._cancelled:
+            raise ConnectionAbortedError
+
+        self.flush()
 
     async def sync(self):
         self.buffer.consume_message()
