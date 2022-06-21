@@ -106,7 +106,7 @@ class Dark256(StylesTable):
 
     ref = Style(color='#586c9e')
 
-    unknown_object = Style(color='#454545')
+    unknown_object = Style(color='#707070')
     unknown_markup = overflow = Style(color='white', bgcolor='#84345a')
     serialization_error = Style(color='white', bgcolor='#900')
 
