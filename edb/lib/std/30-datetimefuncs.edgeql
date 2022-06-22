@@ -58,8 +58,7 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Extract a specific element of input datetime by name.';
-    # date_part of timestamptz is STABLE in PostgreSQL
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT CASE WHEN "el" IN (
             'century', 'day', 'decade', 'dow', 'doy', 'hour',
@@ -95,7 +94,7 @@ std::datetime_truncate(dt: std::datetime, unit: std::str) -> std::datetime
     CREATE ANNOTATION std::description :=
         'Truncate the input datetime to a particular precision.';
     # date_trunc of timestamptz is STABLE in PostgreSQL
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT CASE WHEN "unit" IN (
             'microseconds', 'milliseconds', 'seconds',
@@ -128,7 +127,7 @@ std::duration_get(dt: std::duration, el: std::str) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Extract a specific element of input duration by name.';
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT CASE WHEN "el" IN (
             'hour', 'minutes', 'seconds', 'milliseconds', 'microseconds')
@@ -291,8 +290,9 @@ std::`+` (l: std::datetime, r: std::duration) -> std::datetime {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
-    # operators on timestamptz are STABLE in PostgreSQL
-    SET volatility := 'Stable';
+    # Immutable because datetime is guaranteed to be in UTC and no DST issues
+    # should affect this.
+    SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
         SELECT ("l" + "r")::edgedb.timestamptz_t
@@ -305,8 +305,9 @@ std::`+` (l: std::duration, r: std::datetime) -> std::datetime {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
-    # operators on timestamptz are STABLE in PostgreSQL
-    SET volatility := 'Stable';
+    # Immutable because datetime is guaranteed to be in UTC and no DST issues
+    # should affect this.
+    SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
         SELECT ("l" + "r")::edgedb.timestamptz_t
@@ -319,8 +320,9 @@ std::`-` (l: std::datetime, r: std::duration) -> std::datetime {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time subtraction.';
-    # operators on timestamptz are STABLE in PostgreSQL
-    SET volatility := 'Stable';
+    # Immutable because datetime is guaranteed to be in UTC and no DST issues
+    # should affect this.
+    SET volatility := 'Immutable';
     USING SQL $$
         SELECT ("l" - "r")::edgedb.timestamptz_t
     $$
@@ -331,6 +333,8 @@ CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description := 'Date/time subtraction.';
+    # Immutable because datetime is guaranteed to be in UTC and no DST issues
+    # should affect this.
     SET volatility := 'Immutable';
     USING SQL $$
         SELECT EXTRACT(epoch FROM "l" - "r")::text::edgedb.duration_t
@@ -468,18 +472,18 @@ std::`-` (v: std::duration) -> std::duration {
 
 ## String casts
 
-# Casts from text to any sort of date/time types are all STABLE in
-# PostgreSQL, but it may be the case that our restricted versions that
-# prohibit usage of timezone for non-timezone-aware types are actually
-# IMMUTABLE (as the corresponding casts from those types to text).
 CREATE CAST FROM std::str TO std::datetime {
+    # Stable because the input string can contain an explicit time-zone. Time
+    # zones are externally defined things that can change suddenly and
+    # arbitrarily by human laws, thus potentially changing the interpretatio
+    # of the input string.
     SET volatility := 'Stable';
     USING SQL FUNCTION 'edgedb.datetime_in';
 };
 
 
 CREATE CAST FROM std::str TO std::duration {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.duration_in';
 };
 
@@ -490,7 +494,7 @@ CREATE CAST FROM std::str TO std::duration {
 # and uses ' ' instead of 'T' as a separator between date
 # and time.
 CREATE CAST FROM std::datetime TO std::str {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT trim(to_json(val)::text, '"');
     $$;

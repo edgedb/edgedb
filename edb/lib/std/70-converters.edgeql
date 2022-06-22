@@ -64,8 +64,7 @@ std::to_str(td: std::duration, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -98,8 +97,7 @@ std::to_str(i: std::int64, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -127,8 +125,7 @@ std::to_str(f: std::float64, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -156,8 +153,7 @@ std::to_str(d: std::bigint, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -185,8 +181,7 @@ std::to_str(d: std::decimal, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -218,7 +213,7 @@ std::to_str(array: array<std::str>, delimiter: std::str) -> std::str
         'This converter function is deprecated and \
          is scheduled to be removed before 1.0.\n\
          Use std::array_join() instead.';
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING (
         SELECT std::array_join(array, delimiter)
     );
@@ -232,8 +227,7 @@ std::to_str(json: std::json, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -322,7 +316,7 @@ CREATE FUNCTION
 std::to_datetime(epochseconds: std::float64) -> std::datetime
 {
     CREATE ANNOTATION std::description := 'Create a `datetime` value.';
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT to_timestamp("epochseconds")::edgedb.timestamptz_t
     $$;
@@ -333,7 +327,7 @@ CREATE FUNCTION
 std::to_datetime(epochseconds: std::int64) -> std::datetime
 {
     CREATE ANNOTATION std::description := 'Create a `datetime` value.';
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT to_timestamp("epochseconds")::edgedb.timestamptz_t
     $$;
@@ -344,7 +338,7 @@ CREATE FUNCTION
 std::to_datetime(epochseconds: std::decimal) -> std::datetime
 {
     CREATE ANNOTATION std::description := 'Create a `datetime` value.';
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT to_timestamp("epochseconds")::edgedb.timestamptz_t
     $$;
@@ -382,8 +376,7 @@ CREATE FUNCTION
 std::to_bigint(s: std::str, fmt: OPTIONAL str={}) -> std::bigint
 {
     CREATE ANNOTATION std::description := 'Create a `bigint` value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -412,8 +405,7 @@ CREATE FUNCTION
 std::to_decimal(s: std::str, fmt: OPTIONAL str={}) -> std::decimal
 {
     CREATE ANNOTATION std::description := 'Create a `decimal` value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -442,8 +434,7 @@ CREATE FUNCTION
 std::to_int64(s: std::str, fmt: OPTIONAL str={}) -> std::int64
 {
     CREATE ANNOTATION std::description := 'Create a `int64` value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -472,8 +463,7 @@ CREATE FUNCTION
 std::to_int32(s: std::str, fmt: OPTIONAL str={}) -> std::int32
 {
     CREATE ANNOTATION std::description := 'Create a `int32` value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -502,8 +492,7 @@ CREATE FUNCTION
 std::to_int16(s: std::str, fmt: OPTIONAL str={}) -> std::int16
 {
     CREATE ANNOTATION std::description := 'Create a `int16` value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -532,8 +521,7 @@ CREATE FUNCTION
 std::to_float64(s: std::str, fmt: OPTIONAL str={}) -> std::float64
 {
     CREATE ANNOTATION std::description := 'Create a `float64` value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -562,8 +550,7 @@ CREATE FUNCTION
 std::to_float32(s: std::str, fmt: OPTIONAL str={}) -> std::float32
 {
     CREATE ANNOTATION std::description := 'Create a `float32` value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN

@@ -2531,7 +2531,7 @@ CREATE CAST FROM std::float32 TO std::bigint {
 
 
 CREATE CAST FROM std::float32 TO std::decimal {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
         SELECT
             (CASE WHEN val != 'NaN'
@@ -2576,7 +2576,7 @@ CREATE CAST FROM std::float64 TO std::bigint {
 
 
 CREATE CAST FROM std::float64 TO std::decimal {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
         SELECT
             (CASE WHEN val != 'NaN'
@@ -2629,13 +2629,13 @@ CREATE CAST FROM std::str TO std::float64 {
 
 
 CREATE CAST FROM std::str TO std::bigint {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.str_to_bigint';
 };
 
 
 CREATE CAST FROM std::str TO std::decimal {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.str_to_decimal';
 };
 

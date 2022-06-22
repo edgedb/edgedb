@@ -554,8 +554,7 @@ class StrToBigint(dbops.Function):
             args=[('val', ('text',))],
             returns=('edgedb', 'bigint_t'),
             language='plpgsql',
-            # Stable because it's raising exceptions.
-            volatility='stable',
+            volatility='immutable',
             strict=True,
             text=self.text)
 
@@ -588,8 +587,7 @@ class StrToDecimal(dbops.Function):
             name=('edgedb', 'str_to_decimal'),
             args=[('val', ('text',))],
             returns=('numeric',),
-            # Stable because it's raising exceptions.
-            volatility='stable',
+            volatility='immutable',
             strict=True,
             text=self.text,
         )
@@ -618,7 +616,7 @@ class StrToInt64NoInline(dbops.Function):
             name=('edgedb', 'str_to_int64_noinline'),
             args=[('val', ('text',))],
             returns=('bigint',),
-            volatility='stable',
+            volatility='immutable',
             text=self.text,
         )
 
@@ -638,7 +636,7 @@ class StrToInt32NoInline(dbops.Function):
             name=('edgedb', 'str_to_int32_noinline'),
             args=[('val', ('text',))],
             returns=('int',),
-            volatility='stable',
+            volatility='immutable',
             text=self.text,
         )
 
@@ -658,7 +656,7 @@ class StrToInt16NoInline(dbops.Function):
             name=('edgedb', 'str_to_int16_noinline'),
             args=[('val', ('text',))],
             returns=('smallint',),
-            volatility='stable',
+            volatility='immutable',
             text=self.text,
         )
 
@@ -678,7 +676,7 @@ class StrToFloat64NoInline(dbops.Function):
             name=('edgedb', 'str_to_float64_noinline'),
             args=[('val', ('text',))],
             returns=('float8',),
-            volatility='stable',
+            volatility='immutable',
             text=self.text,
         )
 
@@ -698,7 +696,7 @@ class StrToFloat32NoInline(dbops.Function):
             name=('edgedb', 'str_to_float32_noinline'),
             args=[('val', ('text',))],
             returns=('float4',),
-            volatility='stable',
+            volatility='immutable',
             text=self.text,
         )
 
@@ -1229,7 +1227,7 @@ class ExtractJSONScalarFunction(dbops.Function):
                 ('detail', ('text',), "''"),
             ],
             returns=('text',),
-            volatility='stable',
+            volatility='immutable',
             text=self.text,
         )
 
@@ -2257,8 +2255,7 @@ class DurationInFunction(dbops.Function):
             name=('edgedb', 'duration_in'),
             args=[('val', ('text',))],
             returns=('edgedb', 'duration_t'),
-            # Same volatility as raise() (stable)
-            volatility='stable',
+            volatility='immutable',
             text=self.text,
         )
 
@@ -2300,8 +2297,7 @@ class DateDurationInFunction(dbops.Function):
             name=('edgedb', 'date_duration_in'),
             args=[('val', ('text',))],
             returns=('edgedb', 'date_duration_t'),
-            # Same volatility as raise() (stable)
-            volatility='stable',
+            volatility='immutable',
             text=self.text,
         )
 
@@ -2343,8 +2339,7 @@ class LocalDatetimeInFunction(dbops.Function):
             name=('edgedb', 'local_datetime_in'),
             args=[('val', ('text',))],
             returns=('edgedb', 'timestamp_t'),
-            # Same volatility as raise() (stable)
-            volatility='stable',
+            volatility='immutable',
             text=self.text)
 
 
@@ -2383,8 +2378,7 @@ class LocalDateInFunction(dbops.Function):
             name=('edgedb', 'local_date_in'),
             args=[('val', ('text',))],
             returns=('edgedb', 'date_t'),
-            # Same volatility as raise() (stable)
-            volatility='stable',
+            volatility='immutable',
             text=self.text)
 
 
@@ -2422,8 +2416,7 @@ class LocalTimeInFunction(dbops.Function):
             name=('edgedb', 'local_time_in'),
             args=[('val', ('text',))],
             returns=('time',),
-            # Same volatility as raise() (stable)
-            volatility='stable',
+            volatility='immutable',
             text=self.text,
         )
 
