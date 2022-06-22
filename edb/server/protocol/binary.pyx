@@ -25,6 +25,7 @@ import logging
 import time
 import statistics
 import traceback
+import sys
 
 cimport cython
 cimport cpython
@@ -356,6 +357,7 @@ cdef class EdgeConnection:
                 f'in_tx:{0}',
                 f'tx_error:{0}',
                 *args,
+                file=sys.stderr,
             )
         else:
             print(
@@ -364,6 +366,7 @@ cdef class EdgeConnection:
                 f'in_tx:{int(self._dbview.in_tx())}',
                 f'tx_error:{int(self._dbview.in_tx_error())}',
                 *args,
+                file=sys.stderr,
             )
 
     cdef write(self, WriteBuffer buf):
@@ -1534,6 +1537,10 @@ cdef class EdgeConnection:
             compilation_flags
             & messages.CompilationFlag.INJECT_OUTPUT_TYPE_IDS
         )
+        inline_objectids = (
+            compilation_flags
+            & messages.CompilationFlag.INJECT_OUTPUT_OBJECT_IDS
+        )
 
         output_format = self.parse_output_format(self.buffer.read_byte())
         expect_one = (
@@ -1552,7 +1559,7 @@ cdef class EdgeConnection:
             implicit_limit=implicit_limit,
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
-            inline_objectids=True,
+            inline_objectids=inline_objectids,
             allow_capabilities=allow_capabilities,
         )
 
