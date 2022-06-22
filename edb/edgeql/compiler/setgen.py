@@ -787,20 +787,10 @@ def extend_path(
 
     orig_ptrcls = ptrcls
 
-    # For view ptrclses, find the place where the pointer is "really"
-    # defined that is, either its schema definition site or where it
-    # last had a expression defining it.
-    #
+    # Find the pointer definition site.
     # This makes it so that views don't change path ids unless they are
     # introducing some computation.
-    while (
-        ptrcls.get_is_derived(ctx.env.schema)
-        and not ptrcls.get_defined_here(ctx.env.schema)
-        and (bases := ptrcls.get_bases(ctx.env.schema).objects(ctx.env.schema))
-        and len(bases) == 1
-        and bases[0].get_source(ctx.env.schema)
-    ):
-        ptrcls = bases[0]
+    ptrcls = ptrcls.get_nearest_defined(ctx.env.schema)
 
     path_id = pathctx.extend_path_id(
         src_path_id,

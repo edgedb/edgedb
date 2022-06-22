@@ -554,6 +554,26 @@ class Pointer(referencing.ReferencedInheritingObject,
         else:
             return schema, non_derived_parent
 
+    def get_nearest_defined(self, schema: s_schema.Schema) -> Pointer:
+        """
+        Find the pointer definition site.
+
+        For view pointers, find the place where the pointer is "really"
+        defined that is, either its schema definition site or where it
+        last had a expression defining it.
+        """
+        ptrcls = self
+        while (
+            ptrcls.get_is_derived(schema)
+            and not ptrcls.get_defined_here(schema)
+            and (bases := ptrcls.get_bases(schema).objects(schema))
+            and len(bases) == 1
+            and bases[0].get_source(schema)
+        ):
+            ptrcls = bases[0]
+
+        return ptrcls
+
     def get_near_endpoint(
         self,
         schema: s_schema.Schema,
