@@ -52,6 +52,7 @@ _int32_packer = struct.Struct('!l').pack
 _uint32_packer = struct.Struct('!L').pack
 _uint16_packer = struct.Struct('!H').pack
 _uint8_packer = struct.Struct('!B').pack
+_int64_struct = struct.Struct('!q')
 
 
 EMPTY_TUPLE_ID = s_obj.get_known_type_id('empty-tuple')
@@ -93,6 +94,14 @@ def _encode_bool(data: bool) -> bytes:
 
 def _decode_bool(data: bytes) -> bool:
     return bool(data[0])
+
+
+def _encode_int64(data: int) -> bytes:
+    return _int64_struct.pack(data)
+
+
+def _decode_int64(data: bytes) -> int:
+    return _int64_struct.unpack(data)[0]
 
 
 def cardinality_from_ptr(ptr, schema) -> enums.Cardinality:
@@ -424,9 +433,17 @@ class TypeSerializer:
             cardinalities = []
             for name, value in input_shapes[t].items():
                 subtype, cardinality = value
-                subtype_id = self.describe_input_shape(
-                    subtype, input_shapes, protocol_version
-                )
+                if (
+                    cardinality == enums.Cardinality.MANY or
+                    cardinality == enums.Cardinality.AT_LEAST_ONE
+                ):
+                    subtype_id = self._describe_set(
+                        subtype, {}, {}, protocol_version
+                    )
+                else:
+                    subtype_id = self.describe_input_shape(
+                        subtype, input_shapes, protocol_version
+                    )
                 element_names.append(name)
                 subtypes.append(subtype_id)
                 cardinalities.append(cardinality.value)
@@ -732,7 +749,9 @@ class StateSerializerFactory:
         for setting in config.get_settings().values():
             if not setting.system:
                 config_shape[setting.name] = (
-                    setting.s_type, enums.Cardinality.AT_MOST_ONE
+                    setting.s_type,
+                    enums.Cardinality.MANY if setting.set_of else
+                    enums.Cardinality.AT_MOST_ONE
                 )
 
         self._input_shapes = immutables.Map({
@@ -868,6 +887,46 @@ class TypeDesc:
 @dataclasses.dataclass(frozen=True)
 class SetDesc(TypeDesc):
     subtype: TypeDesc
+    impl: typing.ClassVar[type] = frozenset
+
+    def encode(self, data) -> bytes:
+        if not data:
+            return b''.join((
+                _uint32_packer(0),
+                _uint32_packer(0),
+                _uint32_packer(0),
+            ))
+        bufs = [
+            _uint32_packer(1),
+            _uint32_packer(0),
+            _uint32_packer(0),
+            _uint32_packer(len(data)),
+            _uint32_packer(1),
+        ]
+        for item in data:
+            if item is None:
+                bufs.append(_int32_packer(-1))
+            else:
+                item_bytes = self.subtype.encode(item)
+                bufs.append(_uint32_packer(len(item_bytes)))
+                bufs.append(item_bytes)
+        return b''.join(bufs)
+
+    def decode(self, data: bytes):
+        buf = io.BytesIO(data)
+        wrapped = binwrapper.BinWrapper(buf)
+        ndims = wrapped.read_ui32()
+        if ndims == 0:
+            return self.impl()
+        assert ndims == 1
+        wrapped.read_ui32()
+        wrapped.read_ui32()
+        data_len = wrapped.read_ui32()
+        assert wrapped.read_ui32() == 1
+        return self.impl(
+            self.subtype.decode(wrapped.read_len32_prefixed_bytes())
+            for _ in range(data_len)
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -896,6 +955,10 @@ class BaseScalarDesc(TypeDesc):
         s_obj.get_known_type_id('std::bool'): (
             _encode_bool,
             _decode_bool,
+        ),
+        s_obj.get_known_type_id('std::int64'): (
+            _encode_int64,
+            _decode_int64,
         ),
     }
 
@@ -943,43 +1006,17 @@ class TupleDesc(TypeDesc):
 class EnumDesc(TypeDesc):
     names: typing.List[str]
 
-
-@dataclasses.dataclass(frozen=True)
-class ArrayDesc(TypeDesc):
-    dim_len: int
-    subtype: TypeDesc
-
     def encode(self, data) -> bytes:
-        bufs = [
-            _uint32_packer(1),
-            _uint32_packer(0),
-            _uint32_packer(0),
-            _uint32_packer(len(data)),
-            _uint32_packer(1),
-        ]
-        for item in data:
-            if item is None:
-                bufs.append(_int32_packer(-1))
-            else:
-                item_bytes = self.subtype.encode(item)
-                bufs.append(_uint32_packer(len(item_bytes)))
-                bufs.append(item_bytes)
-        return b''.join(bufs)
+        return _encode_str(data)
 
     def decode(self, data: bytes):
-        buf = io.BytesIO(data)
-        wrapped = binwrapper.BinWrapper(buf)
-        assert wrapped.read_ui32() == 1
-        wrapped.read_ui32()
-        wrapped.read_ui32()
-        data_len = wrapped.read_ui32()
-        assert wrapped.read_ui32() == 1
-        rv = []
-        for _ in range(data_len):
-            rv.append(
-                self.subtype.decode(wrapped.read_len32_prefixed_bytes())
-            )
-        return rv
+        return _decode_str(data)
+
+
+@dataclasses.dataclass(frozen=True)
+class ArrayDesc(SetDesc):
+    dim_len: int
+    impl: typing.ClassVar[type] = list
 
 
 @dataclasses.dataclass(frozen=True)
