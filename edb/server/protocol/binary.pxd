@@ -180,7 +180,6 @@ cdef class EdgeConnection:
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
 
-    cdef bytes _describe_state(self)
     cdef inline write_state_desc(self, bint flush=?)
 
 

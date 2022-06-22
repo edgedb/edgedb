@@ -60,7 +60,7 @@ cdef class Database:
 
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, query_unit)
-    cdef _new_view(self, query_cache)
+    cdef _new_view(self, query_cache, protocol_version)
     cdef _remove_view(self, view)
     cdef _update_backend_ids(self, new_types)
     cdef _set_and_signal_new_user_schema(
@@ -78,6 +78,7 @@ cdef class DatabaseConnectionView:
     cdef:
         Database _db
         bint _query_cache_enabled
+        object _protocol_version
 
         object _config
         object _globals
@@ -102,6 +103,7 @@ cdef class DatabaseConnectionView:
         object _in_tx_global_schema_pickled
         object _in_tx_global_schema
         object _in_tx_new_types
+        object _in_tx_state_serializer
         int _in_tx_dbver
         bint _in_tx
         bint _in_tx_with_ddl
@@ -156,7 +158,8 @@ cdef class DatabaseConnectionView:
     cpdef get_modaliases(self)
 
     cdef bytes serialize_state(self)
-    cdef describe_state(self, protocol_version)
-    cdef encode_state(self, protocol_version)
-    cdef decode_state(self, type_id, data, protocol_version)
+    cdef describe_state(self)
+    cdef inline _get_state_serializer(self)
+    cdef encode_state(self)
+    cdef decode_state(self, type_id, data)
     cdef inline recode_global(self, serializer, k, v)

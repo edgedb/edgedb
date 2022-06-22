@@ -528,10 +528,12 @@ class Server(ha_base.ClusterProtocol):
         assert self._dbindex is not None
         return self._dbindex.maybe_get_db(dbname)
 
-    async def new_dbview(self, *, dbname, query_cache):
+    async def new_dbview(self, *, dbname, query_cache, protocol_version):
         db = self.get_db(dbname=dbname)
         await db.introspection()
-        return self._dbindex.new_view(dbname, query_cache=query_cache)
+        return self._dbindex.new_view(
+            dbname, query_cache=query_cache, protocol_version=protocol_version
+        )
 
     def remove_dbview(self, dbview):
         return self._dbindex.remove_view(dbview)

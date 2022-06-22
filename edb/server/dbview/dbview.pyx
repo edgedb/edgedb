@@ -144,8 +144,10 @@ cdef class Database:
 
         self._eql_to_compiled[key] = compiled, self.dbver
 
-    cdef _new_view(self, query_cache):
-        view = DatabaseConnectionView(self, query_cache=query_cache)
+    cdef _new_view(self, query_cache, protocol_version):
+        view = DatabaseConnectionView(
+            self, query_cache=query_cache, protocol_version=protocol_version
+        )
         self._views.add(view)
         return view
 
@@ -178,10 +180,11 @@ cdef class DatabaseConnectionView:
 
     _eql_to_compiled: typing.Mapping[bytes, dbstate.QueryUnitGroup]
 
-    def __init__(self, db: Database, *, query_cache):
+    def __init__(self, db: Database, *, query_cache, protocol_version):
         self._db = db
 
         self._query_cache_enabled = query_cache
+        self._protocol_version = protocol_version
 
         self._modaliases = DEFAULT_MODALIASES
         self._config = DEFAULT_CONFIG
@@ -220,6 +223,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_global_schema = None
         self._in_tx_global_schema_pickled = None
         self._in_tx_new_types = {}
+        self._in_tx_state_serializer = None
         self._tx_error = False
         self._in_tx_dbver = 0
         self._invalidate_local_cache()
@@ -412,11 +416,26 @@ cdef class DatabaseConnectionView:
         self._session_state_db_cache = (self._config, spec)
         return spec
 
-    cdef describe_state(self, protocol_version):
-        return self._db.get_state_serializer(protocol_version).describe()
+    cdef describe_state(self):
+        assert not self._in_tx
+        return self._db.get_state_serializer(self._protocol_version).describe()
 
-    cdef encode_state(self, protocol_version):
-        serializer = self._db.get_state_serializer(protocol_version)
+    cdef inline _get_state_serializer(self):
+        if self._in_tx:
+            serializer = self._in_tx_state_serializer
+            if serializer is None:
+                serializer = self._db._index._factory.make(
+                    self.get_user_schema(),
+                    self.get_global_schema(),
+                    self._protocol_version,
+                )
+                self._in_tx_state_serializer = serializer
+        else:
+            serializer = self._db.get_state_serializer(self._protocol_version)
+        return serializer
+
+    cdef encode_state(self):
+        serializer = self._get_state_serializer()
         modaliases = self.get_modaliases()
         session_config = self.get_session_config()
         globals_ = self.get_globals()
@@ -445,7 +464,7 @@ cdef class DatabaseConnectionView:
             state['globals'] = {k: v.value for k, v in globals_.items()}
         return serializer.encode(state)
 
-    cdef decode_state(self, type_id, data, protocol_version):
+    cdef decode_state(self, type_id, data):
         if type_id == ZERO_UUID:
             self.set_modaliases(DEFAULT_MODALIASES)
             self.set_session_config(DEFAULT_CONFIG)
@@ -458,7 +477,7 @@ cdef class DatabaseConnectionView:
                 if data == self._session_state_cache[4]:
                     return
 
-        serializer = self._db.get_state_serializer(protocol_version)
+        serializer = self._get_state_serializer()
         type_id, state = serializer.decode(type_id, data)
         aliases = dict(state.get('aliases', []))
         aliases[None] = state.get('module', defines.DEFAULT_MODULE_ALIAS)
@@ -575,6 +594,9 @@ cdef class DatabaseConnectionView:
         self._in_tx_modaliases = self._modaliases
         self._in_tx_user_schema = self._db.user_schema
         self._in_tx_global_schema = self._db._index._global_schema
+        self._in_tx_state_serializer = self._db.get_state_serializer(
+            self._protocol_version
+        )
 
     cdef _apply_in_tx(self, query_unit):
         if query_unit.has_ddl:
@@ -590,6 +612,7 @@ cdef class DatabaseConnectionView:
         if query_unit.user_schema is not None:
             self._in_tx_user_schema_pickled = query_unit.user_schema
             self._in_tx_user_schema = None
+            self._in_tx_state_serializer = None
         if query_unit.global_schema is not None:
             self._in_tx_global_schema_pickled = query_unit.global_schema
             self._in_tx_global_schema = None
@@ -894,9 +917,9 @@ cdef class DatabaseIndex:
             await self._server._after_system_config_reset(
                 op.setting_name)
 
-    def new_view(self, dbname: str, *, query_cache: bool):
+    def new_view(self, dbname: str, *, query_cache: bool, protocol_version):
         db = self.get_db(dbname)
-        return (<Database>db)._new_view(query_cache)
+        return (<Database>db)._new_view(query_cache, protocol_version)
 
     def remove_view(self, view: DatabaseConnectionView):
         db = self.get_db(view.dbname)

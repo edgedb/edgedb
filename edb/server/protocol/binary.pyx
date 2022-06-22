@@ -607,10 +607,20 @@ cdef class EdgeConnection:
         self.flush()
 
     cdef inline write_state_desc(self, bint flush=True):
-        self.write_status(
-            b'session_state_description',
-            self._describe_state(),
-        )
+        cdef WriteBuffer state, buf
+
+        buf = WriteBuffer.new_message(b'S')
+        buf.write_len_prefixed_bytes(b'session_state_description')
+
+        type_id, type_data = self.get_dbview().describe_state()
+        state = WriteBuffer.new()
+        state.write_bytes(type_id.bytes)
+        state.write_len_prefixed_bytes(type_data)
+
+        buf.write_len_prefixed_buffer(state)
+        buf.end_message()
+
+        self.write(buf)
         if flush:
             self.flush()
         self.pending_state_desc_push = False
@@ -661,6 +671,7 @@ cdef class EdgeConnection:
         dbv = await self.server.new_dbview(
             dbname=database,
             query_cache=self.query_cache_enabled,
+            protocol_version=self.protocol_version,
         )
         assert type(dbv) is dbview.DatabaseConnectionView
         self._dbview = <dbview.DatabaseConnectionView>dbv
@@ -1450,9 +1461,7 @@ cdef class EdgeConnection:
             WriteBuffer msg
 
         try:
-            type_id, data = self.get_dbview().encode_state(
-                self.protocol_version
-            )
+            type_id, data = self.get_dbview().encode_state()
         except sertypes.StateSerializationError:
             msg = WriteBuffer.new_message(b'c')
             msg.write_int16(0)  # no headers
@@ -1713,9 +1722,7 @@ cdef class EdgeConnection:
         type_id = self.buffer.read_bytes(16)
         assert self.buffer.read_int16() == 1
         type_data = self.buffer.read_len_prefixed_bytes()
-        self.get_dbview().decode_state(
-            type_id, type_data, self.protocol_version
-        )
+        self.get_dbview().decode_state(type_id, type_data)
 
         return QueryRequestInfo(
             self._tokenize(query),
@@ -1919,7 +1926,10 @@ cdef class EdgeConnection:
                 if self._stop_requested:
                     break
 
-                if self.pending_state_desc_push:
+                if (
+                    self.pending_state_desc_push and
+                    not self.get_dbview().in_tx()
+                ):
                     self.write_state_desc()
 
                 if not self.buffer.take_message():
@@ -2349,15 +2359,6 @@ cdef class EdgeConnection:
 
         return out_buf
 
-    cdef bytes _describe_state(self):
-        cdef WriteBuffer buf = WriteBuffer.new()
-        type_id, type_data = self.get_dbview().describe_state(
-            self.protocol_version
-        )
-        buf.write_bytes(type_id.bytes)
-        buf.write_len_prefixed_bytes(type_data)
-        return bytes(buf)
-
     def connection_made(self, transport):
         if not self.server._accepting_connections:
             transport.abort()
@@ -2488,7 +2489,7 @@ cdef class EdgeConnection:
     def push_state_desc(self):
         if not self.authed or self._con_status == EDGECON_BAD:
             return
-        if self.idling:
+        if self.idling and not self.get_dbview().in_tx():
             self.write_state_desc()
         else:
             self.pending_state_desc_push = True
