@@ -325,7 +325,7 @@ class PathId:
 
         result = self.__class__()
         result._path = self._path + ((ptrref, direction), target_ref)
-        link_name = ptrref.path_id_name or ptrref.name
+        link_name = ptrref.name
         lnk = (link_name, direction, is_linkprop)
         result._is_linkprop = is_linkprop
 
@@ -431,7 +431,7 @@ class PathId:
             )
 
             if debug:
-                link_name = str(ptrspec[0].path_id_name or ptrspec[0].name)
+                link_name = str(ptrspec[0].name)
                 ptr = f'({link_name})'
             else:
                 ptr = ptrspec[0].shortname.name

@@ -611,7 +611,6 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
             always_typenames=True,
         )
 
-    @test.xerror('Broken when injecting types - is not a computed pointer')
     async def test_edgeql_igroup_returning_08(self):
         await self.assert_query_result(
             r'''

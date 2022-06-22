@@ -1149,7 +1149,6 @@ class CommandContextToken(Generic[Command_T]):
     inheritance_merge: Optional[bool]
     inheritance_refdicts: Optional[AbstractSet[str]]
     mark_derived: Optional[bool]
-    preserve_path_id: Optional[bool]
     enable_recursion: Optional[bool]
     transient_derivation: Optional[bool]
 
@@ -1170,7 +1169,6 @@ class CommandContextToken(Generic[Command_T]):
         self.inheritance_merge = None
         self.inheritance_refdicts = None
         self.mark_derived = None
-        self.preserve_path_id = None
         self.enable_recursion = None
         self.transient_derivation = None
 
@@ -1269,13 +1267,6 @@ class CommandContext:
         for ctx in reversed(self.stack):
             if ctx.mark_derived is not None:
                 return ctx.mark_derived
-        return None
-
-    @property
-    def preserve_path_id(self) -> Optional[bool]:
-        for ctx in reversed(self.stack):
-            if ctx.preserve_path_id is not None:
-                return ctx.preserve_path_id
         return None
 
     @property

@@ -187,7 +187,6 @@ def derive_view(
     derived_name: Optional[sn.QualName] = None,
     derived_name_quals: Optional[Sequence[str]] = (),
     preserve_shape: bool = False,
-    preserve_path_id: bool = False,
     exprtype: s_types.ExprType = s_types.ExprType.Select,
     inheritance_merge: bool = True,
     attrs: Optional[Dict[str, Any]] = None,
@@ -237,7 +236,6 @@ def derive_view(
                 inheritance_refdicts={'pointers'},
                 mark_derived=True,
                 transient=True,
-                preserve_path_id=preserve_path_id,
                 attrs=attrs,
             )
 
@@ -300,7 +298,6 @@ def derive_ptr(
     derived_name: Optional[sn.QualName] = None,
     derived_name_quals: Optional[Sequence[str]] = (),
     preserve_shape: bool = False,
-    preserve_path_id: bool = False,
     derive_backlink: bool = False,
     inheritance_merge: bool = True,
     attrs: Optional[Dict[str, Any]] = None,
@@ -329,7 +326,6 @@ def derive_ptr(
         inheritance_refdicts={'pointers'},
         mark_derived=True,
         transient=True,
-        preserve_path_id=preserve_path_id,
         attrs=attrs)
 
     # Delete the bogus parents from a derived computed backlink.

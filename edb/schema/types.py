@@ -170,7 +170,6 @@ class Type(
         mark_derived: bool = False,
         attrs: Optional[Mapping[str, Any]] = None,
         inheritance_merge: bool = True,
-        preserve_path_id: bool = False,
         transient: bool = False,
         inheritance_refdicts: Optional[AbstractSet[str]] = None,
         **kwargs: Any,
@@ -218,9 +217,6 @@ class Type(
 
             if transient:
                 context.current().transient_derivation = True
-
-            if preserve_path_id:
-                context.current().preserve_path_id = True
 
             delta.add(cmd)
             schema = delta.apply(schema, context)

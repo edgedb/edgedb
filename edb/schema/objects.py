@@ -975,15 +975,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
         inheritable=False,
     )
 
-    # The path_id_name field is solely for the purposes of the compiler
-    # so that this item can act as a transparent proxy for the item
-    # it has been derived from, specifically in path ids.
-    path_id_name = SchemaField(
-        sn.QualName,
-        inheritable=False,
-        ephemeral=True,
-        default=None)
-
     # Fields that have been computed by the system as opposed to
     # set explicitly or inherited.
     computed_fields = SchemaField(

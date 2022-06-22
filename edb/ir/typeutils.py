@@ -513,6 +513,8 @@ def ptrref_from_ptrcls(  # NoQA: F811
     elif isinstance(ptrcls, s_pointers.Pointer):
         ircls = irast.PointerRef
         kwargs['id'] = ptrcls.id
+        kwargs['defined_here'] = ptrcls.get_defined_here(schema)
+
     else:
         raise AssertionError(f'unexpected pointer class: {ptrcls}')
 
@@ -654,7 +656,6 @@ def ptrref_from_ptrcls(  # NoQA: F811
         out_target=out_target,
         name=ptrcls.get_name(schema),
         shortname=ptrcls.get_shortname(schema),
-        path_id_name=ptrcls.get_path_id_name(schema),
         std_parent_name=std_parent_name,
         source_ptr=source_ptr,
         base_ptr=base_ptr,
@@ -989,22 +990,6 @@ def replace_pathid_prefix(
             continue
         dir = part.rptr_dir()
         assert dir
-
-        # If the ptrref doesn't match the new result type, try to find
-        # the correct ptrref, up or down the hierarchy.
-        # TODO: Do we need to handle the link property case?
-        if (
-            ptrref.out_source
-            and result.target != ptrref.out_source
-        ):
-            ancptr: Optional[irast.BasePointerRef] = ptrref
-            while ancptr:
-                if new_ptrref := maybe_find_actual_ptrref(
-                    result.target, ancptr, dir=dir, material=False,
-                ):
-                    ptrref = new_ptrref
-                    break
-                ancptr = ancptr.base_ptr
 
         if ptrref.source_ptr:
             result = result.ptr_path()

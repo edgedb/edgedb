@@ -785,6 +785,13 @@ def extend_path(
 
         src_path_id = source_set.path_id
 
+    orig_ptrcls = ptrcls
+
+    # Find the pointer definition site.
+    # This makes it so that views don't change path ids unless they are
+    # introducing some computation.
+    ptrcls = ptrcls.get_nearest_defined(ctx.env.schema)
+
     path_id = pathctx.extend_path_id(
         src_path_id,
         ptrcls=ptrcls,
@@ -793,7 +800,7 @@ def extend_path(
         ctx=ctx,
     )
 
-    target = ptrcls.get_far_endpoint(ctx.env.schema, direction)
+    target = orig_ptrcls.get_far_endpoint(ctx.env.schema, direction)
     assert isinstance(target, s_types.Type)
     target_set = new_set(
         stype=target, path_id=path_id, context=srcctx, ctx=ctx)

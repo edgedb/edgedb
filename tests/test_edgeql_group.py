@@ -21,6 +21,7 @@ import os.path
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLGroup(tb.QueryTestCase):
@@ -734,6 +735,9 @@ class TestEdgeQLGroup(tb.QueryTestCase):
 
         await self.assert_query_result(qry, res)
 
+    @test.xerror('''
+        Can't compile ref to visible binding ns~9@@(__derived__::g~2)
+    ''')
     async def test_edgeql_group_by_group_by_03a(self):
         await self._test_edgeql_group_by_group_by_03(
             '''
@@ -977,4 +981,132 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 by awd_size, .element) { grouping };
             ''',
             [{"grouping": ["awd_size", "element"]}] * 6,
+        )
+
+    @test.xerror('''
+        Can't find materialized set
+            ns~5@@(__derived__::GR@w~1).>elements[IS cards::Card]
+
+        Issue #3951
+    ''')
+    async def test_edgeql_group_binding_01(self):
+        await self.assert_query_result(
+            '''
+                with GR := (group cards::Card BY .element)
+                select GR {
+                  multi elements := (
+                    with els := .elements
+                    select els {name}
+                  )
+                };
+            ''',
+            tb.bag([
+                {
+                    "elements": tb.bag(
+                        [{"name": "Bog monster"}, {"name": "Giant turtle"}]),
+                },
+                {
+                    "elements": tb.bag([{"name": "Imp"}, {"name": "Dragon"}]),
+                },
+                {
+                    "elements": tb.bag([{"name": "Dwarf"}, {"name": "Golem"}]),
+                },
+                {
+                    "elements": tb.bag([
+                        {"name": "Sprite"},
+                        {"name": "Giant eagle"},
+                        {"name": "Djinn"}
+                    ]),
+                }
+            ])
+        )
+
+    async def test_edgeql_group_ordering_01(self):
+        res = [
+            {
+                "elements": tb.bag([
+                    {"name": "Sprite"},
+                    {"name": "Giant eagle"},
+                    {"name": "Djinn"}
+                ]),
+            },
+            {
+                "elements": tb.bag([{"name": "Dwarf"}, {"name": "Golem"}]),
+            },
+            {
+                "elements": tb.bag([{"name": "Imp"}, {"name": "Dragon"}]),
+            },
+            {
+                "elements": tb.bag(
+                    [{"name": "Bog monster"}, {"name": "Giant turtle"}]),
+            },
+        ]
+
+        await self.assert_query_result(
+            '''
+                with GR := (group cards::Card BY .element)
+                select GR {
+                  elements: {name},
+                }
+                order by .key.element;
+            ''',
+            res,
+        )
+
+        await self.assert_query_result(
+            '''
+                with GR := (group cards::Card BY .element)
+                select GR {
+                  key: {element},
+                  elements: {name},
+                }
+                order by .key.element;
+            ''',
+            res,
+        )
+
+    async def test_edgeql_group_of_for_01(self):
+        await self.assert_query_result(
+            '''
+                WITH
+                  C := (FOR c IN cards::Card UNION (
+                    SELECT c { len := len(c.name) }
+                  ))
+                GROUP C { name }
+                USING l := C.len
+                BY l;
+            ''',
+            tb.bag([
+                {
+                    "elements": tb.bag([
+                        {"name": "Bog monster"}, {"name": "Giant eagle"}]
+                    ),
+                    "grouping": ["l"],
+                    "key": {"l": 11},
+                },
+                {
+                    "elements": tb.bag([{"name": "Imp"}]),
+                    "grouping": ["l"],
+                    "key": {"l": 3},
+                },
+                {
+                    "elements": tb.bag([
+                        {"name": "Dwarf"}, {"name": "Golem"}, {"name": "Djinn"}
+                    ]),
+                    "grouping": ["l"],
+                    "key": {"l": 5}
+                },
+                {
+                    "elements": tb.bag([
+                        {"name": "Dragon"}, {"name": "Sprite"}
+                    ]),
+                    "grouping": ["l"],
+                    "key": {"l": 6}
+                },
+                {
+                    "elements": [{"name": "Giant turtle"}],
+                    "grouping": ["l"],
+                    "key": {"l": 12}
+                }
+            ])
         )

@@ -102,7 +102,14 @@ def compile_materialized_exprs(
         matctx.materializing |= {stmt}
         matctx.expr_exposed = True
 
-        for mat_set in stmt.materialized_sets.values():
+        # HACK: Sort longer paths before shorter ones
+        # We want foo->bar to appear before foo
+        mat_sets = sorted(
+            (stmt.materialized_sets.values()),
+            key=lambda m: -len(m.materialized.path_id),
+        )
+
+        for mat_set in mat_sets:
             if len(mat_set.uses) <= 1:
                 continue
             assert mat_set.finalized
