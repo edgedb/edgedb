@@ -103,8 +103,7 @@ CREATE FUNCTION
 cal::to_local_date(s: std::str, fmt: OPTIONAL str={}) -> cal::local_date
 {
     CREATE ANNOTATION std::description := 'Create a `cal::local_date` value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -161,8 +160,7 @@ CREATE FUNCTION
 cal::to_local_time(s: std::str, fmt: OPTIONAL str={}) -> cal::local_time
 {
     CREATE ANNOTATION std::description := 'Create a `cal::local_time` value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -371,8 +369,9 @@ std::`+` (l: std::datetime, r: cal::relative_duration) -> std::datetime {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
-    # operators on timestamptz are STABLE in PostgreSQL
-    SET volatility := 'Stable';
+    # Immutable because datetime is guaranteed to be in UTC and no DST issues
+    # should affect this.
+    SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
         SELECT ("l" + "r")::edgedb.timestamptz_t
@@ -385,8 +384,9 @@ std::`+` (l: cal::relative_duration, r: std::datetime) -> std::datetime {
     CREATE ANNOTATION std::identifier := 'plus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time addition.';
-    # operators on timestamptz are STABLE in PostgreSQL
-    SET volatility := 'Stable';
+    # Immutable because datetime is guaranteed to be in UTC and no DST issues
+    # should affect this.
+    SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
         SELECT ("l" + "r")::edgedb.timestamptz_t
@@ -399,8 +399,9 @@ std::`-` (l: std::datetime, r: cal::relative_duration) -> std::datetime {
     CREATE ANNOTATION std::identifier := 'minus';
     CREATE ANNOTATION std::description :=
         'Time interval and date/time subtraction.';
-    # operators on timestamptz are STABLE in PostgreSQL
-    SET volatility := 'Stable';
+    # Immutable because datetime is guaranteed to be in UTC and no DST issues
+    # should affect this.
+    SET volatility := 'Immutable';
     USING SQL $$
         SELECT ("l" - "r")::edgedb.timestamptz_t
     $$
@@ -1214,25 +1215,25 @@ CREATE CAST FROM cal::local_date TO cal::local_datetime {
 
 
 CREATE CAST FROM std::str TO cal::local_datetime {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.local_datetime_in';
 };
 
 
 CREATE CAST FROM std::str TO cal::local_date {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.local_date_in';
 };
 
 
 CREATE CAST FROM std::str TO cal::local_time {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.local_time_in';
 };
 
 
 CREATE CAST FROM std::str TO cal::relative_duration {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT val::edgedb.relative_duration_t;
     $$;
@@ -1240,20 +1241,20 @@ CREATE CAST FROM std::str TO cal::relative_duration {
 
 
 CREATE CAST FROM std::str TO cal::date_duration {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.date_duration_in';
 };
 
 
 CREATE CAST FROM cal::local_datetime TO std::str {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT trim(to_json(val)::text, '"');
     $$;
 };
 
 CREATE CAST FROM cal::local_date TO std::str {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
@@ -1277,37 +1278,37 @@ CREATE CAST FROM cal::date_duration TO std::str {
 
 
 CREATE CAST FROM cal::local_datetime TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM cal::local_date TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM cal::local_time TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM cal::relative_duration TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM cal::date_duration TO std::json {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
 };
 
 
 CREATE CAST FROM std::json TO cal::local_datetime {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.local_datetime_in(
         edgedb.jsonb_extract_scalar(val, 'string'));
@@ -1316,7 +1317,7 @@ CREATE CAST FROM std::json TO cal::local_datetime {
 
 
 CREATE CAST FROM std::json TO cal::local_date {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.local_date_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
@@ -1324,7 +1325,7 @@ CREATE CAST FROM std::json TO cal::local_date {
 
 
 CREATE CAST FROM std::json TO cal::local_time {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.local_time_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
@@ -1332,7 +1333,7 @@ CREATE CAST FROM std::json TO cal::local_time {
 
 
 CREATE CAST FROM std::json TO cal::relative_duration {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'string')::interval::edgedb.relative_duration_t;
     $$;
@@ -1340,7 +1341,7 @@ CREATE CAST FROM std::json TO cal::relative_duration {
 
 
 CREATE CAST FROM std::json TO cal::date_duration {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT edgedb.date_duration_in(edgedb.jsonb_extract_scalar(val, 'string'));
     $$;
@@ -1348,13 +1349,13 @@ CREATE CAST FROM std::json TO cal::date_duration {
 
 
 CREATE CAST FROM std::duration TO cal::relative_duration {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 
 CREATE CAST FROM cal::relative_duration TO std::duration {
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
@@ -1555,8 +1556,7 @@ std::to_str(dt: cal::local_datetime, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -1584,8 +1584,7 @@ std::to_str(d: cal::local_date, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -1619,8 +1618,7 @@ std::to_str(nt: cal::local_time, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
-    # Helper functions raising exceptions are STABLE.
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN
@@ -1648,7 +1646,7 @@ std::to_str(rd: cal::relative_duration, fmt: OPTIONAL str={}) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return string representation of the input value.';
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE WHEN "fmt" IS NULL THEN

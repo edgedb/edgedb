@@ -178,8 +178,7 @@ std::bit_rshift(val: std::int16, n: std::int64) -> std::int16
 {
     CREATE ANNOTATION std::description :=
         'Bitwise right-shift operator for 16-bit integers.';
-    # Stable volatility because of helper "edgeql.raise".
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE
@@ -208,8 +207,7 @@ std::bit_rshift(val: std::int32, n: std::int64) -> std::int32
 {
     CREATE ANNOTATION std::description :=
         'Bitwise right-shift operator for 32-bit integers.';
-    # Stable volatility because of helper "edgeql.raise".
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE
@@ -238,8 +236,7 @@ std::bit_rshift(val: std::int64, n: std::int64) -> std::int64
 {
     CREATE ANNOTATION std::description :=
         'Bitwise right-shift operator for 64-bit integers.';
-    # Stable volatility because of helper "edgeql.raise".
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE
@@ -268,8 +265,7 @@ std::bit_lshift(val: std::int16, n: std::int64) -> std::int16
 {
     CREATE ANNOTATION std::description :=
         'Bitwise left-shift operator for 16-bit integers.';
-    # Stable volatility because of helper "edgeql.raise".
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE
@@ -294,8 +290,7 @@ std::bit_lshift(val: std::int32, n: std::int64) -> std::int32
 {
     CREATE ANNOTATION std::description :=
         'Bitwise left-shift operator for 32-bit integers.';
-    # Stable volatility because of helper "edgeql.raise".
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE
@@ -320,8 +315,7 @@ std::bit_lshift(val: std::int64, n: std::int64) -> std::int64
 {
     CREATE ANNOTATION std::description :=
         'Bitwise left-shift operator for 64-bit integers.';
-    # Stable volatility because of helper "edgeql.raise".
-    SET volatility := 'Stable';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE
