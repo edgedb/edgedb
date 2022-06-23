@@ -1664,6 +1664,8 @@ class Compiler:
         elif isinstance(ql, qlast.ConfigOp):
             if ql.scope is qltypes.ConfigScope.SESSION:
                 capability = enums.Capability.SESSION_CONFIG
+            elif ql.scope is qltypes.ConfigScope.GLOBAL:
+                capability = enums.Capability.SESSION_CONFIG
             else:
                 capability = enums.Capability.PERSISTENT_CONFIG
             return (
