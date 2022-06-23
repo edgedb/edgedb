@@ -429,6 +429,12 @@ class ResetFieldStmt(Nonterm):
             value=None,
         )
 
+    def reduce_RESET_DEFAULT(self, *kids):
+        self.val = qlast.SetField(
+            name='default',
+            value=None,
+        )
+
 
 class CreateAnnotationValueStmt(Nonterm):
     def reduce_CREATE_ANNOTATION_NodeName_ASSIGN_Expr(self, *kids):
@@ -2708,6 +2714,26 @@ class CreateGlobalStmt(Nonterm):
         )
 
 
+class SetGlobalTypeStmt(Nonterm):
+
+    def reduce_SETTYPE_FullTypeExpr_OptAlterUsingClause(self, *kids):
+        self.val = qlast.SetGlobalType(
+            value=kids[1].val,
+            cast_expr=kids[2].val,
+        )
+
+    def reduce_SETTYPE_FullTypeExpr_RESET_TO_DEFAULT(self, *kids):
+        self.val = qlast.SetGlobalType(
+            value=kids[1].val,
+            reset_value=True,
+        )
+
+    def reduce_RESET_TYPE(self, *kids):
+        self.val = qlast.SetGlobalType(
+            value=None,
+        )
+
+
 commands_block(
     'AlterGlobal',
     UsingStmt,
@@ -2717,7 +2743,7 @@ commands_block(
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
-    SetPointerTypeStmt,
+    SetGlobalTypeStmt,
     SetCardinalityStmt,
     SetRequiredStmt,
     opt=False

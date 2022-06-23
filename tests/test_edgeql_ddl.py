@@ -5960,7 +5960,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r"default expression is of invalid type",
         ):
             await self.con.execute("""
-                alter global foo set type array<uuid>;
+                alter global foo set type array<uuid> reset to default;
             """)
 
         async with self.assertRaisesRegexTx(
@@ -5974,7 +5974,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute("""
             alter global foo set optional;
             alter global foo reset default;
-            alter global foo set type array<int64>;
+            alter global foo set type array<int64> reset to default;
         """)
 
         await self.assert_query_result(
@@ -6272,7 +6272,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             alter global foo {
                 reset cardinality;
                 reset expression;
-                set type str;
+                set type str reset to default;
             };
         ''')
 
@@ -6314,7 +6314,36 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r"cannot specify a type and an expression for a global",
         ):
             await self.con.execute("""
+                alter global foo set type str reset to default;
+            """)
+
+    async def test_edgeql_ddl_global_08(self):
+        await self.con.execute('''
+            create global foo -> str;
+            set global foo := "test";
+        ''')
+        await self.con.execute('''
+            alter global foo set type int64 reset to default;
+        ''')
+        await self.assert_query_result(
+            r'''select global foo''',
+            []
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"SET TYPE on global must explicitly reset the global's value"
+        ):
+            await self.con.execute("""
                 alter global foo set type str;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"USING casts for SET TYPE on globals are not supported"
+        ):
+            await self.con.execute("""
+                alter global foo set type str using ('lol');
             """)
 
     async def test_edgeql_ddl_property_computable_01(self):
