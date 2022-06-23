@@ -284,8 +284,9 @@ def include_specific_rvar(
         if parent_scope is not None:
             scopes.append(parent_scope)
 
-        if not any(scope.path_id == path_id or
-                   scope.find_child(path_id) for scope in scopes):
+        tpath_id = path_id.tgt_path()
+        if not any(scope.path_id == tpath_id or
+                   scope.find_child(tpath_id) for scope in scopes):
             pathctx.put_path_id_mask(stmt, path_id)
 
     return rvar
