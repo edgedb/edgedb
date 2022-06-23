@@ -23,6 +23,7 @@ include "./consts.pxi"
 import asyncio
 import collections
 import http
+import re
 import ssl
 import urllib.parse
 
@@ -58,11 +59,15 @@ PROTO_MIME = (
     f'.binary'
 ).encode()
 
+PROTO_MIME_RE = re.compile(br'application/x\.edgedb\.v_(\d+)_(\d+)\.binary')
+
 
 cdef class HttpRequest:
 
     def __cinit__(self):
         self.body = b''
+        self.authorization = b''
+        self.content_type = b''
 
 
 cdef class HttpResponse:
@@ -198,6 +203,13 @@ cdef class HttpProtocol:
                 self.current_request.accept += b',' + value
             else:
                 self.current_request.accept = value
+        elif name == b'authorization':
+            self.current_request.authorization = value
+        elif name.startswith(b'x-edgedb-'):
+            if self.current_request.params is None:
+                self.current_request.params = {}
+            param = name[len(b'x-edgedb-'):]
+            self.current_request.params[param] = value
 
     def on_body(self, body: bytes):
         self.current_request.body += body
@@ -297,7 +309,10 @@ cdef class HttpProtocol:
             response.close_connection)
 
     def _switch_to_binary_protocol(self, data=None):
-        binproto = binary.new_edge_connection(self.server, self.external_auth)
+        binproto = binary.new_edge_connection(
+            self.server,
+            external_auth=self.external_auth,
+        )
         self.transport.set_protocol(binproto)
         binproto.connection_made(self.transport)
         if data:
@@ -416,91 +431,144 @@ cdef class HttpProtocol:
         path = urllib.parse.unquote(request.url.path.decode('ascii'))
         path = path.strip('/')
         path_parts = path.split('/')
+        path_parts_len = len(path_parts)
+        route = path_parts[0]
 
-        # Check if this is a request to a registered extension
-        if len(path_parts) >= 3 and path_parts[0] == 'db':
-            root, dbname, extname, *args = path_parts
+        if route == 'db':
+            if path_parts_len < 2:
+                return self._not_found(request, response)
+
+            dbname = path_parts[1]
             db = self.server.maybe_get_db(dbname=dbname)
-            if extname == 'edgeql':
-                extname = 'edgeql_http'
+            if db is None:
+                return self._not_found(request, response)
 
-            if db is not None and extname in db.extensions:
+            extname = path_parts[2] if path_parts_len > 2 else None
+
+            if (
+                # Binary proto tunnelled through HTTP
+                (extname is None and request.method == b'POST')
+                # Legacy admin UI "extension" path for same
+                or (
+                    extname == 'admin_binary_http'
+                    and self.server.is_admin_ui_enabled()
+                )
+            ):
+                if not request.content_type:
+                    return self._bad_request(
+                        request,
+                        response,
+                        message="missing or malformed Content-Type header",
+                    )
+
+                ver_m = PROTO_MIME_RE.match(request.content_type)
+                if not ver_m:
+                    return self._bad_request(
+                        request,
+                        response,
+                        message="missing or malformed Content-Type header",
+                    )
+
+                proto_ver = (
+                    int(ver_m.group(1).decode()),
+                    int(ver_m.group(2).decode()),
+                )
+
+                params = request.params
+                if params is None:
+                    conn_params = {}
+                else:
+                    conn_params = {
+                        n.decode("utf-8"): v.decode("utf-8")
+                        for n, v in request.params.items()
+                    }
+
+                conn_params["database"] = dbname
+
+                response.body = await binary.eval_buffer(
+                    self.server,
+                    database=dbname,
+                    data=self.current_request.body,
+                    conn_params=conn_params,
+                    protocol_version=proto_ver,
+                    auth_data=self.current_request.authorization,
+                    transport=srvargs.ServerConnTransport.HTTP,
+                )
+                response.status = http.HTTPStatus.OK
+                response.content_type = PROTO_MIME
+                response.close_connection = True
+
+            else:
+                # Check if this is a request to a registered extension
+                if extname == 'edgeql':
+                    extname = 'edgeql_http'
+
+                if extname not in db.extensions:
+                    return self._not_found(request, response)
+
+                args = path_parts[3:]
+
                 if extname == 'graphql':
                     await graphql_ext.handle_request(
                         request, response, db, args, self.server
                     )
-                    return
                 elif extname == 'notebook':
                     await notebook_ext.handle_request(
                         request, response, db, args, self.server
                     )
-                    return
                 elif extname == 'edgeql_http':
                     await edgeql_ext.handle_request(
                         request, response, db, args, self.server
                     )
-                    return
 
-            elif (
-                db is not None and
-                extname == 'admin_binary_http' and
-                self.server.is_admin_ui_enabled()
-            ):
-                out = await binary.eval_buffer(
-                    self.server,
-                    dbname,
-                    self.current_request.body,
-                )
+        elif route == 'server':
+            # System API request
+            await system_api.handle_request(
+                request,
+                response,
+                path_parts[1:],
+                self.server,
+            )
+        elif path_parts == ['metrics'] and request.method == b'GET':
+            # Quoting the Open Metrics spec:
+            #    Implementers MUST expose metrics in the OpenMetrics
+            #    text format in response to a simple HTTP GET request
+            #    to a documented URL for a given process or device.
+            #    This endpoint SHOULD be called "/metrics".
+            await metrics.handle_request(
+                request,
+                response,
+            )
+        elif (path_parts == ['server-info'] and
+            request.method == b'GET' and
+            (self.server.in_dev_mode() or self.server.in_test_mode())
+        ):
+            await server_info.handle_request(
+                request,
+                response,
+                self.server,
+            )
+        elif path_parts[0] == 'ui' and self.server.is_admin_ui_enabled():
+            await ui_ext.handle_request(
+                request,
+                response,
+                path_parts[1:],
+                self.server,
+            )
+        else:
+            return self._not_found(request, response)
 
-                response.body = out
-                response.status = http.HTTPStatus.OK
-                response.content_type = PROTO_MIME
-                response.close_connection = True
-                return
-
-        elif path_parts:
-            if path_parts[0] == 'server':
-                # System API request
-                await system_api.handle_request(
-                    request,
-                    response,
-                    path_parts[1:],
-                    self.server,
-                )
-                return
-            if path_parts == ['metrics'] and request.method == b'GET':
-                # Quoting the Open Metrics spec:
-                #    Implementers MUST expose metrics in the OpenMetrics
-                #    text format in response to a simple HTTP GET request
-                #    to a documented URL for a given process or device.
-                #    This endpoint SHOULD be called "/metrics".
-                await metrics.handle_request(
-                    request,
-                    response,
-                )
-                return
-            if (path_parts == ['server-info'] and
-                request.method == b'GET' and
-                (self.server.in_dev_mode() or self.server.in_test_mode())
-            ):
-                await server_info.handle_request(
-                    request,
-                    response,
-                    self.server,
-                )
-                return
-            if path_parts[0] == 'ui' and self.server.is_admin_ui_enabled():
-                await ui_ext.handle_request(
-                    request,
-                    response,
-                    path_parts[1:],
-                    self.server,
-                )
-                return
-
-
+    cdef _not_found(self, HttpRequest request, HttpResponse response):
         response.body = b'Unknown path'
         response.status = http.HTTPStatus.NOT_FOUND
         response.close_connection = True
 
-        return
+    cdef _bad_request(
+        self,
+        HttpRequest request,
+        HttpResponse response,
+        str message,
+    ):
+        response.body = message.encode("utf-8")
+        response.status = http.HTTPStatus.BAD_REQUEST
+        response.close_connection = True

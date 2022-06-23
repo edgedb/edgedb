@@ -38,6 +38,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          UINT32_MAX
 
 import immutables
+from jwcrypto import jwt
 
 from edb import buildmeta
 from edb import edgeql
@@ -60,6 +61,7 @@ from edb.server.dbview cimport dbview
 
 from edb.server import config
 
+from edb.server import args as srvargs
 from edb.server import compiler
 from edb.server import defines as edbdef
 from edb.server.compiler import errormech
@@ -213,8 +215,13 @@ cdef class EdgeConnection:
     def __init__(
         self,
         server,
-        external_auth: bool = False,
-        passive: bool = False
+        *,
+        external_auth: bool,
+        passive: bool,
+        transport: srvargs.ServerConnTransport,
+        auth_data: bytes,
+        conn_params: dict[str, str] | None,
+        protocol_version: tuple[int, int] = CURRENT_PROTOCOL,
     ):
         self._con_status = EDGECON_NEW
         self._id = server.on_binary_client_created()
@@ -248,9 +255,11 @@ cdef class EdgeConnection:
         self.idling = False
         self.started_idling_at = 0.0
 
-        self.protocol_version = CURRENT_PROTOCOL
+        self.protocol_version = protocol_version
         self.min_protocol = MIN_PROTOCOL
         self.max_protocol = CURRENT_PROTOCOL
+
+        self._conn_params = conn_params
 
         self._pinned_pgcon = None
         self._pinned_pgcon_in_tx = False
@@ -262,6 +271,12 @@ cdef class EdgeConnection:
         # just what's in the buffer. It cannot "wait for message". This
         # is used to implement binary protocol over http+fetch.
         self._passive_mode = passive
+
+        self._transport_proto = transport
+
+        # Authentication data supplied by the transport (e.g. the content
+        # of an HTTP Authorization header).
+        self._auth_data = auth_data
 
     def __del__(self):
         # Should not ever happen, there's a strong ref to
@@ -474,13 +489,24 @@ cdef class EdgeConnection:
         cdef:
             char mtype
 
-        await self.wait_for_message(report_idling=True)
-        mtype = self.buffer.get_message_type()
-        if mtype != b'V':
-            raise errors.BinaryProtocolError(
-                f'unexpected initial message: "{chr(mtype)}", expected "V"')
+        if self._transport_proto is srvargs.ServerConnTransport.HTTP:
+            if self._conn_params is None:
+                params = {}
+            else:
+                params = self._conn_params
+        else:
+            await self.wait_for_message(report_idling=True)
+            mtype = self.buffer.get_message_type()
+            if mtype != b'V':
+                raise errors.BinaryProtocolError(
+                    f'unexpected initial message: "{chr(mtype)}", '
+                    f'expected "V"')
 
-        return await self._do_handshake()
+            params = await self._do_handshake()
+            if self._conn_params is not None:
+                params = self._conn_params + params
+
+        return params
 
     async def auth(self, params):
         cdef:
@@ -520,11 +546,14 @@ cdef class EdgeConnection:
         if self._external_auth:
             authmethod_name = 'Trust'
         else:
-            authmethod = await self.server.get_auth_method(user)
+            authmethod = await self.server.get_auth_method(
+                user, self._transport_proto)
             authmethod_name = type(authmethod).__name__
 
         if authmethod_name == 'SCRAM':
             await self._auth_scram(user)
+        elif authmethod_name == 'JWT':
+            self._auth_jwt(user)
         elif authmethod_name == 'Trust':
             self._auth_trust(user)
         else:
@@ -533,6 +562,9 @@ cdef class EdgeConnection:
 
         logger.debug('successfully authenticated %s in database %s',
                      user, database)
+
+        if self._transport_proto is srvargs.ServerConnTransport.HTTP:
+            return
 
         buf = WriteBuffer()
 
@@ -638,6 +670,83 @@ cdef class EdgeConnection:
         roles = self.server.get_roles()
         if user not in roles:
             raise errors.AuthenticationError('authentication failed')
+
+    def _auth_jwt(self, user):
+        role = self.server.get_roles().get(user)
+        if role is None:
+            raise errors.AuthenticationError('authentication failed')
+
+        if not self._auth_data:
+            raise errors.AuthenticationError(
+                'authentication failed: no authorization data provided')
+
+        header_value = self._auth_data.decode("ascii")
+        scheme, _, encoded_token = header_value.partition(" ")
+        if scheme.lower() != "bearer":
+            raise errors.AuthenticationError(
+                'authentication failed: unrecognized authentication scheme')
+
+        encoded_token = encoded_token.strip()
+        if not encoded_token:
+            raise errors.AuthenticationError(
+                'authentication failed: malformed JWT')
+
+        ekey = self.server.get_jwe_private_key()
+        skey = self.server.get_jws_public_key()
+
+        try:
+            decrypted_token = jwt.JWT(
+                key=ekey,
+                algs=[
+                    "RSA-OAEP-256",
+                    "ECDH-ES",
+                    "A128GCM",
+                    "A192GCM",
+                    "A256GCM",
+                ],
+                jwt=encoded_token,
+            )
+            token = jwt.JWT(
+                key=skey,
+                algs=["RS256", "ES256"],
+                jwt=decrypted_token.claims,
+            )
+        except jwt.JWException as e:
+            logger.debug('authentication failure', exc_info=True)
+            raise errors.AuthenticationError(
+                f'authentication failed: {e.args[0]}'
+            ) from None
+        except Exception as e:
+            logger.debug('authentication failure', exc_info=True)
+            raise errors.AuthenticationError(
+                f'authentication failed: cannot decode JWT'
+            ) from None
+
+        namespace = "edgedb.server"
+
+        try:
+            claims = json.loads(token.claims)
+        except Exception as e:
+            raise errors.AuthenticationError(
+                f'authentication failed: malformed claims section in JWT'
+            ) from None
+
+        if not claims.get(f"{namespace}.any_role"):
+            token_roles = claims.get(f"{namespace}.roles")
+            if not isinstance(token_roles, dict):
+                raise errors.AuthenticationError(
+                    f'authentication failed: malformed claims section in JWT'
+                    f' expected mapping in "role_names"'
+                )
+
+            token_pw = token_roles.get(user)
+            if token_pw is None:
+                raise errors.AuthenticationError(
+                    'authentication failed: role not authorized by this JWT')
+
+            if token_pw != role["password"]:
+                raise errors.AuthenticationError(
+                    'authentication failed: mismatched password in JWT')
 
     async def _auth_scram(self, user):
         # Tell the client that we require SASL SCRAM auth.
@@ -1672,42 +1781,37 @@ cdef class EdgeConnection:
             char mtype
             bint is_legacy
 
-        if not self._passive_mode:
-            # XXX: This is temporary hack. We'll have to implement
-            # proper authentication for binary over HTTP soon
-            # (most likely with JWT).
+        try:
+            params = await self.do_handshake()
+            is_legacy = self.protocol_version <= MAX_LEGACY_PROTOCOL
+            if not is_legacy:
+                await self.auth(params)
+        except Exception as ex:
+            if self._transport is not None:
+                # If there's no transport it means that the connection
+                # was aborted, in which case we don't really care about
+                # reporting the exception.
 
-            try:
-                params = await self.do_handshake()
-                is_legacy = self.protocol_version <= MAX_LEGACY_PROTOCOL
-                if not is_legacy:
-                    await self.auth(params)
-            except Exception as ex:
-                if self._transport is not None:
-                    # If there's no transport it means that the connection
-                    # was aborted, in which case we don't really care about
-                    # reporting the exception.
+                self.write_error(ex)
+                self.close()
 
-                    self.write_error(ex)
-                    self.close()
+                if not isinstance(ex, (errors.ProtocolError,
+                                        errors.AuthenticationError)):
+                    self.loop.call_exception_handler({
+                        'message': (
+                            'unhandled error in edgedb protocol while '
+                            'accepting new connection'
+                        ),
+                        'exception': ex,
+                        'protocol': self,
+                        'transport': self._transport,
+                        'task': self._main_task,
+                    })
 
-                    if not isinstance(ex, (errors.ProtocolError,
-                                           errors.AuthenticationError)):
-                        self.loop.call_exception_handler({
-                            'message': (
-                                'unhandled error in edgedb protocol while '
-                                'accepting new connection'
-                            ),
-                            'exception': ex,
-                            'protocol': self,
-                            'transport': self._transport,
-                            'task': self._main_task,
-                        })
+            return
 
-                return
-
-            if is_legacy:
-                return await self.legacy_main(params)
+        if is_legacy:
+            return await self.legacy_main(params)
 
         self.authed = True
         self.server.on_binary_client_authed(self)
@@ -2739,14 +2843,29 @@ cdef class VirtualTransport:
         self.closed = True
 
 
-async def eval_buffer(object server, str database, bytes data):
+async def eval_buffer(
+    server,
+    database: str,
+    data: bytes,
+    conn_params: dict[str, str],
+    protocol_version: tuple[int, int],
+    auth_data: bytes,
+    transport: srvargs.ServerConnTransport,
+):
     cdef:
         VirtualTransport vtr
         EdgeConnection proto
 
     vtr = VirtualTransport()
 
-    proto = new_edge_connection(server, passive=True)
+    proto = new_edge_connection(
+        server,
+        passive=True,
+        auth_data=auth_data,
+        transport=transport,
+        conn_params=conn_params,
+        protocol_version=protocol_version,
+    )
 
     proto.connection_made(vtr)
     if vtr.is_closing() or proto._main_task is None:
@@ -2771,10 +2890,24 @@ include "binary_v0.pyx"
 
 def new_edge_connection(
     server,
+    *,
     external_auth: bool = False,
     passive: bool = False,
+    transport: srvargs.ServerConnTransport = (
+        srvargs.ServerConnTransport.TCP),
+    auth_data: bytes = b'',
+    protocol_version: tuple[int, int] = edbdef.CURRENT_PROTOCOL,
+    conn_params: dict[str, str] | None = None,
 ):
-    return EdgeConnectionBackwardsCompatible(server, external_auth, passive)
+    return EdgeConnectionBackwardsCompatible(
+        server,
+        external_auth=external_auth,
+        passive=passive,
+        transport=transport,
+        auth_data=auth_data,
+        protocol_version=protocol_version,
+        conn_params=conn_params,
+    )
 
 
 async def run_script(

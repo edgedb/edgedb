@@ -26,14 +26,31 @@ CREATE ABSTRACT INHERITABLE ANNOTATION cfg::requires_restart;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::system;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 
-CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
-
-CREATE ABSTRACT TYPE cfg::AuthMethod EXTENDING cfg::ConfigObject;
-CREATE TYPE cfg::Trust EXTENDING cfg::AuthMethod;
-CREATE TYPE cfg::SCRAM EXTENDING cfg::AuthMethod;
-
 CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
 CREATE SCALAR TYPE cfg::AllowBareDDL EXTENDING enum<AlwaysAllow, NeverAllow>;
+CREATE SCALAR TYPE cfg::ConnectionTransport EXTENDING enum<TCP, HTTP>;
+
+CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
+
+CREATE ABSTRACT TYPE cfg::AuthMethod EXTENDING cfg::ConfigObject {
+    # Connection transports applicable to this auth entry.
+    # An empty set means "apply to all transports".
+    CREATE MULTI PROPERTY transports -> cfg::ConnectionTransport {
+        SET readonly := true;
+    };
+};
+
+CREATE TYPE cfg::Trust EXTENDING cfg::AuthMethod;
+CREATE TYPE cfg::SCRAM EXTENDING cfg::AuthMethod {
+    ALTER PROPERTY transports {
+        SET default := { cfg::ConnectionTransport.TCP };
+    };
+};
+CREATE TYPE cfg::JWT EXTENDING cfg::AuthMethod {
+    ALTER PROPERTY transports {
+        SET default := { cfg::ConnectionTransport.HTTP };
+    };
+};
 
 CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
     CREATE REQUIRED PROPERTY priority -> std::int64 {
@@ -48,6 +65,7 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
 
     CREATE SINGLE LINK method -> cfg::AuthMethod {
         CREATE CONSTRAINT std::exclusive;
+        SET readonly := true;
     };
 
     CREATE PROPERTY comment -> std::str {

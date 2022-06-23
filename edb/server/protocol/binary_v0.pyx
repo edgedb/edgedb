@@ -20,15 +20,31 @@
 cdef tuple MIN_LEGACY_PROTOCOL = edbdef.MIN_LEGACY_PROTOCOL
 
 
+from edb.server import args as srvargs
+
+
 @cython.final
 cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
     def __init__(
         self,
         server,
-        external_auth: bool = False,
-        passive: bool = False
+        *,
+        external_auth: bool,
+        passive: bool,
+        transport: srvargs.ServerConnectionTransport,
+        auth_data: bytes,
+        conn_params: dict[str, str] | None,
+        protocol_version: tuple[int, int],
     ):
-        super().__init__(server, external_auth, passive)
+        super().__init__(
+            server,
+            external_auth=external_auth,
+            passive=passive,
+            transport=transport,
+            auth_data=auth_data,
+            conn_params=conn_params,
+            protocol_version=protocol_version,
+        )
         self.min_protocol = MIN_LEGACY_PROTOCOL
 
     async def _do_handshake(self):

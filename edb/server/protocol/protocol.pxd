@@ -31,6 +31,8 @@ cdef class HttpRequest:
         public bytes accept
         public bytes body
         public bytes host
+        public bytes authorization
+        public object params
 
 
 cdef class HttpResponse:
@@ -63,6 +65,9 @@ cdef class HttpProtocol:
 
         HttpRequest current_request
 
+    cdef _not_found(self, HttpRequest request, HttpResponse response)
+    cdef _bad_request(self, HttpRequest request, HttpResponse response,
+                      str message)
     cdef _return_binary_error(self, binary.EdgeConnection proto)
     cdef _write(self, bytes req_version, bytes resp_status,
                 bytes content_type, dict custom_headers, bytes body,
