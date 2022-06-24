@@ -1266,17 +1266,15 @@ cdef class EdgeConnection:
 
     async def _parse(
         self,
-        bytes eql,
         QueryRequestInfo query_req,
     ) -> CompiledQuery:
         cdef dbview.DatabaseConnectionView _dbview
         source = query_req.source
+        text = source.text()
 
         if self.debug:
-            self.debug_print('PARSE', eql)
-
-        if self.debug:
-            self.debug_print('Cache key', source.text())
+            self.debug_print('PARSE', text)
+            self.debug_print('Cache key', source.cache_key())
             self.debug_print('Extra variables', source.variables(),
                              'after', source.first_extra())
 
@@ -1292,7 +1290,7 @@ cdef class EdgeConnection:
                 # ROLLBACK or ROLLBACK TO TRANSACTION could be parsed;
                 # try doing just that.
                 query_unit_group, num_remain = await self._compile_rollback(
-                    eql
+                    text.encode("utf-8")
                 )
                 if num_remain:
                     # Raise an error if there were more than just a
@@ -1520,6 +1518,7 @@ cdef class EdgeConnection:
             bytes state = None, orig_state = None
             dbview.DatabaseConnectionView _dbview
             pgcon.PGConnection conn
+            WriteBuffer bound_args_buf
 
         query_unit = compiled.query_unit_group[0]
         _dbview = self.get_dbview()
@@ -1613,21 +1612,17 @@ cdef class EdgeConnection:
         finally:
             self.maybe_release_pgcon(conn)
 
-    async def execute(self):
+    cdef QueryRequestInfo parse_execute_request(self):
         cdef:
-            WriteBuffer bound_args_buf
-
+            uint64_t allow_capabilities = 0
+            uint64_t compilation_flags = 0
+            int64_t implicit_limit = 0
+            bint inline_typenames = False
+            bint inline_typeids = False
+            bint inline_objectids = False
+            object output_format
+            bint expect_one = False
             bytes query
-            QueryRequestInfo query_req
-
-            bytes in_tid
-            bytes out_tid
-            bytes bound_args
-            uint64_t allow_capabilities
-            uint64_t compilation_flags
-            int64_t implicit_limit
-
-        self.ignore_headers()
 
         allow_capabilities = <uint64_t>self.buffer.read_int64()
         compilation_flags = <uint64_t>self.buffer.read_int64()
@@ -1660,7 +1655,7 @@ cdef class EdgeConnection:
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
-        query_req = QueryRequestInfo(
+        return QueryRequestInfo(
             self._tokenize(query),
             self.protocol_version,
             output_format=output_format,
@@ -1672,10 +1667,50 @@ cdef class EdgeConnection:
             allow_capabilities=allow_capabilities,
         )
 
+    async def parse(self):
+        cdef:
+            bytes eql
+            QueryRequestInfo query_req
+            WriteBuffer parse_complete
+            WriteBuffer buf
+
+        self._last_anon_compiled = None
+
+        self.ignore_headers()
+
+        query_req = self.parse_execute_request()
+        compiled = await self._parse(query_req)
+
+        buf = self.make_command_data_description_msg(compiled)
+
+        # Cache compilation result in anticipation that the client
+        # will follow up with an Execute immediately.
+        #
+        # N.B.: we cannot rely on query cache because not all units
+        # are cacheable.
+        self._last_anon_compiled = compiled
+        self._last_anon_compiled_hash = hash(query_req)
+
+        self.write(buf)
+        self.flush()
+
+    async def execute(self):
+        cdef:
+            QueryRequestInfo query_req
+            dbview.DatabaseConnectionView dbview
+            bytes in_tid
+            bytes out_tid
+            bytes args
+
+        self.ignore_headers()
+
+        query_req = self.parse_execute_request()
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
-        bind_args = self.buffer.read_len_prefixed_bytes()
+        args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
+
+        dbview = self.get_dbview()
 
         if (
             self._last_anon_compiled is not None and
@@ -1686,17 +1721,12 @@ cdef class EdgeConnection:
             compiled = self._last_anon_compiled
             query_unit_group = compiled.query_unit_group
         else:
-            self._last_anon_compiled = None
-            query_unit_group = self.get_dbview().lookup_compiled_query(
-                query_req
-            )
+            query_unit_group = dbview.lookup_compiled_query(query_req)
             if query_unit_group is None:
                 if self.debug:
-                    self.debug_print('EXECUTE /REPARSE', query)
+                    self.debug_print('EXECUTE /CACHE MISS', query_req.text())
 
-                compiled = await self._parse(query, query_req)
-                self._last_anon_compiled = compiled
-                self._last_anon_compiled_hash = hash(query_req)
+                compiled = await self._parse(query_req)
                 query_unit_group = compiled.query_unit_group
                 if self._cancelled:
                     raise ConnectionAbortedError
@@ -1707,8 +1737,11 @@ cdef class EdgeConnection:
                     extra_counts=query_req.source.extra_counts(),
                     extra_blobs=query_req.source.extra_blobs(),
                 )
-                self._last_anon_compiled = compiled
-                self._last_anon_compiled_hash = hash(query_req)
+
+        # Clear the _last_anon_compiled so that the next Execute - if
+        # identical - will always lookup in the cache and honor the
+        # `cacheable` flag to compile the query again.
+        self._last_anon_compiled = None
 
         if query_unit_group.capabilities & ~query_req.allow_capabilities:
             raise query_unit_group.capabilities.make_error(
@@ -1716,53 +1749,50 @@ cdef class EdgeConnection:
                 errors.DisabledCapabilityError,
             )
 
-        if (
-            query_unit_group.in_type_id != in_tid or
-            query_unit_group.out_type_id != out_tid
-        ):
-            # The client has outdated information about type specs.
-            if self.debug:
-                self.debug_print('EXECUTE /MISMATCH', query)
+        if query_unit_group.in_type_id != in_tid:
+            raise errors.ParameterTypeMismatchError(
+                "specified parameter type(s) do not match the parameter "
+                "types inferred from specified command(s)"
+            )
 
+        if query_unit_group.out_type_id != out_tid:
+            # The client has no up-to-date information about the output,
+            # so provide one.
             self.write(self.make_command_data_description_msg(compiled))
 
-            if self._cancelled:
-                raise ConnectionAbortedError
-            return
-
         if self.debug:
-            self.debug_print('EXECUTE', query)
-
-        # Clear the _last_anon_compiled so that the next Execute - if
-        # identical - will always lookup in the cache and honor the `cacheable`
-        # flag to compile the query again. Put it another way, this is the
-        # legacy Execute of the "anonymous" prepared statement.
-        self._last_anon_compiled = None
+            self.debug_print('EXECUTE', query_req.text())
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
         if (
-            self.get_dbview().in_tx_error() or
-            query_unit_group[0].tx_savepoint_rollback
+            dbview.in_tx_error()
+            or query_unit_group[0].tx_savepoint_rollback
         ):
             assert len(query_unit_group) == 1
             await self._execute_rollback(compiled)
         elif len(query_unit_group) > 1:
-            await self._execute_script(compiled, bind_args)
+            await self._execute_script(compiled, args)
             self.write(
                 self.make_command_complete_msg_by_group(
                     compiled.query_unit_group
                 )
             )
-            self.flush()
         else:
             use_prep = (
                 len(query_unit_group) == 1
                 and bool(query_unit_group[0].sql_hash)
             )
-            await self._execute(compiled, bind_args, use_prep)
+            await self._execute(compiled, args, use_prep)
             self.write(
-                self.make_command_complete_msg(compiled.query_unit_group[0])
+                self.make_command_complete_msg(
+                    compiled.query_unit_group[0],
+                ),
             )
+
+        if self._cancelled:
+            raise ConnectionAbortedError
+
+        self.flush()
 
     async def sync(self):
         self.buffer.consume_message()
@@ -1842,28 +1872,11 @@ cdef class EdgeConnection:
                 mtype = self.buffer.get_message_type()
 
                 try:
-                    if mtype == b'P':
-                        raise errors.BinaryProtocolError(
-                            "Prepare message (P) is not supported in "
-                            "protocols greater 1.0")
-
-                    elif mtype == b'D':
-                        raise errors.BinaryProtocolError(
-                            "Describe message (D) is not supported in "
-                            "protocols greater 0.13")
-
-                    elif mtype == b'E':
-                        raise errors.BinaryProtocolError(
-                            "Legacy Execute message (E) is not supported in "
-                            "protocols greater 1.0")
-
-                    elif mtype == b'O':
+                    if mtype == b'O':
                         await self.execute()
 
-                    elif mtype == b'Q':
-                        raise errors.BinaryProtocolError(
-                            "ExecuteScript message (Q) is not supported in "
-                            "protocols greater 1.0")
+                    elif mtype == b'P':
+                        await self.parse()
 
                     elif mtype == b'S':
                         await self.sync()
@@ -1880,6 +1893,21 @@ cdef class EdgeConnection:
                         # so if an error occurs the server should send an
                         # ERROR message immediately.
                         await self.restore()
+
+                    elif mtype == b'D':
+                        raise errors.BinaryProtocolError(
+                            "Describe message (D) is not supported in "
+                            "protocol versions greater than 0.13")
+
+                    elif mtype == b'E':
+                        raise errors.BinaryProtocolError(
+                            "Legacy Execute message (E) is not supported in "
+                            "protocol versions greater than 0.13")
+
+                    elif mtype == b'Q':
+                        raise errors.BinaryProtocolError(
+                            "ExecuteScript message (Q) is not supported in "
+                            "protocol versions greater then 0.13")
 
                     else:
                         self.fallthrough()

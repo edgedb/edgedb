@@ -228,37 +228,38 @@ a command cycle.
 Command Phase
 -------------
 
-In the command phase, the server expects the client to send an
-:ref:`ref_protocol_msg_execute` message, carrying one or more EdgeQL commands
-to be executed on the server-side.
+In the command phase, the server expects the client to send one of the
+following messages:
 
-If more than one EdgeQL command is found in a single message, the server will
-treat the commands as an EdgeQL script. EdgeQL scripts are always atomic, they
-will be executed in an implicit transaction block if no explicit transactions
-are started beforehand. Therefore, EdgeQL scripts have limitations on the
-EdgeQL commands they could contain:
+:ref:`ref_protocol_msg_parse`
+    Instructs the server to parse the provided command or commands for
+    execution.  The server responds with a
+    :ref:`ref_protocol_msg_command_data_description` containing the
+    :ref:`type descriptor <ref_proto_typedesc>` data necessary to perform
+    data I/O for this command.
+
+:ref:`ref_protocol_msg_execute`
+    Execute the provided command or commands.  This message expects the
+    client to declare a correct :ref:`type descriptor <ref_proto_typedesc>`
+    identifier for command arguments.  If the declared input type descriptor
+    does not match the expected value, a ``ParameterTypeMismatchError``
+    is returned in an ``ErrorResponse`` message.
+
+    If the declared output type descriptor does not match, the server
+    will send a :ref:`ref_protocol_msg_command_data_description` prior to
+    sending any :ref:`ref_protocol_msg_data` messages.
+
+Each of the messages could contain one or more EdgeQL commands separated
+by a semicolon (``;``).  If more than one EdgeQL command is found in a single
+message, the server will treat the commands as an EdgeQL script. EdgeQL scripts
+are always atomic, they will be executed in an implicit transaction block if no
+explicit transaction is currently active. Therefore, EdgeQL scripts have
+limitations on the kinds of EdgeQL commands they can contain:
 
 * Transaction control commands are not allowed, like ``start transaction``,
   ``commit``, ``declare savepoint``, or ``rollback to savepoint``.
 * Non-transactional commands, like ``create database`` or
   ``configure instance`` are not allowed.
-
-In the :ref:`ref_protocol_msg_execute` message, the client is supposed to send
-:ref:`type descriptor <ref_proto_typedesc>` IDs for the input arguments and
-output results. If the command(s) to be executed takes no input argument, or
-generates no output, the client should set the corresponding type id to
-``00000000-0000-0000-0000-000000000000`` ("null"). If the client
-doesn't know any of the type IDs, they should both be set to
-``FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`` ("invalid").
-
-If type descriptors match server's knowledge, the server executes the command
-text, and responds with zero or more :ref:`ref_protocol_msg_data` messages,
-followed by a :ref:`ref_protocol_msg_command_complete` message.
-
-If type descriptors mismatch, the server parses the command text, and sends
-:ref:`ref_protocol_msg_command_data_description`.  The client is expected to
-adjust the request data and send :ref:`ref_protocol_msg_execute` again. If any
-of the type IDs was set to "invalid", the server will always do parsing only.
 
 In the command phase, the server can be in one of the three main states:
 

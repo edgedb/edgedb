@@ -101,7 +101,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         self._last_anon_compiled = None
 
         eql, query_req, stmt_name = self.legacy_parse_prepare_query_part(True)
-        compiled_query = await self._parse(eql, query_req)
+        compiled_query = await self._parse(query_req)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
 
@@ -233,7 +233,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         if self.protocol_version >= (0, 14):
                             raise errors.BinaryProtocolError(
                                 "Describe message (D) is not supported in "
-                                "protocols greater 0.13")
+                                "protocol versions greater than 0.13")
                         await self.legacy_describe()
 
                     elif mtype == b'E':
@@ -374,7 +374,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
 
-            compiled = await self._parse(query, query_req)
+            compiled = await self._parse(query_req)
             self._last_anon_compiled = compiled
             query_unit_group = compiled.query_unit_group
             if self._cancelled:

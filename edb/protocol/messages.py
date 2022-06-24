@@ -775,6 +775,22 @@ class RestoreEof(ClientMessage):
     message_length = MessageLength
 
 
+class Parse(ClientMessage):
+
+    mtype = MessageType('P')
+    message_length = MessageLength
+    headers = Headers
+    allowed_capabilities = EnumOf(UInt64, Capability,
+                                  'A bit mask of allowed capabilities.')
+    compilation_flags = EnumOf(UInt64, CompilationFlag,
+                               'A bit mask of query options.')
+    implicit_limit = UInt64('Implicit LIMIT clause on returned sets.')
+    output_format = EnumOf(UInt8, OutputFormat, 'Data output format.')
+    expected_cardinality = EnumOf(UInt8, Cardinality,
+                                  'Expected result cardinality.')
+    command_text = String('Command text.')
+
+
 class Execute(ClientMessage):
 
     mtype = MessageType('O')
