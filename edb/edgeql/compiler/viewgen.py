@@ -378,15 +378,7 @@ def _process_view(
                 ctx=ctx,
             )
 
-        # HACK?: when we see linkprops being used on an intersection,
-        # attach the flattened source path to make linkprops on
-        # computed backlinks work
-        if (
-            isinstance(path_id.rptr(), irast.TypeIntersectionPointerRef)
-            and ptrcls.is_link_property(ctx.env.schema)
-        ):
-            ctx.path_scope.attach_path(
-                path_id, flatten_intersection=True, context=None)
+        _maybe_fixup_lprop(path_id, ptrcls, ctx=ctx)
 
         set_shape.append((ptr_set, shape_op))
 
@@ -398,6 +390,23 @@ def _process_view(
             ctx.env.schema, 'rptr', view_rptr.ptrcls)
 
     return view_scls, ir_set
+
+
+def _maybe_fixup_lprop(
+    path_id: irast.PathId,
+    ptrcls: s_pointers.Pointer,
+    *,
+    ctx: context.ContextLevel,
+) -> None:
+    # HACK?: when we see linkprops being used on an intersection,
+    # attach the flattened source path to make linkprops on
+    # computed backlinks work
+    if (
+        isinstance(path_id.rptr(), irast.TypeIntersectionPointerRef)
+        and ptrcls.is_link_property(ctx.env.schema)
+    ):
+        ctx.path_scope.attach_path(
+            path_id, flatten_intersection=True, context=None)
 
 
 def _setup_shape_source(cur_set: irast.Set, ctx: context.ContextLevel) -> None:
@@ -1513,16 +1522,7 @@ def _late_compile_view_shapes_in_set(
                 ctx=ctx,
             )
 
-            # HACK?: when we see linkprops being used on an intersection,
-            # attach the flattened source path to make linkprops on
-            # computed backlinks work
-            if (
-                isinstance(
-                    path_tip.path_id.rptr(), irast.TypeIntersectionPointerRef)
-                and ptr.is_link_property(ctx.env.schema)
-            ):
-                ctx.path_scope.attach_path(
-                    path_tip.path_id, flatten_intersection=True, context=None)
+            _maybe_fixup_lprop(path_tip.path_id, ptr, ctx=ctx)
 
             element_scope = pathctx.get_set_scope(element, ctx=ctx)
 
