@@ -965,6 +965,17 @@ def process_set_as_path(
     assert rptr is not None
     ptrref = rptr.ptrref
     ir_source = rptr.source
+
+    backtrack_src = ir_source
+    new_paths = {backtrack_src.path_id}
+    while (
+        backtrack_src.rptr
+        and backtrack_src.path_id.is_type_intersection_path()
+    ):
+        backtrack_src = backtrack_src.rptr.source
+        new_paths.add(backtrack_src.path_id)
+
+    root_source_is_visible = ctx.scope_tree.is_visible(backtrack_src.path_id)
     source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
 
     rvars = []
@@ -988,18 +999,11 @@ def process_set_as_path(
     is_id_ref_to_inline_source = False
 
     if is_linkprop:
-        backtrack_src = ir_source
-        new_paths = {backtrack_src.path_id}
-
-        assert backtrack_src.rptr
-        while backtrack_src.path_id.is_type_intersection_path():
-            backtrack_src = backtrack_src.rptr.source
-            new_paths.add(backtrack_src.path_id)
-
         ctx.disable_semi_join |= new_paths
 
     semi_join = (
         not source_is_visible and
+        not root_source_is_visible and
         ir_set.path_id not in ctx.disable_semi_join and
         not (is_linkprop or is_primitive_ref) and
         # This is an optimization for when we are inside of a semi-join on
@@ -1009,6 +1013,7 @@ def process_set_as_path(
         not relctx.find_rvar(stmt, path_id=ir_source.path_id, ctx=ctx)
     )
 
+    main_rvar = None
     source_rptr = ir_source.rptr
     if (irtyputils.is_id_ptrref(ptrref) and source_rptr is not None
             and isinstance(source_rptr.ptrref, irast.PointerRef)
@@ -1166,6 +1171,8 @@ def process_set_as_path(
         )
 
         rvars = [main_rvar]
+
+    assert main_rvar
 
     return SetRVars(main=main_rvar, new=rvars)
 

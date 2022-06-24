@@ -3839,3 +3839,11 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ''',
             [{"w": [{"name": "1st"}]}]
         )
+
+    async def test_edgeql_scope_intersection_semijoin_01(self):
+        await self.assert_query_result(
+            r'''
+                select count(Named[IS User].deck);
+            ''',
+            [9],
+        )

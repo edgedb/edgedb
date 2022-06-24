@@ -1283,3 +1283,22 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     filter .name = 'Dragon'
                 '''
             )
+
+    async def test_edgeql_props_intersect_01(self):
+        await self.assert_query_result(
+            r'''
+            select Named {
+               [IS User].deck:{name, @count}
+            } filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "deck": tb.bag([
+                        {"@count": 2, "name": "Imp"},
+                        {"@count": 2, "name": "Dragon"},
+                        {"@count": 3, "name": "Bog monster"},
+                        {"@count": 3, "name": "Giant turtle"},
+                    ])
+                }
+            ]
+        )

@@ -217,3 +217,15 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             count,
             1,
             f"argument needlessly duplicated")
+
+    def test_codegen_filtered_link_no_semijoin(self):
+        sql = self._compile('''
+            select Named {
+               [IS User].todo:{name}
+            }
+       ''')
+
+        self.assertNotIn(
+            " IN ", sql,
+            "unexpected semi-join",
+        )
