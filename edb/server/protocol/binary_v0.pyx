@@ -233,7 +233,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         if self.protocol_version >= (0, 14):
                             raise errors.BinaryProtocolError(
                                 "Describe message (D) is not supported in "
-                                "protocols greater 0.13")
+                                "protocol versions greater than 0.13")
                         await self.legacy_describe()
 
                     elif mtype == b'E':

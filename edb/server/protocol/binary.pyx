@@ -1683,6 +1683,11 @@ cdef class EdgeConnection:
 
         buf = self.make_command_data_description_msg(compiled)
 
+        # Cache compilation result in anticipation that the client
+        # will follow up with an Execute immediately.
+        #
+        # N.B.: we cannot rely on query cache because not all units
+        # are cacheable.
         self._last_anon_compiled = compiled
         self._last_anon_compiled_hash = hash(query_req)
 
@@ -1692,6 +1697,7 @@ cdef class EdgeConnection:
     async def execute(self):
         cdef:
             QueryRequestInfo query_req
+            dbview.DatabaseConnectionView dbview
             bytes in_tid
             bytes out_tid
             bytes args
@@ -1704,6 +1710,8 @@ cdef class EdgeConnection:
         args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 
+        dbview = self.get_dbview()
+
         if (
             self._last_anon_compiled is not None and
             hash(query_req) == self._last_anon_compiled_hash and
@@ -1713,17 +1721,12 @@ cdef class EdgeConnection:
             compiled = self._last_anon_compiled
             query_unit_group = compiled.query_unit_group
         else:
-            self._last_anon_compiled = None
-            query_unit_group = self.get_dbview().lookup_compiled_query(
-                query_req
-            )
+            query_unit_group = dbview.lookup_compiled_query(query_req)
             if query_unit_group is None:
                 if self.debug:
                     self.debug_print('EXECUTE /CACHE MISS', query_req.text())
 
                 compiled = await self._parse(query_req)
-                self._last_anon_compiled = compiled
-                self._last_anon_compiled_hash = hash(query_req)
                 query_unit_group = compiled.query_unit_group
                 if self._cancelled:
                     raise ConnectionAbortedError
@@ -1734,8 +1737,11 @@ cdef class EdgeConnection:
                     extra_counts=query_req.source.extra_counts(),
                     extra_blobs=query_req.source.extra_blobs(),
                 )
-                self._last_anon_compiled = compiled
-                self._last_anon_compiled_hash = hash(query_req)
+
+        # Clear the _last_anon_compiled so that the next Execute - if
+        # identical - will always lookup in the cache and honor the
+        # `cacheable` flag to compile the query again.
+        self._last_anon_compiled = None
 
         if query_unit_group.capabilities & ~query_req.allow_capabilities:
             raise query_unit_group.capabilities.make_error(
@@ -1757,16 +1763,10 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('EXECUTE', query_req.text())
 
-        # Clear the _last_anon_compiled so that the next Execute - if
-        # identical - will always lookup in the cache and honor the
-        # `cacheable` flag to compile the query again. Put it another way,
-        # this is the legacy Execute of the "anonymous" prepared statement.
-        self._last_anon_compiled = None
-
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
         if (
-            self.get_dbview().in_tx_error() or
-            query_unit_group[0].tx_savepoint_rollback
+            dbview.in_tx_error()
+            or query_unit_group[0].tx_savepoint_rollback
         ):
             assert len(query_unit_group) == 1
             await self._execute_rollback(compiled)
@@ -1897,17 +1897,17 @@ cdef class EdgeConnection:
                     elif mtype == b'D':
                         raise errors.BinaryProtocolError(
                             "Describe message (D) is not supported in "
-                            "protocols greater 0.13")
+                            "protocol versions greater than 0.13")
 
                     elif mtype == b'E':
                         raise errors.BinaryProtocolError(
                             "Legacy Execute message (E) is not supported in "
-                            "protocols greater 1.0")
+                            "protocol versions greater than 0.13")
 
                     elif mtype == b'Q':
                         raise errors.BinaryProtocolError(
                             "ExecuteScript message (Q) is not supported in "
-                            "protocols greater 1.0")
+                            "protocol versions greater then 0.13")
 
                     else:
                         self.fallthrough()
