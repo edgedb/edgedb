@@ -37,16 +37,13 @@
 
 0x_03_02_00_00   InputDataError
 0x_03_02_01_00   ParameterTypeMismatchError
+0x_03_02_02_00   StateMismatchError
 
 0x_03_03_00_00   ResultCardinalityMismatchError
 
 0x_03_04_00_00   CapabilityError
 0x_03_04_01_00   UnsupportedCapabilityError
 0x_03_04_02_00   DisabledCapabilityError
-
-0x_03_05_00_00   StateError
-0x_03_05_00_01   StateSerializationError
-0x_03_05_00_02   StateMismatchError
 
 
 ####

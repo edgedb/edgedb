@@ -853,10 +853,6 @@ class StateSerializer:
         return self._globals_array_type_ids.get(global_name)
 
 
-class StateSerializationError(Exception):
-    pass
-
-
 def simple_derive_type(schema, parent, qualifier):
     s_type = schema.get(parent)
     return s_type.derive_subtype(

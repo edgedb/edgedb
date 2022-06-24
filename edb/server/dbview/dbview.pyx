@@ -444,8 +444,10 @@ cdef class DatabaseConnectionView:
                 if globals_:
                     # State schema has changed, we assume the current
                     # serialized global values do not match the new schema
-                    raise sertypes.StateSerializationError()
-            if (
+                    raise errors.InternalServerError(
+                        "Cannot serialize state due to schema change"
+                    )
+            elif (
                 modaliases, session_config, globals_
             ) == self._session_state_cache[:3]:
                 return self._session_state_cache[3:]

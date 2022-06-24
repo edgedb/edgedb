@@ -1460,24 +1460,7 @@ cdef class EdgeConnection:
         cdef:
             WriteBuffer msg
 
-        try:
-            type_id, data = self.get_dbview().encode_state()
-        except sertypes.StateSerializationError:
-            msg = WriteBuffer.new_message(b'c')
-            msg.write_int16(0)  # no headers
-            msg.write_int64(<int64_t><uint64_t>capabilities)
-            msg.write_len_prefixed_bytes(status)
-
-            msg.write_int32(
-                <int32_t><uint32_t>errors.StateSerializationError.get_code()
-            )
-            msg.write_len_prefixed_utf8(
-                "Command applied successfully, but the state cannot be "
-                "serialized due to global schema change."
-            )
-            msg.write_int16(0)  # no error attributes
-
-            return msg.end_message()
+        type_id, data = self.get_dbview().encode_state()
 
         msg = WriteBuffer.new_message(b'C')
         msg.write_int16(0)  # no headers
