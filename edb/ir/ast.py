@@ -1009,6 +1009,7 @@ class ConfigCommand(Command, Expr):
     cardinality: qltypes.SchemaCardinality
     requires_restart: bool
     backend_setting: typing.Optional[str]
+    globals: typing.Optional[typing.List[Global]] = None
     scope_tree: typing.Optional[ScopeTreeNode] = None
 
 

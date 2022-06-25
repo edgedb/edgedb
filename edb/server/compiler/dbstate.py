@@ -119,6 +119,7 @@ class SessionStateQuery(BaseQuery):
     config_op: Optional[config.Operation] = None
     is_transactional: bool = True
     single_unit: bool = False
+    globals: Optional[List[str]] = None
 
 
 @dataclasses.dataclass(frozen=True)

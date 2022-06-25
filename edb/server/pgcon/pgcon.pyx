@@ -1216,6 +1216,11 @@ cdef class PGConnection:
         self.write_sync(out)
         self.write(out)
 
+        # If no edgecon is passed, the caller is responsible for
+        # handling the server response
+        if edgecon is None:
+            return
+
         try:
             if state is not None:
                 await self.wait_for_state_resp(state, state_sync)
@@ -1319,7 +1324,8 @@ cdef class PGConnection:
             )
         finally:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)
-            await self.after_command()
+            if edgecon:
+                await self.after_command()
 
     async def _simple_query(self, bytes sql, bint ignore_data, bytes state):
         cdef:

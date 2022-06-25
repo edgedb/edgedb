@@ -338,3 +338,20 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
             ''',
             results
         )
+
+    async def test_edgeql_globals_10(self):
+        await self.con.execute('''
+            set global cur_user := "test";
+        ''')
+        await self.con.execute('''
+            set global cur_user := global cur_user ++ "!";
+        ''')
+        await self.con.execute('''
+            set global cur_user := global cur_user ++ "!";
+            set global cur_user := global cur_user ++ "!";
+        ''')
+
+        await self.assert_query_result(
+            r'''select global cur_user''',
+            ['test!!!']
+        )
