@@ -638,7 +638,7 @@ def main(ctx, version=False, **kwargs):
         server_main(**kwargs)
 
 
-@main.command()
+@main.command(hidden=True)
 @srvargs.compiler_options
 def compiler(**kwargs):
     from edb.server.compiler_pool import server as compiler_server

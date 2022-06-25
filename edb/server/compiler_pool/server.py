@@ -20,10 +20,12 @@ from __future__ import annotations
 
 import asyncio
 import collections
+import hmac
 import functools
 import logging
 import os
 import pickle
+import secrets
 import tempfile
 import time
 import traceback
@@ -188,7 +190,7 @@ class MultiSchemaPool(pool_mod.FixedPool):
     _workers: typing.Dict[int, Worker]  # type: ignore
     _clients: typing.Dict[int, ClientSchema]
 
-    def __init__(self, cache_size, **kwargs):
+    def __init__(self, cache_size, *, secret, **kwargs):
         super().__init__(
             dbindex=None,
             backend_runtime_params=None,
@@ -201,6 +203,7 @@ class MultiSchemaPool(pool_mod.FixedPool):
         self._inited = asyncio.Event()
         self._cache_size = cache_size
         self._clients = {}
+        self._secret = secret
 
     def _get_init_args_uncached(self):
         init_args = (
@@ -430,8 +433,14 @@ class MultiSchemaPool(pool_mod.FixedPool):
 
     async def handle_client_call(self, protocol, req_id, msg):
         client_id = protocol.client_id
-        method_name, args = pickle.loads(msg)
+        digest = msg[:32]
+        data = msg[32:]
         try:
+            expected_digest = hmac.digest(self._secret, data, "sha256")
+            if not hmac.compare_digest(digest, expected_digest):
+                raise AssertionError("message signature verification failed")
+
+            method_name, args = pickle.loads(msg[32:])
             if method_name != "__init_server__":
                 await self._ready_evt.wait()
             if method_name == "__init_server__":
@@ -530,6 +539,14 @@ async def server_main(
     else:
         temp_runstate_dir = None
         runstate_dir = str(runstate_dir)
+
+    secret = os.environ.get("_EDGEDB_SERVER_COMPILER_POOL_SECRET")
+    if not secret:
+        logger.warning(
+            "_EDGEDB_SERVER_COMPILER_POOL_SECRET is not set, "
+            f"compilation requests will fail")
+        secret = secrets.token_urlsafe()
+
     try:
         loop = asyncio.get_running_loop()
         pool = MultiSchemaPool(
@@ -537,6 +554,7 @@ async def server_main(
             runstate_dir=runstate_dir,
             pool_size=pool_size,
             cache_size=client_schema_cache_size,
+            secret=secret.encode(),
         )
         await pool.start()
         try:

@@ -266,6 +266,22 @@ class BackendCapabilitySet(click.ParamType):
         )
 
 
+class CompilerPoolModeChoice(click.Choice):
+    def __init__(self):
+        super().__init__(
+            list(sorted(
+                set(CompilerPoolMode.__members__.values())
+                - {CompilerPoolMode.Remote}
+            )),
+        )
+
+    def convert(self, value, param, ctx):
+        if value == "remote":
+            return CompilerPoolMode.Remote
+        else:
+            return super().convert(value, param, ctx)
+
+
 def _get_runstate_dir_default() -> str:
     runstate_dir: Optional[str]
 
@@ -561,10 +577,7 @@ _server_options = [
         callback=_validate_compiler_pool_size),
     click.option(
         '--compiler-pool-mode',
-        type=click.Choice(
-            list(CompilerPoolMode.__members__.values()),
-            case_sensitive=True,
-        ),
+        type=CompilerPoolModeChoice(),
         default=CompilerPoolMode.Default.value,
         help='Choose a mode for the compiler pool to scale. "fixed" means the '
              'pool will not scale and sticks to --compiler-pool-size, while '
@@ -575,6 +588,7 @@ _server_options = [
     ),
     click.option(
         '--compiler-pool-addr',
+        hidden=True,
         callback=_validate_host_port,
         help=f'Specify the host[:port] of the compiler pool to connect to, '
              f'only used if --compiler-pool-mode=remote. Default host is '

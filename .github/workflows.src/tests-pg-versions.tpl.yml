@@ -89,10 +89,6 @@ jobs:
         else
           export EDGEDB_TEST_BACKEND_DSN=postgres://postgres:postgres@localhost/postgres
         fi
-        if [[ "${{ matrix.remote-compiler }}" ]]; then
-          edgedb-server compiler /tmp/edb-compiler --pool-size 2 &
-          export EDGEDB_TEST_REMOTE_COMPILER=/tmp/edb-compiler
-        fi
         edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
         if [[ "${{ matrix.single-mode }}" == *"NOCREATEDB"* ]]; then
           edb test -j1 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN

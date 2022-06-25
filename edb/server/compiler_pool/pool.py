@@ -22,6 +22,7 @@ from typing import *  # NoQA
 
 import asyncio
 import functools
+import hmac
 import logging
 import os
 import os.path
@@ -104,8 +105,8 @@ class BaseWorker:
                 'the connection to the compiler worker process is '
                 'unexpectedly closed')
 
-        msg = pickle.dumps((method_name, args))
-        data = await self._con.request(msg)
+        data = await self._request(method_name, args)
+
         status, *data = pickle.loads(data)
 
         self._last_used = time.monotonic()
@@ -126,6 +127,10 @@ class BaseWorker:
                 'could not serialize result in worker subprocess')
             exc.__formatted_error__ = data[0]
             raise exc
+
+    async def _request(self, method_name, args):
+        msg = pickle.dumps((method_name, args))
+        return await self._con.request(msg)
 
 
 class Worker(BaseWorker):
@@ -956,15 +961,21 @@ class SimpleAdaptivePool(BaseLocalPool):
 
 
 class RemoteWorker(BaseWorker):
-    def __init__(self, con, *args):
+    def __init__(self, con, secret, *args):
         super().__init__(*args)
         self._con = con
+        self._secret = secret
 
     def close(self):
         if self._closed:
             return
         self._closed = True
         self._con.abort()
+
+    async def _request(self, method_name, args):
+        msg = pickle.dumps((method_name, args))
+        digest = hmac.digest(self._secret, msg, "sha256")
+        return await self._con.request(digest + msg)
 
 
 @srvargs.CompilerPoolMode.Remote.assign_implementation
@@ -975,6 +986,13 @@ class RemotePool(AbstractPool):
         self._worker = None
         self._sync_lock = asyncio.Lock()
         self._semaphore = asyncio.BoundedSemaphore(pool_size)
+        secret = os.environ.get("_EDGEDB_SERVER_COMPILER_POOL_SECRET")
+        if not secret:
+            raise AssertionError(
+                "_EDGEDB_SERVER_COMPILER_POOL_SECRET environment variable "
+                "is not set"
+            )
+        self._secret = secret.encode()
 
     async def start(self, retry=False):
         if self._worker is None:
@@ -1035,6 +1053,7 @@ class RemotePool(AbstractPool):
             init_args, init_args_pickled = self._get_init_args()
             worker = RemoteWorker(
                 amsg.HubConnection(transport, protocol, self._loop, version),
+                self._secret,
                 *init_args,
             )
             await worker.call(
