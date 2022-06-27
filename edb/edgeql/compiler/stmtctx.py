@@ -164,6 +164,8 @@ def fini_expression(
     # ConfigSet and ConfigReset don't like being part of a Set
     if isinstance(ir.expr, (irast.ConfigSet, irast.ConfigReset)):
         ir.expr.scope_tree = ctx.path_scope
+        ir.expr.globals = list(ctx.env.query_globals.values())
+
         return ir.expr
 
     volatility = inference.infer_volatility(ir, env=ctx.env)

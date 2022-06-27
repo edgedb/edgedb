@@ -74,6 +74,8 @@ def compile_ir_to_sql_tree(
         elif isinstance(ir_expr, irast.ConfigCommand):
             assert ir_expr.scope_tree
             scope_tree = ir_expr.scope_tree
+            if ir_expr.globals:
+                query_globals = list(ir_expr.globals)
         else:
             scope_tree = irast.new_scope_tree()
 

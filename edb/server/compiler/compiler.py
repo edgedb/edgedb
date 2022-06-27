@@ -1562,6 +1562,13 @@ class Compiler:
             ),
         )
 
+        globals = None
+        if ir.globals:
+            globals = [
+                (str(glob.global_name), glob.has_present_arg)
+                for glob in ir.globals
+            ]
+
         is_backend_setting = bool(getattr(ir, 'backend_setting', None))
         requires_restart = bool(getattr(ir, 'requires_restart', False))
 
@@ -1613,6 +1620,7 @@ class Compiler:
             requires_restart=requires_restart,
             single_unit=single_unit,
             config_op=config_op,
+            globals=globals,
         )
 
     def _compile_dispatch_ql(
@@ -1875,6 +1883,7 @@ class Compiler:
 
             elif isinstance(comp, dbstate.SessionStateQuery):
                 unit.sql = comp.sql
+                unit.globals = comp.globals
 
                 if comp.config_scope is qltypes.ConfigScope.INSTANCE:
                     if (not ctx.state.current_tx().is_implicit() or
