@@ -103,7 +103,7 @@ Create a new service account, configure it's permissions, and generate a
 
    $ MEMBER="${PROJECT}-account@${PROJECT}.iam.gserviceaccount.com"
    $ gcloud projects add-iam-policy-binding $PROJECT \
-       --member=serviceAccount${MEMBER} \
+       --member=serviceAccount:${MEMBER} \
        --role=roles/cloudsql.admin \
        --project=$PROJECT
 
@@ -183,6 +183,8 @@ pass it as a secret into Kubernetes. Then we'll redeploy the pods.
        )"
 
    $ kubectl delete -f deployment.yaml
+
+   $ kubectl apply -f deployment.yaml
 
 Expose EdgeDB
 =============
