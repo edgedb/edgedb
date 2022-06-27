@@ -590,13 +590,8 @@ class CommandComplete(ServerMessage):
                           'A bit mask of allowed capabilities.')
     status = String('Command status.')
 
-    state_typedesc_id = UUID('Updated session state descriptor ID.')
-    state_data = ArrayOf(
-        UInt16,
-        DataElement,
-        'Encoded session state data array. '
-        'The array is currently always of size 1.'
-    )
+    state_typedesc_id = UUID('Updated state data descriptor ID.')
+    state_data = Bytes('Encoded state data.')
 
 
 class CommandDataDescription(ServerMessage):
@@ -679,6 +674,12 @@ class ParameterStatus_SystemConfig(Struct):
     typedesc = ArrayOf(UInt32, UInt8(), 'Type descriptor prefixed with '
                                         'type descriptor uuid.')
     data = FixedArrayOf(1, DataElement, 'Configuration settings data.')
+
+
+class ParameterStatus_StateDescription(Struct):
+
+    state_typedesc_id = UUID('Updated state data descriptor ID.')
+    state_typedesc = Bytes('State data descriptor.')
 
 
 class ProtocolExtension(Struct):
@@ -814,17 +815,11 @@ class Execute(ClientMessage):
                                   'Expected result cardinality.')
     command_text = String('Command text.')
 
-    state_typedesc_id = UUID('Updated session state descriptor ID.')
-    state_data = ArrayOf(
-        UInt16,
-        DataElement,
-        'Encoded session state data array. '
-        'The array is currently always of size 1.'
-    )
-
     input_typedesc_id = UUID('Argument data descriptor ID.')
     output_typedesc_id = UUID('Output data descriptor ID.')
+    state_typedesc_id = UUID('State data descriptor ID.')
     arguments = Bytes('Encoded argument data.')
+    state_data = Bytes('Encoded state data.')
 
 
 class ConnectionParam(Struct):

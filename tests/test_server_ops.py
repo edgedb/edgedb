@@ -546,8 +546,8 @@ class TestServerOps(tb.TestCase):
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
                 state_typedesc_id=b'\0' * 16,
-                state_data=[protocol.DataElement(data=[])],
                 arguments=b'',
+                state_data=b'',
             ),
             protocol.Sync(),
         )

@@ -35,7 +35,6 @@ cdef class Protocol(AsyncIOProtocol):
         self.last_capabilities = enums.Capability(self.buffer.read_int64())
         self.last_status = self.buffer.read_len_prefixed_bytes()
         self.state_type_id = self.buffer.read_bytes(16)
-        assert self.buffer.read_int16() == 1
         self.state = WriteBuffer.new()
         self.state.write_len_prefixed_bytes(
             self.buffer.read_len_prefixed_bytes()
@@ -65,9 +64,9 @@ cdef class Connection:
                 implicit_limit=0,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
-                arguments=b'',
                 state_typedesc_id=b'\0' * 16,
-                state_data=[messages.DataElement(data=[])],
+                arguments=b'',
+                state_data=b'',
             ),
             messages.Sync(),
         )
