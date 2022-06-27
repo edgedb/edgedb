@@ -41,6 +41,7 @@ class Setting:
     name: str
     type: type
     default: Any
+    s_type: Any = None
     set_of: bool = False
     system: bool = False
     internal: bool = False
@@ -168,6 +169,7 @@ def load_spec_from_schema(schema):
         setting = Setting(
             pn,
             type=pytype,
+            s_type=ptype,
             set_of=set_of,
             internal=attributes.get(sn.QualName('cfg', 'internal'), False),
             system=attributes.get(sn.QualName('cfg', 'system'), False),

@@ -26,18 +26,24 @@ import io
 import struct
 import typing
 
+import immutables
+
 from edb import errors
 from edb.common import binwrapper
 from edb.common import uuidgen
 
 from edb.protocol import enums as p_enums
+from edb.server import config
 
+from edb.edgeql import qltypes
+from edb.schema import globals as s_globals
 from edb.schema import links as s_links
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
+from edb.ir import statypes
 
 from . import enums
 
@@ -46,6 +52,7 @@ _int32_packer = struct.Struct('!l').pack
 _uint32_packer = struct.Struct('!L').pack
 _uint16_packer = struct.Struct('!H').pack
 _uint8_packer = struct.Struct('!B').pack
+_int64_struct = struct.Struct('!q')
 
 
 EMPTY_TUPLE_ID = s_obj.get_known_type_id('empty-tuple')
@@ -67,10 +74,34 @@ CTYPE_TUPLE = b'\x04'
 CTYPE_NAMEDTUPLE = b'\x05'
 CTYPE_ARRAY = b'\x06'
 CTYPE_ENUM = b'\x07'
-
+CTYPE_INPUT_SHAPE = b'\x08'
 CTYPE_ANNO_TYPENAME = b'\xff'
 
 EMPTY_BYTEARRAY = bytearray()
+
+
+def _encode_str(data: str) -> bytes:
+    return data.encode('utf-8')
+
+
+def _decode_str(data: bytes) -> str:
+    return data.decode('utf-8')
+
+
+def _encode_bool(data: bool) -> bytes:
+    return b'\x01' if data else b'\x00'
+
+
+def _decode_bool(data: bytes) -> bool:
+    return bool(data[0])
+
+
+def _encode_int64(data: int) -> bytes:
+    return _int64_struct.pack(data)
+
+
+def _decode_int64(data: bytes) -> int:
+    return _int64_struct.unpack(data)[0]
 
 
 def cardinality_from_ptr(ptr, schema) -> enums.Cardinality:
@@ -392,6 +423,65 @@ class TypeSerializer:
             raise errors.InternalServerError(
                 f'cannot describe type {t.get_name(self.schema)}')
 
+    def describe_input_shape(
+        self, t, input_shapes, protocol_version,
+        prepare_state: bool = False,
+    ):
+        if t in input_shapes:
+            element_names = []
+            subtypes = []
+            cardinalities = []
+            for name, value in input_shapes[t].items():
+                subtype, cardinality = value
+                if (
+                    cardinality == enums.Cardinality.MANY or
+                    cardinality == enums.Cardinality.AT_LEAST_ONE
+                ):
+                    subtype_id = self._describe_set(
+                        subtype, {}, {}, protocol_version
+                    )
+                else:
+                    subtype_id = self.describe_input_shape(
+                        subtype, input_shapes, protocol_version
+                    )
+                element_names.append(name)
+                subtypes.append(subtype_id)
+                cardinalities.append(cardinality.value)
+
+            if prepare_state:
+                return
+
+            self.schema, mt = t.material_type(self.schema)
+            base_type_id = mt.id
+
+            type_id = self._get_object_type_id(
+                base_type_id, subtypes, element_names
+            )
+
+            if type_id in self.uuid_to_pos:
+                return type_id
+
+            buf = self.buffer
+            buf.append(CTYPE_INPUT_SHAPE)
+            buf.append(type_id.bytes)
+
+            assert len(subtypes) == len(element_names)
+            buf.append(_uint16_packer(len(subtypes)))
+
+            zipped_parts = zip(element_names, subtypes, cardinalities)
+            for el_name, el_type, el_c in zipped_parts:
+                buf.append(_uint32_packer(0))  # flags
+                buf.append(_uint8_packer(el_c))
+                el_name_bytes = el_name.encode('utf-8')
+                buf.append(_uint32_packer(len(el_name_bytes)))
+                buf.append(el_name_bytes)
+                buf.append(_uint16_packer(self.uuid_to_pos[el_type]))
+
+            self._register_type_id(type_id)
+            return type_id
+        else:
+            return self._describe_type(t, {}, {}, protocol_version)
+
     def _add_annotation(self, t: s_types.Type):
         self.anno_buffer.append(CTYPE_ANNO_TYPENAME)
 
@@ -515,12 +605,13 @@ class TypeSerializer:
             pos = desc.read_ui16()
             return SetDesc(tid=tid, subtype=codecs_list[pos])
 
-        elif t == CTYPE_SHAPE:
+        elif t == CTYPE_SHAPE or t == CTYPE_INPUT_SHAPE:
             els = desc.read_ui16()
             fields = {}
             flags = {}
             cardinalities = {}
-            for _ in range(els):
+            fields_list = []
+            for idx in range(els):
                 if protocol_version >= (0, 11):
                     flag = desc.read_ui32()
                     cardinality = enums.Cardinality(desc.read_bytes(1)[0])
@@ -529,16 +620,25 @@ class TypeSerializer:
                     cardinality = None
                 name = desc.read_len32_prefixed_bytes().decode()
                 pos = desc.read_ui16()
-                fields[name] = codecs_list[pos]
+                codec = codecs_list[pos]
+                if t == CTYPE_INPUT_SHAPE:
+                    fields_list.append((name, codec))
+                    fields[name] = idx, codec
+                else:
+                    fields[name] = codec
                 flags[name] = flag
                 if cardinality:
                     cardinalities[name] = cardinality
-            return ShapeDesc(
+            args = dict(
                 tid=tid,
                 flags=flags,
                 fields=fields,
                 cardinalities=cardinalities,
             )
+            if t == CTYPE_SHAPE:
+                return ShapeDesc(**args)
+            else:
+                return InputShapeDesc(fields_list=fields_list, **args)
 
         elif t == CTYPE_BASE_SCALAR:
             return BaseScalarDesc(tid=tid)
@@ -604,15 +704,225 @@ class TypeSerializer:
             raise errors.InternalServerError('could not parse type descriptor')
         return codecs_list[-1]
 
+    def derive(self, schema) -> TypeSerializer:
+        rv = type(self)(schema, inline_typenames=self.inline_typenames)
+        rv.buffer = self.buffer.copy()
+        rv.anno_buffer = self.anno_buffer.copy()
+        rv.uuid_to_pos = self.uuid_to_pos.copy()
+        return rv
+
+
+class StateSerializerFactory:
+    def __init__(self, std_schema: s_schema.FlatSchema):
+        """
+        {
+            module := 'default',
+            aliases := [ ('alias', 'module::target'), ... ],
+            config := cfg::Config {
+                session_idle_transaction_timeout: <duration>'0:05:00',
+                query_execution_timeout: <duration>'0:00:00',
+                allow_dml_in_functions: false,
+                allow_bare_ddl: AlwaysAllow,
+                apply_access_policies: true,
+            },
+            globals := { key := value, ... },
+        }
+
+        """
+        schema = std_schema
+        str_type = schema.get('std::str')
+        schema, self._state_type = simple_derive_type(
+            schema, 'std::FreeObject', 'state_type'
+        )
+
+        # aliases := { ('alias1', 'mod::type'), ... }
+        schema, alias_tuple = s_types.Tuple.from_subtypes(
+            schema, [str_type, str_type])
+        schema, aliases_array = s_types.Array.from_subtypes(
+            schema, [alias_tuple])
+
+        # config := cfg::Config { session_cfg1, session_cfg2, ... }
+        schema, config_type = simple_derive_type(
+            schema, 'cfg::Config', 'state_config'
+        )
+        config_shape = {}
+        for setting in config.get_settings().values():
+            if not setting.system:
+                config_shape[setting.name] = (
+                    setting.s_type,
+                    enums.Cardinality.MANY if setting.set_of else
+                    enums.Cardinality.AT_MOST_ONE
+                )
+
+        self._input_shapes = immutables.Map({
+            config_type: immutables.Map(config_shape),
+            self._state_type: immutables.Map(
+                module=(str_type, enums.Cardinality.AT_MOST_ONE),
+                aliases=(aliases_array, enums.Cardinality.AT_MOST_ONE),
+                config=(config_type, enums.Cardinality.AT_MOST_ONE),
+            )
+        })
+        self._schema = schema
+        self._builders = {}
+
+    def make(
+        self, user_schema, global_schema, protocol_version
+    ) -> StateSerializer:
+        if protocol_version in self._builders:
+            builder = self._builders[protocol_version]
+        else:
+            builder = self._builders[protocol_version] = TypeSerializer(
+                self._schema
+            )
+            builder.describe_input_shape(
+                self._state_type,
+                self._input_shapes,
+                protocol_version,
+                prepare_state=True,
+            )
+        schema = builder.schema
+        schema, globals_type = simple_derive_type(
+            schema, 'std::FreeObject', 'state_globals'
+        )
+        schema = s_schema.ChainedSchema(schema, user_schema, global_schema)
+        globals_shape = {}
+        array_type_ids = {}
+        for g in schema.get_objects(type=s_globals.Global):
+            if g.is_computable(schema):
+                continue
+            name = str(g.get_name(schema))
+            s_type = g.get_target(schema)
+            if s_type.is_array():
+                array_type_ids[name] = s_type.get_element_type(schema).id
+            globals_shape[name] = (
+                s_type,
+                enums.Cardinality.AT_MOST_ONE
+                if g.get_cardinality(schema) == qltypes.SchemaCardinality.One
+                else enums.Cardinality.MANY
+            )
+
+        builder = builder.derive(schema)
+        type_id = builder.describe_input_shape(
+            self._state_type,
+            self._input_shapes.update({
+                globals_type: immutables.Map(globals_shape),
+                self._state_type: self._input_shapes[self._state_type].update(
+                    globals=(globals_type, enums.Cardinality.AT_MOST_ONE),
+                )
+            }),
+            protocol_version,
+        )
+        type_data = b''.join(builder.buffer)
+        codec = TypeSerializer.parse(type_data, protocol_version)
+        codec.fields['globals'][1].__dict__['data_raw'] = True
+
+        return StateSerializer(type_id, type_data, codec, array_type_ids)
+
+
+class StateSerializer:
+    def __init__(
+        self,
+        type_id: uuidgen.UUID,
+        type_data: bytes,
+        codec: TypeDesc,
+        globals_array_type_ids: typing.Dict[str, uuidgen.UUID],
+    ):
+        self._type_id = type_id
+        self._type_data = type_data
+        self._codec = codec
+        self._globals_array_type_ids = globals_array_type_ids
+
+    @property
+    def type_id(self):
+        return self._type_id
+
+    def describe(self) -> typing.Tuple[uuidgen.UUID, bytes]:
+        return self._type_id, self._type_data
+
+    def encode(self, state) -> typing.Tuple[uuidgen.UUID, bytes]:
+        return self._type_id, self._codec.encode(state)
+
+    def decode(self, type_id: bytes, state: bytes):
+        if type_id != self._type_id.bytes:
+            raise errors.StateMismatchError(
+                "Cannot decode state: type mismatch"
+            )
+        return self._type_id, self._codec.decode(state)
+
+    def get_global_array_type_id(self, global_name):
+        return self._globals_array_type_ids.get(global_name)
+
+
+def simple_derive_type(schema, parent, qualifier):
+    s_type = schema.get(parent)
+    return s_type.derive_subtype(
+        schema,
+        name=s_obj.derive_name(
+            schema,
+            qualifier,
+            module='__derived__',
+            parent=s_type,
+        ),
+        mark_derived=True,
+        transient=True,
+        inheritance_refdicts={'pointers'},
+    )
+
 
 @dataclasses.dataclass(frozen=True)
 class TypeDesc:
     tid: uuidgen.UUID
 
+    def encode(self, data) -> bytes:
+        raise NotImplementedError
+
+    def decode(self, data: bytes):
+        raise NotImplementedError
+
 
 @dataclasses.dataclass(frozen=True)
 class SetDesc(TypeDesc):
     subtype: TypeDesc
+    impl: typing.ClassVar[type] = frozenset
+
+    def encode(self, data) -> bytes:
+        if not data:
+            return b''.join((
+                _uint32_packer(0),
+                _uint32_packer(0),
+                _uint32_packer(0),
+            ))
+        bufs = [
+            _uint32_packer(1),
+            _uint32_packer(0),
+            _uint32_packer(0),
+            _uint32_packer(len(data)),
+            _uint32_packer(1),
+        ]
+        for item in data:
+            if item is None:
+                bufs.append(_int32_packer(-1))
+            else:
+                item_bytes = self.subtype.encode(item)
+                bufs.append(_uint32_packer(len(item_bytes)))
+                bufs.append(item_bytes)
+        return b''.join(bufs)
+
+    def decode(self, data: bytes):
+        buf = io.BytesIO(data)
+        wrapped = binwrapper.BinWrapper(buf)
+        ndims = wrapped.read_ui32()
+        if ndims == 0:
+            return self.impl()
+        assert ndims == 1
+        wrapped.read_ui32()
+        wrapped.read_ui32()
+        data_len = wrapped.read_ui32()
+        assert wrapped.read_ui32() == 1
+        return self.impl(
+            self.subtype.decode(wrapped.read_len32_prefixed_bytes())
+            for _ in range(data_len)
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -629,7 +939,34 @@ class ScalarDesc(TypeDesc):
 
 @dataclasses.dataclass(frozen=True)
 class BaseScalarDesc(TypeDesc):
-    pass
+    codecs = {
+        s_obj.get_known_type_id('std::duration'): (
+            statypes.Duration.encode,
+            statypes.Duration.decode,
+        ),
+        s_obj.get_known_type_id('std::str'): (
+            _encode_str,
+            _decode_str,
+        ),
+        s_obj.get_known_type_id('std::bool'): (
+            _encode_bool,
+            _decode_bool,
+        ),
+        s_obj.get_known_type_id('std::int64'): (
+            _encode_int64,
+            _decode_int64,
+        ),
+    }
+
+    def encode(self, data) -> bytes:
+        if codecs := self.codecs.get(self.tid):
+            return codecs[0](data)
+        raise NotImplementedError
+
+    def decode(self, data: bytes):
+        if codecs := self.codecs.get(self.tid):
+            return codecs[1](data)
+        raise NotImplementedError
 
 
 @dataclasses.dataclass(frozen=True)
@@ -641,13 +978,78 @@ class NamedTupleDesc(TypeDesc):
 class TupleDesc(TypeDesc):
     fields: typing.List[TypeDesc]
 
+    def encode(self, data) -> bytes:
+        bufs = [_uint32_packer(len(self.fields))]
+        for idx, desc in enumerate(self.fields):
+            bufs.append(_uint32_packer(0))
+            item = desc.encode(data[idx])
+            bufs.append(_uint32_packer(len(item)))
+            bufs.append(item)
+        return b''.join(bufs)
+
+    def decode(self, data: bytes):
+        buf = io.BytesIO(data)
+        wrapped = binwrapper.BinWrapper(buf)
+        assert wrapped.read_ui32() == len(self.fields)
+        rv = []
+        for desc in self.fields:
+            wrapped.read_ui32()
+            rv.append(desc.decode(wrapped.read_len32_prefixed_bytes()))
+        return tuple(rv)
+
 
 @dataclasses.dataclass(frozen=True)
 class EnumDesc(TypeDesc):
     names: typing.List[str]
 
+    def encode(self, data) -> bytes:
+        return _encode_str(data)
+
+    def decode(self, data: bytes):
+        return _decode_str(data)
+
 
 @dataclasses.dataclass(frozen=True)
-class ArrayDesc(TypeDesc):
+class ArrayDesc(SetDesc):
     dim_len: int
-    subtype: TypeDesc
+    impl: typing.ClassVar[type] = list
+
+
+@dataclasses.dataclass(frozen=True)
+class InputShapeDesc(ShapeDesc):
+    fields: typing.Dict[str, typing.Tuple[int, TypeDesc]]
+    fields_list: typing.List[typing.Tuple[str, TypeDesc]]
+    data_raw: bool = False
+
+    def encode(self, data) -> bytes:
+        bufs = [b'']
+        count = 0
+        for key, value in data.items():
+            if value is None:
+                continue
+            desc_tuple = self.fields.get(key)
+            if not desc_tuple:
+                raise NotImplementedError
+            idx, desc = desc_tuple
+            bufs.append(_uint32_packer(idx))
+            if not self.data_raw:
+                value = desc.encode(value)
+            bufs.append(_uint32_packer(len(value)))
+            bufs.append(value)
+            count += 1
+        bufs[0] = _uint32_packer(count)
+        return b''.join(bufs)
+
+    def decode(self, data: bytes):
+        rv = {}
+        buf = io.BytesIO(data)
+        wrapped = binwrapper.BinWrapper(buf)
+        for _ in range(wrapped.read_ui32()):
+            idx = wrapped.read_ui32()
+            name, desc = self.fields_list[idx]
+            data = wrapped.read_len32_prefixed_bytes()
+            if self.data_raw:
+                rv[name] = data
+            else:
+                rv[name] = desc.decode(data)
+        return rv

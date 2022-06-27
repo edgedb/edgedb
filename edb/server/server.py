@@ -528,10 +528,12 @@ class Server(ha_base.ClusterProtocol):
         assert self._dbindex is not None
         return self._dbindex.maybe_get_db(dbname)
 
-    async def new_dbview(self, *, dbname, query_cache):
+    async def new_dbview(self, *, dbname, query_cache, protocol_version):
         db = self.get_db(dbname=dbname)
         await db.introspection()
-        return self._dbindex.new_view(dbname, query_cache=query_cache)
+        return self._dbindex.new_view(
+            dbname, query_cache=query_cache, protocol_version=protocol_version
+        )
 
     def remove_dbview(self, dbview):
         return self._dbindex.remove_view(dbview)
@@ -1145,6 +1147,8 @@ class Server(ha_base.ClusterProtocol):
                 await pgcon.signal_sysevent(event, **kwargs)
             finally:
                 self._release_sys_pgcon()
+            for conn in self._binary_conns:
+                conn.push_state_desc()
         except Exception:
             metrics.background_errors.inc(1.0, 'signal_sysevent')
             raise
@@ -1161,6 +1165,8 @@ class Server(ha_base.ClusterProtocol):
             except Exception:
                 metrics.background_errors.inc(1.0, 'on_remote_ddl')
                 raise
+            for conn in self._binary_conns:
+                conn.push_state_desc()
 
         self.create_task(task(), interruptable=True)
 

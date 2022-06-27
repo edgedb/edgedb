@@ -498,6 +498,11 @@ Known statuses:
 
   .. eql:struct:: edb.protocol.DataElement
 
+* ``state_description`` -- an input shape descriptor of state data.
+  Serialized as:
+
+  .. eql:struct:: edb.protocol.ParameterStatus_StateDescription
+
 
 .. _ref_protocol_msg_client_handshake:
 

@@ -576,6 +576,11 @@ class RestoreReady(ServerMessage):
     jobs = UInt16('Number of parallel jobs for restore, currently always "1"')
 
 
+class DataElement(Struct):
+
+    data = ArrayOf(UInt32, UInt8(), 'Encoded output data.')
+
+
 class CommandComplete(ServerMessage):
 
     mtype = MessageType('C')
@@ -584,6 +589,9 @@ class CommandComplete(ServerMessage):
     capabilities = EnumOf(UInt64, Capability,
                           'A bit mask of allowed capabilities.')
     status = String('Command status.')
+
+    state_typedesc_id = UUID('Updated state data descriptor ID.')
+    state_data = Bytes('Encoded state data.')
 
 
 class CommandDataDescription(ServerMessage):
@@ -599,11 +607,6 @@ class CommandDataDescription(ServerMessage):
     input_typedesc = Bytes('Argument data descriptor.')
     output_typedesc_id = UUID('Output data descriptor ID.')
     output_typedesc = Bytes('Output data descriptor.')
-
-
-class DataElement(Struct):
-
-    data = ArrayOf(UInt32, UInt8(), 'Encoded output data.')
 
 
 class Data(ServerMessage):
@@ -671,6 +674,12 @@ class ParameterStatus_SystemConfig(Struct):
     typedesc = ArrayOf(UInt32, UInt8(), 'Type descriptor prefixed with '
                                         'type descriptor uuid.')
     data = FixedArrayOf(1, DataElement, 'Configuration settings data.')
+
+
+class ParameterStatus_StateDescription(Struct):
+
+    state_typedesc_id = UUID('Updated state data descriptor ID.')
+    state_typedesc = Bytes('State data descriptor.')
 
 
 class ProtocolExtension(Struct):
@@ -805,9 +814,12 @@ class Execute(ClientMessage):
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality.')
     command_text = String('Command text.')
+
     input_typedesc_id = UUID('Argument data descriptor ID.')
     output_typedesc_id = UUID('Output data descriptor ID.')
+    state_typedesc_id = UUID('State data descriptor ID.')
     arguments = Bytes('Encoded argument data.')
+    state_data = Bytes('Encoded state data.')
 
 
 class ConnectionParam(Struct):

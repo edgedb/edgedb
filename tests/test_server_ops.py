@@ -545,7 +545,9 @@ class TestServerOps(tb.TestCase):
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
+                state_typedesc_id=b'\0' * 16,
                 arguments=b'',
+                state_data=b'',
             ),
             protocol.Sync(),
         )

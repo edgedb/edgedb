@@ -133,6 +133,35 @@ Note that for objects, ``Element.length`` can be set to ``-1``, which
 means an empty set.
 
 
+.. _ref_protocol_fmt_sparse_obj:
+
+Sparse Objects
+==============
+
+The values are represented as the following structure:
+
+.. code-block:: c
+
+    struct SparseObjectValue {
+        // Number of elements
+        int32       nelems;
+
+        // Element data.
+        Element     elements[nelems];
+    };
+
+    struct Element {
+        // Index of the element in the input shape.
+        int32       index;
+
+        // Encoded element data length in bytes.
+        int32       length;
+
+        // Element data.
+        uint8       data[length];
+    };
+
+
 .. _ref_protocol_fmt_uuid:
 
 std::uuid

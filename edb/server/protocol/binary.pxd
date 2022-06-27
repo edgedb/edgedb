@@ -122,6 +122,7 @@ cdef class EdgeConnection:
 
         bint idling
         object started_idling_at
+        bint pending_state_desc_push
 
         bint _in_dump_restore
         bint _passive_mode
@@ -168,8 +169,7 @@ cdef class EdgeConnection:
     cdef WriteBuffer make_command_data_description_msg(
         self, CompiledQuery query
     )
-    cdef WriteBuffer make_command_complete_msg(self, query_unit)
-    cdef WriteBuffer make_command_complete_msg_by_group(self, query_unit_group)
+    cdef WriteBuffer make_command_complete_msg(self, capabilities, status)
 
     cdef inline reject_headers(self)
     cdef inline ignore_headers(self)
@@ -179,6 +179,8 @@ cdef class EdgeConnection:
     cdef write_error(self, exc)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
+
+    cdef inline write_state_desc(self, bint flush=?)
 
 
 @cython.final

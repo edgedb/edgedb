@@ -249,6 +249,11 @@ following messages:
     will send a :ref:`ref_protocol_msg_command_data_description` prior to
     sending any :ref:`ref_protocol_msg_data` messages.
 
+    The client could attach state data. When doing so, the client must also set
+    the state type descriptor, which must then match the state type in the
+    current connection on the server side, or else a ``StateMismatchError`` is
+    returned in an ``ErrorResponse`` message.
+
 Each of the messages could contain one or more EdgeQL commands separated
 by a semicolon (``;``).  If more than one EdgeQL command is found in a single
 message, the server will treat the commands as an EdgeQL script. EdgeQL scripts

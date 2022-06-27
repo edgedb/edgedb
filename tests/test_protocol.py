@@ -47,7 +47,9 @@ class TestProtocol(ProtocolTestCase):
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
+                state_typedesc_id=b'\0' * 16,
                 arguments=b'',
+                state_data=b'',
             ),
             protocol.Sync(),
         )
@@ -73,7 +75,9 @@ class TestProtocol(ProtocolTestCase):
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
+                state_typedesc_id=b'\0' * 16,
                 arguments=b'',
+                state_data=b'',
             ),
             protocol.Sync(),
         )
@@ -198,7 +202,9 @@ class TestProtocol(ProtocolTestCase):
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
+                state_typedesc_id=b'\0' * 16,
                 arguments=b'',
+                state_data=b'',
             ),
             protocol.Sync(),
         )
@@ -225,7 +231,9 @@ class TestProtocol(ProtocolTestCase):
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
+                state_typedesc_id=b'\0' * 16,
                 arguments=b'',
+                state_data=b'',
             ),
         )
         # Should come through even without an explicit 'flush'
@@ -282,7 +290,9 @@ class TestServerCancellation(tb.TestCase):
                     expected_cardinality=protocol.Cardinality.MANY,
                     input_typedesc_id=b'\0' * 16,
                     output_typedesc_id=b'\0' * 16,
+                    state_typedesc_id=b'\0' * 16,
                     arguments=b'',
+                    state_data=b'',
                 ),
                 protocol.Sync(),
             )
@@ -348,7 +358,9 @@ class TestServerCancellation(tb.TestCase):
                         expected_cardinality=protocol.Cardinality.MANY,
                         input_typedesc_id=b'\0' * 16,
                         output_typedesc_id=b'\0' * 16,
+                        state_typedesc_id=b'\0' * 16,
                         arguments=b'',
+                        state_data=b'',
                     ),
                     protocol.Sync(),
                 )

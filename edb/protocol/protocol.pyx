@@ -22,14 +22,24 @@ import re
 import time
 
 from edgedb import con_utils
+from edgedb import enums
 from edgedb.protocol.asyncio_proto cimport AsyncIOProtocol
 from edgedb.protocol.protocol cimport ReadBuffer, WriteBuffer
 
 from . import messages
 
 
-class Protocol(AsyncIOProtocol):
-    pass
+cdef class Protocol(AsyncIOProtocol):
+    cdef parse_command_complete_message(self):
+        self.ignore_headers()
+        self.last_capabilities = enums.Capability(self.buffer.read_int64())
+        self.last_status = self.buffer.read_len_prefixed_bytes()
+        self.state_type_id = self.buffer.read_bytes(16)
+        self.state = WriteBuffer.new()
+        self.state.write_len_prefixed_bytes(
+            self.buffer.read_len_prefixed_bytes()
+        )
+        self.buffer.finish_message()
 
 
 cdef class Connection:
@@ -54,7 +64,9 @@ cdef class Connection:
                 implicit_limit=0,
                 input_typedesc_id=b'\0' * 16,
                 output_typedesc_id=b'\0' * 16,
+                state_typedesc_id=b'\0' * 16,
                 arguments=b'',
+                state_data=b'',
             ),
             messages.Sync(),
         )

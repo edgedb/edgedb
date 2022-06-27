@@ -18,6 +18,7 @@ __all__ = base.__all__ + (  # type: ignore
     'UnexpectedMessageError',
     'InputDataError',
     'ParameterTypeMismatchError',
+    'StateMismatchError',
     'ResultCardinalityMismatchError',
     'CapabilityError',
     'UnsupportedCapabilityError',
@@ -126,6 +127,10 @@ class InputDataError(ProtocolError):
 
 class ParameterTypeMismatchError(InputDataError):
     _code = 0x_03_02_01_00
+
+
+class StateMismatchError(InputDataError):
+    _code = 0x_03_02_02_00
 
 
 class ResultCardinalityMismatchError(ProtocolError):

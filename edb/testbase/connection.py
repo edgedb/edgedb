@@ -40,8 +40,9 @@ from edgedb import errors
 from edgedb import con_utils
 from edgedb import enums as edgedb_enums
 from edgedb import options
-from edgedb.protocol import asyncio_proto  # type: ignore
 from edgedb.protocol import protocol  # type: ignore
+
+from edb.protocol import protocol as edb_protocol  # type: ignore
 
 
 class TransactionState(enum.Enum):
@@ -526,7 +527,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         loop = asyncio.get_running_loop()
         addr = self._params.address
         protocol_factory = functools.partial(
-            asyncio_proto.AsyncIOProtocol, self._params, loop
+            edb_protocol.Protocol, self._params, loop
         )
 
         try:
