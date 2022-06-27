@@ -182,8 +182,8 @@ class ServerConfig(NamedTuple):
     tls_key_file: Optional[pathlib.Path]
     tls_cert_mode: ServerTlsCertMode
 
-    jws_public_key_file: Optional[pathlib.Path]
-    jwe_private_key_file: Optional[pathlib.Path]
+    jws_key_file: Optional[pathlib.Path]
+    jwe_key_file: Optional[pathlib.Path]
 
     default_auth_method: ServerAuthMethods
     security: ServerSecurityMode
@@ -703,19 +703,21 @@ _server_options = [
         ),
     ),
     click.option(
-        '--jws-public-key-file',
+        '--jws-key-file',
         type=PathPath(),
-        envvar="EDGEDB_SERVER_JWS_PUBLIC_KEY_FILE",
+        envvar="EDGEDB_SERVER_JWS_KEY_FILE",
         hidden=True,
         help='Specifies a path to a file containing a public key in PEM '
-             'format used to verify JWT signatures.'),
+             'format used to verify JWT signatures. The file could also '
+             'contain a private key to sign JWT for local testing.'),
     click.option(
-        '--jwe-private-key-file',
+        '--jwe-key-file',
         type=PathPath(),
-        envvar="EDGEDB_SERVER_JWE_PRIVATE_KEY_FILE",
+        envvar="EDGEDB_SERVER_JWE_KEY_FILE",
         hidden=True,
         help='Specifies a path to a file containing a private key in PEM '
-             'format used to decrypt JWE tokens.'),
+             'format used to decrypt JWE tokens. The file could also contain '
+             'a public key to encrypt JWE tokens for local testing.'),
     click.option(
         "--default-auth-method",
         envvar="EDGEDB_SERVER_DEFAULT_AUTH_METHOD",
@@ -1061,29 +1063,27 @@ def parse_args(**kwargs: Any):
             " is not a regular file"
         )
 
-    if kwargs['jws_public_key_file']:
-        if not kwargs['jws_public_key_file'].exists():
+    if kwargs['jws_key_file']:
+        if not kwargs['jws_key_file'].exists():
             abort(
-                f"JWS public key file \"{kwargs['jws_public_key_file']}\""
-                " does not exist"
+                f"JWS key file \"{kwargs['jws_key_file']}\" does not exist"
             )
 
-        if not kwargs['jws_public_key_file'].is_file():
+        if not kwargs['jws_key_file'].is_file():
             abort(
-                f"JWT public key file \"{kwargs['jws_public_key_file']}\""
+                f"JWT key file \"{kwargs['jws_key_file']}\""
                 " is not a regular file"
             )
 
-    if kwargs['jwe_private_key_file']:
-        if not kwargs['jwe_private_key_file'].exists():
+    if kwargs['jwe_key_file']:
+        if not kwargs['jwe_key_file'].exists():
             abort(
-                f"JWE private key file \"{kwargs['jwe_private_key_file']}\""
-                " does not exist"
+                f"JWE key file \"{kwargs['jwe_key_file']}\" does not exist"
             )
 
-        if not kwargs['jwe_private_key_file'].is_file():
+        if not kwargs['jwe_key_file'].is_file():
             abort(
-                f"JWE private key file \"{kwargs['jwe_private_key_file']}\""
+                f"JWE key file \"{kwargs['jwe_key_file']}\""
                 " is not a regular file"
             )
 

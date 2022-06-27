@@ -221,7 +221,7 @@ async def _run_server(
         ss.init_tls(
             args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
 
-        ss.init_jwcrypto(args.jws_public_key_file, args.jwe_private_key_file)
+        ss.init_jwcrypto(args.jws_key_file, args.jwe_key_file)
 
         if args.bootstrap_only:
             if args.startup_script and new_instance:
