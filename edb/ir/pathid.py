@@ -658,6 +658,12 @@ class PathId:
         """
         return not self.is_ptr_path() and typeutils.is_array(self.target)
 
+    def is_range_path(self) -> bool:
+        """Return True if this PathId represents an expression of a range
+           type.
+        """
+        return not self.is_ptr_path() and typeutils.is_range(self.target)
+
     def is_collection_path(self) -> bool:
         """Return True if this PathId represents an expression of a collection
            type.

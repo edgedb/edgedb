@@ -280,6 +280,39 @@ class DateDurationDomain(dbops.Domain):
         )
 
 
+class Float32Range(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('float4',)],
+            subtype=('float4',),
+        )
+
+
+class Float64Range(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('float8',)],
+            subtype=('float8',),
+            subtype_diff=('float8mi',)
+        )
+
+
+class DatetimeRange(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('edgedb', 'timestamptz_t')],
+            subtype=('edgedb', 'timestamptz_t'),
+        )
+
+
+class LocalDatetimeRange(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('edgedb', 'timestamp_t')],
+            subtype=('edgedb', 'timestamp_t'),
+        )
+
+
 class StrToConfigMemoryFunction(dbops.Function):
     """An implementation of std::str to cfg::memory cast."""
     text = r'''
@@ -3768,7 +3801,17 @@ class GetBaseScalarTypeMap(dbops.Function):
                         else ql(f'pg_catalog.{v[0]}')
                     }
                 )"""
-            for k, v in types.base_type_name_map.items())}
+            for k, v in types.base_type_name_map.items())},
+
+            {", ".join(
+                f"""(
+                    {ql(str(k))}::uuid,
+                    {
+                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
+                        else ql(f'pg_catalog.{v[0]}')
+                    }
+                )"""
+            for k, v in types.base_range_name_map.items())}
     '''
 
     def __init__(self) -> None:
@@ -3958,6 +4001,10 @@ async def bootstrap(
         dbops.CreateFunction(DescribeInstanceConfigAsDDLFunctionForwardDecl()),
         dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunctionForwardDecl()),
         dbops.CreateFunction(DescribeRolesAsDDLFunctionForwardDecl()),
+        dbops.CreateRange(Float32Range()),
+        dbops.CreateRange(Float64Range()),
+        dbops.CreateRange(DatetimeRange()),
+        dbops.CreateRange(LocalDatetimeRange()),
     ])
 
     block = dbops.PLTopBlock()

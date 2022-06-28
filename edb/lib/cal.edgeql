@@ -18,9 +18,11 @@
 
 CREATE MODULE cal;
 
-CREATE SCALAR TYPE cal::local_datetime EXTENDING std::anyscalar;
+CREATE SCALAR TYPE cal::local_datetime
+    EXTENDING std::anyscalar, std::anycontiguous;
 
-CREATE SCALAR TYPE cal::local_date EXTENDING std::anyscalar;
+CREATE SCALAR TYPE cal::local_date
+    EXTENDING std::anyscalar, std::anydiscrete;
 
 CREATE SCALAR TYPE cal::local_time EXTENDING std::anyscalar;
 
@@ -1919,4 +1921,207 @@ std::max(vals: SET OF array<cal::date_duration>) -> OPTIONAL array<cal::date_dur
     SET force_return_cast := true;
     SET preserves_optionality := true;
     USING SQL FUNCTION 'max';
+};
+
+
+## Range functions and casts
+
+
+CREATE CAST FROM range<cal::local_datetime> TO range<cal::local_date> {
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT CASE
+            WHEN lower_inc(val)
+            THEN
+                CASE
+                    WHEN upper_inc(val)
+                    THEN
+                        daterange(
+                            lower(val)::date, upper(val)::date, '[]')
+                    ELSE
+                        daterange(
+                            lower(val)::date, upper(val)::date, '[)')
+                END
+            ELSE
+                CASE
+                    WHEN upper_inc(val)
+                    THEN
+                        daterange(
+                            lower(val)::date, upper(val)::date, '(]')
+                    ELSE
+                        daterange(
+                            lower(val)::date, upper(val)::date, '()')
+                END
+        END
+    $$;
+};
+
+
+CREATE CAST FROM range<cal::local_date> TO range<cal::local_datetime> {
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT edgedb.local_datetime_range_t(
+            lower(val)::edgedb.timestamp_t,
+            upper(val)::edgedb.timestamp_t,
+            '[)'
+        );
+    $$;
+    # Analogous to implicit cast from int64 to float64.
+    ALLOW IMPLICIT;
+};
+
+
+
+CREATE FUNCTION
+std::range(
+    lower: optional cal::local_datetime = {},
+    upper: optional cal::local_datetime = {},
+    named only inc_lower: bool = true,
+    named only inc_upper: bool = false
+) -> range<cal::local_datetime>
+{
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT CASE
+            WHEN "inc_lower" AND "inc_upper"
+            THEN edgedb.local_datetime_range_t("lower", "upper", '[]')
+            WHEN NOT "inc_lower" AND "inc_upper"
+            THEN edgedb.local_datetime_range_t("lower", "upper", '(]')
+            WHEN NOT "inc_lower" AND NOT "inc_upper"
+            THEN edgedb.local_datetime_range_t("lower", "upper", '()')
+            WHEN "inc_lower" AND NOT "inc_upper"
+            THEN edgedb.local_datetime_range_t("lower", "upper", '[)')
+        END
+    $$;
+};
+
+
+CREATE FUNCTION
+std::range(
+    lower: optional cal::local_date = {},
+    upper: optional cal::local_date = {},
+    named only inc_lower: bool = true,
+    named only inc_upper: bool = false
+) -> range<cal::local_date>
+{
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT CASE
+            WHEN "inc_lower" AND "inc_upper"
+            THEN daterange("lower", "upper", '[]')
+            WHEN NOT "inc_lower" AND "inc_upper"
+            THEN daterange("lower", "upper", '(]')
+            WHEN NOT "inc_lower" AND NOT "inc_upper"
+            THEN daterange("lower", "upper", '()')
+            WHEN "inc_lower" AND NOT "inc_upper"
+            THEN daterange("lower", "upper", '[)')
+        END
+    $$;
+};
+
+
+CREATE FUNCTION
+std::range_unpack(
+    val: range<cal::local_datetime>,
+    step: cal::relative_duration
+) -> set of cal::local_datetime
+{
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT
+            generate_series(
+                (
+                    lower(val) + (
+                        CASE WHEN lower_inc(val)
+                            THEN '0'::interval
+                            ELSE step
+                        END
+                    )
+                )::timestamp,
+                (
+                    upper(val) - (
+                        CASE WHEN upper_inc(val)
+                            THEN '0'::interval
+                            ELSE step
+                        END
+                    )
+                )::timestamp,
+                step::interval
+            )::edgedb.timestamp_t
+    $$;
+};
+
+
+CREATE FUNCTION
+std::range_unpack(
+    val: range<cal::local_date>
+) -> set of cal::local_date
+{
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT
+            generate_series(
+                (
+                    lower(val) + (
+                        CASE WHEN lower_inc(val)
+                            THEN '0'::interval
+                            ELSE 'P1D'::interval
+                        END
+                    )
+                )::timestamp,
+                (
+                    upper(val) - (
+                        CASE WHEN upper_inc(val)
+                            THEN '0'::interval
+                            ELSE 'P1D'::interval
+                        END
+                    )
+                )::timestamp,
+                'P1D'::interval
+            )::edgedb.date_t
+    $$;
+};
+
+
+CREATE FUNCTION
+std::range_unpack(
+    val: range<cal::local_date>,
+    step: cal::date_duration
+) -> set of cal::local_date
+{
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT
+            generate_series(
+                (
+                    lower(val) + (
+                        CASE WHEN lower_inc(val)
+                            THEN '0'::interval
+                            ELSE step
+                        END
+                    )
+                )::timestamp,
+                (
+                    upper(val) - (
+                        CASE WHEN upper_inc(val)
+                            THEN '0'::interval
+                            ELSE step
+                        END
+                    )
+                )::timestamp,
+                step::interval
+            )::edgedb.date_t
+    $$;
+};
+
+# Need to cast edgedb.date_t to date in order for the @> operator to work.
+CREATE FUNCTION std::contains(
+    haystack: range<cal::local_date>,
+    needle: cal::local_date
+) -> std::bool
+{
+    SET volatility := 'Immutable';
+    USING SQL $$
+       SELECT "haystack" @> ("needle"::date)
+    $$;
 };

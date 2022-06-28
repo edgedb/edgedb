@@ -214,6 +214,7 @@ def ast_to_type_shell(
 
         assert isinstance(node.maintype, qlast.ObjectRef)
         coll = s_types.Collection.get_class(node.maintype.name)
+        subtypes_list: List[s_types.TypeShell[s_types.Type]] = []
 
         if issubclass(coll, s_types.Tuple):
             # Note: if we used abc Tuple here, then we would need anyway
@@ -266,8 +267,6 @@ def ast_to_type_shell(
                 raise e
 
         elif issubclass(coll, s_types.Array):
-
-            subtypes_list: List[s_types.TypeShell[s_types.Type]] = []
             for st in node.subtypes:
                 subtypes_list.append(
                     ast_to_type_shell(
@@ -290,6 +289,35 @@ def ast_to_type_shell(
                     'nested arrays are not supported',
                     context=node.subtypes[0].context,
                 )
+
+            try:
+                return coll.create_shell(  # type: ignore
+                    schema,
+                    subtypes=subtypes_list,
+                )
+            except errors.SchemaError as e:
+                e.set_source_context(node.context)
+                raise e
+
+        elif issubclass(coll, s_types.Range):
+            for st in node.subtypes:
+                subtypes_list.append(
+                    ast_to_type_shell(
+                        cast(qlast.TypeName, st),
+                        modaliases=modaliases,
+                        metaclass=metaclass,
+                        schema=schema,
+                    )
+                )
+
+            if len(subtypes_list) != 1:
+                raise errors.SchemaError(
+                    f'unexpected number of subtypes,'
+                    f' expecting 1, got {len(subtypes_list)}',
+                    context=node.context,
+                )
+
+            # FIXME: need to check that subtypes are only anypoint
 
             try:
                 return coll.create_shell(  # type: ignore
@@ -459,7 +487,7 @@ def typeref_to_ast(
         result = qlast.TypeName(
             name=_name,
             maintype=qlast.ObjectRef(
-                name=t.schema_name
+                name=t.get_schema_name()
             ),
             subtypes=[
                 typeref_to_ast(schema, st, _name=sn,
@@ -467,13 +495,13 @@ def typeref_to_ast(
                 for sn, st in t.iter_subtypes(schema)
             ]
         )
-    elif isinstance(t, (s_types.Array, s_types.Tuple)):
-        # Here the concrete type Array is used because t.schema_name is used,
-        # which is not defined for more generic collections and abcs
+    elif isinstance(t, (s_types.Array, s_types.Tuple, s_types.Range)):
+        # Here the concrete type Array is used because t.get_schema_name()
+        # is used, which is not defined for more generic collections and abcs
         result = qlast.TypeName(
             name=_name,
             maintype=qlast.ObjectRef(
-                name=t.schema_name
+                name=t.get_schema_name()
             ),
             subtypes=[
                 typeref_to_ast(schema, st,
@@ -566,6 +594,17 @@ def shell_to_ast(
             name=_name,
             maintype=qlast.ObjectRef(
                 name='array',
+            ),
+            subtypes=[
+                shell_to_ast(schema, st)
+                for st in t.get_subtypes(schema)
+            ]
+        )
+    elif isinstance(t, s_types.RangeTypeShell):
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
+                name='range',
             ),
             subtypes=[
                 shell_to_ast(schema, st)
@@ -825,7 +864,7 @@ def enrich_schema_lookup_error(
         collection=collection, condition=condition)
 
     if suggestions:
-        names: Union[List[str]] = []
+        names: List[str] = []
         cur_module_name = modaliases.get(None)
 
         for suggestion in suggestions:
@@ -1220,6 +1259,13 @@ def type_shell_substitute(
                 k: type_shell_substitute(name, new, v)
                 for k, v in typ.subtypes.items()
             }
+        )
+    elif isinstance(typ, s_types.RangeTypeShell):
+        return s_types.RangeTypeShell(
+            name=sn.UnqualName('__unresolved__'),
+            typemods=typ.typemods,
+            schemaclass=typ.schemaclass,
+            subtype=type_shell_substitute(name, new, typ.subtype),
         )
     else:
         return typ

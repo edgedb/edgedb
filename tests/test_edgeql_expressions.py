@@ -4228,6 +4228,1719 @@ aa \
             [{"b": {"c": [1]}}],
         )
 
+    async def test_edgeql_expr_range_01(self):
+        # Test equality for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            for ops in [('=', '!='), ('?=', '?!=')]:
+                # equals
+                for op in ops:
+                    answer = op == ops[0]
+                    await self.assert_query_result(
+                        f'''select range(<{st}>-1, <{st}>2) {op}
+                                   range(<{st}>-1, <{st}>2);''',
+                        [answer],
+                    )
+                    await self.assert_query_result(
+                        f'''
+                            select range(<{st}>-1, <{st}>2) {op}
+                                   range(<{st}>-1, <{st}>2,
+                                         inc_lower := true);
+                        ''',
+                        [answer],
+                    )
+                    await self.assert_query_result(
+                        f'''
+                            select range(<{st}>-1, <{st}>2) {op}
+                                   range(<{st}>-1, <{st}>2,
+                                         inc_upper := false);
+                        ''',
+                        [answer],
+                    )
+                    await self.assert_query_result(
+                        f'''
+                            select range(<{st}>-1, <{st}>2) {op}
+                                   range(<{st}>-1, <{st}>2,
+                                         inc_lower := true,
+                                         inc_upper := false);
+                        ''',
+                        [answer],
+                    )
+                    await self.assert_query_result(
+                        f'''
+                            select range(<{st}>{{}}, <{st}>2) {op}
+                                   range(<{st}>{{}}, <{st}>2);
+                        ''',
+                        [answer],
+                    )
+
+                    await self.assert_query_result(
+                        f'''
+                            select range(<{st}>1, <{st}>{{}}) {op}
+                                   range(<{st}>1, <{st}>{{}});
+                        ''',
+                        [answer],
+                    )
+
+                # not equals
+                for op in ops:
+                    answer = op != ops[0]
+                    await self.assert_query_result(
+                        f'''select range(<{st}>-1, <{st}>2) {op}
+                                   range(<{st}>1, <{st}>3);''',
+                        [answer],
+                    )
+                    await self.assert_query_result(
+                        f'''
+                            select range(<{st}>-1, <{st}>2) {op}
+                                   range(<{st}>-1, <{st}>2,
+                                         inc_lower := false);
+                        ''',
+                        [answer],
+                    )
+                    await self.assert_query_result(
+                        f'''
+                            select range(<{st}>-1, <{st}>2) {op}
+                                   range(<{st}>-1, <{st}>2,
+                                         inc_upper := true);
+                        ''',
+                        [answer],
+                    )
+                    await self.assert_query_result(
+                        f'''
+                            select range(<{st}>-1, <{st}>2) {op}
+                                   range(<{st}>-1, <{st}>2,
+                                         inc_lower := false,
+                                         inc_upper := true);
+                        ''',
+                        [answer],
+                    )
+
+    async def test_edgeql_expr_range_02(self):
+        # Test comparison for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            for op in ['>', '<=']:
+                answer = op == '>'
+                await self.assert_query_result(
+                    f'''select range(<{st}>1, <{st}>2) {op}
+                               range(<{st}>-1, <{st}>2);''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''select range(<{st}>1, <{st}>2) {op}
+                               range(<{st}>-1, <{st}>20);''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''select range(<{st}>1, <{st}>3) {op}
+                               range(<{st}>1, <{st}>2);''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''select range(<{st}>1, <{st}>{{}}) {op}
+                               range(<{st}>1, <{st}>2);''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''select range(<{st}>1, <{st}>3) {op}
+                               range(<{st}>{{}}, <{st}>2);''',
+                    [answer],
+                )
+
+            for op in ['<', '>=']:
+                answer = op == '<'
+                await self.assert_query_result(
+                    f'''select range(<{st}>-2, <{st}>2) {op}
+                               range(<{st}>1, <{st}>2);''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''select range(<{st}>-2, <{st}>20) {op}
+                               range(<{st}>1, <{st}>2);''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''select range(<{st}>1, <{st}>2) {op}
+                               range(<{st}>1, <{st}>3);''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''select range(<{st}>1, <{st}>2) {op}
+                               range(<{st}>1, <{st}>{{}});''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''select range(<{st}>{{}}, <{st}>2) {op}
+                               range(<{st}>1, <{st}>3);''',
+                    [answer],
+                )
+
+    async def test_edgeql_expr_range_03(self):
+        # Test bound for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select range_get_upper(range(<{st}>1, <{st}>5));''',
+                [5],
+            )
+
+            # The upper bound for integers is never included
+            is_int = st.startswith('int')
+            await self.assert_query_result(
+                f'''select range_get_upper(
+                        range(<{st}>1, <{st}>5, inc_upper := true));''',
+                [6 if is_int else 5],
+            )
+
+            await self.assert_query_result(
+                f'''select range_get_lower(range(<{st}>1, <{st}>5));''',
+                [1],
+            )
+
+            await self.assert_query_result(
+                f'''select range_get_lower(
+                        range(<{st}>1, <{st}>5, inc_lower := false));''',
+                # The lower bound for integers is always included
+                [2 if is_int else 1],
+            )
+
+            await self.assert_query_result(
+                f'''select range_get_upper(range(<{st}>1));''',
+                [],
+            )
+
+            await self.assert_query_result(
+                f'''select range_get_lower(range(<{st}>{{}}, <{st}>5));''',
+                [],
+            )
+
+    async def test_edgeql_expr_range_04(self):
+        # Test bound for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select range_is_inclusive_upper(
+                        range(<{st}>1, <{st}>5));''',
+                [False],
+            )
+
+            # The upper bound for integers is never included
+            is_int = st.startswith('int')
+            await self.assert_query_result(
+                f'''select range_is_inclusive_upper(
+                        range(<{st}>1, <{st}>5, inc_upper := true));''',
+                [not is_int],
+            )
+
+            await self.assert_query_result(
+                f'''select range_is_inclusive_lower(
+                        range(<{st}>1, <{st}>5));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select range_is_inclusive_lower(
+                        range(<{st}>1, <{st}>5, inc_lower := false));''',
+                # The lower bound for integers is always included
+                [is_int],
+            )
+
+            await self.assert_query_result(
+                f'''select range_is_inclusive_upper(
+                        range(<{st}>{{}}));''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select range_is_inclusive_lower(range(<{st}>{{}}));''',
+                [False],
+            )
+
+    async def test_edgeql_expr_range_05(self):
+        # Test addition for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''
+                    select range(<{st}>1, <{st}>5) + range(<{st}>2, <{st}>7) =
+                        range(<{st}>1, <{st}>7);
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''
+                    select
+                        range(<{st}>{{}}, <{st}>5) + range(<{st}>2, <{st}>7) =
+                        range(<{st}>{{}}, <{st}>7);
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''
+                    select range(<{st}>2) + range(<{st}>1, <{st}>7) =
+                        range(<{st}>1);
+                ''',
+                [True],
+            )
+
+    async def test_edgeql_expr_range_06(self):
+        # Test intersection for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''
+                    select range(<{st}>1, <{st}>5) * range(<{st}>2, <{st}>7) =
+                        range(<{st}>2, <{st}>5);
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''
+                    select
+                        range(<{st}>{{}}, <{st}>5) * range(<{st}>2, <{st}>7) =
+                        range(<{st}>2, <{st}>5);
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''
+                    select range(<{st}>2) * range(<{st}>1, <{st}>7) =
+                        range(<{st}>2, <{st}>7);
+                ''',
+                [True],
+            )
+
+    async def test_edgeql_expr_range_07(self):
+        # Test subtraction for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''
+                    select range(<{st}>1, <{st}>5) - range(<{st}>2, <{st}>7) =
+                        range(<{st}>1, <{st}>2);
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''
+                    select
+                        range(<{st}>{{}}, <{st}>5) - range(<{st}>2, <{st}>7) =
+                        range(<{st}>{{}}, <{st}>2);
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''
+                    select range(<{st}>2) - range(<{st}>1, <{st}>7) =
+                        range(<{st}>7);
+                ''',
+                [True],
+            )
+
+    async def test_edgeql_expr_range_08(self):
+        # Test equality for datetime ranges.
+        for ops in [('=', '!='), ('?=', '?!=')]:
+            # equals
+            for op in ops:
+                answer = op == ops[0]
+                await self.assert_query_result(
+                    f'''select range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z') {op}
+                               range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z');''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z') {op}
+                               range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z',
+                                     inc_lower := true);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z') {op}
+                               range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z',
+                                     inc_upper := false);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z') {op}
+                               range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z',
+                                     inc_lower := true,
+                                     inc_upper := false);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(<datetime>{{}},
+                                     <datetime>'2022-06-16T00:00:00Z') {op}
+                               range(<datetime>{{}},
+                                     <datetime>'2022-06-16T00:00:00Z');
+                    ''',
+                    [answer],
+                )
+
+                await self.assert_query_result(
+                    f'''
+                        select range(<datetime>'2022-06-06T00:00:00Z',
+                                     <datetime>{{}}) {op}
+                               range(<datetime>'2022-06-06T00:00:00Z',
+                                     <datetime>{{}});
+                    ''',
+                    [answer],
+                )
+
+            # not equals
+            for op in ops:
+                answer = op != ops[0]
+                await self.assert_query_result(
+                    f'''select range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z') {op}
+                               range(<datetime>'2022-06-06T00:00:00Z',
+                                     <datetime>'2022-06-26T00:00:00Z');''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z') {op}
+                               range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z',
+                                     inc_lower := false);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z') {op}
+                               range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z',
+                                     inc_upper := true);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z') {op}
+                               range(<datetime>'2022-06-01T00:00:00Z',
+                                     <datetime>'2022-06-16T00:00:00Z',
+                                     inc_lower := false,
+                                     inc_upper := true);
+                    ''',
+                    [answer],
+                )
+
+    async def test_edgeql_expr_range_09(self):
+        # Test comparison for datetime ranges.
+        for op in ['>', '<=']:
+            answer = op == '>'
+            await self.assert_query_result(
+                f'''select range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>'2022-06-10T00:00:00Z') {op}
+                           range(<datetime>'2022-06-02T00:00:00Z',
+                                 <datetime>'2022-06-10T00:00:00Z');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>'2022-06-10T00:00:00Z') {op}
+                           range(<datetime>'2022-06-02T00:00:00Z',
+                                 <datetime>'2022-06-30T00:00:00Z');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>'2022-06-13T00:00:00Z') {op}
+                           range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>'2022-06-10T00:00:00Z');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>{{}}) {op}
+                           range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>'2022-06-10T00:00:00Z');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>'2022-06-13T00:00:00Z') {op}
+                           range(<datetime>{{}},
+                                 <datetime>'2022-06-10T00:00:00Z');''',
+                [answer],
+            )
+
+        for op in ['<', '>=']:
+            answer = op == '<'
+            await self.assert_query_result(
+                f'''select range(<datetime>'2022-06-01T00:00:00Z',
+                                 <datetime>'2022-06-10T00:00:00Z') {op}
+                           range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>'2022-06-10T00:00:00Z');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(<datetime>'2022-06-01T00:00:00Z',
+                                 <datetime>'2022-06-30T00:00:00Z') {op}
+                           range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>'2022-06-10T00:00:00Z');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>'2022-06-10T00:00:00Z') {op}
+                           range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>'2022-06-13T00:00:00Z');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>'2022-06-10T00:00:00Z') {op}
+                           range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>{{}});''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(<datetime>{{}},
+                                 <datetime>'2022-06-10T00:00:00Z') {op}
+                           range(<datetime>'2022-06-06T00:00:00Z',
+                                 <datetime>'2022-06-13T00:00:00Z');''',
+                [answer],
+            )
+
+    async def test_edgeql_expr_range_10(self):
+        # Test bound for datetime ranges.
+        await self.assert_query_result(
+            f'''select <str>range_get_upper(
+                    range(<datetime>'2022-06-06T00:00:00Z',
+                          <datetime>'2022-06-15T00:00:00Z'));''',
+            ['2022-06-15T00:00:00+00:00'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_get_upper(
+                    range(<datetime>'2022-06-06T00:00:00Z',
+                          <datetime>'2022-06-15T00:00:00Z',
+                          inc_upper := true));''',
+            ['2022-06-15T00:00:00+00:00'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_get_lower(
+                    range(<datetime>'2022-06-06T00:00:00Z',
+                          <datetime>'2022-06-15T00:00:00Z'));''',
+            ['2022-06-06T00:00:00+00:00'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_get_lower(
+                    range(<datetime>'2022-06-06T00:00:00Z',
+                          <datetime>'2022-06-15T00:00:00Z',
+                          inc_lower := false));''',
+            ['2022-06-06T00:00:00+00:00'],
+        )
+
+        await self.assert_query_result(
+            f'''select range_get_upper(
+                    range(<datetime>'2022-06-06T00:00:00Z'));''',
+            [],
+        )
+
+        await self.assert_query_result(
+            f'''select range_get_lower(
+                    range(<datetime>{{}},
+                          <datetime>'2022-06-15T00:00:00Z'));''',
+            [],
+        )
+
+    async def test_edgeql_expr_range_11(self):
+        # Test bound for datetime ranges.
+        await self.assert_query_result(
+            f'''select range_is_inclusive_upper(
+                    range(<datetime>'2022-06-06T00:00:00Z',
+                          <datetime>'2022-06-15T00:00:00Z'));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_upper(
+                    range(<datetime>'2022-06-06T00:00:00Z',
+                          <datetime>'2022-06-15T00:00:00Z',
+                          inc_upper := true));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_lower(
+                    range(<datetime>'2022-06-06T00:00:00Z',
+                          <datetime>'2022-06-15T00:00:00Z'));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_lower(
+                    range(<datetime>'2022-06-06T00:00:00Z',
+                          <datetime>'2022-06-15T00:00:00Z',
+                          inc_lower := false));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_upper(
+                    range(<datetime>{{}}));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_lower(range(<datetime>{{}}));''',
+            [False],
+        )
+
+    async def test_edgeql_expr_range_12(self):
+        # Test addition for datetime ranges.
+        await self.assert_query_result(
+            f'''
+                select range(<datetime>'2022-06-06T00:00:00Z',
+                             <datetime>'2022-06-15T00:00:00Z') +
+                       range(<datetime>'2022-06-10T00:00:00Z',
+                             <datetime>'2022-06-17T00:00:00Z') =
+                    range(<datetime>'2022-06-06T00:00:00Z',
+                          <datetime>'2022-06-17T00:00:00Z');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<datetime>{{}},
+                          <datetime>'2022-06-15T00:00:00Z') +
+                    range(<datetime>'2022-06-10T00:00:00Z',
+                          <datetime>'2022-06-17T00:00:00Z') =
+                    range(<datetime>{{}},
+                          <datetime>'2022-06-17T00:00:00Z');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select range(<datetime>'2022-06-10T00:00:00Z') +
+                       range(<datetime>'2022-06-06T00:00:00Z',
+                             <datetime>'2022-06-17T00:00:00Z') =
+                       range(<datetime>'2022-06-06T00:00:00Z');
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_13(self):
+        # Test intersection for datetime ranges.
+        await self.assert_query_result(
+            f'''
+                select range(<datetime>'2022-06-06T00:00:00Z',
+                             <datetime>'2022-06-15T00:00:00Z') *
+                       range(<datetime>'2022-06-10T00:00:00Z',
+                             <datetime>'2022-06-17T00:00:00Z') =
+                       range(<datetime>'2022-06-10T00:00:00Z',
+                             <datetime>'2022-06-15T00:00:00Z');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<datetime>{{}},
+                          <datetime>'2022-06-15T00:00:00Z') *
+                    range(<datetime>'2022-06-10T00:00:00Z',
+                          <datetime>'2022-06-17T00:00:00Z') =
+                    range(<datetime>'2022-06-10T00:00:00Z',
+                          <datetime>'2022-06-15T00:00:00Z');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select range(<datetime>'2022-06-10T00:00:00Z') *
+                       range(<datetime>'2022-06-06T00:00:00Z',
+                             <datetime>'2022-06-17T00:00:00Z') =
+                    range(<datetime>'2022-06-10T00:00:00Z',
+                          <datetime>'2022-06-17T00:00:00Z');
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_14(self):
+        # Test subtraction for datetime ranges.
+        await self.assert_query_result(
+            f'''
+                select range(<datetime>'2022-06-06T00:00:00Z',
+                             <datetime>'2022-06-15T00:00:00Z') -
+                       range(<datetime>'2022-06-10T00:00:00Z',
+                             <datetime>'2022-06-17T00:00:00Z') =
+                       range(<datetime>'2022-06-06T00:00:00Z',
+                             <datetime>'2022-06-10T00:00:00Z');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<datetime>{{}}, <datetime>'2022-06-15T00:00:00Z') -
+                    range(<datetime>'2022-06-10T00:00:00Z',
+                          <datetime>'2022-06-17T00:00:00Z') =
+                    range(<datetime>{{}}, <datetime>'2022-06-10T00:00:00Z');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select range(<datetime>'2022-06-10T00:00:00Z') -
+                       range(<datetime>'2022-06-06T00:00:00Z',
+                             <datetime>'2022-06-17T00:00:00Z') =
+                       range(<datetime>'2022-06-17T00:00:00Z');
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_15(self):
+        # Test equality for datetime ranges.
+        for ops in [('=', '!='), ('?=', '?!=')]:
+            # equals
+            for op in ops:
+                answer = op == ops[0]
+                await self.assert_query_result(
+                    f'''select
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00');''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00',
+                              inc_lower := true);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00',
+                              inc_upper := false);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00',
+                              inc_lower := true,
+                              inc_upper := false);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_datetime>{{}},
+                              <cal::local_datetime>'2022-06-16T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>{{}},
+                              <cal::local_datetime>'2022-06-16T00:00:00');
+                    ''',
+                    [answer],
+                )
+
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>{{}})
+                        {op}
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>{{}});
+                    ''',
+                    [answer],
+                )
+
+            # not equals
+            for op in ops:
+                answer = op != ops[0]
+                await self.assert_query_result(
+                    f'''select
+                    range(<cal::local_datetime>'2022-06-01T00:00:00',
+                          <cal::local_datetime>'2022-06-16T00:00:00')
+                    {op}
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-26T00:00:00');''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00',
+                              inc_lower := false);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00',
+                              inc_upper := true);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-16T00:00:00',
+                              inc_lower := false,
+                              inc_upper := true);
+                    ''',
+                    [answer],
+                )
+
+    async def test_edgeql_expr_range_16(self):
+        # Test comparison for datetime ranges.
+        for op in ['>', '<=']:
+            answer = op == '>'
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-02T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-02T00:00:00',
+                              <cal::local_datetime>'2022-06-30T00:00:00');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>'2022-06-13T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>{{}})
+                        {op}
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>'2022-06-13T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>{{}},
+                              <cal::local_datetime>'2022-06-10T00:00:00');''',
+                [answer],
+            )
+
+        for op in ['<', '>=']:
+            answer = op == '<'
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_datetime>'2022-06-01T00:00:00',
+                              <cal::local_datetime>'2022-06-30T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>'2022-06-13T00:00:00');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>'2022-06-10T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>{{}});''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_datetime>{{}},
+                              <cal::local_datetime>'2022-06-10T00:00:00')
+                        {op}
+                        range(<cal::local_datetime>'2022-06-06T00:00:00',
+                              <cal::local_datetime>'2022-06-13T00:00:00');''',
+                [answer],
+            )
+
+    async def test_edgeql_expr_range_17(self):
+        # Test bound for datetime ranges.
+        await self.assert_query_result(
+            f'''select <str>range_get_upper(
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00'));''',
+            ['2022-06-15T00:00:00'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_get_upper(
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00',
+                          inc_upper := true));''',
+            ['2022-06-15T00:00:00'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_get_lower(
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00'));''',
+            ['2022-06-06T00:00:00'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_get_lower(
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00',
+                          inc_lower := false));''',
+            ['2022-06-06T00:00:00'],
+        )
+
+        await self.assert_query_result(
+            f'''select range_get_upper(
+                    range(<cal::local_datetime>'2022-06-06T00:00:00'));''',
+            [],
+        )
+
+        await self.assert_query_result(
+            f'''select range_get_lower(
+                    range(<cal::local_datetime>{{}},
+                          <cal::local_datetime>'2022-06-15T00:00:00'));''',
+            [],
+        )
+
+    async def test_edgeql_expr_range_18(self):
+        # Test bound for datetime ranges.
+        await self.assert_query_result(
+            f'''select range_is_inclusive_upper(
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00'));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_upper(
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00',
+                          inc_upper := true));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_lower(
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00'));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_lower(
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00',
+                          inc_lower := false));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_upper(
+                    range(<cal::local_datetime>{{}}));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_lower(
+                    range(<cal::local_datetime>{{}}));''',
+            [False],
+        )
+
+    async def test_edgeql_expr_range_19(self):
+        # Test addition for datetime ranges.
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00') +
+                    range(<cal::local_datetime>'2022-06-10T00:00:00',
+                          <cal::local_datetime>'2022-06-17T00:00:00') =
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-17T00:00:00');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_datetime>{{}},
+                          <cal::local_datetime>'2022-06-15T00:00:00') +
+                    range(<cal::local_datetime>'2022-06-10T00:00:00',
+                          <cal::local_datetime>'2022-06-17T00:00:00') =
+                    range(<cal::local_datetime>{{}},
+                          <cal::local_datetime>'2022-06-17T00:00:00');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_datetime>'2022-06-10T00:00:00') +
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-17T00:00:00') =
+                    range(<cal::local_datetime>'2022-06-06T00:00:00');
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_20(self):
+        # Test intersection for datetime ranges.
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00') *
+                    range(<cal::local_datetime>'2022-06-10T00:00:00',
+                          <cal::local_datetime>'2022-06-17T00:00:00') =
+                    range(<cal::local_datetime>'2022-06-10T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_datetime>{{}},
+                          <cal::local_datetime>'2022-06-15T00:00:00') *
+                    range(<cal::local_datetime>'2022-06-10T00:00:00',
+                          <cal::local_datetime>'2022-06-17T00:00:00') =
+                    range(<cal::local_datetime>'2022-06-10T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_datetime>'2022-06-10T00:00:00') *
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-17T00:00:00') =
+                    range(<cal::local_datetime>'2022-06-10T00:00:00',
+                          <cal::local_datetime>'2022-06-17T00:00:00');
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_21(self):
+        # Test subtraction for datetime ranges.
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-15T00:00:00') -
+                    range(<cal::local_datetime>'2022-06-10T00:00:00',
+                          <cal::local_datetime>'2022-06-17T00:00:00') =
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-10T00:00:00');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_datetime>{{}},
+                          <cal::local_datetime>'2022-06-15T00:00:00') -
+                    range(<cal::local_datetime>'2022-06-10T00:00:00',
+                          <cal::local_datetime>'2022-06-17T00:00:00') =
+                    range(<cal::local_datetime>{{}},
+                          <cal::local_datetime>'2022-06-10T00:00:00');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_datetime>'2022-06-10T00:00:00') -
+                    range(<cal::local_datetime>'2022-06-06T00:00:00',
+                          <cal::local_datetime>'2022-06-17T00:00:00') =
+                    range(<cal::local_datetime>'2022-06-17T00:00:00');
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_22(self):
+        # Test equality for date ranges.
+        for ops in [('=', '!='), ('?=', '?!=')]:
+            # equals
+            for op in ops:
+                answer = op == ops[0]
+                await self.assert_query_result(
+                    f'''select
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16')
+                        {op}
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16');''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16')
+                        {op}
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16',
+                              inc_lower := true);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16')
+                        {op}
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16',
+                              inc_upper := false);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16')
+                        {op}
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16',
+                              inc_lower := true,
+                              inc_upper := false);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_date>{{}},
+                              <cal::local_date>'2022-06-16')
+                        {op}
+                        range(<cal::local_date>{{}},
+                              <cal::local_date>'2022-06-16');
+                    ''',
+                    [answer],
+                )
+
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>{{}})
+                        {op}
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>{{}});
+                    ''',
+                    [answer],
+                )
+
+            # not equals
+            for op in ops:
+                answer = op != ops[0]
+                await self.assert_query_result(
+                    f'''select
+                    range(<cal::local_date>'2022-06-01',
+                          <cal::local_date>'2022-06-16')
+                    {op}
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-26');''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16')
+                        {op}
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16',
+                              inc_lower := false);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16')
+                        {op}
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16',
+                              inc_upper := true);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16')
+                        {op}
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-16',
+                              inc_lower := false,
+                              inc_upper := true);
+                    ''',
+                    [answer],
+                )
+
+    async def test_edgeql_expr_range_23(self):
+        # Test comparison for date ranges.
+        for op in ['>', '<=']:
+            answer = op == '>'
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>'2022-06-10')
+                        {op}
+                        range(<cal::local_date>'2022-06-02',
+                              <cal::local_date>'2022-06-10');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>'2022-06-10')
+                        {op}
+                        range(<cal::local_date>'2022-06-02',
+                              <cal::local_date>'2022-06-30');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>'2022-06-13')
+                        {op}
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>'2022-06-10');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>{{}})
+                        {op}
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>'2022-06-10');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>'2022-06-13')
+                        {op}
+                        range(<cal::local_date>{{}},
+                              <cal::local_date>'2022-06-10');''',
+                [answer],
+            )
+
+        for op in ['<', '>=']:
+            answer = op == '<'
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-10')
+                        {op}
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>'2022-06-10');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_date>'2022-06-01',
+                              <cal::local_date>'2022-06-30')
+                        {op}
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>'2022-06-10');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>'2022-06-10')
+                        {op}
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>'2022-06-13');''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>'2022-06-10')
+                        {op}
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>{{}});''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select
+                        range(<cal::local_date>{{}},
+                              <cal::local_date>'2022-06-10')
+                        {op}
+                        range(<cal::local_date>'2022-06-06',
+                              <cal::local_date>'2022-06-13');''',
+                [answer],
+            )
+
+    async def test_edgeql_expr_range_24(self):
+        # Test bound for date ranges.
+        await self.assert_query_result(
+            f'''select <str>range_get_upper(
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-15'));''',
+            ['2022-06-15'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_get_upper(
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-15',
+                          inc_upper := true));''',
+            ['2022-06-16'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_get_lower(
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-15'));''',
+            ['2022-06-06'],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_get_lower(
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-15',
+                          inc_lower := false));''',
+            ['2022-06-07'],
+        )
+
+        await self.assert_query_result(
+            f'''select range_get_upper(
+                    range(<cal::local_date>'2022-06-06'));''',
+            [],
+        )
+
+        await self.assert_query_result(
+            f'''select range_get_lower(
+                    range(<cal::local_date>{{}},
+                          <cal::local_date>'2022-06-15'));''',
+            [],
+        )
+
+    async def test_edgeql_expr_range_25(self):
+        # Test bound for date ranges.
+        await self.assert_query_result(
+            f'''select range_is_inclusive_upper(
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-15'));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_upper(
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-15',
+                          inc_upper := true));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_lower(
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-15'));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_lower(
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-15',
+                          inc_lower := false));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_upper(
+                    range(<cal::local_date>{{}}));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            f'''select range_is_inclusive_lower(
+                    range(<cal::local_date>{{}}));''',
+            [False],
+        )
+
+    async def test_edgeql_expr_range_26(self):
+        # Test addition for date ranges.
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-15') +
+                    range(<cal::local_date>'2022-06-10',
+                          <cal::local_date>'2022-06-17') =
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-17');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_date>{{}},
+                          <cal::local_date>'2022-06-15') +
+                    range(<cal::local_date>'2022-06-10',
+                          <cal::local_date>'2022-06-17') =
+                    range(<cal::local_date>{{}},
+                          <cal::local_date>'2022-06-17');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_date>'2022-06-10') +
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-17') =
+                    range(<cal::local_date>'2022-06-06');
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_27(self):
+        # Test intersection for date ranges.
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-15') *
+                    range(<cal::local_date>'2022-06-10',
+                          <cal::local_date>'2022-06-17') =
+                    range(<cal::local_date>'2022-06-10',
+                          <cal::local_date>'2022-06-15');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_date>{{}},
+                          <cal::local_date>'2022-06-15') *
+                    range(<cal::local_date>'2022-06-10',
+                          <cal::local_date>'2022-06-17') =
+                    range(<cal::local_date>'2022-06-10',
+                          <cal::local_date>'2022-06-15');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_date>'2022-06-10') *
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-17') =
+                    range(<cal::local_date>'2022-06-10',
+                          <cal::local_date>'2022-06-17');
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_28(self):
+        # Test subtraction for date ranges.
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-15') -
+                    range(<cal::local_date>'2022-06-10',
+                          <cal::local_date>'2022-06-17') =
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-10');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_date>{{}},
+                          <cal::local_date>'2022-06-15') -
+                    range(<cal::local_date>'2022-06-10',
+                          <cal::local_date>'2022-06-17') =
+                    range(<cal::local_date>{{}},
+                          <cal::local_date>'2022-06-10');
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(<cal::local_date>'2022-06-10') -
+                    range(<cal::local_date>'2022-06-06',
+                          <cal::local_date>'2022-06-17') =
+                    range(<cal::local_date>'2022-06-17');
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_29(self):
+        # Test casts between numeric ranges. Only a subset of numeric types
+        # support ranges.
+        valid_types = {'int32', 'int64', 'float32', 'float64', 'decimal'}
+
+        # Test valid range casts.
+        for _, desc0 in get_test_items(anyreal=True):
+            t0 = desc0.typename
+            for _, desc1 in get_test_items(anyreal=True):
+                t1 = desc1.typename
+
+                # The query is intended to test casts, not constructors, so we
+                # use a constructor that's definitely valid and then perform
+                # two consecutive casts on it to determine if any of the casts
+                # are legal.
+                query = f'''
+                    select count(
+                        <range<{t0}>><range<{t1}>>range(2, 9)
+                    );
+                '''
+
+                if {t0, t1}.issubset(valid_types):
+                    await self.assert_query_result(
+                        query, [1], msg=query
+                    )
+                else:
+                    with self.assertRaisesRegex(
+                            edgedb.UnsupportedFeatureError,
+                            r'unsupported range subtype',
+                            msg=query):
+                        async with self.con.transaction():
+                            await self.con.query_single(query)
+
+    async def test_edgeql_expr_range_30(self):
+        # Test implicit casting of numeric ranges by using `=`, which is
+        # defined only for matching operand range types.
+        #
+        # In the end this makes most numeric ranges compatible because every
+        # one of them except for decimal are implicitly castable to
+        # range<float64>, which then allows comparisons.
+        for t0 in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            for t1 in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+                query = f'''
+                    select range(<{t0}>2, <{t0}>9) =
+                           range(<{t1}>2, <{t1}>9);
+                '''
+
+                if (
+                    t0 == t1 or
+                    (t0, t1) not in {
+                        ('float32', 'decimal'), ('decimal', 'float32'),
+                        ('float64', 'decimal'), ('decimal', 'float64'),
+                    }
+                ):
+                    await self.assert_query_result(
+                        query, [1], msg=query
+                    )
+                else:
+                    with self.assertRaisesRegex(
+                            edgedb.InvalidTypeError,
+                            r'cannot be applied to operands of type',
+                            msg=query):
+                        async with self.con.transaction():
+                            await self.con.query_single(query)
+
+    async def test_edgeql_expr_range_31(self):
+        # Test casting of local_datetime and local_date ranges.
+
+        await self.assert_query_result(
+            f'''
+                select count(
+                    <range<cal::local_datetime>>range(
+                        <cal::local_date>'2022-06-10',
+                        <cal::local_date>'2022-06-17'
+                    )
+                )
+            ''',
+            [1],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select count(
+                    <range<cal::local_date>>range(
+                        <cal::local_datetime>'2022-06-10T00:00:00',
+                        <cal::local_datetime>'2022-06-17T00:00:00'
+                    )
+                )
+            ''',
+            [1],
+        )
+
+        await self.assert_query_result(
+            f'''
+                select
+                    range(
+                        <cal::local_datetime>'2022-06-10T00:00:00',
+                        <cal::local_datetime>'2022-06-17T00:00:00'
+                    )
+                    =
+                    range(
+                        <cal::local_date>'2022-06-10',
+                        <cal::local_date>'2022-06-17'
+                    )
+            ''',
+            [True],
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'cannot cast'):
+            async with self.con.transaction():
+                await self.con.query_single(f'''
+                    select count(
+                        <range<datetime>>range(
+                            <cal::local_datetime>'2022-06-10T00:00:00',
+                            <cal::local_datetime>'2022-06-17T00:00:00'
+                        )
+                    )
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'cannot cast'):
+            async with self.con.transaction():
+                await self.con.query_single(f'''
+                    select count(
+                        <range<datetime>>range(
+                            <cal::local_date>'2022-06-10',
+                            <cal::local_date>'2022-06-17'
+                        )
+                    )
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'cannot cast'):
+            async with self.con.transaction():
+                await self.con.query_single(f'''
+                    select count(
+                        <range<cal::local_datetime>>range(
+                            <datetime>'2022-06-10T00:00:00Z',
+                            <datetime>'2022-06-17T00:00:00Z'
+                        )
+                    )
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'cannot cast'):
+            async with self.con.transaction():
+                await self.con.query_single(f'''
+                    select count(
+                        <range<cal::local_date>>range(
+                            <datetime>'2022-06-10T00:00:00Z',
+                            <datetime>'2022-06-17T00:00:00Z'
+                        )
+                    )
+                ''')
+
     async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to __type__'):

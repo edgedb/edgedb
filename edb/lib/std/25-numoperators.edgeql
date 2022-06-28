@@ -2372,8 +2372,8 @@ std::`^` (n: std::decimal, p: std::decimal) -> std::decimal {
 };
 
 
-## Standard numerice casts
-## -----------------------
+## Standard numeric casts
+## ----------------------
 
 
 ## Implicit casts between numerics.

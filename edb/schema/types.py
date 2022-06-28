@@ -267,6 +267,9 @@ class Type(
     def is_tuple(self, schema: s_schema.Schema) -> bool:
         return False
 
+    def is_range(self) -> bool:
+        return False
+
     def is_enum(self, schema: s_schema.Schema) -> bool:
         return False
 
@@ -896,9 +899,12 @@ class IntersectionTypeShell(TypeExprShell[TypeT_co]):
         )
 
 
+_collection_impls: Dict[str, typing.Type[Collection]] = {}
+
+
 class Collection(Type, s_abc.Collection):
 
-    schema_name: typing.ClassVar[str]
+    _schema_name: typing.ClassVar[typing.Optional[str]] = None
 
     #: True for collection types that are stored in schema persistently
     is_persistent = so.SchemaField(
@@ -907,12 +913,34 @@ class Collection(Type, s_abc.Collection):
         compcoef=None,
     )
 
+    def __init_subclass__(
+        cls,
+        *,
+        schema_name: typing.Optional[str] = None,
+    ) -> None:
+        super().__init_subclass__()
+        if schema_name is not None:
+            if existing := _collection_impls.get(schema_name):
+                raise TypeError(
+                    f"{schema_name} is already implemented by {existing}")
+            _collection_impls[schema_name] = cls
+            cls._schema_name = schema_name
+
     @classmethod
     def get_displayname_static(cls, name: s_name.Name) -> str:
         if isinstance(name, s_name.QualName):
             return str(name)
         else:
             return s_name.unmangle_name(str(name))
+
+    @classmethod
+    def get_schema_name(cls) -> str:
+        if cls._schema_name is None:
+            raise TypeError(
+                f"{cls.get_schema_class_displayname()} is not "
+                f"a concrete collection type"
+            )
+        return cls._schema_name
 
     def get_generated_name(self, schema: s_schema.Schema) -> s_name.UnqualName:
         """Return collection type name generated from element types.
@@ -1010,14 +1038,13 @@ class Collection(Type, s_abc.Collection):
     @classmethod
     def get_class(
         cls, schema_name: str
-    ) -> Union[typing.Type[Array], typing.Type[Tuple]]:
-        if schema_name == 'array':
-            return Array
-        elif schema_name == 'tuple':
-            return Tuple
-
-        raise errors.SchemaError(
-            'unknown collection type: {!r}'.format(schema_name))
+    ) -> typing.Type[Collection]:
+        coll_type = _collection_impls.get(schema_name)
+        if coll_type:
+            return coll_type
+        else:
+            raise errors.SchemaError(
+                'unknown collection type: {!r}'.format(schema_name))
 
     @classmethod
     def from_subtypes(
@@ -1114,9 +1141,8 @@ class Array(
     Collection,
     s_abc.Array,
     qlkind=qltypes.SchemaObjectClass.ARRAY_TYPE,
+    schema_name='array',
 ):
-
-    schema_name = 'array'
 
     element_type = so.SchemaField(
         Type,
@@ -1515,9 +1541,8 @@ class Tuple(
     Collection,
     s_abc.Tuple,
     qlkind=qltypes.SchemaObjectClass.TUPLE_TYPE,
+    schema_name='tuple',
 ):
-
-    schema_name = 'tuple'
 
     named = so.SchemaField(
         bool,
@@ -2108,6 +2133,370 @@ class TupleExprAlias(
         return Tuple
 
 
+Range_T = typing.TypeVar('Range_T', bound='Range')
+Range_T_co = typing.TypeVar('Range_T_co', bound='Range', covariant=True)
+
+
+class Range(
+    Collection,
+    s_abc.Range,
+    qlkind=qltypes.SchemaObjectClass.RANGE_TYPE,
+    schema_name='range',
+):
+
+    element_type = so.SchemaField(
+        Type,
+        # We want a low compcoef so that range types are *never* altered.
+        compcoef=0,
+    )
+
+    @classmethod
+    def generate_id(
+        cls,
+        schema: s_schema.Schema,
+        data: Dict[str, Any],
+    ) -> uuid.UUID:
+        if (
+            data.get('alias_is_persistent')
+            or isinstance(data.get('name'), s_name.QualName)
+        ):
+            return super().generate_id(schema, data)
+        else:
+            return generate_range_type_id(
+                schema,
+                data['element_type'],
+            )
+
+    @classmethod
+    def generate_name(
+        cls,
+        element_name: s_name.Name,
+    ) -> s_name.UnqualName:
+        return s_name.UnqualName(
+            f'range<{s_name.mangle_name(str(element_name))}>',
+        )
+
+    @classmethod
+    def create(
+        cls: typing.Type[Range_T],
+        schema: s_schema.Schema,
+        *,
+        name: Optional[s_name.Name] = None,
+        id: Optional[uuid.UUID] = None,
+        element_type: Any,
+        **kwargs: Any,
+    ) -> typing.Tuple[s_schema.Schema, Range_T]:
+        if name is None:
+            name = cls.generate_name(element_type.get_name(schema))
+
+        if isinstance(name, s_name.QualName):
+            result = schema.get(name, type=cls, default=None)
+        else:
+            result = schema.get_global(cls, name, default=None)
+
+        if result is None:
+            schema, result = super().create_in_schema(
+                schema,
+                id=id,
+                name=name,
+                element_type=element_type,
+                **kwargs,
+            )
+
+        return schema, result
+
+    def get_generated_name(self, schema: s_schema.Schema) -> s_name.UnqualName:
+        return type(self).generate_name(
+            self.get_element_type(schema).get_name(schema),
+        )
+
+    def get_displayname(self, schema: s_schema.Schema) -> str:
+        return (
+            f'range<{self.get_element_type(schema).get_displayname(schema)}>')
+
+    def is_range(self) -> bool:
+        return True
+
+    def derive_subtype(
+        self,
+        schema: s_schema.Schema,
+        *,
+        name: s_name.QualName,
+        attrs: Optional[Mapping[str, Any]] = None,
+        **kwargs: Any,
+    ) -> typing.Tuple[s_schema.Schema, RangeExprAlias]:
+        assert not kwargs
+        return RangeExprAlias.from_subtypes(
+            schema,
+            [self.get_element_type(schema)],
+            self.get_typemods(schema),
+            name=name,
+            **(attrs or {}),
+        )
+
+    def get_subtypes(self, schema: s_schema.Schema) -> typing.Tuple[Type, ...]:
+        return (self.get_element_type(schema),)
+
+    def implicitly_castable_to(
+        self, other: Type, schema: s_schema.Schema
+    ) -> bool:
+        if not isinstance(other, Range):
+            return False
+
+        return self.get_element_type(schema).implicitly_castable_to(
+            other.get_element_type(schema), schema)
+
+    def get_implicit_cast_distance(
+        self, other: Type, schema: s_schema.Schema
+    ) -> int:
+        if not isinstance(other, Range):
+            return -1
+
+        return self.get_element_type(schema).get_implicit_cast_distance(
+            other.get_element_type(schema), schema)
+
+    def assignment_castable_to(
+        self,
+        other: Type,
+        schema: s_schema.Schema,
+    ) -> bool:
+        if not isinstance(other, Range):
+            return False
+
+        return self.get_element_type(schema).assignment_castable_to(
+            other.get_element_type(schema), schema)
+
+    def castable_to(
+        self,
+        other: Type,
+        schema: s_schema.Schema,
+    ) -> bool:
+        if not isinstance(other, Range):
+            return False
+
+        return self.get_element_type(schema).castable_to(
+            other.get_element_type(schema), schema)
+
+    def find_common_implicitly_castable_type(
+        self: Range_T,
+        other: Type,
+        schema: s_schema.Schema,
+    ) -> typing.Tuple[s_schema.Schema, Optional[Range_T]]:
+
+        if not isinstance(other, Range):
+            return schema, None
+
+        if self == other:
+            return schema, self
+
+        my_el = self.get_element_type(schema)
+        schema, subtype = my_el.find_common_implicitly_castable_type(
+            other.get_element_type(schema), schema)
+
+        if subtype is None:
+            return schema, None
+
+        return type(self).from_subtypes(schema, [subtype])
+
+    def _resolve_polymorphic(
+        self,
+        schema: s_schema.Schema,
+        concrete_type: Type,
+    ) -> Optional[Type]:
+        if not isinstance(concrete_type, Range):
+            return None
+
+        return self.get_element_type(schema).resolve_polymorphic(
+            schema, concrete_type.get_element_type(schema))
+
+    def _to_nonpolymorphic(
+        self,
+        schema: s_schema.Schema,
+        concrete_type: Type,
+    ) -> typing.Tuple[s_schema.Schema, Range]:
+        return Range.from_subtypes(schema, (concrete_type,))
+
+    def _test_polymorphic(self, schema: s_schema.Schema, other: Type) -> bool:
+        if other.is_any(schema):
+            return True
+
+        if not isinstance(other, Range):
+            return False
+
+        return self.get_element_type(schema).test_polymorphic(
+            schema, other.get_element_type(schema))
+
+    @classmethod
+    def from_subtypes(
+        cls: typing.Type[Range_T],
+        schema: s_schema.Schema,
+        subtypes: Sequence[Type],
+        typemods: Any = None,
+        *,
+        name: Optional[s_name.QualName] = None,
+        **kwargs: Any,
+    ) -> typing.Tuple[s_schema.Schema, Range_T]:
+        if len(subtypes) != 1:
+            raise errors.SchemaError(
+                f'unexpected number of subtypes, expecting 1: {subtypes!r}')
+        stype = subtypes[0]
+        anypoint = schema.get('std::anypoint', type=Type)
+
+        if not stype.issubclass(schema, anypoint):
+            raise errors.UnsupportedFeatureError(
+                f'unsupported range subtype: {stype.get_displayname(schema)}')
+
+        return cls.create(
+            schema,
+            element_type=stype,
+            name=name,
+            **kwargs,
+        )
+
+    @classmethod
+    def create_shell(
+        cls: typing.Type[Range_T],
+        schema: s_schema.Schema,
+        *,
+        subtypes: Sequence[TypeShell[Type]],
+        typemods: Any = None,
+        name: Optional[s_name.Name] = None,
+    ) -> RangeTypeShell[Range_T]:
+        st = next(iter(subtypes))
+
+        if name is None:
+            name = s_name.UnqualName('__unresolved__')
+
+        return RangeTypeShell(
+            subtype=st,
+            typemods=typemods,
+            name=name,
+            schemaclass=cls,
+        )
+
+    def as_shell(
+        self: Range_T,
+        schema: s_schema.Schema,
+    ) -> RangeTypeShell[Range_T]:
+        return type(self).create_shell(
+            schema,
+            subtypes=[st.as_shell(schema) for st in self.get_subtypes(schema)],
+            typemods=self.get_typemods(schema),
+            name=self.get_name(schema),
+        )
+
+    def material_type(
+        self,
+        schema: s_schema.Schema,
+    ) -> typing.Tuple[s_schema.Schema, Range]:
+        # We need to resolve material types based on the subtype recursively.
+
+        st = self.get_element_type(schema)
+        schema, stm = st.material_type(schema)
+        if stm != st or isinstance(self, RangeExprAlias):
+            return Range.from_subtypes(
+                schema,
+                [stm],
+                typemods=self.get_typemods(schema),
+            )
+        else:
+            return (schema, self)
+
+
+class RangeTypeShell(CollectionTypeShell[Range_T_co]):
+
+    schemaclass: typing.Type[Range_T_co]
+
+    def __init__(
+        self,
+        *,
+        name: s_name.Name,
+        subtype: TypeShell[Type],
+        typemods: typing.Tuple[typing.Any, ...],
+        schemaclass: typing.Type[Range_T_co],
+    ) -> None:
+        super().__init__(name=name, schemaclass=schemaclass)
+        self.subtype = subtype
+        self.typemods = typemods
+
+    def get_name(self, schema: s_schema.Schema) -> s_name.Name:
+        if str(self.name) == '__unresolved__':
+            self.name = self.schemaclass.generate_name(
+                self.subtype.get_name(schema),
+            )
+
+        return self.name
+
+    def get_subtypes(
+        self,
+        schema: s_schema.Schema,
+    ) -> typing.Tuple[TypeShell[Type], ...]:
+        return (self.subtype,)
+
+    def get_displayname(self, schema: s_schema.Schema) -> str:
+        return f'range<{self.subtype.get_displayname(schema)}>'
+
+    def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
+        return generate_range_type_id(schema, self.subtype)
+
+    def resolve(self, schema: s_schema.Schema) -> Range_T_co:
+        if isinstance(self.name, s_name.QualName):
+            rng = schema.get(self.name, type=Range)
+        else:
+            rng = schema.get_by_id(self.get_id(schema), type=Range)
+        return rng  # type: ignore
+
+    def as_create_delta(
+        self,
+        schema: s_schema.Schema,
+        *,
+        view_name: Optional[s_name.QualName] = None,
+        attrs: Optional[Dict[str, Any]] = None,
+    ) -> sd.CommandGroup:
+        ca: Union[CreateRange, CreateRangeExprAlias]
+        cmd = sd.CommandGroup()
+        if view_name is None:
+            ca = CreateRange(
+                classname=self.get_name(schema),
+                if_not_exists=True,
+            )
+            ca.set_attribute_value('id', self.get_id(schema))
+        else:
+            ca = CreateRangeExprAlias(
+                classname=view_name,
+            )
+
+        el = self.subtype
+        if isinstance(el, CollectionTypeShell):
+            cmd.add(el.as_create_delta(schema))
+
+        ca.set_attribute_value('name', ca.classname)
+        ca.set_attribute_value('element_type', el)
+        ca.set_attribute_value('is_persistent', True)
+        ca.set_attribute_value('abstract', self.is_polymorphic(schema))
+
+        if attrs:
+            for k, v in attrs.items():
+                ca.set_attribute_value(k, v)
+
+        cmd.add(ca)
+
+        return cmd
+
+
+class RangeExprAlias(
+    CollectionExprAlias,
+    Range,
+    qlkind=qltypes.SchemaObjectClass.ALIAS,
+):
+    # N.B: Don't add any SchemaFields to this class, they won't be
+    # reflected properly (since this inherits from the concrete Range).
+
+    @classmethod
+    def get_underlying_schema_class(cls) -> typing.Type[Collection]:
+        return Range
+
+
 def generate_type_id(id_str: str) -> uuid.UUID:
     return uuidgen.uuid5(TYPE_ID_NAMESPACE, id_str)
 
@@ -2133,6 +2522,17 @@ def generate_array_type_id(
     *quals: str,
 ) -> uuid.UUID:
     id_basis = f'array-{element_type.get_id(schema)}-{dimensions}'
+    if quals:
+        id_basis = f'{id_basis}-{"-".join(quals)}'
+    return generate_type_id(id_basis)
+
+
+def generate_range_type_id(
+    schema: s_schema.Schema,
+    element_type: Union[Type, TypeShell[Type]],
+    *quals: str,
+) -> uuid.UUID:
+    id_basis = f'range-{element_type.get_id(schema)}'
     if quals:
         id_basis = f'{id_basis}-{"-".join(quals)}'
     return generate_type_id(id_basis)
@@ -2544,6 +2944,52 @@ class AlterArrayExprAlias(
             raise AssertionError(f'unhandled field {field.name!r}')
 
 
+class CreateRange(CreateCollectionType[Range]):
+    pass
+
+
+class AlterRange(AlterCollectionType[Range]):
+    pass
+
+
+class RenameRange(RenameCollectionType[Range]):
+    pass
+
+
+class CreateRangeExprAlias(CreateCollectionExprAlias[RangeExprAlias]):
+    def _get_ast_node(
+        self, schema: s_schema.Schema, context: sd.CommandContext
+    ) -> typing.Type[qlast.CreateAlias]:
+        # Can't just use class-level astnode because that creates a
+        # duplicate in ast -> command mapping.
+        return qlast.CreateAlias
+
+
+class RenameRangeExprAlias(
+    CollectionExprAliasCommand[RangeExprAlias],
+    sd.RenameObject[RangeExprAlias],
+):
+    pass
+
+
+class AlterRangeExprAlias(
+    CollectionExprAliasCommand[RangeExprAlias],
+    sd.AlterObject[RangeExprAlias],
+):
+
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            return s_expr.Expression(text='range()')
+        else:
+            raise AssertionError(f'unhandled field {field.name!r}')
+
+
 class DeleteTuple(DeleteCollectionType[Tuple]):
     pass
 
@@ -2557,6 +3003,14 @@ class DeleteArray(DeleteCollectionType[Array]):
 
 
 class DeleteArrayExprAlias(DeleteCollectionExprAlias[ArrayExprAlias]):
+    pass
+
+
+class DeleteRange(DeleteCollectionType[Range]):
+    pass
+
+
+class DeleteRangeExprAlias(DeleteCollectionExprAlias[RangeExprAlias]):
     pass
 
 
@@ -2658,6 +3112,12 @@ def is_type_compatible(
             return (
                 not isinstance(t_as, Tuple) and labels_compatible(t_as, t_bs)
             )
+        # elif isinstance(t_a, Range) and isinstance(t_b, Range):
+        #     t_as = t_a.get_element_type(schema)
+        #     t_bs = t_b.get_element_type(schema)
+        #     return (
+        #         labels_compatible(t_as, t_bs)
+        #     )
         else:
             return True
 

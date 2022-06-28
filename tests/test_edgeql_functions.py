@@ -6031,3 +6031,452 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             ''',
             [True, True, True, True],
         )
+
+    async def test_edgeql_functions_range_contains_01(self):
+        # Test `contains` for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select contains(
+                        range(<{st}>1, <{st}>5),
+                        range(<{st}>2, <{st}>4));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select contains(
+                        range(<{st}>1, <{st}>5),
+                        range(<{st}>2, <{st}>7));''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select contains(
+                        range(<{st}>1, <{st}>5),
+                        range(<{st}>-2, <{st}>4));''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select contains(
+                        range(<{st}>1),
+                        range(<{st}>2, <{st}>7));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select contains(
+                        range(<{st}>1, <{st}>5),
+                        range(<{st}>2));''',
+                [False],
+            )
+
+    async def test_edgeql_functions_range_contains_02(self):
+        # Test `contains` for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select contains(range(<{st}>1, <{st}>5), <{st}>2);''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select contains(range(<{st}>1, <{st}>5), <{st}>5);''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select contains(range(<{st}>1, <{st}>5), <{st}>15);''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select contains(range(<{st}>1), <{st}>15);''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select contains(range(<{st}>1), <{st}>0);''',
+                [False],
+            )
+
+    async def test_edgeql_functions_range_contains_03(self):
+        # Test `contains` for datetime ranges.
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<datetime>'2022-06-01T00:00:00Z',
+                          <datetime>'2022-06-05T00:00:00Z'),
+                    range(<datetime>'2022-06-02T00:00:00Z',
+                          <datetime>'2022-06-04T00:00:00Z'));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<datetime>'2022-06-01T00:00:00Z',
+                          <datetime>'2022-06-05T00:00:00Z'),
+                    range(<datetime>'2022-06-02T00:00:00Z',
+                          <datetime>'2022-06-07T00:00:00Z'));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<datetime>'2022-06-01T00:00:00Z',
+                          <datetime>'2022-06-05T00:00:00Z'),
+                    range(<datetime>'2022-05-29T00:00:00Z',
+                          <datetime>'2022-06-04T00:00:00Z'));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<datetime>'2022-06-01T00:00:00Z'),
+                    range(<datetime>'2022-06-02T00:00:00Z',
+                          <datetime>'2022-06-07T00:00:00Z'));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<datetime>'2022-06-01T00:00:00Z',
+                          <datetime>'2022-06-05T00:00:00Z'),
+                    range(<datetime>'2022-06-02T00:00:00Z'));''',
+            [False],
+        )
+
+    async def test_edgeql_functions_range_contains_04(self):
+        # Test `contains` for datetime ranges.
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<datetime>'2022-06-01T00:00:00Z',
+                          <datetime>'2022-06-05T00:00:00Z'),
+                    <datetime>'2022-06-02T00:00:00Z');''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<datetime>'2022-06-01T00:00:00Z',
+                          <datetime>'2022-06-05T00:00:00Z'),
+                    <datetime>'2022-06-05T00:00:00Z');''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<datetime>'2022-06-01T00:00:00Z',
+                          <datetime>'2022-06-05T00:00:00Z'),
+                    <datetime>'2022-06-15T00:00:00Z');''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<datetime>'2022-06-01T00:00:00Z'),
+                    <datetime>'2022-06-15T00:00:00Z');''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<datetime>'2022-06-01T00:00:00Z'),
+                    <datetime>'2022-05-31T23:59:59Z');''',
+            [False],
+        )
+
+    async def test_edgeql_functions_range_contains_05(self):
+        # Test `contains` for local_datetime ranges.
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_datetime>'2022-06-01T00:00:00',
+                          <cal::local_datetime>'2022-06-05T00:00:00'),
+                    range(<cal::local_datetime>'2022-06-02T00:00:00',
+                          <cal::local_datetime>'2022-06-04T00:00:00'));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_datetime>'2022-06-01T00:00:00',
+                          <cal::local_datetime>'2022-06-05T00:00:00'),
+                    range(<cal::local_datetime>'2022-06-02T00:00:00',
+                          <cal::local_datetime>'2022-06-07T00:00:00'));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_datetime>'2022-06-01T00:00:00',
+                          <cal::local_datetime>'2022-06-05T00:00:00'),
+                    range(<cal::local_datetime>'2022-05-29T00:00:00',
+                          <cal::local_datetime>'2022-06-04T00:00:00'));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_datetime>'2022-06-01T00:00:00'),
+                    range(<cal::local_datetime>'2022-06-02T00:00:00',
+                          <cal::local_datetime>'2022-06-07T00:00:00'));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_datetime>'2022-06-01T00:00:00',
+                          <cal::local_datetime>'2022-06-05T00:00:00'),
+                    range(<cal::local_datetime>'2022-06-02T00:00:00'));''',
+            [False],
+        )
+
+    async def test_edgeql_functions_range_contains_06(self):
+        # Test `contains` for local_datetime ranges.
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_datetime>'2022-06-01T00:00:00',
+                          <cal::local_datetime>'2022-06-05T00:00:00'),
+                    <cal::local_datetime>'2022-06-02T00:00:00');''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_datetime>'2022-06-01T00:00:00',
+                          <cal::local_datetime>'2022-06-05T00:00:00'),
+                    <cal::local_datetime>'2022-06-05T00:00:00');''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_datetime>'2022-06-01T00:00:00',
+                          <cal::local_datetime>'2022-06-05T00:00:00'),
+                    <cal::local_datetime>'2022-06-15T00:00:00');''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_datetime>'2022-06-01T00:00:00'),
+                    <cal::local_datetime>'2022-06-15T00:00:00');''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_datetime>'2022-06-01T00:00:00'),
+                    <cal::local_datetime>'2022-05-31T23:59:59');''',
+            [False],
+        )
+
+    async def test_edgeql_functions_range_contains_07(self):
+        # Test `contains` for local_date ranges.
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_date>'2022-06-01',
+                          <cal::local_date>'2022-06-05'),
+                    range(<cal::local_date>'2022-06-02',
+                          <cal::local_date>'2022-06-04'));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_date>'2022-06-01',
+                          <cal::local_date>'2022-06-05'),
+                    range(<cal::local_date>'2022-06-02',
+                          <cal::local_date>'2022-06-07'));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_date>'2022-06-01',
+                          <cal::local_date>'2022-06-05'),
+                    range(<cal::local_date>'2022-05-29',
+                          <cal::local_date>'2022-06-04'));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_date>'2022-06-01'),
+                    range(<cal::local_date>'2022-06-02',
+                          <cal::local_date>'2022-06-07'));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_date>'2022-06-01',
+                          <cal::local_date>'2022-06-05'),
+                    range(<cal::local_date>'2022-06-02'));''',
+            [False],
+        )
+
+    async def test_edgeql_functions_range_contains_08(self):
+        # Test `contains` for local_date ranges.
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_date>'2022-06-01',
+                          <cal::local_date>'2022-06-05'),
+                    <cal::local_date>'2022-06-02');''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_date>'2022-06-01',
+                          <cal::local_date>'2022-06-05'),
+                    <cal::local_date>'2022-06-05');''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_date>'2022-06-01',
+                          <cal::local_date>'2022-06-05'),
+                    <cal::local_date>'2022-06-15');''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_date>'2022-06-01'),
+                    <cal::local_date>'2022-06-15');''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(
+                    range(<cal::local_date>'2022-06-01'),
+                    <cal::local_date>'2022-05-31');''',
+            [False],
+        )
+
+    async def test_edgeql_functions_range_overlaps_01(self):
+        # Test `overlaps` for numeric ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''select overlaps(
+                        range(<{st}>1, <{st}>5),
+                        range(<{st}>2, <{st}>4));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select overlaps(
+                        range(<{st}>1, <{st}>5),
+                        range(<{st}>5, <{st}>7));''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''select overlaps(
+                        range(<{st}>1, <{st}>5),
+                        range(<{st}>2, <{st}>7));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select overlaps(
+                        range(<{st}>1),
+                        range(<{st}>2, <{st}>7));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select overlaps(
+                        range(<{st}>1, <{st}>5),
+                        range(<{st}>2));''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''select overlaps(
+                        range(<{st}>{{}}, <{st}>5),
+                        range(<{st}>2));''',
+                [True],
+            )
+
+    async def test_edgeql_functions_range_unpack_01(self):
+        # Test `range_unpack` for numeric ranges.
+        for st in ['int32', 'int64']:
+            await self.assert_query_result(
+                f'select range_unpack(range(<{st}>1, <{st}>10));',
+                [1, 2, 3, 4, 5, 6, 7, 8, 9],
+            )
+
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'select range_unpack(range(<{st}>1, <{st}>10), <{st}>3);',
+                [1, 4, 7],
+            )
+
+    async def test_edgeql_functions_range_unpack_02(self):
+        # Test `range_unpack` for date/time.
+        await self.assert_query_result(
+            f'''select <str>range_unpack(
+                    range(<datetime>'2022-06-01T07:00:00Z',
+                          <datetime>'2022-06-10T07:00:00Z'),
+                    <duration>'36:00:00');''',
+            [
+                '2022-06-01T07:00:00+00:00',
+                '2022-06-02T19:00:00+00:00',
+                '2022-06-04T07:00:00+00:00',
+                '2022-06-05T19:00:00+00:00',
+                '2022-06-07T07:00:00+00:00',
+                '2022-06-08T19:00:00+00:00',
+            ],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_unpack(
+                    range(<cal::local_datetime>'2022-06-01T07:00:00',
+                          <cal::local_datetime>'2022-06-10T07:00:00'),
+                    <cal::relative_duration>'36:00:00');''',
+            [
+                '2022-06-01T07:00:00',
+                '2022-06-02T19:00:00',
+                '2022-06-04T07:00:00',
+                '2022-06-05T19:00:00',
+                '2022-06-07T07:00:00',
+                '2022-06-08T19:00:00',
+            ],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_unpack(
+                    range(<cal::local_date>'2022-06-01',
+                          <cal::local_date>'2022-06-10'));''',
+            [
+                '2022-06-01',
+                '2022-06-02',
+                '2022-06-03',
+                '2022-06-04',
+                '2022-06-05',
+                '2022-06-06',
+                '2022-06-07',
+                '2022-06-08',
+                '2022-06-09',
+            ],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_unpack(
+                    range(<cal::local_date>'2022-06-01',
+                          <cal::local_date>'2023-06-10'),
+                    <cal::date_duration>'P1M1D');''',
+            [
+                '2022-06-01',
+                '2022-07-02',
+                '2022-08-03',
+                '2022-09-04',
+                '2022-10-05',
+                '2022-11-06',
+                '2022-12-07',
+                '2023-01-08',
+                '2023-02-09',
+                '2023-03-10',
+                '2023-04-11',
+            ],
+        )

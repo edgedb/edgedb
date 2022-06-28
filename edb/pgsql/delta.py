@@ -835,6 +835,58 @@ class DeleteArrayExprAlias(
     pass
 
 
+class RangeCommand(MetaCommand):
+    pass
+
+
+class CreateRange(RangeCommand, adapts=s_types.CreateRange):
+    pass
+
+
+class AlterRange(RangeCommand, adapts=s_types.AlterRange):
+    pass
+
+
+class RenameRange(RangeCommand, adapts=s_types.RenameRange):
+    pass
+
+
+class DeleteRange(RangeCommand, adapts=s_types.DeleteRange):
+    pass
+
+
+class RangeExprAliasCommand(MetaCommand):
+    pass
+
+
+class CreateRangeExprAlias(
+    RangeExprAliasCommand,
+    adapts=s_types.CreateRangeExprAlias,
+):
+    pass
+
+
+class RenameRangeExprAlias(
+    RangeExprAliasCommand,
+    adapts=s_types.RenameRangeExprAlias,
+):
+    pass
+
+
+class AlterRangeExprAlias(
+    RangeExprAliasCommand,
+    adapts=s_types.AlterRangeExprAlias,
+):
+    pass
+
+
+class DeleteRangeExprAlias(
+    RangeExprAliasCommand,
+    adapts=s_types.DeleteRangeExprAlias,
+):
+    pass
+
+
 class ParameterCommand(MetaCommand):
     pass
 
