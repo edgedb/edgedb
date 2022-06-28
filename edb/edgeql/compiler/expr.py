@@ -45,6 +45,7 @@ from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 
+from . import astutils
 from . import casts
 from . import context
 from . import dispatch
@@ -193,9 +194,8 @@ def compile_Set(
             # From the scope perspective, single-element set
             # literals are equivalent to a binary UNION with
             # an empty set, not to the element.
-            with ctx.newscope(fenced=True) as scopectx:
-                ir_set = dispatch.compile(elements[0], ctx=scopectx)
-                return setgen.scoped_set(ir_set, ctx=scopectx)
+            return dispatch.compile(
+                astutils.ensure_qlstmt(elements[0]), ctx=ctx)
         else:
             # Turn it into a tree of UNIONs so we only blow up the nesting
             # depth logarithmically.

@@ -1060,6 +1060,16 @@ class TestEdgeQLScope(tb.QueryTestCase):
         for row in res:
             self.assertEqual(row[0].deck, [row[1]])
 
+    async def test_edgeql_scope_tuple_16(self):
+        await self.assert_query_result(
+            r"""
+            with z := User, select ({z}.name, count(z));
+            """,
+            tb.bag(
+                [["Alice", 4], ["Bob", 4], ["Carol", 4], ["Dave", 4]]
+            ),
+        )
+
     async def test_edgeql_scope_binding_01(self):
         await self.assert_query_result(
             r"""
