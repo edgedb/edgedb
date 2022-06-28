@@ -17,11 +17,14 @@
 #
 
 
+from edb.server.dbview cimport dbview
+
+
 @cython.final
 cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
     cdef legacy_parse_prepare_query_part(self, bint account_for_stmt_name)
     cdef WriteBuffer make_legacy_command_data_description_msg(
-        self, CompiledQuery query
+        self, dbview.CompiledQuery query
     )
     cdef WriteBuffer make_legacy_command_complete_msg(self, query_unit)
     cdef uint64_t _parse_implicit_limit(self, bytes v) except <uint64_t>-1

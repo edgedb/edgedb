@@ -17,6 +17,10 @@
 #
 
 
+cimport cython
+
+from libc.stdint cimport uint64_t
+
 cdef DEFAULT_STATE
 
 cpdef enum SideEffects:
@@ -26,6 +30,29 @@ cpdef enum SideEffects:
     InstanceConfigChanges = 1 << 2
     RoleChanges = 1 << 3
     GlobalSchemaChanges = 1 << 4
+
+
+@cython.final
+cdef class QueryRequestInfo:
+    cdef public object source  # edgeql.Source
+    cdef public tuple protocol_version
+    cdef public object output_format
+    cdef public bint expect_one
+    cdef public int implicit_limit
+    cdef public bint inline_typeids
+    cdef public bint inline_typenames
+    cdef public bint inline_objectids
+    cdef public uint64_t allow_capabilities
+
+    cdef int cached_hash
+
+
+@cython.final
+cdef class CompiledQuery:
+    cdef public object query_unit_group
+    cdef public object first_extra  # Optional[int]
+    cdef public object extra_counts
+    cdef public object extra_blobs
 
 
 cdef class DatabaseIndex:
@@ -112,6 +139,9 @@ cdef class DatabaseConnectionView:
         bint _in_tx_with_dbconfig
         bint _in_tx_with_set
         bint _tx_error
+
+        object _last_comp_state
+        int _last_comp_state_id
 
         object __weakref__
 

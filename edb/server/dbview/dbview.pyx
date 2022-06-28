@@ -16,12 +16,17 @@
 # limitations under the License.
 #
 
+from typing import (
+    Optional,
+)
+
 import asyncio
 import base64
 import json
 import os.path
 import pickle
 import struct
+import time
 import typing
 import weakref
 
@@ -29,13 +34,15 @@ import immutables
 
 from edb import errors
 from edb.common import lru, uuidgen
+from edb import edgeql
 from edb.edgeql import qltypes
 from edb.schema import extensions as s_ext
 from edb.schema import schema as s_schema
-from edb.server import defines, config
+from edb.server import compiler, defines, config, metrics
 from edb.server.compiler import dbstate, sertypes
 from edb.pgsql import dbops
 
+cimport cython
 
 __all__ = ('DatabaseIndex', 'DatabaseConnectionView', 'SideEffects')
 
@@ -43,6 +50,9 @@ cdef DEFAULT_MODALIASES = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
 cdef DEFAULT_CONFIG = immutables.Map()
 cdef DEFAULT_GLOBALS = immutables.Map()
 cdef DEFAULT_STATE = json.dumps([]).encode('utf-8')
+
+cdef FMT_BINARY = compiler.OutputFormat.BINARY
+cdef ALL_CAPABILITIES = compiler.Capability.ALL
 
 cdef bytes ZERO_UUID = b'\x00' * 16
 cdef INT32_PACKER = struct.Struct('!l').pack
@@ -55,6 +65,75 @@ cdef next_dbver():
     global VER_COUNTER
     VER_COUNTER += 1
     return VER_COUNTER
+
+
+@cython.final
+cdef class QueryRequestInfo:
+
+    def __cinit__(
+        self,
+        source: edgeql.Source,
+        protocol_version: tuple,
+        *,
+        output_format: compiler.OutputFormat = FMT_BINARY,
+        expect_one: bint = False,
+        implicit_limit: int = 0,
+        inline_typeids: bint = False,
+        inline_typenames: bint = False,
+        inline_objectids: bint = True,
+        allow_capabilities: uint64_t = <uint64_t>ALL_CAPABILITIES,
+    ):
+        self.source = source
+        self.protocol_version = protocol_version
+        self.output_format = output_format
+        self.expect_one = expect_one
+        self.implicit_limit = implicit_limit
+        self.inline_typeids = inline_typeids
+        self.inline_typenames = inline_typenames
+        self.inline_objectids = inline_objectids
+        self.allow_capabilities = allow_capabilities
+
+        self.cached_hash = hash((
+            self.source.cache_key(),
+            self.protocol_version,
+            self.output_format,
+            self.expect_one,
+            self.implicit_limit,
+            self.inline_typeids,
+            self.inline_typenames,
+            self.inline_objectids,
+        ))
+
+    def __hash__(self):
+        return self.cached_hash
+
+    def __eq__(self, other: QueryRequestInfo) -> bool:
+        return (
+            self.source.cache_key() == other.source.cache_key() and
+            self.protocol_version == other.protocol_version and
+            self.output_format == other.output_format and
+            self.expect_one == other.expect_one and
+            self.implicit_limit == other.implicit_limit and
+            self.inline_typeids == other.inline_typeids and
+            self.inline_typenames == other.inline_typenames and
+            self.inline_objectids == other.inline_objectids
+        )
+
+
+@cython.final
+cdef class CompiledQuery:
+
+    def __init__(
+        self,
+        query_unit_group: dbstate.QueryUnitGroup,
+        first_extra: Optional[int]=None,
+        extra_counts=(),
+        extra_blobs=()
+    ):
+        self.query_unit_group = query_unit_group
+        self.first_extra = first_extra
+        self.extra_counts = extra_counts
+        self.extra_blobs = extra_blobs
 
 
 cdef class Database:
@@ -194,6 +273,9 @@ cdef class DatabaseConnectionView:
 
         self._db_config_temp = None
         self._db_config_dbver = None
+
+        self._last_comp_state = None
+        self._last_comp_state_id = 0
 
         # Whenever we are in a transaction that had executed a
         # DDL command, we use this cache for compiled queries.
@@ -767,6 +849,132 @@ cdef class DatabaseConnectionView:
         raise errors.TransactionError(
             'current transaction is aborted, '
             'commands ignored until end of transaction block')
+
+    async def parse(
+        self,
+        query_req: QueryRequestInfo,
+    ) -> CompiledQuery:
+        source = query_req.source
+        query_unit_group = self.lookup_compiled_query(query_req)
+        cached = True
+        if query_unit_group is None:
+            # Cache miss; need to compile this query.
+            cached = False
+
+            if self.in_tx_error():
+                # The current transaction is aborted; only
+                # ROLLBACK or ROLLBACK TO TRANSACTION could be parsed;
+                # try doing just that.
+                query_unit_group, num_remain = await self.compile_rollback(
+                    source.text().encode("utf-8")
+                )
+                if num_remain:
+                    # Raise an error if there were more than just a
+                    # ROLLBACK in that 'eql' string.
+                    self.raise_in_tx_error()
+            else:
+                query_unit_group = await self.compile(
+                    query_req,
+                )
+            if query_unit_group.capabilities & ~query_req.allow_capabilities:
+                raise query_unit_group.capabilities.make_error(
+                    query_req.allow_capabilities,
+                    errors.DisabledCapabilityError,
+                )
+        elif self.in_tx_error():
+            # We have a cached QueryUnit for this 'eql', but the current
+            # transaction is aborted.  We can only complete this Parse
+            # command if the cached QueryUnit is a 'ROLLBACK' or
+            # 'ROLLBACK TO SAVEPOINT' command.
+            if len(query_unit_group) > 1:
+                self.raise_in_tx_error()
+            query_unit = query_unit_group[0]
+            if not (query_unit.tx_rollback or query_unit.tx_savepoint_rollback):
+                self.raise_in_tx_error()
+
+        if not cached and query_unit_group.cacheable:
+            self.cache_compiled_query(query_req, query_unit_group)
+
+        metrics.edgeql_query_compilations.inc(
+            1.0,
+            'cache' if cached else 'compiler'
+        )
+
+        return CompiledQuery(
+            query_unit_group=query_unit_group,
+            first_extra=source.first_extra(),
+            extra_counts=source.extra_counts(),
+            extra_blobs=source.extra_blobs(),
+        )
+
+    async def compile(
+        self,
+        query_req: QueryRequestInfo,
+        skip_first: bool = False,
+    ) -> dbstate.QueryUnitGroup:
+        if self.in_tx_error():
+            self.raise_in_tx_error()
+
+        compiler_pool = self._db._index._server.get_compiler_pool()
+
+        started_at = time.monotonic()
+        try:
+            if self.in_tx():
+                result = await compiler_pool.compile_in_tx(
+                    self.txid,
+                    self._last_comp_state,
+                    self._last_comp_state_id,
+                    query_req.source,
+                    query_req.output_format,
+                    query_req.expect_one,
+                    query_req.implicit_limit,
+                    query_req.inline_typeids,
+                    query_req.inline_typenames,
+                    skip_first,
+                    self._protocol_version,
+                    query_req.inline_objectids,
+                )
+            else:
+                result = await compiler_pool.compile(
+                    self.dbname,
+                    self.get_user_schema(),
+                    self.get_global_schema(),
+                    self.reflection_cache,
+                    self.get_database_config(),
+                    self.get_compilation_system_config(),
+                    query_req.source,
+                    self.get_modaliases(),
+                    self.get_session_config(),
+                    query_req.output_format,
+                    query_req.expect_one,
+                    query_req.implicit_limit,
+                    query_req.inline_typeids,
+                    query_req.inline_typenames,
+                    skip_first,
+                    self._protocol_version,
+                    query_req.inline_objectids,
+                )
+        finally:
+            metrics.edgeql_query_compilation_duration.observe(
+                time.monotonic() - started_at)
+
+        unit_group, self._last_comp_state, self._last_comp_state_id = result
+
+        return unit_group
+
+    async def compile_rollback(
+        self,
+        eql: bytes,
+    ) -> tuple[dbstate.QueryUnitGroup, int]:
+        assert self.in_tx_error()
+        try:
+            compiler_pool = self._db._index._server.get_compiler_pool()
+            return await compiler_pool.try_compile_rollback(
+                eql,
+                self._protocol_version
+            )
+        except Exception:
+            self.raise_in_tx_error()
 
 
 cdef class DatabaseIndex:
