@@ -1701,6 +1701,10 @@ cdef class EdgeConnection:
         if not query:
             raise errors.BinaryProtocolError('empty query')
 
+        state_tid = self.buffer.read_bytes(16)
+        state_data = self.buffer.read_len_prefixed_bytes()
+        self.get_dbview().decode_state(state_tid, state_data)
+
         return QueryRequestInfo(
             self._tokenize(query),
             self.protocol_version,
@@ -1753,10 +1757,7 @@ cdef class EdgeConnection:
         query_req = self.parse_execute_request()
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
-        state_tid = self.buffer.read_bytes(16)
         args = self.buffer.read_len_prefixed_bytes()
-        state_data = self.buffer.read_len_prefixed_bytes()
-        self.get_dbview().decode_state(state_tid, state_data)
 
         self.buffer.finish_message()
 

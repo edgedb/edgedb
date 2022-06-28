@@ -798,6 +798,8 @@ class Parse(ClientMessage):
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality.')
     command_text = String('Command text.')
+    state_typedesc_id = UUID('State data descriptor ID.')
+    state_data = Bytes('Encoded state data.')
 
 
 class Execute(ClientMessage):
@@ -814,12 +816,12 @@ class Execute(ClientMessage):
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality.')
     command_text = String('Command text.')
+    state_typedesc_id = UUID('State data descriptor ID.')
+    state_data = Bytes('Encoded state data.')
 
     input_typedesc_id = UUID('Argument data descriptor ID.')
     output_typedesc_id = UUID('Output data descriptor ID.')
-    state_typedesc_id = UUID('State data descriptor ID.')
     arguments = Bytes('Encoded argument data.')
-    state_data = Bytes('Encoded state data.')
 
 
 class ConnectionParam(Struct):
