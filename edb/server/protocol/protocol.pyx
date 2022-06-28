@@ -286,7 +286,8 @@ cdef class HttpProtocol:
 
         if debug.flags.http_inject_cors:
             data.append(b'Access-Control-Allow-Origin: *\r\n')
-            data.append(b'Access-Control-Allow-Headers: Content-Type\r\n')
+            data.append(b'Access-Control-Allow-Headers: Content-Type, ' + \
+                b'Authorization, X-EdgeDB-User\r\n')
             if custom_headers:
                 data.append(b'Access-Control-Expose-Headers: ' + \
                     ', '.join(custom_headers.keys()).encode() + b'\r\n')
@@ -454,6 +455,16 @@ cdef class HttpProtocol:
                     and self.server.is_admin_ui_enabled()
                 )
             ):
+                if (
+                    debug.flags.http_inject_cors
+                    and request.method == b'OPTIONS'
+                ):
+                    response.status = http.HTTPStatus.NO_CONTENT
+                    response.custom_headers['Access-Control-Allow-Methods'] = \
+                        'POST, OPTIONS'
+                    response.custom_headers['Access-Control-Max-Age'] = '86400'
+                    return
+
                 if not request.content_type:
                     return self._bad_request(
                         request,

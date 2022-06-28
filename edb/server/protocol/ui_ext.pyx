@@ -69,7 +69,8 @@ async def handle_request(
                 'databases': [
                     {'name': db.name}
                     for db in server._dbindex.iter_dbs()
-                ]
+                ],
+                'roles': list(server._roles.keys()),
             }).encode()
             return
 
