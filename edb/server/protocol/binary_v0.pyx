@@ -488,6 +488,26 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
         query_unit = compiled.query_unit_group[0]
         _dbview = self.get_dbview()
+        if _dbview.in_tx_error() or query_unit.tx_savepoint_rollback:
+            if not (query_unit.tx_savepoint_rollback or query_unit.tx_rollback):
+                _dbview.raise_in_tx_error()
+
+            conn = await self.get_pgcon()
+            try:
+                if query_unit.sql:
+                    await conn.simple_query(
+                        b';'.join(query_unit.sql), ignore_data=True)
+
+                if query_unit.tx_savepoint_rollback:
+                    _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
+                else:
+                    assert query_unit.tx_rollback
+                    _dbview.abort_tx()
+
+                self.write(self.make_legacy_command_complete_msg(query_unit))
+            finally:
+                self.maybe_release_pgcon(conn)
+            return
 
         if not _dbview.in_tx():
             orig_state = state = _dbview.serialize_state()
@@ -540,7 +560,6 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         config_ops = new_config_ops
 
                 if query_unit.tx_savepoint_rollback:
-                    # await self.recover_current_tx_info(conn)
                     _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
 
                 if query_unit.tx_savepoint_declare:
