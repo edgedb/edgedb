@@ -1047,6 +1047,14 @@ class DropGlobal(DropObject, GlobalCommand):
     pass
 
 
+class SetGlobalType(SetField):
+    name: str = 'target'
+    special_syntax: bool = True
+    value: typing.Optional[TypeExpr]
+    cast_expr: typing.Optional[Expr] = None
+    reset_value: bool = False
+
+
 class LinkCommand(ObjectDDL):
 
     __abstract_node__ = True

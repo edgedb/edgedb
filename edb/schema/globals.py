@@ -22,6 +22,8 @@ from typing import *
 
 from edb import errors
 
+from edb.common import struct
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
@@ -500,6 +502,119 @@ class AlterGlobal(
                     self.set_attribute_value('cardinality', None)
 
         return super()._alter_begin(schema, context)
+
+
+class SetGlobalType(
+    sd.AlterSpecialObjectField[Global],
+    field='target',
+):
+
+    cast_expr = struct.Field(s_expr.Expression, default=None)
+    reset_value = struct.Field(bool, default=False)
+
+    def get_verb(self) -> str:
+        return 'alter the type of'
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        orig_schema = schema
+        schema = super()._alter_begin(schema, context)
+        scls = self.scls
+
+        orig_target = scls.get_explicit_field_value(
+            orig_schema, 'target', None)
+        new_target = scls.get_target(schema)
+
+        if not orig_target or orig_target == new_target:
+            return schema
+
+        if not context.canonical:
+            if self.cast_expr:
+                raise errors.UnsupportedFeatureError(
+                    f'USING casts for SET TYPE on globals are not supported',
+                    hint='Use RESET TO DEFAULT instead',
+                    context=self.source_context,
+                )
+
+            if not self.reset_value:
+                raise errors.SchemaDefinitionError(
+                    f"SET TYPE on global must explicitly reset the "
+                    f"global's value",
+                    hint='Use RESET TO DEFAULT after the type',
+                    context=self.source_context,
+                )
+
+        return schema
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, SetGlobalType)
+        if (
+            isinstance(astnode, qlast.SetGlobalType)
+            and astnode.cast_expr is not None
+        ):
+            cmd.cast_expr = s_expr.Expression.from_ast(
+                astnode.cast_expr,
+                schema,
+                context.modaliases,
+                context.localnames,
+            )
+        if isinstance(astnode, qlast.SetGlobalType):
+            cmd.reset_value = astnode.reset_value
+
+        return cmd
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        set_field = super()._get_ast(schema, context, parent_node=parent_node)
+        if set_field is None or self.is_attribute_computed('target'):
+            return None
+        else:
+            assert isinstance(set_field, qlast.SetField)
+            assert not isinstance(set_field.value, qlast.Expr)
+            return qlast.SetGlobalType(
+                value=set_field.value,
+                cast_expr=(
+                    self.cast_expr.qlast
+                    if self.cast_expr is not None else None
+                ),
+                reset_value=self.reset_value,
+            )
+
+    def record_diff_annotations(
+        self,
+        schema: s_schema.Schema,
+        orig_schema: Optional[s_schema.Schema],
+        context: so.ComparisonContext,
+    ) -> None:
+        super().record_diff_annotations(
+            schema=schema,
+            orig_schema=orig_schema,
+            context=context,
+        )
+
+        if orig_schema is None:
+            return
+
+        if (
+            not self.get_orig_attribute_value('expr')
+            and not self.get_attribute_value('expr')
+        ):
+            self.reset_value = True
 
 
 class DeleteGlobal(

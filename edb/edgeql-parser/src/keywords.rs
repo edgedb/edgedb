@@ -22,6 +22,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "database",
     "ddl",
     "declare",
+    "default",
     "deferrable",
     "deferred",
     "delegated",

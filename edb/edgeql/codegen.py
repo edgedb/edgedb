@@ -2038,6 +2038,19 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             after_name=after_name,
         )
 
+    def visit_SetGlobalType(self, node: qlast.SetGlobalType) -> None:
+        if node.value is None:
+            self._write_keywords('RESET TYPE')
+        else:
+            self._write_keywords('SET TYPE ')
+            self.visit(node.value)
+            if node.cast_expr is not None:
+                self._write_keywords(' USING (')
+                self.visit(node.cast_expr)
+                self.write(')')
+            elif node.reset_value:
+                self._write_keywords(' RESET TO DEFAULT')
+
     def visit_CreateGlobal(
         self,
         node: qlast.CreateGlobal

@@ -135,6 +135,8 @@ class DDLQuery(BaseQuery):
     create_db_template: Optional[str] = None
     has_role_ddl: bool = False
     ddl_stmt_id: Optional[str] = None
+    config_ops: List[config.Operation] = (
+        dataclasses.field(default_factory=list))
 
 
 @dataclasses.dataclass(frozen=True)
