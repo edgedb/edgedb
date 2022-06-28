@@ -1246,6 +1246,10 @@ cdef class EdgeConnection:
     def signal_side_effects(self, side_effects):
         if not self.server._accept_new_tasks:
             return
+        if side_effects & dbview.SideEffects.GlobalSchemaChanges:
+            # TODO(fantix): extensions may provide their own session config, so
+            # we should push state desc too if that happens.
+            self.server._push_state_desc(self.dbname)
         if side_effects & dbview.SideEffects.SchemaChanges:
             self.server.create_task(
                 self.server._signal_sysevent(
@@ -1845,6 +1849,8 @@ cdef class EdgeConnection:
         if self._cancelled:
             raise ConnectionAbortedError
 
+        if self.pending_state_desc_push and not dbview.in_tx():
+            self.write_state_desc(False)
         self.flush()
 
     async def sync(self):

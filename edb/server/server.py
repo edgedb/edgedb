@@ -1147,12 +1147,13 @@ class Server(ha_base.ClusterProtocol):
                 await pgcon.signal_sysevent(event, **kwargs)
             finally:
                 self._release_sys_pgcon()
-            if event == 'schema-changes':
-                for conn in self._binary_conns:
-                    conn.push_state_desc(kwargs['dbname'])
         except Exception:
             metrics.background_errors.inc(1.0, 'signal_sysevent')
             raise
+
+    def _push_state_desc(self, dbname):
+        for conn in self._binary_conns:
+            conn.push_state_desc(dbname)
 
     def _on_remote_ddl(self, dbname):
         if not self._accept_new_tasks:
