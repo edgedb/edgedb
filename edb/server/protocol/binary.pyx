@@ -2468,8 +2468,12 @@ cdef class EdgeConnection:
             return
         self._write_waiter.set_result(True)
 
-    def push_state_desc(self):
-        if not self.authed or self._con_status == EDGECON_BAD:
+    def push_state_desc(self, dbname):
+        if (
+            not self.authed or
+            self._con_status == EDGECON_BAD or
+            self.dbname != dbname
+        ):
             return
         if self.idling and not self.get_dbview().in_tx():
             self.write_state_desc()
