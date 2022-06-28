@@ -96,7 +96,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
     async def legacy_parse(self):
         cdef:
             bytes eql
-            QueryRequestInfo query_req
+            dbview.QueryRequestInfo query_req
 
         self._last_anon_compiled = None
 
@@ -354,7 +354,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             WriteBuffer bound_args_buf
 
             bytes query
-            QueryRequestInfo query_req
+            dbview.QueryRequestInfo query_req
 
             bytes in_tid
             bytes out_tid
@@ -380,7 +380,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             if self._cancelled:
                 raise ConnectionAbortedError
         else:
-            compiled = CompiledQuery(
+            compiled = dbview.CompiledQuery(
                 query_unit_group=query_unit_group,
                 first_extra=query_req.source.first_extra(),
                 extra_counts=query_req.source.extra_counts(),
@@ -465,7 +465,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
         source = self._tokenize(eql)
 
-        query_req = QueryRequestInfo(
+        query_req = dbview.QueryRequestInfo(
             source,
             self.protocol_version,
             output_format=output_format,
@@ -479,7 +479,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
         return eql, query_req, stmt_name
 
-    async def _legacy_execute(self, compiled: CompiledQuery, bind_args,
+    async def _legacy_execute(self, compiled: dbview.CompiledQuery, bind_args,
                               bint use_prep_stmt):
         cdef:
             bytes state = None, orig_state = None
@@ -652,63 +652,26 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         self,
         query: bytes,
         *,
-        skip_first: bint,
+        skip_first: bool,
     ):
-        cdef dbview.DatabaseConnectionView _dbview = self.get_dbview()
-        source = edgeql.Source.from_string(query.decode('utf-8'))
+        query_req = dbview.QueryRequestInfo(
+            source=edgeql.Source.from_string(query.decode("utf-8")),
+            protocol_version=self.protocol_version,
+            output_format=FMT_NONE,
+        )
 
-        if _dbview.in_tx_error():
-            _dbview.raise_in_tx_error()
-
-        compiler_pool = self.server.get_compiler_pool()
-
-        started_at = time.monotonic()
-        try:
-            if _dbview.in_tx():
-                result = await compiler_pool.compile_in_tx(
-                    _dbview.txid,
-                    self.last_state,
-                    self.last_state_id,
-                    source,
-                    FMT_NONE,
-                    False,
-                    0,
-                    False,
-                    False,
-                    skip_first,
-                    self.protocol_version,
-                )
-            else:
-                result = await compiler_pool.compile(
-                    _dbview.dbname,
-                    _dbview.get_user_schema(),
-                    _dbview.get_global_schema(),
-                    _dbview.reflection_cache,
-                    _dbview.get_database_config(),
-                    _dbview.get_compilation_system_config(),
-                    source,
-                    _dbview.get_modaliases(),
-                    _dbview.get_session_config(),
-                    FMT_NONE,
-                    False,
-                    0,
-                    False,
-                    False,
-                    skip_first,
-                    self.protocol_version,
-                )
-            unit_group, self.last_state, self.last_state_id = result
-        finally:
-            metrics.edgeql_query_compilation_duration.observe(
-                time.monotonic() - started_at)
-        return unit_group
+        return await self.get_dbview().compile(
+            query_req,
+            skip_first=skip_first,
+        )
 
     async def _legacy_recover_script_error(
         self, eql: bytes, allow_capabilities
     ):
         assert self.get_dbview().in_tx_error()
 
-        query_unit_group, num_remain = await self._compile_rollback(eql)
+        query_unit_group, num_remain = (
+            await self.get_dbview().compile_rollback(eql))
         query_unit = query_unit_group[0]
 
         if not (allow_capabilities & enums.Capability.TRANSACTION):
@@ -907,7 +870,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         return query_unit
 
     cdef WriteBuffer make_legacy_command_data_description_msg(
-        self, CompiledQuery query
+        self, dbview.CompiledQuery query
     ):
         cdef:
             WriteBuffer msg
