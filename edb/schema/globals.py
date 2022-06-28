@@ -472,7 +472,7 @@ class AlterGlobal(
             # Produce an error when setting a type on something with
             # an expression
             if (
-                self.has_attribute_value('target')
+                self.get_attribute_value('target')
                 and (
                     (self.scls.get_expr(schema) or has_expr)
                     and not clears_expr

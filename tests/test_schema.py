@@ -5839,6 +5839,15 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             global foo := 20;
         """])
 
+    def test_schema_migrations_equivalence_globals_04(self):
+        self._assert_migration_equivalence([r"""
+            global foo -> str
+        """, r"""
+            global foo := 20;
+        """, r"""
+            global foo -> int64;
+        """])
+
     def test_schema_migrations_equivalence_globals_use_01(self):
         self._assert_migration_equivalence([r"""
             global current -> uuid;
