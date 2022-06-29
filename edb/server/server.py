@@ -1147,11 +1147,13 @@ class Server(ha_base.ClusterProtocol):
                 await pgcon.signal_sysevent(event, **kwargs)
             finally:
                 self._release_sys_pgcon()
-            for conn in self._binary_conns:
-                conn.push_state_desc()
         except Exception:
             metrics.background_errors.inc(1.0, 'signal_sysevent')
             raise
+
+    def _push_state_desc(self, dbname):
+        for conn in self._binary_conns:
+            conn.push_state_desc(dbname)
 
     def _on_remote_ddl(self, dbname):
         if not self._accept_new_tasks:
@@ -1166,7 +1168,7 @@ class Server(ha_base.ClusterProtocol):
                 metrics.background_errors.inc(1.0, 'on_remote_ddl')
                 raise
             for conn in self._binary_conns:
-                conn.push_state_desc()
+                conn.push_state_desc(dbname)
 
         self.create_task(task(), interruptable=True)
 
