@@ -31,7 +31,7 @@ from edb.tools.edb import edbcommands
 
 
 BOOL_LITERALS = {'true', 'false'}
-SPECIAL_TYPES = {'array', 'tuple', 'enum'}
+SPECIAL_TYPES = {'array', 'tuple', 'enum', 'range'}
 NAMES = {'edgeql'}
 NAVIGATION = ('.<', '.>', '@', '.')
 

@@ -261,17 +261,20 @@ Generic
                   std::contains(haystack: bytes, needle: bytes) -> bool
                   std::contains(haystack: array<anytype>, needle: anytype) \
                   -> bool
+                  std::contains(haystack: range<anypoint>, \
+                                needle: range<anypoint>) \
+                  -> std::bool
+                  std::contains(haystack: range<anypoint>, \
+                                needle: anypoint) \
+                  -> std::bool
 
     :index: find strpos strstr position array
 
-    A polymorphic function to test if a sequence contains a certain element.
+    A polymorphic function to test if the *haystack* contains the *needle*.
 
     When the *haystack* is :eql:type:`str` or :eql:type:`bytes`,
     return ``true`` if *needle* is contained as a subsequence in it
     and ``false`` otherwise.
-
-    When the *haystack* is an :eql:type:`array`, return ``true`` if
-    the array contains the specified element and ``false`` otherwise.
 
     .. code-block:: edgeql-repl
 
@@ -281,8 +284,31 @@ Generic
         db> select contains(b'qwerty', b'42');
         {false}
 
+    When the *haystack* is an :eql:type:`array`, return ``true`` if
+    the array contains the specified element and ``false`` otherwise.
+
+    .. code-block:: edgeql-repl
+
         db> select contains([2, 5, 7, 2, 100], 2);
         {true}
+
+    When the *haystack* is a :ref:`range <ref_std_range>`, return ``true`` if
+    it contains either the specified sub-range or element and ``false``
+    otherwise.
+
+    .. code-block:: edgeql-repl
+
+        db> select contains(range(1, 10), range(2,5));
+        {true}
+
+        db> select contains(range(1, 10), range(2,15));
+        {false}
+
+        db> select contains(range(1, 10), 2);
+        {true}
+
+        db> select contains(range(1, 10), 10);
+        {false}
 
 
 ----------
