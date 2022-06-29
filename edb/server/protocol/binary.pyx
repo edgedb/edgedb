@@ -1226,6 +1226,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             )
 
         if query_unit_group.in_type_id != in_tid:
+            self.write(self.make_command_data_description_msg(compiled))
             raise errors.ParameterTypeMismatchError(
                 "specified parameter type(s) do not match the parameter "
                 "types inferred from specified command(s)"

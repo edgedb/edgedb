@@ -242,8 +242,10 @@ following messages:
     Execute the provided command or commands.  This message expects the
     client to declare a correct :ref:`type descriptor <ref_proto_typedesc>`
     identifier for command arguments.  If the declared input type descriptor
-    does not match the expected value, a ``ParameterTypeMismatchError``
-    is returned in an ``ErrorResponse`` message.
+    does not match the expected value, a
+    :ref:`ref_protocol_msg_command_data_description` message is returned
+    followed by a ``ParameterTypeMismatchError`` in an ``ErrorResponse``
+    message.
 
     If the declared output type descriptor does not match, the server
     will send a :ref:`ref_protocol_msg_command_data_description` prior to

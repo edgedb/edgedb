@@ -241,6 +241,7 @@ class TestProtocol(ProtocolTestCase):
             ),
         )
         # Should come through even without an explicit 'flush'
+        await self.con.recv_match(protocol.CommandDataDescription)
         await self.con.recv_match(
             protocol.ErrorResponse,
             message=(
