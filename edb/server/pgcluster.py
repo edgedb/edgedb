@@ -1151,6 +1151,7 @@ async def _start_logged_subprocess(
             asyncio.subprocess.PIPE if log_stderr or capture_stderr
             else asyncio.subprocess.DEVNULL
         ),
+        limit=2 ** 20,  # 1 MiB
         **kwargs,
     )
 
@@ -1197,7 +1198,7 @@ async def _capture_subprocess_output(
 ) -> List[bytes]:
     lines = []
     while not stream.at_eof():
-        line = await stream.readline()
+        line = await _safe_readline(stream)
         if line or not stream.at_eof():
             lines.append(line.rstrip(b'\n'))
     return lines
@@ -1212,7 +1213,7 @@ async def _capture_and_log_subprocess_output(
 ) -> List[bytes]:
     lines = []
     while not stream.at_eof():
-        line = await stream.readline()
+        line = await _safe_readline(stream)
         if line or not stream.at_eof():
             line = line.rstrip(b'\n')
             lines.append(line)
@@ -1231,13 +1232,22 @@ async def _log_subprocess_output(
     log_processor: Optional[Callable[[str], Tuple[str, int]]] = None,
 ) -> List[bytes]:
     while not stream.at_eof():
-        line = await stream.readline()
+        line = await _safe_readline(stream)
         if line or not stream.at_eof():
             log_line = line.rstrip(b'\n').decode()
             if log_processor is not None:
                 log_line, level = log_processor(log_line)
             logger.log(level, log_line, extra={"process": pid})
     return []
+
+
+async def _safe_readline(stream: asyncio.StreamReader) -> bytes:
+    try:
+        line = await stream.readline()
+    except ValueError:
+        line = b"<too long>"
+
+    return line
 
 
 async def _dummy() -> List[bytes]:
