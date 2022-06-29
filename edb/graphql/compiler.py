@@ -99,7 +99,6 @@ def compile_graphql(
         ),
         options=qlcompiler.CompilerOptions(
             json_parameters=True,
-            allow_top_level_shape_dml=True,
         ),
     )
 

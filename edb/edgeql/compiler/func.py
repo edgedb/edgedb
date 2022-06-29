@@ -24,8 +24,10 @@ from __future__ import annotations
 from typing import *
 
 from edb import errors
+from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
 
 from edb.schema import constraints as s_constr
 from edb.schema import functions as s_func
@@ -162,9 +164,12 @@ def compile_FunctionCall(
                 f'{ctx.env.options.in_ddl_context_name}',
                 context=expr.context,
             )
-        elif ((dv := ctx.defining_view) is not None and
-                dv.get_expr_type(ctx.env.schema) is s_types.ExprType.Select and
-                not ctx.env.options.allow_top_level_shape_dml):
+        elif (
+            (dv := ctx.defining_view) is not None
+            and dv.get_expr_type(ctx.env.schema) is s_types.ExprType.Select
+            and not irutils.is_trivial_free_object(
+                not_none(ctx.partial_path_prefix))
+        ):
             # This is some shape in a regular query. Although
             # DML is not allowed in the computable, but it may
             # be possible to refactor it.
