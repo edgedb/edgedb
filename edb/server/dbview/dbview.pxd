@@ -37,6 +37,7 @@ cdef class QueryRequestInfo:
     cdef public object source  # edgeql.Source
     cdef public tuple protocol_version
     cdef public object output_format
+    cdef public object input_format
     cdef public bint expect_one
     cdef public int implicit_limit
     cdef public bint inline_typeids

@@ -2166,6 +2166,7 @@ class Compiler:
         skip_first: bool,
         protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
+        json_parameters: bool = False,
     ) -> Tuple[dbstate.QueryUnitGroup, dbstate.CompilerConnectionState]:
         state.sync_tx(txid)
 
@@ -2180,6 +2181,7 @@ class Compiler:
             skip_first=skip_first,
             source=source,
             protocol_version=protocol_version,
+            json_parameters=json_parameters,
         )
 
         return self._compile(ctx=ctx, source=source), ctx.state

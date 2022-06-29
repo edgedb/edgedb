@@ -134,6 +134,8 @@ EXT_LDFLAGS: List[str] = []
 
 ROOT_PATH = pathlib.Path(__file__).parent.resolve()
 
+EXT_INC_DIRS = [(ROOT_PATH / 'edb' / 'server' / 'pgproto').as_posix()]
+
 
 if platform.uname().system != 'Windows':
     EXT_CFLAGS.extend([
@@ -934,67 +936,113 @@ setuptools.setup(
             "edb.server.cache.stmt_cache",
             ["edb/server/cache/stmt_cache.pyx"],
             extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
 
         setuptools_extension.Extension(
             "edb.protocol.protocol",
             ["edb/protocol/protocol.pyx"],
             extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
 
         setuptools_extension.Extension(
             "edb.server.pgproto.pgproto",
             ["edb/server/pgproto/pgproto.pyx"],
             extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
 
         setuptools_extension.Extension(
             "edb.server.dbview.dbview",
             ["edb/server/dbview/dbview.pyx"],
             extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
 
         setuptools_extension.Extension(
             "edb.server.protocol.binary",
             ["edb/server/protocol/binary.pyx"],
             extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
+
+        setuptools_extension.Extension(
+            "edb.server.protocol.args_ser",
+            ["edb/server/protocol/args_ser.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
+
+        setuptools_extension.Extension(
+            "edb.server.protocol.execute",
+            ["edb/server/protocol/execute.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
 
         setuptools_extension.Extension(
             "edb.server.protocol.notebook_ext",
             ["edb/server/protocol/notebook_ext.pyx"],
             extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
 
         setuptools_extension.Extension(
             "edb.server.protocol.ui_ext",
             ["edb/server/protocol/ui_ext.pyx"],
             extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
 
         setuptools_extension.Extension(
             "edb.server.protocol.edgeql_ext",
             ["edb/server/protocol/edgeql_ext.pyx"],
             extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
+
+        setuptools_extension.Extension(
+            "edb.server.protocol.frontend",
+            ["edb/server/protocol/frontend.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
 
         setuptools_extension.Extension(
             "edb.server.protocol.protocol",
             ["edb/server/protocol/protocol.pyx"],
             extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
 
         setuptools_extension.Extension(
             "edb.server.pgcon.pgcon",
             ["edb/server/pgcon/pgcon.pyx"],
             extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
 
         setuptools_extension.Extension(
             "edb.graphql.extension",
             ["edb/graphql/extension.pyx"],
             extra_compile_args=EXT_CFLAGS,
-            extra_link_args=EXT_LDFLAGS),
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
     ],
     rust_extensions=rust_extensions,
     install_requires=RUNTIME_DEPS,

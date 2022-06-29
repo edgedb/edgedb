@@ -67,6 +67,8 @@ from edb.server import defines as edbdef
 from edb.server.compiler import errormech
 from edb.server.compiler import enums
 from edb.server.compiler import sertypes
+from edb.server.protocol import execute
+from edb.server.protocol cimport frontend
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
 from edb.server import metrics
@@ -140,7 +142,7 @@ cdef inline bint parse_boolean(value: bytes, header: str):
         )
 
 
-cdef class EdgeConnection:
+cdef class EdgeConnection(frontend.FrontendConnection):
 
     def __init__(
         self,
@@ -223,6 +225,10 @@ cdef class EdgeConnection:
 
     def get_id(self):
         return self._id
+
+    @property
+    def cancelled(self) -> bool:
+        return self._cancelled
 
     async def get_pgcon(self) -> pgcon.PGConnection:
         cdef dbview.DatabaseConnectionView _dbview
@@ -873,275 +879,27 @@ cdef class EdgeConnection:
 
         return verifier, is_mock
 
-    cdef uint64_t _count_globals(
-        self,
-        query_unit: object,
-    ):
-        cdef:
-            uint64_t num_args
-
-        num_args = 0
-        if query_unit.globals:
-            num_args += len(query_unit.globals)
-            for _, has_present_arg in query_unit.globals:
-                if has_present_arg:
-                    num_args += 1
-
-        return num_args
-
-    cdef _inject_globals(
-        self,
-        query_unit: object,
-        out_buf: WriteBuffer,
-    ):
-        if query_unit.globals:
-            globs = self.get_dbview().get_globals()
-            for (glob, has_present_arg) in query_unit.globals:
-                val = None
-                entry = globs.get(glob)
-                if entry:
-                    val = entry.value
-                if val:
-                    out_buf.write_int32(len(val))
-                    out_buf.write_bytes(val)
-                else:
-                    out_buf.write_int32(-1)
-                if has_present_arg:
-                    out_buf.write_int32(1)
-                    present = b'\x01' if val is not None else b'\x00'
-                    out_buf.write_bytes(present)
-
-    def _make_args(
-        self,
-        compiled: object,
-        bind_args: bytes,
-        start: ssize_t,
-        end: ssize_t,
-    ):
-        cdef:
-            WriteBuffer bind_data
-
-        unit_group = compiled.query_unit_group
-
-        # TODO: just do the simple thing if it is only one!
-
-        positions = []
-        recoded_buf = self.recode_bind_args(bind_args, compiled, positions)
-        # TODO: something with less copies
-        recoded = bytes(memoryview(recoded_buf))
-
-        bind_array = []
-        for i in range(start, end):
-            query_unit = unit_group[i]
-            bind_data = WriteBuffer.new()
-            bind_data.write_int32(0x00010001)
-
-            num_args = len(query_unit.in_type_args or ())
-            num_args += self._count_globals(query_unit)
-
-            if compiled.first_extra is not None:
-                num_args += compiled.extra_counts[i]
-
-            bind_data.write_int16(<int16_t>num_args)
-
-            if query_unit.in_type_args:
-                for arg in query_unit.in_type_args:
-                    oidx = arg.outer_idx
-                    barg = recoded[positions[oidx]:positions[oidx+1]]
-                    bind_data.write_bytes(barg)
-
-            if compiled.first_extra is not None:
-                bind_data.write_bytes(compiled.extra_blobs[i])
-
-            self._inject_globals(query_unit, bind_data)
-
-            bind_data.write_int32(0x00010001)
-
-            bind_array.append(bind_data)
-
-        return bind_array
-
     async def _execute_script(self, compiled: object, bind_args: bytes):
         cdef:
-            bytes state = None, orig_state = None
-            ssize_t sent = 0
-            bint in_tx
-            object user_schema, cached_reflection, global_schema
-            dbview.DatabaseConnectionView _dbview
             pgcon.PGConnection conn
-            WriteBuffer bind_data
+            dbview.DatabaseConnectionView dbv
 
         if self._cancelled:
             raise ConnectionAbortedError
 
-        user_schema = cached_reflection = global_schema = None
-        unit_group = compiled.query_unit_group
-        if unit_group.tx_control:
-            # TODO: move to the server.compiler once binary_v0 is dropped
-            raise errors.QueryError(
-                "Explicit transaction control commands cannot be executed in "
-                "an implicit transaction block"
-            )
-
-        _dbview = self.get_dbview()
-        in_tx = _dbview.in_tx()
-        if not in_tx:
-            orig_state = state = _dbview.serialize_state()
-
+        dbv = self.get_dbview()
         conn = await self.get_pgcon()
+
         try:
-            if conn.last_state == state:
-                # the current status in conn is in sync with dbview, skip the
-                # state restoring
-                state = None
-
-            async with conn.parse_execute_script_context():
-                for idx, query_unit in enumerate(unit_group):
-                    if self._cancelled:
-                        raise ConnectionAbortedError
-
-                    # XXX: pull out?
-                    # We want to minimize the round trips we need to make, so
-                    # ideally we buffer up everything, send it once, and then issue
-                    # one SYNC. This gets messed up if there are commands where
-                    # we need to read back information, though, such as SET GLOBAL.
-                    #
-                    # Because of that, we look for the next command that
-                    # needs read back (probably there won't be one!), and
-                    # execute everything up to that point at once,
-                    # finished by a FLUSH.
-                    if idx >= sent:
-                        for n in range(idx, len(unit_group)):
-                            ng = unit_group[n]
-                            if ng.ddl_stmt_id or ng.set_global:
-                                sent = n + 1
-                                break
-                        else:
-                            sent = len(unit_group)
-
-                        bind_array = self._make_args(
-                            compiled, bind_args, idx, sent)
-                        conn.send_query_unit_group(
-                            unit_group, bind_array, state, idx, sent)
-
-                    if idx == 0 and state is not None:
-                        await conn.wait_for_state_resp(state, state_sync=0)
-                        # state is restored, clear orig_state so that we can
-                        # set conn.last_state correctly later
-                        orig_state = None
-
-                    new_types = None
-                    _dbview.start_implicit(query_unit)
-                    config_ops = query_unit.config_ops
-
-                    if query_unit.user_schema:
-                        user_schema = query_unit.user_schema
-                        cached_reflection = query_unit.cached_reflection
-
-                    if query_unit.global_schema:
-                        global_schema = query_unit.global_schema
-
-                    if query_unit.sql:
-                        if query_unit.ddl_stmt_id:
-                            ddl_ret = await conn.handle_ddl_in_script(
-                                query_unit
-                            )
-                            if ddl_ret and ddl_ret['new_types']:
-                                new_types = ddl_ret['new_types']
-                        elif query_unit.set_global:
-                            for sql in query_unit.sql:
-                                data = await conn.wait_for_command(
-                                    ignore_data=False
-                                )
-                            if data:
-                                config_ops = [
-                                    config.Operation.from_json(r[0][1:])
-                                    for r in data
-                                ]
-                        elif query_unit.output_format == FMT_NONE:
-                            for sql in query_unit.sql:
-                                await conn.wait_for_command(
-                                    ignore_data=True
-                                )
-                        else:
-                            for sql in query_unit.sql:
-                                await conn.wait_for_command(
-                                    ignore_data=False,
-                                    edgecon=self,
-                                )
-
-                    if config_ops:
-                        await _dbview.apply_config_ops(conn, config_ops)
-
-                    side_effects = _dbview.on_success(query_unit, new_types)
-                    if side_effects:
-                        raise errors.InternalServerError(
-                            "Side-effects in implicit transaction!"
-                        )
-
-        except Exception as e:
-            _dbview.on_error()
-
-            if not in_tx and _dbview.in_tx():
-                # Abort the implicit transaction
-                _dbview.abort_tx()
-            raise
-
-        else:
-            if not in_tx:
-                side_effects = _dbview.commit_implicit_tx(
-                    user_schema, global_schema, cached_reflection
-                )
-                if side_effects:
-                    self.signal_side_effects(side_effects)
-                state = _dbview.serialize_state()
-                if state is not orig_state:
-                    conn.last_state = state
-
+            await execute.execute_script(
+                conn,
+                dbv,
+                compiled,
+                bind_args,
+                fe_conn=self,
+            )
         finally:
-            try:
-                if sent and sent < len(unit_group):
-                    await conn.sync()
-            finally:
-                self.maybe_release_pgcon(conn)
-
-    def signal_side_effects(self, side_effects):
-        if not self.server._accept_new_tasks:
-            return
-        if side_effects & dbview.SideEffects.GlobalSchemaChanges:
-            # TODO(fantix): extensions may provide their own session config, so
-            # we should push state desc too if that happens.
-            self.server._push_state_desc(self.dbname)
-        if side_effects & dbview.SideEffects.SchemaChanges:
-            self.server.create_task(
-                self.server._signal_sysevent(
-                    'schema-changes',
-                    dbname=self.get_dbview().dbname,
-                ),
-                interruptable=False,
-            )
-        if side_effects & dbview.SideEffects.GlobalSchemaChanges:
-            self.server.create_task(
-                self.server._signal_sysevent(
-                    'global-schema-changes',
-                ),
-                interruptable=False,
-            )
-        if side_effects & dbview.SideEffects.DatabaseConfigChanges:
-            self.server.create_task(
-                self.server._signal_sysevent(
-                    'database-config-changes',
-                    dbname=self.get_dbview().dbname,
-                ),
-                interruptable=False,
-            )
-        if side_effects & dbview.SideEffects.InstanceConfigChanges:
-            self.server.create_task(
-                self.server._signal_sysevent(
-                    'system-config-changes',
-                ),
-                interruptable=False,
-            )
+            self.maybe_release_pgcon(conn)
 
     def _tokenize(self, eql: bytes) -> edgeql.Source:
         text = eql.decode('utf-8')
@@ -1285,34 +1043,6 @@ cdef class EdgeConnection:
 
         return msg.end_message()
 
-    async def _execute_system_config(self, query_unit, conn):
-        if query_unit.sql:
-            data = await conn.simple_query(
-                b';'.join(query_unit.sql), ignore_data=False)
-        else:
-            data = None
-
-        if data:
-            # Prefer encoded op produced by the SQL command.
-            config_ops = [config.Operation.from_json(r[0]) for r in data]
-        else:
-            # Otherwise, fall back to staticly evaluated op.
-            config_ops = query_unit.config_ops
-        await self.get_dbview().apply_config_ops(conn, config_ops)
-
-        # If this is a backend configuration setting we also
-        # need to make sure it has been loaded.
-        if query_unit.backend_config:
-            await conn.simple_query(
-                b'SELECT pg_reload_conf()', ignore_data=True)
-
-        if query_unit.config_requires_restart:
-            self.write_log(
-                EdgeSeverity.EDGE_SEVERITY_NOTICE,
-                errors.LogMessage.get_code(),
-                'server restart is required for the configuration '
-                'change to take effect')
-
     async def _execute_rollback(self, compiled: dbview.CompiledQuery):
         cdef:
             dbview.DatabaseConnectionView _dbview
@@ -1341,135 +1071,37 @@ cdef class EdgeConnection:
         finally:
             self.maybe_release_pgcon(conn)
 
-    async def _execute(self, compiled: dbview.CompiledQuery, bind_args,
-                       bint use_prep_stmt):
+    async def _execute(
+        self,
+        compiled: dbview.CompiledQuery,
+        bind_args: bytes,
+        use_prep_stmt: bint,
+    ):
         cdef:
-            bytes state = None, orig_state = None
-            dbview.DatabaseConnectionView _dbview
+            dbview.DatabaseConnectionView dbv
             pgcon.PGConnection conn
-            WriteBuffer bound_args_buf
 
-        query_unit = compiled.query_unit_group[0]
-        _dbview = self.get_dbview()
-
-        if not _dbview.in_tx():
-            orig_state = state = _dbview.serialize_state()
-        new_types = None
+        dbv = self.get_dbview()
         conn = await self.get_pgcon()
         try:
-            if conn.last_state == state:
-                # the current status in conn is in sync with dbview, skip the
-                # state restoring
-                state = None
-            _dbview.start(query_unit)
-            if query_unit.create_db_template:
-                await self.server._on_before_create_db_from_template(
-                    query_unit.create_db_template, _dbview.dbname
-                )
-            if query_unit.drop_db:
-                await self.server._on_before_drop_db(
-                    query_unit.drop_db, _dbview.dbname)
-            if query_unit.system_config:
-                await self._execute_system_config(query_unit, conn)
-            else:
-                if query_unit.sql:
-                    if query_unit.ddl_stmt_id:
-                        ddl_ret = await conn.run_ddl(query_unit, state)
-                        if ddl_ret and ddl_ret['new_types']:
-                            new_types = ddl_ret['new_types']
-                    else:
-                        bound_args_buf = self.recode_bind_args(
-                            bind_args, compiled, None)
-                        edgecon = self if not query_unit.set_global else None
-
-                        await conn.parse_execute(
-                            query_unit,         # =query
-                            edgecon,            # =edgecon
-                            bound_args_buf,     # =bind_data
-                            use_prep_stmt,      # =use_prep_stmt
-                            state,              # =state
-                            _dbview.dbver,      # =dbver
-                        )
-                    if state is not None:
-                        # state is restored, clear orig_state so that we can
-                        # set conn.last_state correctly later
-                        orig_state = None
-
-                config_ops = query_unit.config_ops
-                if query_unit.set_global:
-                    new_config_ops = await self._finish_set_global(
-                        conn, query_unit, state)
-                    if new_config_ops:
-                        config_ops = new_config_ops
-
-                if query_unit.tx_savepoint_rollback:
-                    _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
-
-                if query_unit.tx_savepoint_declare:
-                    _dbview.declare_savepoint(
-                        query_unit.sp_name, query_unit.sp_id)
-
-                if query_unit.create_db:
-                    await self.server.introspect_db(
-                        query_unit.create_db
-                    )
-
-                if query_unit.drop_db:
-                    self.server._on_after_drop_db(
-                        query_unit.drop_db)
-
-                if config_ops:
-                    await _dbview.apply_config_ops(
-                        conn,
-                        config_ops)
-        except Exception as ex:
-            _dbview.on_error()
-
-            if (
-                query_unit.tx_commit and
-                not conn.in_tx() and
-                _dbview.in_tx()
-            ):
-                # The COMMIT command has failed. Our Postgres connection
-                # isn't in a transaction anymore. Abort the transaction
-                # in dbview.
-                _dbview.abort_tx()
-            raise
-        else:
-            side_effects = _dbview.on_success(query_unit, new_types)
-            if side_effects:
-                self.signal_side_effects(side_effects)
-            if not _dbview.in_tx():
-                state = _dbview.serialize_state()
-                if state is not orig_state:
-                    # In 3 cases the state is changed:
-                    #   1. The non-tx query changed the state
-                    #   2. The state is synced with dbview (orig_state is None)
-                    #   3. We came out from a transaction (orig_state is None)
-                    conn.last_state = state
+            await execute.execute(
+                conn,
+                dbv,
+                compiled,
+                bind_args,
+                fe_conn=self,
+                use_prep_stmt=use_prep_stmt,
+            )
         finally:
             self.maybe_release_pgcon(conn)
 
-    async def _finish_set_global(self, conn, query_unit, state):
-        config_ops = None
-        try:
-            try:
-                if state is not None:
-                    await self.wait_for_state_resp(
-                        state, bool(query_unit.tx_id))
-                for sql in query_unit.sql:
-                    data = await conn.wait_for_command(
-                        ignore_data=False
-                    )
-                if data:
-                    config_ops = [
-                        config.Operation.from_json(r[0][1:])
-                        for r in data]
-            finally:
-                await conn.wait_for_sync()
-        finally:
-            await conn.after_command()
-        return config_ops
+        query_unit = compiled.query_unit_group[0]
+        if query_unit.system_config:
+            self.write_log(
+                EdgeSeverity.EDGE_SEVERITY_NOTICE,
+                errors.LogMessage.get_code(),
+                'server restart is required for the configuration '
+                'change to take effect')
 
     cdef dbview.QueryRequestInfo parse_execute_request(self):
         cdef:
@@ -1658,7 +1290,7 @@ cdef class EdgeConnection:
         if self._cancelled:
             raise ConnectionAbortedError
 
-        if self.pending_state_desc_push and not dbview.in_tx():
+        if self.pending_state_desc_push and not _dbview.in_tx():
             self.write_state_desc(False)
         self.flush()
 
@@ -2048,113 +1680,6 @@ cdef class EdgeConnection:
         else:
             raise errors.BinaryProtocolError(
                 f'unexpected message type {chr(mtype)!r}')
-
-    cdef WriteBuffer recode_bind_args(
-        self,
-        bytes bind_args,
-        dbview.CompiledQuery query,
-        # XXX do something better?!?
-        object positions,
-    ):
-        cdef:
-            FRBuffer in_buf
-            WriteBuffer out_buf = WriteBuffer.new()
-            int32_t recv_args
-            int32_t decl_args
-            ssize_t in_len
-            ssize_t i
-            const char *data
-            bint live = positions is None
-
-        assert cpython.PyBytes_CheckExact(bind_args)
-        frb_init(
-            &in_buf,
-            cpython.PyBytes_AS_STRING(bind_args),
-            cpython.Py_SIZE(bind_args))
-
-        # all parameters are in binary
-        if live:
-            out_buf.write_int32(0x00010001)
-
-        # number of elements in the tuple
-        # for empty tuple it's okay to send zero-length arguments
-        is_null_type = \
-            query.query_unit_group.in_type_id == sertypes.NULL_TYPE_ID.bytes
-        if frb_get_len(&in_buf) == 0:
-            if not is_null_type:
-                raise errors.ProtocolError(
-                    f"insufficient data for type-id "
-                    f"{query.query_unit_group.in_type_id}")
-            recv_args = 0
-        else:
-            if is_null_type:
-                raise errors.ProtocolError(
-                    "absence of query arguments must be encoded with a "
-                    "'zero' type "
-                    "(id: 00000000-0000-0000-0000-000000000000, "
-                    "encoded with zero bytes)")
-            recv_args = hton.unpack_int32(frb_read(&in_buf, 4))
-        decl_args = len(query.query_unit_group.in_type_args or ())
-
-        if recv_args != decl_args:
-            raise errors.QueryError(
-                f"invalid argument count, "
-                f"expected: {decl_args}, got: {recv_args}")
-
-        num_args = recv_args
-        if query.first_extra is not None:
-            assert recv_args == query.first_extra, \
-                f"argument count mismatch {recv_args} != {query.first_extra}"
-            num_args += query.extra_counts[0]
-
-        num_args += self._count_globals(query.query_unit_group)
-
-        if live:
-            out_buf.write_int16(<int16_t>num_args)
-
-        if query.query_unit_group.in_type_args:
-            for param in query.query_unit_group.in_type_args:
-                if positions is not None:
-                    positions.append(out_buf._length)
-
-                frb_read(&in_buf, 4)  # reserved
-                in_len = hton.unpack_int32(frb_read(&in_buf, 4))
-                out_buf.write_int32(in_len)
-
-                if in_len < 0:
-                    # This means argument value is NULL
-                    if param.required:
-                        raise errors.QueryError(
-                            f"parameter ${param.name} is required")
-
-                if in_len > 0:
-                    data = frb_read(&in_buf, in_len)
-                    # Ensure all array parameters have correct element OIDs as
-                    # per Postgres' expectations.
-                    if param.array_type_id is not None:
-                        # ndimensions + flags
-                        array_tid = self.get_dbview().resolve_backend_type_id(
-                            param.array_type_id)
-                        out_buf.write_cstr(data, 8)
-                        out_buf.write_int32(<int32_t>array_tid)
-                        out_buf.write_cstr(&data[12], in_len - 12)
-                    else:
-                        out_buf.write_cstr(data, in_len)
-
-        if positions is not None:
-            positions.append(out_buf._length)
-
-        if live:
-            if query.first_extra is not None:
-                out_buf.write_bytes(query.extra_blobs[0])
-
-            # Inject any globals variables into the argument stream.
-            self._inject_globals(query.query_unit_group, out_buf)
-
-            # All columns are in binary format
-            out_buf.write_int32(0x00010001)
-
-        return out_buf
 
     def connection_made(self, transport):
         if not self.server._accepting_connections:

@@ -51,9 +51,6 @@ cdef DEFAULT_CONFIG = immutables.Map()
 cdef DEFAULT_GLOBALS = immutables.Map()
 cdef DEFAULT_STATE = json.dumps([]).encode('utf-8')
 
-cdef FMT_BINARY = compiler.OutputFormat.BINARY
-cdef ALL_CAPABILITIES = compiler.Capability.ALL
-
 cdef bytes ZERO_UUID = b'\x00' * 16
 cdef INT32_PACKER = struct.Struct('!l').pack
 
@@ -75,17 +72,19 @@ cdef class QueryRequestInfo:
         source: edgeql.Source,
         protocol_version: tuple,
         *,
-        output_format: compiler.OutputFormat = FMT_BINARY,
+        output_format: compiler.OutputFormat = compiler.OutputFormat.BINARY,
+        input_format: compiler.InputFormat = compiler.InputFormat.BINARY,
         expect_one: bint = False,
         implicit_limit: int = 0,
         inline_typeids: bint = False,
         inline_typenames: bint = False,
         inline_objectids: bint = True,
-        allow_capabilities: uint64_t = <uint64_t>ALL_CAPABILITIES,
+        allow_capabilities: uint64_t = <uint64_t>compiler.Capability.ALL,
     ):
         self.source = source
         self.protocol_version = protocol_version
         self.output_format = output_format
+        self.input_format = input_format
         self.expect_one = expect_one
         self.implicit_limit = implicit_limit
         self.inline_typeids = inline_typeids
@@ -97,6 +96,7 @@ cdef class QueryRequestInfo:
             self.source.cache_key(),
             self.protocol_version,
             self.output_format,
+            self.input_format,
             self.expect_one,
             self.implicit_limit,
             self.inline_typeids,
@@ -112,6 +112,7 @@ cdef class QueryRequestInfo:
             self.source.cache_key() == other.source.cache_key() and
             self.protocol_version == other.protocol_version and
             self.output_format == other.output_format and
+            self.input_format == other.input_format and
             self.expect_one == other.expect_one and
             self.implicit_limit == other.implicit_limit and
             self.inline_typeids == other.inline_typeids and
@@ -611,6 +612,10 @@ cdef class DatabaseConnectionView:
                 return self._in_tx_dbver
             return self._db.dbver
 
+    @property
+    def server(self):
+        return self._db._index._server
+
     cpdef in_tx(self):
         return self._in_tx
 
@@ -933,6 +938,7 @@ cdef class DatabaseConnectionView:
                     skip_first,
                     self._protocol_version,
                     query_req.inline_objectids,
+                    query_req.input_format is compiler.InputFormat.JSON,
                 )
             else:
                 result = await compiler_pool.compile(
@@ -953,6 +959,7 @@ cdef class DatabaseConnectionView:
                     skip_first,
                     self._protocol_version,
                     query_req.inline_objectids,
+                    query_req.input_format is compiler.InputFormat.JSON,
                 )
         finally:
             metrics.edgeql_query_compilation_duration.observe(
