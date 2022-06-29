@@ -538,7 +538,7 @@ class ContextLevel(compiler.ContextLevel):
     empty_result_type_hint: Optional[s_types.Type]
     """Type to use if the statement result expression is an empty set ctor."""
 
-    defining_view: Optional[s_types.Type]
+    defining_view: Optional[s_objtypes.ObjectType]
     """Whether a view is currently being defined (as opposed to be compiled)"""
 
     recompiling_schema_alias: bool

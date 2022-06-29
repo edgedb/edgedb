@@ -265,6 +265,11 @@ def is_type_intersection_reference(ir_expr: irast.Base) -> bool:
     return source_is_type_intersection
 
 
+def is_trivial_free_object(ir: irast.Set) -> bool:
+    ir = unwrap_set(ir)
+    return not ir.expr and typeutils.is_exactly_free_object(ir.typeref)
+
+
 def collapse_type_intersection(
     ir_set: irast.Set,
 ) -> Tuple[irast.Set, List[irast.TypeIntersectionPointer]]:

@@ -120,10 +120,14 @@ def is_bytes(typeref: irast.TypeRef) -> bool:
     return typeref.real_base_type.id == s_obj.get_known_type_id('std::bytes')
 
 
+def is_exactly_free_object(typeref: irast.TypeRef) -> bool:
+    return typeref.name_hint == s_name.QualName('std', 'FreeObject')
+
+
 def is_free_object(typeref: irast.TypeRef) -> bool:
     if typeref.material_type:
         typeref = typeref.material_type
-    return typeref.name_hint == s_name.QualName('std', 'FreeObject')
+    return is_exactly_free_object(typeref)
 
 
 def is_persistent_tuple(typeref: irast.TypeRef) -> bool:

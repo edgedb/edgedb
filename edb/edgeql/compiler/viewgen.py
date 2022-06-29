@@ -189,8 +189,9 @@ def _process_view(
         setgen.maybe_materialize(root_old_ptrcls, ir_set, ctx=ctx)
 
     if view_rptr is not None and view_rptr.ptrcls is None:
+        target_scls = stype if is_mutation else view_scls
         derive_ptrcls(
-            view_rptr, target_scls=view_scls,
+            view_rptr, target_scls=target_scls,
             transparent=True, ctx=ctx)
 
     pointers: List[s_pointers.Pointer] = []
@@ -1465,7 +1466,8 @@ def _late_compile_view_shapes_in_set(
     #
     # This is to avoid losing subquery distinctions (in cases
     # like test_edgeql_scope_tuple_15), and generally seems more natural.
-    if (isinstance(ir_set.expr, (irast.SelectStmt, irast.GroupStmt))
+    if (
+            isinstance(ir_set.expr, irast.Stmt)
             and not (ir_set.rptr and not ir_set.rptr.is_definition)
             and (setgen.get_set_type(ir_set, ctx=ctx) ==
                  setgen.get_set_type(ir_set.expr.result, ctx=ctx))):
@@ -1483,7 +1485,11 @@ def _late_compile_view_shapes_in_set(
                 parent_view_type=parent_view_type,
                 ctx=scopectx)
 
-        ir_set.shape_source = child if child.shape else child.shape_source
+        # Don't reach into mutation result fields when populating
+        # shape_source, because mutation results are *not* the source
+        # for linkprops.
+        if not isinstance(ir_set.expr, irast.MutatingStmt):
+            ir_set.shape_source = child if child.shape else child.shape_source
         return
 
     if shape_ptrs:

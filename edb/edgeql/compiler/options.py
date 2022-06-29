@@ -77,10 +77,6 @@ class GlobalCompilerOptions:
     #: error. When this is not None, any DML should cause an error.
     in_ddl_context_name: Optional[str] = None
 
-    #: Sometimes (like in queries compiled form GraphQL) it may be OK
-    #: to contain DML in the top-level shape computables.
-    allow_top_level_shape_dml: bool = False
-
     #: Is this a dev instance of the compiler
     devmode: bool = False
 

@@ -5378,3 +5378,60 @@ class TestInsert(tb.QueryTestCase):
             await self.con.query('''
                 select { single x := (select ExceptTest filter .name = 'foo') }
             ''')
+
+    async def test_edgeql_insert_in_free_object_01(self):
+        await self.assert_query_result(
+            r"""
+                select {
+                    obj := (
+                        INSERT InsertTest {
+                            name := 'insert simple 01',
+                            l2 := 0,
+                        }
+                     )
+                }
+            """,
+            [{"obj": {"id": str}}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select {
+                    obj := (
+                        INSERT InsertTest {
+                            name := 'insert simple 02',
+                            l2 := 0,
+                        }
+                     ) { name, l2 }
+                }
+            """,
+            [{"obj": {'name': "insert simple 02", 'l2': 0}}],
+        )
+
+    async def test_edgeql_insert_in_free_object_02(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "mutations are invalid in a shape's computed expression"):
+            await self.con.query('''
+                select { foo := 1 } {
+                    obj := (
+                        INSERT InsertTest {
+                            name := 'insert simple 02',
+                            l2 := 0,
+                        }
+                     ) { name, l2 }
+                }
+            ''')
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "mutations are invalid in a shape's computed expression"):
+            await self.con.query('''
+                select (for x in {1,2} union FreeObject) {
+                    obj := (
+                        INSERT InsertTest {
+                            name := 'insert simple 01',
+                            l2 := 0,
+                        }
+                     )
+                };
+            ''')
