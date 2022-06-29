@@ -31,6 +31,7 @@ from edb.server.pgproto.pgproto cimport (
 from edb.server.dbview cimport dbview
 from edb.server.pgcon cimport pgcon
 from edb.server.pgproto.debug cimport PG_DEBUG
+from edb.server.protocol cimport frontend
 
 
 cdef enum EdgeSeverity:
@@ -50,7 +51,7 @@ cdef enum EdgeConnectionStatus:
     EDGECON_BAD = 3
 
 
-cdef class EdgeConnection:
+cdef class EdgeConnection(frontend.FrontendConnection):
 
     cdef:
         EdgeConnectionStatus _con_status
@@ -125,20 +126,6 @@ cdef class EdgeConnection:
     cdef fallthrough(self)
 
     cdef sync_status(self)
-
-    cdef uint64_t _count_globals(
-        self,
-        query_unit: object,
-    )
-    cdef _inject_globals(
-        self,
-        query_unit: object,
-        WriteBuffer out_buf,
-    )
-
-    cdef WriteBuffer recode_bind_args(self,
-        bytes bind_args, dbview.CompiledQuery compiled, object positions,
-    )
 
     cdef WriteBuffer make_negotiate_protocol_version_msg(
         self, tuple target_proto

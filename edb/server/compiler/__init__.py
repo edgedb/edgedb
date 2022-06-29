@@ -26,7 +26,7 @@ from .compiler import load_std_schema
 from .compiler import new_compiler, new_compiler_context
 from .dbstate import QueryUnit
 from .enums import Capability, Cardinality
-from .enums import OutputFormat
+from .enums import InputFormat, OutputFormat
 
 
 __all__ = (
@@ -36,6 +36,7 @@ __all__ = (
     'CompilerDatabaseState',
     'QueryUnit',
     'Capability',
+    'InputFormat',
     'OutputFormat',
     'compile_edgeql_script',
     'load_std_schema',

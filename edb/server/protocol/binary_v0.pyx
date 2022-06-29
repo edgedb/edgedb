@@ -21,6 +21,8 @@ cdef tuple MIN_LEGACY_PROTOCOL = edbdef.MIN_LEGACY_PROTOCOL
 
 
 from edb.server import args as srvargs
+from edb.server.protocol cimport args_ser
+from edb.server.protocol import execute
 
 
 @cython.final
@@ -527,7 +529,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                 await self.server._on_before_drop_db(
                     query_unit.drop_db, _dbview.dbname)
             if query_unit.system_config:
-                await self._execute_system_config(query_unit, conn)
+                await execute.execute_system_config(conn, _dbview, query_unit)
             else:
                 if query_unit.sql:
                     if query_unit.ddl_stmt_id:
@@ -535,8 +537,8 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         if ddl_ret and ddl_ret['new_types']:
                             new_types = ddl_ret['new_types']
                     else:
-                        bound_args_buf = self.recode_bind_args(
-                            bind_args, compiled, None)
+                        bound_args_buf = args_ser.recode_bind_args(
+                            _dbview, compiled, bind_args)
                         edgecon = self if not query_unit.set_global else None
 
                         await conn.parse_execute(
@@ -554,7 +556,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
                 config_ops = query_unit.config_ops
                 if query_unit.set_global:
-                    new_config_ops = await self._finish_set_global(
+                    new_config_ops = await execute.finish_set_global(
                         conn, query_unit, state)
                     if new_config_ops:
                         config_ops = new_config_ops
@@ -595,7 +597,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         else:
             side_effects = _dbview.on_success(query_unit, new_types)
             if side_effects:
-                self.signal_side_effects(side_effects)
+                execute.signal_side_effects(_dbview, side_effects)
             if not _dbview.in_tx():
                 state = _dbview.serialize_state()
                 if state is not orig_state:
@@ -807,7 +809,8 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                             query_unit.drop_db, _dbview.dbname)
 
                     if query_unit.system_config:
-                        await self._execute_system_config(query_unit, conn)
+                        await execute.execute_system_config(
+                            conn, _dbview, query_unit)
                     else:
                         if query_unit.sql:
                             if query_unit.ddl_stmt_id:
@@ -858,7 +861,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     side_effects = _dbview.on_success(
                         query_unit, new_types)
                     if side_effects:
-                        self.signal_side_effects(side_effects)
+                        execute.signal_side_effects(_dbview, side_effects)
                     if not _dbview.in_tx():
                         state = _dbview.serialize_state()
                         if state is not orig_state:
