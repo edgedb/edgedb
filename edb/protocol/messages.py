@@ -609,6 +609,14 @@ class CommandDataDescription(ServerMessage):
     output_typedesc = Bytes('Output data descriptor.')
 
 
+class StateDataDescription(ServerMessage):
+
+    mtype = MessageType('s')
+    message_length = MessageLength
+    typedesc_id = UUID('Updated state data descriptor ID.')
+    typedesc = Bytes('State data descriptor.')
+
+
 class Data(ServerMessage):
 
     mtype = MessageType('D')

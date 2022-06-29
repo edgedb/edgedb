@@ -1007,6 +1007,18 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         msg.end_message()
         return msg
 
+    cdef WriteBuffer make_state_data_description_msg(self):
+        cdef WriteBuffer msg
+
+        type_id, type_data = self.get_dbview().describe_state()
+
+        msg = WriteBuffer.new_message(b's')
+        msg.write_bytes(type_id.bytes)
+        msg.write_len_prefixed_bytes(type_data)
+        msg.end_message()
+
+        return msg
+
     cdef WriteBuffer make_command_complete_msg(self, capabilities, status):
         cdef:
             WriteBuffer msg
@@ -1128,7 +1140,15 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         state_tid = self.buffer.read_bytes(16)
         state_data = self.buffer.read_len_prefixed_bytes()
-        self.get_dbview().decode_state(state_tid, state_data)
+        if state_tid == sertypes.INVALID_TYPE_ID.bytes:
+            # Skip trying to decode the state and return error directly
+            self.write(self.make_state_data_description_msg())
+            raise errors.StateMismatchError("Requested to describe the state.")
+        try:
+            self.get_dbview().decode_state(state_tid, state_data)
+        except errors.StateMismatchError:
+            self.write(self.make_state_data_description_msg())
+            raise
 
         return dbview.QueryRequestInfo(
             self._tokenize(query),
@@ -1231,6 +1251,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 "specified parameter type(s) do not match the parameter "
                 "types inferred from specified command(s)"
             )
+
+        # TODO(fantix): send state data description if the state schema changed
 
         if query_unit_group.out_type_id != out_tid:
             # The client has no up-to-date information about the output,
