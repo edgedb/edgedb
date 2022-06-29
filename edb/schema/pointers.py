@@ -1589,6 +1589,11 @@ class PointerCommand(
             assert ptr_target is not None
 
             source_context = self.get_attribute_source_context('default')
+            if default_type.is_view(default_expr.irast.schema):
+                raise errors.SchemaDefinitionError(
+                    f'default expression may not include a shape',
+                    context=source_context,
+                )
             if not default_type.assignment_castable_to(ptr_target, schema):
                 raise errors.SchemaDefinitionError(
                     f'default expression is of invalid type: '
@@ -2213,6 +2218,12 @@ class SetPointerType(
                         hint='You might need to add an explicit cast.',
                         context=self.source_context,
                     )
+                if using_type.is_view(self.cast_expr.schema):
+                    raise errors.SchemaError(
+                        f'result of USING clause for the alteration of '
+                        f'{vn} may not include a shape',
+                        context=self.source_context,
+                    )
 
             schema = self._propagate_if_expr_refs(
                 schema,
@@ -2386,6 +2397,12 @@ class AlterPointerUpperCardinality(
                         f'{vn} cannot be cast automatically from '
                         f'{ot} to {nt} ',
                         hint='You might need to add an explicit cast.',
+                        context=self.source_context,
+                    )
+                if using_type.is_view(self.conv_expr.schema):
+                    raise errors.SchemaError(
+                        f'result of USING clause for the alteration of '
+                        f'{vn} may not include a shape',
                         context=self.source_context,
                     )
 
@@ -2594,6 +2611,12 @@ class AlterPointerLowerCardinality(
                         f'{vn} cannot be cast automatically from '
                         f'{ot} to {nt} ',
                         hint='You might need to add an explicit cast.',
+                        context=self.source_context,
+                    )
+                if using_type.is_view(self.fill_expr.schema):
+                    raise errors.SchemaError(
+                        f'result of USING clause for the alteration of '
+                        f'{vn} may not include a shape',
                         context=self.source_context,
                     )
 
