@@ -30,7 +30,6 @@ from edb.common import markup
 
 from edb.schema import schema as s_schema
 
-from edb.server import compiler
 from edb.server.compiler import OutputFormat
 from edb.server.compiler import enums
 from edb.server import defines as edbdef
@@ -120,7 +119,7 @@ async def compile(server, query):
         0,              # no implicit limit
         False,          # no inlining of type IDs
         False,          # no inlining of type names
-        compiler.CompileStatementMode.SINGLE,
+        False,          # skip_first
         edbdef.CURRENT_PROTOCOL,  # protocol_version
         True,           # inline_objectids
         True,           # json parameters

@@ -293,7 +293,6 @@ async def _get_dbs_and_roles(
         user_schema=s_schema.FlatSchema(),
         global_schema=s_schema.FlatSchema(),
         expected_cardinality_one=False,
-        single_statement=True,
         output_format=edbcompiler.OutputFormat.JSON,
         bootstrap_mode=True,
     )

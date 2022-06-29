@@ -290,26 +290,37 @@ class TestServerProto(tb.QueryTestCase):
                 r'it does not return any data'):
             await self.con.query_required_single_json('START TRANSACTION')
 
-    async def test_server_proto_fetch_single_command_04(self):
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    'expected one statement'):
+    async def test_server_proto_query_script_01(self):
+        self.assertEqual(
             await self.con.query('''
+                SET MODULE test;
                 SELECT 1;
-                SET MODULE blah;
-            ''')
+            '''),
+            [1],
+        )
 
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    'expected one statement'):
-            await self.con.query_single('''
-                SELECT 1;
-                SET MODULE blah;
-            ''')
-
-        with self.assertRaisesRegex(edgedb.ProtocolError,
-                                    'expected one statement'):
+        self.assertEqual(
             await self.con.query_json('''
+                SET MODULE test;
                 SELECT 1;
-                SET MODULE blah;
+            '''),
+            '[1]',
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.InterfaceError,
+                r'it does not return any data'):
+            await self.con.query_required_single('''
+                SELECT 1;
+                SET MODULE test;
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InterfaceError,
+                r'it does not return any data'):
+            await self.con.query_required_single_json('''
+                SELECT 1;
+                SET MODULE test;
             ''')
 
     async def test_server_proto_set_reset_alias_01(self):

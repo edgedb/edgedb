@@ -26,13 +26,6 @@ from edb.common import enum as strenum
 from edb.protocol.enums import * # NoQA
 
 
-class CompileStatementMode(enum.Enum):
-
-    SKIP_FIRST = 'skip_first'
-    ALL = 'all'
-    SINGLE = 'single'
-
-
 if TYPE_CHECKING:
     Error_T = TypeVar('Error_T')
 

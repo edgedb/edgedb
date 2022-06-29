@@ -160,7 +160,7 @@ async def compile(db, server, bytes query):
         0,              # no implicit limit
         False,          # no inlining of type IDs
         False,          # no inlining of type names
-        compiler.CompileStatementMode.SINGLE,
+        False,          # skip_first
         edbdef.CURRENT_PROTOCOL,  # protocol_version
         True,           # inline_objectids
         True,           # json parameters

@@ -98,7 +98,6 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
         await self.con.execute('''
             set global cur_user := "Bob";
             set global def_cur_user := "Dave";
-            select 1;
         ''')
 
         await self.assert_query_result(

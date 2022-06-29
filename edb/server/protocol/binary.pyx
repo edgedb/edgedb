@@ -952,9 +952,6 @@ cdef class EdgeConnection:
 
         compiler_pool = self.server.get_compiler_pool()
 
-        # XXX: Probably won't stay this way?
-        stmt_mode = 'all' if query_req.output_format == FMT_NONE else 'single'
-
         started_at = time.monotonic()
         try:
             if _dbview.in_tx():
@@ -968,7 +965,7 @@ cdef class EdgeConnection:
                     query_req.implicit_limit,
                     query_req.inline_typeids,
                     query_req.inline_typenames,
-                    stmt_mode,
+                    False,  # skip_first
                     self.protocol_version,
                     query_req.inline_objectids,
                 )
@@ -988,7 +985,7 @@ cdef class EdgeConnection:
                     query_req.implicit_limit,
                     query_req.inline_typeids,
                     query_req.inline_typenames,
-                    stmt_mode,
+                    False,  # skip_first
                     self.protocol_version,
                     query_req.inline_objectids,
                 )
@@ -1091,8 +1088,7 @@ cdef class EdgeConnection:
 
             self._inject_globals(query_unit, bind_data)
 
-            bind_data.write_int16(0)  # number of result columns
-            # bind_data.write_int32(0x00010001)
+            bind_data.write_int32(0x00010001)
 
             bind_array.append(bind_data)
 
@@ -1192,8 +1188,9 @@ cdef class EdgeConnection:
                                 )
                             if data:
                                 config_ops = [
-                                    config.Operation.from_json(r[0])
-                                    for r in data]
+                                    config.Operation.from_json(r[0][1:])
+                                    for r in data
+                                ]
                         elif query_unit.output_format == FMT_NONE:
                             for sql in query_unit.sql:
                                 await conn.wait_for_command(
@@ -1207,9 +1204,7 @@ cdef class EdgeConnection:
                                 )
 
                     if config_ops:
-                        await _dbview.apply_config_ops(
-                            conn,
-                            config_ops)
+                        await _dbview.apply_config_ops(conn, config_ops)
 
                     side_effects = _dbview.on_success(query_unit, new_types)
                     if side_effects:

@@ -419,14 +419,12 @@ def compile_bootstrap_script(
     schema: s_schema.Schema,
     eql: str,
     *,
-    single_statement: bool = False,
     expected_cardinality_one: bool = False,
     output_format: edbcompiler.OutputFormat = edbcompiler.OutputFormat.JSON,
 ) -> Tuple[s_schema.Schema, str]:
 
     ctx = edbcompiler.new_compiler_context(
         user_schema=schema,
-        single_statement=single_statement,
         expected_cardinality_one=expected_cardinality_one,
         json_parameters=True,
         output_format=output_format,
@@ -828,7 +826,6 @@ async def _init_stdlib(
         } FILTER .builtin AND NOT (.abstract ?? False);
         ''',
         expected_cardinality_one=False,
-        single_statement=True,
     )
     schema = stdlib.stdschema
     typemap = await conn.fetchval(sql)
@@ -922,7 +919,6 @@ async def _init_stdlib(
             }
             ''',
             expected_cardinality_one=False,
-            single_statement=True,
         )
         await conn.execute(sql)
 
@@ -942,7 +938,6 @@ async def _init_stdlib(
             }
             ''',
             expected_cardinality_one=False,
-            single_statement=True,
         )
         await conn.execute(sql)
 
@@ -1074,7 +1069,6 @@ async def _compile_sys_queries(
         schema,
         'SELECT cfg::get_config_json()',
         expected_cardinality_one=True,
-        single_statement=True,
     )
 
     queries['config'] = sql
@@ -1084,7 +1078,6 @@ async def _compile_sys_queries(
         schema,
         "SELECT cfg::get_config_json(sources := ['database'])",
         expected_cardinality_one=True,
-        single_statement=True,
     )
 
     queries['dbconfig'] = sql
@@ -1094,7 +1087,6 @@ async def _compile_sys_queries(
         schema,
         "SELECT cfg::get_config_json(max_source := 'system override')",
         expected_cardinality_one=True,
-        single_statement=True,
     )
 
     queries['sysconfig'] = sql
@@ -1104,7 +1096,6 @@ async def _compile_sys_queries(
         schema,
         'SELECT (SELECT sys::Database FILTER NOT .builtin).name',
         expected_cardinality_one=False,
-        single_statement=True,
     )
 
     queries['listdbs'] = sql
@@ -1121,7 +1112,6 @@ async def _compile_sys_queries(
         schema,
         role_query,
         expected_cardinality_one=False,
-        single_statement=True,
     )
     queries['roles'] = sql
 
@@ -1136,7 +1126,6 @@ async def _compile_sys_queries(
         schema,
         tids_query,
         expected_cardinality_one=False,
-        single_statement=True,
     )
 
     queries['backend_tids'] = sql
@@ -1156,7 +1145,6 @@ async def _compile_sys_queries(
     units = compiler._compile(
         ctx=edbcompiler.new_compiler_context(
             user_schema=schema,
-            single_statement=True,
             expected_cardinality_one=True,
             json_parameters=False,
             output_format=edbcompiler.OutputFormat.BINARY,
