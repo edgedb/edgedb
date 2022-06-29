@@ -55,7 +55,7 @@ cdef class Connection:
     async def execute(self, query):
         await self.send(
             messages.Execute(
-                headers=[],
+                annotations=[],
                 command_text=query,
                 output_format=messages.OutputFormat.NONE,
                 expected_cardinality=messages.Cardinality.MANY,
