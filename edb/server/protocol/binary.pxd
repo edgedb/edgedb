@@ -100,7 +100,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         bint idling
         object started_idling_at
-        bint pending_state_desc_push
 
         bint _in_dump_restore
         bint _passive_mode
@@ -143,8 +142,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     cdef write_error(self, exc)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
-
-    cdef inline write_state_desc(self, bint flush=?)
 
 
 @cython.final

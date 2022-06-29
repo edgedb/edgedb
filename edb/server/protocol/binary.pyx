@@ -537,30 +537,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             b'system_config',
             self.server.get_report_config_data()
         )
-        self.write_state_desc(False)
 
         self.write(self.sync_status())
 
         self.flush()
-
-    cdef inline write_state_desc(self, bint flush=True):
-        cdef WriteBuffer state, buf
-
-        buf = WriteBuffer.new_message(b'S')
-        buf.write_len_prefixed_bytes(b'state_description')
-
-        type_id, type_data = self.get_dbview().describe_state()
-        state = WriteBuffer.new()
-        state.write_bytes(type_id.bytes)
-        state.write_len_prefixed_bytes(type_data)
-
-        buf.write_len_prefixed_buffer(state)
-        buf.end_message()
-
-        self.write(buf)
-        if flush:
-            self.flush()
-        self.pending_state_desc_push = False
 
     async def _do_handshake(self):
         cdef:
@@ -1290,8 +1270,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if self._cancelled:
             raise ConnectionAbortedError
 
-        if self.pending_state_desc_push and not _dbview.in_tx():
-            self.write_state_desc(False)
         self.flush()
 
     async def sync(self):
@@ -1354,12 +1332,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
                 if self._stop_requested:
                     break
-
-                if (
-                    self.pending_state_desc_push and
-                    not self.get_dbview().in_tx()
-                ):
-                    self.write_state_desc()
 
                 if not self.buffer.take_message():
                     if self._passive_mode:
@@ -1807,18 +1779,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if not self._write_waiter or self._write_waiter.done():
             return
         self._write_waiter.set_result(True)
-
-    def push_state_desc(self, dbname):
-        if (
-            not self.authed or
-            self._con_status == EDGECON_BAD or
-            self.dbname != dbname
-        ):
-            return
-        if self.idling and not self.get_dbview().in_tx():
-            self.write_state_desc()
-        else:
-            self.pending_state_desc_push = True
 
     async def dump(self):
         cdef:
