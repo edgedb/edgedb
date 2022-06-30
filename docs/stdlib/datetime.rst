@@ -28,6 +28,9 @@ Temporal
     * - :eql:type:`cal::relative_duration`
       - Relative time span
 
+    * - :eql:type:`cal::date_duration`
+      - Relative time span in days
+
     * - :eql:op:`dt + dt <dtplus>`
       - :eql:op-desc:`dtplus`
 
@@ -60,6 +63,9 @@ Temporal
     * - :eql:func:`cal::to_relative_duration`
       - :eql:func-desc:`cal::to_relative_duration`
 
+    * - :eql:func:`cal::to_date_duration`
+      - :eql:func-desc:`cal::to_date_duration`
+
     * - :eql:func:`datetime_get`
       - :eql:func-desc:`datetime_get`
 
@@ -68,6 +74,9 @@ Temporal
 
     * - :eql:func:`cal::date_get`
       - :eql:func-desc:`cal::date_get`
+
+    * - :eql:func:`duration_get`
+      - :eql:func-desc:`duration_get`
 
     * - :eql:func:`datetime_truncate`
       - :eql:func-desc:`datetime_truncate`
@@ -83,6 +92,12 @@ Temporal
 
     * - :eql:func:`datetime_of_statement`
       - :eql:func-desc:`datetime_of_statement`
+
+    * - :eql:func:`cal::duration_normalize_hours`
+      - :eql:func-desc:`cal::duration_normalize_hours`
+
+    * - :eql:func:`cal::duration_normalize_days`
+      - :eql:func-desc:`cal::duration_normalize_days`
 
 .. _ref_std_datetime_intro:
 
@@ -260,11 +275,11 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     A type representing a span of time.
 
     Valid units when converting from a string (and combinations of them):
-    - ``'microseconds'``
-    - ``'milliseconds'``
-    - ``'seconds'``
-    - ``'minutes'``
-    - ``'hours'``
+    ``'microseconds'``,
+    ``'milliseconds'``,
+    ``'seconds'``,
+    ``'minutes'``,
+    ``'hours'``.
 
     .. code-block:: edgeql
 
@@ -322,18 +337,18 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         {<duration>'8760:00:00'}
 
     Valid units when converting from a string (and combinations of them):
-    - ``'microseconds'``
-    - ``'milliseconds'``
-    - ``'seconds'``
-    - ``'minutes'``
-    - ``'hours'``
-    - ``'days'``
-    - ``'weeks'``
-    - ``'months'``
-    - ``'years'``
-    - ``'decades'``
-    - ``'centuries'``
-    - ``'millennia'``
+    ``'microseconds'``,
+    ``'milliseconds'``,
+    ``'seconds'``,
+    ``'minutes'``,
+    ``'hours'``,
+    ``'days'``,
+    ``'weeks'``,
+    ``'months'``,
+    ``'years'``,
+    ``'decades'``,
+    ``'centuries'``,
+    ``'millennia'``.
 
     .. code-block:: edgeql
 
@@ -412,14 +427,6 @@ EdgeDB stores and outputs timezone-aware values in UTC.
       ...       (<cal::relative_duration>'1 month' +
       ...        <cal::relative_duration>'1 month');
       {<cal::local_datetime>'2021-03-31T00:00:00'}
-      db> select <cal::local_date>'2021-01-31' +
-      ...        <cal::relative_duration>'12 hours' +
-      ...        <cal::relative_duration>'12 hours';
-      {<cal::local_date>'2021-01-31'}
-      db> select <cal::local_date>'2021-01-31' +
-      ...       (<cal::relative_duration>'12 hours' +
-      ...        <cal::relative_duration>'12 hours');
-      {<cal::local_date>'2021-02-01'}
 
     Lossy
 
@@ -462,23 +469,81 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 ----------
 
 
+.. eql:type:: cal::date_duration
+
+    A type representing a span of time in days.
+
+    The ``date_duration`` type is similar to ``relative_duration``, but it
+    only uses 2 different units under the hood: months and days. It is the
+    result of subtracting one :eql:type:`cal::local_date` from another. The
+    purpose of this type is to allow performing ``+`` and ``-`` operations on
+    :eql:type:`cal::local_date` and produce :eql:type:`cal::local_date` as the
+    result.
+
+    .. code-block:: edgeql-repl
+
+      db> select <cal::local_date>'2022-06-30' -
+      ...   <cal::local_date>'2022-06-25';
+      {<cal::date_duration>'P5D'}
+      db> select <cal::local_date>'2022-06-25' +
+      ...   <cal::date_duration>'5 days';
+      {<cal::local_date>'2022-06-30'}
+      db> select <cal::local_date>'2022-06-25' -
+      ...   <cal::date_duration>'5 days';
+      {<cal::local_date>'2022-06-20'}
+
+
+    Valid units when converting from a string (and combinations of them):
+    ``'days'``,
+    ``'weeks'``,
+    ``'months'``,
+    ``'years'``,
+    ``'decades'``,
+    ``'centuries'``,
+    ``'millennia'``.
+
+    .. code-block:: edgeql
+
+        select <cal::date_duration>'45 days';
+        select <cal::date_duration>'3 weeks 5 days';
+        select <cal::date_duration>'-7 millennia';
+
+    Generally ``date_duration`` is fully compatible with
+    :eql:type:`cal::relative_duration` and has the same general behaviour and
+    caveats. It will even to implicitly cast to
+    :eql:type:`cal::relative_duration` in any situation where only
+    :eql:type:`cal::relative_duration` is expected.
+
+    See function :eql:func:`cal::to_date_duration` and date/time
+    :eql:op:`operators <dtminus>` for more ways of working with
+    :eql:type:`cal::date_duration`.
+
+
+----------
+
+
 .. eql:operator:: dtplus: datetime + duration -> datetime
-                          cal::local_datetime + duration -> cal::local_datetime
-                          cal::local_date + duration -> cal::local_date
-                          cal::local_time + duration -> cal::local_time
-                          duration + duration -> duration
                           datetime + cal::relative_duration \
                               -> cal::relative_duration
-                          cal::local_datetime + cal::relative_duration \
-                              -> cal::relative_duration
-                          cal::local_date + cal::relative_duration \
-                              -> cal::relative_duration
-                          cal::local_time + cal::relative_duration \
-                              -> cal::relative_duration
+                          duration + duration -> duration
                           duration + cal::relative_duration \
                               -> cal::relative_duration
                           cal::relative_duration + cal::relative_duration \
                               -> cal::relative_duration
+                          cal::local_datetime + cal::relative_duration \
+                              -> cal::relative_duration
+                          cal::local_datetime + duration \
+                              -> cal::local_datetime
+                          cal::local_time + cal::relative_duration \
+                              -> cal::relative_duration
+                          cal::local_time + duration -> cal::local_time
+                          cal::local_date + cal::date_duration \
+                              -> cal::local_date
+                          cal::date_duration + cal::date_duration \
+                              -> cal::date_duration
+                          cal::local_date + cal::relative_duration \
+                              -> cal::local_datetime
+                          cal::local_date + duration -> cal::local_datetime
 
     Time interval addition.
 
@@ -500,23 +565,33 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 .. eql:operator:: dtminus: duration - duration -> duration
                            datetime - datetime -> duration
                            datetime - duration -> datetime
+                           datetime - cal::relative_duration -> datetime
+                           cal::relative_duration - cal::relative_duration \
+                                -> cal::relative_duration
+                           cal::local_datetime - cal::local_datetime \
+                                -> cal::relative_duration
+                           cal::local_datetime - cal::relative_duration \
+                                -> cal::local_datetime
                            cal::local_datetime - duration \
                                 -> cal::local_datetime
+                           cal::local_time - cal::local_time \
+                                -> cal::relative_duration
+                           cal::local_time - cal::relative_duration \
+                                -> cal::local_time
                            cal::local_time - duration -> cal::local_time
-                           cal::local_date - duration -> cal::local_date
+                           cal::date_duration - cal::date_duration \
+                                -> cal::date_duration
+                           cal::local_date - cal::local_date \
+                                -> cal::date_duration
+                           cal::local_date - cal::date_duration \
+                                -> cal::local_date
+                           cal::local_date - cal::relative_duration \
+                                -> cal::local_datetime
+                           cal::local_date - duration -> cal::local_datetime
                            duration - cal::relative_duration \
                                 -> cal::relative_duration
                            cal::relative_duration - duration\
                                 -> cal::relative_duration
-                           cal::relative_duration - cal::relative_duration \
-                                -> cal::relative_duration
-                           datetime - cal::relative_duration -> datetime
-                           cal::local_datetime - cal::relative_duration \
-                                -> cal::local_datetime
-                           cal::local_time - cal::relative_duration \
-                                -> cal::local_time
-                           cal::local_date - cal::relative_duration \
-                                -> cal::local_date
 
     Time interval and date/time subtraction.
 
@@ -548,6 +623,15 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         db> select <datetime>'2019-01-01T01:02:03+00' -
         ...   <cal::local_datetime>'2019-02-01T01:02:03';
         QueryError: operator '-' cannot be applied to operands ...
+
+    When subtracting one :eql:type:`cal::local_date` from another the result
+    is given in whole number of days using :eql:type:`cal::date_duration`:
+
+    .. code-block:: edgeql-repl
+
+      db> select <cal::local_date>'2022-06-25' -
+      ...   <cal::local_date>'2019-02-01';
+      {<cal::date_duration>'P1240D'}
 
 
 ----------
@@ -661,13 +745,12 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     The :eql:type:`cal::local_time` scalar has the following elements
     available for extraction:
-
-    - ``'midnightseconds'``
-    - ``'hour'``
-    - ``'microseconds'``
-    - ``'milliseconds'``
-    - ``'minutes'``
-    - ``'seconds'``
+    ``'midnightseconds'``,
+    ``'hour'``,
+    ``'microseconds'``,
+    ``'milliseconds'``,
+    ``'minutes'``,
+    ``'seconds'``.
 
     For full description of what these elements extract see
     :eql:func:`datetime_get`.
@@ -733,41 +816,124 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 ----------
 
 
+.. eql:function:: std::duration_get(dt: duration, el: str) -> float64
+                  std::duration_get(dt: cal::relative_duration, \
+                                    el: str) -> float64
+                  std::duration_get(dt: cal::date_duration, \
+                                    el: str) -> float64
+
+    Extract a specific element of input duration by name.
+
+    There units avaialble for extraction are grouped into 3 categories. The
+    largest units category of months or greater:
+
+    - ``'millennium'`` - number of 1000-year chunks rounded down
+    - ``'century'`` - the number of centiries rounded down
+    - ``'decade'`` - the number of decades rounded down
+    - ``'year'`` - the numbder of years rounded down
+    - ``'quarter'``- the quarter left over after whole years are
+      accounted for
+    - ``'month'`` - the number of months left over after whole years are
+      accounted for
+
+    The middle size units of days:
+
+    - ``'day'`` - specifically the number of days recorded in the duration
+
+    The smallest unit category of hours, minutes, seconds, etc.:
+
+    - ``'hour'`` - duration hours
+    - ``'minutes'`` - duration minutes (0-59)
+    - ``'seconds'`` - duration seconds, including fractional value from 0 up
+      to and not including 60
+    - ``'milliseconds'`` - the seconds including fractional value expressed
+      as milliseconds
+    - ``'microseconds'`` - the seconds including fractional value expressed
+      as microseconds
+
+    Additionally, it's possible to convert a given duration into seconds:
+
+    - ``'totalseconds'`` - the number of seconds represented by the
+      duration. It will be approximate for :eql:type:`cal::relative_duration`
+      and :eql:type:`cal::date_duration` with usints larger than a day,
+      because a month is assumed to be 30 days exactly.
+
+    The :eql:type:`duration` scalar only has the smallest units avaialbe
+    for extraction.
+
+    The :eql:type:`cal::relative_duration` scalar has all of the units
+    avaialbe for extraction.
+
+    The :eql:type:`cal::date_duration` scalar only has the largest and middle
+    size units avaialbe for extraction.
+
+    .. code-block:: edgeql-repl
+
+        db> select duration_get(
+        ...   <cal::relative_duration>'400 months', 'year');
+        {33}
+        db> select duration_get(
+        ...   <cal::date_duration>'400 months', 'month');
+        {4}
+        db> select duration_get(
+        ...   <cal::relative_duration>'1 month 20 days 30 hours',
+        ...   'day');
+        {20}
+        db> select duration_get(
+        ...   <cal::relative_duration>'30 hours', 'hour');
+        {30}
+        db> select duration_get(
+        ...   <cal::relative_duration>'1 month 20 days 30 hours',
+        ...   'hour');
+        {30}
+        db> select duration_get(<duration>'30 hours', 'hour');
+        {30}
+        db> select duration_get(
+        ...   <cal::relative_duration>'1 month 20 days 30 hours',
+        ...   'totalseconds');
+        {4428000}
+        db> select duration_get(
+        ...   <duration>'30 hours', 'totalseconds');
+        {108000}
+
+
+----------
+
+
 .. eql:function:: std::datetime_truncate(dt: datetime, unit: str) -> datetime
 
     Truncate the input datetime to a particular precision.
 
     The valid *unit* values in order or decreasing precision are:
-
-    - ``'microseconds'``
-    - ``'milliseconds'``
-    - ``'seconds'``
-    - ``'minutes'``
-    - ``'hours'``
-    - ``'days'``
-    - ``'weeks'``
-    - ``'months'``
-    - ``'quarters'``
-    - ``'years'``
-    - ``'decades'``
-    - ``'centuries'``
+    ``'microseconds'``,
+    ``'milliseconds'``,
+    ``'seconds'``,
+    ``'minutes'``,
+    ``'hours'``,
+    ``'days'``,
+    ``'weeks'``,
+    ``'months'``,
+    ``'quarters'``,
+    ``'years'``,
+    ``'decades'``,
+    ``'centuries'``.
 
     .. code-block:: edgeql-repl
 
         db> select datetime_truncate(
-        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'years');
+        ...   <datetime>'2018-05-07T15:01:22.306916+00', 'years');
         {<datetime>'2018-01-01T00:00:00Z'}
 
         db> select datetime_truncate(
-        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'quarters');
+        ...   <datetime>'2018-05-07T15:01:22.306916+00', 'quarters');
         {<datetime>'2018-04-01T00:00:00Z'}
 
         db> select datetime_truncate(
-        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'days');
+        ...   <datetime>'2018-05-07T15:01:22.306916+00', 'days');
         {<datetime>'2018-05-07T00:00:00Z'}
 
         db> select datetime_truncate(
-        ...     <datetime>'2018-05-07T15:01:22.306916+00', 'hours');
+        ...   <datetime>'2018-05-07T15:01:22.306916+00', 'hours');
         {<datetime>'2018-05-07T15:00:00Z'}
 
 
@@ -775,25 +941,41 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 
 .. eql:function:: std::duration_truncate(dt: duration, unit: str) -> duration
+                  std::duration_truncate(dt: cal::relative_duration, \
+                    unit: str) -> cal::relative_duration
 
     Truncate the input duration to a particular precision.
 
-    The valid *unit* values are:
-    - ``'microseconds'``
-    - ``'milliseconds'``
-    - ``'seconds'``
-    - ``'minutes'``
-    - ``'hours'``
+    The valid *unit* values for :eql:type:`duration` are:
+    ``'microseconds'``,
+    ``'milliseconds'``,
+    ``'seconds'``,
+    ``'minutes'``,
+    ``'hours'``.
+
+    In addition to the above the following are also valid for
+    :eql:type:`cal::relative_duration`:
+    ``'days'``,
+    ``'weeks'``,
+    ``'months'``,
+    ``'years'``,
+    ``'decades'``,
+    ``'centuries'``.
 
     .. code-block:: edgeql-repl
 
         db> select duration_truncate(
-        ...     <duration>'15:01:22', 'hours');
-        {54000s}
-
+        ...   <duration>'15:01:22', 'hours');
+        {<duration>'15:00:00'}
         db> select duration_truncate(
-        ...     <duration>'15:01:22.306916', 'minutes');
-        {54060s}
+        ...   <duration>'15:01:22.306916', 'minutes');
+        {<duration>'15:01:00'}
+        db> select duration_truncate(
+        ...   <cal::relative_duration>'400 months', 'years');
+        {<cal::relative_duration>'P33Y'}
+        db> select duration_truncate(
+        ...   <cal::relative_duration>'400 months', 'decades');
+        {<cal::relative_duration>'P30Y'}
 
 
 ----------
@@ -905,10 +1087,11 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 
 .. eql:function:: cal::to_local_date(s: str, fmt: optional str={}) \
-                    -> local_date
-                  cal::to_local_date(dt: datetime, zone: str) -> local_date
+                    -> cal::local_date
+                  cal::to_local_date(dt: datetime, zone: str) \
+                    -> cal::local_date
                   cal::to_local_date(year: int64, month: int64, \
-                    day: int64) -> local_date
+                    day: int64) -> cal::local_date
 
     :index: parse local_date
 
@@ -1049,6 +1232,93 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     .. code-block:: edgeql-repl
 
         db> select cal::to_relative_duration(years := 5, minutes := 1);
-        {P5YT1S}
+        {<cal::relative_duration>'P5YT1S'}
         db> select cal::to_relative_duration(months := 3, days := 27);
-        {P3M27D}
+        {<cal::relative_duration>'P3M27D'}
+
+
+------------
+
+
+.. eql:function:: cal::to_date_duration( \
+                    named only years: int64=0, \
+                    named only months: int64=0, \
+                    named only days: int64=0 \
+                  ) -> cal::date_duration
+
+    :index: parse date_duration
+
+    Create a :eql:type:`cal::date_duration` value.
+
+    This function uses ``named only`` arguments to create a
+    :eql:type:`cal::date_duration` value. The available duration fields
+    are: *years*, *months*, *days*.
+
+    .. code-block:: edgeql-repl
+
+        db> select cal::to_date_duration(years := 1, days := 3);
+        {<cal::date_duration>'P1Y3D'}
+        db> select cal::to_date_duration(days := 12);
+        {<cal::date_duration>'P12D'}
+
+
+------------
+
+
+.. eql:function:: cal::duration_normalize_hours( \
+                    dur: cal::relative_duration \
+                  ) -> cal::relative_duration
+
+    :index: justify_hours
+
+    Convert 24-hour chunks into days.
+
+    This function converts all 24-hour chunks into day units. The resulting
+    :eql:type:`cal::relative_duration` is guaranteed to have less than 24
+    hours in total in the units smaler than days.
+
+    .. code-block:: edgeql-repl
+
+        db> select cal::duration_normalize_hours(
+        ...   <cal::relative_duration>'1312 hours');
+        {<cal::relative_duration>'P54DT16H'}
+
+    This is a lossless operation because 24 hours are always equal to 1 day
+    in :eql:type:`cal::relative_duration` units.
+
+    This is sometimes used together with
+    :eql:func:`cal::duration_normalize_days`.
+
+------------
+
+
+.. eql:function:: cal::duration_normalize_days( \
+                    dur: cal::relative_duration \
+                  ) -> cal::relative_duration
+                  cal::duration_normalize_days( \
+                    dur: cal::date_duration \
+                  ) -> cal::date_duration
+
+    :index: justify_days
+
+    Convert 30-day chunks into months.
+
+    This function converts all 30-day chunks into month units. The resulting
+    :eql:type:`cal::relative_duration` or :eql:type:`cal::date_duration` is
+    guaranteed to have less than 30 day units.
+
+    .. code-block:: edgeql-repl
+
+        db> select cal::duration_normalize_days(
+        ...   <cal::relative_duration>'1312 days');
+        {<cal::relative_duration>'P3Y7M22D'}
+
+        db> select cal::duration_normalize_days(
+        ...   <cal::date_duration>'1312 days');
+        {<cal::date_duration>'P3Y7M22D'}
+
+    This function is a form of approximation and does not preserve the exact
+    duration.
+
+    This is often used together with
+    :eql:func:`cal::duration_normalize_hours`.
