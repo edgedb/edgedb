@@ -769,7 +769,7 @@ class ConnectedTestCaseMixin:
                                   *,
                                   always_typenames=False,
                                   msg=None, sort=None, implicit_limit=0,
-                                  variables=None):
+                                  variables=None, json_only=False):
         fetch_args = variables if isinstance(variables, tuple) else ()
         fetch_kw = variables if isinstance(variables, dict) else {}
         try:
@@ -792,6 +792,9 @@ class ConnectedTestCaseMixin:
         except Exception:
             self.add_fail_notes(serialization='json')
             raise
+
+        if json_only:
+            return
 
         if exp_result_binary is ...:
             # The expected result is the same

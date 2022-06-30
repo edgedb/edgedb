@@ -2006,6 +2006,7 @@ def process_set_as_type_cast(
         pathctx.put_path_id_map(ctx.rel, ir_set.path_id, inner_set.path_id)
 
         if (is_json_cast
+                and not irtyputils.is_range(inner_set.typeref)
                 and (irtyputils.is_collection(inner_set.typeref)
                      or irtyputils.is_object(inner_set.typeref))):
             subctx.expr_exposed = True

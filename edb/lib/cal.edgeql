@@ -2125,3 +2125,55 @@ CREATE FUNCTION std::contains(
        SELECT "haystack" @> ("needle"::date)
     $$;
 };
+
+
+CREATE CAST FROM std::json TO range<cal::local_datetime> {
+    SET volatility := 'Stable';
+    USING SQL $$
+        SELECT CASE
+            WHEN "inc_lower" AND "inc_upper"
+            THEN edgedb.local_datetime_range_t("lower", "upper", '[]')
+            WHEN NOT "inc_lower" AND "inc_upper"
+            THEN edgedb.local_datetime_range_t("lower", "upper", '(]')
+            WHEN NOT "inc_lower" AND NOT "inc_upper"
+            THEN edgedb.local_datetime_range_t("lower", "upper", '()')
+            WHEN "inc_lower" AND NOT "inc_upper"
+            THEN edgedb.local_datetime_range_t("lower", "upper", '[)')
+        END
+        FROM (
+            SELECT
+                edgedb.local_datetime_in(edgedb.jsonb_extract_scalar(
+                    val->'lower', 'string')) AS lower,
+                edgedb.local_datetime_in(edgedb.jsonb_extract_scalar(
+                    val->'upper', 'string')) AS upper,
+                edgedb.range_inc_from_jsonb(val, 'inc_lower') AS inc_lower,
+                edgedb.range_inc_from_jsonb(val, 'inc_upper') AS inc_upper
+        ) AS a;
+    $$;
+};
+
+
+CREATE CAST FROM std::json TO range<cal::local_date> {
+    SET volatility := 'Stable';
+    USING SQL $$
+        SELECT CASE
+            WHEN "inc_lower" AND "inc_upper"
+            THEN daterange("lower", "upper", '[]')
+            WHEN NOT "inc_lower" AND "inc_upper"
+            THEN daterange("lower", "upper", '(]')
+            WHEN NOT "inc_lower" AND NOT "inc_upper"
+            THEN daterange("lower", "upper", '()')
+            WHEN "inc_lower" AND NOT "inc_upper"
+            THEN daterange("lower", "upper", '[)')
+        END
+        FROM (
+            SELECT
+                edgedb.local_date_in(edgedb.jsonb_extract_scalar(
+                    val->'lower', 'string')) AS lower,
+                edgedb.local_date_in(edgedb.jsonb_extract_scalar(
+                    val->'upper', 'string')) AS upper,
+                edgedb.range_inc_from_jsonb(val, 'inc_lower') AS inc_lower,
+                edgedb.range_inc_from_jsonb(val, 'inc_upper') AS inc_upper
+        ) AS a;
+    $$;
+};

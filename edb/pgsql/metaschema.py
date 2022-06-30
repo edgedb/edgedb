@@ -313,6 +313,61 @@ class LocalDatetimeRange(dbops.Range):
         )
 
 
+class RangeToJsonFunction(dbops.Function):
+    """Convert anyrange to a jsonb object."""
+    text = r'''
+        SELECT to_jsonb(o)
+        FROM (
+            SELECT
+                lower(val) as lower,
+                lower_inc(val) as inc_lower,
+                upper(val) as upper,
+                upper_inc(val) as inc_upper
+        ) AS o;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'range_to_jsonb'),
+            args=[
+                ('val', ('anyrange',)),
+            ],
+            returns=('jsonb',),
+            volatility='immutable',
+            language='sql',
+            text=self.text,
+        )
+
+
+class RangeIncFromJsonFunction(dbops.Function):
+    """Helper to get inclusivity of bounds from JSON range object."""
+    text = r'''
+        SELECT edgedb.raise_on_null(
+            edgedb.jsonb_extract_scalar(
+                val->"index", 'boolean'
+            )::bool,
+            'invalid_parameter_value',
+            msg => (
+                'JSON object must have key ' || quote_literal("index")
+                || ' with value true or false'
+            )
+        );
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'range_inc_from_jsonb'),
+            args=[
+                ('val', ('jsonb',)),
+                ('index', ('text',)),
+            ],
+            returns=('bool',),
+            volatility='immutable',
+            language='sql',
+            text=self.text,
+        )
+
+
 class StrToConfigMemoryFunction(dbops.Function):
     """An implementation of std::str to cfg::memory cast."""
     text = r'''
@@ -4005,6 +4060,8 @@ async def bootstrap(
         dbops.CreateRange(Float64Range()),
         dbops.CreateRange(DatetimeRange()),
         dbops.CreateRange(LocalDatetimeRange()),
+        dbops.CreateFunction(RangeToJsonFunction()),
+        dbops.CreateFunction(RangeIncFromJsonFunction()),
     ])
 
     block = dbops.PLTopBlock()
