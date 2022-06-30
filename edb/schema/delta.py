@@ -2177,7 +2177,8 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         astnode = self._get_ast_node(schema, context)
 
         if astnode.get_field('name'):
-            name = context.early_renames.get(self.classname, self.classname)
+            name = sn.shortname_from_fullname(self.classname)
+            name = context.early_renames.get(name, name)
             op = astnode(  # type: ignore
                 name=self._deparse_name(schema, context, name),
             )
