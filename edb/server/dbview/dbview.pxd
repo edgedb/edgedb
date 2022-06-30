@@ -118,6 +118,7 @@ cdef class DatabaseConnectionView:
         object _in_tx_modaliases
         tuple _session_state_db_cache
         tuple _session_state_cache
+        object _current_state_serializer
 
         object _eql_to_compiled
 

@@ -20,6 +20,11 @@
 from edgedb.protocol.asyncio_proto cimport AsyncIOProtocol
 
 
+cdef class Protocol(AsyncIOProtocol):
+    cdef:
+        bytes last_state
+
+
 cdef class Connection:
 
     cdef:

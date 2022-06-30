@@ -515,6 +515,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         msg_buf.end_message()
         buf.write_buffer(msg_buf)
 
+        buf.write_buffer(self.make_state_data_description_msg())
+
         self.write(buf)
 
         if self.server.in_dev_mode():
@@ -1271,6 +1273,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             await self._execute_rollback(compiled)
         elif len(query_unit_group) > 1:
             await self._execute_script(compiled, args)
+            if self._dbview.is_state_desc_changed():
+                self.write(self.make_state_data_description_msg())
             self.write(
                 self.make_command_complete_msg(
                     compiled.query_unit_group.capabilities,
@@ -1283,6 +1287,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 and bool(query_unit_group[0].sql_hash)
             )
             await self._execute(compiled, args, use_prep)
+            if self._dbview.is_state_desc_changed():
+                self.write(self.make_state_data_description_msg())
             self.write(
                 self.make_command_complete_msg(
                     compiled.query_unit_group[0].capabilities,
