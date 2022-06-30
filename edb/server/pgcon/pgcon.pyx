@@ -1126,7 +1126,6 @@ cdef class PGConnection:
         bint use_prep_stmt,
         bytes state,
         dbver,
-        bint return_data,
     ):
         cdef:
             WriteBuffer out
@@ -1137,7 +1136,8 @@ cdef class PGConnection:
             bint state_sync = 0
 
             bint has_result = query.cardinality is not CARD_NO_RESULT
-            bint discard_result = query.output_format == FMT_NONE
+            bint discard_result = (
+                fe_conn is not None and query.output_format == FMT_NONE)
 
             uint64_t msgs_num = <uint64_t>(len(query.sql))
             uint64_t msgs_executed = 0
@@ -1220,11 +1220,6 @@ cdef class PGConnection:
         self.write_sync(out)
         self.write(out)
 
-        # If no fe_conn is passed, the caller is responsible for
-        # handling the server response
-        if fe_conn is None and not return_data:
-            return
-
         result = None
 
         try:
@@ -1243,7 +1238,7 @@ cdef class PGConnection:
                         if discard_result:
                             self.buffer.discard_message()
                             continue
-                        if not has_result:
+                        if not has_result and fe_conn is not None:
                             raise errors.InternalServerError(
                                 f'query that was inferred to have '
                                 f'no data returned received a DATA package; '
@@ -1331,7 +1326,6 @@ cdef class PGConnection:
         bint use_prep_stmt,
         bytes state,
         int dbver,
-        bint return_data = False,
     ):
         self.before_command()
         started_at = time.monotonic()
@@ -1343,12 +1337,10 @@ cdef class PGConnection:
                 use_prep_stmt,
                 state,
                 dbver,
-                return_data,
             )
         finally:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)
-            if fe_conn is not None:
-                await self.after_command()
+            await self.after_command()
 
     async def _simple_query(self, bytes sql, bint ignore_data, bytes state):
         cdef:
