@@ -17,6 +17,7 @@
 #
 
 
+import decimal
 import http
 import json
 import urllib.parse
@@ -26,19 +27,18 @@ import immutables
 from edb import errors
 from edb import edgeql
 from edb.server import defines as edbdef
-from edb.server.pgcon import errors as pgerrors
+from edb.server.protocol import execute
 
 from edb.common import debug
 from edb.common import markup
 
+from edb.edgeql import qltypes
+
 from edb.server import compiler
-from edb.server.compiler import OutputFormat
+from edb.server import config
 from edb.server.compiler import enums
-
-
-ALLOWED_CAPABILITIES = (
-    enums.Capability.MODIFICATIONS
-)
+from edb.server.dbview cimport dbview
+from edb.server.pgproto.pgproto cimport WriteBuffer
 
 
 async def handle_request(
@@ -55,7 +55,7 @@ async def handle_request(
         return
 
     variables = None
-    globals = None
+    globals_ = None
     query = None
 
     try:
@@ -67,7 +67,7 @@ async def handle_request(
                         'the body of the request must be a JSON object')
                 query = body.get('query')
                 variables = body.get('variables')
-                globals = body.get('globals')
+                globals_ = body.get('globals')
             else:
                 raise TypeError(
                     'unable to interpret EdgeQL POST request')
@@ -89,10 +89,10 @@ async def handle_request(
                         raise TypeError(
                             '"variables" must be a JSON object')
 
-                globals = qs.get('globals')
-                if globals is not None:
+                globals_ = qs.get('globals')
+                if globals_ is not None:
                     try:
-                        globals = json.loads(globals[0])
+                        globals_ = json.loads(globals_[0])
                     except Exception:
                         raise TypeError(
                             '"globals" must be a JSON object')
@@ -106,7 +106,7 @@ async def handle_request(
         if variables is not None and not isinstance(variables, dict):
             raise TypeError('"variables" must be a JSON object')
 
-        if globals is not None and not isinstance(globals, dict):
+        if globals_ is not None and not isinstance(globals_, dict):
             raise TypeError('"globals" must be a JSON object')
 
     except Exception as ex:
@@ -121,7 +121,7 @@ async def handle_request(
     response.status = http.HTTPStatus.OK
     response.content_type = b'application/json'
     try:
-        result = await execute(db, server, query.encode(), variables, globals)
+        result = await _execute(db, server, query, variables, globals_)
     except Exception as ex:
         if debug.flags.server:
             markup.dump(ex)
@@ -142,57 +142,40 @@ async def handle_request(
         response.body = b'{"data":' + result + b'}'
 
 
-async def compile(db, server, bytes query):
-    compiler_pool = server.get_compiler_pool()
+async def _execute(db, server, query, variables, globals_):
+    query_cache_enabled = not (
+        debug.flags.disable_qcache or debug.flags.edgeql_compile)
 
-    unit_group, _, _ = await compiler_pool.compile(
-        db.name,
-        db.user_schema,
-        server.get_global_schema(),
-        db.reflection_cache,
-        db.db_config,
-        server.get_compilation_system_config(),
-        edgeql.Source.from_string(query.decode('utf-8')),
-        None,           # modaliases
-        None,           # session config
-        OutputFormat.JSON,  # json mode
-        False,          # expected cardinality is MANY
-        0,              # no implicit limit
-        False,          # no inlining of type IDs
-        False,          # no inlining of type names
-        False,          # skip_first
-        edbdef.CURRENT_PROTOCOL,  # protocol_version
-        True,           # inline_objectids
-        True,           # json parameters
+    dbv = await server.new_dbview(
+        dbname=db.name,
+        query_cache=query_cache_enabled,
+        protocol_version=edbdef.CURRENT_PROTOCOL,
     )
-    return unit_group[0]
 
-
-async def execute(db, server, bytes query, variables, globals):
-    dbver = db.dbver
-    query_cache = server._http_query_cache
-
-    cache_key = ('edgeql_http', query, dbver)
-    use_prep_stmt = False
-
-    query_unit: compiler.QueryUnit = query_cache.get(
-        cache_key, None)
-
-    if query_unit is None:
-        query_unit = await compile(db, server, query)
-        if query_unit.capabilities & ~ALLOWED_CAPABILITIES:
-            raise query_unit.capabilities.make_error(
-                ALLOWED_CAPABILITIES,
-                errors.UnsupportedCapabilityError,
+    if globals_:
+        dbv.set_globals(immutables.Map({
+            "__::__edb_json_globals__": config.SettingValue(
+                name="__::__edb_json_globals__",
+                value=_encode_json_value(globals_),
+                source='global',
+                scope=qltypes.ConfigScope.GLOBAL,
             )
-        query_cache[cache_key] = query_unit
-    else:
-        # This is at least the second time this query is used.
-        use_prep_stmt = True
+        }))
+
+    query_req = dbview.QueryRequestInfo(
+        edgeql.Source.from_string(query),
+        protocol_version=edbdef.CURRENT_PROTOCOL,
+        input_format=enums.InputFormat.JSON,
+        output_format=enums.OutputFormat.JSON,
+        allow_capabilities=enums.Capability.MODIFICATIONS,
+    )
+
+    compiled = await dbv.parse(query_req)
+    qug = compiled.query_unit_group
 
     args = []
-    if query_unit.in_type_args:
-        for param in query_unit.in_type_args:
+    if qug.in_type_args:
+        for param in qug.in_type_args:
             if variables is None or param.name not in variables:
                 raise errors.QueryError(
                     f'no value for the ${param.name} query parameter')
@@ -203,19 +186,58 @@ async def execute(db, server, bytes query, variables, globals):
                         f'parameter ${param.name} is required')
                 args.append(value)
 
-    if query_unit.globals:
-        args.append(globals)
+    bind_args = _encode_args(args)
 
     pgcon = await server.acquire_pgcon(db.name)
     try:
-        data = await pgcon.parse_execute_json(
-            query_unit.sql[0], query_unit.sql_hash, dbver,
-            use_prep_stmt, args)
+        if len(qug) > 1:
+            data = await execute.execute_script(
+                pgcon,
+                dbv,
+                compiled,
+                bind_args,
+                fe_conn=None,
+            )
+        else:
+            data = await execute.execute(
+                pgcon,
+                dbv,
+                compiled,
+                bind_args,
+                fe_conn=None,
+            )
     finally:
         server.release_pgcon(db.name, pgcon)
 
-    if data is None:
+    if not data or len(data) > 1 or len(data[0]) != 1:
         raise errors.InternalServerError(
-            f'no data received for a JSON query {query_unit.sql[0]!r}')
+            f'received incorrect response data for a JSON query')
 
-    return data
+    return data[0][0]
+
+
+cdef bytes _encode_json_value(object val):
+    if isinstance(val, decimal.Decimal):
+        jarg = str(val)
+    else:
+        jarg = json.dumps(val)
+
+    return b'\x01' + jarg.encode('utf-8')
+
+
+cdef bytes _encode_args(list args):
+    cdef:
+        WriteBuffer out_buf = WriteBuffer.new()
+
+    if args:
+        out_buf.write_int32(len(args))
+        for arg in args:
+            out_buf.write_int32(0)  # reserved
+            if arg is None:
+                out_buf.write_int32(-1)
+            else:
+                jval = _encode_json_value(arg)
+                out_buf.write_int32(len(jval))
+                out_buf.write_bytes(jval)
+
+    return bytes(out_buf)

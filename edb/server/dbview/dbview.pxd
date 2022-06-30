@@ -176,7 +176,7 @@ cdef class DatabaseConnectionView:
     cdef set_session_config(self, new_conf)
 
     cpdef get_globals(self)
-    cdef set_globals(self, new_globals)
+    cpdef set_globals(self, new_globals)
 
     cdef update_database_config(self)
     cdef get_database_config(self)

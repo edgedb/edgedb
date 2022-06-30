@@ -367,7 +367,7 @@ cdef class DatabaseConnectionView:
         else:
             self._config = new_conf
 
-    cdef set_globals(self, new_globals):
+    cpdef set_globals(self, new_globals):
         if self._in_tx:
             self._in_tx_globals = new_globals
         else:

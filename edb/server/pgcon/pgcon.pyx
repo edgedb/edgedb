@@ -1125,7 +1125,8 @@ cdef class PGConnection:
         WriteBuffer bind_data,
         bint use_prep_stmt,
         bytes state,
-        dbver
+        dbver,
+        bint return_data,
     ):
         cdef:
             WriteBuffer out
@@ -1221,8 +1222,10 @@ cdef class PGConnection:
 
         # If no fe_conn is passed, the caller is responsible for
         # handling the server response
-        if fe_conn is None:
+        if fe_conn is None and not return_data:
             return
+
+        result = None
 
         try:
             if state is not None:
@@ -1246,13 +1249,26 @@ cdef class PGConnection:
                                 f'no data returned received a DATA package; '
                                 f'query: {query.sql}')
 
-                        if buf is None:
-                            buf = WriteBuffer.new()
+                        if fe_conn is None:
+                            ncol = self.buffer.read_int16()
+                            row = []
+                            for i in range(ncol):
+                                coll = self.buffer.read_int32()
+                                if coll == -1:
+                                    row.append(None)
+                                else:
+                                    row.append(self.buffer.read_bytes(coll))
+                            if result is None:
+                                result = []
+                            result.append(row)
+                        else:
+                            if buf is None:
+                                buf = WriteBuffer.new()
 
-                        self.buffer.redirect_messages(buf, b'D', 0)
-                        if buf.len() >= DATA_BUFFER_SIZE:
-                            fe_conn.write(buf)
-                            buf = None
+                            self.buffer.redirect_messages(buf, b'D', 0)
+                            if buf.len() >= DATA_BUFFER_SIZE:
+                                fe_conn.write(buf)
+                                buf = None
 
                     elif mtype == b'C':  ## result
                         # CommandComplete
@@ -1262,7 +1278,7 @@ cdef class PGConnection:
                             buf = None
                         msgs_executed += 1
                         if msgs_executed == msgs_num:
-                            return
+                            break
 
                     elif mtype == b'1' and parse:
                         # ParseComplete
@@ -1282,7 +1298,7 @@ cdef class PGConnection:
                     elif mtype == b's':  ## result
                         # PortalSuspended
                         self.buffer.discard_message()
-                        return
+                        break
 
                     elif mtype == b'2':
                         # BindComplete
@@ -1291,7 +1307,7 @@ cdef class PGConnection:
                     elif mtype == b'I':  ## result
                         # EmptyQueryResponse
                         self.buffer.discard_message()
-                        return
+                        break
 
                     elif mtype == b'3':
                         # CloseComplete
@@ -1305,6 +1321,8 @@ cdef class PGConnection:
         finally:
             await self.wait_for_sync()
 
+        return result
+
     async def parse_execute(
         self,
         query,
@@ -1313,6 +1331,7 @@ cdef class PGConnection:
         bint use_prep_stmt,
         bytes state,
         int dbver,
+        bint return_data = False,
     ):
         self.before_command()
         started_at = time.monotonic()
@@ -1323,7 +1342,8 @@ cdef class PGConnection:
                 bind_data,
                 use_prep_stmt,
                 state,
-                dbver
+                dbver,
+                return_data,
             )
         finally:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)

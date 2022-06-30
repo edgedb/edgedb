@@ -55,6 +55,8 @@ async def execute(
     new_types = None
     server = dbv.server
 
+    data = None
+
     try:
         if be_conn.last_state == state:
             # the current status in be_conn is in sync with dbview, skip the
@@ -80,13 +82,14 @@ async def execute(
                     bound_args_buf = args_ser.recode_bind_args(
                         dbv, compiled, bind_args)
 
-                    await be_conn.parse_execute(
+                    data = await be_conn.parse_execute(
                         query_unit,         # =query
                         fe_conn if not query_unit.set_global else None,
                         bound_args_buf,     # =bind_data
                         use_prep_stmt,      # =use_prep_stmt
                         state,              # =state
                         dbv.dbver,          # =dbver
+                        not query_unit.set_global,  # =return_data
                     )
                 if state is not None:
                     # state is restored, clear orig_state so that we can
@@ -139,6 +142,8 @@ async def execute(
                 #   2. The state is synced with dbview (orig_state is None)
                 #   3. We came out from a transaction (orig_state is None)
                 be_conn.last_state = state
+
+    return data
 
 
 async def execute_script(

@@ -22,7 +22,6 @@ import os
 import edgedb
 
 from edb.testbase import http as tb
-from edb.tools import test
 
 
 class TestHttpEdgeQL(tb.EdgeQLTestCase):
@@ -192,7 +191,6 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
             [],
         )
 
-    @test.xerror("this is not supported yet")
     def test_http_edgeql_query_08(self):
         self.assert_edgeql_query_result(
             r"""
