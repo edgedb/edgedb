@@ -605,11 +605,19 @@ class ScopeTreeNode:
 
             assert offending_node.path_id is not None
 
+            imp = ''
+            offending_id = f'{offending_node.path_id.pformat()!r}'
+            existing_id = f'{existing.path_id.pformat()!r}'
+            # If the id is generated, don't leak meaningless info
+            # and try to explain that the reference is implicit.
+            if '~' in offending_id:
+                imp = 'implicit '
+                offending_id = 'an object'
+                existing_id = 'it'
+
             raise errors.InvalidReferenceError(
-                f'reference to '
-                f'{offending_node.path_id.pformat()!r} '
-                f'changes the interpretation of '
-                f'{existing.path_id.pformat()!r} '
+                f'{imp}reference to {offending_id} '
+                f'changes the interpretation of {existing_id} '
                 f'elsewhere in the query',
                 context=context,
             )

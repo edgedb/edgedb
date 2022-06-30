@@ -1302,3 +1302,19 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 }
             ]
         )
+
+    async def test_edgeql_props_bogus_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"implicit reference to an object changes the "
+                r"interpretation of it elsewhere in the query"):
+
+            await self.con.query(
+                r'''
+                    select (
+                      select User
+                    ).deck {
+                      linkprop := @count
+                    };
+                '''
+            )
