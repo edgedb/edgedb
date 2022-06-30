@@ -1141,10 +1141,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         state_tid = self.buffer.read_bytes(16)
         state_data = self.buffer.read_len_prefixed_bytes()
-        if state_tid == sertypes.INVALID_TYPE_ID.bytes:
-            # Skip trying to decode the state and return error directly
-            self.write(self.make_state_data_description_msg())
-            raise errors.StateMismatchError("Requested to describe the state.")
         try:
             self.get_dbview().decode_state(state_tid, state_data)
         except errors.StateMismatchError:
