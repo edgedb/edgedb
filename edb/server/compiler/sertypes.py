@@ -841,8 +841,8 @@ class StateSerializer:
     def describe(self) -> typing.Tuple[uuidgen.UUID, bytes]:
         return self._type_id, self._type_data
 
-    def encode(self, state) -> typing.Tuple[uuidgen.UUID, bytes]:
-        return self._type_id, self._codec.encode(state)
+    def encode(self, state) -> bytes:
+        return self._codec.encode(state)
 
     def decode(self, type_id: bytes, state: bytes):
         if type_id != self._type_id.bytes:

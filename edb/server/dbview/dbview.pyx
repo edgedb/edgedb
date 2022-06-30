@@ -536,7 +536,7 @@ cdef class DatabaseConnectionView:
             if (
                 modaliases, session_config, globals_, serializer.type_id
             ) == self._session_state_cache[:4]:
-                return self._session_state_cache[3:]
+                return self._session_state_cache[4]
         state = {}
         try:
             state['module'] = modaliases[None]

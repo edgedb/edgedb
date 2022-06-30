@@ -1025,14 +1025,13 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         cdef:
             WriteBuffer msg
 
-        state_tid, state_data = self.get_dbview().encode_state()
+        state_data = self.get_dbview().encode_state()
 
         msg = WriteBuffer.new_message(b'C')
         msg.write_int16(0)  # no headers
         msg.write_int64(<int64_t><uint64_t>capabilities)
         msg.write_len_prefixed_bytes(status)
 
-        msg.write_bytes(state_tid.bytes)
         msg.write_len_prefixed_bytes(state_data)
 
         return msg.end_message()

@@ -590,7 +590,6 @@ class CommandComplete(ServerMessage):
                           'A bit mask of allowed capabilities.')
     status = String('Command status.')
 
-    state_typedesc_id = UUID('Updated state data descriptor ID.')
     state_data = Bytes('Encoded state data.')
 
 
