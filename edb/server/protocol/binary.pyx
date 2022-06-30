@@ -1220,7 +1220,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             query_unit_group = _dbview.lookup_compiled_query(query_req)
             if query_unit_group is None:
                 if self.debug:
-                    self.debug_print('EXECUTE /CACHE MISS', query_req.text())
+                    self.debug_print('EXECUTE /CACHE MISS', query_req.source.text())
 
                 compiled = await self._parse(query_req)
                 query_unit_group = compiled.query_unit_group
@@ -1260,7 +1260,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.write(self.make_command_data_description_msg(compiled))
 
         if self.debug:
-            self.debug_print('EXECUTE', query_req.text())
+            self.debug_print('EXECUTE', query_req.source.text())
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
         if (
