@@ -5460,6 +5460,19 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """, r"""
         """])
 
+    def test_schema_migrations_equivalence_annotation_08(self):
+        self._assert_migration_equivalence([r"""
+            abstract annotation ann1;
+            type T {
+                annotation ann1 := 'test!';
+            };
+        """, r"""
+            abstract annotation ann2;
+            type T {
+                annotation ann2 := 'test?';
+            };
+        """])
+
     def test_schema_migrations_equivalence_index_01(self):
         self._assert_migration_equivalence([r"""
             type Base {
