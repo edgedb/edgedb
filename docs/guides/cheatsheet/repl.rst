@@ -48,15 +48,93 @@ for a value.
 
 ----------
 
+Commands
+^^^^^^^^
+
+
+.. list-table::
+
+    * - Options
+      - ``-v`` = verbose
+
+        ``-s`` = show system objects
+
+        ``-I`` = case-sensitive match
+
+    * - ``\d [-v] NAME``
+      - Describe a schema object.
+
+    * - ``\ds, \describe schema``
+      - Describe the entire schema.
+
+    * - ``\list databases``
+
+        ``alias: \l``
+      - List databases.
+    * - ``\list scalars [-sI] [pattern]``
+
+        ``alias: \ls``
+      - List scalar types.
+    * - ``\list types [-sI] [pattern]``
+
+        ``alias: \lt``
+      - List object types.
+    * - ``\list roles [-I]``
+
+        ``alias: \lr``
+      - List roles.
+    * - ``\list modules [-I]``
+
+        ``alias: \lm``
+      - List modules.
+    * - ``\list aliases [-Isv] [pattern]``
+
+        ``alias: \la``
+      - List expression aliases.
+    * - ``\list casts [-I] [pattern]``
+
+        ``alias: \lc``
+      - List casts.
+    * - ``\list indexes [-Isv] [pattern]``
+
+        ``alias: \li``
+      - List indexes.
+
+    * - ``\dump <filename>``
+      - Dump the current database to file.
+
+    * - ``\restore <filename>``
+      - Restore the database from a dump file.
+
+    * - ``\s, \history``
+      - Show query history
+
+    * - ``\e, \edit [N]``
+      - Spawn $EDITOR to edit history entry N.
+
+        Then use the output as the input.
+
+    * - ``\set [<option> [<value>]]``
+      - View/change a setting.
+
+        Type ``\set`` to see all available settings.
+
+    * - ``\c, \connect [<dbname>]``
+      - Connect to a particular database.
+
+
+Sample usage
+^^^^^^^^^^^^
 
 List databases:
 
 .. code-block:: edgeql-repl
 
-    db> \l
+    db> \ls
     List of databases:
       db
       tutorial
+
 
 
 ----------
@@ -67,49 +145,7 @@ Connect to a database:
 .. code-block:: edgeql-repl
 
     db> \c my_new_project
-
     my_new_project>
-
-
-----------
-
-
-List modules:
-
-.. code-block:: edgeql-repl
-
-    db> \lm
-
-
-----------
-
-
-List object types:
-
-.. code-block:: edgeql-repl
-
-    db> \lt
-
-
-----------
-
-
-List scalar types:
-
-.. code-block:: edgeql-repl
-
-    db> \ls
-
-
-----------
-
-
-List expression aliases (the ``-v`` includes the expression value in
-the listing):
-
-.. code-block:: edgeql-repl
-
-    db> \la -v
 
 
 ----------
