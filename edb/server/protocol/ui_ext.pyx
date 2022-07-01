@@ -56,32 +56,31 @@ async def handle_request(
     path_parts,
     server,
 ):
-    if path_parts == ['instance-info']:
-        # endpoint for data that either cannot be fetched by an edgeql query
-        # or is needed to make a connection to send queries
-        response.status = http.HTTPStatus.OK
-        response.content_type = b'application/json'
-        response.body = json.dumps({
-            'instance_name': server._instance_name if
-                server._instance_name is not None else
-                ('_localdev' if server.in_dev_mode() else None),
-            'databases': [
-                {'name': db.name}
-                for db in server._dbindex.iter_dbs()
-            ]
-        }).encode()
-        return
-
-    if path_parts == []:
-        urlpath = request.url.path.decode('ascii')
-        if urlpath.endswith('/'):
-            response.status = http.HTTPStatus.PERMANENT_REDIRECT
-            response.custom_headers['Location'] = urlpath[0:-1]
-            return
-        path_parts = ['index.html']
-
     try:
-        data, content_type = static_files[os.path.join(*path_parts)]
+        if path_parts == ['instance-info']:
+            # endpoint for data that either cannot be fetched by an edgeql query
+            # or is needed to make a connection to send queries
+            response.status = http.HTTPStatus.OK
+            response.content_type = b'application/json'
+            response.body = json.dumps({
+                'instance_name': server._instance_name if
+                    server._instance_name is not None else
+                    ('_localdev' if server.in_dev_mode() else None),
+                'databases': [
+                    {'name': db.name}
+                    for db in server._dbindex.iter_dbs()
+                ],
+                'roles': list(server._roles.keys()),
+            }).encode()
+            return
+
+        if path_parts == []:
+            path_parts = ['index.html']
+
+        data, content_type = static_files.get(
+                os.path.join(*path_parts),
+                static_files['index.html']
+            )
         response.status = http.HTTPStatus.OK
         response.content_type = content_type
         response.body = data
@@ -98,16 +97,6 @@ def handle_error(
     if debug.flags.server:
         markup.dump(error)
 
-    er_type = type(error)
-    if not issubclass(er_type, errors.EdgeDBError):
-        er_type = errors.InternalServerError
-
-    response.body = json.dumps({
-        'kind': 'error',
-        'error': {
-            'message': str(error),
-            'type': er_type.__name__,
-        }
-    }).encode()
-    response.status = http.HTTPStatus.BAD_REQUEST
+    response.body = b'Internal Server Error'
+    response.status = http.HTTPStatus.INTERNAL_SERVER_ERROR
     response.close_connection = True
