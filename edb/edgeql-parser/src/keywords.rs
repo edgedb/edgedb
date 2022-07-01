@@ -56,6 +56,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "operator",
     "optionality",
     "order",
+    "orphan",
     "overloaded",
     "owned",
     "package",

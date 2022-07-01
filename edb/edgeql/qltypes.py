@@ -258,12 +258,15 @@ class LinkTargetDeleteAction(s_enum.StrEnum):
 class LinkSourceDeleteAction(s_enum.StrEnum):
     DeleteTarget = 'DeleteTarget'
     Allow = 'Allow'
+    DeleteTargetIfOrphan = 'DeleteTargetIfOrphan'
 
     def to_edgeql(self) -> str:
         if self is LinkSourceDeleteAction.DeleteTarget:
             return 'DELETE TARGET'
         elif self is LinkSourceDeleteAction.Allow:
             return 'ALLOW'
+        elif self is LinkSourceDeleteAction.DeleteTargetIfOrphan:
+            return 'DELETE TARGET IF ORPHAN'
         else:
             raise ValueError(f'unsupported enum value {self!r}')
 

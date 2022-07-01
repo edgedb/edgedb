@@ -29,7 +29,7 @@ CREATE SCALAR TYPE schema::TargetDeleteAction
     EXTENDING enum<Restrict, DeleteSource, Allow, DeferredRestrict>;
 
 CREATE SCALAR TYPE schema::SourceDeleteAction
-    EXTENDING enum<DeleteTarget, Allow>;
+    EXTENDING enum<DeleteTarget, Allow, DeleteTargetIfOrphan>;
 
 CREATE SCALAR TYPE schema::OperatorKind
     EXTENDING enum<Infix, Postfix, Prefix, Ternary>;

@@ -458,6 +458,10 @@ class OnSourceDeleteStmt(Nonterm):
         self.val = qlast.OnSourceDelete(
             cascade=qltypes.LinkSourceDeleteAction.Allow)
 
+    def reduce_ON_SOURCE_DELETE_DELETE_TARGET_IF_ORPHAN(self, *kids):
+        self.val = qlast.OnSourceDelete(
+            cascade=qltypes.LinkSourceDeleteAction.DeleteTargetIfOrphan)
+
 
 class OptWhenBlock(Nonterm):
     def reduce_WHEN_LPAREN_Expr_RPAREN(self, *kids):
