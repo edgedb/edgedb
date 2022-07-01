@@ -6283,9 +6283,9 @@ aa \
                 ''')
 
         with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_upper' "
-                r"with value true or false"):
+                edgedb.CardinalityViolationError,
+                r'JSON object representing a range must include an "inc_upper"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('{
@@ -6297,9 +6297,9 @@ aa \
                 ''')
 
         with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                edgedb.CardinalityViolationError,
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('{
@@ -6310,9 +6310,9 @@ aa \
                 ''')
 
         with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                edgedb.CardinalityViolationError,
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('["bad", null]') =
@@ -6320,9 +6320,9 @@ aa \
                 ''')
 
         with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                edgedb.CardinalityViolationError,
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('{"bad": null}') =
@@ -6330,9 +6330,9 @@ aa \
                 ''')
 
         with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                edgedb.CardinalityViolationError,
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('"bad"') =
@@ -6340,9 +6340,9 @@ aa \
                 ''')
 
         with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                edgedb.CardinalityViolationError,
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('null') =
@@ -6350,9 +6350,9 @@ aa \
                 ''')
 
         with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                edgedb.CardinalityViolationError,
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('1312') =
@@ -6360,9 +6360,9 @@ aa \
                 ''')
 
         with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                edgedb.CardinalityViolationError,
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('true') =
