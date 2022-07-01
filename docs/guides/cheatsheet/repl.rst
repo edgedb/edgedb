@@ -64,18 +64,18 @@ Commands
     * - ``\d [-v] NAME``
       - Describe a schema object.
 
-    * - ``\ds, \describe-schema``
+    * - ``\ds, \describe schema``
       - Describe the entire schema.
 
     * - ``\list databases``
 
         ``alias: \l``
       - List databases.
-    * - ``\list scalars [-sI] [<pattern>]``
+    * - ``\list scalars [-sI] [pattern]``
 
         ``alias: \ls``
       - List scalar types.
-    * - ``\list types [-sI] [<pattern>]``
+    * - ``\list types [-sI] [pattern]``
 
         ``alias: \lt``
       - List object types.
@@ -87,15 +87,15 @@ Commands
 
         ``alias: \lm``
       - List modules.
-    * - ``\list aliases [-Isv] [<pattern>]``
+    * - ``\list aliases [-Isv] [pattern]``
 
         ``alias: \la``
       - List expression aliases.
-    * - ``\list casts [-I] [<pattern>]``
+    * - ``\list casts [-I] [pattern]``
 
         ``alias: \lc``
       - List casts.
-    * - ``\list indexes [-Isv] [<pattern>]``
+    * - ``\list indexes [-Isv] [pattern]``
 
         ``alias: \li``
       - List indexes.
@@ -123,8 +123,8 @@ Commands
       - Connect to a particular database.
 
 
-Usage
-^^^^^
+Sample usage
+^^^^^^^^^^^^
 
 List databases:
 
