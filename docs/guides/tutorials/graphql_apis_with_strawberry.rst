@@ -4,12 +4,12 @@ Strawberry
 
 :edb-alt-title: Building a GraphQL API with EdgeDB and Strawberry
 
-EdgeDB allows you to leverage GraphQL queries with the built-in GraphQL
+EdgeDB allows you to query your database with GraphQL via the built-in GraphQL
 extension. It enables you to expose GraphQL-driven CRUD APIs for all object
 types, their properties, links, and aliases. This opens up the scope for
 creating backendless applications where the users will directly communicate
 with the database. You can learn more about that in the
-`GraphQL <https://www.edgedb.com/docs/graphql/index>`_ section of the doc.
+`GraphQL <https://www.edgedb.com/docs/graphql/index>`_ section of the docs.
 
 However, as of now, EdgeDB is not ready to be used as a standalone backend. You
 shouldn't expose your EdgeDB instance directly to the application’s frontend;
@@ -18,11 +18,11 @@ database. So, in this tutorial, we'll see how you can quickly create a simple
 GraphQL API without using the built-in extension and give the users restricted
 access to the database schema. Also, we'll implement HTTP basic authentication
 and demonstrate how you can write your own GraphQL validators and resolvers.
-This tutorial assumes you're already familiar with GraphQL terminologies like
+This tutorial assumes you're already familiar with GraphQL terms like
 schema, query, mutation, resolver, validator, etc, and have used GraphQL with
 some other technology before.
 
-We'll build the same movie organization system that you've seen in the Flask
+We'll build the same movie organization system that we used in the Flask
 `tutorial <https://www.edgedb.com/docs/guides/tutorials/rest_apis_with_flask>`_
 and expose the objects and relationships as a GraphQL API. Using the GraphQL
 interface, you'll be able to fetch, create, update, and delete movie and actor
@@ -442,13 +442,14 @@ create an actor object in the database as follows:
 
             actor_json = await client.query_single_json(
                 """
-                select (
-                insert Actor {
-                    name := <str>$name,
-                    age:=<optional int16>$age,
-                    height:=<optional int16>$height
-                }
-                ){name, age, height}
+                with new_actor := (
+                    insert Actor {
+                        name := <str>$name,
+                        age := <optional int16>$age,
+                        height := <optional int16>$height
+                    }
+                )
+                select new_actor {name, age, height}
             """,
                 name=name,
                 age=age,
@@ -566,7 +567,7 @@ follows:
             if filter_name:
                 movies_json = await client.query_json(
                     """
-                    select Movie {name, year, actors : {name}}
+                    select Movie {name, year, actors: {name, age, height}}
                     filter .name=<str>$filter_name
                 """,
                     filter_name=filter_name,
@@ -574,7 +575,7 @@ follows:
             else:
                 movies_json = await client.query_json(
                     """
-                    select Movie {name, year, actors : {name}}
+                    select Movie {name, year, actors: {name, age, height}}
                 """
                 )
 
@@ -641,20 +642,24 @@ to how we've constructed the create actor mutation. It looks like this:
             movie_json = await client.query_single_json(
                 """
                 with
-                    name:=<str>$name,
-                    year:=<optional int16>$year,
-                    actor_names:=<optional array<str>>$actor_names
-
-                select (
-                insert Movie {
-                    name:=name,
-                    year:=year,
-                    actors:=(
-                        select detached Actor
-                        filter .name in array_unpack(actor_names)
+                    name := <str>$name,
+                    year := <optional int16>$year,
+                    actor_names := <optional array<str>>$actor_names,
+                    new_movie := (
+                        insert Movie {
+                            name := name,
+                            year := year,
+                            actors := (
+                                select detached Actor
+                                filter .name in array_unpack(actor_names)
+                            )
+                        }
                     )
-                    }
-                ){name, year, actors : {name}}
+                select new_movie {
+                    name,
+                    year,
+                    actors: {name, age, height}
+                }
             """,
                 name=name,
                 year=year,
