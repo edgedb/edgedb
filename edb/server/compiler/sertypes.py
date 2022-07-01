@@ -73,6 +73,7 @@ CTYPE_NAMEDTUPLE = b'\x05'
 CTYPE_ARRAY = b'\x06'
 CTYPE_ENUM = b'\x07'
 CTYPE_INPUT_SHAPE = b'\x08'
+CTYPE_RANGE = b'\x09'
 CTYPE_ANNO_TYPENAME = b'\xff'
 
 EMPTY_BYTEARRAY = bytearray()
@@ -254,6 +255,26 @@ class TypeSerializer:
             buf.append(_uint16_packer(1))
             # Dimension cardinality (currently always unbound)
             buf.append(_int32_packer(-1))
+
+            self._register_type_id(type_id)
+            return type_id
+
+        elif isinstance(t, s_types.Range):
+            subtypes = [self._describe_type(st, view_shapes,
+                                            view_shapes_metadata,
+                                            protocol_version)
+                        for st in t.get_subtypes(self.schema)]
+
+            assert len(subtypes) == 1
+            type_id = self._get_collection_type_id(
+                t.get_schema_name(), subtypes)
+
+            if type_id in self.uuid_to_pos:
+                return type_id
+
+            buf.append(CTYPE_RANGE)
+            buf.append(type_id.bytes)
+            buf.append(_uint16_packer(self.uuid_to_pos[subtypes[0]]))
 
             self._register_type_id(type_id)
             return type_id
