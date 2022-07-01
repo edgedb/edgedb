@@ -557,6 +557,12 @@ def serialize_expr_to_json(
             env=env,
         )
 
+    elif irtyputils.is_range(styperef) and not expr.ser_safe:
+        val = pgast.FuncCall(
+            # Use the actual generic helper for converting anyrange to jsonb
+            name=('edgedb', 'range_to_jsonb'),
+            args=[expr], null_safe=True, ser_safe=True)
+
     elif irtyputils.is_collection(styperef) and not expr.ser_safe:
         val = coll_as_json_object(expr, styperef=styperef, env=env)
 

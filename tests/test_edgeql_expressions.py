@@ -5941,6 +5941,501 @@ aa \
                     )
                 ''')
 
+    async def test_edgeql_expr_range_32(self):
+        # Test casting ranges to JSON.
+
+        await self.assert_query_result(
+            f'''
+                select <json>range(<int32>2, <int32>10);
+            ''',
+            [{
+                "lower": 2,
+                "inc_lower": True,
+                "upper": 10,
+                "inc_upper": False,
+            }],
+            json_only=True,
+        )
+
+        await self.assert_query_result(
+            f'''
+                select <json>range(<int64>2, <int64>10);
+            ''',
+            [{
+                "lower": 2,
+                "inc_lower": True,
+                "upper": 10,
+                "inc_upper": False,
+            }],
+            json_only=True,
+        )
+
+        await self.assert_query_result(
+            f'''
+                select <json>range(<float32>2.5, <float32>10.5);
+            ''',
+            [{
+                "lower": 2.5,
+                "inc_lower": True,
+                "upper": 10.5,
+                "inc_upper": False,
+            }],
+            json_only=True,
+        )
+
+        await self.assert_query_result(
+            f'''
+                select <json>range(<float64>2.5, <float64>10.5);
+            ''',
+            [{
+                "lower": 2.5,
+                "inc_lower": True,
+                "upper": 10.5,
+                "inc_upper": False,
+            }],
+            json_only=True,
+        )
+
+        await self.assert_query_result(
+            f'''
+                select <json>range(2.5n, 10.5n);
+            ''',
+            [{
+                "lower": 2.5,
+                "inc_lower": True,
+                "upper": 10.5,
+                "inc_upper": False,
+            }],
+            json_only=True,
+        )
+
+        await self.assert_query_result(
+            f'''
+                select <json>range(
+                    <datetime>'2022-06-10T13:00:00Z',
+                    <datetime>'2022-06-17T12:00:00Z'
+                );
+            ''',
+            [{
+                "lower": "2022-06-10T13:00:00+00:00",
+                "inc_lower": True,
+                "upper": "2022-06-17T12:00:00+00:00",
+                "inc_upper": False,
+            }],
+            json_only=True,
+        )
+
+        await self.assert_query_result(
+            f'''
+                select <json>range(
+                    <cal::local_datetime>'2022-06-10T13:00:00',
+                    <cal::local_datetime>'2022-06-17T12:00:00'
+                );
+            ''',
+            [{
+                "lower": "2022-06-10T13:00:00",
+                "inc_lower": True,
+                "upper": "2022-06-17T12:00:00",
+                "inc_upper": False,
+            }],
+            json_only=True,
+        )
+
+        await self.assert_query_result(
+            f'''
+                select <json>range(
+                    <cal::local_date>'2022-06-10',
+                    <cal::local_date>'2022-06-17'
+                );
+            ''',
+            [{
+                "lower": "2022-06-10",
+                "inc_lower": True,
+                "upper": "2022-06-17",
+                "inc_upper": False,
+            }],
+            json_only=True,
+        )
+
+    async def test_edgeql_expr_range_33(self):
+        # Test casting ranges from JSON.
+
+        await self.assert_query_result(
+            r'''
+                select <range<int32>>to_json('{
+                    "lower": 2,
+                    "inc_lower": true,
+                    "upper": 10,
+                    "inc_upper": false
+                }') = range(<int32>2, <int32>10);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <range<int64>>to_json('{
+                    "lower": 2,
+                    "inc_lower": true,
+                    "upper": 10,
+                    "inc_upper": false
+                }') = range(<int64>2, <int64>10);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <range<float32>>to_json('{
+                    "lower": 2.5,
+                    "inc_lower": true,
+                    "upper": 10.5,
+                    "inc_upper": false
+                }') = range(<float32>2.5, <float32>10.5);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <range<float64>>to_json('{
+                    "lower": 2.5,
+                    "inc_lower": true,
+                    "upper": 10.5,
+                    "inc_upper": false
+                }') = range(<float64>2.5, <float64>10.5);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <range<decimal>>to_json('{
+                    "lower": 2.5,
+                    "inc_lower": true,
+                    "upper": 10.5,
+                    "inc_upper": false
+                }') = range(2.5n, 10.5n);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <range<datetime>>to_json('{
+                    "lower": "2022-06-10T13:00:00+00:00",
+                    "inc_lower": true,
+                    "upper": "2022-06-17T12:00:00+00:00",
+                    "inc_upper": false
+                }') = range(
+                    <datetime>'2022-06-10T13:00:00Z',
+                    <datetime>'2022-06-17T12:00:00Z'
+                );
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <range<cal::local_datetime>>to_json('{
+                    "lower": "2022-06-10T13:00:00",
+                    "inc_lower": true,
+                    "upper": "2022-06-17T12:00:00",
+                    "inc_upper": false
+                }') = range(
+                    <cal::local_datetime>'2022-06-10T13:00:00',
+                    <cal::local_datetime>'2022-06-17T12:00:00'
+                );
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <range<cal::local_date>>to_json('{
+                    "lower": "2022-06-10",
+                    "inc_lower": true,
+                    "upper": "2022-06-17",
+                    "inc_upper": false
+                }') = range(
+                    <cal::local_date>'2022-06-10',
+                    <cal::local_date>'2022-06-17'
+                );
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_34(self):
+        # Test casting ranges from JSON.
+
+        await self.assert_query_result(
+            r'''
+                select <range<int64>>to_json('{
+                    "lower": 2,
+                    "inc_lower": true,
+                    "upper": 10,
+                    "inc_upper": true
+                }') = range(2, 11);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <range<int64>>to_json('{
+                    "lower": null,
+                    "inc_lower": true,
+                    "upper": 10,
+                    "inc_upper": false
+                }') = range(<int64>{}, 10);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <range<int64>>to_json('{
+                    "lower": 2,
+                    "inc_lower": true,
+                    "inc_upper": false
+                }') = range(2);
+            ''',
+            [True],
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r'"2147483648" is out of range for type std::int32'):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<int32>>to_json('{
+                        "lower": 2,
+                        "inc_lower": true,
+                        "upper": 2147483648,
+                        "inc_upper": false
+                    }') = range(2, 10);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r'"9223372036854775808" is out of range for '
+                r'type std::int64'):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<int64>>to_json('{
+                        "lower": 2,
+                        "inc_lower": true,
+                        "upper": 9223372036854775808,
+                        "inc_upper": false
+                    }') = range(2, 10);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r'.+ is out of range for type std::float32'):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<float32>>to_json('{
+                        "lower": 2,
+                        "inc_lower": true,
+                        "upper": 1e100,
+                        "inc_upper": false
+                    }') = range(2.0, 10.0);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.NumericOutOfRangeError,
+                r'.+ is out of range for type std::float64'):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<float64>>to_json('{
+                        "lower": 2,
+                        "inc_lower": true,
+                        "upper": 1e500,
+                        "inc_upper": false
+                    }') = range(2.0, 10.0);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'expected JSON number or null; got JSON string'):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<int64>>to_json('{
+                        "lower": "2",
+                        "inc_lower": true,
+                        "upper": 10,
+                        "inc_upper": false
+                    }') = range(2, 10);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'invalid input syntax for type std::int64: "2.5"'):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<int64>>to_json('{
+                        "lower": 2.5,
+                        "inc_lower": true,
+                        "upper": 10,
+                        "inc_upper": false
+                    }') = range(2, 10);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"JSON object must have key 'inc_upper' "
+                r"with value true or false"):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<int64>>to_json('{
+                        "lower": 2,
+                        "inc_lower": true,
+                        "upper": 10,
+                        "inc_upper": null
+                    }') = range(2, 10);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"JSON object must have key 'inc_lower' "
+                r"with value true or false"):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<int64>>to_json('{
+                        "lower": 2,
+                        "upper": 10,
+                        "inc_upper": false
+                    }') = range(2, 10);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"JSON object must have key 'inc_lower' "
+                r"with value true or false"):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<int64>>to_json('["bad", null]') =
+                        range(2, 10);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"JSON object must have key 'inc_lower' "
+                r"with value true or false"):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<int64>>to_json('{"bad": null}') =
+                        range(2, 10);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"JSON object must have key 'inc_lower' "
+                r"with value true or false"):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<int64>>to_json('"bad"') =
+                        range(2, 10);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"JSON object must have key 'inc_lower' "
+                r"with value true or false"):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<int64>>to_json('null') =
+                        range(2, 10);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"JSON object must have key 'inc_lower' "
+                r"with value true or false"):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<int64>>to_json('1312') =
+                        range(2, 10);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"JSON object must have key 'inc_lower' "
+                r"with value true or false"):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<int64>>to_json('true') =
+                        range(2, 10);
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"invalid input syntax for type cal::local_date: "
+                r"'2022.06.10'"):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<cal::local_date>>to_json('{
+                        "lower": "2022.06.10",
+                        "inc_lower": true,
+                        "upper": "2022-06-17",
+                        "inc_upper": false
+                    }') = range(
+                        <cal::local_date>'2022-06-10',
+                        <cal::local_date>'2022-06-17'
+                    );
+                ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"invalid input syntax for type cal::local_date: "
+                r"'12022-06-17'"):
+            async with self.con.transaction():
+                await self.con.query_single(r'''
+                    select <range<cal::local_date>>to_json('{
+                        "lower": "2022-06-10",
+                        "inc_lower": true,
+                        "upper": "12022-06-17",
+                        "inc_upper": false
+                    }') = range(
+                        <cal::local_date>'2022-06-10',
+                        <cal::local_date>'2022-06-17'
+                    );
+                ''')
+
+    async def test_edgeql_expr_range_35(self):
+        # Test casting shapes containing ranges to JSON.
+
+        await self.assert_query_result(
+            r'''
+                select <json>{
+                    int := 42,
+                    range0 := range(2, 10),
+                    nested := {
+                        range1 := range(5)
+                    }
+                };
+            ''',
+            [{
+                "int": 42,
+                "range0": {
+                    "lower": 2,
+                    "inc_lower": True,
+                    "upper": 10,
+                    "inc_upper": False,
+                },
+                "nested": {
+                    "range1": {
+                        "lower": 5,
+                        "inc_lower": True,
+                        "upper": None,
+                        "inc_upper": False,
+                    },
+                },
+            }],
+            json_only=True,
+        )
+
     async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to __type__'):
