@@ -819,6 +819,17 @@ class TestServerProto(tb.QueryTestCase):
                 ('1', 1, 1.1, decimal.Decimal('1.1'), 1)
             )
 
+    async def test_server_proto_args_10(self):
+        self.assertEqual(
+            await self.con.query(
+                '''
+                    select 1;
+                    select '!' ++ <str>$arg;
+                ''',
+                arg='?'
+            ),
+            edgedb.Set(('!?',)))
+
     async def test_server_proto_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
         # by closing.
@@ -2589,6 +2600,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
             ''')
 
             result = await self.con.query_single('''
+                select 1;
                 SELECT (<array<tid_prop_01>>$input)[1]
             ''', input=['a', 'b'])
 

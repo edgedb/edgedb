@@ -743,6 +743,9 @@ def preprocess_script(
         lparams = list(params.items())
         if lparams[0][0].isdecimal():
             lparams.sort(key=lambda x: int(x[0]))
-            params = dict(lparams)
+        # Otherwise make sure injected args come after
+        else:
+            lparams.sort(key=lambda x: x[0].startswith('__edb_arg_'))
+        params = dict(lparams)
 
     return irast.ScriptInfo(params=params, schema=ctx.env.schema)
