@@ -252,6 +252,8 @@ class Server(ha_base.ClusterProtocol):
 
         self._jws_key: jwk.JWK | None = None
         self._jwe_key: jwk.JWK | None = None
+        self._jws_keys_newly_generated = False
+        self._jwe_keys_newly_generated = False
 
         self._default_auth_method = default_auth_method
         self._binary_endpoint_security = binary_endpoint_security
@@ -1567,6 +1569,8 @@ class Server(ha_base.ClusterProtocol):
         self,
         jws_key_file: pathlib.Path | None,
         jwe_key_file: pathlib.Path | None,
+        jws_keys_newly_generated: bool,
+        jwe_keys_newly_generated: bool,
     ) -> None:
         if jws_key_file is not None:
             try:
@@ -1597,6 +1601,8 @@ class Server(ha_base.ClusterProtocol):
                 raise StartupError(
                     f"the provided JWE key file does not "
                     f"contain a valid RSA or EC private key")
+        self._jws_keys_newly_generated = jws_keys_newly_generated
+        self._jwe_keys_newly_generated = jwe_keys_newly_generated
 
     def get_jws_key(self) -> jwk.JWK | None:
         return self._jws_key
@@ -1660,6 +1666,8 @@ class Server(ha_base.ClusterProtocol):
                 "tenant_id": self._tenant_id,
                 "tls_cert_file": self._tls_cert_file,
                 "tls_cert_newly_generated": self._tls_cert_newly_generated,
+                "jws_keys_newly_generated": self._jws_keys_newly_generated,
+                "jwe_keys_newly_generated": self._jwe_keys_newly_generated,
             }
             status_sink(f'READY={json.dumps(status)}')
 
