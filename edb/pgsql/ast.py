@@ -708,15 +708,17 @@ class NamedFuncArg(ImmutableBaseExpr):
     val: BaseExpr
 
 
-class Indices(ImmutableBase):
-    """Array subscript or slice bounds."""
+class Index(ImmutableBase):
+    """Array subscript."""
+    idx: BaseExpr
 
-    # True, if slice
-    is_slice: bool
+
+class Slice(ImmutableBase):
+    """Array slice bounds."""
     # Lower bound, if any
-    lidx: BaseExpr
+    lidx: typing.Optional[BaseExpr]
     # Upper bound if any
-    ridx: BaseExpr
+    ridx: typing.Optional[BaseExpr]
 
 
 class Indirection(ImmutableBaseExpr):
@@ -732,6 +734,11 @@ class ArrayExpr(ImmutableBaseExpr):
     """ARRAY[] construct."""
 
     # array element expressions
+    elements: typing.List[BaseExpr]
+
+
+class ArrayDimension(ImmutableBaseExpr):
+    """An array dimension"""
     elements: typing.List[BaseExpr]
 
 

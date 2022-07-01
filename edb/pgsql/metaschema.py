@@ -339,35 +339,6 @@ class RangeToJsonFunction(dbops.Function):
         )
 
 
-class RangeIncFromJsonFunction(dbops.Function):
-    """Helper to get inclusivity of bounds from JSON range object."""
-    text = r'''
-        SELECT edgedb.raise_on_null(
-            edgedb.jsonb_extract_scalar(
-                val->"index", 'boolean'
-            )::bool,
-            'invalid_parameter_value',
-            msg => (
-                'JSON object must have key ' || quote_literal("index")
-                || ' with value true or false'
-            )
-        );
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', 'range_inc_from_jsonb'),
-            args=[
-                ('val', ('jsonb',)),
-                ('index', ('text',)),
-            ],
-            returns=('bool',),
-            volatility='immutable',
-            language='sql',
-            text=self.text,
-        )
-
-
 class StrToConfigMemoryFunction(dbops.Function):
     """An implementation of std::str to cfg::memory cast."""
     text = r'''
@@ -4061,7 +4032,6 @@ async def bootstrap(
         dbops.CreateRange(DatetimeRange()),
         dbops.CreateRange(LocalDatetimeRange()),
         dbops.CreateFunction(RangeToJsonFunction()),
-        dbops.CreateFunction(RangeIncFromJsonFunction()),
     ])
 
     block = dbops.PLTopBlock()

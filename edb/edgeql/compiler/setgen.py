@@ -1199,8 +1199,11 @@ def ensure_set(
         inference.amend_empty_set_type(ir_set, typehint, env=ctx.env)
         stype = get_set_type(ir_set, ctx=ctx)
 
-    if (typehint is not None and
-            not stype.implicitly_castable_to(typehint, ctx.env.schema)):
+    if (
+        typehint is not None
+        and stype != typehint
+        and not stype.implicitly_castable_to(typehint, ctx.env.schema)
+    ):
         raise errors.QueryError(
             f'expecting expression of type '
             f'{typehint.get_displayname(ctx.env.schema)}, '

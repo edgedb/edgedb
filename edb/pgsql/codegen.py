@@ -624,6 +624,11 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.elements, newlines=False)
         self.write(']')
 
+    def visit_ArrayDimension(self, node):
+        self.write('[')
+        self.visit_list(node.elements, newlines=False)
+        self.write(']')
+
     def visit_VariadicArgument(self, node):
         self.write('VARIADIC ')
         self.visit(node.expr)
@@ -771,12 +776,18 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.write('.')
             self.visit(indirection)
 
-    def visit_Indices(self, node):
+    def visit_Index(self, node):
+        self.write('[')
+        self.visit(node.idx)
+        self.write(']')
+
+    def visit_Slice(self, node):
         self.write('[')
         if node.lidx is not None:
             self.visit(node.lidx)
-            self.write(':')
-        self.visit(node.ridx)
+        self.write(':')
+        if node.ridx is not None:
+            self.visit(node.ridx)
         self.write(']')
 
     def visit_CollateClause(self, node):
