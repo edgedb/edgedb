@@ -25,6 +25,9 @@ cdef class Protocol(AsyncIOProtocol):
         bytes last_state
         object state_stack
 
+    cdef parse_command_complete_message(self)
+    cdef encode_state(self, state)
+
 
 cdef class Connection:
 
