@@ -1249,8 +1249,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 "types inferred from specified command(s)"
             )
 
-        # TODO(fantix): send state data description if the state schema changed
-
         if query_unit_group.out_type_id != out_tid:
             # The client has no up-to-date information about the output,
             # so provide one.

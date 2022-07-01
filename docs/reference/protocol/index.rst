@@ -238,15 +238,6 @@ following messages:
     :ref:`type descriptor <ref_proto_typedesc>` data necessary to perform
     data I/O for this command.
 
-    The client could attach state data. When doing so, this message expects the
-    client to declare a correct :ref:`type descriptor <ref_proto_typedesc>`
-    identifier for the state data.  If the declared state type descriptor does
-    not match the expected value, a
-    :ref:`ref_protocol_msg_state_data_description` message is returned followed
-    by a ``StateMismatchError`` in an ``ErrorResponse`` message. The client may
-    send an invalid type ID ``FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF`` to
-    retrieve an initial state type descriptor.
-
 :ref:`ref_protocol_msg_execute`
     Execute the provided command or commands.  This message expects the
     client to declare a correct :ref:`type descriptor <ref_proto_typedesc>`
@@ -260,11 +251,13 @@ following messages:
     will send a :ref:`ref_protocol_msg_command_data_description` prior to
     sending any :ref:`ref_protocol_msg_data` messages.
 
-    The client could attach state data. When doing so, the client must also set
-    the state type descriptor identifier, which must then match the state type
-    in the current connection on the server side, or else a
-    :ref:`ref_protocol_msg_state_data_description` message is returned followed
-    by a ``StateMismatchError`` in an ``ErrorResponse`` message.
+The client could attach state data in both messages. When doing so, the client
+must also set a correct :ref:`type descriptor <ref_proto_typedesc>` identifier
+for the state data.  If the declared state type descriptor does not match the
+expected value, a :ref:`ref_protocol_msg_state_data_description` message is
+returned followed by a ``StateMismatchError`` in an ``ErrorResponse`` message.
+However, the special type id of zero ``00000000-0000-0000-0000-000000000000``
+for empty/default state is always a match.
 
 Each of the messages could contain one or more EdgeQL commands separated
 by a semicolon (``;``).  If more than one EdgeQL command is found in a single
