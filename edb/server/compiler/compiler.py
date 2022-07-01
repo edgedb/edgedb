@@ -1622,11 +1622,12 @@ class Compiler:
         ql: qlast.Base,
         source: Optional[edgeql.Source] = None,
         *,
+        in_script: bool=False,
         script_info: Optional[irast.ScriptInfo] = None,
     ) -> Tuple[dbstate.BaseQuery, enums.Capability]:
         if isinstance(ql, qlast.MigrationCommand):
             query = self._compile_ql_migration(
-                ctx, ql, in_script=script_info is not None
+                ctx, ql, in_script=in_script,
             )
             if isinstance(
                 query,
@@ -1755,6 +1756,7 @@ class Compiler:
                 stmt,
                 source=source if not is_script else None,
                 script_info=script_info,
+                in_script=is_script,
             )
 
             unit = dbstate.QueryUnit(
@@ -1925,8 +1927,7 @@ class Compiler:
             if ctx.protocol_version >= (0, 12):
                 in_type_data, in_type_id = \
                     sertypes.TypeSerializer.describe_params(
-                        schema=ctx.state.current_tx().get_schema(
-                            self._std_schema),
+                        schema=script_info.schema,
                         params=params,
                         protocol_version=ctx.protocol_version,
                     )
