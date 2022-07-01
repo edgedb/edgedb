@@ -124,6 +124,7 @@ class BaseTransaction(abc.ABC):
             self._state = TransactionState.FAILED
             raise
         else:
+            self._connection._protocol.start_transaction()
             self._state = TransactionState.STARTED
 
     async def commit(self) -> None:
@@ -140,6 +141,7 @@ class BaseTransaction(abc.ABC):
             self._state = TransactionState.FAILED
             raise
         else:
+            self._connection._protocol.commit_transaction()
             self._state = TransactionState.COMMITTED
 
     async def rollback(self) -> None:
@@ -156,6 +158,7 @@ class BaseTransaction(abc.ABC):
             self._state = TransactionState.FAILED
             raise
         else:
+            self._connection._protocol.rollback_transaction()
             self._state = TransactionState.ROLLEDBACK
 
 
