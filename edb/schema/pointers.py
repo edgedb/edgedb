@@ -1217,7 +1217,7 @@ class PointerCommandOrFragment(
             and target.is_view(expression.irast.schema)
         ):
             raise errors.UnsupportedFeatureError(
-                f'including a shape on schema-defined computed pointers '
+                f'including a shape on schema-defined computed links '
                 f'is not yet supported',
                 context=self.source_context,
             )
