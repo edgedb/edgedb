@@ -18,6 +18,7 @@
 
 
 import asyncio
+import collections
 import re
 import time
 
@@ -31,15 +32,30 @@ from . import messages
 
 cdef class Protocol(AsyncIOProtocol):
     cdef parse_command_complete_message(self):
+        cdef WriteBuffer buf = WriteBuffer.new()
         self.ignore_headers()
         self.last_capabilities = enums.Capability(self.buffer.read_int64())
         self.last_status = self.buffer.read_len_prefixed_bytes()
-        self.state_type_id = self.buffer.read_bytes(16)
-        self.state = WriteBuffer.new()
-        self.state.write_len_prefixed_bytes(
-            self.buffer.read_len_prefixed_bytes()
-        )
+        buf.write_len_prefixed_bytes(self.buffer.read_len_prefixed_bytes())
+        self.last_state = bytes(buf)
         self.buffer.finish_message()
+
+    cdef encode_state(self, state):
+        if self.last_state is None:
+            return AsyncIOProtocol.encode_state(self, None)
+        else:
+            return self.state_type_id, self.last_state
+
+    def start_transaction(self):
+        if self.state_stack is None:
+            self.state_stack = collections.deque()
+        self.state_stack.append((self.state_type_id, self.last_state))
+
+    def commit_transaction(self):
+        self.state_stack.pop()
+
+    def rollback_transaction(self):
+        self.state_type_id, self.last_state = self.state_stack.pop()
 
 
 cdef class Connection:
@@ -70,7 +86,10 @@ cdef class Connection:
             ),
             messages.Sync(),
         )
-        await self.recv_match(messages.CommandComplete)
+        await self.recv_match(
+            messages.CommandComplete,
+            _ignore_msg=messages.StateDataDescription,
+        )
         await self.recv_match(messages.ReadyForCommand)
 
     async def sync(self):
@@ -94,8 +113,10 @@ cdef class Connection:
 
             return msg
 
-    async def recv_match(self, msgcls, **fields):
+    async def recv_match(self, msgcls, _ignore_msg=None, **fields):
         message = await self.recv()
+        if _ignore_msg is not None and isinstance(message, _ignore_msg):
+            message = await self.recv()
         if not isinstance(message, msgcls):
             raise AssertionError(
                 f'expected for {msgcls.__name__} message, received '

@@ -590,7 +590,6 @@ class CommandComplete(ServerMessage):
                           'A bit mask of allowed capabilities.')
     status = String('Command status.')
 
-    state_typedesc_id = UUID('Updated state data descriptor ID.')
     state_data = Bytes('Encoded state data.')
 
 
@@ -607,6 +606,14 @@ class CommandDataDescription(ServerMessage):
     input_typedesc = Bytes('Argument data descriptor.')
     output_typedesc_id = UUID('Output data descriptor ID.')
     output_typedesc = Bytes('Output data descriptor.')
+
+
+class StateDataDescription(ServerMessage):
+
+    mtype = MessageType('s')
+    message_length = MessageLength
+    typedesc_id = UUID('Updated state data descriptor ID.')
+    typedesc = Bytes('State data descriptor.')
 
 
 class Data(ServerMessage):
@@ -674,12 +681,6 @@ class ParameterStatus_SystemConfig(Struct):
     typedesc = ArrayOf(UInt32, UInt8(), 'Type descriptor prefixed with '
                                         'type descriptor uuid.')
     data = FixedArrayOf(1, DataElement, 'Configuration settings data.')
-
-
-class ParameterStatus_StateDescription(Struct):
-
-    state_typedesc_id = UUID('Updated state data descriptor ID.')
-    state_typedesc = Bytes('State data descriptor.')
 
 
 class ProtocolExtension(Struct):

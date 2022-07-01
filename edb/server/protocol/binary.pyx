@@ -515,6 +515,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         msg_buf.end_message()
         buf.write_buffer(msg_buf)
 
+        buf.write_buffer(self.make_state_data_description_msg())
+
         self.write(buf)
 
         if self.server.in_dev_mode():
@@ -537,30 +539,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             b'system_config',
             self.server.get_report_config_data()
         )
-        self.write_state_desc(False)
 
         self.write(self.sync_status())
 
         self.flush()
-
-    cdef inline write_state_desc(self, bint flush=True):
-        cdef WriteBuffer state, buf
-
-        buf = WriteBuffer.new_message(b'S')
-        buf.write_len_prefixed_bytes(b'state_description')
-
-        type_id, type_data = self.get_dbview().describe_state()
-        state = WriteBuffer.new()
-        state.write_bytes(type_id.bytes)
-        state.write_len_prefixed_bytes(type_data)
-
-        buf.write_len_prefixed_buffer(state)
-        buf.end_message()
-
-        self.write(buf)
-        if flush:
-            self.flush()
-        self.pending_state_desc_push = False
 
     async def _do_handshake(self):
         cdef:
@@ -1027,18 +1009,29 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         msg.end_message()
         return msg
 
+    cdef WriteBuffer make_state_data_description_msg(self):
+        cdef WriteBuffer msg
+
+        type_id, type_data = self.get_dbview().describe_state()
+
+        msg = WriteBuffer.new_message(b's')
+        msg.write_bytes(type_id.bytes)
+        msg.write_len_prefixed_bytes(type_data)
+        msg.end_message()
+
+        return msg
+
     cdef WriteBuffer make_command_complete_msg(self, capabilities, status):
         cdef:
             WriteBuffer msg
 
-        state_tid, state_data = self.get_dbview().encode_state()
+        state_data = self.get_dbview().encode_state()
 
         msg = WriteBuffer.new_message(b'C')
         msg.write_int16(0)  # no headers
         msg.write_int64(<int64_t><uint64_t>capabilities)
         msg.write_len_prefixed_bytes(status)
 
-        msg.write_bytes(state_tid.bytes)
         msg.write_len_prefixed_bytes(state_data)
 
         return msg.end_message()
@@ -1148,7 +1141,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         state_tid = self.buffer.read_bytes(16)
         state_data = self.buffer.read_len_prefixed_bytes()
-        self.get_dbview().decode_state(state_tid, state_data)
+        try:
+            self.get_dbview().decode_state(state_tid, state_data)
+        except errors.StateMismatchError:
+            self.write(self.make_state_data_description_msg())
+            raise
 
         return dbview.QueryRequestInfo(
             self._tokenize(query),
@@ -1220,7 +1217,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             query_unit_group = _dbview.lookup_compiled_query(query_req)
             if query_unit_group is None:
                 if self.debug:
-                    self.debug_print('EXECUTE /CACHE MISS', query_req.text())
+                    self.debug_print('EXECUTE /CACHE MISS', query_req.source.text())
 
                 compiled = await self._parse(query_req)
                 query_unit_group = compiled.query_unit_group
@@ -1246,6 +1243,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             )
 
         if query_unit_group.in_type_id != in_tid:
+            self.write(self.make_command_data_description_msg(compiled))
             raise errors.ParameterTypeMismatchError(
                 "specified parameter type(s) do not match the parameter "
                 "types inferred from specified command(s)"
@@ -1257,7 +1255,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.write(self.make_command_data_description_msg(compiled))
 
         if self.debug:
-            self.debug_print('EXECUTE', query_req.text())
+            self.debug_print('EXECUTE', query_req.source.text())
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
         if (
@@ -1268,6 +1266,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             await self._execute_rollback(compiled)
         elif len(query_unit_group) > 1:
             await self._execute_script(compiled, args)
+            if self._dbview.is_state_desc_changed():
+                self.write(self.make_state_data_description_msg())
             self.write(
                 self.make_command_complete_msg(
                     compiled.query_unit_group.capabilities,
@@ -1280,6 +1280,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 and bool(query_unit_group[0].sql_hash)
             )
             await self._execute(compiled, args, use_prep)
+            if self._dbview.is_state_desc_changed():
+                self.write(self.make_state_data_description_msg())
             self.write(
                 self.make_command_complete_msg(
                     compiled.query_unit_group[0].capabilities,
@@ -1290,8 +1292,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if self._cancelled:
             raise ConnectionAbortedError
 
-        if self.pending_state_desc_push and not _dbview.in_tx():
-            self.write_state_desc(False)
         self.flush()
 
     async def sync(self):
@@ -1354,12 +1354,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
                 if self._stop_requested:
                     break
-
-                if (
-                    self.pending_state_desc_push and
-                    not self.get_dbview().in_tx()
-                ):
-                    self.write_state_desc()
 
                 if not self.buffer.take_message():
                     if self._passive_mode:
@@ -1807,18 +1801,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if not self._write_waiter or self._write_waiter.done():
             return
         self._write_waiter.set_result(True)
-
-    def push_state_desc(self, dbname):
-        if (
-            not self.authed or
-            self._con_status == EDGECON_BAD or
-            self.dbname != dbname
-        ):
-            return
-        if self.idling and not self.get_dbview().in_tx():
-            self.write_state_desc()
-        else:
-            self.pending_state_desc_push = True
 
     async def dump(self):
         cdef:

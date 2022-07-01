@@ -27,6 +27,9 @@ Messages
     * - :ref:`ref_protocol_msg_command_data_description`
       - Description of command data input and output.
 
+    * - :ref:`ref_protocol_msg_state_data_description`
+      - Description of state data.
+
     * - :ref:`ref_protocol_msg_data`
       - Command result data element.
 
@@ -238,6 +241,22 @@ Format:
 
 The format of the *input_typedesc* and *output_typedesc* fields is described
 in the :ref:`ref_proto_typedesc` section.
+
+
+.. _ref_protocol_msg_state_data_description:
+
+StateDataDescription
+====================
+
+Sent by: server.
+
+Format:
+
+.. eql:struct:: edb.protocol.StateDataDescription
+
+
+The format of the *typedesc* fields is described in the
+:ref:`ref_proto_typedesc` section.
 
 
 .. _ref_protocol_msg_sync:
@@ -497,11 +516,6 @@ Known statuses:
   :ref:`Data <ref_protocol_msg_data>` message:
 
   .. eql:struct:: edb.protocol.DataElement
-
-* ``state_description`` -- an input shape descriptor of state data.
-  Serialized as:
-
-  .. eql:struct:: edb.protocol.ParameterStatus_StateDescription
 
 
 .. _ref_protocol_msg_client_handshake:

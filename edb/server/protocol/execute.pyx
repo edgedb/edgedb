@@ -343,11 +343,6 @@ def signal_side_effects(dbv, side_effects):
     if not server._accept_new_tasks:
         return
 
-    if side_effects & dbview.SideEffects.GlobalSchemaChanges:
-        # TODO(fantix): extensions may provide their own session config, so
-        # we should push state desc too if that happens.
-        server._push_state_desc(dbv.dbname)
-
     if side_effects & dbview.SideEffects.SchemaChanges:
         server.create_task(
             server._signal_sysevent(

@@ -64,8 +64,6 @@ STR_TYPE_ID = s_obj.get_known_type_id('std::str')
 NULL_TYPE_ID = uuidgen.UUID(b'\x00' * 16)
 NULL_TYPE_DESC = b''
 
-INVALID_TYPE_ID = uuidgen.UUID(b'\xff' * 16)
-
 CTYPE_SET = b'\x00'
 CTYPE_SHAPE = b'\x01'
 CTYPE_BASE_SCALAR = b'\x02'
@@ -841,8 +839,8 @@ class StateSerializer:
     def describe(self) -> typing.Tuple[uuidgen.UUID, bytes]:
         return self._type_id, self._type_data
 
-    def encode(self, state) -> typing.Tuple[uuidgen.UUID, bytes]:
-        return self._type_id, self._codec.encode(state)
+    def encode(self, state) -> bytes:
+        return self._codec.encode(state)
 
     def decode(self, type_id: bytes, state: bytes):
         if type_id != self._type_id.bytes:

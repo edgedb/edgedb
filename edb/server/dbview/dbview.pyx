@@ -499,11 +499,18 @@ cdef class DatabaseConnectionView:
         self._session_state_db_cache = (self._config, spec)
         return spec
 
+    def is_state_desc_changed(self):
+        return self._current_state_serializer is None
+
     cdef describe_state(self):
-        assert not self._in_tx
-        return self._db.get_state_serializer(self._protocol_version).describe()
+        return self._get_state_serializer().describe()
 
     cdef inline _get_state_serializer(self):
+        # Reuse the same state serializer as in decode_state() to avoid being
+        # affected by concurrent schema changes from other sessions, unless the
+        # state schema is changed in the current session
+        if self._current_state_serializer is not None:
+            return self._current_state_serializer
         if self._in_tx:
             serializer = self._in_tx_state_serializer
             if serializer is None:
@@ -515,10 +522,13 @@ cdef class DatabaseConnectionView:
                 self._in_tx_state_serializer = serializer
         else:
             serializer = self._db.get_state_serializer(self._protocol_version)
+        self._current_state_serializer = serializer
         return serializer
 
     cdef encode_state(self):
         serializer = self._get_state_serializer()
+        # encode_state() is the last step, clear ref to save memory
+        self._current_state_serializer = None
         modaliases = self.get_modaliases()
         session_config = self.get_session_config()
         globals_ = self.get_globals()
@@ -526,7 +536,7 @@ cdef class DatabaseConnectionView:
             if (
                 modaliases, session_config, globals_, serializer.type_id
             ) == self._session_state_cache[:4]:
-                return self._session_state_cache[3:]
+                return self._session_state_cache[4]
         state = {}
         try:
             state['module'] = modaliases[None]
@@ -543,6 +553,10 @@ cdef class DatabaseConnectionView:
         return serializer.encode(state)
 
     cdef decode_state(self, type_id, data):
+        # Always get a fresh serializer
+        self._current_state_serializer = None
+        serializer = self._get_state_serializer()
+
         if type_id == ZERO_UUID:
             self.set_modaliases(DEFAULT_MODALIASES)
             self.set_session_config(DEFAULT_CONFIG)
@@ -555,7 +569,6 @@ cdef class DatabaseConnectionView:
                 if data == self._session_state_cache[4]:
                     return
 
-        serializer = self._get_state_serializer()
         type_id, state = serializer.decode(type_id, data)
         aliases = dict(state.get('aliases', []))
         aliases[None] = state.get('module', defines.DEFAULT_MODULE_ALIAS)
@@ -692,6 +705,7 @@ cdef class DatabaseConnectionView:
         if query_unit.has_role_ddl:
             self._in_tx_with_role_ddl = True
         if query_unit.user_schema is not None:
+            self._current_state_serializer = None
             self._in_tx_user_schema_pickled = query_unit.user_schema
             self._in_tx_user_schema = None
             self._in_tx_state_serializer = None
@@ -724,6 +738,7 @@ cdef class DatabaseConnectionView:
                 self._db._update_backend_ids(new_types)
             if query_unit.user_schema is not None:
                 self._in_tx_dbver = next_dbver()
+                self._current_state_serializer = None
                 self._db._set_and_signal_new_user_schema(
                     pickle.loads(query_unit.user_schema),
                     pickle.loads(query_unit.cached_reflection)
@@ -763,6 +778,7 @@ cdef class DatabaseConnectionView:
             if self._in_tx_new_types:
                 self._db._update_backend_ids(self._in_tx_new_types)
             if query_unit.user_schema is not None:
+                self._current_state_serializer = None
                 self._db._set_and_signal_new_user_schema(
                     pickle.loads(query_unit.user_schema),
                     pickle.loads(query_unit.cached_reflection)
