@@ -7582,6 +7582,17 @@ aa \
                 };
             """)
 
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "custom message",
+        ):
+            await self.con.query("""
+                SELECT assert_single(
+                    (SELECT User FILTER .name ILIKE "Hunter B%"),
+                    message := "custom message",
+                );
+            """)
+
     async def test_edgeql_assert_single_no_op(self):
         await self.con.query("""
             SELECT assert_single(1)
@@ -7703,6 +7714,17 @@ aa \
             await self.con.query("""
                 SELECT assert_exists(
                     (SELECT User FILTER .name = "nonexistent")
+                ).name;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "custom message",
+        ):
+            await self.con.query("""
+                SELECT assert_exists(
+                    (SELECT User FILTER .name = "nonexistent"),
+                    message := "custom message",
                 ).name;
             """)
 
@@ -7840,6 +7862,14 @@ aa \
         ):
             await self.con.query("""
                 SELECT assert_distinct({(), ()});
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "custom message",
+        ):
+            await self.con.query("""
+                SELECT assert_distinct({(), ()}, message := "custom message");
             """)
 
     async def test_edgeql_assert_distinct_no_op(self):

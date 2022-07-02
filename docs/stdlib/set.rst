@@ -341,7 +341,10 @@ Set
 ----------
 
 
-.. eql:function:: std::assert_distinct(s: set of anytype) -> set of anytype
+.. eql:function:: std::assert_distinct( \
+                    s: set of anytype, \
+                    named only message: optional str = <str>{} \
+                  ) -> set of anytype
 
     :index: multiplicity uniqueness
 
@@ -352,6 +355,8 @@ Set
     as a runtime distinctness assertion in queries and computed
     expressions that should always return proper sets, but where static
     multiplicity inference is not capable enough or outright impossible.
+    An optional *message* named argument can be used to customize the error
+    message.
 
     .. code-block:: edgeql-repl
 
@@ -370,11 +375,21 @@ Set
         ERROR: ConstraintViolationError: assert_distinct violation: expression
                returned a set with duplicate elements.
 
+        db> select assert_distinct(
+        ...   (select User filter .groups.name = "Users")
+        ...   union
+        ...   (select User filter .groups.name = "Guests"),
+        ...   message := "duplicate users!"
+        ... )
+        ERROR: ConstraintViolationError: duplicate users!
 
 ----------
 
 
-.. eql:function:: std::assert_single(s: set of anytype) -> anytype
+.. eql:function:: std::assert_single( \
+                    s: set of anytype, \
+                    named only message: optional str = <str>{} \
+                  ) -> set of anytype
 
     :index: cardinality singleton
 
@@ -385,7 +400,8 @@ Set
     as a runtime cardinality assertion in queries and computed
     expressions that should always return sets with at most a single
     element, but where static cardinality inference is not capable
-    enough or outright impossible.
+    enough or outright impossible.  An optional *message* named argument
+    can be used to customize the error message.
 
     .. code-block:: edgeql-repl
 
@@ -396,11 +412,16 @@ Set
         ERROR: CardinalityViolationError: assert_single violation: more than
                one element returned by an expression
 
+        db> select assert_single((select User), message := "too many users!")
+        ERROR: CardinalityViolationError: too many users!
 
 ----------
 
 
-.. eql:function:: std::assert_exists(s: set of anytype) -> set of anytype
+.. eql:function:: std::assert_exists( \
+                    s: set of anytype, \
+                    named only message: optional str = <str>{} \
+                  ) -> set of anytype
 
     :index: cardinality existence empty
 
@@ -411,7 +432,8 @@ Set
     as a runtime existence assertion in queries and computed
     expressions that should always return sets with at least a single
     element, but where static cardinality inference is not capable
-    enough or outright impossible.
+    enough or outright impossible.  An optional *message* named argument
+    can be used to customize the error message.
 
     .. code-block:: edgeql-repl
 
@@ -422,6 +444,11 @@ Set
         ERROR: CardinalityViolationError: assert_exists violation: expression
                returned an empty set.
 
+        db> select assert_exists(
+        ...   (select User filter .name = "Nonexistent"),
+        ...   message := "no users!"
+        ... )
+        ERROR: CardinalityViolationError: no users!
 
 ----------
 
