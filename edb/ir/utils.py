@@ -304,7 +304,7 @@ def get_nearest_dml_stmt(ir_set: irast.Set) -> Optional[irast.MutatingStmt]:
             isinstance(cur_set.expr, irast.FunctionCall)
             and str(cur_set.expr.func_shortname) == 'std::assert_exists'
         ):
-            cur_set = cur_set.expr.args[0].expr
+            cur_set = cur_set.expr.args[1].expr
         elif cur_set.rptr is not None:
             cur_set = cur_set.rptr.source
         else:

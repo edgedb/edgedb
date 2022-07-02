@@ -331,7 +331,7 @@ def __infer_func_call(
     elif str(ir.func_shortname) == 'std::assert_distinct':
         return ONE
     elif str(ir.func_shortname) == 'std::assert_exists':
-        return args_mult[0]
+        return args_mult[1]
     elif str(ir.func_shortname) == 'std::enumerate':
         # The output of enumerate is always of multiplicity ONE because
         # it's a set of tuples with first elements being guaranteed to be

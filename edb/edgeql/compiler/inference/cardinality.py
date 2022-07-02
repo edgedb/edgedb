@@ -678,10 +678,12 @@ def __infer_func_call(
         # of declaration.
         arg_cards = []
 
-        for arg in ir.args:
+        for arg, typemod in zip(ir.args, ir.params_typemods):
             arg.cardinality = infer_cardinality(
                 arg.expr, scope_tree=scope_tree, ctx=ctx)
-            arg_cards.append(arg.cardinality)
+
+            if typemod is not qltypes.TypeModifier.OptionalType:
+                arg_cards.append(arg.cardinality)
 
         arg_card = zip(*(_card_to_bounds(card) for card in arg_cards))
         arg_lower, arg_upper = arg_card
