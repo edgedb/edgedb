@@ -6526,7 +6526,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         # have a decent error.
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            r"including a shape on schema-defined computed pointers "
+            r"including a shape on schema-defined computed links "
             r"is not yet supported"
         ):
             await self.con.execute("""
