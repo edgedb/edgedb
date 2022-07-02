@@ -1211,6 +1211,17 @@ class PointerCommandOrFragment(
                     context=srcctx,
                 )
 
+        if (
+            not isinstance(source, Pointer)
+            and not source.is_view(schema)  # type: ignore
+            and target.is_view(expression.irast.schema)
+        ):
+            raise errors.UnsupportedFeatureError(
+                f'including a shape on schema-defined computed links '
+                f'is not yet supported',
+                context=self.source_context,
+            )
+
         spec_target: Optional[
             Union[
                 s_types.TypeShell[s_types.Type],

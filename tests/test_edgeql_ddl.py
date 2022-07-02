@@ -6517,6 +6517,22 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }],
         )
 
+    async def test_edgeql_ddl_link_computable_02(self):
+        await self.con.execute('''
+            CREATE TYPE LinkTarget;
+        ''')
+
+        # TODO We want to actually support this, but until then we should
+        # have a decent error.
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"including a shape on schema-defined computed links "
+            r"is not yet supported"
+        ):
+            await self.con.execute("""
+                CREATE TYPE X { CREATE LINK x := LinkTarget { z := 1 } };
+            """)
+
     async def test_edgeql_ddl_link_computable_circular_01(self):
         await self.con.execute('''\
             CREATE TYPE CompLinkCircular {
