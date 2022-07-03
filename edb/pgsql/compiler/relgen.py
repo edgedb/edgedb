@@ -375,7 +375,7 @@ def _get_set_rvar(
                 rvars = process_set_as_std_min_max(ir_set, stmt, ctx=ctx)
 
             elif fname == 'std::range' and expr.func_sql_expr:
-                # Generic std::range constructor
+                # Generic std::range() constructor
                 rvars = process_set_as_std_range(ir_set, stmt, ctx=ctx)
 
             elif any(
@@ -2622,23 +2622,35 @@ def process_set_as_std_range(
 ) -> SetRVars:
     # Generic range constructor implementation
     #
-    #   std::range(lower, upper, named only inc_lower, named only inc_upper)
+    #   std::range(
+    #     lower,
+    #     upper,
+    #     named only inc_lower,
+    #     named only inc_upper,
+    #     named only empty,
+    #   )
     #
     #     into
     #
-    #   <pg_range_type>(
-    #     lower,
-    #     upper,
-    #     (array[['()', '(]'], ['[)', '[]']])
-    #       [inc_lower::int + 1][inc_upper::int + 1]
-    #   )
+    #   case when empty then
+    #     'empty'::<pg_range_type>
+    #   else
+    #     <pg_range_type>(
+    #       lower,
+    #       upper,
+    #       (array[['()', '(]'], ['[)', '[]']])
+    #         [inc_lower::int + 1][inc_upper::int + 1]
+    #     )
+    #   end
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
 
-    lower = dispatch.compile(expr.args[2].expr, ctx=ctx)
-    upper = dispatch.compile(expr.args[3].expr, ctx=ctx)
-    inc_lower = dispatch.compile(expr.args[0].expr, ctx=ctx)
-    inc_upper = dispatch.compile(expr.args[1].expr, ctx=ctx)
+    # N.B: kwargs go first and are sorted by name
+    empty = dispatch.compile(expr.args[0].expr, ctx=ctx)
+    inc_lower = dispatch.compile(expr.args[1].expr, ctx=ctx)
+    inc_upper = dispatch.compile(expr.args[2].expr, ctx=ctx)
+    lower = dispatch.compile(expr.args[3].expr, ctx=ctx)
+    upper = dispatch.compile(expr.args[4].expr, ctx=ctx)
 
     lb = pgast.Index(
         idx=astutils.new_binop(
@@ -2681,7 +2693,22 @@ def process_set_as_std_range(
 
     bounds = pgast.Indirection(arg=bounds_matrix, indirection=[lb, rb])
     pg_type = pg_types.pg_type_from_ir_typeref(expr.typeref)
-    set_expr = pgast.FuncCall(name=pg_type, args=[lower, upper, bounds])
+    non_empty_range = pgast.FuncCall(name=pg_type, args=[lower, upper, bounds])
+    empty_range = pgast.TypeCast(
+        arg=pgast.StringConstant(val='empty'),
+        type_name=pgast.TypeName(name=pg_type),
+    )
+
+    set_expr = pgast.CaseExpr(
+        args=[pgast.CaseWhen(
+            expr=pgast.FuncCall(
+                name=('edgedb', 'range_validate'),
+                args=[lower, upper, inc_lower, inc_upper, empty],
+            ),
+            result=empty_range,
+        )],
+        defresult=non_empty_range,
+    )
 
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
 
