@@ -484,15 +484,14 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
     async def _legacy_execute(self, compiled: dbview.CompiledQuery, bind_args,
                               bint use_prep_stmt):
         cdef:
-            bytes state = None, orig_state = None
-            dbview.DatabaseConnectionView _dbview
+            dbview.DatabaseConnectionView dbv
             pgcon.PGConnection conn
 
         query_unit = compiled.query_unit_group[0]
-        _dbview = self.get_dbview()
-        if _dbview.in_tx_error() or query_unit.tx_savepoint_rollback:
+        dbv = self.get_dbview()
+        if dbv.in_tx_error() or query_unit.tx_savepoint_rollback:
             if not (query_unit.tx_savepoint_rollback or query_unit.tx_rollback):
-                _dbview.raise_in_tx_error()
+                dbv.raise_in_tx_error()
 
             conn = await self.get_pgcon()
             try:
@@ -501,114 +500,28 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         b';'.join(query_unit.sql), ignore_data=True)
 
                 if query_unit.tx_savepoint_rollback:
-                    _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
+                    dbv.rollback_tx_to_savepoint(query_unit.sp_name)
                 else:
                     assert query_unit.tx_rollback
-                    _dbview.abort_tx()
+                    dbv.abort_tx()
 
-                self.write(self.make_legacy_command_complete_msg(query_unit))
             finally:
                 self.maybe_release_pgcon(conn)
-            return
-
-        if not _dbview.in_tx():
-            orig_state = state = _dbview.serialize_state()
-        new_types = None
-        conn = await self.get_pgcon()
-        try:
-            if conn.last_state == state:
-                # the current status in conn is in sync with dbview, skip the
-                # state restoring
-                state = None
-            _dbview.start(query_unit)
-            if query_unit.create_db_template:
-                await self.server._on_before_create_db_from_template(
-                    query_unit.create_db_template, _dbview.dbname
-                )
-            if query_unit.drop_db:
-                await self.server._on_before_drop_db(
-                    query_unit.drop_db, _dbview.dbname)
-            if query_unit.system_config:
-                await execute.execute_system_config(conn, _dbview, query_unit)
-            else:
-                if query_unit.sql:
-                    if query_unit.ddl_stmt_id:
-                        ddl_ret = await conn.run_ddl(query_unit, state)
-                        if ddl_ret and ddl_ret['new_types']:
-                            new_types = ddl_ret['new_types']
-                    else:
-                        bound_args_buf = args_ser.recode_bind_args(
-                            _dbview, compiled, bind_args)
-                        edgecon = self if not query_unit.set_global else None
-
-                        await conn.parse_execute(
-                            query_unit,         # =query
-                            edgecon,            # =edgecon
-                            bound_args_buf,     # =bind_data
-                            use_prep_stmt,      # =use_prep_stmt
-                            state,              # =state
-                            _dbview.dbver,      # =dbver
-                        )
-                    if state is not None:
-                        # state is restored, clear orig_state so that we can
-                        # set conn.last_state correctly later
-                        orig_state = None
-
-                config_ops = query_unit.config_ops
-                if query_unit.set_global:
-                    new_config_ops = await execute.finish_set_global(
-                        conn, query_unit, state)
-                    if new_config_ops:
-                        config_ops = new_config_ops
-
-                if query_unit.tx_savepoint_rollback:
-                    _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
-
-                if query_unit.tx_savepoint_declare:
-                    _dbview.declare_savepoint(
-                        query_unit.sp_name, query_unit.sp_id)
-
-                if query_unit.create_db:
-                    await self.server.introspect_db(
-                        query_unit.create_db
-                    )
-
-                if query_unit.drop_db:
-                    self.server._on_after_drop_db(
-                        query_unit.drop_db)
-
-                if config_ops:
-                    await _dbview.apply_config_ops(
-                        conn,
-                        config_ops)
-        except Exception as ex:
-            _dbview.on_error()
-
-            if (
-                query_unit.tx_commit and
-                not conn.in_tx() and
-                _dbview.in_tx()
-            ):
-                # The COMMIT command has failed. Our Postgres connection
-                # isn't in a transaction anymore. Abort the transaction
-                # in dbview.
-                _dbview.abort_tx()
-            raise
         else:
-            side_effects = _dbview.on_success(query_unit, new_types)
-            if side_effects:
-                execute.signal_side_effects(_dbview, side_effects)
-            if not _dbview.in_tx():
-                state = _dbview.serialize_state()
-                if state is not orig_state:
-                    # In 3 cases the state is changed:
-                    #   1. The non-tx query changed the state
-                    #   2. The state is synced with dbview (orig_state is None)
-                    #   3. We came out from a transaction (orig_state is None)
-                    conn.last_state = state
-            self.write(self.make_legacy_command_complete_msg(query_unit))
-        finally:
-            self.maybe_release_pgcon(conn)
+            conn = await self.get_pgcon()
+            try:
+                await execute.execute(
+                    conn,
+                    dbv,
+                    compiled,
+                    bind_args,
+                    fe_conn=self,
+                    use_prep_stmt=use_prep_stmt,
+                )
+            finally:
+                self.maybe_release_pgcon(conn)
+
+        self.write(self.make_legacy_command_complete_msg(query_unit))
 
     async def legacy_execute(self):
         cdef:
