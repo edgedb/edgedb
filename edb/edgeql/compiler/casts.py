@@ -615,7 +615,11 @@ def _cast_range(
                 "inc_upper": qlast.FunctionCall(
                     func=('__std__', 'range_is_inclusive_upper'),
                     args=[source_path],
-                )
+                ),
+                "empty": qlast.FunctionCall(
+                    func=('__std__', 'range_is_empty'),
+                    args=[source_path],
+                ),
             }
         )
 
@@ -637,6 +641,11 @@ def _cast_json_to_range(
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
         source_path = subctx.create_anchor(ir_set, 'a')
+        check = qlast.FunctionCall(
+            func=('__std__', '__range_validate_json'), args=[source_path]
+        )
+        check_ir = dispatch.compile(check, ctx=subctx)
+        source_path = subctx.create_anchor(check_ir, 'b')
 
         range_el_t = new_stype.get_element_type(ctx.env.schema)
         ql_range_el_t = typegen.type_to_ql_typeref(range_el_t, ctx=subctx)
@@ -668,47 +677,35 @@ def _cast_json_to_range(
                 ),
             ],
             kwargs={
-                "inc_lower": qlast.FunctionCall(
-                    func=('__std__', 'assert_exists'),
-                    args=[
-                        qlast.TypeCast(
-                            expr=qlast.FunctionCall(
-                                func=('__std__', 'json_get'),
-                                args=[
-                                    source_path,
-                                    qlast.StringConstant(value='inc_lower'),
-                                ],
-                            ),
-                            type=ql_bool_t
-                        ),
-                    ],
-                    kwargs={
-                        "message": qlast.StringConstant(
-                            value='JSON object representing a range must '
-                                  'include an "inc_lower" boolean property'
-                        ),
-                    },
+                "inc_lower": qlast.TypeCast(
+                    expr=qlast.FunctionCall(
+                        func=('__std__', 'json_get'),
+                        args=[
+                            source_path,
+                            qlast.StringConstant(value='inc_lower'),
+                        ],
+                    ),
+                    type=ql_bool_t
                 ),
-                "inc_upper": qlast.FunctionCall(
-                    func=('__std__', 'assert_exists'),
-                    args=[
-                        qlast.TypeCast(
-                            expr=qlast.FunctionCall(
-                                func=('__std__', 'json_get'),
-                                args=[
-                                    source_path,
-                                    qlast.StringConstant(value='inc_upper'),
-                                ],
-                            ),
-                            type=ql_bool_t
-                        ),
-                    ],
-                    kwargs={
-                        "message": qlast.StringConstant(
-                            value='JSON object representing a range must '
-                                  'include an "inc_upper" boolean property'
-                        ),
-                    },
+                "inc_upper": qlast.TypeCast(
+                    expr=qlast.FunctionCall(
+                        func=('__std__', 'json_get'),
+                        args=[
+                            source_path,
+                            qlast.StringConstant(value='inc_upper'),
+                        ],
+                    ),
+                    type=ql_bool_t
+                ),
+                "empty": qlast.TypeCast(
+                    expr=qlast.FunctionCall(
+                        func=('__std__', 'json_get'),
+                        args=[
+                            source_path,
+                            qlast.StringConstant(value='empty'),
+                        ],
+                    ),
+                    type=ql_bool_t
                 ),
             }
         )

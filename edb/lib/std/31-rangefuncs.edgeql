@@ -25,11 +25,22 @@ std::range(
     lower: optional std::anypoint = {},
     upper: optional std::anypoint = {},
     named only inc_lower: bool = true,
-    named only inc_upper: bool = false
+    named only inc_upper: bool = false,
+    named only empty: bool = false,
 ) -> range<std::anypoint>
 {
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
+};
+
+
+CREATE FUNCTION
+std::range_is_empty(
+    val: range<anypoint>
+) -> bool
+{
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'isempty';
 };
 
 

@@ -252,6 +252,93 @@ CREATE CAST FROM std::json TO array<anytype> {
 };
 
 
+CREATE FUNCTION
+std::__range_validate_json(v: std::json) -> std::json
+{
+    SET volatility := 'Immutable';
+    SET internal := true;
+    USING SQL $$
+    SELECT
+        CASE
+        WHEN
+            empty
+            AND (lower IS DISTINCT FROM upper
+                 OR lower IS NOT NULL AND inc_upper AND inc_lower)
+        THEN
+            edgedb.raise(
+                NULL::jsonb,
+                'invalid_parameter_value',
+                msg => 'conflicting arguments in range constructor:'
+                        || ' "empty" is `true` while the specified'
+                        || ' bounds suggest otherwise'
+            )
+
+        WHEN
+            NOT empty
+            AND inc_lower IS NULL
+        THEN
+            edgedb.raise(
+                NULL::jsonb,
+                'invalid_parameter_value',
+                msg => 'JSON object representing a range must include an'
+                        || ' "inc_lower" boolean property'
+            )
+
+        WHEN
+            NOT empty
+            AND inc_upper IS NULL
+        THEN
+            edgedb.raise(
+                NULL::jsonb,
+                'invalid_parameter_value',
+                msg => 'JSON object representing a range must include an'
+                        || ' "inc_upper" boolean property'
+            )
+
+        WHEN
+            EXISTS (
+                SELECT jsonb_object_keys(v)
+                EXCEPT
+                VALUES
+                    ('lower'),
+                    ('upper'),
+                    ('inc_lower'),
+                    ('inc_upper'),
+                    ('empty')
+            )
+        THEN
+            (SELECT edgedb.raise(
+                NULL::jsonb,
+                'invalid_parameter_value',
+                msg => 'JSON object representing a range contains unexpected'
+                        || ' keys: ' || string_agg(k.k, ', ' ORDER BY k.k)
+            )
+            FROM
+                (SELECT jsonb_object_keys(v)
+                EXCEPT
+                VALUES
+                    ('lower'),
+                    ('upper'),
+                    ('inc_lower'),
+                    ('inc_upper'),
+                    ('empty')
+                ) AS k(k)
+            )
+        ELSE
+            v
+        END
+    FROM
+        (SELECT
+            (v ->> 'lower') AS lower,
+            (v ->> 'upper') AS upper,
+            (v ->> 'inc_lower')::bool AS inc_lower,
+            (v ->> 'inc_upper')::bool AS inc_upper,
+            coalesce((v ->> 'empty')::bool, false) AS empty
+        ) j
+    $$;
+};
+
+
 CREATE CAST FROM range<std::anypoint> TO std::json {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.range_to_jsonb';

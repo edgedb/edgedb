@@ -316,14 +316,20 @@ class LocalDatetimeRange(dbops.Range):
 class RangeToJsonFunction(dbops.Function):
     """Convert anyrange to a jsonb object."""
     text = r'''
-        SELECT to_jsonb(o)
-        FROM (
-            SELECT
+        SELECT
+            CASE
+            WHEN isempty(val) THEN
+                jsonb_build_object('empty', true)
+            ELSE
+                to_jsonb(o)
+            END
+        FROM
+            (SELECT
                 lower(val) as lower,
                 lower_inc(val) as inc_lower,
                 upper(val) as upper,
                 upper_inc(val) as inc_upper
-        ) AS o;
+            ) AS o
     '''
 
     def __init__(self) -> None:
@@ -333,6 +339,45 @@ class RangeToJsonFunction(dbops.Function):
                 ('val', ('anyrange',)),
             ],
             returns=('jsonb',),
+            volatility='immutable',
+            language='sql',
+            text=self.text,
+        )
+
+
+class RangeValidateFunction(dbops.Function):
+    """Range constructor validation function."""
+    text = r'''
+        SELECT
+            CASE
+            WHEN
+                empty
+                AND (lower IS DISTINCT FROM upper
+                     OR lower IS NOT NULL AND inc_upper AND inc_lower)
+            THEN
+                edgedb.raise(
+                    NULL::bool,
+                    'invalid_parameter_value',
+                    msg => 'conflicting arguments in range constructor:'
+                           || ' "empty" is `true` while the specified'
+                           || ' bounds suggest otherwise'
+                )
+            ELSE
+                empty
+            END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'range_validate'),
+            args=[
+                ('lower', ('anyelement',)),
+                ('upper', ('anyelement',)),
+                ('inc_lower', ('bool',)),
+                ('inc_upper', ('bool',)),
+                ('empty', ('bool',)),
+            ],
+            returns=('bool',),
             volatility='immutable',
             language='sql',
             text=self.text,
@@ -4032,6 +4077,7 @@ async def bootstrap(
         dbops.CreateRange(DatetimeRange()),
         dbops.CreateRange(LocalDatetimeRange()),
         dbops.CreateFunction(RangeToJsonFunction()),
+        dbops.CreateFunction(RangeValidateFunction()),
     ])
 
     block = dbops.PLTopBlock()
