@@ -14376,6 +14376,35 @@ type default::Foo {
             insert Project;
         """)
 
+    async def test_edgeql_ddl_no_shapes_in_using(self):
+        await self.con.execute(r"""
+            create type Foo;
+            create type Bar extending Foo;
+            create type Baz {
+                create multi link foo -> Foo;
+            };
+        """)
+
+        q = 'select Bar { x := "oops" } limit 1'
+        alters = [
+            f'set required using ({q})',
+            f'set single using ({q})',
+            f'set default := ({q})',
+            f'set type Bar using ({q})',
+        ]
+
+        for alter in alters:
+            async with self.assertRaisesRegexTx(
+                    (edgedb.SchemaError, edgedb.SchemaDefinitionError),
+                    r"may not include a shape"):
+                await self.con.execute(fr"""
+                    alter type Baz {{
+                        alter link foo {{
+                            {alter}
+                        }}
+                     }};
+                """)
+
     async def test_edgeql_ddl_uuid_array_01(self):
         await self.con.execute(r"""
             create type Foo {
