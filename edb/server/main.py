@@ -218,10 +218,27 @@ async def _run_server(
                 )
                 tls_cert_newly_generated = True
 
+        jws_keys_newly_generated = False
+        jwe_keys_newly_generated = False
+        if args.jose_key_mode is srvargs.JOSEKeyMode.Generate:
+            assert args.jws_key_file is not None
+            assert args.jwe_key_file is not None
+            if not args.jws_key_file.exists():
+                _generate_jose_keys(args.jws_key_file)
+                jws_keys_newly_generated = True
+            if not args.jwe_key_file.exists():
+                _generate_jose_keys(args.jwe_key_file)
+                jwe_keys_newly_generated = True
+
         ss.init_tls(
             args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
 
-        ss.init_jwcrypto(args.jws_public_key_file, args.jwe_private_key_file)
+        ss.init_jwcrypto(
+            args.jws_key_file,
+            args.jwe_key_file,
+            jws_keys_newly_generated,
+            jwe_keys_newly_generated,
+        )
 
         if args.bootstrap_only:
             if args.startup_script and new_instance:
@@ -309,6 +326,26 @@ def _generate_cert(
             )
         )
     tls_key_file.chmod(0o600)
+
+
+def _generate_jose_keys(keys_file: pathlib.Path) -> None:
+    logger.info(f'generating JOSE key pair in "{keys_file}"')
+
+    from cryptography.hazmat import backends
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    backend = backends.default_backend()
+    private_key = ec.generate_private_key(ec.SECP256R1(), backend=backend)
+    with keys_file.open("wb") as f:
+        f.write(
+            private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        )
+    keys_file.chmod(0o600)
 
 
 async def _get_local_pgcluster(
@@ -514,6 +551,10 @@ async def run_server(
                     args.tls_cert_mode
                     is srvargs.ServerTlsCertMode.SelfSigned
                 )
+                or (
+                    args.jose_key_mode
+                    is srvargs.JOSEKeyMode.Generate
+                )
             ):
                 if args.data_dir:
                     cluster.set_connection_params(
@@ -540,6 +581,26 @@ async def run_server(
                                 str(args.tls_key_file).replace(
                                     '<runstate>', int_runstate_dir)
                             )
+                        )
+                    if (
+                        args.jws_key_file
+                        and '<runstate>' in str(args.jws_key_file)
+                    ):
+                        args = args._replace(
+                            jws_key_file=pathlib.Path(
+                                str(args.jws_key_file).replace(
+                                    '<runstate>', int_runstate_dir)
+                            ),
+                        )
+                    if (
+                        args.jwe_key_file
+                        and '<runstate>' in str(args.jwe_key_file)
+                    ):
+                        args = args._replace(
+                            jwe_key_file=pathlib.Path(
+                                str(args.jwe_key_file).replace(
+                                    '<runstate>', int_runstate_dir)
+                            ),
                         )
 
                     await _run_server(
