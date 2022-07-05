@@ -566,6 +566,9 @@ class Pointer(referencing.ReferencedInheritingObject,
         while (
             ptrcls.get_is_derived(schema)
             and not ptrcls.get_defined_here(schema)
+            # schema defined computeds don't have the ephemeral defined_here
+            # set, but they do have expr set, so we check that also.
+            and not ptrcls.get_expr(schema)
             and (bases := ptrcls.get_bases(schema).objects(schema))
             and len(bases) == 1
             and bases[0].get_source(schema)
