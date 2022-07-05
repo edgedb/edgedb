@@ -18,7 +18,6 @@
 
 
 import asyncio
-import collections
 import re
 import time
 
@@ -45,17 +44,6 @@ cdef class Protocol(AsyncIOProtocol):
             return AsyncIOProtocol.encode_state(self, None)
         else:
             return self.state_type_id, self.last_state
-
-    def start_transaction(self):
-        if self.state_stack is None:
-            self.state_stack = collections.deque()
-        self.state_stack.append((self.state_type_id, self.last_state))
-
-    def commit_transaction(self):
-        self.state_stack.pop()
-
-    def rollback_transaction(self):
-        self.state_type_id, self.last_state = self.state_stack.pop()
 
 
 cdef class Connection:
