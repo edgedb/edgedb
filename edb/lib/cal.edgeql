@@ -1275,7 +1275,14 @@ CREATE CAST FROM cal::relative_duration TO std::str {
 
 CREATE CAST FROM cal::date_duration TO std::str {
     SET volatility := 'Immutable';
-    USING SQL CAST;
+    # We want the 0 date_duration canonically represented be in lowest
+    # date_duration units, i.e. in days.
+    USING SQL $$
+    SELECT CASE WHEN (val = '0'::interval)
+        THEN 'P0D'
+        ELSE val::text
+    END
+    $$;
 };
 
 
@@ -1306,6 +1313,14 @@ CREATE CAST FROM cal::relative_duration TO std::json {
 CREATE CAST FROM cal::date_duration TO std::json {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
+    # We want the 0 date_duration canonically represented be in lowest
+    # date_duration units, i.e. in days.
+    USING SQL $$
+    SELECT CASE WHEN (val = '0'::interval)
+        THEN to_jsonb('P0D'::text)
+        ELSE to_jsonb(val)
+    END
+    $$;
 };
 
 
