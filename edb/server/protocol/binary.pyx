@@ -1025,13 +1025,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         cdef:
             WriteBuffer msg
 
-        state_data = self.get_dbview().encode_state()
+        state_tid, state_data = self.get_dbview().encode_state()
 
         msg = WriteBuffer.new_message(b'C')
         msg.write_int16(0)  # no headers
         msg.write_int64(<int64_t><uint64_t>capabilities)
         msg.write_len_prefixed_bytes(status)
 
+        msg.write_bytes(state_tid.bytes)
         msg.write_len_prefixed_bytes(state_data)
 
         return msg.end_message()
@@ -1057,10 +1058,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             else:
                 assert query_unit.tx_rollback
                 _dbview.abort_tx()
-
-            self.write(self.make_command_complete_msg(
-                query_unit.capabilities, query_unit.status
-            ))
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -1266,32 +1263,24 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             await self._execute_rollback(compiled)
         elif len(query_unit_group) > 1:
             await self._execute_script(compiled, args)
-            if self._dbview.is_state_desc_changed():
-                self.write(self.make_state_data_description_msg())
-            self.write(
-                self.make_command_complete_msg(
-                    compiled.query_unit_group.capabilities,
-                    compiled.query_unit_group[-1].status,
-                )
-            )
         else:
             use_prep = (
                 len(query_unit_group) == 1
                 and bool(query_unit_group[0].sql_hash)
             )
             await self._execute(compiled, args, use_prep)
-            if self._dbview.is_state_desc_changed():
-                self.write(self.make_state_data_description_msg())
-            self.write(
-                self.make_command_complete_msg(
-                    compiled.query_unit_group[0].capabilities,
-                    compiled.query_unit_group[0].status,
-                )
-            )
 
         if self._cancelled:
             raise ConnectionAbortedError
 
+        if _dbview.is_state_desc_changed():
+            self.write(self.make_state_data_description_msg())
+        self.write(
+            self.make_command_complete_msg(
+                compiled.query_unit_group.capabilities,
+                compiled.query_unit_group[-1].status,
+            )
+        )
         self.flush()
 
     async def sync(self):

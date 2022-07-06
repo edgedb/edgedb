@@ -51,7 +51,6 @@ cdef DEFAULT_CONFIG = immutables.Map()
 cdef DEFAULT_GLOBALS = immutables.Map()
 cdef DEFAULT_STATE = json.dumps([]).encode('utf-8')
 
-cdef bytes ZERO_UUID = b'\x00' * 16
 cdef INT32_PACKER = struct.Struct('!l').pack
 
 cdef int VER_COUNTER = 0
@@ -323,11 +322,14 @@ cdef class DatabaseConnectionView:
             raise RuntimeError(
                 f'savepoint {name} not found')
 
-        _, spid, (modaliases, config, globals) = self._in_tx_savepoints[-1]
+        _, spid, (
+            modaliases, config, globals, state_serializer
+        ) = self._in_tx_savepoints[-1]
         self._txid = spid
         self.set_modaliases(modaliases)
         self.set_session_config(config)
         self.set_globals(globals)
+        self.set_state_serializer(state_serializer)
         self._invalidate_local_cache()
 
     cdef declare_savepoint(self, name, spid):
@@ -335,6 +337,7 @@ cdef class DatabaseConnectionView:
             self.get_modaliases(),
             self.get_session_config(),
             self.get_globals(),
+            self.get_state_serializer(),
         )
         self._in_tx_savepoints.append((name, spid, state))
 
@@ -360,6 +363,30 @@ cdef class DatabaseConnectionView:
             return self._in_tx_globals
         else:
             return self._globals
+
+    cdef get_state_serializer(self):
+        if self._in_tx:
+            if self._in_tx_state_serializer is None:
+                # DDL in transaction, recalculate the state descriptor
+                self._in_tx_state_serializer = self._db._index._factory.make(
+                    self.get_user_schema(),
+                    self.get_global_schema(),
+                    self._protocol_version,
+                )
+            return self._in_tx_state_serializer
+        else:
+            if self._state_serializer is None:
+                # Executed a DDL, recalculate the state descriptor
+                self._state_serializer = self._db.get_state_serializer(
+                    self._protocol_version
+                )
+            return self._state_serializer
+
+    cdef set_state_serializer(self, new_serializer):
+        if self._in_tx:
+            self._in_tx_state_serializer = new_serializer
+        else:
+            self._state_serializer = new_serializer
 
     cdef set_session_config(self, new_conf):
         if self._in_tx:
@@ -499,44 +526,58 @@ cdef class DatabaseConnectionView:
         self._session_state_db_cache = (self._config, spec)
         return spec
 
-    def is_state_desc_changed(self):
-        return self._current_state_serializer is None
+    cdef bint is_state_desc_changed(self):
+        serializer = self.get_state_serializer()
+        if not self._in_tx:
+            # We may have executed a query, or COMMIT/ROLLBACK - just use
+            # the serializer we preserved before. NOTE: the schema might
+            # have been concurrently changed from other sessions, we should
+            # not reload serializer from self._db here so that our state
+            # can be serialized properly, and the Execute stays atomic.
+
+            # We don't need self._state_serializer from this point
+            self._state_serializer = None
+
+        if self._command_state_serializer is not None:
+            # If the resulting descriptor is the same as the input, return None
+            if serializer.type_id == self._command_state_serializer.type_id:
+                if self._in_tx:
+                    # There's a case when DDL was executed but the state schema
+                    # wasn't affected, so it's enough to keep just one copy.
+                    self._in_tx_state_serializer = (
+                        self._command_state_serializer
+                    )
+                return False
+
+            # Update with the new serializer for upcoming encoding
+            self._command_state_serializer = serializer
+
+        return True
 
     cdef describe_state(self):
-        return self._get_state_serializer().describe()
-
-    cdef inline _get_state_serializer(self):
-        # Reuse the same state serializer as in decode_state() to avoid being
-        # affected by concurrent schema changes from other sessions, unless the
-        # state schema is changed in the current session
-        if self._current_state_serializer is not None:
-            return self._current_state_serializer
-        if self._in_tx:
-            serializer = self._in_tx_state_serializer
-            if serializer is None:
-                serializer = self._db._index._factory.make(
-                    self.get_user_schema(),
-                    self.get_global_schema(),
-                    self._protocol_version,
-                )
-                self._in_tx_state_serializer = serializer
-        else:
-            serializer = self._db.get_state_serializer(self._protocol_version)
-        self._current_state_serializer = serializer
-        return serializer
+        return self.get_state_serializer().describe()
 
     cdef encode_state(self):
-        serializer = self._get_state_serializer()
-        # encode_state() is the last step, clear ref to save memory
-        self._current_state_serializer = None
+        if self._session_state_cache is None:
+            if (
+                self.get_session_config() == DEFAULT_CONFIG and
+                self.get_modaliases() == DEFAULT_MODALIASES and
+                self.get_globals() == DEFAULT_GLOBALS
+            ):
+                return sertypes.NULL_TYPE_ID, b""
+
+        serializer = self._command_state_serializer
+        self._command_state_serializer = None
+
         modaliases = self.get_modaliases()
         session_config = self.get_session_config()
         globals_ = self.get_globals()
         if self._session_state_cache is not None:
             if (
-                modaliases, session_config, globals_, serializer.type_id
+                modaliases, session_config, globals_, serializer.type_id.bytes
             ) == self._session_state_cache[:4]:
-                return self._session_state_cache[4]
+                return sertypes.NULL_TYPE_ID, b""
+
         state = {}
         try:
             state['module'] = modaliases[None]
@@ -550,26 +591,34 @@ cdef class DatabaseConnectionView:
             state['config'] = {k: v.value for k, v in session_config.items()}
         if globals_:
             state['globals'] = {k: v.value for k, v in globals_.items()}
-        return serializer.encode(state)
+        return serializer.type_id, serializer.encode(state)
 
     cdef decode_state(self, type_id, data):
-        # Always get a fresh serializer
-        self._current_state_serializer = None
-        serializer = self._get_state_serializer()
+        if not self._in_tx:
+            # make sure we start clean
+            self._state_serializer = None
+        serializer = self.get_state_serializer()
+        self._command_state_serializer = serializer
 
-        if type_id == ZERO_UUID:
+        if type_id == sertypes.NULL_TYPE_ID.bytes:
             self.set_modaliases(DEFAULT_MODALIASES)
             self.set_session_config(DEFAULT_CONFIG)
             self.set_globals(DEFAULT_GLOBALS)
             self._session_state_cache = None
             return
 
+        if type_id != serializer.type_id.bytes:
+            self._command_state_serializer = None
+            raise errors.StateMismatchError(
+                "Cannot decode state: type mismatch"
+            )
+
         if self._session_state_cache is not None:
-            if type_id == self._session_state_cache[3].bytes:
+            if type_id == self._session_state_cache[3]:
                 if data == self._session_state_cache[4]:
                     return
 
-        type_id, state = serializer.decode(type_id, data)
+        state = serializer.decode(data)
         aliases = dict(state.get('aliases', []))
         aliases[None] = state.get('module', defines.DEFAULT_MODULE_ALIAS)
         aliases = immutables.Map(aliases)
@@ -689,9 +738,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_modaliases = self._modaliases
         self._in_tx_user_schema = self._db.user_schema
         self._in_tx_global_schema = self._db._index._global_schema
-        self._in_tx_state_serializer = self._db.get_state_serializer(
-            self._protocol_version
-        )
+        self._in_tx_state_serializer = self._state_serializer
 
     cdef _apply_in_tx(self, query_unit):
         if query_unit.has_ddl:
@@ -705,7 +752,6 @@ cdef class DatabaseConnectionView:
         if query_unit.has_role_ddl:
             self._in_tx_with_role_ddl = True
         if query_unit.user_schema is not None:
-            self._current_state_serializer = None
             self._in_tx_user_schema_pickled = query_unit.user_schema
             self._in_tx_user_schema = None
             self._in_tx_state_serializer = None
@@ -738,7 +784,7 @@ cdef class DatabaseConnectionView:
                 self._db._update_backend_ids(new_types)
             if query_unit.user_schema is not None:
                 self._in_tx_dbver = next_dbver()
-                self._current_state_serializer = None
+                self._state_serializer = None
                 self._db._set_and_signal_new_user_schema(
                     pickle.loads(query_unit.user_schema),
                     pickle.loads(query_unit.cached_reflection)
@@ -778,7 +824,7 @@ cdef class DatabaseConnectionView:
             if self._in_tx_new_types:
                 self._db._update_backend_ids(self._in_tx_new_types)
             if query_unit.user_schema is not None:
-                self._current_state_serializer = None
+                self._state_serializer = None
                 self._db._set_and_signal_new_user_schema(
                     pickle.loads(query_unit.user_schema),
                     pickle.loads(query_unit.cached_reflection)
