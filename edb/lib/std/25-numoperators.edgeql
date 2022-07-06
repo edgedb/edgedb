@@ -2539,6 +2539,9 @@ CREATE CAST FROM std::float32 TO std::decimal {
                        AND val != '-Infinity'
             THEN
                 val::numeric
+            WHEN val IS NULL
+            THEN
+                NULL::numeric
             ELSE
                 edgedb.raise(
                     NULL::numeric,
@@ -2584,6 +2587,9 @@ CREATE CAST FROM std::float64 TO std::decimal {
                        AND val != '-Infinity'
             THEN
                 val::numeric
+            WHEN val IS NULL
+            THEN
+                NULL::numeric
             ELSE
                 edgedb.raise(
                     NULL::numeric,
