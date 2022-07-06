@@ -17,6 +17,7 @@
 #
 
 
+import itertools
 import pathlib
 
 import edgedb
@@ -1096,6 +1097,106 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 ''',
                 []
             )
+
+    async def test_link_on_source_delete_orphan_01(self):
+        # Try all the permutations of parent and child classes
+        for src1, src2, tgt in itertools.product(
+            ('Source1', 'Source3'),
+            ('Source1', 'Source3'),
+            ('Target1', 'Target1Child'),
+        ):
+            async with self._run_and_rollback():
+                q = f"""
+                    INSERT {src1} {{
+                        name := 'Source1.1',
+                        tgt1_del_target_orphan := (
+                            INSERT {tgt} {{
+                                name := 'Target1.1'
+                            }}
+                        )
+                    }};
+                    INSERT {src2} {{
+                        name := 'Source1.2',
+                        tgt1_del_target_orphan := (
+                            SELECT Target1 FILTER .name = 'Target1.1'
+                        )
+                    }};
+                """
+                await self.con.execute(q)
+
+                await self.con.execute("""
+                    DELETE Source1 filter .name = 'Source1.1'
+                """)
+
+                await self.assert_query_result(
+                    r'''
+                        SELECT Target1
+                        FILTER .name = 'Target1.1';
+                    ''',
+                    [{}]
+                )
+
+                await self.con.execute("""
+                    DELETE Source1 filter .name = 'Source1.2'
+                """)
+
+                await self.assert_query_result(
+                    r'''
+                        SELECT Target1
+                        FILTER .name = 'Target1.1';
+                    ''',
+                    []
+                )
+
+    async def test_link_on_source_delete_orphan_02(self):
+        # Try all the permutations of parent and child classes
+        for src1, src2, tgt1, tgt2 in itertools.product(
+            ('Source1', 'Source3'),
+            ('Source1', 'Source3'),
+            ('Target1', 'Target1Child'),
+            ('Target1', 'Target1Child'),
+        ):
+            async with self._run_and_rollback():
+                q = f"""
+                    INSERT {src1} {{
+                        name := 'Source1.1',
+                        tgt1_m2m_del_target_orphan := {{
+                            (INSERT {tgt1} {{ name := 'Target1.1'}}),
+                            (INSERT {tgt2} {{ name := 'Target1.2'}}),
+                        }}
+                    }};
+                    INSERT {src2} {{
+                        name := 'Source1.2',
+                        tgt1_m2m_del_target_orphan := (
+                            SELECT Target1 FILTER .name = 'Target1.1'
+                        )
+                    }};
+                """
+                await self.con.execute(q)
+
+                await self.con.execute("""
+                    DELETE Source1 filter .name = 'Source1.1'
+                """)
+
+                await self.assert_query_result(
+                    r'''
+                        SELECT Target1 { name }
+                        FILTER .name LIKE 'Target1.%';
+                    ''',
+                    [{'name': "Target1.1"}]
+                )
+
+                await self.con.execute("""
+                    DELETE Source1 filter .name = 'Source1.2'
+                """)
+
+                await self.assert_query_result(
+                    r'''
+                        SELECT Target1
+                        FILTER .name = 'Target1.1';
+                    ''',
+                    []
+                )
 
     async def _cycle_test(self):
         await self.con.execute("""

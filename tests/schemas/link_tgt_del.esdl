@@ -61,6 +61,17 @@ type Source1 extending Named {
     link self_del_source -> Named {
         on target delete delete source;
     }
+
+    link tgt1_del_target_orphan -> Target1 {
+        on source delete delete target if orphan;
+    }
+    multi link tgt1_m2m_del_target_orphan -> Target1 {
+        on source delete delete target if orphan;
+    }
+    link self_del_target_orphan -> Named {
+        on source delete delete target;
+    }
+
 }
 
 type Source2 extending Named {

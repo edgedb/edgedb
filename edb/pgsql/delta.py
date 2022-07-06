@@ -5208,6 +5208,20 @@ class UpdateEndpointDeleteActions(MetaCommand):
             x for obj in objs for x in obj.descendants(schema)}
         return objs
 
+    def get_orphan_link_ancestors(self, link, schema):
+        val = s_links.LinkSourceDeleteAction.DeleteTargetIfOrphan
+        if link.get_on_source_delete(schema) != val:
+            return set()
+        ancestors = {
+            x
+            for base in link.get_bases(schema).objects(schema)
+            for x in self.get_orphan_link_ancestors(base, schema)
+        }
+        if ancestors:
+            return ancestors
+        else:
+            return {link}
+
     def get_trigger_name(self, schema, target,
                          disposition, deferred=False, inline=False):
         if disposition == 'target':
@@ -5419,15 +5433,40 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                     chunks.append(text)
 
-            elif action == s_links.LinkSourceDeleteAction.DeleteTarget:
+            elif (
+                action == s_links.LinkSourceDeleteAction.DeleteTarget
+                or action ==
+                    s_links.LinkSourceDeleteAction.DeleteTargetIfOrphan
+            ):
                 for link in links:
                     link_table = common.get_backend_name(schema, link)
                     objs = self.get_target_objs(link, schema)
 
+                    # If the link is DELETE TARGET IF ORPHAN, build
+                    # filters to ignore any objects that aren't
+                    # orphans (wrt to this link).
+                    orphan_check = ''
+                    for orphan_check_root in self.get_orphan_link_ancestors(
+                            link, schema):
+                        check_table = common.get_backend_name(
+                            schema, orphan_check_root, aspect='inhview')
+                        orphan_check += f'''\
+                            AND NOT EXISTS (
+                                SELECT FROM {check_table} as q2
+                                WHERE q.target = q2.target
+                                      AND q2.source != OLD.id
+                            )
+                        '''.strip()
+
+                    # We find all the objects to delete in a CTE, then
+                    # delete the link table entries, and then delete
+                    # the targets. We apply the non-orphan filter when
+                    # finding the objects.
                     prefix = textwrap.dedent(f'''\
                         WITH range AS (
-                            SELECT target FROM {link_table}
-                            WHERE source = OLD.id
+                            SELECT target FROM {link_table} as q
+                            WHERE q.source = OLD.id
+                            {orphan_check}
                         ),
                         del AS (
                             DELETE FROM
@@ -5483,7 +5522,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
             groups = itertools.groupby(
                 links, lambda l: l.get_on_target_delete(schema))
         else:
-            groups = [(s_links.LinkSourceDeleteAction.DeleteTarget, links)]
+            groups = itertools.groupby(
+                links, lambda l: l.get_on_source_delete(schema))
 
         near_endpoint, far_endpoint = 'target', 'source'
 
@@ -5579,7 +5619,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                     chunks.append(text)
 
-            elif action == s_links.LinkSourceDeleteAction.DeleteTarget:
+            elif (
+                action == s_links.LinkSourceDeleteAction.DeleteTarget
+                or action ==
+                    s_links.LinkSourceDeleteAction.DeleteTargetIfOrphan
+            ):
                 for link in links:
                     objs = self.get_target_objs(link, schema)
 
@@ -5587,13 +5631,47 @@ class UpdateEndpointDeleteActions(MetaCommand):
                         link, schema=schema)
                     link_col = common.quote_ident(link_psi.column_name)
 
+                    # If the link is DELETE TARGET IF ORPHAN, filter out
+                    # any objects that aren't orphans (wrt to this link).
+                    orphan_check = ''
+                    for orphan_check_root in self.get_orphan_link_ancestors(
+                            link, schema):
+                        check_source = orphan_check_root.get_source(schema)
+                        check_table = common.get_backend_name(
+                            schema, check_source, aspect='inhview')
+
+                        check_link_psi = types.get_pointer_storage_info(
+                            orphan_check_root, schema=schema)
+                        check_link_col = common.quote_ident(
+                            check_link_psi.column_name)
+
+                        orphan_check += f'''\
+                            AND NOT EXISTS (
+                                SELECT FROM {check_table} as q2
+                                WHERE q2.{check_link_col} = OLD.{link_col}
+                                      AND q2.id != OLD.id
+                            )
+                        '''.strip()
+
+                    # Do the orphan check (which trivially succeeds if
+                    # the link isn't IF ORPHAN)
+                    text = textwrap.dedent(f'''\
+                        SELECT (
+                            SELECT true
+                            {orphan_check}
+                        ) INTO ok;
+                    ''').strip()
+
+                    chunks.append(text)
                     for obj in objs:
                         tgt_table = common.get_backend_name(schema, obj)
                         text = textwrap.dedent(f'''\
-                            DELETE FROM
-                                {tgt_table}
-                            WHERE
-                                {tgt_table}.id = OLD.{link_col};
+                            IF ok THEN
+                                DELETE FROM
+                                    {tgt_table}
+                                WHERE
+                                    {tgt_table}.id = OLD.{link_col};
+                            END IF;
                         ''')
                         chunks.append(text)
 
@@ -5604,6 +5682,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 tgtid uuid;
                 linkname text;
                 endname text;
+                ok bool;
                 links text[];
             BEGIN
                 {chunks}
@@ -5722,8 +5801,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     links.append(link)
                 elif (
                     isinstance(link, s_links.Link)
-                    and link.get_on_source_delete(schema) ==
-                    s_links.LinkSourceDeleteAction.DeleteTarget
+                    and link.get_on_source_delete(schema) !=
+                    s_links.LinkSourceDeleteAction.Allow
                 ):
                     inline_links.append(link)
 
