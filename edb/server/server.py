@@ -250,8 +250,10 @@ class Server(ha_base.ClusterProtocol):
         self._tls_cert_newly_generated = False
         self._sslctx = None
 
-        self._jws_public_key: jwk.JWK | None = None
-        self._jwe_private_key: jwk.JWK | None = None
+        self._jws_key: jwk.JWK | None = None
+        self._jwe_key: jwk.JWK | None = None
+        self._jws_keys_newly_generated = False
+        self._jwe_keys_newly_generated = False
 
         self._default_auth_method = default_auth_method
         self._binary_endpoint_security = binary_endpoint_security
@@ -1565,44 +1567,48 @@ class Server(ha_base.ClusterProtocol):
 
     def init_jwcrypto(
         self,
-        jws_public_key_file: pathlib.Path | None,
-        jwe_private_key_file: pathlib.Path | None,
+        jws_key_file: pathlib.Path | None,
+        jwe_key_file: pathlib.Path | None,
+        jws_keys_newly_generated: bool,
+        jwe_keys_newly_generated: bool,
     ) -> None:
-        if jws_public_key_file is not None:
+        if jws_key_file is not None:
             try:
-                with open(jws_public_key_file, 'rb') as kf:
-                    self._jws_public_key = jwk.JWK.from_pem(kf.read())
+                with open(jws_key_file, 'rb') as kf:
+                    self._jws_key = jwk.JWK.from_pem(kf.read())
             except Exception as e:
-                raise StartupError(f"cannot load JWS public key: {e}") from e
+                raise StartupError(f"cannot load JWS key: {e}") from e
 
             if (
-                not self._jws_public_key.has_public
-                or self._jws_public_key['kty'] not in {"RSA", "EC"}
+                not self._jws_key.has_public
+                or self._jws_key['kty'] not in {"RSA", "EC"}
             ):
                 raise StartupError(
-                    f"the provided JWS public key file does not "
+                    f"the provided JWS key file does not "
                     f"contain a valid RSA or EC public key")
 
-        if jwe_private_key_file is not None:
+        if jwe_key_file is not None:
             try:
-                with open(jwe_private_key_file, 'rb') as kf:
-                    self._jwe_private_key = jwk.JWK.from_pem(kf.read())
+                with open(jwe_key_file, 'rb') as kf:
+                    self._jwe_key = jwk.JWK.from_pem(kf.read())
             except Exception as e:
-                raise StartupError(f"cannot load JWE private key: {e}") from e
+                raise StartupError(f"cannot load JWE key: {e}") from e
 
             if (
-                not self._jwe_private_key.has_private
-                or self._jwe_private_key['kty'] not in {"RSA", "EC"}
+                not self._jwe_key.has_private
+                or self._jwe_key['kty'] not in {"RSA", "EC"}
             ):
                 raise StartupError(
-                    f"the provided JWE private key file does not "
+                    f"the provided JWE key file does not "
                     f"contain a valid RSA or EC private key")
+        self._jws_keys_newly_generated = jws_keys_newly_generated
+        self._jwe_keys_newly_generated = jwe_keys_newly_generated
 
-    def get_jws_public_key(self) -> jwk.JWK | None:
-        return self._jws_public_key
+    def get_jws_key(self) -> jwk.JWK | None:
+        return self._jws_key
 
-    def get_jwe_private_key(self) -> jwk.JWK | None:
-        return self._jwe_private_key
+    def get_jwe_key(self) -> jwk.JWK | None:
+        return self._jwe_key
 
     async def _stop_servers(self, servers):
         async with taskgroup.TaskGroup() as g:
@@ -1660,6 +1666,8 @@ class Server(ha_base.ClusterProtocol):
                 "tenant_id": self._tenant_id,
                 "tls_cert_file": self._tls_cert_file,
                 "tls_cert_newly_generated": self._tls_cert_newly_generated,
+                "jws_keys_newly_generated": self._jws_keys_newly_generated,
+                "jwe_keys_newly_generated": self._jwe_keys_newly_generated,
             }
             status_sink(f'READY={json.dumps(status)}')
 

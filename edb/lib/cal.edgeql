@@ -1275,7 +1275,14 @@ CREATE CAST FROM cal::relative_duration TO std::str {
 
 CREATE CAST FROM cal::date_duration TO std::str {
     SET volatility := 'Immutable';
-    USING SQL CAST;
+    # We want the 0 date_duration canonically represented be in lowest
+    # date_duration units, i.e. in days.
+    USING SQL $$
+    SELECT CASE WHEN (val = '0'::interval)
+        THEN 'P0D'
+        ELSE val::text
+    END
+    $$;
 };
 
 
@@ -1306,6 +1313,14 @@ CREATE CAST FROM cal::relative_duration TO std::json {
 CREATE CAST FROM cal::date_duration TO std::json {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';
+    # We want the 0 date_duration canonically represented be in lowest
+    # date_duration units, i.e. in days.
+    USING SQL $$
+    SELECT CASE WHEN (val = '0'::interval)
+        THEN to_jsonb('P0D'::text)
+        ELSE to_jsonb(val)
+    END
+    $$;
 };
 
 
@@ -1924,100 +1939,7 @@ std::max(vals: SET OF array<cal::date_duration>) -> OPTIONAL array<cal::date_dur
 };
 
 
-## Range functions and casts
-
-
-CREATE CAST FROM range<cal::local_datetime> TO range<cal::local_date> {
-    SET volatility := 'Immutable';
-    USING SQL $$
-        SELECT CASE
-            WHEN lower_inc(val)
-            THEN
-                CASE
-                    WHEN upper_inc(val)
-                    THEN
-                        daterange(
-                            lower(val)::date, upper(val)::date, '[]')
-                    ELSE
-                        daterange(
-                            lower(val)::date, upper(val)::date, '[)')
-                END
-            ELSE
-                CASE
-                    WHEN upper_inc(val)
-                    THEN
-                        daterange(
-                            lower(val)::date, upper(val)::date, '(]')
-                    ELSE
-                        daterange(
-                            lower(val)::date, upper(val)::date, '()')
-                END
-        END
-    $$;
-};
-
-
-CREATE CAST FROM range<cal::local_date> TO range<cal::local_datetime> {
-    SET volatility := 'Immutable';
-    USING SQL $$
-        SELECT edgedb.local_datetime_range_t(
-            lower(val)::edgedb.timestamp_t,
-            upper(val)::edgedb.timestamp_t,
-            '[)'
-        );
-    $$;
-    # Analogous to implicit cast from int64 to float64.
-    ALLOW IMPLICIT;
-};
-
-
-
-CREATE FUNCTION
-std::range(
-    lower: optional cal::local_datetime = {},
-    upper: optional cal::local_datetime = {},
-    named only inc_lower: bool = true,
-    named only inc_upper: bool = false
-) -> range<cal::local_datetime>
-{
-    SET volatility := 'Immutable';
-    USING SQL $$
-        SELECT CASE
-            WHEN "inc_lower" AND "inc_upper"
-            THEN edgedb.local_datetime_range_t("lower", "upper", '[]')
-            WHEN NOT "inc_lower" AND "inc_upper"
-            THEN edgedb.local_datetime_range_t("lower", "upper", '(]')
-            WHEN NOT "inc_lower" AND NOT "inc_upper"
-            THEN edgedb.local_datetime_range_t("lower", "upper", '()')
-            WHEN "inc_lower" AND NOT "inc_upper"
-            THEN edgedb.local_datetime_range_t("lower", "upper", '[)')
-        END
-    $$;
-};
-
-
-CREATE FUNCTION
-std::range(
-    lower: optional cal::local_date = {},
-    upper: optional cal::local_date = {},
-    named only inc_lower: bool = true,
-    named only inc_upper: bool = false
-) -> range<cal::local_date>
-{
-    SET volatility := 'Immutable';
-    USING SQL $$
-        SELECT CASE
-            WHEN "inc_lower" AND "inc_upper"
-            THEN daterange("lower", "upper", '[]')
-            WHEN NOT "inc_lower" AND "inc_upper"
-            THEN daterange("lower", "upper", '(]')
-            WHEN NOT "inc_lower" AND NOT "inc_upper"
-            THEN daterange("lower", "upper", '()')
-            WHEN "inc_lower" AND NOT "inc_upper"
-            THEN daterange("lower", "upper", '[)')
-        END
-    $$;
-};
+## Range functions
 
 
 CREATE FUNCTION
@@ -2123,57 +2045,5 @@ CREATE FUNCTION std::contains(
     SET volatility := 'Immutable';
     USING SQL $$
        SELECT "haystack" @> ("needle"::date)
-    $$;
-};
-
-
-CREATE CAST FROM std::json TO range<cal::local_datetime> {
-    SET volatility := 'Stable';
-    USING SQL $$
-        SELECT CASE
-            WHEN "inc_lower" AND "inc_upper"
-            THEN edgedb.local_datetime_range_t("lower", "upper", '[]')
-            WHEN NOT "inc_lower" AND "inc_upper"
-            THEN edgedb.local_datetime_range_t("lower", "upper", '(]')
-            WHEN NOT "inc_lower" AND NOT "inc_upper"
-            THEN edgedb.local_datetime_range_t("lower", "upper", '()')
-            WHEN "inc_lower" AND NOT "inc_upper"
-            THEN edgedb.local_datetime_range_t("lower", "upper", '[)')
-        END
-        FROM (
-            SELECT
-                edgedb.local_datetime_in(edgedb.jsonb_extract_scalar(
-                    val->'lower', 'string')) AS lower,
-                edgedb.local_datetime_in(edgedb.jsonb_extract_scalar(
-                    val->'upper', 'string')) AS upper,
-                edgedb.range_inc_from_jsonb(val, 'inc_lower') AS inc_lower,
-                edgedb.range_inc_from_jsonb(val, 'inc_upper') AS inc_upper
-        ) AS a;
-    $$;
-};
-
-
-CREATE CAST FROM std::json TO range<cal::local_date> {
-    SET volatility := 'Stable';
-    USING SQL $$
-        SELECT CASE
-            WHEN "inc_lower" AND "inc_upper"
-            THEN daterange("lower", "upper", '[]')
-            WHEN NOT "inc_lower" AND "inc_upper"
-            THEN daterange("lower", "upper", '(]')
-            WHEN NOT "inc_lower" AND NOT "inc_upper"
-            THEN daterange("lower", "upper", '()')
-            WHEN "inc_lower" AND NOT "inc_upper"
-            THEN daterange("lower", "upper", '[)')
-        END
-        FROM (
-            SELECT
-                edgedb.local_date_in(edgedb.jsonb_extract_scalar(
-                    val->'lower', 'string')) AS lower,
-                edgedb.local_date_in(edgedb.jsonb_extract_scalar(
-                    val->'upper', 'string')) AS upper,
-                edgedb.range_inc_from_jsonb(val, 'inc_lower') AS inc_lower,
-                edgedb.range_inc_from_jsonb(val, 'inc_upper') AS inc_upper
-        ) AS a;
     $$;
 };

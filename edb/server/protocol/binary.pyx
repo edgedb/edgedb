@@ -630,8 +630,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise errors.AuthenticationError(
                 'authentication failed: malformed JWT')
 
-        ekey = self.server.get_jwe_private_key()
-        skey = self.server.get_jws_public_key()
+        ekey = self.server.get_jwe_key()
+        skey = self.server.get_jws_key()
 
         try:
             decrypted_token = jwt.JWT(

@@ -1747,6 +1747,7 @@ class CastCommand(MetaCommand):
             name=name,
             args=args,
             returns=returns,
+            strict=True,
             text=cast.get_code(schema),
         )
 

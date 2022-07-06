@@ -6517,6 +6517,22 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }],
         )
 
+    async def test_edgeql_ddl_link_computable_02(self):
+        await self.con.execute('''
+            CREATE TYPE LinkTarget;
+        ''')
+
+        # TODO We want to actually support this, but until then we should
+        # have a decent error.
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"including a shape on schema-defined computed links "
+            r"is not yet supported"
+        ):
+            await self.con.execute("""
+                CREATE TYPE X { CREATE LINK x := LinkTarget { z := 1 } };
+            """)
+
     async def test_edgeql_ddl_link_computable_circular_01(self):
         await self.con.execute('''\
             CREATE TYPE CompLinkCircular {
@@ -14359,6 +14375,35 @@ type default::Foo {
             insert Project;
             insert Project;
         """)
+
+    async def test_edgeql_ddl_no_shapes_in_using(self):
+        await self.con.execute(r"""
+            create type Foo;
+            create type Bar extending Foo;
+            create type Baz {
+                create multi link foo -> Foo;
+            };
+        """)
+
+        q = 'select Bar { x := "oops" } limit 1'
+        alters = [
+            f'set required using ({q})',
+            f'set single using ({q})',
+            f'set default := ({q})',
+            f'set type Bar using ({q})',
+        ]
+
+        for alter in alters:
+            async with self.assertRaisesRegexTx(
+                    (edgedb.SchemaError, edgedb.SchemaDefinitionError),
+                    r"may not include a shape"):
+                await self.con.execute(fr"""
+                    alter type Baz {{
+                        alter link foo {{
+                            {alter}
+                        }}
+                     }};
+                """)
 
     async def test_edgeql_ddl_uuid_array_01(self):
         await self.con.execute(r"""

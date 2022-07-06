@@ -3112,12 +3112,10 @@ def is_type_compatible(
             return (
                 not isinstance(t_as, Tuple) and labels_compatible(t_as, t_bs)
             )
-        # elif isinstance(t_a, Range) and isinstance(t_b, Range):
-        #     t_as = t_a.get_element_type(schema)
-        #     t_bs = t_b.get_element_type(schema)
-        #     return (
-        #         labels_compatible(t_as, t_bs)
-        #     )
+        elif isinstance(t_a, Range) and isinstance(t_b, Range):
+            t_as = t_a.get_element_type(schema)
+            t_bs = t_b.get_element_type(schema)
+            return labels_compatible(t_as, t_bs)
         else:
             return True
 

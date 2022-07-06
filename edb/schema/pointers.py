@@ -566,6 +566,9 @@ class Pointer(referencing.ReferencedInheritingObject,
         while (
             ptrcls.get_is_derived(schema)
             and not ptrcls.get_defined_here(schema)
+            # schema defined computeds don't have the ephemeral defined_here
+            # set, but they do have expr set, so we check that also.
+            and not ptrcls.get_expr(schema)
             and (bases := ptrcls.get_bases(schema).objects(schema))
             and len(bases) == 1
             and bases[0].get_source(schema)
@@ -1211,6 +1214,17 @@ class PointerCommandOrFragment(
                     context=srcctx,
                 )
 
+        if (
+            not isinstance(source, Pointer)
+            and not source.is_view(schema)  # type: ignore
+            and target.is_view(expression.irast.schema)
+        ):
+            raise errors.UnsupportedFeatureError(
+                f'including a shape on schema-defined computed links '
+                f'is not yet supported',
+                context=self.source_context,
+            )
+
         spec_target: Optional[
             Union[
                 s_types.TypeShell[s_types.Type],
@@ -1589,6 +1603,11 @@ class PointerCommand(
             assert ptr_target is not None
 
             source_context = self.get_attribute_source_context('default')
+            if default_type.is_view(default_expr.irast.schema):
+                raise errors.SchemaDefinitionError(
+                    f'default expression may not include a shape',
+                    context=source_context,
+                )
             if not default_type.assignment_castable_to(ptr_target, schema):
                 raise errors.SchemaDefinitionError(
                     f'default expression is of invalid type: '
@@ -2213,6 +2232,12 @@ class SetPointerType(
                         hint='You might need to add an explicit cast.',
                         context=self.source_context,
                     )
+                if using_type.is_view(self.cast_expr.schema):
+                    raise errors.SchemaError(
+                        f'result of USING clause for the alteration of '
+                        f'{vn} may not include a shape',
+                        context=self.source_context,
+                    )
 
             schema = self._propagate_if_expr_refs(
                 schema,
@@ -2386,6 +2411,12 @@ class AlterPointerUpperCardinality(
                         f'{vn} cannot be cast automatically from '
                         f'{ot} to {nt} ',
                         hint='You might need to add an explicit cast.',
+                        context=self.source_context,
+                    )
+                if using_type.is_view(self.conv_expr.schema):
+                    raise errors.SchemaError(
+                        f'result of USING clause for the alteration of '
+                        f'{vn} may not include a shape',
                         context=self.source_context,
                     )
 
@@ -2594,6 +2625,12 @@ class AlterPointerLowerCardinality(
                         f'{vn} cannot be cast automatically from '
                         f'{ot} to {nt} ',
                         hint='You might need to add an explicit cast.',
+                        context=self.source_context,
+                    )
+                if using_type.is_view(self.fill_expr.schema):
+                    raise errors.SchemaError(
+                        f'result of USING clause for the alteration of '
+                        f'{vn} may not include a shape',
                         context=self.source_context,
                     )
 

@@ -23,7 +23,10 @@
 # -----------------------------------------------------------------
 
 CREATE FUNCTION
-std::assert_single(input: SET OF anytype) -> OPTIONAL anytype
+std::assert_single(
+    input: SET OF anytype,
+    NAMED ONLY message: OPTIONAL str = <str>{},
+) -> OPTIONAL anytype
 {
     CREATE ANNOTATION std::description :=
         "Check that the input set contains at most one element, raise
@@ -38,7 +41,10 @@ std::assert_single(input: SET OF anytype) -> OPTIONAL anytype
 # -----------------------------------------------------------------
 
 CREATE FUNCTION
-std::assert_exists(input: SET OF anytype) -> SET OF anytype
+std::assert_exists(
+    input: SET OF anytype,
+    NAMED ONLY message: OPTIONAL str = <str>{},
+) -> SET OF anytype
 {
     CREATE ANNOTATION std::description :=
         "Check that the input set contains at least one element, raise
@@ -53,7 +59,10 @@ std::assert_exists(input: SET OF anytype) -> SET OF anytype
 # ------------------------------------------------------
 
 CREATE FUNCTION
-std::assert_distinct(input: SET OF anytype) -> SET OF anytype
+std::assert_distinct(
+    input: SET OF anytype,
+    NAMED ONLY message: OPTIONAL str = <str>{},
+) -> SET OF anytype
 {
     CREATE ANNOTATION std::description :=
         "Check that the input set is a proper set, i.e. all elements

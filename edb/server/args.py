@@ -43,6 +43,8 @@ MIB = 1024 * 1024
 RAM_MIB_PER_CONN = 100
 TLS_CERT_FILE_NAME = "edbtlscert.pem"
 TLS_KEY_FILE_NAME = "edbprivkey.pem"
+JWE_KEY_FILE_NAME = "edbjwekeys.pem"
+JWS_KEY_FILE_NAME = "edbjwskeys.pem"
 
 
 logger = logging.getLogger('edb.server')
@@ -81,6 +83,12 @@ class ServerTlsCertMode(enum.StrEnum):
 
     RequireFile = "require_file"
     SelfSigned = "generate_self_signed"
+
+
+class JOSEKeyMode(enum.StrEnum):
+
+    RequireFile = "require_file"
+    Generate = "generate"
 
 
 class ServerAuthMethod(enum.StrEnum):
@@ -182,8 +190,9 @@ class ServerConfig(NamedTuple):
     tls_key_file: Optional[pathlib.Path]
     tls_cert_mode: ServerTlsCertMode
 
-    jws_public_key_file: Optional[pathlib.Path]
-    jwe_private_key_file: Optional[pathlib.Path]
+    jws_key_file: Optional[pathlib.Path]
+    jwe_key_file: Optional[pathlib.Path]
+    jose_key_mode: JOSEKeyMode
 
     default_auth_method: ServerAuthMethods
     security: ServerSecurityMode
@@ -703,19 +712,41 @@ _server_options = [
         ),
     ),
     click.option(
-        '--jws-public-key-file',
+        '--jws-key-file',
         type=PathPath(),
-        envvar="EDGEDB_SERVER_JWS_PUBLIC_KEY_FILE",
+        envvar="EDGEDB_SERVER_JWS_KEY_FILE",
         hidden=True,
         help='Specifies a path to a file containing a public key in PEM '
-             'format used to verify JWT signatures.'),
+             'format used to verify JWT signatures. The file could also '
+             'contain a private key to sign JWT for local testing.'),
     click.option(
-        '--jwe-private-key-file',
+        '--jwe-key-file',
         type=PathPath(),
-        envvar="EDGEDB_SERVER_JWE_PRIVATE_KEY_FILE",
+        envvar="EDGEDB_SERVER_JWE_KEY_FILE",
         hidden=True,
         help='Specifies a path to a file containing a private key in PEM '
-             'format used to decrypt JWE tokens.'),
+             'format used to decrypt JWE tokens. The file could also contain '
+             'a public key to encrypt JWE tokens for local testing.'),
+    click.option(
+        '--jose-key-mode',
+        type=click.Choice(
+            ['default'] + list(JOSEKeyMode.__members__.values()),
+            case_sensitive=True,
+        ),
+        hidden=True,
+        default='default',
+        help='Specifies what to do when the JOSE keys are either not '
+             'specified or are missing.  When set to "require_file", the JOSE '
+             'keys must be specified in the --jws-key-file and --jwe-key-file '
+             'options and both must exist.  When set to "generate", 2 new key '
+             'pairs will be generated and placed in the path specified by '
+             '--jwe-key-file/--jws-key-file, if those are set, otherwise the '
+             f'generated key pairs are stored as `{JWE_KEY_FILE_NAME}` and '
+             f'`{JWS_KEY_FILE_NAME}` in the data directory, or, if the server '
+             'is running with --backend-dsn, in a subdirectory of '
+             '--runstate-dir.\n\nThe default is "require_file" when the '
+             '--security option is set to "strict", and "generate" when the '
+             '--security option is set to "insecure_dev_mode"'),
     click.option(
         "--default-auth-method",
         envvar="EDGEDB_SERVER_DEFAULT_AUTH_METHOD",
@@ -938,6 +969,8 @@ def parse_args(**kwargs: Any):
             }
         if kwargs['tls_cert_mode'] == 'default':
             kwargs['tls_cert_mode'] = 'generate_self_signed'
+        if kwargs['jose_key_mode'] == 'default':
+            kwargs['jose_key_mode'] = 'generate'
     elif not kwargs['default_auth_method']:
         kwargs['default_auth_method'] = DEFAULT_AUTH_METHODS
 
@@ -950,12 +983,16 @@ def parse_args(**kwargs: Any):
     if kwargs['tls_cert_mode'] == 'default':
         kwargs['tls_cert_mode'] = 'require_file'
 
+    if kwargs['jose_key_mode'] == 'default':
+        kwargs['jose_key_mode'] = 'require_file'
+
     kwargs['security'] = ServerSecurityMode(kwargs['security'])
     kwargs['binary_endpoint_security'] = ServerEndpointSecurityMode(
         kwargs['binary_endpoint_security'])
     kwargs['http_endpoint_security'] = ServerEndpointSecurityMode(
         kwargs['http_endpoint_security'])
     kwargs['tls_cert_mode'] = ServerTlsCertMode(kwargs['tls_cert_mode'])
+    kwargs['jose_key_mode'] = JOSEKeyMode(kwargs['jose_key_mode'])
 
     if kwargs['compiler_pool_mode'] == 'default':
         if devmode.is_in_dev_mode():
@@ -1061,31 +1098,43 @@ def parse_args(**kwargs: Any):
             " is not a regular file"
         )
 
-    if kwargs['jws_public_key_file']:
-        if not kwargs['jws_public_key_file'].exists():
-            abort(
-                f"JWS public key file \"{kwargs['jws_public_key_file']}\""
-                " does not exist"
-            )
+    if kwargs['jose_key_mode'] is JOSEKeyMode.Generate:
+        if not kwargs['jws_key_file']:
+            if kwargs['data_dir']:
+                jws_key_file = kwargs['data_dir'] / JWS_KEY_FILE_NAME
+            else:
+                jws_key_file = pathlib.Path('<runstate>') / JWS_KEY_FILE_NAME
+            kwargs['jws_key_file'] = jws_key_file
+        if not kwargs['jwe_key_file']:
+            if kwargs['data_dir']:
+                jwe_key_file = kwargs['data_dir'] / JWE_KEY_FILE_NAME
+            else:
+                jwe_key_file = pathlib.Path('<runstate>') / JWE_KEY_FILE_NAME
+            kwargs['jwe_key_file'] = jwe_key_file
+    else:
+        if kwargs['jws_key_file']:
+            if not kwargs['jws_key_file'].exists():
+                abort(
+                    f"JWS key file \"{kwargs['jws_key_file']}\" does not exist"
+                )
 
-        if not kwargs['jws_public_key_file'].is_file():
-            abort(
-                f"JWT public key file \"{kwargs['jws_public_key_file']}\""
-                " is not a regular file"
-            )
+            if not kwargs['jws_key_file'].is_file():
+                abort(
+                    f"JWT key file \"{kwargs['jws_key_file']}\""
+                    " is not a regular file"
+                )
 
-    if kwargs['jwe_private_key_file']:
-        if not kwargs['jwe_private_key_file'].exists():
-            abort(
-                f"JWE private key file \"{kwargs['jwe_private_key_file']}\""
-                " does not exist"
-            )
+        if kwargs['jwe_key_file']:
+            if not kwargs['jwe_key_file'].exists():
+                abort(
+                    f"JWE key file \"{kwargs['jwe_key_file']}\" does not exist"
+                )
 
-        if not kwargs['jwe_private_key_file'].is_file():
-            abort(
-                f"JWE private key file \"{kwargs['jwe_private_key_file']}\""
-                " is not a regular file"
-            )
+            if not kwargs['jwe_key_file'].is_file():
+                abort(
+                    f"JWE key file \"{kwargs['jwe_key_file']}\""
+                    " is not a regular file"
+                )
 
     if kwargs['log_level']:
         kwargs['log_level'] = kwargs['log_level'].lower()[0]

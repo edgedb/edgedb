@@ -326,7 +326,9 @@ def _get_set_rvar(
             rvars = process_set_as_tuple(ir_set, stmt, ctx=ctx)
 
         elif isinstance(expr, irast.FunctionCall):
-            if str(expr.func_shortname) == 'std::enumerate':
+            fname = str(expr.func_shortname)
+
+            if fname == 'std::enumerate':
                 arg_set = expr.args[0].expr
                 arg_expr = arg_set.expr
                 arg_subj = irutils.unwrap_set(arg_set).expr
@@ -349,28 +351,32 @@ def _get_set_rvar(
                 else:
                     rvars = process_set_as_enumerate(ir_set, stmt, ctx=ctx)
 
-            elif str(expr.func_shortname) == 'std::assert_single':
+            elif fname == 'std::assert_single':
                 # Cardinality assertion (upper bound)
                 rvars = process_set_as_singleton_assertion(
                     ir_set, stmt, ctx=ctx)
 
-            elif str(expr.func_shortname) == 'std::assert_exists':
+            elif fname == 'std::assert_exists':
                 # Cardinality assertion (lower bound)
                 rvars = process_set_as_existence_assertion(
                     ir_set, stmt, ctx=ctx)
 
-            elif str(expr.func_shortname) == 'std::assert_distinct':
+            elif fname == 'std::assert_distinct':
                 # Multiplicity assertion
                 rvars = process_set_as_multiplicity_assertion(
                     ir_set, stmt, ctx=ctx)
 
-            elif str(expr.func_shortname) == 'std::min' and expr.func_sql_expr:
+            elif fname == 'std::min' and expr.func_sql_expr:
                 # Generic std::min
                 rvars = process_set_as_std_min_max(ir_set, stmt, ctx=ctx)
 
-            elif str(expr.func_shortname) == 'std::max' and expr.func_sql_expr:
+            elif fname == 'std::max' and expr.func_sql_expr:
                 # Generic std::max
                 rvars = process_set_as_std_min_max(ir_set, stmt, ctx=ctx)
+
+            elif fname == 'std::range' and expr.func_sql_expr:
+                # Generic std::range() constructor
+                rvars = process_set_as_std_range(ir_set, stmt, ctx=ctx)
 
             elif any(
                 pm is qltypes.TypeModifier.SetOfType
@@ -2140,7 +2146,7 @@ def process_set_as_singleton_assertion(
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
 
-    ir_arg = expr.args[0]
+    ir_arg = expr.args[1]
     ir_arg_set = ir_arg.expr
 
     if ir_arg.cardinality.is_single():
@@ -2154,6 +2160,8 @@ def process_set_as_singleton_assertion(
     with ctx.subrel() as newctx:
         arg_ref = dispatch.compile(ir_arg_set, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)
+
+        msg = dispatch.compile(expr.args[0].expr, ctx=newctx)
 
         # Generate a singleton set assertion as the following SQL:
         #
@@ -2185,9 +2193,14 @@ def process_set_as_singleton_assertion(
                 pgast.StringConstant(val='cardinality_violation'),
                 pgast.NamedFuncArg(
                     name='msg',
-                    val=pgast.StringConstant(
-                        val='assert_single violation: more than one element '
-                            'returned by an expression',
+                    val=pgast.CoalesceExpr(
+                        args=[
+                            msg,
+                            pgast.StringConstant(
+                                val='assert_single violation: more than one '
+                                    'element returned by an expression',
+                            ),
+                        ],
                     ),
                 ),
                 pgast.NamedFuncArg(
@@ -2236,7 +2249,7 @@ def process_set_as_existence_assertion(
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
 
-    ir_arg = expr.args[0]
+    ir_arg = expr.args[1]
     ir_arg_set = ir_arg.expr
 
     if not ir_arg.cardinality.can_be_zero():
@@ -2255,6 +2268,9 @@ def process_set_as_existence_assertion(
         pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg_set.path_id)
         arg_ref = dispatch.compile(ir_arg_set, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)
+
+        msg = dispatch.compile(expr.args[0].expr, ctx=newctx)
+
         set_expr = pgast.FuncCall(
             name=('edgedb', 'raise_on_null'),
             args=[
@@ -2262,9 +2278,14 @@ def process_set_as_existence_assertion(
                 pgast.StringConstant(val='cardinality_violation'),
                 pgast.NamedFuncArg(
                     name='msg',
-                    val=pgast.StringConstant(
-                        val='assert_exists violation: expression returned '
-                            'an empty set',
+                    val=pgast.CoalesceExpr(
+                        args=[
+                            msg,
+                            pgast.StringConstant(
+                                val='assert_exists violation: expression '
+                                    'returned an empty set',
+                            ),
+                        ]
                     ),
                 ),
                 pgast.NamedFuncArg(
@@ -2314,7 +2335,7 @@ def process_set_as_multiplicity_assertion(
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
 
-    ir_arg = expr.args[0]
+    ir_arg = expr.args[1]
     ir_arg_set = ir_arg.expr
 
     if not ir_arg.multiplicity.is_many():
@@ -2369,6 +2390,8 @@ def process_set_as_multiplicity_assertion(
                 )
             )
 
+        msg = dispatch.compile(expr.args[0].expr, ctx=newctx)
+
         do_raise = pgast.FuncCall(
             name=('edgedb', 'raise'),
             args=[
@@ -2382,9 +2405,14 @@ def process_set_as_multiplicity_assertion(
                 pgast.StringConstant(val='cardinality_violation'),
                 pgast.NamedFuncArg(
                     name='msg',
-                    val=pgast.StringConstant(
-                        val='assert_distinct violation: expression returned '
-                            'a set with duplicate elements',
+                    val=pgast.CoalesceExpr(
+                        args=[
+                            msg,
+                            pgast.StringConstant(
+                                val='assert_distinct violation: expression '
+                                    'returned a set with duplicate elements',
+                            ),
+                        ],
                     ),
                 ),
                 pgast.NamedFuncArg(
@@ -2582,6 +2610,107 @@ def process_set_as_std_min_max(
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
                         pull_namespace=False, ctx=ctx)
+
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
+def process_set_as_std_range(
+    ir_set: irast.Set,
+    stmt: pgast.SelectStmt,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    # Generic range constructor implementation
+    #
+    #   std::range(
+    #     lower,
+    #     upper,
+    #     named only inc_lower,
+    #     named only inc_upper,
+    #     named only empty,
+    #   )
+    #
+    #     into
+    #
+    #   case when empty then
+    #     'empty'::<pg_range_type>
+    #   else
+    #     <pg_range_type>(
+    #       lower,
+    #       upper,
+    #       (array[['()', '(]'], ['[)', '[]']])
+    #         [inc_lower::int + 1][inc_upper::int + 1]
+    #     )
+    #   end
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    # N.B: kwargs go first and are sorted by name
+    empty = dispatch.compile(expr.args[0].expr, ctx=ctx)
+    inc_lower = dispatch.compile(expr.args[1].expr, ctx=ctx)
+    inc_upper = dispatch.compile(expr.args[2].expr, ctx=ctx)
+    lower = dispatch.compile(expr.args[3].expr, ctx=ctx)
+    upper = dispatch.compile(expr.args[4].expr, ctx=ctx)
+
+    lb = pgast.Index(
+        idx=astutils.new_binop(
+            lexpr=pgast.TypeCast(
+                arg=inc_lower,
+                type_name=pgast.TypeName(name=('int4',)),
+            ),
+            op='+',
+            rexpr=pgast.NumericConstant(val='1'),
+        ),
+    )
+
+    rb = pgast.Index(
+        idx=astutils.new_binop(
+            lexpr=pgast.TypeCast(
+                arg=inc_upper,
+                type_name=pgast.TypeName(name=('int4',)),
+            ),
+            op='+',
+            rexpr=pgast.NumericConstant(val='1'),
+        ),
+    )
+
+    bounds_matrix = pgast.ArrayExpr(
+        elements=[
+            pgast.ArrayDimension(
+                elements=[
+                    pgast.StringConstant(val="()"),
+                    pgast.StringConstant(val="(]"),
+                ],
+            ),
+            pgast.ArrayDimension(
+                elements=[
+                    pgast.StringConstant(val="[)"),
+                    pgast.StringConstant(val="[]"),
+                ],
+            ),
+        ]
+    )
+
+    bounds = pgast.Indirection(arg=bounds_matrix, indirection=[lb, rb])
+    pg_type = pg_types.pg_type_from_ir_typeref(expr.typeref)
+    non_empty_range = pgast.FuncCall(name=pg_type, args=[lower, upper, bounds])
+    empty_range = pgast.TypeCast(
+        arg=pgast.StringConstant(val='empty'),
+        type_name=pgast.TypeName(name=pg_type),
+    )
+
+    set_expr = pgast.CaseExpr(
+        args=[pgast.CaseWhen(
+            expr=pgast.FuncCall(
+                name=('edgedb', 'range_validate'),
+                args=[lower, upper, inc_lower, inc_upper, empty],
+            ),
+            result=empty_range,
+        )],
+        defresult=non_empty_range,
+    )
+
+    pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 

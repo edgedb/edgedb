@@ -111,6 +111,14 @@ def compile_cast(
         return _cast_array(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
+    elif (
+        orig_stype.is_range()
+        and not s_types.is_type_compatible(
+            orig_stype, new_stype, schema=ctx.env.schema)
+    ):
+        return _cast_range(
+            ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+
     elif orig_stype.issubclass(ctx.env.schema, new_stype):
         # The new type is a supertype of the old type,
         # and is always a wider domain, so we simply reassign
@@ -163,6 +171,11 @@ def compile_cast(
         elif (orig_stype.issubclass(ctx.env.schema, json_t)
               and isinstance(new_stype, s_types.Tuple)):
             return _cast_json_to_tuple(
+                ir_set, orig_stype, new_stype, cardinality_mod,
+                srcctx=srcctx, ctx=ctx)
+        elif (orig_stype.issubclass(ctx.env.schema, json_t)
+              and isinstance(new_stype, s_types.Range)):
+            return _cast_json_to_range(
                 ir_set, orig_stype, new_stype, cardinality_mod,
                 srcctx=srcctx, ctx=ctx)
 
@@ -538,6 +551,166 @@ def _cast_tuple(
         named=new_stype.is_named(ctx.env.schema),
         ctx=ctx,
     )
+
+
+def _cast_range(
+        ir_set: irast.Set,
+        orig_stype: s_types.Type,
+        new_stype: s_types.Type, *,
+        srcctx: Optional[parsing.ParserContext],
+        ctx: context.ContextLevel) -> irast.Set:
+
+    assert isinstance(orig_stype, s_types.Range)
+
+    direct_cast = _find_cast(orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+    if direct_cast is not None:
+        return _cast_to_ir(
+            ir_set, direct_cast, orig_stype, new_stype, ctx=ctx
+        )
+
+    if not new_stype.is_range():
+        raise errors.QueryError(
+            f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
+            f'to {new_stype.get_displayname(ctx.env.schema)!r}',
+            context=srcctx)
+    assert isinstance(new_stype, s_types.Range)
+    el_type = new_stype.get_subtypes(ctx.env.schema)[0]
+    orig_el_type = orig_stype.get_subtypes(ctx.env.schema)[0]
+    ql_el_type = typegen.type_to_ql_typeref(el_type, ctx=ctx)
+
+    el_cast = _find_cast(orig_el_type, el_type, srcctx=srcctx, ctx=ctx)
+    if el_cast is None:
+        raise errors.QueryError(
+            f'cannot cast {orig_stype.get_displayname(ctx.env.schema)!r} '
+            f'to {new_stype.get_displayname(ctx.env.schema)!r}',
+            context=srcctx)
+
+    with ctx.new() as subctx:
+        subctx.anchors = subctx.anchors.copy()
+        source_path = subctx.create_anchor(ir_set, 'a')
+
+        cast = qlast.FunctionCall(
+            func=('__std__', 'range'),
+            args=[
+                qlast.TypeCast(
+                    expr=qlast.FunctionCall(
+                        func=('__std__', 'range_get_lower'),
+                        args=[source_path],
+                    ),
+                    type=ql_el_type,
+                ),
+                qlast.TypeCast(
+                    expr=qlast.FunctionCall(
+                        func=('__std__', 'range_get_upper'),
+                        args=[source_path],
+                    ),
+                    type=ql_el_type,
+                ),
+            ],
+            kwargs={
+                "inc_lower": qlast.FunctionCall(
+                    func=('__std__', 'range_is_inclusive_lower'),
+                    args=[source_path],
+                ),
+                "inc_upper": qlast.FunctionCall(
+                    func=('__std__', 'range_is_inclusive_upper'),
+                    args=[source_path],
+                ),
+                "empty": qlast.FunctionCall(
+                    func=('__std__', 'range_is_empty'),
+                    args=[source_path],
+                ),
+            }
+        )
+
+        if el_type.contains_json(subctx.env.schema):
+            subctx.inhibit_implicit_limit = True
+
+        return dispatch.compile(cast, ctx=subctx)
+
+
+def _cast_json_to_range(
+        ir_set: irast.Set,
+        orig_stype: s_types.Type,
+        new_stype: s_types.Range,
+        cardinality_mod: Optional[qlast.CardinalityModifier],
+        *,
+        srcctx: Optional[parsing.ParserContext],
+        ctx: context.ContextLevel) -> irast.Set:
+
+    with ctx.new() as subctx:
+        subctx.anchors = subctx.anchors.copy()
+        source_path = subctx.create_anchor(ir_set, 'a')
+        check = qlast.FunctionCall(
+            func=('__std__', '__range_validate_json'), args=[source_path]
+        )
+        check_ir = dispatch.compile(check, ctx=subctx)
+        source_path = subctx.create_anchor(check_ir, 'b')
+
+        range_el_t = new_stype.get_element_type(ctx.env.schema)
+        ql_range_el_t = typegen.type_to_ql_typeref(range_el_t, ctx=subctx)
+        bool_t = ctx.env.get_track_schema_type(sn.QualName('std', 'bool'))
+        ql_bool_t = typegen.type_to_ql_typeref(bool_t, ctx=subctx)
+
+        cast = qlast.FunctionCall(
+            func=('__std__', 'range'),
+            args=[
+                qlast.TypeCast(
+                    expr=qlast.FunctionCall(
+                        func=('__std__', 'json_get'),
+                        args=[
+                            source_path,
+                            qlast.StringConstant(value='lower'),
+                        ],
+                    ),
+                    type=ql_range_el_t,
+                ),
+                qlast.TypeCast(
+                    expr=qlast.FunctionCall(
+                        func=('__std__', 'json_get'),
+                        args=[
+                            source_path,
+                            qlast.StringConstant(value='upper'),
+                        ],
+                    ),
+                    type=ql_range_el_t,
+                ),
+            ],
+            kwargs={
+                "inc_lower": qlast.TypeCast(
+                    expr=qlast.FunctionCall(
+                        func=('__std__', 'json_get'),
+                        args=[
+                            source_path,
+                            qlast.StringConstant(value='inc_lower'),
+                        ],
+                    ),
+                    type=ql_bool_t
+                ),
+                "inc_upper": qlast.TypeCast(
+                    expr=qlast.FunctionCall(
+                        func=('__std__', 'json_get'),
+                        args=[
+                            source_path,
+                            qlast.StringConstant(value='inc_upper'),
+                        ],
+                    ),
+                    type=ql_bool_t
+                ),
+                "empty": qlast.TypeCast(
+                    expr=qlast.FunctionCall(
+                        func=('__std__', 'json_get'),
+                        args=[
+                            source_path,
+                            qlast.StringConstant(value='empty'),
+                        ],
+                    ),
+                    type=ql_bool_t
+                ),
+            }
+        )
+
+        return dispatch.compile(cast, ctx=subctx)
 
 
 def _cast_array(

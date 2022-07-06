@@ -252,6 +252,105 @@ CREATE CAST FROM std::json TO array<anytype> {
 };
 
 
+CREATE FUNCTION
+std::__range_validate_json(v: std::json) -> std::json
+{
+    SET volatility := 'Immutable';
+    SET internal := true;
+    USING SQL $$
+    SELECT
+        CASE
+        WHEN
+            empty
+            AND (lower IS DISTINCT FROM upper
+                 OR lower IS NOT NULL AND inc_upper AND inc_lower)
+        THEN
+            edgedb.raise(
+                NULL::jsonb,
+                'invalid_parameter_value',
+                msg => 'conflicting arguments in range constructor:'
+                        || ' "empty" is `true` while the specified'
+                        || ' bounds suggest otherwise'
+            )
+
+        WHEN
+            NOT empty
+            AND inc_lower IS NULL
+        THEN
+            edgedb.raise(
+                NULL::jsonb,
+                'invalid_parameter_value',
+                msg => 'JSON object representing a range must include an'
+                        || ' "inc_lower" boolean property'
+            )
+
+        WHEN
+            NOT empty
+            AND inc_upper IS NULL
+        THEN
+            edgedb.raise(
+                NULL::jsonb,
+                'invalid_parameter_value',
+                msg => 'JSON object representing a range must include an'
+                        || ' "inc_upper" boolean property'
+            )
+
+        WHEN
+            EXISTS (
+                SELECT jsonb_object_keys(v)
+                EXCEPT
+                VALUES
+                    ('lower'),
+                    ('upper'),
+                    ('inc_lower'),
+                    ('inc_upper'),
+                    ('empty')
+            )
+        THEN
+            (SELECT edgedb.raise(
+                NULL::jsonb,
+                'invalid_parameter_value',
+                msg => 'JSON object representing a range contains unexpected'
+                        || ' keys: ' || string_agg(k.k, ', ' ORDER BY k.k)
+            )
+            FROM
+                (SELECT jsonb_object_keys(v)
+                EXCEPT
+                VALUES
+                    ('lower'),
+                    ('upper'),
+                    ('inc_lower'),
+                    ('inc_upper'),
+                    ('empty')
+                ) AS k(k)
+            )
+        ELSE
+            v
+        END
+    FROM
+        (SELECT
+            (v ->> 'lower') AS lower,
+            (v ->> 'upper') AS upper,
+            (v ->> 'inc_lower')::bool AS inc_lower,
+            (v ->> 'inc_upper')::bool AS inc_upper,
+            coalesce((v ->> 'empty')::bool, false) AS empty
+        ) j
+    $$;
+};
+
+
+CREATE CAST FROM range<std::anypoint> TO std::json {
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'edgedb.range_to_jsonb';
+};
+
+
+CREATE CAST FROM std::json TO range<std::anypoint> {
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+
 # The function to_jsonb is STABLE in PostgreSQL, but this function is
 # generic and STABLE volatility may be an overestimation in many cases.
 CREATE CAST FROM std::bool TO std::json {
@@ -436,168 +535,5 @@ CREATE CAST FROM std::json TO std::bigint {
     SELECT edgedb.str_to_bigint(
         edgedb.jsonb_extract_scalar(val, 'number')
     );
-    $$;
-};
-
-
-# Range casts
-CREATE CAST FROM range<std::anypoint> TO std::json {
-    SET volatility := 'Stable';
-    USING SQL FUNCTION 'edgedb.range_to_jsonb';
-};
-
-
-CREATE CAST FROM std::json TO range<std::int32> {
-    SET volatility := 'Stable';
-    USING SQL $$
-        SELECT CASE
-            WHEN "inc_lower" AND "inc_upper"
-            THEN int4range("lower", "upper", '[]')
-            WHEN NOT "inc_lower" AND "inc_upper"
-            THEN int4range("lower", "upper", '(]')
-            WHEN NOT "inc_lower" AND NOT "inc_upper"
-            THEN int4range("lower", "upper", '()')
-            WHEN "inc_lower" AND NOT "inc_upper"
-            THEN int4range("lower", "upper", '[)')
-        END
-        FROM (
-            SELECT
-                edgedb.jsonb_extract_scalar(
-                    val->'lower', 'number')::int4 AS lower,
-                edgedb.jsonb_extract_scalar(
-                    val->'upper', 'number')::int4 AS upper,
-                edgedb.range_inc_from_jsonb(val, 'inc_lower') AS inc_lower,
-                edgedb.range_inc_from_jsonb(val, 'inc_upper') AS inc_upper
-        ) AS a;
-    $$;
-};
-
-
-CREATE CAST FROM std::json TO range<std::int64> {
-    SET volatility := 'Stable';
-    USING SQL $$
-        SELECT CASE
-            WHEN "inc_lower" AND "inc_upper"
-            THEN int8range("lower", "upper", '[]')
-            WHEN NOT "inc_lower" AND "inc_upper"
-            THEN int8range("lower", "upper", '(]')
-            WHEN NOT "inc_lower" AND NOT "inc_upper"
-            THEN int8range("lower", "upper", '()')
-            WHEN "inc_lower" AND NOT "inc_upper"
-            THEN int8range("lower", "upper", '[)')
-        END
-        FROM (
-            SELECT
-                edgedb.jsonb_extract_scalar(
-                    val->'lower', 'number')::int8 AS lower,
-                edgedb.jsonb_extract_scalar(
-                    val->'upper', 'number')::int8 AS upper,
-                edgedb.range_inc_from_jsonb(val, 'inc_lower') AS inc_lower,
-                edgedb.range_inc_from_jsonb(val, 'inc_upper') AS inc_upper
-        ) AS a;
-    $$;
-};
-
-
-CREATE CAST FROM std::json TO range<std::float32> {
-    SET volatility := 'Stable';
-    USING SQL $$
-        SELECT CASE
-            WHEN "inc_lower" AND "inc_upper"
-            THEN edgedb.float32_range_t("lower", "upper", '[]')
-            WHEN NOT "inc_lower" AND "inc_upper"
-            THEN edgedb.float32_range_t("lower", "upper", '(]')
-            WHEN NOT "inc_lower" AND NOT "inc_upper"
-            THEN edgedb.float32_range_t("lower", "upper", '()')
-            WHEN "inc_lower" AND NOT "inc_upper"
-            THEN edgedb.float32_range_t("lower", "upper", '[)')
-        END
-        FROM (
-            SELECT
-                edgedb.jsonb_extract_scalar(
-                    val->'lower', 'number')::float4 AS lower,
-                edgedb.jsonb_extract_scalar(
-                    val->'upper', 'number')::float4 AS upper,
-                edgedb.range_inc_from_jsonb(val, 'inc_lower') AS inc_lower,
-                edgedb.range_inc_from_jsonb(val, 'inc_upper') AS inc_upper
-        ) AS a;
-    $$;
-};
-
-
-CREATE CAST FROM std::json TO range<std::float64> {
-    SET volatility := 'Stable';
-    USING SQL $$
-        SELECT CASE
-            WHEN "inc_lower" AND "inc_upper"
-            THEN edgedb.float64_range_t("lower", "upper", '[]')
-            WHEN NOT "inc_lower" AND "inc_upper"
-            THEN edgedb.float64_range_t("lower", "upper", '(]')
-            WHEN NOT "inc_lower" AND NOT "inc_upper"
-            THEN edgedb.float64_range_t("lower", "upper", '()')
-            WHEN "inc_lower" AND NOT "inc_upper"
-            THEN edgedb.float64_range_t("lower", "upper", '[)')
-        END
-        FROM (
-            SELECT
-                edgedb.jsonb_extract_scalar(
-                    val->'lower', 'number')::float8 AS lower,
-                edgedb.jsonb_extract_scalar(
-                    val->'upper', 'number')::float8 AS upper,
-                edgedb.range_inc_from_jsonb(val, 'inc_lower') AS inc_lower,
-                edgedb.range_inc_from_jsonb(val, 'inc_upper') AS inc_upper
-        ) AS a;
-    $$;
-};
-
-
-CREATE CAST FROM std::json TO range<std::decimal> {
-    SET volatility := 'Stable';
-    USING SQL $$
-        SELECT CASE
-            WHEN "inc_lower" AND "inc_upper"
-            THEN numrange("lower", "upper", '[]')
-            WHEN NOT "inc_lower" AND "inc_upper"
-            THEN numrange("lower", "upper", '(]')
-            WHEN NOT "inc_lower" AND NOT "inc_upper"
-            THEN numrange("lower", "upper", '()')
-            WHEN "inc_lower" AND NOT "inc_upper"
-            THEN numrange("lower", "upper", '[)')
-        END
-        FROM (
-            SELECT
-                edgedb.jsonb_extract_scalar(
-                    val->'lower', 'number')::numeric AS lower,
-                edgedb.jsonb_extract_scalar(
-                    val->'upper', 'number')::numeric AS upper,
-                edgedb.range_inc_from_jsonb(val, 'inc_lower') AS inc_lower,
-                edgedb.range_inc_from_jsonb(val, 'inc_upper') AS inc_upper
-        ) AS a;
-    $$;
-};
-
-
-CREATE CAST FROM std::json TO range<std::datetime> {
-    SET volatility := 'Stable';
-    USING SQL $$
-        SELECT CASE
-            WHEN "inc_lower" AND "inc_upper"
-            THEN edgedb.datetime_range_t("lower", "upper", '[]')
-            WHEN NOT "inc_lower" AND "inc_upper"
-            THEN edgedb.datetime_range_t("lower", "upper", '(]')
-            WHEN NOT "inc_lower" AND NOT "inc_upper"
-            THEN edgedb.datetime_range_t("lower", "upper", '()')
-            WHEN "inc_lower" AND NOT "inc_upper"
-            THEN edgedb.datetime_range_t("lower", "upper", '[)')
-        END
-        FROM (
-            SELECT
-                edgedb.datetime_in(edgedb.jsonb_extract_scalar(
-                    val->'lower', 'string')) AS lower,
-                edgedb.datetime_in(edgedb.jsonb_extract_scalar(
-                    val->'upper', 'string')) AS upper,
-                edgedb.range_inc_from_jsonb(val, 'inc_lower') AS inc_lower,
-                edgedb.range_inc_from_jsonb(val, 'inc_upper') AS inc_upper
-        ) AS a;
     $$;
 };

@@ -4228,6 +4228,82 @@ aa \
             [{"b": {"c": [1]}}],
         )
 
+    async def test_edgeql_expr_range_empty_01(self):
+        # Test handling of empty ranges
+
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''
+                    select
+                      range(
+                          <{st}>1, <{st}>1
+                        ) = range(<{st}>{{}}, empty := true);
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''
+                    select
+                      range(
+                          <{st}>1,
+                          <{st}>1,
+                          inc_lower := false,
+                          inc_upper := true,
+                      ) = range(<{st}>{{}}, empty := true);
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''
+                    select
+                      range(<{st}>1, <{st}>1, inc_upper := true)
+                        = range(<{st}>{{}}, empty := true);
+                ''',
+                [False],
+            )
+
+            await self.assert_query_result(
+                f'''
+                    select
+                      range_is_empty(
+                        range(
+                          <{st}>{{}},
+                          empty := true,
+                        )
+                      )
+                ''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                f'''
+                    select
+                      range_is_empty(
+                        range(
+                          <{st}>{{}},
+                          empty := false,
+                        )
+                      )
+                ''',
+                [False],
+            )
+
+    async def test_edgeql_expr_range_empty_02(self):
+        # Test handling of bad empty ranges
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                "conflicting arguments in range constructor",
+            ):
+                await self.assert_query_result(
+                    f'''
+                        select range(<{st}>1, <{st}>2, empty := true)
+                    ''',
+                    [True],
+                )
+
     async def test_edgeql_expr_range_01(self):
         # Test equality for numeric ranges.
         for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
@@ -5806,13 +5882,24 @@ aa \
                     await self.assert_query_result(
                         query, [1], msg=query
                     )
+
+                    # Test casting of empty ranges.
+                    query = f'''
+                        select range_is_empty(
+                            <range<{t0}>>range(<{t1}>{{}}, empty := true)
+                        );
+                    '''
+
+                    await self.assert_query_result(
+                        query, [True], msg=query
+                    )
                 else:
-                    with self.assertRaisesRegex(
-                            edgedb.UnsupportedFeatureError,
-                            r'unsupported range subtype',
-                            msg=query):
-                        async with self.con.transaction():
-                            await self.con.query_single(query)
+                    async with self.assertRaisesRegexTx(
+                        edgedb.UnsupportedFeatureError,
+                        r'unsupported range subtype',
+                        msg=query,
+                    ):
+                        await self.con.query_single(query)
 
     async def test_edgeql_expr_range_30(self):
         # Test implicit casting of numeric ranges by using `=`, which is
@@ -5839,12 +5926,12 @@ aa \
                         query, [1], msg=query
                     )
                 else:
-                    with self.assertRaisesRegex(
-                            edgedb.InvalidTypeError,
-                            r'cannot be applied to operands of type',
-                            msg=query):
-                        async with self.con.transaction():
-                            await self.con.query_single(query)
+                    async with self.assertRaisesRegexTx(
+                        edgedb.InvalidTypeError,
+                        r'cannot be applied to operands of type',
+                        msg=query,
+                    ):
+                        await self.con.query_single(query)
 
     async def test_edgeql_expr_range_31(self):
         # Test casting of local_datetime and local_date ranges.
@@ -6165,6 +6252,35 @@ aa \
             [True],
         )
 
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r"conflicting arguments in range constructor",
+        ):
+            await self.con.query_single(r'''
+                select exists <range<int64>>to_json('{
+                    "lower": 0,
+                    "upper": 1,
+                    "inc_lower": true,
+                    "inc_upper": false,
+                    "empty": true
+                }')
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r"unexpected keys: bar, foo",
+        ):
+            await self.con.query_single(r'''
+                select exists <range<int64>>to_json('{
+                    "lower": 0,
+                    "upper": 1,
+                    "inc_lower": true,
+                    "inc_upper": false,
+                    "foo": "junk",
+                    "bar": "huh?"
+                }')
+            ''')
+
     async def test_edgeql_expr_range_34(self):
         # Test casting ranges from JSON.
 
@@ -6284,8 +6400,8 @@ aa \
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_upper' "
-                r"with value true or false"):
+                r'JSON object representing a range must include an "inc_upper"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('{
@@ -6298,8 +6414,8 @@ aa \
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('{
@@ -6311,8 +6427,8 @@ aa \
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('["bad", null]') =
@@ -6321,8 +6437,8 @@ aa \
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('{"bad": null}') =
@@ -6331,8 +6447,8 @@ aa \
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('"bad"') =
@@ -6341,8 +6457,8 @@ aa \
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('null') =
@@ -6351,8 +6467,8 @@ aa \
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('1312') =
@@ -6361,8 +6477,8 @@ aa \
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                r"JSON object must have key 'inc_lower' "
-                r"with value true or false"):
+                r'JSON object representing a range must include an "inc_lower"'
+                r' boolean property'):
             async with self.con.transaction():
                 await self.con.query_single(r'''
                     select <range<int64>>to_json('true') =
@@ -7582,6 +7698,17 @@ aa \
                 };
             """)
 
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "custom message",
+        ):
+            await self.con.query("""
+                SELECT assert_single(
+                    (SELECT User FILTER .name ILIKE "Hunter B%"),
+                    message := "custom message",
+                );
+            """)
+
     async def test_edgeql_assert_single_no_op(self):
         await self.con.query("""
             SELECT assert_single(1)
@@ -7703,6 +7830,17 @@ aa \
             await self.con.query("""
                 SELECT assert_exists(
                     (SELECT User FILTER .name = "nonexistent")
+                ).name;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "custom message",
+        ):
+            await self.con.query("""
+                SELECT assert_exists(
+                    (SELECT User FILTER .name = "nonexistent"),
+                    message := "custom message",
                 ).name;
             """)
 
@@ -7840,6 +7978,14 @@ aa \
         ):
             await self.con.query("""
                 SELECT assert_distinct({(), ()});
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "custom message",
+        ):
+            await self.con.query("""
+                SELECT assert_distinct({(), ()}, message := "custom message");
             """)
 
     async def test_edgeql_assert_distinct_no_op(self):

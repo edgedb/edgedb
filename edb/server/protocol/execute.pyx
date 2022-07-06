@@ -65,14 +65,16 @@ async def execute(
         dbv.start(query_unit)
         if query_unit.create_db_template:
             await server._on_before_create_db_from_template(
-                query_unit.create_db_template, dbv.dbname
+                query_unit.create_db_template,
+                dbv.dbname,
             )
         if query_unit.drop_db:
-            await server._on_before_drop_db(
-                query_unit.drop_db, dbv.dbname)
+            await server._on_before_drop_db(query_unit.drop_db, dbv.dbname)
         if query_unit.system_config:
             await execute_system_config(be_conn, dbv, query_unit)
         else:
+            config_ops = query_unit.config_ops
+
             if query_unit.sql:
                 if query_unit.ddl_stmt_id:
                     ddl_ret = await be_conn.run_ddl(query_unit, state)
@@ -89,19 +91,18 @@ async def execute(
                         use_prep_stmt,      # =use_prep_stmt
                         state,              # =state
                         dbv.dbver,          # =dbver
-                        not query_unit.set_global,  # =return_data
                     )
+
+                    if query_unit.set_global and data:
+                        config_ops = [
+                            config.Operation.from_json(r[0][1:])
+                            for r in data
+                        ]
+
                 if state is not None:
                     # state is restored, clear orig_state so that we can
                     # set be_conn.last_state correctly later
                     orig_state = None
-
-            config_ops = query_unit.config_ops
-            if query_unit.set_global:
-                new_config_ops = await finish_set_global(
-                    be_conn, query_unit, state)
-                if new_config_ops:
-                    config_ops = new_config_ops
 
             if query_unit.tx_savepoint_rollback:
                 dbv.rollback_tx_to_savepoint(query_unit.sp_name)
@@ -111,16 +112,14 @@ async def execute(
                     query_unit.sp_name, query_unit.sp_id)
 
             if query_unit.create_db:
-                await server.introspect_db(
-                    query_unit.create_db
-                )
+                await server.introspect_db(query_unit.create_db)
 
             if query_unit.drop_db:
-                server._on_after_drop_db(
-                    query_unit.drop_db)
+                server._on_after_drop_db(query_unit.drop_db)
 
             if config_ops:
                 await dbv.apply_config_ops(be_conn, config_ops)
+
     except Exception as ex:
         dbv.on_error()
 
@@ -313,29 +312,6 @@ async def execute_system_config(
     if query_unit.backend_config:
         await conn.simple_query(
             b'SELECT pg_reload_conf()', ignore_data=True)
-
-
-async def finish_set_global(conn, query_unit, state):
-    config_ops = None
-    try:
-        try:
-            if state is not None:
-                await conn.wait_for_state_resp(
-                    state, bool(query_unit.tx_id))
-            for sql in query_unit.sql:
-                data = await conn.wait_for_command(
-                    ignore_data=False
-                )
-            if data:
-                config_ops = [
-                    config.Operation.from_json(r[0][1:])
-                    for r in data
-                ]
-        finally:
-            await conn.wait_for_sync()
-    finally:
-        await conn.after_command()
-    return config_ops
 
 
 def signal_side_effects(dbv, side_effects):
