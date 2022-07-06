@@ -781,10 +781,10 @@ _server_options = [
     click.option(
         '--admin-ui',
         type=click.Choice(
-            ['enabled', 'disabled'],
+            ['default', 'enabled', 'disabled'],
             case_sensitive=True,
         ),
-        default='disabled',
+        default='default',
         help='Enable admin UI.'),
 ]
 
@@ -1195,6 +1195,12 @@ def parse_args(**kwargs: Any):
     kwargs['backend_capability_sets'] = (
         kwargs.pop('backend_capabilities') or BackendCapabilitySets([], [])
     )
+
+    if kwargs['admin_ui'] == 'default':
+        if devmode.is_in_dev_mode():
+            kwargs['admin_ui'] = 'enabled'
+        else:
+            kwargs['admin_ui'] = 'disabled'
 
     kwargs['admin_ui'] = kwargs['admin_ui'] == 'enabled'
 
