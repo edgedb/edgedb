@@ -7301,3 +7301,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
           })),
         };
         ''')
+
+    async def test_edgeql_shape_computed_alias_01(self):
+        # Issue #4023 had this producing an incorrect key name in JSON mode
+        await self.assert_query_result(
+            r'''
+            select schema::Type {is_abstract} filter .name = 'std::Object';
+            ''',
+            [{"is_abstract": True}]
+        )
