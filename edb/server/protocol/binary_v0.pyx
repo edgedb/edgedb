@@ -166,13 +166,111 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             raise errors.BinaryProtocolError(
                 f'unsupported "describe" message mode {chr(rtype)!r}')
 
+    async def legacy_auth(self, params):
+        cdef:
+            WriteBuffer msg_buf
+            WriteBuffer buf
+
+        user = params.get('user')
+        if not user:
+            raise errors.BinaryProtocolError(
+                f'missing required connection parameter in ClientHandshake '
+                f'message: "user"'
+            )
+
+        database = params.get('database')
+        if not database:
+            raise errors.BinaryProtocolError(
+                f'missing required connection parameter in ClientHandshake '
+                f'message: "database"'
+            )
+
+        logger.debug('received connection request by %s to database %s',
+                     user, database)
+
+        if database in edbdef.EDGEDB_SPECIAL_DBS:
+            # Prevent connections to internal system databases,
+            # which only purpose is to serve as a template for new
+            # databases.
+            raise errors.AccessError(
+                f'database {database!r} does not '
+                f'accept connections'
+            )
+
+        await self._start_connection(database)
+
+        # The user has already been authenticated by other means
+        # (such as the ability to write to a protected socket).
+        if self._external_auth:
+            authmethod_name = 'Trust'
+        else:
+            authmethod = await self.server.get_auth_method(
+                user, self._transport_proto)
+            authmethod_name = type(authmethod).__name__
+
+        if authmethod_name == 'SCRAM':
+            await self._auth_scram(user)
+        elif authmethod_name == 'JWT':
+            self._auth_jwt(user)
+        elif authmethod_name == 'Trust':
+            self._auth_trust(user)
+        else:
+            raise errors.InternalServerError(
+                f'unimplemented auth method: {authmethod_name}')
+
+        logger.debug('successfully authenticated %s in database %s',
+                     user, database)
+
+        if self._transport_proto is srvargs.ServerConnTransport.HTTP:
+            return
+
+        buf = WriteBuffer()
+
+        msg_buf = WriteBuffer.new_message(b'R')
+        msg_buf.write_int32(0)
+        msg_buf.end_message()
+        buf.write_buffer(msg_buf)
+
+        msg_buf = WriteBuffer.new_message(b'K')
+        # TODO: should send ID of this connection
+        msg_buf.write_bytes(b'\x00' * 32)
+        msg_buf.end_message()
+        buf.write_buffer(msg_buf)
+
+        self.write(buf)
+
+        if self.server.in_dev_mode():
+            pgaddr = dict(self.server._get_pgaddr())
+            if pgaddr.get('password'):
+                pgaddr['password'] = '********'
+            pgaddr['database'] = self.server.get_pg_dbname(
+                self.get_dbview().dbname
+            )
+            pgaddr.pop('ssl', None)
+            if 'sslmode' in pgaddr:
+                pgaddr['sslmode'] = pgaddr['sslmode'].name
+            self.write_status(b'pgaddr', json.dumps(pgaddr).encode())
+
+        self.write_status(
+            b'suggested_pool_concurrency',
+            str(self.server.get_suggested_client_pool_size()).encode()
+        )
+        self.write_status(
+            b'system_config',
+            self.server.get_report_config_data()
+        )
+
+        self.write(self.sync_status())
+
+        self.flush()
+
     async def legacy_main(self, params):
         cdef:
             char mtype
             bint flush_sync_on_error
 
         try:
-            await self.auth(params)
+            await self.legacy_auth(params)
         except Exception as ex:
             if self._transport is not None:
                 # If there's no transport it means that the connection
