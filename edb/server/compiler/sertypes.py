@@ -863,12 +863,8 @@ class StateSerializer:
     def encode(self, state) -> bytes:
         return self._codec.encode(state)
 
-    def decode(self, type_id: bytes, state: bytes):
-        if type_id != self._type_id.bytes:
-            raise errors.StateMismatchError(
-                "Cannot decode state: type mismatch"
-            )
-        return self._type_id, self._codec.decode(state)
+    def decode(self, state: bytes):
+        return self._codec.decode(state)
 
     def get_global_array_type_id(self, global_name):
         return self._globals_array_type_ids.get(global_name)

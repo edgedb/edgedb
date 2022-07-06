@@ -108,23 +108,30 @@ cdef class DatabaseConnectionView:
         bint _query_cache_enabled
         object _protocol_version
 
-        object _config
-        object _globals
-
         object _db_config_temp
         object _db_config_dbver
 
+        # State properties
+        object _config
+        object _in_tx_config
+
+        object _globals
+        object _in_tx_globals
+
         object _modaliases
         object _in_tx_modaliases
+
+        object _state_serializer
+        object _in_tx_state_serializer
+        object _command_state_serializer
+
         tuple _session_state_db_cache
         tuple _session_state_cache
-        object _current_state_serializer
+
 
         object _eql_to_compiled
 
         object _txid
-        object _in_tx_config
-        object _in_tx_globals
         object _in_tx_db_config
         object _in_tx_savepoints
         object _in_tx_user_schema_pickled
@@ -132,7 +139,6 @@ cdef class DatabaseConnectionView:
         object _in_tx_global_schema_pickled
         object _in_tx_global_schema
         object _in_tx_new_types
-        object _in_tx_state_serializer
         int _in_tx_dbver
         bint _in_tx
         bint _in_tx_with_ddl
@@ -179,6 +185,9 @@ cdef class DatabaseConnectionView:
     cpdef get_globals(self)
     cpdef set_globals(self, new_globals)
 
+    cdef get_state_serializer(self)
+    cdef set_state_serializer(self, new_serializer)
+
     cdef update_database_config(self)
     cdef get_database_config(self)
     cdef set_database_config(self, new_conf)
@@ -190,8 +199,8 @@ cdef class DatabaseConnectionView:
     cpdef get_modaliases(self)
 
     cdef bytes serialize_state(self)
+    cdef bint is_state_desc_changed(self)
     cdef describe_state(self)
-    cdef inline _get_state_serializer(self)
     cdef encode_state(self)
     cdef decode_state(self, type_id, data)
     cdef inline recode_global(self, serializer, k, v)
