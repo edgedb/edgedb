@@ -536,7 +536,7 @@ class TestServerOps(tb.TestCase):
     async def _test_connection(self, con):
         await con.send(
             protocol.Execute(
-                headers=[],
+                annotations=[],
                 allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,

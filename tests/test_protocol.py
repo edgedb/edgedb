@@ -38,7 +38,7 @@ class TestProtocol(ProtocolTestCase):
 
         await self.con.send(
             protocol.Execute(
-                headers=[],
+                annotations=[],
                 allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
@@ -66,7 +66,7 @@ class TestProtocol(ProtocolTestCase):
 
         await self.con.send(
             protocol.Execute(
-                headers=[],
+                annotations=[],
                 allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
@@ -97,7 +97,7 @@ class TestProtocol(ProtocolTestCase):
 
         await self.con.send(
             protocol.ExecuteScript(
-                headers=[],
+                annotations=[],
                 script='START TRANSACTION; SELECT 1/0'
             )
         )
@@ -114,7 +114,7 @@ class TestProtocol(ProtocolTestCase):
 
         await self.con.send(
             protocol.ExecuteScript(
-                headers=[],
+                annotations=[],
                 script='SELECT 1/0'
             )
         )
@@ -131,7 +131,7 @@ class TestProtocol(ProtocolTestCase):
 
         await self.con.send(
             protocol.ExecuteScript(
-                headers=[],
+                annotations=[],
                 script='ROLLBACK'
             )
         )
@@ -150,7 +150,7 @@ class TestProtocol(ProtocolTestCase):
 
         await self.con.send(
             protocol.Parse(
-                headers=[],
+                annotations=[],
                 allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
@@ -174,7 +174,7 @@ class TestProtocol(ProtocolTestCase):
 
         await self.con.send(
             protocol.Parse(
-                headers=[],
+                annotations=[],
                 allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
@@ -197,7 +197,7 @@ class TestProtocol(ProtocolTestCase):
         # While at it, rogue ROLLBACK should be allowed.
         await self.con.send(
             protocol.Execute(
-                headers=[],
+                annotations=[],
                 allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
@@ -226,7 +226,7 @@ class TestProtocol(ProtocolTestCase):
 
         await self.con.send(
             protocol.Execute(
-                headers=[],
+                annotations=[],
                 allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
@@ -283,7 +283,7 @@ class TestServerCancellation(tb.TestCase):
             # seconds, which is long enough for the upcoming cancellation
             await con1.send(
                 protocol.Execute(
-                    headers=[],
+                    annotations=[],
                     allowed_capabilities=protocol.Capability.ALL,
                     compilation_flags=protocol.CompilationFlag(0),
                     implicit_limit=0,
@@ -354,7 +354,7 @@ class TestServerCancellation(tb.TestCase):
             try:
                 await con.send(
                     protocol.Execute(
-                        headers=[],
+                        annotations=[],
                         allowed_capabilities=protocol.Capability.ALL,
                         compilation_flags=protocol.CompilationFlag(0),
                         implicit_limit=0,

@@ -406,12 +406,18 @@ class Struct:
         return str(buf)
 
 
-class Header(Struct):
-    code = UInt16('Header code (specific to the type of the Message).')
-    value = Bytes('Header data.')
+class KeyValue(Struct):
+    code = UInt16('Key code (specific to the type of the Message).')
+    value = Bytes('Value data.')
 
 
-Headers = ArrayOf(UInt16, Header, 'A set of message headers.')
+class Annotation(Struct):
+    name = String('Name of the annotation')
+    value = String('Value of the annotation (in JSON format).')
+
+
+KeyValues = ArrayOf(UInt16, KeyValue, 'A set of key-value pairs.')
+Annotations = ArrayOf(UInt16, Annotation, 'A set of annotations.')
 MessageLength = UInt32('Length of message contents in bytes, including self.')
 
 MessageType = (lambda letter: UInt8(f"Message type ('{letter}').",
@@ -533,7 +539,7 @@ class ErrorResponse(ServerMessage):
     severity = EnumOf(UInt8, ErrorSeverity, 'Message severity.')
     error_code = UInt32('Message code.')
     message = String('Error message.')
-    attributes = ArrayOf(UInt16, Header, 'Error attributes.')
+    attributes = ArrayOf(UInt16, KeyValue, 'Error attributes.')
 
 
 class MessageSeverity(enum.Enum):
@@ -550,7 +556,7 @@ class LogMessage(ServerMessage):
     severity = EnumOf(UInt8, MessageSeverity, 'Message severity.')
     code = UInt32('Message code.')
     text = String('Message text.')
-    attributes = ArrayOf(UInt16, Header, 'Message attributes.')
+    annotations = ArrayOf(UInt16, Annotation, 'Message annotations.')
 
 
 class TransactionState(enum.Enum):
@@ -564,7 +570,7 @@ class ReadyForCommand(ServerMessage):
 
     mtype = MessageType('Z')
     message_length = MessageLength
-    headers = Headers
+    annotations = Annotations
     transaction_state = EnumOf(UInt8, TransactionState, 'Transaction state.')
 
 
@@ -572,7 +578,7 @@ class RestoreReady(ServerMessage):
 
     mtype = MessageType('+')
     message_length = MessageLength
-    headers = Headers
+    annotations = Annotations
     jobs = UInt16('Number of parallel jobs for restore, currently always "1"')
 
 
@@ -585,7 +591,7 @@ class CommandComplete(ServerMessage):
 
     mtype = MessageType('C')
     message_length = MessageLength
-    headers = Headers
+    annotations = Annotations
     capabilities = EnumOf(UInt64, Capability,
                           'A bit mask of allowed capabilities.')
     status = String('Command status.')
@@ -598,7 +604,7 @@ class CommandDataDescription(ServerMessage):
 
     mtype = MessageType('T')
     message_length = MessageLength
-    headers = Headers
+    annotations = Annotations
     capabilities = EnumOf(UInt64, Capability,
                           'A bit mask of allowed capabilities.')
     result_cardinality = EnumOf(
@@ -647,7 +653,7 @@ class DumpHeader(ServerMessage):
 
     mtype = MessageType('@')
     message_length = MessageLength
-    headers = Headers
+    attributes = KeyValues
     major_ver = UInt16('Major version of EdgeDB.')
     minor_ver = UInt16('Minor version of EdgeDB.')
     schema_ddl = String('Schema.')
@@ -659,7 +665,7 @@ class DumpBlock(ServerMessage):
 
     mtype = MessageType('=')
     message_length = MessageLength
-    headers = Headers
+    attributes = KeyValues
 
 
 class ServerKeyData(ServerMessage):
@@ -687,7 +693,7 @@ class ParameterStatus_SystemConfig(Struct):
 class ProtocolExtension(Struct):
 
     name = String('Extension name.')
-    headers = ArrayOf(UInt16, Header, 'A set of extension headers.')
+    annotations = ArrayOf(UInt16, Annotation, 'A set of extension annotaions.')
 
 
 class ServerHandshake(ServerMessage):
@@ -746,7 +752,7 @@ class Dump(ClientMessage):
 
     mtype = MessageType('>')
     message_length = MessageLength
-    headers = Headers
+    annotations = Annotations
 
 
 class Sync(ClientMessage):
@@ -765,7 +771,7 @@ class Restore(ClientMessage):
 
     mtype = MessageType('<')
     message_length = MessageLength
-    headers = Headers
+    attributes = KeyValues
     jobs = UInt16(
         'Number of parallel jobs for restore (only "1" is supported)')
     header_data = Bytes(
@@ -790,7 +796,7 @@ class Parse(ClientMessage):
 
     mtype = MessageType('P')
     message_length = MessageLength
-    headers = Headers
+    annotations = Annotations
     allowed_capabilities = EnumOf(UInt64, Capability,
                                   'A bit mask of allowed capabilities.')
     compilation_flags = EnumOf(UInt64, CompilationFlag,
@@ -808,7 +814,7 @@ class Execute(ClientMessage):
 
     mtype = MessageType('O')
     message_length = MessageLength
-    headers = Headers
+    annotations = Annotations
     allowed_capabilities = EnumOf(UInt64, Capability,
                                   'A bit mask of allowed capabilities.')
     compilation_flags = EnumOf(UInt64, CompilationFlag,
