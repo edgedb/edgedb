@@ -31,18 +31,14 @@ from edb.testbase.protocol.test import ProtocolTestCase
 
 class TestProtocol(ProtocolTestCase):
 
-    async def test_proto_executescript_01(self):
-        # Test that ExecuteScript returns ErrorResponse immediately.
-
-        await self.con.connect()
-
-        await self.con.send(
+    async def _execute(self, command_text, sync=True):
+        args = (
             protocol.Execute(
                 annotations=[],
                 allowed_capabilities=protocol.Capability.ALL,
                 compilation_flags=protocol.CompilationFlag(0),
                 implicit_limit=0,
-                command_text='SELECT 1/0',
+                command_text=command_text,
                 output_format=protocol.OutputFormat.NONE,
                 expected_cardinality=protocol.Cardinality.MANY,
                 input_typedesc_id=b'\0' * 16,
@@ -51,8 +47,17 @@ class TestProtocol(ProtocolTestCase):
                 arguments=b'',
                 state_data=b'',
             ),
-            protocol.Sync(),
         )
+        if sync:
+            args += (protocol.Sync(),)
+        await self.con.send(*args)
+
+    async def test_proto_execute_01(self):
+        # Test that Execute returns ErrorResponse immediately.
+
+        await self.con.connect()
+
+        await self._execute('SELECT 1/0; SELECT 42')
         await self.con.recv_match(
             protocol.ErrorResponse,
             message='division by zero'
@@ -63,24 +68,7 @@ class TestProtocol(ProtocolTestCase):
         )
 
         # Test that the protocol has recovered.
-
-        await self.con.send(
-            protocol.Execute(
-                annotations=[],
-                allowed_capabilities=protocol.Capability.ALL,
-                compilation_flags=protocol.CompilationFlag(0),
-                implicit_limit=0,
-                command_text='SELECT 1',
-                output_format=protocol.OutputFormat.NONE,
-                expected_cardinality=protocol.Cardinality.MANY,
-                input_typedesc_id=b'\0' * 16,
-                output_typedesc_id=b'\0' * 16,
-                state_typedesc_id=b'\0' * 16,
-                arguments=b'',
-                state_data=b'',
-            ),
-            protocol.Sync(),
-        )
+        await self._execute('SELECT 1')
         await self.con.recv_match(
             protocol.CommandComplete,
             status='SELECT'
@@ -90,17 +78,22 @@ class TestProtocol(ProtocolTestCase):
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
 
-    async def _test_proto_executescript_02(self):
+    async def test_proto_execute_02(self):
         # Test ReadyForCommand.transaction_state
 
         await self.con.connect()
 
-        await self.con.send(
-            protocol.ExecuteScript(
-                annotations=[],
-                script='START TRANSACTION; SELECT 1/0'
-            )
+        await self._execute('START TRANSACTION')
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='START TRANSACTION'
         )
+        await self.con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.IN_TRANSACTION,
+        )
+
+        await self._execute('SELECT 1/0')
         await self.con.recv_match(
             protocol.ErrorResponse,
             message='division by zero'
@@ -111,13 +104,7 @@ class TestProtocol(ProtocolTestCase):
         )
 
         # Test that the protocol is still in a failed transaction
-
-        await self.con.send(
-            protocol.ExecuteScript(
-                annotations=[],
-                script='SELECT 1/0'
-            )
-        )
+        await self._execute('SELECT 1/0')
         await self.con.recv_match(
             protocol.ErrorResponse,
             message='current transaction is aborted'
@@ -128,13 +115,7 @@ class TestProtocol(ProtocolTestCase):
         )
 
         # Test recovery
-
-        await self.con.send(
-            protocol.ExecuteScript(
-                annotations=[],
-                script='ROLLBACK'
-            )
-        )
+        await self._execute('ROLLBACK')
         await self.con.recv_match(
             protocol.CommandComplete,
             status='ROLLBACK'
@@ -195,23 +176,7 @@ class TestProtocol(ProtocolTestCase):
         # command should be executed and no exception should
         # be received.
         # While at it, rogue ROLLBACK should be allowed.
-        await self.con.send(
-            protocol.Execute(
-                annotations=[],
-                allowed_capabilities=protocol.Capability.ALL,
-                compilation_flags=protocol.CompilationFlag(0),
-                implicit_limit=0,
-                command_text='ROLLBACK',
-                output_format=protocol.OutputFormat.NONE,
-                expected_cardinality=protocol.Cardinality.MANY,
-                input_typedesc_id=b'\0' * 16,
-                output_typedesc_id=b'\0' * 16,
-                state_typedesc_id=b'\0' * 16,
-                arguments=b'',
-                state_data=b'',
-            ),
-            protocol.Sync(),
-        )
+        await self._execute('ROLLBACK')
         await self.con.recv_match(
             protocol.CommandComplete,
             status='ROLLBACK'
@@ -224,22 +189,7 @@ class TestProtocol(ProtocolTestCase):
     async def test_proto_args_mismatch(self):
         await self.con.connect()
 
-        await self.con.send(
-            protocol.Execute(
-                annotations=[],
-                allowed_capabilities=protocol.Capability.ALL,
-                compilation_flags=protocol.CompilationFlag(0),
-                implicit_limit=0,
-                command_text='SELECT <str>$0',
-                output_format=protocol.OutputFormat.NONE,
-                expected_cardinality=protocol.Cardinality.MANY,
-                input_typedesc_id=b'\0' * 16,
-                output_typedesc_id=b'\0' * 16,
-                state_typedesc_id=b'\0' * 16,
-                arguments=b'',
-                state_data=b'',
-            ),
-        )
+        await self._execute('SELECT <str>$0', sync=False)
         # Should come through even without an explicit 'flush'
         await self.con.recv_match(protocol.CommandDataDescription)
         await self.con.recv_match(
@@ -255,28 +205,12 @@ class TestProtocol(ProtocolTestCase):
             await self.con.sync(),
             protocol.TransactionState.NOT_IN_TRANSACTION)
 
-    async def test_state_desc_in_script(self):
+    async def test_proto_state_desc_in_script(self):
         await self.con.connect()
 
-        await self.con.send(
-            protocol.Execute(
-                annotations=[],
-                allowed_capabilities=protocol.Capability.ALL,
-                compilation_flags=protocol.CompilationFlag(0),
-                implicit_limit=0,
-                command_text=(
-                    'CREATE GLOBAL state_desc_in_script -> int32;'
-                    'SELECT GLOBAL state_desc_in_script;'
-                ),
-                output_format=protocol.OutputFormat.NONE,
-                expected_cardinality=protocol.Cardinality.MANY,
-                input_typedesc_id=b'\0' * 16,
-                output_typedesc_id=b'\0' * 16,
-                state_typedesc_id=b'\0' * 16,
-                arguments=b'',
-                state_data=b'',
-            ),
-            protocol.Sync(),
+        await self._execute(
+            'CREATE GLOBAL state_desc_in_script -> int32;'
+            'SELECT GLOBAL state_desc_in_script;'
         )
         await self.con.recv_match(protocol.StateDataDescription)
         await self.con.recv_match(
