@@ -17,6 +17,7 @@
 #
 
 
+import webbrowser
 import subprocess
 import sys
 
@@ -30,10 +31,44 @@ from edb.tools.edb import edbcommands
                      add_help_option=False,
                      context_settings=dict(ignore_unknown_options=True))
 @click.argument('args', nargs=-1, type=click.UNPROCESSED)
-def cli(args: list[str]):
+def cli(args: tuple[str, ...]):
     """Run edgedb CLI with `-H localhost`."""
 
-    args = list(args)
+    args_list = _ensure_linked(args)
+
+    if (
+        '--wait-until-available' not in args_list and
+        not any('--wait-until-available=' in a for a in args_list)
+    ):
+        args_list += ['--wait-until-available', '5s']
+
+    sys.exit(rustcli.rustcli(args=[sys.argv[0], *args_list]))
+
+
+@edbcommands.command('ui',
+                     add_help_option=False,
+                     context_settings=dict(ignore_unknown_options=True))
+@click.argument('args', nargs=-1, type=click.UNPROCESSED)
+def ui(args: tuple[str, ...]):
+    """Run edgedb GUI with `-H localhost`."""
+
+    _ensure_linked(args)
+    jwt = subprocess.check_output(
+        [
+            sys.executable,
+            "-m",
+            "edb.cli",
+            "instance",
+            "_ui_token",
+            "--instance=_localdev",
+        ],
+        text=True,
+    ).strip()
+
+    webbrowser.open(f"http://127.0.0.1:5656/ui?authToken={jwt}")
+
+
+def _ensure_linked(args: tuple[str, ...]) -> list[str]:
 
     if (
         '--host' not in args and
@@ -46,7 +81,6 @@ def cli(args: list[str]):
         not any(a.startswith('-I') for a in args) and
         not any(a.startswith('--instance=') for a in args)
     ):
-        args += ['-I', '_localdev']
         subprocess.check_call([
             sys.executable,
             "-m",
@@ -61,10 +95,6 @@ def cli(args: list[str]):
             "_localdev",
         ])
 
-    if (
-        '--wait-until-available' not in args and
-        not any('--wait-until-available=' in a for a in args)
-    ):
-        args += ['--wait-until-available', '5s']
-
-    sys.exit(rustcli.rustcli(args=[sys.argv[0], *args]))
+        return list(args) + ['-I', '_localdev']
+    else:
+        return list(args)
