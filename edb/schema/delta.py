@@ -3643,6 +3643,7 @@ class DeleteExternalObject(
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
+        self._validate_legal_command(schema, context)
         return schema
 
     def _delete_innards(

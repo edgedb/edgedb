@@ -117,3 +117,14 @@ class AlterDatabase(DatabaseCommand, sd.AlterObject[Database]):
 
 class DropDatabase(DatabaseCommand, sd.DeleteExternalObject[Database]):
     astnode = qlast.DropDatabase
+
+    def _validate_legal_command(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super()._validate_legal_command(schema, context)
+        if self.classname.name in s_def.EDGEDB_SPECIAL_DBS:
+            raise errors.ExecutionError(
+                f"database {self.classname.name!r} cannot be dropped"
+            )

@@ -217,3 +217,14 @@ class AlterRole(RoleCommand, inheriting.AlterInheritingObject[Role]):
 
 class DeleteRole(RoleCommand, inheriting.DeleteInheritingObject[Role]):
     astnode = qlast.DropRole
+
+    def _validate_legal_command(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super()._validate_legal_command(schema, context)
+        if self.classname.name == s_def.EDGEDB_SUPERUSER:
+            raise errors.ExecutionError(
+                f"role {self.classname.name!r} cannot be dropped"
+            )

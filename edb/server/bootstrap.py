@@ -1094,7 +1094,10 @@ async def _compile_sys_queries(
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
-        'SELECT (SELECT sys::Database FILTER NOT .builtin).name',
+        f"""SELECT (
+            SELECT sys::Database
+            FILTER .name != "{edbdef.EDGEDB_TEMPLATE_DB}"
+        ).name""",
         expected_cardinality_one=False,
     )
 
