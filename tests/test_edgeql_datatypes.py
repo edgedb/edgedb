@@ -251,6 +251,12 @@ class TestEdgeQLDT(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
+            r"SELECT <json><cal::date_duration>'5 months -150 days'",
+            ['P5M-150D'],
+            ['"P5M-150D"'],
+        )
+
+        await self.assert_query_result(
             r"""
             WITH
                 dt := <datetime>'2000-01-01T00:00:00Z',

@@ -1278,7 +1278,7 @@ CREATE CAST FROM cal::date_duration TO std::str {
     # We want the 0 date_duration canonically represented be in lowest
     # date_duration units, i.e. in days.
     USING SQL $$
-    SELECT CASE WHEN (val = '0'::interval)
+    SELECT CASE WHEN (val::text = 'PT0S')
         THEN 'P0D'
         ELSE val::text
     END
@@ -1316,7 +1316,7 @@ CREATE CAST FROM cal::date_duration TO std::json {
     # We want the 0 date_duration canonically represented be in lowest
     # date_duration units, i.e. in days.
     USING SQL $$
-    SELECT CASE WHEN (val = '0'::interval)
+    SELECT CASE WHEN (val::text = 'PT0S')
         THEN to_jsonb('P0D'::text)
         ELSE to_jsonb(val)
     END
