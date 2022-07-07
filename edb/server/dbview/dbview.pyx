@@ -869,6 +869,7 @@ cdef class DatabaseConnectionView:
         if self._in_tx_new_types:
             self._db._update_backend_ids(self._in_tx_new_types)
         if user_schema is not None:
+            self._state_serializer = None
             self._db._set_and_signal_new_user_schema(
                 pickle.loads(user_schema),
                 pickle.loads(cached_reflection)

@@ -255,6 +255,39 @@ class TestProtocol(ProtocolTestCase):
             await self.con.sync(),
             protocol.TransactionState.NOT_IN_TRANSACTION)
 
+    async def test_state_desc_in_script(self):
+        await self.con.connect()
+
+        await self.con.send(
+            protocol.Execute(
+                annotations=[],
+                allowed_capabilities=protocol.Capability.ALL,
+                compilation_flags=protocol.CompilationFlag(0),
+                implicit_limit=0,
+                command_text=(
+                    'CREATE GLOBAL state_desc_in_script -> int32;'
+                    'SELECT GLOBAL state_desc_in_script;'
+                ),
+                output_format=protocol.OutputFormat.NONE,
+                expected_cardinality=protocol.Cardinality.MANY,
+                input_typedesc_id=b'\0' * 16,
+                output_typedesc_id=b'\0' * 16,
+                state_typedesc_id=b'\0' * 16,
+                arguments=b'',
+                state_data=b'',
+            ),
+            protocol.Sync(),
+        )
+        await self.con.recv_match(protocol.StateDataDescription)
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='SELECT'
+        )
+        await self.con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
+        )
+
 
 class TestServerCancellation(tb.TestCase):
     @contextlib.asynccontextmanager
