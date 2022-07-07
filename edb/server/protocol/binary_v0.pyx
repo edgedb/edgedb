@@ -264,6 +264,392 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
         self.flush()
 
+    async def legacy_dump(self):
+        cdef:
+            WriteBuffer msg_buf
+            dbview.DatabaseConnectionView _dbview
+
+        self.reject_headers()
+        self.buffer.finish_message()
+
+        _dbview = self.get_dbview()
+        if _dbview.txid:
+            raise errors.ProtocolError(
+                'DUMP must not be executed while in transaction'
+            )
+
+        server = self.server
+        compiler_pool = server.get_compiler_pool()
+
+        dbname = _dbview.dbname
+        pgcon = await server.acquire_pgcon(dbname)
+        self._in_dump_restore = True
+        try:
+            # To avoid having races, we want to:
+            #
+            #   1. start a transaction;
+            #
+            #   2. in the compiler process we connect to that transaction
+            #      and re-introspect the schema in it.
+            #
+            #   3. all dump worker pg connection would work on the same
+            #      connection.
+            #
+            # This guarantees that every pg connection and the compiler work
+            # with the same DB state.
+
+            await pgcon.simple_query(
+                b'''START TRANSACTION
+                        ISOLATION LEVEL SERIALIZABLE
+                        READ ONLY
+                        DEFERRABLE;
+
+                    -- Disable transaction or query execution timeout
+                    -- limits. Both clients and the server can be slow
+                    -- during the dump/restore process.
+                    SET idle_in_transaction_session_timeout = 0;
+                    SET statement_timeout = 0;
+                ''',
+                True
+            )
+
+            user_schema = await server.introspect_user_schema(pgcon)
+            global_schema = await server.introspect_global_schema(pgcon)
+            db_config = await server.introspect_db_config(pgcon)
+            dump_protocol = self.max_protocol
+
+            schema_ddl, schema_dynamic_ddl, schema_ids, blocks = (
+                await compiler_pool.describe_database_dump(
+                    user_schema,
+                    global_schema,
+                    db_config,
+                    dump_protocol,
+                )
+            )
+
+            if schema_dynamic_ddl:
+                for query in schema_dynamic_ddl:
+                    result = await pgcon.simple_query(
+                        query.encode('utf-8'),
+                        ignore_data=False,
+                    )
+                    if result:
+                        schema_ddl += '\n' + result[0][0].decode('utf-8')
+
+            msg_buf = WriteBuffer.new_message(b'@')
+
+            msg_buf.write_int16(3)  # number of headers
+            msg_buf.write_int16(DUMP_HEADER_BLOCK_TYPE)
+            msg_buf.write_len_prefixed_bytes(DUMP_HEADER_BLOCK_TYPE_INFO)
+            msg_buf.write_int16(DUMP_HEADER_SERVER_VER)
+            msg_buf.write_len_prefixed_utf8(str(buildmeta.get_version()))
+            msg_buf.write_int16(DUMP_HEADER_SERVER_TIME)
+            msg_buf.write_len_prefixed_utf8(str(int(time.time())))
+
+            msg_buf.write_int16(dump_protocol[0])
+            msg_buf.write_int16(dump_protocol[1])
+            msg_buf.write_len_prefixed_utf8(schema_ddl)
+
+            msg_buf.write_int32(len(schema_ids))
+            for (tn, td, tid) in schema_ids:
+                msg_buf.write_len_prefixed_utf8(tn)
+                msg_buf.write_len_prefixed_utf8(td)
+                assert len(tid) == 16
+                msg_buf.write_bytes(tid)  # uuid
+
+            msg_buf.write_int32(len(blocks))
+            for block in blocks:
+                assert len(block.schema_object_id.bytes) == 16
+                msg_buf.write_bytes(block.schema_object_id.bytes)  # uuid
+                msg_buf.write_len_prefixed_bytes(block.type_desc)
+
+                msg_buf.write_int16(len(block.schema_deps))
+                for depid in block.schema_deps:
+                    assert len(depid.bytes) == 16
+                    msg_buf.write_bytes(depid.bytes)  # uuid
+
+            self._transport.write(memoryview(msg_buf.end_message()))
+            self.flush()
+
+            blocks_queue = collections.deque(blocks)
+            output_queue = asyncio.Queue(maxsize=2)
+
+            async with taskgroup.TaskGroup() as g:
+                g.create_task(pgcon.dump(
+                    blocks_queue,
+                    output_queue,
+                    DUMP_BLOCK_SIZE,
+                ))
+
+                nstops = 0
+                while True:
+                    if self._cancelled:
+                        raise ConnectionAbortedError
+
+                    out = await output_queue.get()
+                    if out is None:
+                        nstops += 1
+                        if nstops == 1:
+                            # we only have one worker right now
+                            break
+                    else:
+                        block, block_num, data = out
+
+                        msg_buf = WriteBuffer.new_message(b'=')
+                        msg_buf.write_int16(4)  # number of headers
+
+                        msg_buf.write_int16(DUMP_HEADER_BLOCK_TYPE)
+                        msg_buf.write_len_prefixed_bytes(
+                            DUMP_HEADER_BLOCK_TYPE_DATA)
+                        msg_buf.write_int16(DUMP_HEADER_BLOCK_ID)
+                        msg_buf.write_len_prefixed_bytes(
+                            block.schema_object_id.bytes)
+                        msg_buf.write_int16(DUMP_HEADER_BLOCK_NUM)
+                        msg_buf.write_len_prefixed_bytes(
+                            str(block_num).encode())
+                        msg_buf.write_int16(DUMP_HEADER_BLOCK_DATA)
+                        msg_buf.write_len_prefixed_buffer(data)
+
+                        self._transport.write(memoryview(msg_buf.end_message()))
+                        if self._write_waiter:
+                            await self._write_waiter
+
+            await pgcon.simple_query(
+                b'''ROLLBACK;''',
+                True
+            )
+
+        finally:
+            self._in_dump_restore = False
+            server.release_pgcon(dbname, pgcon)
+
+        msg_buf = WriteBuffer.new_message(b'C')
+        msg_buf.write_int16(0)  # no headers
+        msg_buf.write_len_prefixed_bytes(b'DUMP')
+        self.write(msg_buf.end_message())
+        self.flush()
+
+    async def legacy_restore(self):
+        cdef:
+            WriteBuffer msg_buf
+            char mtype
+            dbview.DatabaseConnectionView _dbview
+
+        _dbview = self.get_dbview()
+        if _dbview.txid:
+            raise errors.ProtocolError(
+                'RESTORE must not be executed while in transaction'
+            )
+
+        self.reject_headers()
+        self.buffer.read_int16()  # discard -j level
+
+        # Now parse the embedded dump header message:
+
+        server = self.server
+        compiler_pool = server.get_compiler_pool()
+
+        global_schema = _dbview.get_global_schema()
+        user_schema = _dbview.get_user_schema()
+
+        dump_server_ver_str = None
+        headers_num = self.buffer.read_int16()
+        for _ in range(headers_num):
+            hdrname = self.buffer.read_int16()
+            hdrval = self.buffer.read_len_prefixed_bytes()
+            if hdrname == DUMP_HEADER_SERVER_VER:
+                dump_server_ver_str = hdrval.decode('utf-8')
+
+        proto_major = self.buffer.read_int16()
+        proto_minor = self.buffer.read_int16()
+        proto = (proto_major, proto_minor)
+        if proto > DUMP_VER_MAX or proto < DUMP_VER_MIN:
+            raise errors.ProtocolError(
+                f'unsupported dump version {proto_major}.{proto_minor}')
+
+        schema_ddl = self.buffer.read_len_prefixed_bytes()
+
+        ids_num = self.buffer.read_int32()
+        schema_ids = []
+        for _ in range(ids_num):
+            schema_ids.append((
+                self.buffer.read_len_prefixed_utf8(),
+                self.buffer.read_len_prefixed_utf8(),
+                self.buffer.read_bytes(16),
+            ))
+
+        block_num = <uint32_t>self.buffer.read_int32()
+        blocks = []
+        for _ in range(block_num):
+            blocks.append((
+                self.buffer.read_bytes(16),
+                self.buffer.read_len_prefixed_bytes(),
+            ))
+
+            # Ignore deps info
+            for _ in range(self.buffer.read_int16()):
+                self.buffer.read_bytes(16)
+
+        self.buffer.finish_message()
+        dbname = _dbview.dbname
+        pgcon = await server.acquire_pgcon(dbname)
+
+        self._in_dump_restore = True
+        try:
+            _dbview.decode_state(sertypes.NULL_TYPE_ID.bytes, b'')
+            await self._execute_utility_stmt(
+                'START TRANSACTION ISOLATION SERIALIZABLE',
+                pgcon,
+            )
+
+            await pgcon.simple_query(
+                b'''
+                    -- Disable transaction or query execution timeout
+                    -- limits. Both clients and the server can be slow
+                    -- during the dump/restore process.
+                    SET idle_in_transaction_session_timeout = 0;
+                    SET statement_timeout = 0;
+                ''',
+                True
+            )
+
+            schema_sql_units, restore_blocks, tables = \
+                await compiler_pool.describe_database_restore(
+                    user_schema,
+                    global_schema,
+                    dump_server_ver_str,
+                    schema_ddl,
+                    schema_ids,
+                    blocks,
+                    proto,
+                )
+
+            for query_unit in schema_sql_units:
+                new_types = None
+                _dbview.start(query_unit)
+
+                try:
+                    if query_unit.config_ops:
+                        for op in query_unit.config_ops:
+                            if op.scope is config.ConfigScope.INSTANCE:
+                                raise errors.ProtocolError(
+                                    'CONFIGURE INSTANCE cannot be executed'
+                                    ' in dump restore'
+                                )
+
+                    if query_unit.sql:
+                        if query_unit.ddl_stmt_id:
+                            ddl_ret = await pgcon.run_ddl(query_unit)
+                            if ddl_ret and ddl_ret['new_types']:
+                                new_types = ddl_ret['new_types']
+                        else:
+                            await pgcon.simple_query(
+                                b';'.join(query_unit.sql),
+                                ignore_data=True,
+                            )
+                except Exception:
+                    _dbview.on_error()
+                    raise
+                else:
+                    _dbview.on_success(query_unit, new_types)
+
+            restore_blocks = {
+                b.schema_object_id: b
+                for b in restore_blocks
+            }
+
+            disable_trigger_q = ''
+            enable_trigger_q = ''
+            for table in tables:
+                disable_trigger_q += (
+                    f'ALTER TABLE {table} DISABLE TRIGGER ALL;'
+                )
+                enable_trigger_q += (
+                    f'ALTER TABLE {table} ENABLE TRIGGER ALL;'
+                )
+
+            await pgcon.simple_query(
+                disable_trigger_q.encode(),
+                ignore_data=True,
+            )
+
+            # Send "RestoreReadyMessage"
+            msg = WriteBuffer.new_message(b'+')
+            msg.write_int16(0)  # no headers
+            msg.write_int16(1)  # -j1
+            self.write(msg.end_message())
+            self.flush()
+
+            while True:
+                if not self.buffer.take_message():
+                    # Don't report idling when restoring a dump.
+                    # This is an edge case and the client might be
+                    # legitimately slow.
+                    await self.wait_for_message(report_idling=False)
+                mtype = self.buffer.get_message_type()
+
+                if mtype == b'=':
+                    block_type = None
+                    block_id = None
+                    block_num = None
+                    block_data = None
+
+                    num_headers = self.buffer.read_int16()
+                    for _ in range(num_headers):
+                        header = self.buffer.read_int16()
+                        if header == DUMP_HEADER_BLOCK_TYPE:
+                            block_type = self.buffer.read_len_prefixed_bytes()
+                        elif header == DUMP_HEADER_BLOCK_ID:
+                            block_id = self.buffer.read_len_prefixed_bytes()
+                            block_id = pg_UUID(block_id)
+                        elif header == DUMP_HEADER_BLOCK_NUM:
+                            block_num = self.buffer.read_len_prefixed_bytes()
+                        elif header == DUMP_HEADER_BLOCK_DATA:
+                            block_data = self.buffer.read_len_prefixed_bytes()
+
+                    self.buffer.finish_message()
+
+                    if (block_type is None or block_id is None
+                        or block_num is None or block_data is None):
+                        raise errors.ProtocolError('incomplete data block')
+
+                    restore_block = restore_blocks[block_id]
+                    type_id_map = self._build_type_id_map_for_restore_mending(
+                        restore_block)
+                    await pgcon.restore(restore_block, block_data, type_id_map)
+
+                elif mtype == b'.':
+                    self.buffer.finish_message()
+                    break
+
+                else:
+                    self.fallthrough()
+
+            await pgcon.simple_query(
+                enable_trigger_q.encode(),
+                ignore_data=True,
+            )
+
+        except Exception:
+            await pgcon.simple_query(b'ROLLBACK', ignore_data=True)
+            _dbview.abort_tx()
+            raise
+
+        else:
+            await self._execute_utility_stmt('COMMIT', pgcon)
+
+        finally:
+            self._in_dump_restore = False
+            server.release_pgcon(dbname, pgcon)
+
+        await server.introspect_db(dbname)
+
+        msg = WriteBuffer.new_message(b'C')
+        msg.write_int16(0)  # no headers
+        msg.write_len_prefixed_bytes(b'RESTORE')
+        self.write(msg.end_message())
+        self.flush()
+
     async def legacy_main(self, params):
         cdef:
             char mtype
@@ -354,13 +740,13 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         break
 
                     elif mtype == b'>':
-                        await self.dump()
+                        await self.legacy_dump()
 
                     elif mtype == b'<':
                         # The restore protocol cannot send SYNC beforehand,
                         # so if an error occurs the server should send an
                         # ERROR message immediately.
-                        await self.restore()
+                        await self.legacy_restore()
 
                     else:
                         self.fallthrough()
