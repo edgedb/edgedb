@@ -17,7 +17,6 @@
 #
 
 
-import webbrowser
 import subprocess
 import sys
 
@@ -53,19 +52,15 @@ def ui(args: tuple[str, ...]):
     """Run edgedb GUI with `-H localhost`."""
 
     _ensure_linked(args)
-    jwt = subprocess.check_output(
+    subprocess.check_call(
         [
             sys.executable,
             "-m",
             "edb.cli",
-            "instance",
-            "_ui_token",
+            "ui",
             "--instance=_localdev",
         ],
-        text=True,
-    ).strip()
-
-    webbrowser.open(f"http://127.0.0.1:5656/ui?authToken={jwt}")
+    )
 
 
 def _ensure_linked(args: tuple[str, ...]) -> list[str]:
