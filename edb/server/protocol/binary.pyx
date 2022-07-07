@@ -1952,7 +1952,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         msg_buf = WriteBuffer.new_message(b'C')
         msg_buf.write_int16(0)  # no headers
+        msg_buf.write_int64(0)  # capabilities
         msg_buf.write_len_prefixed_bytes(b'DUMP')
+        msg_buf.write_bytes(sertypes.NULL_TYPE_ID.bytes)
+        msg_buf.write_len_prefixed_bytes(b'')
         self.write(msg_buf.end_message())
         self.flush()
 
@@ -2056,6 +2059,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self._in_dump_restore = True
         try:
+            _dbview.decode_state(sertypes.NULL_TYPE_ID.bytes, b'')
             await self._execute_utility_stmt(
                 'START TRANSACTION ISOLATION SERIALIZABLE',
                 pgcon,
@@ -2203,9 +2207,17 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         await server.introspect_db(dbname)
 
+        if _dbview.is_state_desc_changed():
+            self.write(self.make_state_data_description_msg())
+
+        state_tid, state_data = _dbview.encode_state()
+
         msg = WriteBuffer.new_message(b'C')
         msg.write_int16(0)  # no headers
+        msg.write_int64(0)  # capabilities
         msg.write_len_prefixed_bytes(b'RESTORE')
+        msg.write_bytes(state_tid.bytes)
+        msg.write_len_prefixed_bytes(state_data)
         self.write(msg.end_message())
         self.flush()
 
