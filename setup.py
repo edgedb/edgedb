@@ -117,7 +117,8 @@ RUST_VERSION = '1.59.0'  # Also update docs/internal/dev.rst
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 # This can be a branch, tag, or commit
-EDGEDBCLI_COMMIT = 'master'
+# FIXME: edgedb-cli currently breaks the build. Pinning to last good version.
+EDGEDBCLI_COMMIT = '61c0b5ba0539bd1ee41387c9d774f5f733c24f99'
 
 EXTRA_DEPS = {
     'test': TEST_DEPS,
