@@ -451,6 +451,7 @@ class StrToConfigMemoryFunction(dbops.Function):
                 ('val', ('text',)),
             ],
             returns=('edgedb', 'memory_t'),
+            strict=True,
             volatility='immutable',
             language='sql',
             text=self.text,
@@ -2692,6 +2693,7 @@ class StrToBool(dbops.Function):
             name=('edgedb', 'str_to_bool'),
             args=[('val', ('text',))],
             returns=('bool',),
+            strict=True,
             # Stable because it's raising exceptions.
             volatility='stable',
             text=self.text)

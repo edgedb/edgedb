@@ -791,6 +791,8 @@ class ConnectedTestCaseMixin:
                 res, exp_result_json, self.fail, message=msg)
         except Exception:
             self.add_fail_notes(serialization='json')
+            if msg:
+                self.add_fail_notes(msg=msg)
             raise
 
         if json_only:
@@ -822,6 +824,8 @@ class ConnectedTestCaseMixin:
                 serialization='binary',
                 __typenames__=typenames,
                 __typeids__=typeids)
+            if msg:
+                self.add_fail_notes(msg=msg)
             raise
 
 

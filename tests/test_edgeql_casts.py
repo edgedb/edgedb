@@ -2565,3 +2565,48 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             await self.con.execute("""
                 SELECT <array<foo>><array<bar>>['test']
             """)
+
+    async def test_edgeql_casts_all_null(self):
+        # For *every* concrete cast, try casting a value we know
+        # will be represented as NULL.
+
+        # Grab all concrete casts
+        casts = await self.con.query('''
+            select schema::Cast { from_type: {name}, to_type: {name} }
+            filter .from_type.name not like '%any%'
+            and .to_type.name not like '%any%'
+            and not .from_type IS schema::ObjectType
+        ''')
+        from_types = {cast.from_type.name for cast in casts}
+        type_keys = {
+            name: f'x{i}' for i, name in enumerate(sorted(from_types))
+        }
+        # Populate a type that has an optional field for each cast source type
+        sep = '\n                '
+        setup = f'''
+            CREATE TYPE Null {{
+                {sep.join(
+                    f'CREATE PROPERTY {n} -> {t};'
+                    for t, n in type_keys.items()
+                 )}
+            }};
+            INSERT Null;
+        '''
+        await self.con.execute(setup)
+
+        # Do each cast
+        for cast in casts:
+            prop = type_keys[cast.from_type.name]
+            # FIXME: date_duration not supported yet in the bindings
+            json_only = cast.to_type.name == 'cal::date_duration'
+
+            await self.assert_query_result(
+                f'''
+                SELECT Null {{
+                    res := <{cast.to_type.name}>.{prop}
+                }}
+                ''',
+                [{"res": None}],
+                msg=f'{cast.from_type.name} to {cast.to_type.name}',
+                json_only=json_only,
+            )

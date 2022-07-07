@@ -1743,11 +1743,18 @@ class CastCommand(MetaCommand):
 
         returns = types.pg_type_from_object(schema, cast.get_to_type(schema))
 
+        # N.B: Semantically, strict *ought* to be true, since we want
+        # all of our casts to have strict behavior. Unfortunately,
+        # actually marking them as strict causes a huge performance
+        # regression when bootstrapping (and probably anything else that
+        # is heavy on json casts), so instead we just need to make sure
+        # to write cast code that is naturally strict (this is enforced
+        # by test_edgeql_casts_all_null).
         return dbops.Function(
             name=name,
             args=args,
             returns=returns,
-            strict=True,
+            strict=False,
             text=cast.get_code(schema),
         )
 
