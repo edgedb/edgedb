@@ -151,7 +151,7 @@ class Server(ha_base.ClusterProtocol):
         default_auth_method: srvargs.ServerAuthMethods = (
             srvargs.DEFAULT_AUTH_METHODS),
         admin_ui: bool = False,
-        instance_name: Optional[str] = None,
+        instance_name: str,
     ):
         self.__loop = asyncio.get_running_loop()
         self._config_settings = config.get_settings()
@@ -292,6 +292,9 @@ class Server(ha_base.ClusterProtocol):
 
     def get_tenant_id(self):
         return self._tenant_id
+
+    def get_instance_name(self):
+        return self._instance_name
 
     def in_dev_mode(self):
         return self._devmode

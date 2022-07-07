@@ -95,7 +95,9 @@ sys::__version_internal() -> tuple<major: std::int64,
         (SELECT coalesce(array_agg(el), ARRAY[]::text[])
          FROM jsonb_array_elements_text(v -> 'local') AS el)
     FROM
-        edgedb._sys_version() as v
+        (SELECT
+            pg_catalog.current_setting('edgedb.server_version')::jsonb AS v
+        ) AS q
     $$;
 };
 
@@ -136,6 +138,16 @@ sys::get_version_as_str() -> std::str
             ++ (('+' ++ std::array_join(v.local, '.')) IF len(v.local) > 0
                 ELSE '')
     );
+};
+
+
+CREATE FUNCTION sys::get_instance_name() -> std::str{
+    CREATE ANNOTATION std::description :=
+        'Return the server instance name.';
+    SET volatility := 'Stable';
+    USING SQL $$
+        SELECT pg_catalog.current_setting('edgedb.instance_name');
+    $$;
 };
 
 

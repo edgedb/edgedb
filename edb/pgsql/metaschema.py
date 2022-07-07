@@ -3782,29 +3782,6 @@ class ApplySessionConfigFunction(dbops.Function):
         )
 
 
-class SysVersionFunction(dbops.Function):
-
-    text = f'''
-        BEGIN
-        RETURN (
-            SELECT value
-            FROM _edgecon_state
-            WHERE name = 'server_version' AND type = 'R'
-        );
-        END;
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_sys_version'),
-            args=[],
-            returns=('jsonb',),
-            language='plpgsql',
-            volatility='stable',
-            text=self.text,
-        )
-
-
 class SysGetTransactionIsolation(dbops.Function):
     "Get transaction isolation value as text compatible with EdgeDB's enum."
     text = r'''
@@ -4064,7 +4041,6 @@ async def bootstrap(
         dbops.CreateFunction(PostgresConfigValueToJsonFunction()),
         dbops.CreateFunction(SysConfigFullFunction()),
         dbops.CreateFunction(SysConfigFunction()),
-        dbops.CreateFunction(SysVersionFunction()),
         dbops.CreateFunction(ResetSessionConfigFunction()),
         dbops.CreateFunction(ApplySessionConfigFunction(config_spec)),
         dbops.CreateFunction(SysGetTransactionIsolation()),

@@ -199,7 +199,7 @@ class ServerConfig(NamedTuple):
     binary_endpoint_security: ServerEndpointSecurityMode
     http_endpoint_security: ServerEndpointSecurityMode
 
-    instance_name: Optional[str]
+    instance_name: str
 
     backend_capability_sets: BackendCapabilitySets
 
@@ -1203,6 +1203,12 @@ def parse_args(**kwargs: Any):
             kwargs['admin_ui'] = 'disabled'
 
     kwargs['admin_ui'] = kwargs['admin_ui'] == 'enabled'
+
+    if not kwargs['instance_name']:
+        if devmode.is_in_dev_mode():
+            kwargs['instance_name'] = '_localdev'
+        else:
+            kwargs['instance_name'] = '_unknown'
 
     return ServerConfig(
         startup_script=startup_script,

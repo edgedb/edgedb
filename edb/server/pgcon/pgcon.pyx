@@ -120,9 +120,6 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     #
     # * 'B': a session-level config setting that's implemented by setting
     #   a corresponding Postgres config setting.
-    #
-    # * 'R': a "variable=value" record.
-
     return textwrap.dedent(f'''
         {pg_is_in_recovery}
 
@@ -130,13 +127,12 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
             name text NOT NULL,
             value jsonb NOT NULL,
             type text NOT NULL CHECK(
-                type = 'C' OR type = 'R' OR type = 'B'),
+                type = 'C' OR type = 'B'),
             UNIQUE(name, type)
         );
 
         PREPARE _clear_state AS
-            DELETE FROM _edgecon_state
-            WHERE _edgecon_state.type != 'R';
+            DELETE FROM _edgecon_state;
 
         PREPARE _apply_state(jsonb) AS
             INSERT INTO
@@ -154,11 +150,6 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
 
         PREPARE _reset_session_config AS
             SELECT edgedb._reset_session_config();
-
-        INSERT INTO _edgecon_state
-            (name, value, type)
-        VALUES
-            ('server_version', {pg_ql(buildmeta.get_version_json())}, 'R');
     ''').strip().encode('utf-8')
 
 
@@ -1889,23 +1880,9 @@ cdef class PGConnection:
         buf.write_int16(3)
         buf.write_int16(0)
 
-        buf.write_bytestring(b'client_encoding')
-        buf.write_bytestring(b'utf-8')
-
-        buf.write_bytestring(b'search_path')
-        buf.write_bytestring(b'edgedb')
-
-        buf.write_bytestring(b'timezone')
-        buf.write_bytestring(b'UTC')
-
-        buf.write_bytestring(b'default_transaction_isolation')
-        buf.write_bytestring(b'serializable')
-
-        buf.write_bytestring(b'intervalstyle')
-        buf.write_bytestring(b'iso_8601')
-
-        buf.write_bytestring(b'jit')
-        buf.write_bytestring(b'off')
+        for k, v in self.pgaddr['server_settings'].items():
+            buf.write_bytestring(k.encode('utf-8'))
+            buf.write_bytestring(v.encode('utf-8'))
 
         buf.write_bytestring(b'user')
         buf.write_bytestring(self.pgaddr['user'].encode('utf-8'))

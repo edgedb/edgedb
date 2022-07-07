@@ -219,6 +219,7 @@ class BaseCluster:
             'timezone': 'UTC',
             'intervalstyle': 'iso_8601',
             'jit': 'off',
+            'default_transaction_isolation': 'serializable',
         }
 
         conn_dict['server_settings'] = {**cluster_settings, **edgedb_settings}
