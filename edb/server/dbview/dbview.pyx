@@ -558,20 +558,21 @@ cdef class DatabaseConnectionView:
         return self.get_state_serializer().describe()
 
     cdef encode_state(self):
+        modaliases = self.get_modaliases()
+        session_config = self.get_session_config()
+        globals_ = self.get_globals()
+
         if self._session_state_cache is None:
             if (
-                self.get_session_config() == DEFAULT_CONFIG and
-                self.get_modaliases() == DEFAULT_MODALIASES and
-                self.get_globals() == DEFAULT_GLOBALS
+                session_config == DEFAULT_CONFIG and
+                modaliases == DEFAULT_MODALIASES and
+                globals_ == DEFAULT_GLOBALS
             ):
                 return sertypes.NULL_TYPE_ID, b""
 
         serializer = self._command_state_serializer
         self._command_state_serializer = None
 
-        modaliases = self.get_modaliases()
-        session_config = self.get_session_config()
-        globals_ = self.get_globals()
         if self._session_state_cache is not None:
             if (
                 modaliases, session_config, globals_, serializer.type_id.bytes
@@ -580,7 +581,8 @@ cdef class DatabaseConnectionView:
 
         state = {}
         try:
-            state['module'] = modaliases[None]
+            if modaliases[None] != defines.DEFAULT_MODULE_ALIAS:
+                state['module'] = modaliases[None]
         except KeyError:
             pass
         else:

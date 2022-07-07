@@ -225,8 +225,8 @@ class TestProtocol(ProtocolTestCase):
         cc1 = await self.con.recv_match(
             protocol.CommandComplete,
             state_typedesc_id=sdd1.typedesc_id,
-            # state_data=b'\0\0\0\x01\0\0\0\x03\0\0\0\x10\0\0\0\x01'
-            #            b'\0\0\0\0\0\0\0\x04\0\0\0\x0b'
+            state_data=b'\0\0\0\x01\0\0\0\x03\0\0\0\x10\0\0\0\x01'
+                       b'\0\0\0\0\0\0\0\x04\0\0\0\x0b'
         )
         await self.con.recv_match(protocol.ReadyForCommand)
 
@@ -259,9 +259,9 @@ class TestProtocol(ProtocolTestCase):
         cc2_2 = await self.con.recv_match(
             protocol.CommandComplete,
             state_typedesc_id=sdd2.typedesc_id,
-            # state_data=b'\0\0\0\x01\0\0\0\x03\0\0\0\x1c\0\0\0\x02'
-            #            b'\0\0\0\x00\0\0\0\x04\0\0\0\x0b'
-            #            b'\0\0\0\x01\0\0\0\x04\0\0\0\x16'
+            state_data=b'\0\0\0\x01\0\0\0\x03\0\0\0\x1c\0\0\0\x02'
+                       b'\0\0\0\x00\0\0\0\x04\0\0\0\x0b'
+                       b'\0\0\0\x01\0\0\0\x04\0\0\0\x16'
         )
         await self.con.recv_match(protocol.ReadyForCommand)
 
