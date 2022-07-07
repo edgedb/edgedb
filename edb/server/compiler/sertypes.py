@@ -452,8 +452,7 @@ class TypeSerializer:
             element_names = []
             subtypes = []
             cardinalities = []
-            for name, value in input_shapes[t].items():
-                subtype, cardinality = value
+            for name, subtype, cardinality in input_shapes[t]:
                 if (
                     cardinality == enums.Cardinality.MANY or
                     cardinality == enums.Cardinality.AT_LEAST_ONE
@@ -766,21 +765,24 @@ class StateSerializerFactory:
         schema, config_type = simple_derive_type(
             schema, 'cfg::Config', 'state_config'
         )
-        config_shape = {}
+        config_shape = []
         for setting in config.get_settings().values():
             if not setting.system:
-                config_shape[setting.name] = (
-                    setting.s_type,
-                    enums.Cardinality.MANY if setting.set_of else
-                    enums.Cardinality.AT_MOST_ONE
+                config_shape.append(
+                    (
+                        setting.name,
+                        setting.s_type,
+                        enums.Cardinality.MANY if setting.set_of else
+                        enums.Cardinality.AT_MOST_ONE,
+                    )
                 )
 
         self._input_shapes = immutables.Map({
-            config_type: immutables.Map(config_shape),
-            self._state_type: immutables.Map(
-                module=(str_type, enums.Cardinality.AT_MOST_ONE),
-                aliases=(aliases_array, enums.Cardinality.AT_MOST_ONE),
-                config=(config_type, enums.Cardinality.AT_MOST_ONE),
+            config_type: tuple(sorted(config_shape)),
+            self._state_type: (
+                ("module", str_type, enums.Cardinality.AT_MOST_ONE),
+                ("aliases", aliases_array, enums.Cardinality.AT_MOST_ONE),
+                ("config", config_type, enums.Cardinality.AT_MOST_ONE),
             )
         })
         self._schema = schema
@@ -806,7 +808,7 @@ class StateSerializerFactory:
             schema, 'std::FreeObject', 'state_globals'
         )
         schema = s_schema.ChainedSchema(schema, user_schema, global_schema)
-        globals_shape = {}
+        globals_shape = []
         array_type_ids = {}
         for g in schema.get_objects(type=s_globals.Global):
             if g.is_computable(schema):
@@ -815,20 +817,23 @@ class StateSerializerFactory:
             s_type = g.get_target(schema)
             if s_type.is_array():
                 array_type_ids[name] = s_type.get_element_type(schema).id
-            globals_shape[name] = (
-                s_type,
-                enums.Cardinality.AT_MOST_ONE
-                if g.get_cardinality(schema) == qltypes.SchemaCardinality.One
-                else enums.Cardinality.MANY
+            globals_shape.append(
+                (
+                    name,
+                    s_type,
+                    enums.Cardinality.AT_MOST_ONE if
+                    g.get_cardinality(schema) == qltypes.SchemaCardinality.One
+                    else enums.Cardinality.MANY,
+                )
             )
 
         builder = builder.derive(schema)
         type_id = builder.describe_input_shape(
             self._state_type,
             self._input_shapes.update({
-                globals_type: immutables.Map(globals_shape),
-                self._state_type: self._input_shapes[self._state_type].update(
-                    globals=(globals_type, enums.Cardinality.AT_MOST_ONE),
+                globals_type: tuple(sorted(globals_shape)),
+                self._state_type: self._input_shapes[self._state_type] + (
+                    ("globals", globals_type, enums.Cardinality.AT_MOST_ONE),
                 )
             }),
             protocol_version,
@@ -1041,7 +1046,8 @@ class InputShapeDesc(ShapeDesc):
     def encode(self, data) -> bytes:
         bufs = [b'']
         count = 0
-        for key, value in data.items():
+        for key, desc_tuple in self.fields.items():
+            value = data.get(key)
             if value is None:
                 continue
             desc_tuple = self.fields.get(key)

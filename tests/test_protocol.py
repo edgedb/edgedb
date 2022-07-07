@@ -215,12 +215,10 @@ class TestProtocol(ProtocolTestCase):
 
         # Create initial state schema
         await self._execute('CREATE GLOBAL state_desc_1 -> int32')
-        sdd1 = await self.con.recv_match(
-            protocol.StateDataDescription,
-            # typedesc_id=b'\t\x99\xfc\x0f\xc5\x14\x8e\x8b^Z`\x05+\xf5p|',
-        )
+        sdd1 = await self.con.recv_match(protocol.StateDataDescription)
         await self.con.recv_match(protocol.CommandComplete)
         await self.con.recv_match(protocol.ReadyForCommand)
+        self.assertNotEqual(sdd1.typedesc_id, b'\0' * 16)
 
         # Check setting the state
         await self._execute('SET GLOBAL state_desc_1 := 11')
@@ -247,17 +245,14 @@ class TestProtocol(ProtocolTestCase):
 
         # Create 2nd global while the 1st is set
         await self._execute('CREATE GLOBAL state_desc_2 -> int32', cc=cc1)
-        sdd2 = await self.con.recv_match(
-            protocol.StateDataDescription,
-            # typedesc_id=b'\xc2\x8b# \xc0\x05\xac
-            # \x10\x9b\xc4\x01\xaf\xff\xcd0m'
-        )
+        sdd2 = await self.con.recv_match(protocol.StateDataDescription)
         cc2_1 = await self.con.recv_match(
             protocol.CommandComplete,
             state_typedesc_id=sdd2.typedesc_id,
-            # state_data=cc1.state_data,
+            state_data=cc1.state_data,
         )
         await self.con.recv_match(protocol.ReadyForCommand)
+        self.assertNotEqual(sdd2.typedesc_id, b'\0' * 16)
 
         # Verify we could also set the 2nd global
         await self._execute('SET GLOBAL state_desc_2 := 22', cc=cc2_1)
@@ -302,8 +297,6 @@ class TestProtocol(ProtocolTestCase):
             state_data=cc1.state_data,
         )
         await self.con.recv_match(protocol.ReadyForCommand)
-
-        return
 
         # New transaction
         await self._execute('START TRANSACTION', cc=cc1)
