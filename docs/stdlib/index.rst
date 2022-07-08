@@ -22,6 +22,7 @@ Standard Library
     sequence
     array
     tuple
+    range
     objects
     set
     type
@@ -70,6 +71,10 @@ heterogeneous data.
 - :ref:`Arrays <ref_std_array>`
 - :ref:`Tuples <ref_std_tuple>`
 
+Range Types
+-----------
+
+- :ref:`Range <ref_std_range>`
 
 Object Types
 ------------

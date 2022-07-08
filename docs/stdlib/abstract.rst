@@ -94,3 +94,49 @@ There are a number of abstract numeric types extending ``anyscalar``:
 
     Abstract base scalar type for
     :eql:type:`anyint`, :eql:type:`anyfloat`, and :eql:type:`decimal`.
+
+
+Abstract Range Types
+====================
+
+There are some types that can be used to construct :ref:`ranges
+<ref_std_range>`. These scalar types are distinguished by the following
+abstract types:
+
+.. eql:type:: std::anypoint
+
+    :index: any anypoint anyrange
+
+    Abstract base type for all valid ranges.
+
+    Abstract base scalar type for :eql:type:`int32`, :eql:type:`int64`,
+    :eql:type:`float32`, :eql:type:`float64`, :eql:type:`decimal`,
+    :eql:type:`datetime`, :eql:type:`cal::local_datetime`, and
+    :eql:type:`cal::local_date`.
+
+
+----------
+
+
+.. eql:type:: std::anydiscrete
+
+    :index: any anydiscrete anyrange
+
+    Abstract base type for all valid *discrete* ranges.
+
+    Abstract base scalar type for :eql:type:`int32`, :eql:type:`int64`,
+    and :eql:type:`cal::local_date`.
+
+
+----------
+
+
+.. eql:type:: std::anycontiguous
+
+    :index: any anycontiguous anyrange
+
+    Abstract base type for all valid *contiguous* ranges.
+
+    Abstract base scalar type for :eql:type:`float32`, :eql:type:`float64`,
+    :eql:type:`decimal`, :eql:type:`datetime`, and
+    :eql:type:`cal::local_datetime`.

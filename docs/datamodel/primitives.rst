@@ -106,6 +106,33 @@ details, see :ref:`EdgeQL > Literals > Tuples <ref_eql_literal_tuple>`.
   you fetch a named tuple, it is converted into an object/dictionary/hashmap
   depending on the language.
 
+.. _ref_datamodel_ranges:
+
+Ranges
+^^^^^^
+
+Ranges represent some interval of values. The intervals can be bounded or
+unbounded on either end. They can also be empty, containing no values. Only
+some scalar types have corresponding range types:
+
+- ``range<int32>``
+- ``range<int64>``
+- ``range<float32>``
+- ``range<float64>``
+- ``range<decimal>``
+- ``range<datetime>``
+- ``range<cal::local_datetime>``
+- ``range<cal::local_date>``
+
+.. code-block:: sdl
+
+  type DieRoll {
+    property values -> range<int64>;
+  }
+
+For a full reference on ranges, functions and operators see the :ref:`Range
+docs <ref_std_range>`.
+
 Sequences
 ^^^^^^^^^
 
