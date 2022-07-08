@@ -690,6 +690,38 @@ class TestSchema(tb.BaseSchemaLoadTest):
             type Y { constraint X; }
         """
 
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "object 'test::T' was already declared")
+    def test_schema_duplicate_def_01(self):
+        """
+            type T;
+            type T;
+        """
+
+    @tb.must_fail(
+        errors.InvalidDefinitionError,
+        "property 'foo' of object type 'test::T' was already declared",
+    )
+    def test_schema_duplicate_def_02(self):
+        """
+            type T {
+                property foo -> str;
+                property foo -> int64;
+            };
+        """
+
+    @tb.must_fail(
+        errors.InvalidDefinitionError,
+        "access policy 'foo' of object type 'test::T' was already declared",
+    )
+    def test_schema_duplicate_def_03(self):
+        """
+            type T {
+                access policy foo allow all using (true);
+                access policy foo allow all using (true);
+            };
+        """
+
     def test_schema_refs_01(self):
         schema = self.load_schema("""
             type Object1;
@@ -2777,9 +2809,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    @test.xfail('''
-        The error is not raised.
-    ''')
     def test_schema_get_migration_41(self):
         schema = r'''
         type Base {
@@ -2793,8 +2822,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         '''
 
         with self.assertRaisesRegex(
-                errors.SchemaError,
-                r'constraint .+ already exists'):
+                errors.InvalidDefinitionError,
+                r'constraint .+ already declared'):
             self._assert_migration_consistency(schema)
 
     def test_schema_get_migration_42(self):
