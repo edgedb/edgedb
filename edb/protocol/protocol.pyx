@@ -123,6 +123,7 @@ cdef class Connection:
                     raise AssertionError(
                         f'{msgcls.__name__}.{fieldname} value {val!r} '
                         f'does not equal to expected {expected!r}')
+        return message
 
     async def send(self, *msgs: messages.ClientMessage):
         cdef WriteBuffer buf

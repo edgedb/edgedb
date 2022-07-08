@@ -31,28 +31,38 @@ from edb.testbase.protocol.test import ProtocolTestCase
 
 class TestProtocol(ProtocolTestCase):
 
-    async def test_proto_executescript_01(self):
-        # Test that ExecuteScript returns ErrorResponse immediately.
+    async def _execute(self, command_text, sync=True, data=False, cc=None):
+        exec_args = dict(
+            annotations=[],
+            allowed_capabilities=protocol.Capability.ALL,
+            compilation_flags=protocol.CompilationFlag(0),
+            implicit_limit=0,
+            command_text=command_text,
+            output_format=protocol.OutputFormat.NONE,
+            expected_cardinality=protocol.Cardinality.MANY,
+            input_typedesc_id=b'\0' * 16,
+            output_typedesc_id=b'\0' * 16,
+            state_typedesc_id=b'\0' * 16,
+            arguments=b'',
+            state_data=b'',
+        )
+        if cc is not None:
+            exec_args['state_typedesc_id'] = cc.state_typedesc_id
+            exec_args['state_data'] = cc.state_data
+        if data:
+            exec_args['output_format'] = protocol.OutputFormat.BINARY
+
+        args = (protocol.Execute(**exec_args),)
+        if sync:
+            args += (protocol.Sync(),)
+        await self.con.send(*args)
+
+    async def test_proto_execute_01(self):
+        # Test that Execute returns ErrorResponse immediately.
 
         await self.con.connect()
 
-        await self.con.send(
-            protocol.Execute(
-                annotations=[],
-                allowed_capabilities=protocol.Capability.ALL,
-                compilation_flags=protocol.CompilationFlag(0),
-                implicit_limit=0,
-                command_text='SELECT 1/0',
-                output_format=protocol.OutputFormat.NONE,
-                expected_cardinality=protocol.Cardinality.MANY,
-                input_typedesc_id=b'\0' * 16,
-                output_typedesc_id=b'\0' * 16,
-                state_typedesc_id=b'\0' * 16,
-                arguments=b'',
-                state_data=b'',
-            ),
-            protocol.Sync(),
-        )
+        await self._execute('SELECT 1/0; SELECT 42')
         await self.con.recv_match(
             protocol.ErrorResponse,
             message='division by zero'
@@ -63,24 +73,7 @@ class TestProtocol(ProtocolTestCase):
         )
 
         # Test that the protocol has recovered.
-
-        await self.con.send(
-            protocol.Execute(
-                annotations=[],
-                allowed_capabilities=protocol.Capability.ALL,
-                compilation_flags=protocol.CompilationFlag(0),
-                implicit_limit=0,
-                command_text='SELECT 1',
-                output_format=protocol.OutputFormat.NONE,
-                expected_cardinality=protocol.Cardinality.MANY,
-                input_typedesc_id=b'\0' * 16,
-                output_typedesc_id=b'\0' * 16,
-                state_typedesc_id=b'\0' * 16,
-                arguments=b'',
-                state_data=b'',
-            ),
-            protocol.Sync(),
-        )
+        await self._execute('SELECT 1')
         await self.con.recv_match(
             protocol.CommandComplete,
             status='SELECT'
@@ -90,17 +83,22 @@ class TestProtocol(ProtocolTestCase):
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
 
-    async def _test_proto_executescript_02(self):
+    async def test_proto_execute_02(self):
         # Test ReadyForCommand.transaction_state
 
         await self.con.connect()
 
-        await self.con.send(
-            protocol.ExecuteScript(
-                annotations=[],
-                script='START TRANSACTION; SELECT 1/0'
-            )
+        await self._execute('START TRANSACTION')
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='START TRANSACTION'
         )
+        await self.con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.IN_TRANSACTION,
+        )
+
+        await self._execute('SELECT 1/0')
         await self.con.recv_match(
             protocol.ErrorResponse,
             message='division by zero'
@@ -111,13 +109,7 @@ class TestProtocol(ProtocolTestCase):
         )
 
         # Test that the protocol is still in a failed transaction
-
-        await self.con.send(
-            protocol.ExecuteScript(
-                annotations=[],
-                script='SELECT 1/0'
-            )
-        )
+        await self._execute('SELECT 1/0')
         await self.con.recv_match(
             protocol.ErrorResponse,
             message='current transaction is aborted'
@@ -128,13 +120,7 @@ class TestProtocol(ProtocolTestCase):
         )
 
         # Test recovery
-
-        await self.con.send(
-            protocol.ExecuteScript(
-                annotations=[],
-                script='ROLLBACK'
-            )
-        )
+        await self._execute('ROLLBACK')
         await self.con.recv_match(
             protocol.CommandComplete,
             status='ROLLBACK'
@@ -195,23 +181,7 @@ class TestProtocol(ProtocolTestCase):
         # command should be executed and no exception should
         # be received.
         # While at it, rogue ROLLBACK should be allowed.
-        await self.con.send(
-            protocol.Execute(
-                annotations=[],
-                allowed_capabilities=protocol.Capability.ALL,
-                compilation_flags=protocol.CompilationFlag(0),
-                implicit_limit=0,
-                command_text='ROLLBACK',
-                output_format=protocol.OutputFormat.NONE,
-                expected_cardinality=protocol.Cardinality.MANY,
-                input_typedesc_id=b'\0' * 16,
-                output_typedesc_id=b'\0' * 16,
-                state_typedesc_id=b'\0' * 16,
-                arguments=b'',
-                state_data=b'',
-            ),
-            protocol.Sync(),
-        )
+        await self._execute('ROLLBACK')
         await self.con.recv_match(
             protocol.CommandComplete,
             status='ROLLBACK'
@@ -224,22 +194,7 @@ class TestProtocol(ProtocolTestCase):
     async def test_proto_args_mismatch(self):
         await self.con.connect()
 
-        await self.con.send(
-            protocol.Execute(
-                annotations=[],
-                allowed_capabilities=protocol.Capability.ALL,
-                compilation_flags=protocol.CompilationFlag(0),
-                implicit_limit=0,
-                command_text='SELECT <str>$0',
-                output_format=protocol.OutputFormat.NONE,
-                expected_cardinality=protocol.Cardinality.MANY,
-                input_typedesc_id=b'\0' * 16,
-                output_typedesc_id=b'\0' * 16,
-                state_typedesc_id=b'\0' * 16,
-                arguments=b'',
-                state_data=b'',
-            ),
-        )
+        await self._execute('SELECT <str>$0', sync=False)
         # Should come through even without an explicit 'flush'
         await self.con.recv_match(protocol.CommandDataDescription)
         await self.con.recv_match(
@@ -255,28 +210,135 @@ class TestProtocol(ProtocolTestCase):
             await self.con.sync(),
             protocol.TransactionState.NOT_IN_TRANSACTION)
 
-    async def test_state_desc_in_script(self):
+    async def test_proto_state(self):
         await self.con.connect()
 
-        await self.con.send(
-            protocol.Execute(
-                annotations=[],
-                allowed_capabilities=protocol.Capability.ALL,
-                compilation_flags=protocol.CompilationFlag(0),
-                implicit_limit=0,
-                command_text=(
-                    'CREATE GLOBAL state_desc_in_script -> int32;'
-                    'SELECT GLOBAL state_desc_in_script;'
-                ),
-                output_format=protocol.OutputFormat.NONE,
-                expected_cardinality=protocol.Cardinality.MANY,
-                input_typedesc_id=b'\0' * 16,
-                output_typedesc_id=b'\0' * 16,
-                state_typedesc_id=b'\0' * 16,
-                arguments=b'',
-                state_data=b'',
-            ),
-            protocol.Sync(),
+        # Create initial state schema
+        await self._execute('CREATE GLOBAL state_desc_1 -> int32')
+        sdd1 = await self.con.recv_match(protocol.StateDataDescription)
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        self.assertNotEqual(sdd1.typedesc_id, b'\0' * 16)
+
+        # Check setting the state
+        await self._execute('SET GLOBAL state_desc_1 := 11')
+        cc1 = await self.con.recv_match(
+            protocol.CommandComplete,
+            state_typedesc_id=sdd1.typedesc_id,
+            state_data=b'\0\0\0\x01\0\0\0\x03\0\0\0\x10\0\0\0\x01'
+                       b'\0\0\0\0\0\0\0\x04\0\0\0\x0b'
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Verify the state is set
+        await self._execute('SELECT GLOBAL state_desc_1', data=True, cc=cc1)
+        await self.con.recv_match(protocol.CommandDataDescription)
+        d1 = await self.con.recv_match(protocol.Data)
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        self.assertEqual(d1.data[0].data[-1], 11)
+
+        # Entering a transaction with cc1 - which will be stored by the server
+        await self._execute('START TRANSACTION', cc=cc1)
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Create 2nd global while the 1st is set
+        await self._execute('CREATE GLOBAL state_desc_2 -> int32', cc=cc1)
+        sdd2 = await self.con.recv_match(protocol.StateDataDescription)
+        cc2_1 = await self.con.recv_match(
+            protocol.CommandComplete,
+            state_typedesc_id=sdd2.typedesc_id,
+            state_data=cc1.state_data,
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+        self.assertNotEqual(sdd2.typedesc_id, b'\0' * 16)
+
+        # Verify we could also set the 2nd global
+        await self._execute('SET GLOBAL state_desc_2 := 22', cc=cc2_1)
+        cc2_2 = await self.con.recv_match(
+            protocol.CommandComplete,
+            state_typedesc_id=sdd2.typedesc_id,
+            state_data=b'\0\0\0\x01\0\0\0\x03\0\0\0\x1c\0\0\0\x02'
+                       b'\0\0\0\x00\0\0\0\x04\0\0\0\x0b'
+                       b'\0\0\0\x01\0\0\0\x04\0\0\0\x16'
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # The 1st global's value is still available
+        await self._execute('SELECT GLOBAL state_desc_1', data=True, cc=cc2_2)
+        await self.con.recv_match(protocol.CommandDataDescription)
+        d1_2 = await self.con.recv_match(protocol.Data)
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        self.assertEqual(d1_2.data[0].data[-1], 11)
+
+        # Query with an outdated state cc1, expect SDD2 + StateMismatchError
+        await self._execute('SELECT GLOBAL state_desc_2', data=True, cc=cc1)
+        await self.con.recv_match(
+            protocol.StateDataDescription,
+            typedesc_id=sdd2.typedesc_id,
+        )
+        await self.con.recv_match(
+            protocol.ErrorResponse,
+            message='Cannot decode state: type mismatch',
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Rollback the transaction, should reset to SDD1 and CC1
+        await self._execute('ROLLBACK', cc=cc2_2)
+        await self.con.recv_match(
+            protocol.StateDataDescription,
+            typedesc_id=sdd1.typedesc_id,
+        )
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            state_typedesc_id=sdd1.typedesc_id,
+            state_data=cc1.state_data,
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # New transaction
+        await self._execute('START TRANSACTION', cc=cc1)
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Create the same 2nd global again
+        await self._execute('CREATE GLOBAL state_desc_2 -> int32', cc=cc1)
+        await self.con.recv_match(
+            protocol.StateDataDescription,
+            typedesc_id=sdd2.typedesc_id,
+        )
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            state_typedesc_id=sdd2.typedesc_id,
+            state_data=cc1.state_data,
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Commit the transaction with CC2_2, nothing would change
+        await self._execute('COMMIT', cc=cc2_2)
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            state_typedesc_id=b'\0' * 16,
+            state_data=b'',
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # The 2nd global's value is still available
+        await self._execute('SELECT GLOBAL state_desc_2', data=True, cc=cc2_2)
+        await self.con.recv_match(protocol.CommandDataDescription)
+        d2 = await self.con.recv_match(protocol.Data)
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        self.assertEqual(d2.data[0].data[-1], 22)
+
+    async def test_proto_state_desc_in_script(self):
+        await self.con.connect()
+
+        await self._execute(
+            'CREATE GLOBAL state_desc_in_script -> int32;'
+            'SELECT GLOBAL state_desc_in_script;'
         )
         await self.con.recv_match(protocol.StateDataDescription)
         await self.con.recv_match(
