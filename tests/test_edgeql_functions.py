@@ -6480,3 +6480,120 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 '2023-04-11',
             ],
         )
+
+    async def test_edgeql_functions_range_unpack_03(self):
+        # Test `range_unpack` of empty ranges.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''
+                select range_unpack(
+                    range(<{st}>{{}}, empty := true), <{st}>1);
+                ''',
+                [],
+            )
+
+        await self.assert_query_result(
+            r'''
+            select range_unpack(
+                range(<datetime>{}, empty := true), <duration>'36:00:00');
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select range_unpack(
+                range(<cal::local_datetime>{}, empty := true),
+                <cal::relative_duration>'36:00:00');
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select range_unpack(
+                range(<cal::local_date>{}, empty := true));
+            ''',
+            [],
+        )
+
+    async def test_edgeql_functions_range_unpack_04(self):
+        # Test errors for `range_unpack`.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                "cannot unpack an unbounded range",
+            ):
+                await self.con.execute(f"""
+                    select range_unpack(
+                        range(<{st}>5), <{st}>1);
+                """)
+
+            async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                "cannot unpack an unbounded range",
+            ):
+                await self.con.execute(f"""
+                    select range_unpack(
+                        range(<{st}>{{}}, <{st}>5), <{st}>1);
+                """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "cannot unpack an unbounded range",
+        ):
+            await self.con.execute(r"""
+                select range_unpack(
+                    range(<datetime>'2022-06-01T07:00:00Z'),
+                    <duration>'36:00:00');
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "cannot unpack an unbounded range",
+        ):
+            await self.con.execute(r"""
+                select range_unpack(
+                    range(<datetime>{}, <datetime>'2022-06-01T07:00:00Z'),
+                    <duration>'36:00:00');
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "cannot unpack an unbounded range",
+        ):
+            await self.con.execute(r"""
+                select range_unpack(
+                    range(<cal::local_datetime>'2022-06-01T07:00:00'),
+                    <cal::relative_duration>'36:00:00');
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "cannot unpack an unbounded range",
+        ):
+            await self.con.execute(r"""
+                select range_unpack(
+                    range(<cal::local_datetime>{},
+                          <cal::local_datetime>'2022-06-01T07:00:00'),
+                    <cal::relative_duration>'36:00:00');
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "cannot unpack an unbounded range",
+        ):
+            await self.con.execute(r"""
+                select range_unpack(
+                    range(<cal::local_date>'2022-06-01'));
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "cannot unpack an unbounded range",
+        ):
+            await self.con.execute(r"""
+                select range_unpack(
+                    range(<cal::local_date>{},
+                          <cal::local_date>'2022-06-01'));
+            """)

@@ -384,6 +384,66 @@ class RangeValidateFunction(dbops.Function):
         )
 
 
+class RangeUnpackLowerValidateFunction(dbops.Function):
+    """Range unpack validation function."""
+    text = r'''
+        SELECT
+            CASE WHEN
+                NOT isempty(range)
+            THEN
+                edgedb.raise_on_null(
+                    lower(range),
+                    'invalid_parameter_value',
+                    msg => 'cannot unpack an unbounded range'
+                )
+            ELSE
+                lower(range)
+            END
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'range_lower_validate'),
+            args=[
+                ('range', ('anyrange',)),
+            ],
+            returns=('anyelement',),
+            volatility='immutable',
+            language='sql',
+            text=self.text,
+        )
+
+
+class RangeUnpackUpperValidateFunction(dbops.Function):
+    """Range unpack validation function."""
+    text = r'''
+        SELECT
+            CASE WHEN
+                NOT isempty(range)
+            THEN
+                edgedb.raise_on_null(
+                    upper(range),
+                    'invalid_parameter_value',
+                    msg => 'cannot unpack an unbounded range'
+                )
+            ELSE
+                upper(range)
+            END
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'range_upper_validate'),
+            args=[
+                ('range', ('anyrange',)),
+            ],
+            returns=('anyelement',),
+            volatility='immutable',
+            language='sql',
+            text=self.text,
+        )
+
+
 class StrToConfigMemoryFunction(dbops.Function):
     """An implementation of std::str to cfg::memory cast."""
     text = r'''
@@ -4056,6 +4116,8 @@ async def bootstrap(
         dbops.CreateRange(LocalDatetimeRange()),
         dbops.CreateFunction(RangeToJsonFunction()),
         dbops.CreateFunction(RangeValidateFunction()),
+        dbops.CreateFunction(RangeUnpackLowerValidateFunction()),
+        dbops.CreateFunction(RangeUnpackUpperValidateFunction()),
     ])
 
     block = dbops.PLTopBlock()
