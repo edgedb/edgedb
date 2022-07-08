@@ -5861,6 +5861,19 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             global foo -> int64;
         """])
 
+    def test_schema_migrations_equivalence_globals_05(self):
+        self._assert_migration_equivalence([r"""
+            global cur_username -> str;
+            global cur_user := (
+                select User filter .username = global cur_username);
+
+            type User {
+              required property username -> str {
+                constraint exclusive;
+              }
+            }
+        """])
+
     def test_schema_migrations_equivalence_globals_use_01(self):
         self._assert_migration_equivalence([r"""
             global current -> uuid;

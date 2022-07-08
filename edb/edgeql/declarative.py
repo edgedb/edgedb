@@ -845,6 +845,20 @@ def trace_Alias(
 
 
 @trace_dependencies.register
+def trace_Global(
+    node: qlast.CreateGlobal,
+    *,
+    ctx: DepTraceContext,
+) -> None:
+    hard_dep_exprs = []
+
+    if isinstance(node.target, qlast.Expr):
+        hard_dep_exprs.append(ExprDependency(expr=node.target))
+
+    _register_item(node, hard_dep_exprs=hard_dep_exprs, ctx=ctx)
+
+
+@trace_dependencies.register
 def trace_Function(
     node: qlast.CreateFunction,
     *,
@@ -1063,7 +1077,8 @@ def _register_item(
                 for dep in pdeps:
                     deps.add(dep)
 
-                    if isinstance(decl, qlast.CreateAlias):
+                    if isinstance(
+                            decl, (qlast.CreateAlias, qlast.CreateGlobal)):
                         # If the declaration is a view, we need to be
                         # dependent on all the types and their props
                         # used in the view.
@@ -1071,7 +1086,7 @@ def _register_item(
                         for vdep in vdeps:
                             deps |= ctx.defdeps.get(vdep, set())
 
-                    elif (
+                    if (
                         isinstance(decl, (
                             qlast.CreateConcretePointer, qlast.CreateGlobal))
                         and isinstance(decl.target, qlast.Expr)
