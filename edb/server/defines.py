@@ -20,19 +20,20 @@
 from __future__ import annotations
 
 from edb import buildmeta
+from edb.schema import defines as s_def
 
 
 EDGEDB_PORT = 5656
 EDGEDB_REMOTE_COMPILER_PORT = 5660
 EDGEDB_SUPERGROUP = 'edgedb_supergroup'
-EDGEDB_SUPERUSER = 'edgedb'
-EDGEDB_TEMPLATE_DB = '__edgedbtpl__'
+EDGEDB_SUPERUSER = s_def.EDGEDB_SUPERUSER
+EDGEDB_TEMPLATE_DB = s_def.EDGEDB_TEMPLATE_DB
 EDGEDB_SUPERUSER_DB = 'edgedb'
-EDGEDB_SYSTEM_DB = '__edgedbsys__'
+EDGEDB_SYSTEM_DB = s_def.EDGEDB_SYSTEM_DB
 EDGEDB_ENCODING = 'utf-8'
 EDGEDB_VISIBLE_METADATA_PREFIX = r'EdgeDB metadata follows, do not modify.\n'
 
-EDGEDB_SPECIAL_DBS = {EDGEDB_TEMPLATE_DB, EDGEDB_SYSTEM_DB}
+EDGEDB_SPECIAL_DBS = s_def.EDGEDB_SPECIAL_DBS
 
 EDGEDB_CATALOG_VERSION = buildmeta.EDGEDB_CATALOG_VERSION
 MIN_POSTGRES_VERSION = (13, 0)

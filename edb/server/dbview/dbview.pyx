@@ -271,6 +271,16 @@ cdef class DatabaseConnectionView:
         self._session_state_db_cache = None
         self._session_state_cache = None
 
+        if db.name == defines.EDGEDB_SYSTEM_DB:
+            # Make system database read-only.
+            self._capability_mask = <uint64_t>(
+                compiler.Capability.ALL
+                & ~compiler.Capability.DDL
+                & ~compiler.Capability.MODIFICATIONS
+            )
+        else:
+            self._capability_mask = <uint64_t>compiler.Capability.ALL
+
         self._db_config_temp = None
         self._db_config_dbver = None
 
@@ -946,9 +956,13 @@ cdef class DatabaseConnectionView:
                 query_unit_group = await self.compile(
                     query_req,
                 )
-            if query_unit_group.capabilities & ~query_req.allow_capabilities:
+
+            allowed_capabilities = (
+                query_req.allow_capabilities & self._capability_mask)
+
+            if query_unit_group.capabilities & ~allowed_capabilities:
                 raise query_unit_group.capabilities.make_error(
-                    query_req.allow_capabilities,
+                    allowed_capabilities,
                     errors.DisabledCapabilityError,
                 )
         elif self.in_tx_error():

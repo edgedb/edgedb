@@ -1648,7 +1648,7 @@ class _EdgeDBServer:
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,
             env=env,
-            stdout=subprocess.PIPE,
+            stdout=subprocess.PIPE if not self.debug else None,
             stderr=subprocess.STDOUT,
             pass_fds=(status_w.fileno(),),
         )
@@ -1734,7 +1734,7 @@ def start_edgedb_server(
     compiler_pool_size: int=2,
     compiler_pool_mode: Optional[edgedb_args.CompilerPoolMode] = None,
     adjacent_to: Optional[tconn.Connection]=None,
-    debug: bool=False,
+    debug: bool=debug.flags.server,
     backend_dsn: Optional[str] = None,
     runstate_dir: Optional[str] = None,
     data_dir: Optional[str] = None,

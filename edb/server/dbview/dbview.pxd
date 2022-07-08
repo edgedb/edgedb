@@ -148,6 +148,8 @@ cdef class DatabaseConnectionView:
         bint _in_tx_with_set
         bint _tx_error
 
+        uint64_t _capability_mask
+
         object _last_comp_state
         int _last_comp_state_id
 

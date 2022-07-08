@@ -1832,6 +1832,9 @@ class Server(ha_base.ClusterProtocol):
 
         dbs = {}
         for db in self._dbindex.iter_dbs():
+            if db.name in defines.EDGEDB_SPECIAL_DBS:
+                continue
+
             dbs[db.name] = dict(
                 name=db.name,
                 dbver=db.dbver,
