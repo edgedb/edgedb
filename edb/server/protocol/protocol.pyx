@@ -447,7 +447,7 @@ cdef class HttpProtocol:
             extname = path_parts[2] if path_parts_len > 2 else None
 
             # Binary proto tunnelled through HTTP
-            if extname is None and request.method == b'POST':
+            if extname is None:
                 if (
                     debug.flags.http_inject_cors
                     and request.method == b'OPTIONS'
@@ -458,49 +458,50 @@ cdef class HttpProtocol:
                     response.custom_headers['Access-Control-Max-Age'] = '86400'
                     return
 
-                if not request.content_type:
-                    return self._bad_request(
-                        request,
-                        response,
-                        message="missing or malformed Content-Type header",
+                if request.method == b'POST':
+                    if not request.content_type:
+                        return self._bad_request(
+                            request,
+                            response,
+                            message="missing or malformed Content-Type header",
+                        )
+
+                    ver_m = PROTO_MIME_RE.match(request.content_type)
+                    if not ver_m:
+                        return self._bad_request(
+                            request,
+                            response,
+                            message="missing or malformed Content-Type header",
+                        )
+
+                    proto_ver = (
+                        int(ver_m.group(1).decode()),
+                        int(ver_m.group(2).decode()),
                     )
 
-                ver_m = PROTO_MIME_RE.match(request.content_type)
-                if not ver_m:
-                    return self._bad_request(
-                        request,
-                        response,
-                        message="missing or malformed Content-Type header",
+                    params = request.params
+                    if params is None:
+                        conn_params = {}
+                    else:
+                        conn_params = {
+                            n.decode("utf-8"): v.decode("utf-8")
+                            for n, v in request.params.items()
+                        }
+
+                    conn_params["database"] = dbname
+
+                    response.body = await binary.eval_buffer(
+                        self.server,
+                        database=dbname,
+                        data=self.current_request.body,
+                        conn_params=conn_params,
+                        protocol_version=proto_ver,
+                        auth_data=self.current_request.authorization,
+                        transport=srvargs.ServerConnTransport.HTTP,
                     )
-
-                proto_ver = (
-                    int(ver_m.group(1).decode()),
-                    int(ver_m.group(2).decode()),
-                )
-
-                params = request.params
-                if params is None:
-                    conn_params = {}
-                else:
-                    conn_params = {
-                        n.decode("utf-8"): v.decode("utf-8")
-                        for n, v in request.params.items()
-                    }
-
-                conn_params["database"] = dbname
-
-                response.body = await binary.eval_buffer(
-                    self.server,
-                    database=dbname,
-                    data=self.current_request.body,
-                    conn_params=conn_params,
-                    protocol_version=proto_ver,
-                    auth_data=self.current_request.authorization,
-                    transport=srvargs.ServerConnTransport.HTTP,
-                )
-                response.status = http.HTTPStatus.OK
-                response.content_type = PROTO_MIME
-                response.close_connection = True
+                    response.status = http.HTTPStatus.OK
+                    response.content_type = PROTO_MIME
+                    response.close_connection = True
 
             else:
                 # Check if this is a request to a registered extension
