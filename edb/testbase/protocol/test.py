@@ -24,12 +24,12 @@ from edb.testbase import server
 from edb.protocol import protocol  # type: ignore
 
 
-class ProtocolTestCase(server.ClusterTestCase):
+class ProtocolTestCase(server.DatabaseTestCase):
 
     def setUp(self):
         self.con = self.loop.run_until_complete(
             protocol.new_connection(
-                **self.get_connect_args()
+                **self.get_connect_args(database=self.get_database_name())
             )
         )
 
