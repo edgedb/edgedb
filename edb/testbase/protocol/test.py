@@ -26,6 +26,9 @@ from edb.protocol import protocol  # type: ignore
 
 class ProtocolTestCase(server.DatabaseTestCase):
 
+    PARALLELISM_GRANULARITY = 'database'
+    BASE_TEST_CLASS = True
+
     def setUp(self):
         self.con = self.loop.run_until_complete(
             protocol.new_connection(
