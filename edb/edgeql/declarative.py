@@ -366,14 +366,6 @@ def sdl_to_ddl(
             if isinstance(decl_ast, qlast.CreateObject):
                 _, fq_name = ctx.get_fq_name(decl_ast)
 
-                if fq_name in ctx.objects:
-                    msg = (
-                        f'{fq_name} was already declared'
-                    )
-
-                    raise errors.InvalidDefinitionError(
-                        msg, context=decl_ast.context)
-
                 if isinstance(decl_ast, qlast.CreateObjectType):
                     ctx.objects[fq_name] = qltracer.ObjectType(fq_name)
                 elif isinstance(decl_ast, qlast.CreateAlias):

@@ -691,7 +691,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.InvalidDefinitionError,
-                  "test::T was already declared")
+                  "object 'test::T' was already declared")
     def test_schema_duplicate_def_01(self):
         """
             type T;
