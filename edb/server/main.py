@@ -22,6 +22,7 @@ from typing import *
 
 import asyncio
 import contextlib
+import dataclasses
 import datetime
 import logging
 import os
@@ -377,6 +378,9 @@ async def _get_local_pgcluster(
         pgconnparams.ConnectionParameters(
             user='postgres',
             database='template1',
+            server_settings={
+                "application_name": f'edgedb_instance_{args.instance_name}',
+            }
         ),
     )
     return cluster, args
@@ -406,6 +410,16 @@ async def _get_remote_pgcluster(
     elif args.max_backend_connections > max_conns:
         abort(f'--max-backend-connections is too large for this backend; '
               f'detected maximum available NUM: {max_conns}')
+
+    conn_params = cluster.get_connection_params()
+    conn_params = dataclasses.replace(
+        conn_params,
+        server_settings=dict(
+            conn_params.server_settings,
+            application_name=f'edgedb_instance_{args.instance_name}',
+        ),
+    )
+    cluster.set_connection_params(conn_params)
 
     return cluster, args
 
@@ -437,8 +451,7 @@ async def run_server(
 
     ver_line = buildmeta.get_version_string() + " ".join(extras)
     logger.info(f"starting EdgeDB server {ver_line}")
-    if args.instance_name:
-        logger.info(f'instance name: {args.instance_name!r}')
+    logger.info(f'instance name: {args.instance_name!r}')
     if devmode.is_in_dev_mode():
         logger.info(f'development mode active')
 
@@ -556,16 +569,24 @@ async def run_server(
                     is srvargs.JOSEKeyMode.Generate
                 )
             ):
+                conn_params = cluster.get_connection_params()
+                instance_name = args.instance_name
+                conn_params = dataclasses.replace(
+                    conn_params,
+                    server_settings={
+                        **conn_params.server_settings,
+                        'application_name': f'edgedb_instance_{instance_name}',
+                        'edgedb.instance_name': instance_name,
+                        'edgedb.server_version': buildmeta.get_version_json(),
+                    },
+                )
                 if args.data_dir:
-                    cluster.set_connection_params(
-                        pgconnparams.ConnectionParameters(
-                            user='postgres',
-                            database=pgcluster.get_database_backend_name(
-                                defines.EDGEDB_TEMPLATE_DB,
-                                tenant_id=tenant_id,
-                            ),
-                        ),
+                    conn_params.database = pgcluster.get_database_backend_name(
+                        defines.EDGEDB_TEMPLATE_DB,
+                        tenant_id=tenant_id,
                     )
+
+                cluster.set_connection_params(conn_params)
 
                 with _internal_state_dir(runstate_dir) as int_runstate_dir:
                     if (
