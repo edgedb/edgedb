@@ -446,15 +446,8 @@ cdef class HttpProtocol:
 
             extname = path_parts[2] if path_parts_len > 2 else None
 
-            if (
-                # Binary proto tunnelled through HTTP
-                (extname is None and request.method == b'POST')
-                # Legacy admin UI "extension" path for same
-                or (
-                    extname == 'admin_binary_http'
-                    and self.server.is_admin_ui_enabled()
-                )
-            ):
+            # Binary proto tunnelled through HTTP
+            if extname is None and request.method == b'POST':
                 if (
                     debug.flags.http_inject_cors
                     and request.method == b'OPTIONS'

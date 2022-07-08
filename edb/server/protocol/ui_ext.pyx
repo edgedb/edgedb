@@ -57,23 +57,6 @@ async def handle_request(
     server,
 ):
     try:
-        if path_parts == ['instance-info']:
-            # endpoint for data that either cannot be fetched by an edgeql query
-            # or is needed to make a connection to send queries
-            response.status = http.HTTPStatus.OK
-            response.content_type = b'application/json'
-            response.body = json.dumps({
-                'instance_name': server._instance_name if
-                    server._instance_name is not None else
-                    ('_localdev' if server.in_dev_mode() else None),
-                'databases': [
-                    {'name': db.name}
-                    for db in server._dbindex.iter_dbs()
-                ],
-                'roles': list(server._roles.keys()),
-            }).encode()
-            return
-
         if path_parts == []:
             path_parts = ['index.html']
 
