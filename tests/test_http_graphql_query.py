@@ -3231,7 +3231,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_30(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"no value for the 'val' variable"):
+                r"parameter \$val is required"):
             self.graphql_query(r"""
                 query($val: String!) {
                     User(filter: {name: {eq: $val}}) {

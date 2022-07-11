@@ -16,26 +16,37 @@
 # limitations under the License.
 #
 
+from typing import (
+    Any,
+    Dict,
+    Tuple,
+    List,
+    Optional,
+    Union,
+)
 
 import cython
 import http
 import json
 import logging
 import urllib.parse
-from typing import Any, Dict, Tuple, List, Optional, Union
 
 from graphql.language import lexer as gql_lexer
 
 from edb import _graphql_rewrite
 from edb import errors
 from edb.graphql import errors as gql_errors
+from edb.server.dbview cimport dbview
+from edb.server import compiler
+from edb.server import defines as edbdef
 from edb.server.pgcon import errors as pgerrors
+from edb.server.protocol import execute
 
 from edb.common import debug
 from edb.common import markup
 
 from . import explore
-from . import compiler
+from . import translator
 
 
 logger = logging.getLogger(__name__)
@@ -53,7 +64,10 @@ cdef class CacheRedirect:
         self.key_vars = key_vars
 
 
-CacheEntry = Union[CacheRedirect, compiler.CompiledOperation]
+CacheEntry = Union[
+    CacheRedirect,
+    Tuple[compiler.QueryUnitGroup, translator.TranspiledOperation],
+]
 
 
 async def handle_request(
@@ -153,7 +167,7 @@ async def handle_request(
     response.status = http.HTTPStatus.OK
     response.content_type = b'application/json'
     try:
-        result = await execute(
+        result = await _execute(
             db, server, query, operation_name, variables, globals)
     except Exception as ex:
         if debug.flags.server:
@@ -204,7 +218,7 @@ async def compile(
     )
 
 
-async def execute(db, server, query, operation_name, variables, globals):
+async def _execute(db, server, query, operation_name, variables, globals):
     dbver = db.dbver
     query_cache = server._http_query_cache
 
@@ -262,7 +276,7 @@ async def execute(db, server, query, operation_name, variables, globals):
 
     if entry is None:
         if rewritten is not None:
-            op = await compile(
+            qug, gql_op = await compile(
                 db,
                 server,
                 query,
@@ -272,7 +286,7 @@ async def execute(db, server, query, operation_name, variables, globals):
                 vars,
             )
         else:
-            op = await compile(
+            qug, gql_op = await compile(
                 db,
                 server,
                 query,
@@ -283,8 +297,8 @@ async def execute(db, server, query, operation_name, variables, globals):
             )
 
         key_var_set = set(key_var_names)
-        if op.cache_deps_vars and op.cache_deps_vars != key_var_set:
-            key_var_set.update(op.cache_deps_vars)
+        if gql_op.cache_deps_vars and gql_op.cache_deps_vars != key_var_set:
+            key_var_set.update(gql_op.cache_deps_vars)
             key_var_names = sorted(key_var_set)
             redir = CacheRedirect(key_vars=key_var_names)
             query_cache[cache_key] = redir
@@ -292,40 +306,33 @@ async def execute(db, server, query, operation_name, variables, globals):
             cache_key2 = (
                 'graphql', prepared_query, key_vars2, operation_name, dbver
             )
-            query_cache[cache_key2] = op
+            query_cache[cache_key2] = qug, gql_op
         else:
-            query_cache[cache_key] = op
+            query_cache[cache_key] = qug, gql_op
     else:
-        op = entry
+        qug, gql_op = entry
         # This is at least the second time this query is used
         # and it's safe to cache.
         use_prep_stmt = True
 
-    args = []
-    if op.sql_args:
-        for name in op.sql_args:
-            if name not in vars:
-                default = op.variables.get(name)
-                if default is None:
-                    raise errors.QueryError(
-                        f'no value for the {name!r} variable')
-                args.append(default)
-            else:
-                args.append(vars[name])
+    compiled = dbview.CompiledQuery(query_unit_group=qug)
 
-    if op.has_globals:
-        args.append(globals)
+    dbv = await server.new_dbview(
+        dbname=db.name,
+        query_cache=False,
+        protocol_version=edbdef.CURRENT_PROTOCOL,
+    )
 
     pgcon = await server.acquire_pgcon(db.name)
     try:
-        data = await pgcon.parse_execute_json(
-            op.sql, op.sql_hash, dbver,
-            use_prep_stmt, args)
+        return await execute.execute_json(
+            pgcon,
+            dbv,
+            compiled,
+            variables={**gql_op.variables_desc, **vars},
+            globals_=globals or {},
+            fe_conn=None,
+            use_prep_stmt=use_prep_stmt,
+        )
     finally:
         server.release_pgcon(db.name, pgcon)
-
-    if data is None:
-        raise errors.InternalServerError(
-            f'no data received for a JSON query {op.sql!r}')
-
-    return data

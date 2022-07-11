@@ -2331,6 +2331,7 @@ aa';
         """
         SELECT <array<int64>>$1;
         SELECT <std::array<std::str>>$1;
+        SELECT <optional std::array<std::str>>$1;
         """
 
     def test_edgeql_syntax_cast_07(self):
