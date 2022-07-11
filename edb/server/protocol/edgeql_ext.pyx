@@ -122,7 +122,11 @@ async def handle_request(
     response.content_type = b'application/json'
     try:
         result = await execute.parse_execute_json(
-            db, query, variables or {}, globals_ or {})
+            db,
+            query,
+            variables=variables or {},
+            globals_=globals_ or {},
+        )
     except Exception as ex:
         if debug.flags.server:
             markup.dump(ex)

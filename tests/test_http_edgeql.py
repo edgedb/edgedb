@@ -129,7 +129,7 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
     def test_http_edgeql_query_04(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'no value for the \$name query parameter'):
+                r'parameter \$name is required'):
             self.edgeql_query(
                 r"""
                     SELECT Setting {
