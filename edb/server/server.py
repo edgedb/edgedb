@@ -585,13 +585,7 @@ class Server(ha_base.ClusterProtocol):
         syscon = await self._acquire_sys_pgcon()
         try:
             query = self.get_sys_query('sysconfig')
-            sys_config_json = await syscon.parse_execute_json(
-                query,
-                b'__backend_sysconfig',
-                dbver=0,
-                use_prep_stmt=True,
-                args=(),
-            )
+            sys_config_json = await syscon.sql_fetch_val(query)
         finally:
             self._release_sys_pgcon()
 
@@ -614,14 +608,14 @@ class Server(ha_base.ClusterProtocol):
     async def load_reported_config(self):
         syscon = await self._acquire_sys_pgcon()
         try:
-            data = await syscon.parse_execute_extract_single_data_frame(
+            data = await syscon.sql_fetch_val(
                 self.get_sys_query('report_configs'),
-                b'__report_configs',
-                dbver=0, use_prep_stmt=True, args=(),
+                use_prep_stmt=True,
             )
             self._report_config_data = (
                 struct.pack('!L', len(self._report_config_typedesc)) +
                 self._report_config_typedesc +
+                struct.pack('!L', len(data)) +
                 data
             )
         except Exception:
@@ -631,18 +625,13 @@ class Server(ha_base.ClusterProtocol):
             self._release_sys_pgcon()
 
     async def introspect_global_schema(self, conn=None):
+        intro_query = self._global_intro_query
         if conn is not None:
-            json_data = await conn.parse_execute_json(
-                self._global_intro_query, b'__global_intro_db',
-                dbver=0, use_prep_stmt=True, args=(),
-            )
+            json_data = await conn.sql_fetch_val(intro_query)
         else:
             syscon = await self._acquire_sys_pgcon()
             try:
-                json_data = await syscon.parse_execute_json(
-                    self._global_intro_query, b'__global_intro_db',
-                    dbver=0, use_prep_stmt=True, args=(),
-                )
+                json_data = await syscon.sql_fetch_val(intro_query)
             finally:
                 self._release_sys_pgcon()
 
@@ -665,10 +654,7 @@ class Server(ha_base.ClusterProtocol):
         self._fetch_roles()
 
     async def introspect_user_schema(self, conn):
-        json_data = await conn.parse_execute_json(
-            self._local_intro_query, b'__local_intro_db',
-            dbver=0, use_prep_stmt=True, args=(),
-        )
+        json_data = await conn.sql_fetch_val(self._local_intro_query)
 
         base_schema = s_schema.ChainedSchema(
             self._std_schema,
@@ -718,7 +704,7 @@ class Server(ha_base.ClusterProtocol):
         try:
             user_schema = await self.introspect_user_schema(conn)
 
-            reflection_cache_json = await conn.parse_execute_json(
+            reflection_cache_json = await conn.sql_fetch_val(
                 b'''
                     SELECT json_agg(o.c)
                     FROM (
@@ -732,10 +718,6 @@ class Server(ha_base.ClusterProtocol):
                                 AS t(eql_hash text, argnames text[])
                     ) AS o;
                 ''',
-                b'__reflection_cache',
-                dbver=0,
-                use_prep_stmt=True,
-                args=(),
             )
 
             reflection_cache = immutables.Map({
@@ -743,7 +725,7 @@ class Server(ha_base.ClusterProtocol):
                 for r in json.loads(reflection_cache_json)
             })
 
-            backend_ids_json = await conn.parse_execute_json(
+            backend_ids_json = await conn.sql_fetch_val(
                 b'''
                 SELECT
                     json_object_agg(
@@ -753,10 +735,6 @@ class Server(ha_base.ClusterProtocol):
                 FROM
                     edgedb."_SchemaType"
                 ''',
-                b'__backend_ids_fetch',
-                dbver=0,
-                use_prep_stmt=True,
-                args=(),
             )
             backend_ids = json.loads(backend_ids_json)
 
@@ -774,24 +752,14 @@ class Server(ha_base.ClusterProtocol):
             self.release_pgcon(dbname, conn)
 
     async def introspect_db_config(self, conn):
-        query = self.get_sys_query('dbconfig')
-        result = await conn.parse_execute_json(
-            query,
-            b'__backend_dbconfig',
-            dbver=0,
-            use_prep_stmt=True,
-            args=(),
-        )
+        result = await conn.sql_fetch_val(self.get_sys_query('dbconfig'))
         return config.from_json(config.get_settings(), result)
 
     async def _introspect_dbs(self):
         syscon = await self._acquire_sys_pgcon()
         try:
             dbs_query = self.get_sys_query('listdbs')
-            json_data = await syscon.parse_execute_json(
-                dbs_query, b'__listdbs',
-                dbver=0, use_prep_stmt=True, args=(),
-            )
+            json_data = await syscon.sql_fetch_val(dbs_query)
             dbnames = json.loads(json_data)
         finally:
             self._release_sys_pgcon()
@@ -1118,7 +1086,7 @@ class Server(ha_base.ClusterProtocol):
             pgcon.start_pg_cancellation()
             try:
                 # Returns True if the `pid` exists and it was able to send it a
-                # SIGINT.  Will throw an exception if the priveleges aren't
+                # SIGINT.  Will throw an exception if the privileges aren't
                 # sufficient.
                 result = await syscon.simple_query(
                     f'SELECT pg_cancel_backend({pgcon.backend_pid});'.encode(),

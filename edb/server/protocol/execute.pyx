@@ -97,12 +97,12 @@ async def execute(
                         dbv, compiled, bind_args)
 
                     data = await be_conn.parse_execute(
-                        query_unit,         # =query
-                        fe_conn if not query_unit.set_global else None,
-                        bound_args_buf,     # =bind_data
-                        use_prep_stmt,      # =use_prep_stmt
-                        state,              # =state
-                        dbv.dbver,          # =dbver
+                        query=query_unit,
+                        fe_conn=fe_conn if not query_unit.set_global else None,
+                        bind_data=bound_args_buf,
+                        use_prep_stmt=use_prep_stmt,
+                        state=state,
+                        dbver=dbv.dbver,
                     )
 
                     if query_unit.set_global and data:
