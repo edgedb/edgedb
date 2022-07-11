@@ -303,17 +303,26 @@ async def execute_script(
 async def execute_system_config(
     conn: pgcon.PGConnection,
     dbv: dbview.DatabaseConnectionView,
-    query_unit,
+    query_unit: compiler.QueryUnit,
 ):
     if query_unit.sql:
-        data = await conn.simple_query(
-            b';'.join(query_unit.sql), ignore_data=False)
+        if len(query_unit.sql) > 1:
+            raise errors.InternalServerError(
+                "unexpected multiple SQL statements in CONFIGURE INSTANCE "
+                "compilation product"
+            )
+        data = await conn.sql_fetch_col(query_unit.sql[0])
     else:
         data = None
 
     if data:
         # Prefer encoded op produced by the SQL command.
-        config_ops = [config.Operation.from_json(r[0]) for r in data]
+        if data[0][0] != 0x01:
+            raise errors.InternalServerError(
+                f"unexpected JSONB version produced by SQL statement for "
+                f"CONFIGURE INSTANCE: {data[0][0]}"
+            )
+        config_ops = [config.Operation.from_json(r[1:]) for r in data]
     else:
         # Otherwise, fall back to staticly evaluated op.
         config_ops = query_unit.config_ops
@@ -322,8 +331,7 @@ async def execute_system_config(
     # If this is a backend configuration setting we also
     # need to make sure it has been loaded.
     if query_unit.backend_config:
-        await conn.simple_query(
-            b'SELECT pg_reload_conf()', ignore_data=True)
+        await conn.sql_execute(b'SELECT pg_reload_conf()')
 
 
 def signal_side_effects(dbv, side_effects):

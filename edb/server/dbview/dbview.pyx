@@ -1165,7 +1165,7 @@ cdef class DatabaseIndex:
             dbops.UpdateSingleDBMetadata(
                 defines.EDGEDB_SYSTEM_DB, metadata
             ).generate(block)
-        await conn.simple_query(block.to_string().encode(), True)
+        await conn.sql_execute(block.to_string().encode())
 
     async def apply_system_config_op(self, conn, op):
         op_value = op.get_setting(config.get_settings())

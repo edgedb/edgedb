@@ -1048,8 +1048,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         conn = await self.get_pgcon()
         try:
             if query_unit.sql:
-                await conn.simple_query(
-                    b';'.join(query_unit.sql), ignore_data=True)
+                await conn.sql_execute(query_unit.sql)
 
             if query_unit.tx_savepoint_rollback:
                 _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
@@ -1823,7 +1822,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             # This guarantees that every pg connection and the compiler work
             # with the same DB state.
 
-            await pgcon.simple_query(
+            await pgcon.sql_execute(
                 b'''START TRANSACTION
                         ISOLATION LEVEL SERIALIZABLE
                         READ ONLY
@@ -1835,7 +1834,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     SET idle_in_transaction_session_timeout = 0;
                     SET statement_timeout = 0;
                 ''',
-                True
             )
 
             user_schema = await server.introspect_user_schema(pgcon)
@@ -1854,12 +1852,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
             if schema_dynamic_ddl:
                 for query in schema_dynamic_ddl:
-                    result = await pgcon.simple_query(
-                        query.encode('utf-8'),
-                        ignore_data=False,
-                    )
+                    result = await pgcon.sql_fetch_val(query.encode('utf-8'))
                     if result:
-                        schema_ddl += '\n' + result[0][0].decode('utf-8')
+                        schema_ddl += '\n' + result.decode('utf-8')
 
             msg_buf = WriteBuffer.new_message(b'@')
 
@@ -1939,10 +1934,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                         if self._write_waiter:
                             await self._write_waiter
 
-            await pgcon.simple_query(
-                b'''ROLLBACK;''',
-                True
-            )
+            await pgcon.sql_execute(b"ROLLBACK;")
 
         finally:
             self._in_dump_restore = False
@@ -1971,10 +1963,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         try:
             _dbview.start(query_unit)
-            await pgcon.simple_query(
-                b';'.join(query_unit.sql),
-                ignore_data=True,
-            )
+            await pgcon.sql_execute(query_unit.sql)
         except Exception:
             _dbview.on_error()
             if (
@@ -2063,7 +2052,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 pgcon,
             )
 
-            await pgcon.simple_query(
+            await pgcon.sql_execute(
                 b'''
                     -- Disable transaction or query execution timeout
                     -- limits. Both clients and the server can be slow
@@ -2071,7 +2060,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     SET idle_in_transaction_session_timeout = 0;
                     SET statement_timeout = 0;
                 ''',
-                True
             )
 
             schema_sql_units, restore_blocks, tables = \
@@ -2104,10 +2092,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                             if ddl_ret and ddl_ret['new_types']:
                                 new_types = ddl_ret['new_types']
                         else:
-                            await pgcon.simple_query(
-                                b';'.join(query_unit.sql),
-                                ignore_data=True,
-                            )
+                            await pgcon.sql_execute(query_unit.sql)
                 except Exception:
                     _dbview.on_error()
                     raise
@@ -2129,10 +2114,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     f'ALTER TABLE {table} ENABLE TRIGGER ALL;'
                 )
 
-            await pgcon.simple_query(
-                disable_trigger_q.encode(),
-                ignore_data=True,
-            )
+            await pgcon.sql_execute(disable_trigger_q.encode())
 
             # Send "RestoreReadyMessage"
             msg = WriteBuffer.new_message(b'+')
@@ -2186,13 +2168,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 else:
                     self.fallthrough()
 
-            await pgcon.simple_query(
-                enable_trigger_q.encode(),
-                ignore_data=True,
-            )
+            await pgcon.sql_execute(enable_trigger_q.encode())
 
         except Exception:
-            await pgcon.simple_query(b'ROLLBACK', ignore_data=True)
+            await pgcon.sql_execute(b'ROLLBACK')
             _dbview.abort_tx()
             raise
 
