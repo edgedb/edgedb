@@ -54,11 +54,11 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    lower(val) +
+                    edgedb.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE 1 END)
                 )::int8,
                 (
-                    upper(val) -
+                    edgedb.range_upper_validate(val) -
                     (CASE WHEN upper_inc(val) THEN 0 ELSE 1 END)
                 )::int8
             )::int4
@@ -77,11 +77,11 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    lower(val) +
+                    edgedb.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE step END)
                 )::int8,
                 (
-                    upper(val) -
+                    edgedb.range_upper_validate(val) -
                     (CASE WHEN upper_inc(val) THEN 0 ELSE step END)
                 )::int8,
                 step::int8
@@ -100,11 +100,11 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    lower(val) +
+                    edgedb.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE 1 END)
                 )::int8,
                 (
-                    upper(val) -
+                    edgedb.range_upper_validate(val) -
                     (CASE WHEN upper_inc(val) THEN 0 ELSE 1 END)
                 )::int8
             )
@@ -123,11 +123,11 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    lower(val) +
+                    edgedb.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE step END)
                 )::int8,
                 (
-                    upper(val) -
+                    edgedb.range_upper_validate(val) -
                     (CASE WHEN upper_inc(val) THEN 0 ELSE step END)
                 )::int8,
                 step
@@ -147,11 +147,11 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    lower(val) +
+                    edgedb.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE step END)
                 )::numeric,
                 (
-                    upper(val) -
+                    edgedb.range_upper_validate(val) -
                     (CASE WHEN upper_inc(val) THEN 0 ELSE step END)
                 )::numeric,
                 step::numeric
@@ -171,11 +171,11 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    lower(val) +
+                    edgedb.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE step END)
                 )::numeric,
                 (
-                    upper(val) -
+                    edgedb.range_upper_validate(val) -
                     (CASE WHEN upper_inc(val) THEN 0 ELSE step END)
                 )::numeric,
                 step::numeric
@@ -194,9 +194,9 @@ std::range_unpack(
     USING SQL $$
         SELECT
             generate_series(
-                lower(val) +
+                edgedb.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE step END),
-                upper(val) -
+                edgedb.range_upper_validate(val) -
                     (CASE WHEN upper_inc(val) THEN 0 ELSE step END),
                 step
             )
@@ -215,7 +215,7 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    lower(val) + (
+                    edgedb.range_lower_validate(val) + (
                         CASE WHEN lower_inc(val)
                             THEN '0'::interval
                             ELSE step
@@ -223,7 +223,7 @@ std::range_unpack(
                     )
                 )::timestamptz,
                 (
-                    upper(val) - (
+                    edgedb.range_upper_validate(val) - (
                         CASE WHEN upper_inc(val)
                             THEN '0'::interval
                             ELSE step

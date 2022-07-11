@@ -5976,57 +5976,49 @@ aa \
             [True],
         )
 
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'cannot cast'):
-            async with self.con.transaction():
-                await self.con.query_single(f'''
-                    select count(
-                        <range<datetime>>range(
-                            <cal::local_datetime>'2022-06-10T00:00:00',
-                            <cal::local_datetime>'2022-06-17T00:00:00'
-                        )
-                    )
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'cannot cast'
+        ):
+            await self.con.query_single(r'''
+                select <range<datetime>>range(
+                    <cal::local_datetime>'2022-06-10T00:00:00',
+                    <cal::local_datetime>'2022-06-17T00:00:00'
+                )
+            ''')
 
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'cannot cast'):
-            async with self.con.transaction():
-                await self.con.query_single(f'''
-                    select count(
-                        <range<datetime>>range(
-                            <cal::local_date>'2022-06-10',
-                            <cal::local_date>'2022-06-17'
-                        )
-                    )
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'cannot cast'
+        ):
+            await self.con.query_single(r'''
+                select <range<datetime>>range(
+                    <cal::local_date>'2022-06-10',
+                    <cal::local_date>'2022-06-17'
+                )
+            ''')
 
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'cannot cast'):
-            async with self.con.transaction():
-                await self.con.query_single(f'''
-                    select count(
-                        <range<cal::local_datetime>>range(
-                            <datetime>'2022-06-10T00:00:00Z',
-                            <datetime>'2022-06-17T00:00:00Z'
-                        )
-                    )
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'cannot cast'
+        ):
+            await self.con.query_single(r'''
+                select <range<cal::local_datetime>>range(
+                    <datetime>'2022-06-10T00:00:00Z',
+                    <datetime>'2022-06-17T00:00:00Z'
+                )
+            ''')
 
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'cannot cast'):
-            async with self.con.transaction():
-                await self.con.query_single(f'''
-                    select count(
-                        <range<cal::local_date>>range(
-                            <datetime>'2022-06-10T00:00:00Z',
-                            <datetime>'2022-06-17T00:00:00Z'
-                        )
-                    )
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'cannot cast'
+        ):
+            await self.con.query_single(r'''
+                select <range<cal::local_date>>range(
+                    <datetime>'2022-06-10T00:00:00Z',
+                    <datetime>'2022-06-17T00:00:00Z'
+                )
+            ''')
 
     async def test_edgeql_expr_range_32(self):
         # Test casting ranges to JSON.
@@ -6319,205 +6311,193 @@ aa \
             [True],
         )
 
-        with self.assertRaisesRegex(
-                edgedb.NumericOutOfRangeError,
-                r'"2147483648" is out of range for type std::int32'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<int32>>to_json('{
-                        "lower": 2,
-                        "inc_lower": true,
-                        "upper": 2147483648,
-                        "inc_upper": false
-                    }') = range(2, 10);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.NumericOutOfRangeError,
+            r'"2147483648" is out of range for type std::int32'
+        ):
+            await self.con.execute(r"""
+                select <range<int32>>to_json('{
+                    "lower": 2,
+                    "inc_lower": true,
+                    "upper": 2147483648,
+                    "inc_upper": false
+                }');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.NumericOutOfRangeError,
-                r'"9223372036854775808" is out of range for '
-                r'type std::int64'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<int64>>to_json('{
-                        "lower": 2,
-                        "inc_lower": true,
-                        "upper": 9223372036854775808,
-                        "inc_upper": false
-                    }') = range(2, 10);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.NumericOutOfRangeError,
+            r'"9223372036854775808" is out of range for '
+            r'type std::int64'
+        ):
+            await self.con.execute(r"""
+                select <range<int64>>to_json('{
+                    "lower": 2,
+                    "inc_lower": true,
+                    "upper": 9223372036854775808,
+                    "inc_upper": false
+                }');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.NumericOutOfRangeError,
-                r'.+ is out of range for type std::float32'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<float32>>to_json('{
-                        "lower": 2,
-                        "inc_lower": true,
-                        "upper": 1e100,
-                        "inc_upper": false
-                    }') = range(2.0, 10.0);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.NumericOutOfRangeError,
+            r'.+ is out of range for type std::float32'
+        ):
+            await self.con.execute(r"""
+                select <range<float32>>to_json('{
+                    "lower": 2,
+                    "inc_lower": true,
+                    "upper": 1e100,
+                    "inc_upper": false
+                }');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.NumericOutOfRangeError,
-                r'.+ is out of range for type std::float64'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<float64>>to_json('{
-                        "lower": 2,
-                        "inc_lower": true,
-                        "upper": 1e500,
-                        "inc_upper": false
-                    }') = range(2.0, 10.0);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.NumericOutOfRangeError,
+            r'.+ is out of range for type std::float64'
+        ):
+            await self.con.execute(r"""
+                select <range<float64>>to_json('{
+                    "lower": 2,
+                    "inc_lower": true,
+                    "upper": 1e500,
+                    "inc_upper": false
+                }');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r'expected JSON number or null; got JSON string'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<int64>>to_json('{
-                        "lower": "2",
-                        "inc_lower": true,
-                        "upper": 10,
-                        "inc_upper": false
-                    }') = range(2, 10);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'expected JSON number or null; got JSON string'
+        ):
+            await self.con.execute(r"""
+                select <range<int64>>to_json('{
+                    "lower": "2",
+                    "inc_lower": true,
+                    "upper": 10,
+                    "inc_upper": false
+                }');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r'invalid input syntax for type std::int64: "2.5"'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<int64>>to_json('{
-                        "lower": 2.5,
-                        "inc_lower": true,
-                        "upper": 10,
-                        "inc_upper": false
-                    }') = range(2, 10);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'invalid input syntax for type std::int64: "2.5"'
+        ):
+            await self.con.execute(r"""
+                select <range<int64>>to_json('{
+                    "lower": 2.5,
+                    "inc_lower": true,
+                    "upper": 10,
+                    "inc_upper": false
+                }');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r'JSON object representing a range must include an "inc_upper"'
-                r' boolean property'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<int64>>to_json('{
-                        "lower": 2,
-                        "inc_lower": true,
-                        "upper": 10,
-                        "inc_upper": null
-                    }') = range(2, 10);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'JSON object representing a range must include an "inc_upper"'
+            r' boolean property'
+        ):
+            await self.con.execute(r"""
+                select <range<int64>>to_json('{
+                    "lower": 2,
+                    "inc_lower": true,
+                    "upper": 10,
+                    "inc_upper": null
+                }');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r'JSON object representing a range must include an "inc_lower"'
-                r' boolean property'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<int64>>to_json('{
-                        "lower": 2,
-                        "upper": 10,
-                        "inc_upper": false
-                    }') = range(2, 10);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'JSON object representing a range must include an "inc_lower"'
+            r' boolean property'
+        ):
+            await self.con.execute(r"""
+                select <range<int64>>to_json('{
+                    "lower": 2,
+                    "upper": 10,
+                    "inc_upper": false
+                }');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r'JSON object representing a range must include an "inc_lower"'
-                r' boolean property'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<int64>>to_json('["bad", null]') =
-                        range(2, 10);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'JSON object representing a range must include an "inc_lower"'
+            r' boolean property'
+        ):
+            await self.con.execute(r"""
+                select <range<int64>>to_json('["bad", null]');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r'JSON object representing a range must include an "inc_lower"'
-                r' boolean property'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<int64>>to_json('{"bad": null}') =
-                        range(2, 10);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'JSON object representing a range must include an "inc_lower"'
+            r' boolean property'
+        ):
+            await self.con.execute(r"""
+                select <range<int64>>to_json('{"bad": null}');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r'JSON object representing a range must include an "inc_lower"'
-                r' boolean property'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<int64>>to_json('"bad"') =
-                        range(2, 10);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'JSON object representing a range must include an "inc_lower"'
+            r' boolean property'
+        ):
+            await self.con.execute(r"""
+                select <range<int64>>to_json('"bad"');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r'JSON object representing a range must include an "inc_lower"'
-                r' boolean property'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<int64>>to_json('null') =
-                        range(2, 10);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'JSON object representing a range must include an "inc_lower"'
+            r' boolean property'
+        ):
+            await self.con.execute(r"""
+                select <range<int64>>to_json('null');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r'JSON object representing a range must include an "inc_lower"'
-                r' boolean property'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<int64>>to_json('1312') =
-                        range(2, 10);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'JSON object representing a range must include an "inc_lower"'
+            r' boolean property'
+        ):
+            await self.con.execute(r"""
+                select <range<int64>>to_json('1312');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r'JSON object representing a range must include an "inc_lower"'
-                r' boolean property'):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<int64>>to_json('true') =
-                        range(2, 10);
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r'JSON object representing a range must include an "inc_lower"'
+            r' boolean property'
+        ):
+            await self.con.execute(r"""
+                select <range<int64>>to_json('true');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r"invalid input syntax for type cal::local_date: "
-                r"'2022.06.10'"):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<cal::local_date>>to_json('{
-                        "lower": "2022.06.10",
-                        "inc_lower": true,
-                        "upper": "2022-06-17",
-                        "inc_upper": false
-                    }') = range(
-                        <cal::local_date>'2022-06-10',
-                        <cal::local_date>'2022-06-17'
-                    );
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r"invalid input syntax for type cal::local_date: "
+            r"'2022.06.10'"
+        ):
+            await self.con.execute(r"""
+                select <range<cal::local_date>>to_json('{
+                    "lower": "2022.06.10",
+                    "inc_lower": true,
+                    "upper": "2022-06-17",
+                    "inc_upper": false
+                }');
+            """)
 
-        with self.assertRaisesRegex(
-                edgedb.InvalidValueError,
-                r"invalid input syntax for type cal::local_date: "
-                r"'12022-06-17'"):
-            async with self.con.transaction():
-                await self.con.query_single(r'''
-                    select <range<cal::local_date>>to_json('{
-                        "lower": "2022-06-10",
-                        "inc_lower": true,
-                        "upper": "12022-06-17",
-                        "inc_upper": false
-                    }') = range(
-                        <cal::local_date>'2022-06-10',
-                        <cal::local_date>'2022-06-17'
-                    );
-                ''')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r"invalid input syntax for type cal::local_date: "
+            r"'12022-06-17'"
+        ):
+            await self.con.execute(r"""
+                select <range<cal::local_date>>to_json('{
+                    "lower": "2022-06-10",
+                    "inc_lower": true,
+                    "upper": "12022-06-17",
+                    "inc_upper": false
+                }');
+            """)
 
     async def test_edgeql_expr_range_35(self):
         # Test casting shapes containing ranges to JSON.
@@ -6551,6 +6531,45 @@ aa \
             }],
             json_only=True,
         )
+
+    async def test_edgeql_expr_range_36(self):
+        # Test incorrect range bounds.
+
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                "range lower bound must be",
+            ):
+                await self.con.execute(f"""
+                    select range(<{st}>5, <{st}>1);
+                """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "range lower bound must be",
+        ):
+            await self.con.execute("""
+                select range(<datetime>'2022-07-09T23:56:17Z',
+                             <datetime>'2022-07-08T23:56:17Z');
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "range lower bound must be",
+        ):
+            await self.con.execute("""
+                select range(<cal::local_datetime>'2022-07-09T23:56:17',
+                             <cal::local_datetime>'2022-07-08T23:56:17');
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "range lower bound must be",
+        ):
+            await self.con.execute("""
+                select range(<cal::local_date>'2022-07-09',
+                             <cal::local_date>'2022-07-08');
+            """)
 
     async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
         with self.assertRaisesRegex(

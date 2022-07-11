@@ -1953,7 +1953,7 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    lower(val) + (
+                    edgedb.range_lower_validate(val) + (
                         CASE WHEN lower_inc(val)
                             THEN '0'::interval
                             ELSE step
@@ -1961,7 +1961,7 @@ std::range_unpack(
                     )
                 )::timestamp,
                 (
-                    upper(val) - (
+                    edgedb.range_upper_validate(val) - (
                         CASE WHEN upper_inc(val)
                             THEN '0'::interval
                             ELSE step
@@ -1984,7 +1984,7 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    lower(val) + (
+                    edgedb.range_lower_validate(val) + (
                         CASE WHEN lower_inc(val)
                             THEN '0'::interval
                             ELSE 'P1D'::interval
@@ -1992,7 +1992,7 @@ std::range_unpack(
                     )
                 )::timestamp,
                 (
-                    upper(val) - (
+                    edgedb.range_upper_validate(val) - (
                         CASE WHEN upper_inc(val)
                             THEN '0'::interval
                             ELSE 'P1D'::interval
@@ -2016,7 +2016,7 @@ std::range_unpack(
         SELECT
             generate_series(
                 (
-                    lower(val) + (
+                    edgedb.range_lower_validate(val) + (
                         CASE WHEN lower_inc(val)
                             THEN '0'::interval
                             ELSE step
@@ -2024,7 +2024,7 @@ std::range_unpack(
                     )
                 )::timestamp,
                 (
-                    upper(val) - (
+                    edgedb.range_upper_validate(val) - (
                         CASE WHEN upper_inc(val)
                             THEN '0'::interval
                             ELSE step
