@@ -5213,7 +5213,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             objs = {tgt}
         objs |= {
             x for obj in objs for x in obj.descendants(schema)}
-        return objs
+        return {obj for obj in objs if not obj.is_view(schema)}
 
     def get_orphan_link_ancestors(self, link, schema):
         val = s_links.LinkSourceDeleteAction.DeleteTargetIfOrphan

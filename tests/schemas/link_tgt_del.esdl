@@ -74,6 +74,10 @@ type Source1 extending Named {
 
 }
 
+# Make sure the existence of aliases doen't cause trouble
+alias ASource1 := Source1;
+alias ATarget1 := Target1;
+
 type Source2 extending Named {
     link src1_del_source -> Source1 {
         on target delete delete source;
