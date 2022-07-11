@@ -20,24 +20,15 @@
 import http
 import json
 
-import immutables as immu
-
 from edb import errors
-from edb import edgeql
 
 from edb.common import debug
 from edb.common import markup
 
-from edb.schema import schema as s_schema
-
-from edb.server.compiler import OutputFormat
-from edb.server.compiler import enums
+from edb.server import compiler
 from edb.server import defines as edbdef
 
-
-ALLOWED_CAPABILITIES = (
-    enums.Capability.MODIFICATIONS
-)
+from . import execute  # type: ignore
 
 
 async def handle_request(
@@ -94,74 +85,16 @@ async def handle_status_request(
     response,
     server,
 ):
-    result = await execute(server, "SELECT 'OK'", {})
     response.status = http.HTTPStatus.OK
     response.content_type = b'application/json'
+    db = server.get_db(dbname=edbdef.EDGEDB_SYSTEM_DB)
+    result = await execute.execute_json(
+        db,
+        query="SELECT 'OK'",
+        output_format=compiler.OutputFormat.JSON_ELEMENTS,
+        # Disable query cache because we need to ensure that the compiled
+        # pool is healthy.
+        query_cache_enabled=False,
+    )
     response.body = result
     return
-
-
-async def compile(server, query):
-    compiler_pool = server.get_compiler_pool()
-
-    unit_group, _, _ = await compiler_pool.compile(
-        edbdef.EDGEDB_SYSTEM_DB,
-        s_schema.FlatSchema(),  # user schema
-        server.get_global_schema(),
-        immu.Map(),             # reflection cache
-        immu.Map(),             # database config
-        server.get_compilation_system_config(),
-        edgeql.Source.from_string(query),
-        None,           # modaliases
-        None,           # session config
-        OutputFormat.JSON_ELEMENTS,  # json mode
-        False,          # expected cardinality is MANY
-        0,              # no implicit limit
-        False,          # no inlining of type IDs
-        False,          # no inlining of type names
-        False,          # skip_first
-        edbdef.CURRENT_PROTOCOL,  # protocol_version
-        True,           # inline_objectids
-        True,           # json parameters
-    )
-    return unit_group[0]
-
-
-async def execute(server, query, variables):
-    query_unit = await compile(server, query)
-    if query_unit.capabilities & ~ALLOWED_CAPABILITIES:
-        raise query_unit.capabilities.make_error(
-            ALLOWED_CAPABILITIES,
-            errors.UnsupportedCapabilityError,
-        )
-
-    args = []
-    if query_unit.in_type_args:
-        for param in query_unit.in_type_args:
-            if variables is None or param.name not in variables:
-                raise errors.QueryError(
-                    f'no value for the ${param.name} query parameter')
-            else:
-                value = variables[param.name]
-                if value is None and param.required:
-                    raise errors.QueryError(
-                        f'parameter ${param.name} is required')
-                args.append(value)
-
-    pgcon = await server.acquire_pgcon(edbdef.EDGEDB_SYSTEM_DB)
-    try:
-        data = await pgcon.parse_execute_json(
-            query_unit.sql[0],
-            query_unit.sql_hash,
-            1,
-            True,
-            args,
-        )
-    finally:
-        server.release_pgcon(edbdef.EDGEDB_SYSTEM_DB, pgcon)
-
-    if data is None:
-        raise errors.InternalServerError(
-            f'no data received for a JSON query {query_unit.sql[0]!r}')
-
-    return data

@@ -318,6 +318,7 @@ class TestServerCompilerPool(tbs.TestCase):
             # Kill both workers, the server would need some time to recover
             os.kill(pid2, signal.SIGKILL)
             os.kill(pid3, signal.SIGKILL)
+            time.sleep(0.1)
             start = time.monotonic()
             while time.monotonic() - start < 10:
                 try:

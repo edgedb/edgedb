@@ -176,6 +176,10 @@ cdef class Database:
         else:
             self.extensions = {}
 
+    @property
+    def server(self):
+        return self._index._server
+
     cdef schedule_config_update(self):
         self._index._server._on_local_database_config_change(self.name)
 

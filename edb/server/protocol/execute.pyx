@@ -17,13 +17,25 @@
 #
 
 from typing import (
+    Any,
+    Mapping,
     Optional,
 )
 
+import decimal
+import json
+
+import immutables
+
 from edb import errors
+from edb.common import debug
+
+from edb import edgeql
+from edb.edgeql import qltypes
 
 from edb.server import compiler
 from edb.server import config
+from edb.server import defines as edbdef
 from edb.server.dbview cimport dbview
 from edb.server.protocol cimport args_ser
 from edb.server.protocol cimport frontend
@@ -352,3 +364,115 @@ def signal_side_effects(dbv, side_effects):
             ),
             interruptable=False,
         )
+
+
+async def execute_json(
+    db: dbview.Database,
+    query: str,
+    *,
+    variables: Mapping[str, Any] = immutables.Map(),
+    globals_: Mapping[str, Any] = immutables.Map(),
+    output_format: compiler.OutputFormat = compiler.OutputFormat.JSON,
+    query_cache_enabled: Optional[bool] = None,
+) -> bytes:
+    if query_cache_enabled is None:
+        query_cache_enabled = not (
+            debug.flags.disable_qcache or debug.flags.edgeql_compile)
+
+    server = db.server
+
+    dbv = await server.new_dbview(
+        dbname=db.name,
+        query_cache=query_cache_enabled,
+        protocol_version=edbdef.CURRENT_PROTOCOL,
+    )
+
+    if globals_:
+        dbv.set_globals(immutables.Map({
+            "__::__edb_json_globals__": config.SettingValue(
+                name="__::__edb_json_globals__",
+                value=_encode_json_value(globals_),
+                source='global',
+                scope=qltypes.ConfigScope.GLOBAL,
+            )
+        }))
+
+    query_req = dbview.QueryRequestInfo(
+        edgeql.Source.from_string(query),
+        protocol_version=edbdef.CURRENT_PROTOCOL,
+        input_format=compiler.InputFormat.JSON,
+        output_format=output_format,
+        allow_capabilities=compiler.Capability.MODIFICATIONS,
+    )
+
+    compiled = await dbv.parse(query_req)
+    qug = compiled.query_unit_group
+
+    args = []
+    if qug.in_type_args:
+        for param in qug.in_type_args:
+            if variables is None or param.name not in variables:
+                raise errors.QueryError(
+                    f'no value for the ${param.name} query parameter')
+            else:
+                value = variables[param.name]
+                if value is None and param.required:
+                    raise errors.QueryError(
+                        f'parameter ${param.name} is required')
+                args.append(value)
+
+    bind_args = _encode_args(args)
+
+    pgcon = await server.acquire_pgcon(db.name)
+    try:
+        if len(qug) > 1:
+            data = await execute_script(
+                pgcon,
+                dbv,
+                compiled,
+                bind_args,
+                fe_conn=None,
+            )
+        else:
+            data = await execute(
+                pgcon,
+                dbv,
+                compiled,
+                bind_args,
+                fe_conn=None,
+            )
+    finally:
+        server.release_pgcon(db.name, pgcon)
+
+    if not data or len(data) > 1 or len(data[0]) != 1:
+        raise errors.InternalServerError(
+            f'received incorrect response data for a JSON query')
+
+    return data[0][0]
+
+
+cdef bytes _encode_json_value(object val):
+    if isinstance(val, decimal.Decimal):
+        jarg = str(val)
+    else:
+        jarg = json.dumps(val)
+
+    return b'\x01' + jarg.encode('utf-8')
+
+
+cdef bytes _encode_args(list args):
+    cdef:
+        WriteBuffer out_buf = WriteBuffer.new()
+
+    if args:
+        out_buf.write_int32(len(args))
+        for arg in args:
+            out_buf.write_int32(0)  # reserved
+            if arg is None:
+                out_buf.write_int32(-1)
+            else:
+                jval = _encode_json_value(arg)
+                out_buf.write_int32(len(jval))
+                out_buf.write_bytes(jval)
+
+    return bytes(out_buf)
