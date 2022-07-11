@@ -32,6 +32,11 @@ type Test2 {
     access policy test allow all using (true);
 };
 
+global foo -> str;
+required global bar -> int64 {
+    default := -1;
+};
+global baz := (select TargetA filter .name = global foo);
 
 type TargetA {
     required property name -> str {

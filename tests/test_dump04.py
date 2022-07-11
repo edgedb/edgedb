@@ -35,7 +35,7 @@ class DumpTestCaseMixin:
             await tx.rollback()
 
     async def _ensure_schema_data_integrity(self):
-        # Make sure access policies came in
+        # Validate access policies
         await self.assert_query_result(
             r'''
             SELECT schema::ObjectType {access_policies: {name}}
@@ -43,6 +43,36 @@ class DumpTestCaseMixin:
             ''',
             [
                 {'access_policies': [{'name': 'test'}]},
+            ],
+        )
+
+        # Validate globals
+        await self.assert_query_result(
+            r'''
+            SELECT schema::Global {
+                name, tgt := .target.name, required, default
+            }
+            ORDER BY .name
+            ''',
+            [
+                {
+                    'name': 'default::bar',
+                    'tgt': 'std::int64',
+                    'required': True,
+                    'default': '-1',
+                },
+                {
+                    'name': 'default::baz',
+                    'tgt': 'default::baz',
+                    'required': False,
+                    'default': None,
+                },
+                {
+                    'name': 'default::foo',
+                    'tgt': 'std::str',
+                    'required': False,
+                    'default': None,
+                },
             ],
         )
 
