@@ -702,7 +702,11 @@ class TypeSerializer:
             return ArrayDesc(
                 tid=tid, dim_len=dim_len, subtype=codecs_list[pos])
 
-        elif (t >= 0x80 and t <= 0xff):
+        elif t == CTYPE_RANGE:
+            pos = desc.read_ui16()
+            return RangeDesc(tid=tid, inner=codecs_list[pos])
+
+        elif (t[0] >= 0x80 and t[0] <= 0xff):
             # Ignore all type annotations.
             desc.read_len32_prefixed_bytes()
             return None
@@ -1035,6 +1039,11 @@ class EnumDesc(TypeDesc):
 class ArrayDesc(SetDesc):
     dim_len: int
     impl: typing.ClassVar[type] = list
+
+
+@dataclasses.dataclass(frozen=True)
+class RangeDesc(TypeDesc):
+    inner: TypeDesc
 
 
 @dataclasses.dataclass(frozen=True)
