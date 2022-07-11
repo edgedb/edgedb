@@ -34,6 +34,14 @@ from edb.server import compiler
 from edb.server import defines as edbdef
 from edb.server.compiler import OutputFormat
 from edb.server.compiler import enums
+from edb.server.protocol cimport args_ser
+from edb.server.dbview cimport dbview
+from edb.server.protocol cimport frontend
+
+from edb.server.pgproto.pgproto cimport (
+    WriteBuffer,
+)
+
 
 include "./consts.pxi"
 
@@ -145,10 +153,32 @@ async def compile(db, server, list queries):
     )
 
 
+cdef class NotebookConnection(frontend.FrontendConnection):
+    def __cinit__(self):
+        self.buf = WriteBuffer.new()
+
+    cdef write(self, WriteBuffer data):
+        self.buf.write_bytes(bytes(data))
+
+    cdef bytes _get_data(self):
+        return bytes(self.buf)
+
+    cdef flush(self):
+        pass
+
+
 async def execute(db, server, queries: list):
     dbver = db.dbver
     units = await compile(db, server, queries)
     result = []
+
+    dbv = await server.new_dbview(
+        dbname=db.name,
+        query_cache=False,
+        protocol_version=edbdef.CURRENT_PROTOCOL,
+    )
+
+    bind_data = None
 
     pgcon = await server.acquire_pgcon(db.name)
     try:
@@ -172,8 +202,23 @@ async def execute(db, server, queries: list):
                         raise errors.QueryError(
                             'cannot use query parameters in tutorial')
 
-                    data = await pgcon.parse_execute_notebook(
-                        query_unit.sql[0], dbver)
+                    if bind_data is None:
+                        bind_data = args_ser.recode_bind_args(
+                            dbv,
+                            dbview.CompiledQuery(query_unit_group=query_unit),
+                            b'',
+                        )
+
+                    fe_conn = NotebookConnection()
+
+                    await pgcon.parse_execute(
+                        query=query_unit,
+                        fe_conn=fe_conn,
+                        bind_data=bind_data,
+                        use_prep_stmt=False,
+                        state=None,
+                        dbver=dbver,
+                    )
                 except Exception as ex:
                     if debug.flags.server:
                         markup.dump(ex)
@@ -199,7 +244,7 @@ async def execute(db, server, queries: list):
                             base64.b64encode(
                                 query_unit.out_type_data).decode(),
                             base64.b64encode(
-                                data).decode(),
+                                fe_conn._get_data()).decode(),
                             base64.b64encode(
                                 query_unit.status).decode(),
                         ),
