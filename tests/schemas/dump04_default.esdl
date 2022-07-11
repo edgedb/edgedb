@@ -23,3 +23,31 @@ type Test1 {
         default := <array<tuple<name: str, severity: int16>>>[]
     };
 };
+
+type Test2 {
+    property range_of_int -> range<int64>;
+    property range_of_date -> range<datetime>;
+    property date_duration -> cal::date_duration;
+
+    access policy test allow all using (true);
+};
+
+
+type TargetA {
+    required property name -> str {
+        constraint exclusive;
+    }
+}
+
+type SourceA {
+    required property name -> str {
+        constraint exclusive;
+    }
+
+    link link1 -> TargetA {
+        on source delete delete target;
+    };
+    link link2 -> TargetA {
+        on source delete delete target if orphan;
+    };
+};
