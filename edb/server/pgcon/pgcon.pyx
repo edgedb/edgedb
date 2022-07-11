@@ -1070,7 +1070,7 @@ cdef class PGConnection:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
-    async def sql_execute(
+    async def sql_fetch(
         self,
         sql: bytes,
         *,
@@ -1122,7 +1122,7 @@ cdef class PGConnection:
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
     ) -> bytes:
-        data = await self.sql_execute(
+        data = await self.sql_fetch(
             sql,
             args=args,
             use_prep_stmt=use_prep_stmt,
@@ -1145,7 +1145,7 @@ cdef class PGConnection:
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
     ) -> list[bytes]:
-        data = await self.sql_execute(
+        data = await self.sql_fetch(
             sql,
             args=args,
             use_prep_stmt=use_prep_stmt,

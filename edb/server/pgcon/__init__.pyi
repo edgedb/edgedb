@@ -35,7 +35,7 @@ async def connect(
 
 class PGConnection:
 
-    async def sql_execute(
+    async def sql_fetch(
         self,
         sql: bytes,
         *,
