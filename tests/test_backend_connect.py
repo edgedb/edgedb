@@ -1127,13 +1127,7 @@ class TestConnection(ClusterTestCase):
             await self.con.simple_query(b'SELECT 1', ignore_data=False)
 
         with check():
-            await self.con.parse_execute_json(None, None, None, None, None)
-
-        with check():
-            await self.con.parse_execute_notebook(None, None)
-
-        with check():
-            await self.con.parse_execute(None, None, None, False, None, 0)
+            await self.con.parse_execute(query=None, bind_data=None)
 
         with check():
             await self.con.run_ddl(None)

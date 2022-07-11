@@ -16,6 +16,12 @@
 # limitations under the License.
 #
 
+from typing import (
+    Any,
+    Callable,
+    Optional,
+)
+
 import asyncio
 import contextlib
 import decimal
@@ -609,280 +615,6 @@ cdef class PGConnection:
         outbuf.write_bytes(_SYNC_MESSAGE)
         self.waiting_for_sync += 1
 
-    async def _parse_execute_to_buf(
-        self,
-        sql,
-        sql_hash,
-        dbver,
-        use_prep_stmt,
-        args,
-        WriteBuffer out,
-    ):
-        cdef:
-            WriteBuffer parse_buf
-            WriteBuffer bind_buf
-            WriteBuffer execute_buf
-            WriteBuffer buf
-            ssize_t size
-            bint parse = 1
-            bint store_stmt = 0
-
-        buf = WriteBuffer.new()
-
-        if use_prep_stmt:
-            stmt_name = sql_hash
-            parse, store_stmt = self.before_prepare(
-                stmt_name, dbver, buf)
-        else:
-            stmt_name = b''
-
-        if parse:
-            parse_buf = WriteBuffer.new_message(b'P')
-            parse_buf.write_bytestring(stmt_name)  # statement name
-            parse_buf.write_bytestring(sql)
-            # we don't want to specify parameter types
-            parse_buf.write_int16(0)
-            parse_buf.end_message()
-            buf.write_buffer(parse_buf)
-
-        bind_buf = WriteBuffer.new_message(b'B')
-        bind_buf.write_bytestring(b'')  # portal name
-        bind_buf.write_bytestring(stmt_name)  # statement name
-        bind_buf.write_int32(0x00010001)  # binary for all parameters
-        # number of parameters
-        bind_buf.write_int16(<int16_t><uint16_t>(len(args)))
-
-        for arg in args:
-            if isinstance(arg, decimal.Decimal):
-                jarg = str(arg)
-            else:
-                jarg = json.dumps(arg)
-            pgproto.jsonb_encode(DEFAULT_CODEC_CONTEXT, bind_buf, jarg)
-
-        bind_buf.write_int32(0x00010001)  # binary for the output
-        bind_buf.end_message()
-        buf.write_buffer(bind_buf)
-
-        execute_buf = WriteBuffer.new_message(b'E')
-        execute_buf.write_bytestring(b'')  # portal name
-        execute_buf.write_int32(0)  # return all rows
-        execute_buf.end_message()
-        buf.write_buffer(execute_buf)
-
-        self.write_sync(buf)
-
-        self.write(buf)
-        error = None
-        data = None
-        while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
-
-            try:
-                if mtype == b'D':
-                    # DataRow
-                    self.buffer.redirect_messages(out, b'D', 0)
-
-                elif mtype == b'E':
-                    # ErrorResponse
-                    er_cls, fields = self.parse_error_message()
-                    error = er_cls(fields=fields)
-
-                elif mtype == b'1':
-                    # ParseComplete
-                    self.buffer.discard_message()
-                    if store_stmt:
-                        self.prep_stmts[stmt_name] = dbver
-
-                elif mtype in {b'C', b'n', b'2', b'I', b'3'}:
-                    # CommandComplete
-                    # NoData
-                    # BindComplete
-                    # EmptyQueryResponse
-                    # CloseComplete
-                    self.buffer.discard_message()
-
-                elif mtype == b'Z':
-                    # ReadyForQuery
-                    self.parse_sync_message()
-                    break
-
-                else:
-                    self.fallthrough()
-
-            finally:
-                self.buffer.finish_message()
-
-        if error is not None:
-            raise error
-
-        return data
-
-    async def _parse_execute_json(
-        self,
-        sql,
-        sql_hash,
-        dbver,
-        use_prep_stmt,
-        args,
-    ):
-        cdef:
-            WriteBuffer out
-            Py_buffer pybuf
-
-        out = WriteBuffer.new()
-        await self._parse_execute_to_buf(
-            sql, sql_hash, dbver, use_prep_stmt, args, out)
-
-        cpython.PyObject_GetBuffer(out, &pybuf, cpython.PyBUF_SIMPLE)
-        try:
-            if pybuf.len == 0:
-                return None
-
-            if pybuf.len < 11 or (<char*>pybuf.buf)[0] != b'D':
-                data = cpython.PyBytes_FromStringAndSize(
-                    <char*>pybuf.buf, pybuf.len)
-                raise RuntimeError(
-                    f'invalid protocol-level result of a JSON query '
-                    f'sql:{sql} buf-len:{pybuf.len} buf:{data}')
-
-            mlen = hton.unpack_int32(<char*>pybuf.buf + 1)
-
-            if pybuf.len > mlen + 1:
-                raise RuntimeError(
-                    f'received more than one DataRow '
-                    f'for a JSON query {sql!r}')
-
-            ncol = hton.unpack_int16(<char*>pybuf.buf + 5)
-            if ncol != 1:
-                raise RuntimeError(
-                    f'received more than column in DataRow '
-                    f'for a JSON query {sql!r}')
-
-            coll = hton.unpack_int32(<char*>pybuf.buf + 7)
-            if coll == -1:
-                raise RuntimeError(
-                    f'received NULL for a JSON query {sql!r}')
-
-            return cpython.PyBytes_FromStringAndSize(
-                <char*>pybuf.buf + 11, mlen - 4 - 2 - 4)
-
-        finally:
-            cpython.PyBuffer_Release(&pybuf)
-
-    async def parse_execute_json(
-        self,
-        sql,
-        sql_hash,
-        dbver,
-        use_prep_stmt,
-        args,
-    ):
-        self.before_command()
-        started_at = time.monotonic()
-        try:
-            return await self._parse_execute_json(
-                sql,
-                sql_hash,
-                dbver,
-                use_prep_stmt,
-                args,
-            )
-        finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
-            await self.after_command()
-
-    async def _parse_execute_extract_single_data_frame(
-        self,
-        sql,
-        sql_hash,
-        dbver,
-        use_prep_stmt,
-        args,
-    ):
-        cdef:
-            WriteBuffer out
-            Py_buffer pybuf
-
-        out = WriteBuffer.new()
-        await self._parse_execute_to_buf(
-            sql, sql_hash, dbver, use_prep_stmt, args, out)
-
-        cpython.PyObject_GetBuffer(out, &pybuf, cpython.PyBUF_SIMPLE)
-        try:
-            if pybuf.len == 0:
-                return None
-
-            if pybuf.len < 11 or (<char*>pybuf.buf)[0] != b'D':
-                data = cpython.PyBytes_FromStringAndSize(
-                    <char*>pybuf.buf, pybuf.len)
-                raise RuntimeError(
-                    f'invalid protocol-level result of a query '
-                    f'sql:{sql} buf-len:{pybuf.len} buf:{data}')
-
-            mlen = hton.unpack_int32(<char*>pybuf.buf + 1)
-
-            if pybuf.len > mlen + 1:
-                raise RuntimeError(
-                    f'received more than one DataRow '
-                    f'for a singleton-returning query {sql!r}')
-
-            ncol = hton.unpack_int16(<char*>pybuf.buf + 5)
-            if ncol != 1:
-                raise RuntimeError(
-                    f'received more than column in DataRow '
-                    f'for a singleton-returning query {sql!r}')
-
-            return cpython.PyBytes_FromStringAndSize(
-                <char*>pybuf.buf + 7, mlen - 2 - 4)
-
-        finally:
-            cpython.PyBuffer_Release(&pybuf)
-
-    async def parse_execute_extract_single_data_frame(
-        self,
-        sql,
-        sql_hash,
-        dbver,
-        use_prep_stmt,
-        args,
-    ):
-        self.before_command()
-        started_at = time.monotonic()
-        try:
-            return await self._parse_execute_extract_single_data_frame(
-                sql, sql_hash, dbver, use_prep_stmt, args)
-        finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
-            await self.after_command()
-
-    async def parse_execute_notebook(
-        self,
-        sql,
-        dbver,
-    ):
-        cdef:
-            WriteBuffer out
-            Py_buffer pybuf
-
-        self.before_command()
-        started_at = time.monotonic()
-        try:
-            out = WriteBuffer.new()
-            await self._parse_execute_to_buf(sql, b'', dbver, False, (), out)
-
-            cpython.PyObject_GetBuffer(out, &pybuf, cpython.PyBUF_SIMPLE)
-            try:
-                return cpython.PyBytes_FromStringAndSize(
-                    <char*>pybuf.buf, pybuf.len)
-            finally:
-                cpython.PyBuffer_Release(&pybuf)
-
-        finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
-            await self.after_command()
-
     def _build_apply_state_req(self, bytes serstate, WriteBuffer out):
         cdef:
             WriteBuffer buf
@@ -1116,12 +848,15 @@ cdef class PGConnection:
         WriteBuffer bind_data,
         bint use_prep_stmt,
         bytes state,
-        dbver,
+        int dbver,
     ):
         cdef:
             WriteBuffer out
             WriteBuffer buf
             bytes stmt_name
+
+            int32_t dat_len
+
             bint store_stmt = 0
             bint parse = 1
             bint state_sync = 0
@@ -1239,11 +974,12 @@ cdef class PGConnection:
                             ncol = self.buffer.read_int16()
                             row = []
                             for i in range(ncol):
-                                coll = self.buffer.read_int32()
-                                if coll == -1:
+                                dat_len = self.buffer.read_int32()
+                                if dat_len == -1:
                                     row.append(None)
                                 else:
-                                    row.append(self.buffer.read_bytes(coll))
+                                    row.append(
+                                        self.buffer.read_bytes(dat_len))
                             if result is None:
                                 result = []
                             result.append(row)
@@ -1311,12 +1047,13 @@ cdef class PGConnection:
 
     async def parse_execute(
         self,
+        *,
         query,
-        frontend.FrontendConnection fe_conn,
         WriteBuffer bind_data,
-        bint use_prep_stmt,
-        bytes state,
-        int dbver,
+        frontend.FrontendConnection fe_conn = None,
+        bint use_prep_stmt = False,
+        bytes state = None,
+        int dbver = 0,
     ):
         self.before_command()
         started_at = time.monotonic()
@@ -1332,6 +1069,94 @@ cdef class PGConnection:
         finally:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
+
+    async def sql_execute(
+        self,
+        sql: bytes,
+        *,
+        args: tuple[bytes, ...] | list[bytes] = (),
+        use_prep_stmt: bool = False,
+    ) -> list[tuple[bytes, ...]]:
+        cdef:
+            WriteBuffer bind_data = WriteBuffer.new()
+            int arg_len
+
+        if use_prep_stmt:
+            sql_hash = hashlib.sha1(sql).hexdigest().encode('latin1')
+        else:
+            sql_hash = None
+
+        query = compiler.QueryUnit(
+            sql=(sql,),
+            sql_hash=sql_hash,
+            status=b"",
+        )
+
+        if len(args) > 32767:
+            raise AssertionError(
+                'the number of query arguments cannot exceed 32767')
+
+        bind_data.write_int32(0x00010001)
+        bind_data.write_int16(<int16_t>len(args))
+        for arg in args:
+            if arg is None:
+                bind_data.write_int32(-1)
+            else:
+                arg_len = len(arg)
+                if arg_len > 0x7fffffff:
+                    raise ValueError("argument too long")
+                bind_data.write_int32(<int32_t>arg_len)
+                bind_data.write_bytes(arg)
+        bind_data.write_int32(0x00010001)
+
+        return await self.parse_execute(
+            query=query,
+            bind_data=bind_data,
+            use_prep_stmt=use_prep_stmt,
+        )
+
+    async def sql_fetch_val(
+        self,
+        sql: bytes,
+        *,
+        args: tuple[bytes, ...] | list[bytes] = (),
+        use_prep_stmt: bool = False,
+    ) -> bytes:
+        data = await self.sql_execute(
+            sql,
+            args=args,
+            use_prep_stmt=use_prep_stmt,
+        )
+        if len(data) == 0:
+            return None
+        elif len(data) > 1:
+            raise RuntimeError(
+                f"received too many rows for sql_fetch_val({sql!r})")
+        row = data[0]
+        if len(row) != 1:
+            raise RuntimeError(
+                f"received too many columns for sql_fetch_val({sql!r})")
+        return row[0]
+
+    async def sql_fetch_col(
+        self,
+        sql: bytes,
+        *,
+        args: tuple[bytes, ...] | list[bytes] = (),
+        use_prep_stmt: bool = False,
+    ) -> list[bytes]:
+        data = await self.sql_execute(
+            sql,
+            args=args,
+            use_prep_stmt=use_prep_stmt,
+        )
+        if not data:
+            return []
+        else:
+            if len(data[0]) != 1:
+                raise RuntimeError(
+                    f"received too many columns for sql_fetch_col({sql!r})")
+            return [row[0] for row in data]
 
     async def _simple_query(self, bytes sql, bint ignore_data, bytes state):
         cdef:
