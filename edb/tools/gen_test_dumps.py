@@ -146,7 +146,7 @@ async def _gen_test_dumps(*, jobs: int, tests_dir: str, data_dir: str) -> None:
 
     conn = cluster.get_connect_args()
     try:
-        execute(tests_dir, conn, num_workers=jobs, version=version)
+        await execute(tests_dir, conn, num_workers=jobs, version=version)
     except BaseException:
         raise
     finally:
