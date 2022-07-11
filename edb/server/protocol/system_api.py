@@ -88,7 +88,7 @@ async def handle_status_request(
     response.status = http.HTTPStatus.OK
     response.content_type = b'application/json'
     db = server.get_db(dbname=edbdef.EDGEDB_SYSTEM_DB)
-    result = await execute.execute_json(
+    result = await execute.parse_execute_json(
         db,
         query="SELECT 'OK'",
         output_format=compiler.OutputFormat.JSON_ELEMENTS,

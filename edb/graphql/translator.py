@@ -141,7 +141,6 @@ class Operation(NamedTuple):
 class TranspiledOperation(NamedTuple):
 
     edgeql_ast: qlast.Base
-    cacheable: bool
     cache_deps_vars: Optional[FrozenSet[str]]
     variables_desc: dict
 
@@ -1836,7 +1835,6 @@ def translate_ast(
     # generate the specific result
     return TranspiledOperation(
         edgeql_ast=op.stmt,
-        cacheable=True,
         cache_deps_vars=frozenset(op.critvars) if op.critvars else None,
         variables_desc=op.vars,
     )

@@ -24,11 +24,13 @@ import pickle
 
 import immutables
 
+from edb import edgeql
 from edb import graphql
 from edb.pgsql import params as pgparams
 from edb.schema import schema as s_schema
 from edb.server import compiler
 from edb.server import config
+from edb.server import defines
 
 from . import state
 from . import worker_proc
@@ -231,7 +233,7 @@ def compile_graphql(
     system_config: Optional[bytes],
     *compile_args: Any,
     **compile_kwargs: Any,
-):
+) -> tuple[compiler.QueryUnitGroup, graphql.TranspiledOperation]:
     db = __sync__(
         dbname,
         user_schema,
@@ -241,7 +243,7 @@ def compile_graphql(
         system_config,
     )
 
-    return graphql.compile_graphql(
+    gql_op = graphql.compile_graphql(
         STD_SCHEMA,
         db.user_schema,
         GLOBAL_SCHEMA,
@@ -250,6 +252,32 @@ def compile_graphql(
         *compile_args,
         **compile_kwargs
     )
+
+    source = edgeql.Source.from_string(
+        edgeql.generate_source(gql_op.edgeql_ast, pretty=True),
+    )
+
+    unit_group, _ = COMPILER.compile(
+        user_schema=db.user_schema,
+        global_schema=GLOBAL_SCHEMA,
+        reflection_cache=db.reflection_cache,
+        database_config=db.database_config,
+        system_config=INSTANCE_CONFIG,
+        source=source,
+        sess_modaliases=None,
+        sess_config=None,
+        output_format=compiler.OutputFormat.JSON,
+        expect_one=True,
+        implicit_limit=0,
+        inline_typeids=False,
+        inline_typenames=False,
+        inline_objectids=False,
+        json_parameters=True,
+        skip_first=False,
+        protocol_version=defines.CURRENT_PROTOCOL,
+    )
+
+    return unit_group, gql_op
 
 
 def get_handler(methname):

@@ -728,6 +728,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_TypeCast(self, node: qlast.TypeCast) -> None:
         self.write('<')
+        if node.cardinality_mod is qlast.CardinalityModifier.Optional:
+            self.write('optional ')
         self.visit(node.type)
         self.write('>')
         self.visit(node.expr)
