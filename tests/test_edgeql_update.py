@@ -2895,6 +2895,39 @@ class TestUpdate(tb.QueryTestCase):
             [3],
         )
 
+    @test.xfail('''
+        PostgreSQL doesn't allow updating just-inserted record
+        in the same query.
+    ''')
+    async def test_edgeql_update_with_self_insert_01(self):
+        await self.con.execute('''
+            WITH new_test := (INSERT UpdateTest { name := "new-test" })
+            UPDATE new_test
+            SET {
+                related := (new_test)
+            };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT UpdateTest {
+                    name,
+                    related: {
+                        name
+                    }
+                }
+                FILTER .name = "new-test";
+            """,
+            [
+                {
+                    'name': 'new-test',
+                    'related': [{
+                        'name': 'new-test'
+                    }]
+                },
+            ],
+        )
+
     async def test_edgeql_update_inheritance_01(self):
         await self.con.execute('''
             INSERT UpdateTest {
