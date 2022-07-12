@@ -18,8 +18,6 @@
 
 
 from __future__ import annotations
-
-import textwrap
 from typing import *
 
 import enum
@@ -29,19 +27,18 @@ import os
 import pathlib
 import pickle
 import re
+import struct
+import textwrap
 
 from edb import buildmeta
 from edb import errors
 
 from edb import edgeql
-from edb import _edgeql_rust
 from edb.ir import statypes
 from edb.edgeql import ast as qlast
 
-from edb.common import context as parser_context
 from edb.common import debug
 from edb.common import devmode
-from edb.common import exceptions
 from edb.common import uuidgen
 
 from edb.schema import ddl as s_ddl
@@ -72,7 +69,7 @@ from edgedb import scram
 if TYPE_CHECKING:
     import uuid
 
-    from asyncpg import connection as asyncpg_con
+    from edb.server import pgcon
 
 
 logger = logging.getLogger('edb.server')
@@ -88,13 +85,13 @@ class ClusterMode(enum.IntEnum):
 class BootstrapContext(NamedTuple):
 
     cluster: pgcluster.BaseCluster
-    conn: asyncpg_con.Connection
+    conn: pgcon.PGConnection
     args: edbargs.ServerConfig
     mode: Optional[ClusterMode] = None
 
 
 async def _execute(conn, query):
-    return await metaschema._execute_sql_script(conn, query)
+    return await metaschema.execute_sql_script(conn, query)
 
 
 async def _execute_block(conn, block: dbops.SQLBlock) -> None:
@@ -225,23 +222,34 @@ async def _get_cluster_mode(ctx: BootstrapContext) -> ClusterMode:
     is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
     ignore_others = is_default_tenant and ctx.args.ignore_other_tenants
     if is_default_tenant:
-        result = await ctx.conn.fetch('''
+        result = await ctx.conn.sql_fetch_col(
+            b"""
             SELECT
                 r.rolname
             FROM
                 pg_catalog.pg_roles AS r
             WHERE
                 r.rolname LIKE ('%' || $1)
-        ''', edbdef.EDGEDB_SUPERGROUP)
+            """,
+            args=[
+                edbdef.EDGEDB_SUPERGROUP.encode("utf-8"),
+            ],
+        )
     else:
-        result = await ctx.conn.fetch('''
+        result = await ctx.conn.sql_fetch_col(
+            b"""
             SELECT
                 r.rolname
             FROM
                 pg_catalog.pg_roles AS r
             WHERE
                 r.rolname = $1
-        ''', ctx.cluster.get_role_name(edbdef.EDGEDB_SUPERGROUP))
+            """,
+            args=[
+                ctx.cluster.get_role_name(
+                    edbdef.EDGEDB_SUPERGROUP).encode("utf-8"),
+            ],
+        )
 
     if result:
         if not ignore_others:
@@ -253,22 +261,23 @@ async def _get_cluster_mode(ctx: BootstrapContext) -> ClusterMode:
         # so check specifically if our tenant slot is occupied and ignore
         # the others.
         # This mode is used for in-place upgrade.
-        for row in result:
-            rolname = row['rolname']
+        for rolname in result:
             other_tenant_id = rolname[: -(len(edbdef.EDGEDB_SUPERGROUP) + 1)]
-            if other_tenant_id == tenant_id:
+            if other_tenant_id == tenant_id.encode("utf-8"):
                 return ClusterMode.regular
 
     # Then, check if the current database was bootstrapped in single-db mode.
-    has_instdata = await ctx.conn.fetch('''
-        SELECT
-            tablename
-        FROM
-            pg_catalog.pg_tables
-        WHERE
-            schemaname = 'edgedbinstdata'
-            AND tablename = 'instdata'
-    ''')
+    has_instdata = await ctx.conn.sql_fetch_val(
+        b'''
+            SELECT
+                tablename
+            FROM
+                pg_catalog.pg_tables
+            WHERE
+                schemaname = 'edgedbinstdata'
+                AND tablename = 'instdata'
+        ''',
+    )
     if has_instdata:
         return ClusterMode.single_database
 
@@ -276,17 +285,29 @@ async def _get_cluster_mode(ctx: BootstrapContext) -> ClusterMode:
     # the EdgeDB System DB with the assumption that we are not running in
     # single-db mode. If not found, this is a pristine backend cluster.
     if is_default_tenant:
-        result = await ctx.conn.fetch(f'''
-            SELECT datname
-            FROM pg_database
-            WHERE datname LIKE '%' || $1
-        ''', edbdef.EDGEDB_SYSTEM_DB)
+        result = await ctx.conn.sql_fetch_col(
+            b'''
+                SELECT datname
+                FROM pg_database
+                WHERE datname LIKE '%' || $1
+            ''',
+            args=(
+                edbdef.EDGEDB_SYSTEM_DB.encode("utf-8"),
+            ),
+        )
     else:
-        result = await ctx.conn.fetchval(f'''
-            SELECT datname
-            FROM pg_database
-            WHERE datname = $1
-        ''', ctx.cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB))
+        result = await ctx.conn.sql_fetch_col(
+            b'''
+                SELECT datname
+                FROM pg_database
+                WHERE datname = $1
+            ''',
+            args=(
+                ctx.cluster.get_db_name(
+                    edbdef.EDGEDB_SYSTEM_DB).encode("utf-8"),
+            ),
+        )
+
     if result:
         if not ignore_others:
             # Either our tenant slot is occupied, or there is
@@ -297,10 +318,9 @@ async def _get_cluster_mode(ctx: BootstrapContext) -> ClusterMode:
         # so check specifically if our tenant slot is occupied and ignore
         # the others.
         # This mode is used for in-place upgrade.
-        for row in result:
-            dbname = row['datname']
+        for dbname in result:
             other_tenant_id = dbname[: -(len(edbdef.EDGEDB_SYSTEM_DB) + 1)]
-            if other_tenant_id == tenant_id:
+            if other_tenant_id == tenant_id.encode("utf-8"):
                 return ClusterMode.single_role
 
     return ClusterMode.pristine
@@ -716,7 +736,7 @@ async def _init_stdlib(
         logger.info('Populating internal SQL structures...')
         await metaschema.bootstrap(conn, config_spec)
         logger.info('Executing the standard library...')
-        await _execute_ddl(conn, stdlib.sqltext)
+        await _execute(conn, stdlib.sqltext)
 
         if in_dev_mode or specified_cache_dir:
             tpl_db_name = edbdef.EDGEDB_TEMPLATE_DB
@@ -749,8 +769,9 @@ async def _init_stdlib(
                 flags=re.MULTILINE,
             )
 
-            global_metadata = await conn.fetchval(
-                f'SELECT edgedb.get_database_metadata({ql(tpl_db_name)})',
+            global_metadata = await conn.sql_fetch_val(
+                b"SELECT edgedb.get_database_metadata($1)::json",
+                args=[tpl_db_name.encode("utf-8")],
             )
             global_metadata = json.loads(global_metadata)
 
@@ -799,10 +820,10 @@ async def _init_stdlib(
             )
     else:
         logger.info('Initializing the standard library...')
-        await metaschema._execute_sql_script(conn, tpldbdump.decode('utf-8'))
+        await _execute(conn, tpldbdump.decode('utf-8'))
         # Restore the search_path as the dump might have altered it.
-        await conn.execute(
-            "SELECT pg_catalog.set_config('search_path', 'edgedb', false)")
+        await conn.sql_execute(
+            b"SELECT pg_catalog.set_config('search_path', 'edgedb', false)")
 
     if not in_dev_mode and testmode:
         # Running tests on a production build.
@@ -811,7 +832,7 @@ async def _init_stdlib(
             s_std.get_std_module_text(sn.UnqualName('_testmode')),
             stdlib,
         )
-        await conn.execute(testmode_sql)
+        await conn.sql_execute(testmode_sql.encode("utf-8"))
         # _testmode includes extra config settings, so make sure
         # those are picked up.
         config_spec = config.load_spec_from_schema(stdlib.stdschema)
@@ -837,7 +858,7 @@ async def _init_stdlib(
         expected_cardinality_one=False,
     )
     schema = stdlib.stdschema
-    typemap = await conn.fetchval(sql)
+    typemap = await conn.sql_fetch_val(sql.encode("utf-8"))
     for entry in json.loads(typemap):
         t = schema.get_by_id(uuidgen.UUID(entry['id']))
         schema = t.set_field_value(
@@ -929,7 +950,7 @@ async def _init_stdlib(
             ''',
             expected_cardinality_one=False,
         )
-        await conn.execute(sql)
+        await conn.sql_execute(sql.encode("utf-8"))
 
         _, sql = compile_bootstrap_script(
             compiler,
@@ -948,7 +969,7 @@ async def _init_stdlib(
             ''',
             expected_cardinality_one=False,
         )
-        await conn.execute(sql)
+        await conn.sql_execute(sql.encode("utf-8"))
 
     await _store_static_json_cache(
         ctx,
@@ -959,59 +980,13 @@ async def _init_stdlib(
     return stdlib, config_spec, compiler
 
 
-async def _execute_ddl(conn, sql_text):
-    try:
-        if debug.flags.bootstrap:
-            debug.header('Delta Script')
-            debug.dump_code(sql_text, lexer='sql')
-
-        await conn.execute(sql_text)
-
-    except Exception as e:
-        position = getattr(e, 'position', None)
-        internal_position = getattr(e, 'internal_position', None)
-        context = getattr(e, 'context', '')
-        if context:
-            pl_func_line = re.search(
-                r'^PL/pgSQL function inline_code_block line (\d+).*',
-                context, re.M)
-
-            if pl_func_line:
-                pl_func_line = int(pl_func_line.group(1))
-        else:
-            pl_func_line = None
-        point = None
-
-        if position is not None:
-            point = int(position)
-            text = e.query
-            if text is None:
-                # Parse errors
-                text = sql_text
-
-        elif internal_position is not None:
-            point = int(internal_position)
-            text = e.internal_query
-
-        elif pl_func_line:
-            point = _edgeql_rust.offset_of_line(sql_text, pl_func_line)
-            text = sql_text
-
-        if point is not None:
-            context = parser_context.ParserContext(
-                'query', text, start=point, end=point, context_lines=30)
-            exceptions.replace_context(e, context)
-
-        raise
-
-
 async def _init_defaults(schema, compiler, conn):
     script = '''
         CREATE MODULE default;
     '''
 
     schema, sql = compile_bootstrap_script(compiler, schema, script)
-    await _execute_ddl(conn, sql)
+    await _execute(conn, sql)
     return schema
 
 
@@ -1062,7 +1037,7 @@ async def _configure(
                 CONFIGURE INSTANCE SET {setting.name} := {val};
             '''
             schema, sql = compile_bootstrap_script(compiler, schema, script)
-            await _execute_ddl(ctx.conn, sql)
+            await _execute(ctx.conn, sql)
 
 
 async def _compile_sys_queries(
@@ -1321,39 +1296,47 @@ async def _set_edgedb_database_metadata(
     return objid
 
 
-def _pg_log_listener(conn, msg):
-    if msg.severity_en == 'WARNING':
+def _pg_log_listener(severity, message):
+    if severity == 'WARNING':
         level = logging.WARNING
     else:
         level = logging.DEBUG
-    logger.log(level, msg.message)
+    logger.log(level, message)
 
 
-async def _get_instance_data(conn: Any) -> Dict[str, Any]:
-
-    data = await conn.fetchval(
-        "SELECT json FROM edgedbinstdata.instdata WHERE key = 'instancedata'"
+async def _get_instance_data(conn: pgcon.PGConnection) -> Dict[str, Any]:
+    data = await conn.sql_fetch_val(
+        b"""
+        SELECT json::json
+        FROM edgedbinstdata.instdata
+        WHERE key = 'instancedata'
+        """,
     )
-
     return json.loads(data)
 
 
 async def _check_catalog_compatibility(
     ctx: BootstrapContext,
-) -> asyncpg_con.Connection:
+) -> pgcon.PGConnection:
     tenant_id = ctx.cluster.get_runtime_params().tenant_id
     if ctx.mode == ClusterMode.single_database:
-        sys_db = await ctx.conn.fetchval(f'''
+        sys_db = await ctx.conn.sql_fetch_val(
+            b"""
             SELECT current_database()
             FROM edgedbinstdata.instdata
-            WHERE key = '{edbdef.EDGEDB_TEMPLATE_DB}metadata'
-            AND json->>'tenant_id' = '{tenant_id}'
-        ''')
+            WHERE key = $1 AND json->>'tenant_id' = $2
+            """,
+            args=[
+                f"{edbdef.EDGEDB_TEMPLATE_DB}metadata".encode("utf-8"),
+                tenant_id.encode("utf-8"),
+            ],
+        )
     else:
         is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
 
         if is_default_tenant:
-            sys_db = await ctx.conn.fetchval(f'''
+            sys_db = await ctx.conn.sql_fetch_val(
+                b"""
                 SELECT datname
                 FROM pg_database
                 WHERE datname LIKE '%' || $1
@@ -1361,13 +1344,23 @@ async def _check_catalog_compatibility(
                     datname = $1,
                     datname DESC
                 LIMIT 1
-            ''', edbdef.EDGEDB_SYSTEM_DB)
+                """,
+                args=[
+                    edbdef.EDGEDB_SYSTEM_DB.encode("utf-8"),
+                ],
+            )
         else:
-            sys_db = await ctx.conn.fetchval(f'''
+            sys_db = await ctx.conn.sql_fetch_val(
+                b"""
                 SELECT datname
                 FROM pg_database
                 WHERE datname = $1
-            ''', ctx.cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB))
+                """,
+                args=[
+                    ctx.cluster.get_db_name(
+                        edbdef.EDGEDB_SYSTEM_DB).encode("utf-8"),
+                ],
+            )
 
     if not sys_db:
         raise errors.ConfigurationError(
@@ -1378,7 +1371,7 @@ async def _check_catalog_compatibility(
             )
         )
 
-    conn = await ctx.cluster.connect(database=sys_db)
+    conn = await ctx.cluster.connect(database=sys_db.decode("utf-8"))
 
     try:
         instancedata = await _get_instance_data(conn)
@@ -1429,7 +1422,7 @@ async def _check_catalog_compatibility(
                 )
             )
     except Exception:
-        await conn.close()
+        conn.terminate()
         raise
 
     return conn
@@ -1455,8 +1448,9 @@ async def _start(ctx: BootstrapContext) -> None:
     conn = await _check_catalog_compatibility(ctx)
 
     try:
-        caps = await conn.fetchval("SELECT edgedb.get_backend_capabilities()")
-        ctx.cluster.overwrite_capabilities(caps)
+        caps = await conn.sql_fetch_val(
+            b"SELECT edgedb.get_backend_capabilities()")
+        ctx.cluster.overwrite_capabilities(struct.Struct('!Q').unpack(caps)[0])
         _check_capabilities(ctx)
 
         compiler = edbcompiler.Compiler()
@@ -1468,12 +1462,10 @@ async def _start(ctx: BootstrapContext) -> None:
         config.set_settings(config_spec)
 
     finally:
-        await conn.close()
+        conn.terminate()
 
 
 async def _bootstrap_edgedb_super_roles(ctx: BootstrapContext) -> uuid.UUID:
-    cluster = ctx.cluster
-
     await _ensure_edgedb_supergroup(
         ctx,
         edbdef.EDGEDB_SUPERGROUP,
@@ -1487,9 +1479,8 @@ async def _bootstrap_edgedb_super_roles(ctx: BootstrapContext) -> uuid.UUID:
     )
 
     superuser = ctx.cluster.get_role_name(edbdef.EDGEDB_SUPERUSER)
-
     await _execute(ctx.conn, f'SET ROLE {qi(superuser)}')
-    cluster.set_default_session_authorization(superuser)
+
     return superuser_uid
 
 
@@ -1532,8 +1523,7 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
     # on the same cluster in devmode, as that is both a waste of resources
     # and might result in broken stdlib cache.
     if in_dev_mode:
-        bootstrap_lock = 0xEDB00001
-        await ctx.conn.execute('SELECT pg_advisory_lock($1)', bootstrap_lock)
+        await ctx.conn.sql_execute(b"SELECT pg_advisory_lock(3987734529)")
 
     if backend_params.has_create_database:
         new_template_db_id = await _create_edgedb_template_database(ctx)
@@ -1570,13 +1560,12 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
         schema = await _init_defaults(schema, compiler, tpl_ctx.conn)
     finally:
         if in_dev_mode:
-            await ctx.conn.execute(
-                'SELECT pg_advisory_unlock($1)',
-                bootstrap_lock,
+            await ctx.conn.sql_execute(
+                b"SELECT pg_advisory_unlock(3987734529)",
             )
 
         if backend_params.has_create_database:
-            await conn.close()
+            conn.terminate()
 
     if backend_params.has_create_database:
         await _create_edgedb_database(
@@ -1598,7 +1587,7 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
                 compiler=compiler,
             )
         finally:
-            await conn.close()
+            conn.terminate()
     else:
         await _configure(
             ctx,
@@ -1669,4 +1658,4 @@ async def ensure_bootstrapped(
             await _start(ctx)
             return False
     finally:
-        await pgconn.close()
+        pgconn.terminate()

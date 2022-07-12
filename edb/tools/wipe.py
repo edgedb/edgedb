@@ -25,7 +25,6 @@ import json
 import pathlib
 import sys
 
-import asyncpg
 import click
 
 from edb.schema import schema as s_schema
@@ -40,6 +39,9 @@ from edb.server import pgconnparams
 
 from edb.pgsql import common as pgcommon
 from edb.pgsql.common import quote_ident as qi
+
+if TYPE_CHECKING:
+    from edb.server import pgcon
 
 
 class AbsPath(click.Path):
@@ -178,10 +180,11 @@ def get_role_backend_name(name: str, tenant_id: str) -> str:
 
 async def wipe_tenant(
     cluster: pgcluster.BaseCluster,
-    pgconn: asyncpg.Connection,
+    pgconn: pgcon.PGConnection,
     tenant: str,
     dry_run: bool,
 ) -> None:
+    from edb.server import pgcon
 
     tpl_db = get_database_backend_name(
         edbdef.EDGEDB_TEMPLATE_DB,
@@ -195,7 +198,7 @@ async def wipe_tenant(
 
     try:
         tpl_conn = await cluster.connect(database=tpl_db)
-    except asyncpg.InvalidCatalogNameError:
+    except pgcon.BackendCatalogNameError:
         click.secho(
             f'Instance tenant {tenant!r} does not have the '
             f'{edbdef.EDGEDB_TEMPLATE_DB!r} database. Is it already clean?'
@@ -205,7 +208,7 @@ async def wipe_tenant(
     try:
         databases, roles = await _get_dbs_and_roles(tpl_conn)
     finally:
-        await tpl_conn.close()
+        tpl_conn.terminate()
 
     stmts = [
         f'SET ROLE {qi(sup_role)}',
@@ -213,7 +216,8 @@ async def wipe_tenant(
 
     for db in databases:
         pg_db = get_database_backend_name(db, tenant_id=tenant)
-        owner = await pgconn.fetchval("""
+        owner = await pgconn.sql_fetch_val(
+            b"""
             SELECT
                 rolname
             FROM
@@ -222,7 +226,9 @@ async def wipe_tenant(
                     ON (d.datdba = r.oid)
             WHERE
                 d.datname = $1
-        """, pg_db)
+            """,
+            args=[pg_db.encode("utf-8")],
+        )
 
         if owner:
             stmts.append(f'SET ROLE {qi(owner)}')
@@ -237,14 +243,17 @@ async def wipe_tenant(
     for role in roles:
         pg_role = get_role_backend_name(role, tenant_id=tenant)
 
-        members = await pgconn.fetchval("""
+        members = json.loads(await pgconn.sql_fetch_val(
+            b"""
             SELECT
-                array_agg(member::regrole::text)
+                json_agg(member::regrole::text)
             FROM
                 pg_auth_members
             WHERE
                 roleid = (SELECT oid FROM pg_roles WHERE rolname = $1)
-        """, pg_role)
+            """,
+            args=[pg_role.encode("utf-8")],
+        ))
 
         for member in members:
             stmts.append(f'REVOKE {qi(pg_role)} FROM {qi(member)}')
@@ -258,34 +267,34 @@ async def wipe_tenant(
     for stmt in stmts:
         click.echo(stmt + (';' if not stmt.endswith(';') else ''))
         if not dry_run:
-            await pgconn.execute(stmt)
+            await pgconn.sql_execute(stmt.encode("utf-8"))
 
 
 async def _get_all_tenants(
-    conn: asyncpg.Connection,
+    conn: pgcon.PGConnection,
 ) -> List[str]:
-    dbs = await conn.fetch(
-        """
-            SELECT datname
-            FROM pg_database
-            WHERE datname LIKE $1
+    dbs = await conn.sql_fetch_col(
+        b"""
+        SELECT datname
+        FROM pg_database
+        WHERE datname LIKE $1
         """,
-        f"%{edbdef.EDGEDB_TEMPLATE_DB}",
+        args=[f"%{edbdef.EDGEDB_TEMPLATE_DB}".encode("utf-8")],
     )
 
     tenants = []
-    for db in dbs:
-        if db['datname'] == edbdef.EDGEDB_TEMPLATE_DB:
+    for dbname in (db.decode("utf-8") for db in dbs):
+        if dbname == edbdef.EDGEDB_TEMPLATE_DB:
             t = ""
         else:
-            t, _, _ = db['datname'].partition('_')
+            t, _, _ = dbname.partition('_')
         tenants.append(t)
 
     return tenants
 
 
 async def _get_dbs_and_roles(
-    pgconn: asyncpg.Connection,
+    pgconn: pgcon.PGConnection,
 ) -> Tuple[List[str], List[str]]:
     compiler = edbcompiler.Compiler()
     await compiler.initialize_from_pg(pgconn)
@@ -304,7 +313,9 @@ async def _get_dbs_and_roles(
     )
 
     databases = list(sorted(
-        json.loads(await pgconn.fetchval(get_databases_sql)),
+        json.loads(
+            await pgconn.sql_fetch_val(get_databases_sql.encode("utf-8")),
+        ),
         key=lambda dname: edbdef.EDGEDB_TEMPLATE_DB in dname,
     ))
 
@@ -317,7 +328,9 @@ async def _get_dbs_and_roles(
         }''',
     )
 
-    roles = json.loads(await pgconn.fetchval(get_roles_sql))
+    roles = json.loads(
+        await pgconn.sql_fetch_val(get_roles_sql.encode("utf-8")),
+    )
     sorted_roles = list(topological.sort({
         r['name']: topological.DepGraphEntry(
             item=r['name'],

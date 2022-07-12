@@ -518,15 +518,15 @@ class TestServerOps(tb.TestCase):
             )
             await cluster.start()
             conn = await cluster.connect()
-            setup = """\
+            setup = b"""\
                 CREATE ROLE single WITH LOGIN CREATEDB;
                 CREATE DATABASE single;
                 REVOKE ALL ON DATABASE single FROM PUBLIC;
                 GRANT CONNECT ON DATABASE single TO single;
                 GRANT ALL ON DATABASE single TO single;\
             """
-            for sql in setup.split('\n'):
-                await conn.execute(sql)
+            for sql in setup.split(b'\n'):
+                await conn.sql_execute(sql)
             await conn.close()
             try:
                 await self._test_server_ops_ignore_other_tenants(td, 'single')

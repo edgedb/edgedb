@@ -117,6 +117,32 @@ def get_pg_config_path() -> pathlib.Path:
     return pg_config
 
 
+_pg_version_regex = re.compile(
+    r"(Postgre[^\s]*)?\s*"
+    r"(?P<major>[0-9]+)\.?"
+    r"((?P<minor>[0-9]+)\.?)?"
+    r"(?P<micro>[0-9]+)?"
+    r"(?P<releaselevel>[a-z]+)?"
+    r"(?P<serial>[0-9]+)?"
+)
+
+
+def parse_pg_version(version_string: str) -> BackendVersion:
+    version_match = _pg_version_regex.search(version_string)
+    if version_match is None:
+        raise ValueError(
+            f"malformed Postgres version string: {version_string!r}")
+    version = version_match.groupdict()
+    return BackendVersion(
+        major=int(version["major"]),
+        minor=0,
+        micro=int(version.get("minor") or 0),
+        releaselevel=version.get("releaselevel") or "final",
+        serial=int(version.get("serial") or 0),
+        string=version_string,
+    )
+
+
 _bundled_pg_version: Optional[BackendVersion] = None
 
 
@@ -124,8 +150,6 @@ def get_pg_version() -> BackendVersion:
     global _bundled_pg_version
     if _bundled_pg_version is not None:
         return _bundled_pg_version
-
-    from asyncpg import serverversion
 
     pg_config = subprocess.run(
         [get_pg_config_path()],
@@ -138,7 +162,7 @@ def get_pg_version() -> BackendVersion:
         k, eq, v = line.partition('=')
         if eq and k.strip().lower() == 'version':
             v = v.strip()
-            parsed_ver = serverversion.split_server_version_string(v)
+            parsed_ver = parse_pg_version(v)
             _bundled_pg_version = BackendVersion(
                 major=parsed_ver.major,
                 minor=parsed_ver.minor,

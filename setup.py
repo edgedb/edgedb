@@ -51,7 +51,6 @@ COMMON_DEPS = [
 ]
 
 RUNTIME_DEPS = [
-    'asyncpg~=0.25.0',
     'httptools>=0.3.0',
     'immutables>=0.18',
     'uvloop~=0.16.0',
@@ -932,6 +931,14 @@ setuptools.setup(
         ],
     },
     ext_modules=[
+        setuptools_extension.Extension(
+            "edb.common.turbo_uuid",
+            ["edb/server/pgproto/uuid.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
+
         setuptools_extension.Extension(
             "edb.server.cache.stmt_cache",
             ["edb/server/cache/stmt_cache.pyx"],

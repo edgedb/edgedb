@@ -65,7 +65,7 @@ from . import types
 from . import params
 
 if TYPE_CHECKING:
-    import asyncpg
+    from edb.server import pgcon
 
 
 q = common.qname
@@ -4004,7 +4004,7 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
 
 
 async def bootstrap(
-    conn: asyncpg.Connection,
+    conn: pgcon.PGConnection,
     config_spec: edbconfig.Spec
 ) -> None:
     commands = dbops.CommandGroup()
@@ -4125,7 +4125,7 @@ async def bootstrap(
     await _execute_block(conn, block)
 
 
-async def create_pg_extensions(conn: asyncpg.Connection) -> None:
+async def create_pg_extensions(conn: pgcon.PGConnection) -> None:
     commands = dbops.CommandGroup()
     commands.add_commands([
         dbops.CreateSchema(name='edgedbext'),
@@ -4879,7 +4879,7 @@ def _generate_schema_alias_view(
 
 
 async def generate_support_views(
-    conn: asyncpg.Connection,
+    conn: pgcon.PGConnection,
     schema: s_schema.Schema,
     backend_params: params.BackendRuntimeParams,
 ) -> None:
@@ -4967,7 +4967,7 @@ async def generate_support_views(
 
 
 async def generate_support_functions(
-    conn: asyncpg.Connection,
+    conn: pgcon.PGConnection,
     schema: s_schema.Schema,
 ) -> None:
     commands = dbops.CommandGroup()
@@ -4984,7 +4984,7 @@ async def generate_support_functions(
 
 
 async def generate_more_support_functions(
-    conn: asyncpg.Connection,
+    conn: pgcon.PGConnection,
     compiler: edbcompiler.Compiler,
     schema: s_schema.Schema,
     testmode: bool,
@@ -5776,16 +5776,18 @@ def _generate_config_type_view(
 
 
 async def _execute_block(
-    conn: asyncpg.Connection,
+    conn: pgcon.PGConnection,
     block: dbops.SQLBlock,
 ) -> None:
-    await _execute_sql_script(conn, block.to_string())
+    await execute_sql_script(conn, block.to_string())
 
 
-async def _execute_sql_script(
-    conn: asyncpg.Connection,
+async def execute_sql_script(
+    conn: pgcon.PGConnection,
     sql_text: str,
 ) -> None:
+    from edb.server import pgcon
+
     if debug.flags.bootstrap:
         debug.header('Bootstrap Script')
         if len(sql_text) > 102400:
@@ -5796,12 +5798,11 @@ async def _execute_sql_script(
             debug.dump_code(sql_text, lexer='sql')
 
     try:
-        await conn.execute(sql_text)
-    except Exception as e:
-        position = getattr(e, 'position', None)
-        internal_position = getattr(e, 'internal_position', None)
-        context = getattr(e, 'context', '')
-        pl_func_line: Optional[int]
+        await conn.sql_execute(sql_text.encode("utf-8"))
+    except pgcon.BackendError as e:
+        position = e.get_field('P')
+        internal_position = e.get_field('p')
+        context = e.get_field('W')
         if context:
             pl_func_line_m = re.search(
                 r'^PL/pgSQL function inline_code_block line (\d+).*',
@@ -5811,25 +5812,25 @@ async def _execute_sql_script(
                 pl_func_line = int(pl_func_line_m.group(1))
         else:
             pl_func_line = None
+
         point = None
+        text = None
 
         if position is not None:
             point = int(position)
-            text = getattr(e, 'query', None)
-            if text is None:
-                # Parse errors
-                text = sql_text
+            text = sql_text
 
         elif internal_position is not None:
             point = int(internal_position)
-            text = getattr(e, 'internal_query', None)
+            text = e.get_field('q')
 
         elif pl_func_line:
             point = _edgeql_rust.offset_of_line(sql_text, pl_func_line)
             text = sql_text
 
         if point is not None:
-            context = parser_context.ParserContext(
-                'query', text, start=point, end=point)
-            exceptions.replace_context(e, context)
+            pcontext = parser_context.ParserContext(
+                'query', text, start=point, end=point, context_lines=30)
+            exceptions.replace_context(e, pcontext)
+
         raise

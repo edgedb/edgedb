@@ -30,8 +30,6 @@ import sys
 import tempfile
 import time
 
-import asyncpg
-
 from edb import buildmeta
 from edb.common import devmode
 from edb.edgeql import quote
@@ -40,6 +38,10 @@ from edb.server import args as edgedb_args
 from edb.server import defines as edgedb_defines
 
 from . import pgcluster
+
+
+if TYPE_CHECKING:
+    from edb.server import pgcon
 
 
 class ClusterError(Exception):
@@ -146,7 +148,7 @@ class BaseCluster:
             db_exists = await self._edgedb_template_exists(conn)
         finally:
             if conn is not None:
-                await conn.close()
+                conn.terminate()
             await asyncio.sleep(0)
             if initially_stopped:
                 await pg_cluster.stop()
@@ -247,13 +249,12 @@ class BaseCluster:
 
     async def _edgedb_template_exists(
         self,
-        conn: asyncpg.Connection,
+        conn: pgcon.PGConnection,
     ) -> bool:
-        exists = await conn.fetchval(
-            "SELECT True FROM pg_catalog.pg_database WHERE datname = $1",
-            edgedb_defines.EDGEDB_TEMPLATE_DB,
-        )
-        return exists  # type: ignore
+        return await conn.sql_fetch_val(
+            b"SELECT True FROM pg_catalog.pg_database WHERE datname = $1",
+            args=[edgedb_defines.EDGEDB_TEMPLATE_DB.encode("utf-8")],
+        ) is not None
 
     async def _wait_for_server(
         self,

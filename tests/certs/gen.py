@@ -194,23 +194,23 @@ def new_crl(path, issuer, cert):
 def main():
     ca = new_ca(
         "ca",
-        country_name="CA",
-        state_or_province_name="Ontario",
-        locality_name="Toronto",
-        organization_name="MagicStack Inc.",
-        organizational_unit_name="asyncpg tests",
-        common_name="asyncpg test root ca",
-        email_address="hello@magic.io",
+        country_name="US",
+        state_or_province_name="California",
+        locality_name="San Francisco",
+        organization_name="EdgeDB Inc.",
+        organizational_unit_name="EdgeDB tests",
+        common_name="EdgeDB test root ca",
+        email_address="hello@edgedb.com",
     )
     server = new_cert(
         "server",
         ca,
-        country_name="CA",
-        state_or_province_name="Ontario",
-        organization_name="MagicStack Inc.",
-        organizational_unit_name="asyncpg tests",
+        country_name="US",
+        state_or_province_name="California",
+        organization_name="EdgeDB Inc.",
+        organizational_unit_name="EdgeDB tests",
         common_name="localhost",
-        email_address="hello@magic.io",
+        email_address="hello@edgedb.com",
         serial_number=4096,
     )
     new_crl('server', ca, server)
