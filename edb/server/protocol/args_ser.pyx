@@ -209,14 +209,14 @@ cdef _inject_globals(
         entry = state_globals.get(name)
         if entry:
             val = entry.value
-        if val:
+        if val is not None:
             out_buf.write_int32(len(val))
             out_buf.write_bytes(val)
         else:
             out_buf.write_int32(-1)
         if has_present_arg:
             out_buf.write_int32(1)
-            present = b'\x01' if val is not None else b'\x00'
+            present = b'\x01' if entry is not None else b'\x00'
             out_buf.write_bytes(present)
 
 

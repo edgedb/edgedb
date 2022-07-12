@@ -1056,18 +1056,24 @@ class InputShapeDesc(ShapeDesc):
         bufs = [b'']
         count = 0
         for key, desc_tuple in self.fields.items():
-            value = data.get(key)
-            if value is None:
+            if key not in data:
                 continue
+            value = data[key]
+
             desc_tuple = self.fields.get(key)
             if not desc_tuple:
                 raise NotImplementedError
             idx, desc = desc_tuple
             bufs.append(_uint32_packer(idx))
-            if not self.data_raw:
-                value = desc.encode(value)
-            bufs.append(_uint32_packer(len(value)))
-            bufs.append(value)
+
+            if value is None:
+                bufs.append(_int32_packer(-1))
+            else:
+                if not self.data_raw:
+                    value = desc.encode(value)
+                bufs.append(_uint32_packer(len(value)))
+                bufs.append(value)
+
             count += 1
         bufs[0] = _uint32_packer(count)
         return b''.join(bufs)
@@ -1079,8 +1085,8 @@ class InputShapeDesc(ShapeDesc):
         for _ in range(wrapped.read_ui32()):
             idx = wrapped.read_ui32()
             name, desc = self.fields_list[idx]
-            data = wrapped.read_len32_prefixed_bytes()
-            if self.data_raw:
+            data = wrapped.read_nullable_len32_prefixed_bytes()
+            if self.data_raw or data is None:
                 rv[name] = data
             else:
                 rv[name] = desc.decode(data)
