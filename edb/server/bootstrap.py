@@ -740,6 +740,15 @@ async def _init_stdlib(
                 flags=re.MULTILINE,
             )
 
+            # PostgreSQL 14 emits multirange_type_name in RANGE definitions,
+            # elide these to preserve compatibility with earlier servers.
+            tpldbdump = re.sub(
+                rb',\s*multirange_type_name\s*=[^,\n]+',
+                rb'',
+                tpldbdump,
+                flags=re.MULTILINE,
+            )
+
             global_metadata = await conn.fetchval(
                 f'SELECT edgedb.get_database_metadata({ql(tpl_db_name)})',
             )
