@@ -523,9 +523,11 @@ def _compile_config_value(
                     name=('record_send',),
                     args=[pgast.RowExpr(args=[val])],
                 ),
-                # The first twelve bytes are header, the rest is the
-                # encoding of the actual element
-                pgast.NumericConstant(val="13"),
+                # The first 8 bytes are header, then 4 bytes are the length
+                # of our element, then the encoding of our actual element.
+                # We include the length so we can distinguish NULL (len=-1)
+                # from empty strings and the like (len=0).
+                pgast.NumericConstant(val="9"),
             ],
         )
         cast_name = s_casts.get_cast_fullname_from_names(

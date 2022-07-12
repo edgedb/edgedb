@@ -121,7 +121,10 @@ class Operation(NamedTuple):
             return None
         else:
             assert isinstance(self.value, str)
-            return base64.b64decode(self.value)
+            b = base64.b64decode(self.value)
+            # Input comes prefixed with length; if the length is -1,
+            # the value has explicitly been set to {}.
+            return b[4:] if b[:4] != b'\xff\xff\xff\xff' else None
 
     def apply(self, spec: spec.Spec, storage: SettingsMap) -> SettingsMap:
 

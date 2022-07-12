@@ -662,7 +662,7 @@ cdef class DatabaseConnectionView:
         )
 
     cdef inline recode_global(self, serializer, k, v):
-        if v[:4] == b'\x00\x00\x00\x01':
+        if v and v[:4] == b'\x00\x00\x00\x01':
             array_type_id = serializer.get_global_array_type_id(k)
             if array_type_id:
                 va = bytearray(v)

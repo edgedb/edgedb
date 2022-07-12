@@ -111,3 +111,10 @@ class BinWrapper:
     def read_len32_prefixed_bytes(self) -> bytes:
         size = self.read_ui32()
         return self.read_bytes(size)
+
+    def read_nullable_len32_prefixed_bytes(self) -> bytes | None:
+        size = self.read_i32()
+        if size == -1:
+            return None
+        else:
+            return self.read_bytes(size)
