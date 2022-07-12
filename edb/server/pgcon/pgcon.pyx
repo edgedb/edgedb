@@ -322,10 +322,7 @@ async def connect(connargs, dbname, backend_params):
             # accessing Postgres directly through EdgeDB, SET ROLE is mostly
             # fine here. (Also hosted backends like Postgres on DigitalOcean
             # support only SET ROLE)
-            await pgcon.simple_query(
-                f'SET ROLE {pg_qi(sup_role)}'.encode(),
-                ignore_data=True,
-            )
+            await pgcon.sql_execute(f'SET ROLE {pg_qi(sup_role)}'.encode())
 
     if 'in_hot_standby' in pgcon.parameter_status:
         # in_hot_standby is always present in Postgres 14 and above
@@ -348,7 +345,7 @@ async def connect(connargs, dbname, backend_params):
                 check_pg_is_in_recovery=True
             )
 
-    await pgcon.simple_query(INIT_CON_SCRIPT, ignore_data=True)
+    await pgcon.sql_execute(INIT_CON_SCRIPT)
 
     return pgcon
 
@@ -515,10 +512,7 @@ cdef class PGConnection:
         try:
             if self.server.get_backend_runtime_params().has_create_database:
                 assert defines.EDGEDB_SYSTEM_DB in self.dbname
-            await self.simple_query(
-                b'LISTEN __edgedb_sysevent__;',
-                ignore_data=True
-            )
+            await self.sql_execute(b'LISTEN __edgedb_sysevent__;')
         except Exception:
             try:
                 self.abort()
@@ -539,7 +533,7 @@ cdef class PGConnection:
                 {pg_ql(event)}
             )
         """.encode()
-        await self.simple_query(query, True)
+        await self.sql_execute(query)
 
     async def sync(self):
         if self.waiting_for_sync:
@@ -1072,22 +1066,32 @@ cdef class PGConnection:
 
     async def sql_fetch(
         self,
-        sql: bytes,
+        sql: bytes | tuple[bytes, ...],
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
+        state: Optional[bytes] = None,
     ) -> list[tuple[bytes, ...]]:
         cdef:
             WriteBuffer bind_data = WriteBuffer.new()
             int arg_len
+            tuple sql_tuple
+
+        if not isinstance(sql, tuple):
+            sql_tuple = (sql,)
+        else:
+            sql_tuple = sql
 
         if use_prep_stmt:
-            sql_hash = hashlib.sha1(sql).hexdigest().encode('latin1')
+            sql_digest = hashlib.sha1()
+            for stmt in sql_tuple:
+                sql_digest.update(stmt)
+            sql_hash = sql_digest.hexdigest().encode('latin1')
         else:
             sql_hash = None
 
         query = compiler.QueryUnit(
-            sql=(sql,),
+            sql=sql_tuple,
             sql_hash=sql_hash,
             status=b"",
         )
@@ -1113,6 +1117,7 @@ cdef class PGConnection:
             query=query,
             bind_data=bind_data,
             use_prep_stmt=use_prep_stmt,
+            state=state,
         )
 
     async def sql_fetch_val(
@@ -1121,11 +1126,13 @@ cdef class PGConnection:
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
+        state: Optional[bytes] = None,
     ) -> bytes:
         data = await self.sql_fetch(
             sql,
             args=args,
             use_prep_stmt=use_prep_stmt,
+            state=state,
         )
         if len(data) == 0:
             return None
@@ -1144,11 +1151,13 @@ cdef class PGConnection:
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
+        state: Optional[bytes] = None,
     ) -> list[bytes]:
         data = await self.sql_fetch(
             sql,
             args=args,
             use_prep_stmt=use_prep_stmt,
+            state=state,
         )
         if not data:
             return []
@@ -1158,7 +1167,7 @@ cdef class PGConnection:
                     f"received too many columns for sql_fetch_col({sql!r})")
             return [row[0] for row in data]
 
-    async def _simple_query(self, bytes sql, bint ignore_data, bytes state):
+    async def _sql_execute(self, bytes sql, bytes state):
         cdef:
             WriteBuffer out
             WriteBuffer buf
@@ -1194,20 +1203,7 @@ cdef class PGConnection:
 
             try:
                 if mtype == b'D':
-                    if ignore_data:
-                        self.buffer.discard_message()
-                    else:
-                        ncol = self.buffer.read_int16()
-                        row = []
-                        for i in range(ncol):
-                            coll = self.buffer.read_int32()
-                            if coll == -1:
-                                row.append(None)
-                            else:
-                                row.append(self.buffer.read_bytes(coll))
-                        if result is None:
-                            result = []
-                        result.append(row)
+                    self.buffer.discard_message()
 
                 elif mtype == b'T':
                     # RowDescription
@@ -1237,18 +1233,24 @@ cdef class PGConnection:
 
         if exc is not None:
             raise exc[0](fields=exc[1])
-        return result
+        else:
+            return result
 
-    async def simple_query(
+    async def sql_execute(
         self,
-        bytes sql,
-        bint ignore_data,
-        bytes state=None
-    ):
+        sql: bytes | tuple[bytes, ...],
+        state: Optional[bytes] = None,
+    ) -> None:
         self.before_command()
         started_at = time.monotonic()
+
+        if isinstance(sql, tuple):
+            sql_string = b";\n".join(sql)
+        else:
+            sql_string = sql
+
         try:
-            return await self._simple_query(sql, ignore_data, state)
+            return await self._sql_execute(sql_string, state)
         finally:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
@@ -1258,20 +1260,11 @@ cdef class PGConnection:
         object query_unit,
         bytes state=None
     ):
-        self.before_command()
-        started_at = time.monotonic()
-        try:
-            sql = b';'.join(query_unit.sql)
-            ignore_data = query_unit.ddl_stmt_id is None
-            data =  await self._simple_query(
-                sql,
-                ignore_data,
-                state,
-            )
+        if query_unit.ddl_stmt_id is None:
+            return await self.sql_execute(query_unit.sql)
+        else:
+            data = await self.sql_fetch(query_unit.sql, state=state)
             return self.load_ddl_return(query_unit, data)
-        finally:
-            metrics.backend_query_duration.observe(time.monotonic() - started_at)
-            await self.after_command()
 
     def load_ddl_return(self, object query_unit, data):
         if query_unit.ddl_stmt_id:

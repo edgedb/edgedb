@@ -298,7 +298,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             # This guarantees that every pg connection and the compiler work
             # with the same DB state.
 
-            await pgcon.simple_query(
+            await pgcon.sql_execute(
                 b'''START TRANSACTION
                         ISOLATION LEVEL SERIALIZABLE
                         READ ONLY
@@ -310,7 +310,6 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     SET idle_in_transaction_session_timeout = 0;
                     SET statement_timeout = 0;
                 ''',
-                True
             )
 
             user_schema = await server.introspect_user_schema(pgcon)
@@ -329,12 +328,9 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
             if schema_dynamic_ddl:
                 for query in schema_dynamic_ddl:
-                    result = await pgcon.simple_query(
-                        query.encode('utf-8'),
-                        ignore_data=False,
-                    )
+                    result = await pgcon.sql_fetch_val(query.encode('utf-8'))
                     if result:
-                        schema_ddl += '\n' + result[0][0].decode('utf-8')
+                        schema_ddl += '\n' + result.decode('utf-8')
 
             msg_buf = WriteBuffer.new_message(b'@')
 
@@ -414,10 +410,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         if self._write_waiter:
                             await self._write_waiter
 
-            await pgcon.simple_query(
-                b'''ROLLBACK;''',
-                True
-            )
+            await pgcon.sql_execute(b"ROLLBACK;")
 
         finally:
             self._in_dump_restore = False
@@ -502,7 +495,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                 pgcon,
             )
 
-            await pgcon.simple_query(
+            await pgcon.sql_execute(
                 b'''
                     -- Disable transaction or query execution timeout
                     -- limits. Both clients and the server can be slow
@@ -510,7 +503,6 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     SET idle_in_transaction_session_timeout = 0;
                     SET statement_timeout = 0;
                 ''',
-                True
             )
 
             schema_sql_units, restore_blocks, tables = \
@@ -543,10 +535,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                             if ddl_ret and ddl_ret['new_types']:
                                 new_types = ddl_ret['new_types']
                         else:
-                            await pgcon.simple_query(
-                                b';'.join(query_unit.sql),
-                                ignore_data=True,
-                            )
+                            await pgcon.sql_execute(query_unit.sql)
                 except Exception:
                     _dbview.on_error()
                     raise
@@ -568,10 +557,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     f'ALTER TABLE {table} ENABLE TRIGGER ALL;'
                 )
 
-            await pgcon.simple_query(
-                disable_trigger_q.encode(),
-                ignore_data=True,
-            )
+            await pgcon.sql_execute(disable_trigger_q.encode())
 
             # Send "RestoreReadyMessage"
             msg = WriteBuffer.new_message(b'+')
@@ -625,13 +611,10 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                 else:
                     self.fallthrough()
 
-            await pgcon.simple_query(
-                enable_trigger_q.encode(),
-                ignore_data=True,
-            )
+            await pgcon.sql_execute(enable_trigger_q.encode())
 
         except Exception:
-            await pgcon.simple_query(b'ROLLBACK', ignore_data=True)
+            await pgcon.sql_execute(b'ROLLBACK')
             _dbview.abort_tx()
             raise
 
@@ -980,8 +963,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             conn = await self.get_pgcon()
             try:
                 if query_unit.sql:
-                    await conn.simple_query(
-                        b';'.join(query_unit.sql), ignore_data=True)
+                    await conn.sql_execute(query_unit.sql)
 
                 if query_unit.tx_savepoint_rollback:
                     dbv.rollback_tx_to_savepoint(query_unit.sp_name)
@@ -1082,8 +1064,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         conn = await self.get_pgcon()
         try:
             if query_unit.sql:
-                await conn.simple_query(
-                    b';'.join(query_unit.sql), ignore_data=True)
+                await conn.sql_execute(query_unit.sql)
 
             if query_unit.tx_savepoint_rollback:
                 if self.debug:
@@ -1215,17 +1196,17 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                                 if ddl_ret and ddl_ret['new_types']:
                                     new_types = ddl_ret['new_types']
                             elif query_unit.is_transactional:
-                                await conn.simple_query(
-                                    b';'.join(query_unit.sql),
-                                    ignore_data=True,
-                                    state=state)
+                                await conn.sql_execute(
+                                    query_unit.sql,
+                                    state=state,
+                                )
                             else:
                                 i = 0
                                 for sql in query_unit.sql:
-                                    await conn.simple_query(
+                                    await conn.sql_execute(
                                         sql,
-                                        ignore_data=True,
-                                        state=state if i == 0 else None)
+                                        state=state if i == 0 else None,
+                                    )
                                     # only apply state to the first query.
                                     i += 1
                             if state is not None:

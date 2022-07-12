@@ -23,7 +23,6 @@ import functools
 from typing import *
 
 import asyncio
-import binascii
 import collections
 import ipaddress
 import json
@@ -790,77 +789,64 @@ class Server(ha_base.ClusterProtocol):
     async def _load_instance_data(self):
         syscon = await self._acquire_sys_pgcon()
         try:
-            result = await syscon.simple_query(b'''\
-                SELECT json FROM edgedbinstdata.instdata
+            result = await syscon.sql_fetch_val(b'''\
+                SELECT json::json FROM edgedbinstdata.instdata
                 WHERE key = 'instancedata';
-            ''', ignore_data=False)
-            self._instance_data = immutables.Map(
-                json.loads(result[0][0].decode('utf-8')))
+            ''')
+            self._instance_data = immutables.Map(json.loads(result))
 
-            result = await syscon.simple_query(b'''\
-                SELECT json FROM edgedbinstdata.instdata
+            result = await syscon.sql_fetch_val(b'''\
+                SELECT json::json FROM edgedbinstdata.instdata
                 WHERE key = 'sysqueries';
-            ''', ignore_data=False)
-            queries = json.loads(result[0][0].decode('utf-8'))
+            ''')
+            queries = json.loads(result)
             self._sys_queries = immutables.Map(
                 {k: q.encode() for k, q in queries.items()})
 
-            result = await syscon.simple_query(b'''\
+            self._local_intro_query = await syscon.sql_fetch_val(b'''\
                 SELECT text FROM edgedbinstdata.instdata
                 WHERE key = 'local_intro_query';
-            ''', ignore_data=False)
-            self._local_intro_query = result[0][0]
+            ''')
 
-            result = await syscon.simple_query(b'''\
+            self._global_intro_query = await syscon.sql_fetch_val(b'''\
                 SELECT text FROM edgedbinstdata.instdata
                 WHERE key = 'global_intro_query';
-            ''', ignore_data=False)
-            self._global_intro_query = result[0][0]
+            ''')
 
-            result = await syscon.simple_query(b'''\
+            result = await syscon.sql_fetch_val(b'''\
                 SELECT bin FROM edgedbinstdata.instdata
                 WHERE key = 'stdschema';
-            ''', ignore_data=False)
+            ''')
             try:
-                data = binascii.a2b_hex(result[0][0][2:])
-                self._std_schema = pickle.loads(data)
+                self._std_schema = pickle.loads(result[2:])
             except Exception as e:
                 raise RuntimeError(
                     'could not load std schema pickle') from e
 
-            result = await syscon.simple_query(b'''\
+            result = await syscon.sql_fetch_val(b'''\
                 SELECT bin FROM edgedbinstdata.instdata
                 WHERE key = 'reflschema';
-            ''', ignore_data=False)
+            ''')
             try:
-                data = binascii.a2b_hex(result[0][0][2:])
-                self._refl_schema = pickle.loads(data)
+                self._refl_schema = pickle.loads(result[2:])
             except Exception as e:
                 raise RuntimeError(
                     'could not load refl schema pickle') from e
 
-            result = await syscon.simple_query(b'''\
+            result = await syscon.sql_fetch_val(b'''\
                 SELECT bin FROM edgedbinstdata.instdata
                 WHERE key = 'classlayout';
-            ''', ignore_data=False)
+            ''')
             try:
-                data = binascii.a2b_hex(result[0][0][2:])
-                self._schema_class_layout = pickle.loads(data)
+                self._schema_class_layout = pickle.loads(result[2:])
             except Exception as e:
                 raise RuntimeError(
                     'could not load schema class layout pickle') from e
 
-            result = await syscon.simple_query(b'''\
+            self._report_config_typedesc = await syscon.sql_fetch_val(b'''\
                 SELECT bin FROM edgedbinstdata.instdata
                 WHERE key = 'report_configs_typedesc';
-            ''', ignore_data=False)
-            try:
-                data = binascii.a2b_hex(result[0][0][2:])
-                assert data is not None
-                self._report_config_typedesc = data
-            except Exception as e:
-                raise RuntimeError(
-                    'could not load report config typedesc') from e
+            ''')
 
         finally:
             self._release_sys_pgcon()
@@ -1044,7 +1030,7 @@ class Server(ha_base.ClusterProtocol):
         # CONFIGURE INSTANCE RESET setting_name;
         pass
 
-    async def _acquire_sys_pgcon(self):
+    async def _acquire_sys_pgcon(self) -> pgcon.PGConnection:
         if not self._initing and not self._serving:
             raise RuntimeError("EdgeDB server is not serving.")
 
@@ -1088,14 +1074,13 @@ class Server(ha_base.ClusterProtocol):
                 # Returns True if the `pid` exists and it was able to send it a
                 # SIGINT.  Will throw an exception if the privileges aren't
                 # sufficient.
-                result = await syscon.simple_query(
+                result = await syscon.sql_fetch_val(
                     f'SELECT pg_cancel_backend({pgcon.backend_pid});'.encode(),
-                    ignore_data=False
                 )
             finally:
                 pgcon.finish_pg_cancellation()
 
-            return result[0][0] == b't'
+            return result == b'\x01'
         finally:
             self._release_sys_pgcon()
 

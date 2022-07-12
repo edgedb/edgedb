@@ -215,10 +215,7 @@ class ClusterTestCase(tb.TestCase):
             super().tearDown()
 
     async def assertConnected(self, con):
-        self.assertEqual(
-            await con.simple_query(b'SELECT 42', ignore_data=False),
-            [[b'42']],
-        )
+        self.assertEqual(await con.sql_fetch_val(b"SELECT 'OK'"), b'OK')
 
 
 class TestAuthentication(ClusterTestCase):
@@ -282,9 +279,7 @@ class TestAuthentication(ClusterTestCase):
         self.loop.run_until_complete(self.cluster.reload())
 
         create_script = '\n'.join(create_script).encode()
-        self.loop.run_until_complete(
-            self.con.simple_query(create_script, ignore_data=True)
-        )
+        self.loop.run_until_complete(self.con.sql_execute(create_script))
 
     def tearDown(self):
         # Reset cluster's pg_hba.conf since we've meddled with it
@@ -305,9 +300,7 @@ class TestAuthentication(ClusterTestCase):
             drop_script.append('DROP ROLE {}_user;'.format(username))
 
         drop_script = '\n'.join(drop_script).encode()
-        self.loop.run_until_complete(
-            self.con.simple_query(drop_script, ignore_data=True)
-        )
+        self.loop.run_until_complete(self.con.sql_execute(drop_script))
 
         super().tearDown()
 
@@ -363,9 +356,8 @@ class TestAuthentication(ClusterTestCase):
 
         # various SASL prep tests
         # first ensure that password are being hashed for SCRAM-SHA-256
-        await self.con.simple_query(
+        await self.con.sql_execute(
             b"SET password_encryption = 'scram-sha-256';",
-            ignore_data=True,
         )
         alter_password = "ALTER ROLE scram_sha_256_user PASSWORD E{!r};"
         passwords = [
@@ -384,8 +376,8 @@ class TestAuthentication(ClusterTestCase):
         # ensure the passwords that go through SASLprep work
         for password in passwords:
             # update the password
-            await self.con.simple_query(
-                alter_password.format(password).encode(), ignore_data=True
+            await self.con.sql_execute(
+                alter_password.format(password).encode(),
             )
             # test to see that passwords are properly SASL prepped
             conn = await self.connect(
@@ -394,10 +386,8 @@ class TestAuthentication(ClusterTestCase):
 
         alter_password = \
             b"ALTER ROLE scram_sha_256_user PASSWORD 'correctpassword';"
-        await self.con.simple_query(alter_password, ignore_data=True)
-        await self.con.simple_query(
-            b"SET password_encryption = 'md5';", ignore_data=True
-        )
+        await self.con.sql_execute(alter_password)
+        await self.con.sql_execute(b"SET password_encryption = 'md5';")
 
     async def test_auth_unsupported(self):
         pass
@@ -1124,13 +1114,19 @@ class TestConnection(ClusterTestCase):
         self.con.terminate()
 
         with check():
-            await self.con.simple_query(b'SELECT 1', ignore_data=False)
+            await self.con.sql_fetch_val(b'SELECT 1')
+
+        with check():
+            await self.con.sql_fetch_col(b'SELECT 1')
+
+        with check():
+            await self.con.sql_fetch(b'SELECT 1')
+
+        with check():
+            await self.con.sql_execute(b'SELECT 1')
 
         with check():
             await self.con.parse_execute(query=None, bind_data=None)
-
-        with check():
-            await self.con.run_ddl(None)
 
         with check():
             await self.con.dump(None, None, None)
@@ -1217,7 +1213,7 @@ class BaseTestSSLConnection(ClusterTestCase):
 
         create_script = '\n'.join(create_script).encode()
         self.loop.run_until_complete(
-            self.con.simple_query(create_script, ignore_data=True)
+            self.con.sql_execute(create_script)
         )
 
     def tearDown(self):
@@ -1227,9 +1223,7 @@ class BaseTestSSLConnection(ClusterTestCase):
         drop_script = []
         drop_script.append('DROP ROLE ssl_user;')
         drop_script = '\n'.join(drop_script).encode()
-        self.loop.run_until_complete(
-            self.con.simple_query(drop_script, ignore_data=True)
-        )
+        self.loop.run_until_complete(self.con.sql_execute(drop_script))
 
         super().tearDown()
 

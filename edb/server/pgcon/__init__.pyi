@@ -19,6 +19,7 @@
 from typing import (
     Any,
     Dict,
+    Optional,
 )
 
 
@@ -35,12 +36,20 @@ async def connect(
 
 class PGConnection:
 
+    async def sql_execute(
+        self,
+        sql: bytes | tuple[bytes, ...],
+        state: Optional[bytes] = None,
+    ) -> None:
+        ...
+
     async def sql_fetch(
         self,
-        sql: bytes,
+        sql: bytes | tuple[bytes, ...],
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
+        state: Optional[bytes] = None,
     ) -> list[tuple[bytes, ...]]:
         ...
 
@@ -50,6 +59,7 @@ class PGConnection:
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
+        state: Optional[bytes] = None,
     ) -> bytes:
         ...
 
@@ -59,5 +69,6 @@ class PGConnection:
         *,
         args: tuple[bytes, ...] | list[bytes] = (),
         use_prep_stmt: bool = False,
+        state: Optional[bytes] = None,
     ) -> list[bytes]:
         ...

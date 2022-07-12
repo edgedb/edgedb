@@ -133,7 +133,7 @@ async def handle_request(
 async def heartbeat_check(db, server):
     pgcon = await server.acquire_pgcon(db.name)
     try:
-        await pgcon.simple_query(b"SELECT 'OK';", True)
+        await pgcon.sql_execute(b"SELECT 'OK';")
     finally:
         server.release_pgcon(db.name, pgcon)
 
@@ -182,7 +182,7 @@ async def execute(db, server, queries: list):
 
     pgcon = await server.acquire_pgcon(db.name)
     try:
-        await pgcon.simple_query(b'START TRANSACTION;', True)
+        await pgcon.sql_execute(b'START TRANSACTION;')
 
         for is_error, unit_or_error in units:
             if is_error:
@@ -252,7 +252,7 @@ async def execute(db, server, queries: list):
 
     finally:
         try:
-            await pgcon.simple_query(b'ROLLBACK;', True)
+            await pgcon.sql_execute(b'ROLLBACK;')
         finally:
             server.release_pgcon(db.name, pgcon)
 
