@@ -350,6 +350,50 @@ class TestProtocol(ProtocolTestCase):
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
 
+    async def test_proto_desc_id_cardinality(self):
+        await self.con.connect()
+
+        await self._execute(
+            'CREATE TYPE CardTest { CREATE PROPERTY prop -> int32; }'
+        )
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='CREATE TYPE'
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        await self._execute('SELECT CardTest { prop }', data=True)
+        cdd1 = await self.con.recv_match(protocol.CommandDataDescription)
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='SELECT'
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        await self._execute('''
+            ALTER TYPE CardTest {
+                ALTER PROPERTY prop {
+                    SET DEFAULT := 42;
+                    SET REQUIRED;
+                };
+            }
+        ''')
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='ALTER TYPE'
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        await self._execute('SELECT CardTest { prop }', data=True)
+        cdd2 = await self.con.recv_match(protocol.CommandDataDescription)
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='SELECT'
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        self.assertNotEqual(cdd1.output_typedesc_id, cdd2.output_typedesc_id)
+
 
 class TestServerCancellation(tb.TestCase):
     @contextlib.asynccontextmanager
