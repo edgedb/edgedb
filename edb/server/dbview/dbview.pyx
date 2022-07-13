@@ -593,6 +593,8 @@ cdef class DatabaseConnectionView:
             ) == self._session_state_cache[:4]:
                 return sertypes.NULL_TYPE_ID, b""
 
+        self._session_state_cache = None
+
         state = {}
         try:
             if modaliases[None] != defines.DEFAULT_MODULE_ALIAS:
