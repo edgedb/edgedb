@@ -151,7 +151,7 @@ class TypeSerializer:
         return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
 
     def _get_object_type_id(self, coll_type, subtypes,
-                            element_names=None, *,
+                            element_names=None, cardinalities=None, *,
                             links_props=None,
                             links=None,
                             has_implicit_fields=False):
@@ -159,6 +159,8 @@ class TypeSerializer:
         string_id = f'{coll_type}\x00{":".join(subtypes)}'
         if element_names:
             string_id += f'\x00{":".join(element_names)}'
+        if cardinalities:
+            string_id += f'\x00{":".join(map(chr, cardinalities))}'
         string_id += f'{has_implicit_fields!r};{links_props!r};{links!r}'
         return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
 
@@ -349,7 +351,7 @@ class TypeSerializer:
                         cardinality_from_ptr(ptr, self.schema).value)
 
             type_id = self._get_object_type_id(
-                base_type_id, subtypes, element_names,
+                base_type_id, subtypes, element_names, cardinalities,
                 links_props=link_props, links=links,
                 has_implicit_fields=implicit_id)
 
@@ -475,7 +477,7 @@ class TypeSerializer:
             base_type_id = mt.id
 
             type_id = self._get_object_type_id(
-                base_type_id, subtypes, element_names
+                base_type_id, subtypes, element_names, cardinalities
             )
 
             if type_id in self.uuid_to_pos:
