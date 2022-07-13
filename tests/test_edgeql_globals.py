@@ -387,3 +387,4 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
         self.con._protocol.last_state = state
         with self.assertRaises(edgedb.CardinalityViolationError):
             await self.con.execute("select global cur_user")
+        self.con._protocol.last_state = None
