@@ -11124,3 +11124,27 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             self.assertEqual(await self.con.query("SELECT Bar"), [])
         finally:
             await self.con.execute("ROLLBACK")
+
+    async def test_edgeql_migration_recovery_in_script(self):
+        await self.migrate("""
+            type Base;
+        """)
+        await self.con.execute("""
+            SET MODULE test;
+
+            INSERT Base;
+        """)
+        res = await self.con.query(r"""
+            CREATE TYPE Bar;
+            START MIGRATION TO {
+                module test {
+                    type Base {
+                        required property name -> str;
+                    }
+                }
+            };
+            POPULATE MIGRATION;
+            ABORT MIGRATION;
+            SELECT Bar;
+        """)
+        self.assertEqual(res, [])
