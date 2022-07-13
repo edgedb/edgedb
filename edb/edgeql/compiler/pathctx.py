@@ -151,16 +151,22 @@ def extend_path_id(
     return path_id.extend(ptrref=ptrref, direction=direction, ns=ns)
 
 
-def ban_path(
+def ban_inserting_path(
         path_id: irast.PathId, *,
+        location: Literal['body'] | Literal['else'],
         ctx: context.ContextLevel) -> None:
 
-    ctx.banned_paths.add(path_id)
+    ctx.inserting_paths = ctx.inserting_paths.copy()
+    ctx.inserting_paths[path_id] = location
 
 
-def path_is_banned(
+def path_is_inserting(
         path_id: irast.PathId, *,
         ctx: context.ContextLevel) -> bool:
 
     node = ctx.path_scope.find_visible(path_id)
-    return bool(node and node.path_id in ctx.banned_paths)
+    return bool(
+        node
+        and node.path_id
+        and ctx.inserting_paths.get(node.path_id) == 'body'
+    )

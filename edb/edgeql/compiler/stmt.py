@@ -432,6 +432,21 @@ def compile_InsertQuery(
             subject = dispatch.compile(expr.subject, ctx=ectx)
         assert isinstance(subject, irast.Set)
 
+        # If we are inside the UNLESS CONFLICT ON ... ELSE block of
+        # the type that we are now INSERTing, make sure that this
+        # inner type has a different path id by creating a namespace.
+        # We don't do this for SELECT and UPDATE, since those are
+        # *supposed* to correlate with the outside (the name refers
+        # only to the conflicting objects), but that makes no sense
+        # for INSERT.
+        #
+        # Really we probably should have disallowed this, but it works
+        # and is probably not worth a compatability break over.
+        if ictx.inserting_paths.get(subject.path_id) == 'else':
+            ictx.path_id_namespace |= {ctx.aliases.get('ns')}
+            subject = setgen.new_set_from_set(
+                subject, merge_current_ns=True, ctx=ictx)
+
         subject_stype = setgen.get_set_type(subject, ctx=ictx)
         if subject_stype.get_abstract(ctx.env.schema):
             raise errors.QueryError(
@@ -452,8 +467,8 @@ def compile_InsertQuery(
 
         with ictx.new() as bodyctx:
             # Self-references in INSERT are prohibited.
-            bodyctx.banned_paths = ictx.banned_paths.copy()
-            pathctx.ban_path(subject.path_id, ctx=bodyctx)
+            pathctx.ban_inserting_path(
+                subject.path_id, location='body', ctx=bodyctx)
 
             bodyctx.class_view_overrides = ictx.class_view_overrides.copy()
             bodyctx.implicit_id_in_shapes = False

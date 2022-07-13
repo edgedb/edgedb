@@ -518,7 +518,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if is_computable:
             computables.append(path_tip)
 
-        if pathctx.path_is_banned(path_tip.path_id, ctx=ctx):
+        if pathctx.path_is_inserting(path_tip.path_id, ctx=ctx):
             dname = stype.get_displayname(ctx.env.schema)
             raise errors.QueryError(
                 f'invalid reference to {dname}: '
