@@ -273,7 +273,7 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
         await self._ensure_transaction()
         return await self._connection.raw_query(query_context)
 
-    async def _execute(self, query: abstract.ScriptContext) -> None:
+    async def _execute(self, query: abstract.ExecuteContext) -> None:
         await self._ensure_transaction()
         await self._connection._execute(query)
 
@@ -369,7 +369,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         await self.ensure_connected()
         return await self.raw_query(query_context)
 
-    async def _execute(self, script: abstract.ScriptContext) -> None:
+    async def _execute(self, script: abstract.ExecuteContext) -> None:
         await self.ensure_connected()
         await self._protocol.execute(
             query=script.query.query,
