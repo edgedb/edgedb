@@ -1381,7 +1381,7 @@ class Compiler:
             if mstate.initial_savepoint:
                 current_tx.abort_migration(mstate.initial_savepoint)
                 sql = (b'SELECT LIMIT 0',)
-                tx_action = None
+                tx_action = dbstate.TxAction.ROLLBACK_TO_SAVEPOINT
             else:
                 tx_cmd = qlast.RollbackTransaction()
                 tx_query = self._compile_ql_transaction(ctx, tx_cmd)
@@ -1899,6 +1899,9 @@ class Compiler:
                     unit.tx_commit = True
                 elif comp.tx_action == dbstate.TxAction.ROLLBACK:
                     unit.tx_rollback = True
+                elif comp.tx_action == dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
+                    unit.tx_savepoint_rollback = True
+                    unit.sp_name = dbstate.ABORT_MIGRATION_SAVEPOINT
 
             elif isinstance(comp, dbstate.SessionStateQuery):
                 unit.sql = comp.sql

@@ -43,6 +43,9 @@ from . import enums
 from . import sertypes
 
 
+ABORT_MIGRATION_SAVEPOINT = '__edb_migration_sp__'
+
+
 class TxAction(enum.IntEnum):
 
     START = 1

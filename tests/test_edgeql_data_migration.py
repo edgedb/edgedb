@@ -11101,3 +11101,26 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
                 };
                 POPULATE MIGRATION;
             """)
+
+    async def test_edgeql_migration_recovery_in_tx(self):
+        await self.con.execute("START TRANSACTION")
+        try:
+            await self.con.execute("CREATE TYPE Bar")
+            await self.con.execute(r"""
+                START MIGRATION TO {
+                    module test {
+                        type Foo;
+                    }
+                };
+            """)
+
+            with self.assertRaises(edgedb.EdgeQLSyntaxError):
+                await self.con.execute(r"""
+                    ALTER TYPE Foo;
+                """)
+
+            await self.con.execute("ABORT MIGRATION")
+
+            self.assertEqual(await self.con.query("SELECT Bar"), [])
+        finally:
+            await self.con.execute("ROLLBACK")

@@ -326,6 +326,8 @@ cdef class DatabaseConnectionView:
 
     cdef rollback_tx_to_savepoint(self, name):
         self._tx_error = False
+        if name == dbstate.ABORT_MIGRATION_SAVEPOINT:
+            return
         # See also CompilerConnectionState.rollback_to_savepoint().
         while self._in_tx_savepoints:
             if self._in_tx_savepoints[-1][0] == name:
