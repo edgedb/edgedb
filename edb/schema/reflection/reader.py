@@ -82,6 +82,7 @@ def parse_into(
     ] = collections.defaultdict(dict_of_dicts)
 
     objects: Dict[uuid.UUID, Tuple[s_obj.Object, Dict[str, Any]]] = {}
+    objid: uuid.UUID
 
     for entry in json.loads(data):
         _, _, clsname = entry['_tname'].rpartition('::')
@@ -113,6 +114,7 @@ def parse_into(
         all_fields = mcls.get_schema_fields()
         objdata: List[Any] = [None] * len(all_fields)
         val: Any
+        refid: uuid.UUID
 
         for k, v in entry.items():
             desc = layout.get(k)

@@ -19,6 +19,20 @@
 
 from __future__ import annotations
 
+from .errors import (
+    BackendError,
+    BackendConnectionError,
+    BackendPrivilegeError,
+    BackendCatalogNameError,
+)
+
 from .pgcon import connect, PGConnection
 
-__all__ = ('connect', 'PGConnection')
+__all__ = (
+    'connect',
+    'PGConnection',
+    'BackendError',
+    'BackendConnectionError',
+    'BackendPrivilegeError',
+    'BackendCatalogNameError',
+)

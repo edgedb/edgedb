@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
+import json
 import logging
 import os
 import os.path
@@ -29,8 +30,6 @@ import shlex
 import shutil
 import textwrap
 import urllib.parse
-
-import asyncpg
 
 from edb import buildmeta
 from edb.common import supervisor
@@ -42,6 +41,9 @@ from edb.pgsql import common as pgcommon
 from edb.pgsql import params as pgparams
 
 from . import pgconnparams
+
+if TYPE_CHECKING:
+    from edb.server import pgcon
 
 
 logger = logging.getLogger('edb.pgcluster')
@@ -74,7 +76,6 @@ class BaseCluster:
         self._connection_params: Optional[
             pgconnparams.ConnectionParameters
         ] = None
-        self._default_session_auth: Optional[str] = None
         self._pg_config_data: Dict[str, str] = {}
         self._pg_bin_dir: Optional[pathlib.Path] = None
         if instance_params is None:
@@ -129,24 +130,19 @@ class BaseCluster:
     def destroy(self) -> None:
         raise NotImplementedError
 
-    async def connect(self, **kwargs: Any) -> asyncpg.Connection:
+    async def connect(self, **kwargs: Any) -> pgcon.PGConnection:
+        from edb.server import pgcon
+
         conn_info = self.get_connection_spec()
         conn_info.update(kwargs)
-        if 'sslmode' in conn_info:
-            conn_info['ssl'] = conn_info.pop('sslmode').name
-        conn = await asyncpg.connect(**conn_info)
-
-        if (not kwargs.get('user')
-                and self._default_session_auth
-                and conn_info.get('user') != self._default_session_auth):
-            # No explicit user given, and the default
-            # SESSION AUTHORIZATION is different from the user
-            # used to connect.
-            await conn.execute(
-                f'SET ROLE {pgcommon.quote_ident(self._default_session_auth)}'
-            )
-
-        return conn
+        dbname = conn_info.get("database") or conn_info.get("user")
+        assert isinstance(dbname, str)
+        return await pgcon.connect(
+            conn_info,
+            dbname=dbname,
+            backend_params=self.get_runtime_params(),
+            apply_init_script=False,
+        )
 
     async def start_watching(
         self, cluster_protocol: Optional[ha_base.ClusterProtocol] = None
@@ -176,9 +172,6 @@ class BaseCluster:
 
     def get_connection_addr(self) -> Optional[Tuple[str, int]]:
         return self._get_connection_addr()
-
-    def set_default_session_authorization(self, rolename: str) -> None:
-        self._default_session_auth = rolename
 
     def set_connection_params(
         self,
@@ -654,6 +647,8 @@ class Cluster(BaseCluster):
         return (host_str, portnum)
 
     async def _test_connection(self, timeout: int = 60) -> str:
+        from edb.server import pgcon
+
         self._connection_addr = None
         connected = False
 
@@ -683,29 +678,36 @@ class Cluster(BaseCluster):
                 continue
 
             try:
-                con = await asyncpg.connect(
-                    database='postgres',
-                    user='postgres',
+                con = await asyncio.wait_for(
+                    pgcon.connect(
+                        dbname="postgres",
+                        connargs={
+                            "user": "postgres",
+                            "database": "postgres",
+                            "host": conn_addr[0],
+                            "port": conn_addr[1],
+                            "server_settings": {},
+                        },
+                        backend_params=self.get_runtime_params(),
+                        apply_init_script=False,
+                    ),
                     timeout=5,
-                    host=conn_addr[0],
-                    port=conn_addr[1],
                 )
             except (
                 OSError,
                 asyncio.TimeoutError,
-                asyncpg.CannotConnectNowError,
-                asyncpg.PostgresConnectionError,
+                pgcon.BackendConnectionError,
             ):
                 await asyncio.sleep(sleep_time)
                 continue
-            except asyncpg.PostgresError:
+            except pgcon.BackendError:
                 # Any other error other than ServerNotReadyError or
                 # ConnectionError is interpreted to indicate the server is
                 # up.
                 break
             else:
                 connected = True
-                await con.close()
+                con.terminate()
                 break
 
         if connected:
@@ -867,7 +869,7 @@ async def get_remote_pg_cluster(
     rcluster = RemoteCluster(addrs[0], params)
 
     async def _get_cluster_type(
-        conn: asyncpg.Connection,
+        conn: pgcon.PGConnection,
     ) -> Tuple[Type[RemoteCluster], Optional[str]]:
         managed_clouds = {
             'rds_superuser': RemoteCluster,    # Amazon RDS
@@ -875,32 +877,36 @@ async def get_remote_pg_cluster(
             'azure_pg_admin': RemoteCluster,    # Azure Postgres
         }
 
-        managed_cloud_super = await conn.fetchval(
-            """
+        managed_cloud_super = await conn.sql_fetch_val(
+            b"""
                 SELECT
                     rolname
                 FROM
                     pg_roles
                 WHERE
-                    rolname = any($1::text[])
+                    rolname IN (SELECT json_array_elements_text($1::json))
                 LIMIT
                     1
             """,
-            list(managed_clouds),
+            args=[json.dumps(list(managed_clouds)).encode("utf-8")],
         )
 
         if managed_cloud_super is not None:
-            return managed_clouds[managed_cloud_super], managed_cloud_super
+            rolname = managed_cloud_super.decode("utf-8")
+            return managed_clouds[rolname], rolname
         else:
             return RemoteCluster, None
 
     async def _detect_capabilities(
-        conn: asyncpg.Connection,
+        conn: pgcon.PGConnection,
     ) -> pgparams.BackendCapabilities:
+        from edb.server import pgcon
+
         caps = pgparams.BackendCapabilities.NONE
 
         try:
-            cur_cluster_name = await conn.fetchval(f'''
+            cur_cluster_name = await conn.sql_fetch_val(
+                b"""
                 SELECT
                     setting
                 FROM
@@ -911,17 +917,18 @@ async def get_remote_pg_cluster(
                         SELECT setting
                         FROM pg_settings WHERE name = 'data_directory'
                     ) || '/postgresql.auto.conf')
-            ''')
-        except asyncpg.InsufficientPrivilegeError:
+                """,
+            )
+        except pgcon.BackendPrivilegeError:
             configfile_access = False
         else:
             try:
-                await conn.execute(f"""
+                await conn.sql_execute(b"""
                     ALTER SYSTEM SET cluster_name = 'edgedb-test'
                 """)
-            except asyncpg.InsufficientPrivilegeError:
+            except pgcon.BackendPrivilegeError:
                 configfile_access = False
-            except asyncpg.InternalServerError as e:
+            except pgcon.BackendError as e:
                 # Stolon keeper symlinks postgresql.auto.conf to /dev/null
                 # making ALTER SYSTEM fail with InternalServerError,
                 # see https://github.com/sorintlab/stolon/pull/343
@@ -933,46 +940,58 @@ async def get_remote_pg_cluster(
                 configfile_access = True
 
                 if cur_cluster_name:
-                    await conn.execute(f"""
+                    await conn.sql_execute(
+                        f"""
                         ALTER SYSTEM SET cluster_name =
-                            '{pgcommon.quote_literal(cur_cluster_name)}'
-                    """)
+                            {pgcommon.quote_literal(cur_cluster_name)}
+                        """.encode("utf-8"),
+                    )
                 else:
-                    await conn.execute(f"""
+                    await conn.sql_execute(
+                        b"""
                         ALTER SYSTEM SET cluster_name = DEFAULT
-                    """)
+                        """,
+                    )
 
         if configfile_access:
             caps |= pgparams.BackendCapabilities.CONFIGFILE_ACCESS
 
-        tx = conn.transaction()
-        await tx.start()
+        await conn.sql_execute(b"START TRANSACTION")
         rname = str(uuidgen.uuid1mc())
 
         try:
-            await conn.execute(f'CREATE ROLE "{rname}" WITH SUPERUSER')
-        except asyncpg.InsufficientPrivilegeError:
+            await conn.sql_execute(
+                f"CREATE ROLE {pgcommon.quote_ident(rname)} WITH SUPERUSER"
+                .encode("utf-8"),
+            )
+        except pgcon.BackendPrivilegeError:
             can_make_superusers = False
         else:
             can_make_superusers = True
         finally:
-            await tx.rollback()
+            await conn.sql_execute(b"ROLLBACK")
 
         if can_make_superusers:
             caps |= pgparams.BackendCapabilities.SUPERUSER_ACCESS
 
-        coll = await conn.fetchval('''
+        coll = await conn.sql_fetch_val(b"""
             SELECT collname FROM pg_collation
             WHERE lower(replace(collname, '-', '')) = 'c.utf8' LIMIT 1;
-        ''')
+        """)
 
         if coll is not None:
             caps |= pgparams.BackendCapabilities.C_UTF8_LOCALE
 
-        roles = await conn.fetchrow('''
-            SELECT rolcreaterole, rolcreatedb FROM pg_roles
+        roles = json.loads(await conn.sql_fetch_val(
+            b"""
+            SELECT json_build_object(
+                'rolcreaterole', rolcreaterole,
+                'rolcreatedb', rolcreatedb
+            )
+            FROM pg_roles
             WHERE rolname = (SELECT current_user);
-        ''')
+            """,
+        ))
 
         if roles['rolcreaterole']:
             caps |= pgparams.BackendCapabilities.CREATE_ROLE
@@ -982,15 +1001,16 @@ async def get_remote_pg_cluster(
         return caps
 
     async def _get_pg_settings(
-        conn: asyncpg.Connection,
+        conn: pgcon.PGConnection,
         name: str,
     ) -> str:
-        return await conn.fetchval(  # type: ignore
-            'SELECT setting FROM pg_settings WHERE name = $1', name
+        return await conn.sql_fetch_val(  # type: ignore
+            b"SELECT setting FROM pg_settings WHERE name = $1",
+            args=[name.encode("utf-8")],
         )
 
     async def _get_reserved_connections(
-        conn: asyncpg.Connection,
+        conn: pgcon.PGConnection,
     ) -> int:
         rv = int(
             await _get_pg_settings(conn, 'superuser_reserved_connections')
@@ -1005,9 +1025,15 @@ async def get_remote_pg_cluster(
 
     conn = await rcluster.connect()
     try:
-        user, dbname = await conn.fetchrow(
-            "SELECT current_user, current_database()"
-        )
+        data = json.loads(await conn.sql_fetch_val(
+            b"""
+            SELECT json_build_object(
+                'user', current_user,
+                'dbname', current_database()
+            )""",
+        ))
+        user = data["user"]
+        dbname = data["dbname"]
         cluster_type, superuser_name = await _get_cluster_type(conn)
         max_connections = await _get_pg_settings(conn, 'max_connections')
         capabilities = await _detect_capabilities(conn)
@@ -1027,25 +1053,21 @@ async def get_remote_pg_cluster(
                     "multi-tenancy is disabled."
                 )
 
-        parsed_ver = conn.get_server_version()
-        ver_string = conn.get_settings().server_version
+        pg_ver_string = conn.get_server_parameter_status("server_version")
+        if pg_ver_string is None:
+            raise ClusterError(
+                "remote server did not report its version "
+                "in ParameterStatus")
         instance_params = pgparams.BackendInstanceParams(
             capabilities=capabilities,
-            version=pgparams.BackendVersion(
-                major=parsed_ver.major,
-                minor=parsed_ver.minor,
-                micro=parsed_ver.micro,
-                releaselevel=parsed_ver.releaselevel,
-                serial=parsed_ver.serial,
-                string=ver_string,
-            ),
+            version=buildmeta.parse_pg_version(pg_ver_string),
             base_superuser=superuser_name,
             max_connections=int(max_connections),
             reserved_connections=await _get_reserved_connections(conn),
             tenant_id=t_id,
         )
     finally:
-        await conn.close()
+        conn.terminate()
 
     params.user = user
     params.database = dbname

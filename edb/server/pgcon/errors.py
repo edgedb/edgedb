@@ -68,10 +68,23 @@ ERROR_OBJECT_IN_USE = '55006'
 ERROR_QUERY_CANCELLED = '57014'
 ERROR_CANNOT_CONNECT_NOW = '57P03'
 
+ERROR_CONNECTION_CLIENT_CANNOT_CONNECT = '08001'
+ERROR_CONNECTION_DOES_NOT_EXIST = '08003'
+ERROR_CONNECTION_REJECTION = '08004'
+ERROR_CONNECTION_FAILURE = '08006'
+
+CONNECTION_ERROR_CODES = [
+    ERROR_CANNOT_CONNECT_NOW,
+    ERROR_CONNECTION_CLIENT_CANNOT_CONNECT,
+    ERROR_CONNECTION_DOES_NOT_EXIST,
+    ERROR_CONNECTION_REJECTION,
+    ERROR_CONNECTION_FAILURE,
+]
+
 
 class BackendError(Exception):
 
-    def __init__(self, *, fields):
+    def __init__(self, *, fields: dict[str, str]) -> None:
         msg = fields.get('M', f'error code {fields["C"]}')
         self.fields = fields
         super().__init__(msg)
@@ -79,6 +92,37 @@ class BackendError(Exception):
     def code_is(self, code: str) -> bool:
         return self.fields["C"] == code
 
+    def get_field(self, field: str) -> str | None:
+        return self.fields.get(field)
+
+
+def get_error_class(fields: dict[str, str]) -> type[BackendError]:
+    return error_class_map.get(fields["C"], BackendError)
+
 
 class BackendQueryCancelledError(BackendError):
     pass
+
+
+class BackendConnectionError(BackendError):
+    pass
+
+
+class BackendPrivilegeError(BackendError):
+    pass
+
+
+class BackendCatalogNameError(BackendError):
+    pass
+
+
+error_class_map = {
+    ERROR_CANNOT_CONNECT_NOW: BackendConnectionError,
+    ERROR_CONNECTION_CLIENT_CANNOT_CONNECT: BackendConnectionError,
+    ERROR_CONNECTION_DOES_NOT_EXIST: BackendConnectionError,
+    ERROR_CONNECTION_REJECTION: BackendConnectionError,
+    ERROR_CONNECTION_FAILURE: BackendConnectionError,
+    ERROR_INSUFFICIENT_PRIVILEGE: BackendPrivilegeError,
+    ERROR_QUERY_CANCELLED: BackendQueryCancelledError,
+    ERROR_INVALID_CATALOG_NAME: BackendCatalogNameError,
+}

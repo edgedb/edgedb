@@ -85,6 +85,8 @@ cdef class PGConnection:
         stmt_cache.StatementsCache prep_stmts
         list last_parse_prep_stmts
 
+        list log_listeners
+
         bint debug
 
         object pgaddr

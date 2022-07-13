@@ -19,6 +19,7 @@
 from typing import (
     Any,
     Callable,
+    Dict,
     Optional,
 )
 
@@ -54,6 +55,7 @@ from edb.schema import objects as s_obj
 from edb.pgsql import common as pgcommon
 from edb.pgsql.common import quote_ident as pg_qi
 from edb.pgsql.common import quote_literal as pg_ql
+from edb.pgsql import params as pg_params
 
 from edb.server.pgproto cimport hton
 from edb.server.pgproto cimport pgproto
@@ -292,7 +294,12 @@ async def _connect(connargs, dbname, ssl):
     return pgcon
 
 
-async def connect(connargs, dbname, backend_params):
+async def connect(
+    connargs: Dict[str, Any],
+    dbname: str,
+    backend_params: pg_params.BackendRuntimeParams,
+    apply_init_script: bool = True,
+):
     global INIT_CON_SCRIPT
 
     # This is different than parsing DSN and use the default sslmode=prefer,
@@ -313,9 +320,11 @@ async def connect(connargs, dbname, backend_params):
     else:
         pgcon = await _connect(connargs, dbname, ssl=ssl)
 
-    if backend_params.has_create_role:
-        sup_role = pgcommon.get_role_backend_name(
-            defines.EDGEDB_SUPERUSER, tenant_id=backend_params.tenant_id)
+    if (
+        backend_params.has_create_role
+        and backend_params.session_authorization_role
+    ):
+        sup_role = backend_params.session_authorization_role
         if connargs['user'] != sup_role:
             # We used to use SET SESSION AUTHORIZATION here, there're some
             # security differences over SET ROLE, but as we don't allow
@@ -345,7 +354,8 @@ async def connect(connargs, dbname, backend_params):
                 check_pg_is_in_recovery=True
             )
 
-    await pgcon.sql_execute(INIT_CON_SCRIPT)
+    if apply_init_script:
+        await pgcon.sql_execute(INIT_CON_SCRIPT)
 
     return pgcon
 
@@ -426,6 +436,8 @@ cdef class PGConnection:
         self.last_parse_prep_stmts = []
         self.debug = debug.flags.server_proto
 
+        self.log_listeners = []
+
         self.pgaddr = addr
         self.server = None
         self.is_system_db = False
@@ -479,6 +491,9 @@ cdef class PGConnection:
         assert self.cancel_fut is not None
         self.cancel_fut.set_result(True)
 
+    def get_server_parameter_status(self, parameter: str) -> Optional[str]:
+        return self.parameter_status.get(parameter)
+
     def abort(self):
         if not self.transport:
             return
@@ -500,6 +515,9 @@ cdef class PGConnection:
             self.msg_waiter.set_exception(ConnectionAbortedError())
             self.msg_waiter = None
 
+    async def close(self):
+        self.terminate()
+
     def set_server(self, server):
         self.server = server
 
@@ -507,6 +525,9 @@ cdef class PGConnection:
         if self.server.get_backend_runtime_params().has_create_database:
             assert defines.EDGEDB_SYSTEM_DB in self.dbname
         self.is_system_db = True
+
+    def add_log_listener(self, cb):
+        self.log_listeners.append(cb)
 
     async def listen_for_sysevent(self):
         try:
@@ -1134,7 +1155,7 @@ cdef class PGConnection:
             use_prep_stmt=use_prep_stmt,
             state=state,
         )
-        if len(data) == 0:
+        if data is None or len(data) == 0:
             return None
         elif len(data) > 1:
             raise RuntimeError(
@@ -1933,7 +1954,14 @@ cdef class PGConnection:
 
         elif mtype == b'N':
             # NoticeResponse
-            self.buffer.discard_message()
+            if self.log_listeners:
+                _, fields = self.parse_error_message()
+                severity = fields.get('V')
+                message = fields.get('M')
+                for listener in self.log_listeners:
+                    self.loop.call_soon(listener, severity, message)
+            else:
+                self.buffer.discard_message()
             return True
 
         return False
@@ -1941,28 +1969,24 @@ cdef class PGConnection:
     cdef parse_error_message(self):
         cdef:
             char code
-            str message
+            str value
             dict fields = {}
-            object cls = pgerror.BackendError
+            object err_cls
 
         while True:
             code = self.buffer.read_byte()
             if code == 0:
                 break
-
-            message = self.buffer.read_null_str().decode()
-
-            if (code == 67 and  # 67 is b'C' -- error code
-                message == pgerror.ERROR_QUERY_CANCELLED):
-                cls = pgerror.BackendQueryCancelledError
-
-            fields[chr(code)] = message
-
-        if self.debug:
-            self.debug_print('ERROR', cls.__name__, fields)
+            value = self.buffer.read_null_str().decode()
+            fields[chr(code)] = value
 
         self.buffer.finish_message()
-        return cls, fields
+
+        err_cls = pgerror.get_error_class(fields)
+        if self.debug:
+            self.debug_print('ERROR', err_cls.__name__, fields)
+
+        return err_cls, fields
 
     cdef parse_sync_message(self):
         cdef char status

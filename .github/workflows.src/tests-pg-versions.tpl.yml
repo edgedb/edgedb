@@ -63,21 +63,32 @@ jobs:
       if: ${{ matrix.single-mode }}
       shell: python
       run: |
-        import asyncio, asyncpg
+        import asyncio
+        import subprocess
+
+        from edb.server.pgcluster import get_pg_bin_dir
+
         async def main():
-            conn = await asyncpg.connect("postgres://postgres:postgres@localhost/postgres")
-            await conn.execute("""\
+            psql = await get_pg_bin_dir() / "psql"
+            dsn = "postgres://postgres:postgres@localhost/postgres"
+
+            script = """\
                 CREATE ROLE singles;
-                ALTER ROLE singles WITH LOGIN PASSWORD 'test' NOSUPERUSER ${{ matrix.single-mode }};
-            """)
-            await conn.execute(""" \
+                ALTER ROLE singles WITH LOGIN PASSWORD 'test' NOSUPERUSER
+                  ${{ matrix.single-mode }};
                 CREATE DATABASE singles OWNER singles;
-            """)
-            await conn.execute(""" \
                 REVOKE ALL ON DATABASE singles FROM PUBLIC;
                 GRANT CONNECT ON DATABASE singles TO singles;
                 GRANT ALL ON DATABASE singles TO singles;
-            """)
+            """
+
+            subprocess.run(
+                [str(psql), dsn],
+                check=True,
+                text=True,
+                input=script,
+            )
+
         asyncio.run(main())
 
     - name: Test

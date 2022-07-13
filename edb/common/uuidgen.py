@@ -24,10 +24,10 @@ import hashlib
 import os
 import uuid
 
-from asyncpg.pgproto import pgproto
+from . import turbo_uuid
 
 
-UUID: Type[uuid.UUID] = pgproto.UUID
+UUID = turbo_uuid.UUID
 
 
 def uuid1mc() -> uuid.UUID:
@@ -35,7 +35,7 @@ def uuid1mc() -> uuid.UUID:
 
     # Note: cannot use pgproto.UUID since it's UUID v1
     node = int.from_bytes(os.urandom(6), byteorder='little') | (1 << 40)
-    return UUID(uuid.uuid1(node=node).bytes)  # type: ignore
+    return UUID(uuid.uuid1(node=node).bytes)
 
 
 # type-ignores below because the first argument to uuid.UUID is a string
@@ -44,14 +44,14 @@ def uuid1mc() -> uuid.UUID:
 
 def uuid4() -> uuid.UUID:
     """Generate a random UUID."""
-    return UUID(os.urandom(16))  # type: ignore
+    return UUID(os.urandom(16))
 
 
 def uuid5_bytes(namespace: uuid.UUID, name: bytes | bytearray) -> uuid.UUID:
     """Generate a UUID from the SHA-1 hash of a namespace UUID and a name."""
     hasher = hashlib.sha1(namespace.bytes)
     hasher.update(name)
-    return UUID(hasher.digest()[:16])  # type: ignore
+    return UUID(hasher.digest()[:16])
 
 
 def uuid5(namespace: uuid.UUID, name: str) -> uuid.UUID:
@@ -60,4 +60,4 @@ def uuid5(namespace: uuid.UUID, name: str) -> uuid.UUID:
 
 
 def from_bytes(data: bytes) -> uuid.UUID:
-    return UUID(data)  # type: ignore
+    return UUID(data)

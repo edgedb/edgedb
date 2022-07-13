@@ -16,8 +16,12 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+
+
 from typing import (
     Any,
+    Callable,
     Dict,
     Optional,
 )
@@ -26,11 +30,30 @@ from typing import (
 from edb.pgsql import params as pg_params
 
 
+class BackendError(Exception):
+
+    def get_field(self, field: str) -> str | None:
+        ...
+
+
+class BackendConnectionError(BackendError):
+    ...
+
+
+class BackendPrivilegeError(BackendError):
+    ...
+
+
+class BackendCatalogNameError(BackendError):
+    ...
+
+
 async def connect(
     connargs: Dict[str, Any],
     dbname: str,
     backend_params: pg_params.BackendRuntimeParams,
-):
+    apply_init_script: bool = True,
+) -> PGConnection:
     ...
 
 
@@ -71,4 +94,13 @@ class PGConnection:
         use_prep_stmt: bool = False,
         state: Optional[bytes] = None,
     ) -> list[bytes]:
+        ...
+
+    def terminate(self) -> None:
+        ...
+
+    def add_log_listener(self, cb: Callable[[str, str], None]) -> None:
+        ...
+
+    def get_server_parameter_status(self, parameter: str) -> Optional[str]:
         ...

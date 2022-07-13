@@ -30,7 +30,6 @@ import pickle
 import textwrap
 import uuid
 
-import asyncpg
 import immutables
 
 from edb import errors
@@ -82,6 +81,9 @@ from . import dbstate
 from . import enums
 from . import sertypes
 from . import status
+
+if TYPE_CHECKING:
+    from edb.server import pgcon
 
 
 EMPTY_MAP = immutables.Map()
@@ -205,11 +207,17 @@ def new_compiler_context(
     return ctx
 
 
-async def load_cached_schema(backend_conn, key) -> s_schema.Schema:
-    data = await backend_conn.fetchval(f'''\
+async def load_cached_schema(
+    backend_conn: pgcon.PGConnection,
+    key: str,
+) -> s_schema.Schema:
+    data = await backend_conn.sql_fetch_val(
+        b"""
         SELECT bin FROM edgedbinstdata.instdata
-        WHERE key = {pg_common.quote_literal(key)};
-    ''')
+        WHERE key = $1
+        """,
+        args=[key.encode("utf-8")],
+    )
     try:
         return pickle.loads(data)
     except Exception as e:
@@ -217,22 +225,32 @@ async def load_cached_schema(backend_conn, key) -> s_schema.Schema:
             'could not load std schema pickle') from e
 
 
-async def load_std_schema(backend_conn) -> s_schema.Schema:
+async def load_std_schema(backend_conn: pgcon.PGConnection) -> s_schema.Schema:
     return await load_cached_schema(backend_conn, 'stdschema')
 
 
-async def load_schema_intro_query(backend_conn, kind: str) -> str:
-    return await backend_conn.fetchval(f'''\
+async def load_schema_intro_query(
+    backend_conn: pgcon.PGConnection,
+    kind: str,
+) -> str:
+    return await backend_conn.sql_fetch_val(
+        b"""
         SELECT text FROM edgedbinstdata.instdata
         WHERE key = $1::text;
-    ''', kind)
+        """,
+        args=[kind.encode("utf-8")],
+    )
 
 
-async def load_schema_class_layout(backend_conn) -> s_refl.SchemaClassLayout:
-    data = await backend_conn.fetchval(f'''\
+async def load_schema_class_layout(
+    backend_conn: pgcon.PGConnection,
+) -> s_refl.SchemaClassLayout:
+    data = await backend_conn.sql_fetch_val(
+        b"""
         SELECT bin FROM edgedbinstdata.instdata
         WHERE key = 'classlayout';
-    ''')
+        """,
+    )
     try:
         return pickle.loads(data)
     except Exception as e:
@@ -268,7 +286,7 @@ class Compiler:
             h.update(val)
         return h.hexdigest().encode('latin1')
 
-    async def initialize_from_pg(self, con: asyncpg.Connection) -> None:
+    async def initialize_from_pg(self, con: pgcon.PGConnection) -> None:
         if self._std_schema is None:
             self._std_schema = await load_cached_schema(con, 'stdschema')
 
