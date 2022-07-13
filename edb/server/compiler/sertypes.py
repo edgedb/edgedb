@@ -823,15 +823,17 @@ class StateSerializerFactory:
             s_type = g.get_target(schema)
             if s_type.is_array():
                 array_type_ids[name] = s_type.get_element_type(schema).id
-            globals_shape.append(
-                (
-                    name,
-                    s_type,
-                    enums.Cardinality.AT_MOST_ONE if
-                    g.get_cardinality(schema) == qltypes.SchemaCardinality.One
-                    else enums.Cardinality.MANY,
-                )
-            )
+            if g.get_cardinality(schema) == qltypes.SchemaCardinality.One:
+                if g.get_required(schema):
+                    cardinality = enums.Cardinality.ONE
+                else:
+                    cardinality = enums.Cardinality.AT_MOST_ONE
+            else:
+                if g.get_required(schema):
+                    cardinality = enums.Cardinality.AT_LEAST_ONE
+                else:
+                    cardinality = enums.Cardinality.MANY
+            globals_shape.append((name, s_type, cardinality))
 
         builder = builder.derive(schema)
         type_id = builder.describe_input_shape(
@@ -1088,6 +1090,17 @@ class InputShapeDesc(ShapeDesc):
             idx = wrapped.read_ui32()
             name, desc = self.fields_list[idx]
             data = wrapped.read_nullable_len32_prefixed_bytes()
+            if data is None:
+                cardinality = self.cardinalities.get(name)
+                if cardinality == enums.Cardinality.ONE:
+                    raise errors.CardinalityViolationError(
+                        f"State '{name}' expects exactly 1 value, 0 given"
+                    )
+                elif cardinality == enums.Cardinality.AT_LEAST_ONE:
+                    raise errors.CardinalityViolationError(
+                        f"State '{name}' expects at least 1 value, 0 given"
+                    )
+
             if self.data_raw or data is None:
                 rv[name] = data
             else:

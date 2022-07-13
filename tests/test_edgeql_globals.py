@@ -371,3 +371,20 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
             r'''select global cur_user''',
             []
         )
+
+    async def test_edgeql_globals_state_cardinality(self):
+        await self.con.execute('''
+            set global cur_user := {};
+        ''')
+        state = self.con._protocol.last_state
+        await self.con.execute('''
+            alter global cur_user {
+                set default := 'Bob';
+                set required;
+            }
+        ''')
+        # Use the previous state that has no data for the required global
+        self.con._protocol.last_state = state
+        with self.assertRaises(edgedb.CardinalityViolationError):
+            await self.con.execute("select global cur_user")
+        self.con._protocol.last_state = None
