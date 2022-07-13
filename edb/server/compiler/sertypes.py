@@ -823,15 +823,17 @@ class StateSerializerFactory:
             s_type = g.get_target(schema)
             if s_type.is_array():
                 array_type_ids[name] = s_type.get_element_type(schema).id
-            globals_shape.append(
-                (
-                    name,
-                    s_type,
-                    enums.Cardinality.AT_MOST_ONE if
-                    g.get_cardinality(schema) == qltypes.SchemaCardinality.One
-                    else enums.Cardinality.MANY,
-                )
-            )
+            if g.get_cardinality(schema) == qltypes.SchemaCardinality.One:
+                if g.get_required(schema):
+                    cardinality = enums.Cardinality.ONE
+                else:
+                    cardinality = enums.Cardinality.AT_MOST_ONE
+            else:
+                if g.get_required(schema):
+                    cardinality = enums.Cardinality.AT_LEAST_ONE
+                else:
+                    cardinality = enums.Cardinality.MANY
+            globals_shape.append((name, s_type, cardinality))
 
         builder = builder.derive(schema)
         type_id = builder.describe_input_shape(
