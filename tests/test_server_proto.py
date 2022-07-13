@@ -1255,7 +1255,7 @@ class TestServerProto(tb.QueryTestCase):
             await con.query('SELECT 1 / 0')
 
         await con.query('ROLLBACK')
-        self.assertEqual(self.con._get_last_status(), 'ROLLBACK')
+        self.assertEqual(self.con._get_last_status(), 'ROLLBACK TRANSACTION')
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
@@ -1376,6 +1376,12 @@ class TestServerProto(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.TransactionError, "current transaction is aborted"):
                 await self.con.execute('SELECT 1;')
+
+            # Test that syntax errors are not papered over by
+            # a TransactionError.
+            with self.assertRaisesRegex(
+                    edgedb.EdgeQLSyntaxError, "Unexpected 'ROLLBA'"):
+                await self.con.execute('ROLLBA;')
 
         finally:
             await self.con.query('ROLLBACK')

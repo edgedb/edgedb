@@ -11065,3 +11065,21 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
                 }
             """
         )
+
+    async def test_edgeql_migration_recovery(self):
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                module test {
+                    type Foo;
+                }
+            };
+        """)
+
+        with self.assertRaises(edgedb.EdgeQLSyntaxError):
+            await self.con.execute(r"""
+                ALTER TYPE Foo;
+            """)
+
+        await self.con.execute("ABORT MIGRATION")
+
+        self.assertEqual(await self.con.query_single("SELECT 1"), 1)

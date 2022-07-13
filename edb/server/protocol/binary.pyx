@@ -1957,7 +1957,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         _dbview = self.get_dbview()
 
-        query_unit_group = await _dbview.compile(query_req)
+        compiled = await _dbview.parse(query_req)
+        query_unit_group = compiled.query_unit_group
         assert len(query_unit_group) == 1
         query_unit = query_unit_group[0]
 

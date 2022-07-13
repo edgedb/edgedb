@@ -932,7 +932,8 @@ cdef class DatabaseConnectionView:
     def raise_in_tx_error():
         raise errors.TransactionError(
             'current transaction is aborted, '
-            'commands ignored until end of transaction block')
+            'commands ignored until end of transaction block'
+        ) from None
 
     async def parse(
         self,
@@ -945,39 +946,38 @@ cdef class DatabaseConnectionView:
             # Cache miss; need to compile this query.
             cached = False
 
-            if self.in_tx_error():
-                # The current transaction is aborted; only
-                # ROLLBACK or ROLLBACK TO TRANSACTION could be parsed;
-                # try doing just that.
-                query_unit_group, num_remain = await self.compile_rollback(
-                    source.text().encode("utf-8")
-                )
-                if num_remain:
-                    # Raise an error if there were more than just a
-                    # ROLLBACK in that 'eql' string.
+            try:
+                query_unit_group = await self._compile(query_req)
+            except (errors.EdgeQLSyntaxError, errors.InternalServerError):
+                raise
+            except errors.EdgeDBError:
+                if self.in_tx_error():
+                    # Because we are in an error state it is more reasonable
+                    # to fail with TransactionError("commands ignored")
+                    # rather than with a potentially more cryptic error.
+                    # An exception from this rule are syntax errors and
+                    # ISEs, because these could arise while the user is
+                    # trying to properly rollback this failed transaction.
                     self.raise_in_tx_error()
-            else:
-                query_unit_group = await self.compile(
-                    query_req,
-                )
+                else:
+                    raise
 
             allowed_capabilities = (
                 query_req.allow_capabilities & self._capability_mask)
-
             if query_unit_group.capabilities & ~allowed_capabilities:
                 raise query_unit_group.capabilities.make_error(
                     allowed_capabilities,
                     errors.DisabledCapabilityError,
                 )
-        elif self.in_tx_error():
-            # We have a cached QueryUnit for this 'eql', but the current
-            # transaction is aborted.  We can only complete this Parse
-            # command if the cached QueryUnit is a 'ROLLBACK' or
-            # 'ROLLBACK TO SAVEPOINT' command.
-            if len(query_unit_group) > 1:
-                self.raise_in_tx_error()
-            query_unit = query_unit_group[0]
-            if not (query_unit.tx_rollback or query_unit.tx_savepoint_rollback):
+
+        if self.in_tx_error():
+            # The current transaction is aborted, so we must fail
+            # all commands except ROLLBACK or ROLLBACK TO SAVEPOINT.
+            first = query_unit_group[0]
+            if (
+                not (first.tx_rollback or first.tx_savepoint_rollback)
+                or len(query_unit_group) > 1
+            ):
                 self.raise_in_tx_error()
 
         if not cached and query_unit_group.cacheable:
@@ -995,14 +995,11 @@ cdef class DatabaseConnectionView:
             extra_blobs=source.extra_blobs(),
         )
 
-    async def compile(
+    async def _compile(
         self,
         query_req: QueryRequestInfo,
         skip_first: bool = False,
     ) -> dbstate.QueryUnitGroup:
-        if self.in_tx_error():
-            self.raise_in_tx_error()
-
         compiler_pool = self._db._index._server.get_compiler_pool()
 
         started_at = time.monotonic()
