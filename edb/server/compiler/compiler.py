@@ -1647,13 +1647,15 @@ class Compiler:
             query = self._compile_ql_migration(
                 ctx, ql, in_script=in_script,
             )
-            if isinstance(
-                query,
-                (dbstate.MigrationControlQuery, dbstate.DDLQuery),
-            ):
-                return (query, enums.Capability.DDL)
+            if isinstance(query, dbstate.MigrationControlQuery):
+                capability = enums.Capability.DDL
+                if query.tx_action:
+                    capability |= enums.Capability.TRANSACTION
+                return query, capability
+            elif isinstance(query, dbstate.DDLQuery):
+                return query, enums.Capability.DDL
             else:  # DESCRIBE CURRENT MIGRATION
-                return (query, enums.Capability(0))
+                return query, enums.Capability(0)
 
         elif isinstance(ql, (qlast.DatabaseCommand, qlast.DDL)):
             return (
