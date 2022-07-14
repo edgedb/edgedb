@@ -11083,3 +11083,14 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         await self.con.execute("ABORT MIGRATION")
 
         self.assertEqual(await self.con.query_single("SELECT 1"), 1)
+
+    async def test_edgeql_script_partial_migration(self):
+        with self.assertRaisesRegex(edgedb.QueryError, "incomplete migration"):
+            await self.con.execute(r"""
+                START MIGRATION TO {
+                    module test {
+                        type Foo;
+                    }
+                };
+                POPULATE MIGRATION;
+            """)

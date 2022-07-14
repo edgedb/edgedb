@@ -1939,6 +1939,12 @@ class Compiler:
             rv.append(unit)
 
         if script_info:
+            if ctx.state.current_tx().is_implicit():
+                if ctx.state.current_tx().get_migration_state() is not None:
+                    raise errors.QueryError(
+                        "Cannot leave an incomplete migration in scripts"
+                    )
+
             params, in_type_args = self._extract_params(
                 list(script_info.params.values()),
                 argmap=None, script_info=None, schema=script_info.schema,
