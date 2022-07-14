@@ -99,6 +99,18 @@ complex structures as parameters, use EdgeDB's built-in :ref:`JSON
   Parameter <json>$data: {"name":"Fido", "legs": 4}
   {default::Dog {id: 8d286cfe-3c0a-11ec-aa68-3f3076ebd97f}}
 
+To pass a set as an argument use an array and unpack it.
+
+.. code-block:: edgeql
+
+   with friends := (
+     select User filter .id in array_unpack(<array<uuid>>$friend_ids)
+   )
+   insert User {
+     name := <str>$name,
+     friends := friends,
+   };
+
 
 Optional parameters
 -------------------
