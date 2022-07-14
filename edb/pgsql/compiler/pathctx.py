@@ -244,6 +244,18 @@ def get_path_var(
     ):
         return astutils.compile_typeref(src_path_id.target.real_material_type)
 
+    if isinstance(rel_rvar, pgast.DynamicRangeVar):
+        var = rel_rvar.dynamic_get_path(
+            rel, path_id, flavor=flavor, aspect=aspect, env=env)
+        if isinstance(var, pgast.PathRangeVar):
+            rel_rvar = var
+        elif var:
+            put_path_var(
+                rel, path_id, var, aspect=aspect, flavor=flavor, env=env)
+            return var
+        else:
+            rel_rvar = None
+
     if rel_rvar is None:
         raise LookupError(
             f'there is no range var for '
