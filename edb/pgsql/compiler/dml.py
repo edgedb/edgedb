@@ -833,7 +833,8 @@ def insert_needs_conflict_cte(
         # pointer stored in the object itself
         if (
             ptr_info.table_type == 'ObjectType'
-            and irutils.contains_dml(shape_el, skip_bindings=True)
+            and shape_el.expr
+            and irutils.contains_dml(shape_el.expr, skip_bindings=True)
         ):
             return True
 
