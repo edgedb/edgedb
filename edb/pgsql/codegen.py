@@ -444,7 +444,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(' AS ' + common.quote_ident(node.name))
 
     def visit_UpdateTarget(self, node):
-        self.write(common.quote_ident(node.name))
+        if isinstance(node.name, list):
+            self.write('(')
+            self.write(', '.join(common.quote_ident(n) for n in node.name))
+            self.write(')')
+        else:
+            self.write(common.quote_ident(node.name))
         self.write(' = ')
         self.visit(node.val)
 

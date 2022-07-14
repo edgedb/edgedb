@@ -533,6 +533,43 @@ class TestInsert(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_insert_nested_12(self):
+        # Ugh, set a default value on the link prop
+        await self.con.execute('''
+            ALTER TYPE InsertTest
+              ALTER LINK subordinates
+                ALTER PROPERTY comment
+                  SET default := "!!!";
+        ''')
+
+        await self.con.execute('''
+            INSERT Subordinate {
+                name := 'linkprop test target 6'
+            };
+        ''')
+
+        await self.assert_query_result(
+            '''
+                SELECT (
+                    INSERT InsertTest {
+                        name := 'insert nested 6',
+                        l2 := 0,
+                        subordinates := (
+                            SELECT Subordinate LIMIT 1
+                        )
+                    }
+                ) {
+                    subordinates: { name, @comment }
+                }
+            ''',
+            [{
+                'subordinates': [{
+                    'name': 'linkprop test target 6',
+                    '@comment': '!!!'
+                }]
+            }]
+        )
+
     async def test_edgeql_insert_returning_01(self):
         await self.con.execute('''
             INSERT DefaultTest1 {

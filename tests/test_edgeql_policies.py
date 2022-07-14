@@ -65,6 +65,18 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                       (global cur_user IN __subject__.watchers.name) ?? false
                   )
             };
+
+            create type CurOnly extending Dictionary {
+                create access policy cur_only allow all
+                using (not exists global cur_user or global cur_user ?= .name);
+            };
+            create type CurOnlyM {
+                create multi property name -> str {
+                    create constraint exclusive;
+                };
+                create access policy cur_only allow all
+                using (not exists global cur_user or global cur_user ?= .name);
+            };
         '''
     ]
 
@@ -390,8 +402,8 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
         )
 
         async with self.assertRaisesRegexTx(
-                edgedb.ConstraintViolationError,
-                "violates exclusivity constraint"):
+                edgedb.InvalidValueError,
+                "access policy violation"):
             await self.con.query('''
                 INSERT Issue {
                     number := '4',
@@ -415,4 +427,86 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                     status := (SELECT Status FILTER Status.name = 'Closed'),
                 } UNLESS CONFLICT ON (.number) ELSE Issue),
                 select { required z := Z };
+            ''')
+
+    async def test_edgeql_policies_09(self):
+        # Create a type that we can write but not view
+        await self.con.execute('''
+            create type X extending Dictionary {
+                create access policy can_insert allow insert;
+            };
+            insert X { name := "!" };
+        ''')
+
+        # We need to raise a constraint violation error even though
+        # we are trying to do unless conflict, because we can't see
+        # the conflicting object!
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r"name violates exclusivity constraint"):
+            await self.con.query('''
+                insert X { name := "!" }
+                unless conflict on (.name) else (select X)
+            ''')
+
+    async def test_edgeql_policies_order_01(self):
+        await self.con.execute('''
+            insert CurOnly { name := "!" }
+        ''')
+        await self.con.execute('''
+            set global cur_user := "?"
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on insert of default::CurOnly"):
+            await self.con.query('''
+                insert CurOnly { name := "!" }
+            ''')
+
+    async def test_edgeql_policies_order_02(self):
+        await self.con.execute('''
+            insert CurOnly { name := "!" };
+            insert CurOnly { name := "?" };
+        ''')
+        await self.con.execute('''
+            set global cur_user := "?"
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on update of default::CurOnly"):
+            await self.con.query('''
+                update CurOnly set { name := "!" }
+            ''')
+
+    async def test_edgeql_policies_order_03(self):
+        await self.con.execute('''
+            insert CurOnlyM { name := "!" }
+        ''')
+        await self.con.execute('''
+            set global cur_user := "?"
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on insert of default::CurOnlyM"):
+            await self.con.query('''
+                insert CurOnlyM { name := "!" }
+            ''')
+
+    async def test_edgeql_policies_order_04(self):
+        await self.con.execute('''
+            insert CurOnlyM { name := "!" };
+            insert CurOnlyM { name := "?" };
+        ''')
+        await self.con.execute('''
+            set global cur_user := "?"
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on update of default::CurOnlyM"):
+            await self.con.query('''
+                update CurOnlyM set { name := "!" }
             ''')

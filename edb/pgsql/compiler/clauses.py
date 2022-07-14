@@ -294,6 +294,23 @@ def compile_limit_offset_clause(
     return limit_offset_clause
 
 
+def make_check_scan(
+    check_cte: pgast.CommonTableExpr,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.BaseExpr:
+    return pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(
+                val=pgast.FuncCall(name=('count',), args=[pgast.Star()]),
+            )
+        ],
+        from_clause=[
+            relctx.rvar_for_rel(check_cte, ctx=ctx),
+        ],
+    )
+
+
 def scan_check_ctes(
     stmt: pgast.Query,
     check_ctes: List[pgast.CommonTableExpr],
@@ -321,16 +338,7 @@ def scan_check_ctes(
         # Postgres might not fully evaluate all its columns when
         # scanning it.
         check_cte.materialized = True
-        check = pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(
-                    val=pgast.FuncCall(name=('count',), args=[pgast.Star()]),
-                )
-            ],
-            from_clause=[
-                relctx.rvar_for_rel(check_cte, ctx=ctx),
-            ],
-        )
+        check = make_check_scan(check_cte, ctx=ctx)
         val = pgast.Expr(
             kind=pgast.ExprKind.OP, name='+', lexpr=val, rexpr=check)
 
