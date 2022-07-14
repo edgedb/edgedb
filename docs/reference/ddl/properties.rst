@@ -248,7 +248,7 @@ The following subcommands are allowed in the ``alter link`` block:
 
 :eql:synopsis:`set multi`
     Change the maximum cardinality of the property set to
-    *greater than one*.  Only valid for concrete properties;
+    *greater than one*.  Only valid for concrete properties.
 
 :eql:synopsis:`reset cardinality`
     Reset the maximum cardinality of the property to the default value
@@ -277,7 +277,7 @@ The following subcommands are allowed in the ``alter link`` block:
     See :eql:stmt:`alter annotation` for details.
 
 :eql:synopsis:`drop annotation <annotation-name>;`
-    Remove property :eql:synopsis:`<annotation-name>`.
+    Remove property annotation :eql:synopsis:`<annotation-name>`.
     See :eql:stmt:`drop annotation` for details.
 
 :eql:synopsis:`alter constraint <constraint-name> ...`

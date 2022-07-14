@@ -79,6 +79,8 @@ to the previous migration:
     aliases
     indexes
     constraints
-    functions
     annotations
+    globals
+    access_policy
+    functions
     extensions
