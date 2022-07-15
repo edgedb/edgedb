@@ -1041,7 +1041,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             output_format=FMT_NONE,
         )
 
-        return await self.get_dbview().compile(
+        return await self.get_dbview()._compile(
             query_req,
             skip_first=skip_first,
         )
