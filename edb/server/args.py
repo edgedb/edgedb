@@ -186,12 +186,12 @@ class ServerConfig(NamedTuple):
     startup_script: Optional[StartupScript]
     status_sinks: List[Callable[[str], None]]
 
-    tls_cert_file: Optional[pathlib.Path]
-    tls_key_file: Optional[pathlib.Path]
+    tls_cert_file: pathlib.Path
+    tls_key_file: pathlib.Path
     tls_cert_mode: ServerTlsCertMode
 
-    jws_key_file: Optional[pathlib.Path]
-    jwe_key_file: Optional[pathlib.Path]
+    jws_key_file: pathlib.Path
+    jwe_key_file: pathlib.Path
     jose_key_mode: JOSEKeyMode
 
     default_auth_method: ServerAuthMethods
@@ -1069,7 +1069,13 @@ def parse_args(**kwargs: Any):
         kwargs['tls_cert_file'] = tls_cert_file
         kwargs['tls_key_file'] = tls_key_file
 
-    if not kwargs['bootstrap_only'] and not self_signing:
+    will_init_server = (
+        not kwargs['bootstrap_only']
+        or kwargs['bootstrap_script']
+        or kwargs['bootstrap_command']
+    )
+
+    if will_init_server and not self_signing:
         if not kwargs['tls_cert_file'].exists():
             abort(
                 f"TLS certificate file \"{kwargs['tls_cert_file']}\""
@@ -1079,8 +1085,7 @@ def parse_args(**kwargs: Any):
             )
 
     if (
-        kwargs['tls_cert_file']
-        and kwargs['tls_cert_file'].exists()
+        kwargs['tls_cert_file'].exists()
         and not kwargs['tls_cert_file'].is_file()
     ):
         abort(
@@ -1089,8 +1094,7 @@ def parse_args(**kwargs: Any):
         )
 
     if (
-        kwargs['tls_key_file']
-        and kwargs['tls_key_file'].exists()
+        kwargs['tls_key_file'].exists()
         and not kwargs['tls_key_file'].is_file()
     ):
         abort(
@@ -1126,7 +1130,7 @@ def parse_args(**kwargs: Any):
             )
         kwargs['jwe_key_file'] = jwe_key_file
 
-    if not kwargs['bootstrap_only'] and not generate_jose:
+    if will_init_server and not generate_jose:
         if not kwargs['jws_key_file'].exists():
             abort(
                 f"JWS key file \"{kwargs['jws_key_file']}\" does not exist"

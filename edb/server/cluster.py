@@ -70,6 +70,7 @@ class BaseCluster:
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 
         self._edgedb_cmd.append('--tls-cert-mode=generate_self_signed')
+        self._edgedb_cmd.append('--jose-key-mode=generate')
 
         if log_level:
             self._edgedb_cmd.extend(['--log-level', log_level])
