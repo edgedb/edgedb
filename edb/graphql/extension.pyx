@@ -228,6 +228,9 @@ async def _execute(db, server, query, operation_name, variables, globals):
                 raise errors.QueryError(
                     f"Variables starting with '_edb_arg__' are prohibited")
 
+    query_cache_enabled = not (
+        debug.flags.disable_qcache or debug.flags.graphql_compile)
+
     if debug.flags.graphql_compile:
         debug.header('Input graphql')
         print(query)
@@ -267,7 +270,9 @@ async def _execute(db, server, query, operation_name, variables, globals):
     cache_key = ('graphql', prepared_query, key_vars, operation_name, dbver)
     use_prep_stmt = False
 
-    entry: CacheEntry = query_cache.get(cache_key, None)
+    entry: CacheEntry = None
+    if query_cache_enabled:
+        entry = query_cache.get(cache_key, None)
 
     if isinstance(entry, CacheRedirect):
         key_vars2 = tuple(vars[k] for k in entry.key_vars)
