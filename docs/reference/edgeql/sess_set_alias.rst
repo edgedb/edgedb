@@ -12,6 +12,7 @@ Set
 
     set module <module> ;
     set alias <alias> as module <module> ;
+    set global <name> := <expr> ;
 
 
 Description
@@ -67,6 +68,22 @@ Variations
         select bar::FooType;
 
 
+:eql:synopsis:`set global <name> := <expr>`
+    Set the global variable *name* to the specified value.
+
+    For example:
+
+    .. code-block:: edgeql
+
+        # Set the global variable "current_user_id".
+        set global current_user_id :=
+            <uuid>'00ea8eaa-02f9-11ed-a676-6bd11cc6c557';
+
+        # We can now use that value in a query.
+        select User { name }
+        filter .id = global current_user_id;
+
+
 Examples
 --------
 
@@ -75,6 +92,9 @@ Examples
     set module foo;
 
     set alias foo AS module std;
+
+    set global current_user_id :=
+        <uuid>'00ea8eaa-02f9-11ed-a676-6bd11cc6c557';
 
 
 .. list-table::
