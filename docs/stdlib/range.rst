@@ -7,8 +7,7 @@ Range
 :edb-alt-title: Range Functions and Operators
 
 Ranges represent some interval of values. The intervals can include or exclude
-their boundaries or can even omit one or both boundaries. Only some scalar
-types have corresponding range types:
+their boundaries. Only some scalar types have corresponding range types:
 
 - ``range<int32>``
 - ``range<int64>``
