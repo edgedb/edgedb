@@ -231,6 +231,11 @@ async def _run_server(
                 _generate_jose_keys(args.jwe_key_file)
                 jwe_keys_newly_generated = True
 
+        if args.bootstrap_only:
+            if args.startup_script and new_instance:
+                await sc.wait_for(ss.run_startup_script_and_exit())
+            return
+
         ss.init_tls(
             args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
 
@@ -240,11 +245,6 @@ async def _run_server(
             jws_keys_newly_generated,
             jwe_keys_newly_generated,
         )
-
-        if args.bootstrap_only:
-            if args.startup_script and new_instance:
-                await sc.wait_for(ss.run_startup_script_and_exit())
-            return
 
         try:
             await sc.wait_for(ss.start())
