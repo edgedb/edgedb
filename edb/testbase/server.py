@@ -1541,6 +1541,7 @@ class _EdgeDBServer:
             '--emit-server-status', f'fd://{status_w.fileno()}',
             '--compiler-pool-size', str(self.compiler_pool_size),
             '--tls-cert-mode', str(self.tls_cert_mode),
+            '--jose-key-mode', 'generate',
         ]
 
         if self.compiler_pool_mode is not None:

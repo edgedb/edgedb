@@ -186,12 +186,12 @@ class ServerConfig(NamedTuple):
     startup_script: Optional[StartupScript]
     status_sinks: List[Callable[[str], None]]
 
-    tls_cert_file: Optional[pathlib.Path]
-    tls_key_file: Optional[pathlib.Path]
+    tls_cert_file: pathlib.Path
+    tls_key_file: pathlib.Path
     tls_cert_mode: ServerTlsCertMode
 
-    jws_key_file: Optional[pathlib.Path]
-    jwe_key_file: Optional[pathlib.Path]
+    jws_key_file: pathlib.Path
+    jwe_key_file: pathlib.Path
     jose_key_mode: JOSEKeyMode
 
     default_auth_method: ServerAuthMethods
@@ -1079,8 +1079,7 @@ def parse_args(**kwargs: Any):
             )
 
     if (
-        kwargs['tls_cert_file']
-        and kwargs['tls_cert_file'].exists()
+        kwargs['tls_cert_file'].exists()
         and not kwargs['tls_cert_file'].is_file()
     ):
         abort(
@@ -1089,8 +1088,7 @@ def parse_args(**kwargs: Any):
         )
 
     if (
-        kwargs['tls_key_file']
-        and kwargs['tls_key_file'].exists()
+        kwargs['tls_key_file'].exists()
         and not kwargs['tls_key_file'].is_file()
     ):
         abort(
@@ -1098,43 +1096,62 @@ def parse_args(**kwargs: Any):
             " is not a regular file"
         )
 
-    if kwargs['jose_key_mode'] is JOSEKeyMode.Generate:
-        if not kwargs['jws_key_file']:
-            if kwargs['data_dir']:
-                jws_key_file = kwargs['data_dir'] / JWS_KEY_FILE_NAME
-            else:
-                jws_key_file = pathlib.Path('<runstate>') / JWS_KEY_FILE_NAME
-            kwargs['jws_key_file'] = jws_key_file
-        if not kwargs['jwe_key_file']:
-            if kwargs['data_dir']:
-                jwe_key_file = kwargs['data_dir'] / JWE_KEY_FILE_NAME
-            else:
-                jwe_key_file = pathlib.Path('<runstate>') / JWE_KEY_FILE_NAME
-            kwargs['jwe_key_file'] = jwe_key_file
-    else:
-        if kwargs['jws_key_file']:
-            if not kwargs['jws_key_file'].exists():
-                abort(
-                    f"JWS key file \"{kwargs['jws_key_file']}\" does not exist"
-                )
+    generate_jose = kwargs['jose_key_mode'] is JOSEKeyMode.Generate
 
-            if not kwargs['jws_key_file'].is_file():
-                abort(
-                    f"JWT key file \"{kwargs['jws_key_file']}\""
-                    " is not a regular file"
-                )
+    if not kwargs['jws_key_file']:
+        if kwargs['data_dir']:
+            jws_key_file = kwargs['data_dir'] / JWS_KEY_FILE_NAME
+        elif generate_jose:
+            jws_key_file = pathlib.Path('<runstate>') / JWS_KEY_FILE_NAME
+        else:
+            abort(
+                "no JWS key specified and JOSE keys auto-generation"
+                " has not been requested; see help for --jose-key-mode",
+                exit_code=11,
+            )
+        kwargs['jws_key_file'] = jws_key_file
 
-        if kwargs['jwe_key_file']:
-            if not kwargs['jwe_key_file'].exists():
-                abort(
-                    f"JWE key file \"{kwargs['jwe_key_file']}\" does not exist"
-                )
+    if not kwargs['jwe_key_file']:
+        if kwargs['data_dir']:
+            jwe_key_file = kwargs['data_dir'] / JWE_KEY_FILE_NAME
+        elif generate_jose:
+            jwe_key_file = pathlib.Path('<runstate>') / JWE_KEY_FILE_NAME
+        else:
+            abort(
+                "no JWE key specified and JOSE keys auto-generation"
+                " has not been requested; see help for --jose-key-mode",
+                exit_code=11,
+            )
+        kwargs['jwe_key_file'] = jwe_key_file
 
-            if not kwargs['jwe_key_file'].is_file():
-                abort(
-                    f"JWE key file \"{kwargs['jwe_key_file']}\""
-                    " is not a regular file"
-                )
+    if not kwargs['bootstrap_only'] and not generate_jose:
+        if not kwargs['jws_key_file'].exists():
+            abort(
+                f"JWS key file \"{kwargs['jws_key_file']}\" does not exist"
+            )
+
+        if not kwargs['jwe_key_file'].exists():
+            abort(
+                f"JWE key file \"{kwargs['jwe_key_file']}\" does not exist"
+            )
+
+    if (
+        kwargs['jws_key_file'].exists() and
+        not kwargs['jws_key_file'].is_file()
+    ):
+        abort(
+            f"JWT key file \"{kwargs['jws_key_file']}\""
+            " is not a regular file"
+        )
+
+    if (
+        kwargs['jwe_key_file'].exists() and
+        not kwargs['jwe_key_file'].is_file()
+    ):
+        abort(
+            f"JWE key file \"{kwargs['jwe_key_file']}\""
+            " is not a regular file"
+        )
 
     if kwargs['log_level']:
         kwargs['log_level'] = kwargs['log_level'].lower()[0]

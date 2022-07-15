@@ -1523,40 +1523,38 @@ class Server(ha_base.ClusterProtocol):
 
     def init_jwcrypto(
         self,
-        jws_key_file: pathlib.Path | None,
-        jwe_key_file: pathlib.Path | None,
+        jws_key_file: pathlib.Path,
+        jwe_key_file: pathlib.Path,
         jws_keys_newly_generated: bool,
         jwe_keys_newly_generated: bool,
     ) -> None:
-        if jws_key_file is not None:
-            try:
-                with open(jws_key_file, 'rb') as kf:
-                    self._jws_key = jwk.JWK.from_pem(kf.read())
-            except Exception as e:
-                raise StartupError(f"cannot load JWS key: {e}") from e
+        try:
+            with open(jws_key_file, 'rb') as kf:
+                self._jws_key = jwk.JWK.from_pem(kf.read())
+        except Exception as e:
+            raise StartupError(f"cannot load JWS key: {e}") from e
 
-            if (
-                not self._jws_key.has_public
-                or self._jws_key['kty'] not in {"RSA", "EC"}
-            ):
-                raise StartupError(
-                    f"the provided JWS key file does not "
-                    f"contain a valid RSA or EC public key")
+        if (
+            not self._jws_key.has_public
+            or self._jws_key['kty'] not in {"RSA", "EC"}
+        ):
+            raise StartupError(
+                f"the provided JWS key file does not "
+                f"contain a valid RSA or EC public key")
 
-        if jwe_key_file is not None:
-            try:
-                with open(jwe_key_file, 'rb') as kf:
-                    self._jwe_key = jwk.JWK.from_pem(kf.read())
-            except Exception as e:
-                raise StartupError(f"cannot load JWE key: {e}") from e
+        try:
+            with open(jwe_key_file, 'rb') as kf:
+                self._jwe_key = jwk.JWK.from_pem(kf.read())
+        except Exception as e:
+            raise StartupError(f"cannot load JWE key: {e}") from e
 
-            if (
-                not self._jwe_key.has_private
-                or self._jwe_key['kty'] not in {"RSA", "EC"}
-            ):
-                raise StartupError(
-                    f"the provided JWE key file does not "
-                    f"contain a valid RSA or EC private key")
+        if (
+            not self._jwe_key.has_private
+            or self._jwe_key['kty'] not in {"RSA", "EC"}
+        ):
+            raise StartupError(
+                f"the provided JWE key file does not "
+                f"contain a valid RSA or EC private key")
         self._jws_keys_newly_generated = jws_keys_newly_generated
         self._jwe_keys_newly_generated = jwe_keys_newly_generated
 
