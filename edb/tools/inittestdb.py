@@ -82,11 +82,13 @@ def die(msg):
               help='number of parallel processes to use')
 @click.option('-k', '--include', type=str, multiple=True, metavar='REGEXP',
               help='only use tests which match the given regular expression')
-def inittestdb(*, data_dir, jobs, tests_dir, include):
+@click.option('-u', '--update', is_flag=True,
+              help='add the tests to the existing db')
+def inittestdb(*, data_dir, jobs, tests_dir, include, update):
     if os.path.exists(data_dir):
         if not os.path.isdir(data_dir):
             die(f'{data_dir!r} exists and is not a directory')
-        if os.listdir(data_dir):
+        if os.listdir(data_dir) and not update:
             die(f'{data_dir!r} exists and is not empty')
 
     if not jobs:
@@ -98,6 +100,7 @@ def inittestdb(*, data_dir, jobs, tests_dir, include):
             data_dir=data_dir,
             tests_dir=tests_dir,
             include=include,
+            update=update,
         ),
     )
 
@@ -108,17 +111,20 @@ async def _inittestdb(
     data_dir: str,
     tests_dir: str,
     include: List[str],
+    update: bool,
 ) -> None:
     cluster = edgedb_cluster.Cluster(pathlib.Path(data_dir), testmode=True)
-    print(f'Bootstrapping test EdgeDB instance in {data_dir}...')
 
     try:
-        await cluster.init()
+        if not update:
+            print(f'Bootstrapping test EdgeDB instance in {data_dir}...')
+            await cluster.init()
         await cluster.start(port=0)
         await cluster.trust_local_connections()
     except BaseException:
-        if os.path.exists(data_dir):
-            shutil.rmtree(data_dir)
+        if not update:
+            if os.path.exists(data_dir):
+                shutil.rmtree(data_dir)
         raise
 
     conn = cluster.get_connect_args()
