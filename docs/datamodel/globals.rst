@@ -150,7 +150,7 @@ This is particularly useful when declaring :ref:`access policies
 
   type Person {
     required property name -> str;
-    access policy my_policy allow delete using (.id = global current_user_id);
+    access policy my_policy allow all using (.id = global current_user_id);
   }
 
 Refer to :ref:`Access Policies <ref_datamodel_ols>` for complete

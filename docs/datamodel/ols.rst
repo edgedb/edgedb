@@ -24,10 +24,11 @@ Let's start with a simple schema.
     link author -> Person;
   }
 
-When no access policies are defined, any properly authenticated query can
-select or modify any object in the database. Once a policy is added to a
-particular object type, this switches; all operations (``select``, ``insert``,
-etc.) are *disallowed by default* except those specifically permitted by the
+When no access policies are defined, object-level security is not activated.
+Any properly authenticated query can select or modify any object in the
+database. Once a policy is added to a particular object type, object-level
+security is activate; all operations on that type (``select``, ``insert``,
+etc.) are *disallowed by default* except those specifically permitted by its
 access policies.
 
 Defining a policy
@@ -50,7 +51,7 @@ Let's add a policy to our sample schema.
   +     )
       }
 
-Note that we've added a global variable called ``current_user``. Global
+First: we've added a global variable called ``current_user``. Global
 variables are a mechanism for providing context to a query; you set their
 value when you first initialize your client. The exact API depends on which
 client library you're using; refer to the :ref:`Global Variables
@@ -80,15 +81,17 @@ client library you're using; refer to the :ref:`Global Variables
         select global current_user;
     """)
 
-Syntax breakdown
-^^^^^^^^^^^^^^^^
 
-Let's break this down the access policy syntax piece-by-piece.
+Now let's break down the access policy syntax piece-by-piece.
 
 .. code-block::
 
-  access policy own_posts allow all using (...)
+  access policy own_posts allow all using (
+    .author.id ?= global current_user
+  )
 
+Adding policy grants full read-write access (``all``) to the ``author`` of each
+``BlogPost``. It also implicitly *denies* access to everyone else.
 
 - ``access policy``: the keyword used to declare a policy inside an object
   type.
@@ -98,10 +101,12 @@ Let's break this down the access policy syntax piece-by-piece.
   of the following: ``all``, ``select``, ``insert``, ``delete``, ``update``,
   ``update read``, ``update write``.
 - ``using (<expr>)``: a filter expression that determines the set of objects
-  to which the policy applies.
+  to which the policy applies. This example resolves to true is the ``id`` of
+  the post's author is equal to the value specified in
+  ``global current_user``. We're using the *coalescing equality* operator,
+  which returns ``false`` even if one of its arguments is an empty set.
 
-This policy grants full read-write access (``all``) to the ``author`` of each
-``BlogPost``. Let's do some experiments.
+Let's do some experiments.
 
 .. code-block:: edgeql-repl
 
