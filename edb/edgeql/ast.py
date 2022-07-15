@@ -1184,7 +1184,7 @@ class CreateAccessPolicy(CreateObject, AccessPolicyCommand):
     condition: typing.Optional[Expr]
     action: qltypes.AccessPolicyAction
     access_kinds: typing.List[qltypes.AccessKind]
-    expr: Expr
+    expr: typing.Optional[Expr]
 
 
 class SetAccessPerms(DDLOperation):

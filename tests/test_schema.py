@@ -5838,6 +5838,19 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_equivalence_policies_03(self):
+        self._assert_migration_equivalence([r"""
+            type Foo {
+                access policy asdf
+                allow all using (true);
+            }
+        """, """
+            type Foo {
+                access policy asdf
+                allow all;
+            }
+        """])
+
     def test_schema_migrations_equivalence_globals_01(self):
         self._assert_migration_equivalence([r"""
             global foo -> str;
