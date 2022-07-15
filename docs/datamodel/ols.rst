@@ -93,9 +93,9 @@ Let's break this down the access policy syntax piece-by-piece.
   type.
 - ``own_posts``: the name of this policy; could be any string.
 - ``allow``: the kind of policy; could be ``allow`` or ``deny``
-- ``all``: the set of operations being allowed/denied; one of the following:
-  ``all``, ``select``, ``insert``, ``delete``, ``update``, ``update read``,
-  ``update write``.
+- ``all``: the set of operations being allowed/denied; a comma-separated list
+  of the following: ``all``, ``select``, ``insert``, ``delete``, ``update``,
+  ``update read``, ``update write``.
 - ``using (<expr>)``: a filter expression that determines the set of objects
   to which the policy applies.
 
@@ -148,26 +148,28 @@ Policy types
 
 For the most part, the policy types correspond to EdgeQL's *statement types*:
 
-- ``select``
-- ``insert``
-- ``update``
-- ``delete``
+- ``select``: Applies to all queries; objects without a ``select`` permission
+  cannot be modified either.
+- ``insert``: Applies to insert queries; executed *post-insert*. If an
+  inserted object violates the policy, the query will fail.
+- ``delete``: Applies to delete queries.
+- ``update``: Applies to update queries.
 
 Additionally, the ``update`` operation can broken down into two sub-policies:
 ``update read`` and ``update write``.
 
-- ``update read``: this policy restricts *which* objects can be updated. It
+- ``update read``: This policy restricts *which* objects can be updated. It
   runs *pre-update*; that is, this policy is executed before the updates have
   been applied.
-- ``update write``: this policy restricts *how* you update the objects; you
+- ``update write``: This policy restricts *how* you update the objects; you
   can think of it as a *post-update* validity check. This could be used to
   prevent a ``User`` from transferring a ``BlogPost`` to another ``User``.
 
 Finally, there's an umbrella policy that can be used as a shorthand for all
 the others.
 
-- ``all``: a shorthand policy that can be used to allow or deny full read/
-  write permissions.
+- ``all``: A shorthand policy that can be used to allow or deny full read/
+  write permissions. Exactly equivalent to ``select, insert, update, delete``.
 
 
 Resolution algorithm
@@ -197,6 +199,55 @@ algorithm for resolving these policies.
    level: a set of objects targetable by each of ``select``, ``insert``,
    ``update read``, ``update write``, and ``delete``.
 
+
+Examples
+^^^^^^^^
+
+Blog posts are visible to friends but only modifiable by the author.
+
+.. code-block:: sdl
+
+  global current_user -> uuid;
+
+  type User {
+    required property email -> str { constraint exclusive; };
+    multi link friends -> User;
+  }
+
+  type BlogPost {
+    required property title -> str;
+    link author -> User;
+    access policy self_and_friends_can_read allow select using (
+      global current_user ?= {.author.id, .author.friends.id}
+    );
+    access policy self_can_modify allow update, insert, delete using (
+      global current_user ?= .author.id
+    );
+  }
+
+Blog posts are publicly visible except to users that have been ``blocked`` by
+the author.
+
+.. code-block::
+
+  type User {
+    required property email -> str { constraint exclusive; };
+    multi link friends -> User;
+    multi link blocked -> User;
+  }
+
+  type BlogPost {
+    required property title -> str;
+    link author -> User;
+
+    access policy author_can_modify allow all using (
+      global current_user ?= .author.id
+    );
+    access policy anyone_can_read allow select using (true);
+    access policy exclude_blocked deny select using (
+      global current_user ?= .author.blocked.id
+    );
+  }
 
 .. .. list-table::
 ..   :class: seealso

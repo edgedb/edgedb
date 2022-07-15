@@ -12,7 +12,7 @@ Schemas can contain scalar-typed *global variables*.
 
 .. code-block:: sdl
 
-  global current_user -> uuid;
+  global current_user_id -> uuid;
 
 These provide a useful mechanism for specifying session-level data that can be
 referenced in queries with the ``global`` keyword.
@@ -23,7 +23,7 @@ referenced in queries with the ``global`` keyword.
     id,
     posts: { title, content }
   }
-  filter .id = (global current_user)
+  filter .id = global current_user_id;
 
 As in the example above, this is particularly useful for representing the
 notion of a session or "current user". The value of global variables is set
@@ -37,21 +37,21 @@ and stored with the client library.
 
     const baseClient = createClient()
     const clientWithGlobals = baseClient.withGlobals({
-      current_user: '2141a5b4-5634-4ccc-b835-437863534c51',
+      current_user_id: '2141a5b4-5634-4ccc-b835-437863534c51',
     });
 
-    await client.query(`select (global current_user)`);
+    await client.query(`select global current_user_id;`);
 
   .. code-tab:: python
 
     from edgedb import create_client
 
     client = create_client().with_globals({
-        'current_user': '580cc652-8ab8-4a20-8db9-4c79a4b1fd81'
+        'current_user_id': '580cc652-8ab8-4a20-8db9-4c79a4b1fd81'
     })
 
     result = client.query("""
-        select (global current_user);
+        select global current_user_id;
     """)
     print(result)
 
@@ -60,7 +60,7 @@ internally stores the assigned global variable values. The new instance shares
 a connection pool with the original instance.
 
 Cardinality
-------------
+-----------
 
 Global variables can be marked ``required``; in this case, you must specify a
 default value.
@@ -74,8 +74,8 @@ default value.
 Computed globals
 ----------------
 
-Global variables can also be computed. Declare a computed global with the
-following shorthand.
+Global variables can also be computed. The value of computed globals are
+dynamically computed when they are referenced in queries.
 
 .. code-block:: sdl
 
@@ -85,19 +85,27 @@ The provided expression will be computed at the start of each query in which
 the global is referenced. There's no need to provide an explicit type; the
 type is inferred from the computed expression.
 
-Computed globals can also have a ``multi`` cardinality. This isn't the case
-for non-computed globals.
+Computed globals are not subject to the same constraints as non-computed ones;
+specifically, they can be object-typed and have a ``multi`` cardinality.
 
 .. code-block:: sdl
 
-  multi global str_multi := {'hi', 'mom'};
+  global current_user_id -> uuid;
+
+  # object-typed global
+  global current_user := (
+    select User filter .id = global current_user_id
+  );
+
+  # multi global
+  global current_user_friends := (global current_user).friends;
 
 
-Comparison to parameters
-------------------------
+Usage in schema
+---------------
 
 .. You may be wondering what purpose globals serve that can't.
-.. For instance, the simple ``current_user`` example above could easily
+.. For instance, the simple ``current_user_id`` example above could easily
 .. be rewritten like so:
 
 .. .. code-block:: edgeql-diff
@@ -106,13 +114,13 @@ Comparison to parameters
 ..       id,
 ..       posts: { title, content }
 ..     }
-..   - filter .id = global current_user
-..   + filter .id = <uuid>$current_user
+..   - filter .id = global current_user_id
+..   + filter .id = <uuid>$current_user_id
 
 .. There is a subtle difference between these two in terms of
 .. developer experience. When using parameters, you must provide a
-.. value for ``$current_user`` on each *query execution*. By constrast,
-.. the value of ``global current_user`` is defined when you initialize
+.. value for ``$current_user_id`` on each *query execution*. By constrast,
+.. the value of ``global current_user_id`` is defined when you initialize
 .. the client; you can use this "sessionified" client to execute
 .. user-specific queries without needing to keep pass around the
 .. value of the user's UUID.
@@ -126,7 +134,7 @@ Unlike query parameters, globals can be referenced
 
   type User {
     property name -> str;
-    property is_self := (.id = global current_user)
+    property is_self := (.id = global current_user_id)
   };
 
 This is particularly useful when declaring :ref:`object-level security
@@ -136,7 +144,7 @@ policies <ref_datamodel_ols>`.
 
   type Person {
     required property name -> str;
-    access policy my_policy allow delete using (.id = global current_user);
+    access policy my_policy allow delete using (.id = global current_user_id);
   }
 
 Refer to :ref:`Object-Level Security <ref_datamodel_ols>` for complete

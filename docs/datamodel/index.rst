@@ -31,7 +31,6 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     comparison
 
 
-
 EdgeDB schemas are declared using **SDL** (EdgeDB Schema Definition Language).
 SDL's declarative, object-oriented syntax will look familiar to users of ORM
 libraries.
