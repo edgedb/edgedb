@@ -21,7 +21,8 @@ Let's start with a simple schema.
   }
 
   type BlogPost {
-    link author -> Person;
+    required property title -> str;
+    link author -> User;
   }
 
 When no access policies are defined, object-level security is not activated.
@@ -45,7 +46,8 @@ Let's add a policy to our sample schema.
       }
 
       type BlogPost {
-        link author -> Person;
+        required property title -> str;
+        link author -> User;
   +     access policy own_posts allow all using (
   +       .author.id ?= global current_user
   +     )
@@ -180,9 +182,46 @@ the others.
 - ``all``: A shorthand policy that can be used to allow or deny full read/
   write permissions. Exactly equivalent to ``select, insert, update, delete``.
 
+The ``when`` clause
+^^^^^^^^^^^^^^^^^^^
 
-Resolution algorithm
-^^^^^^^^^^^^^^^^^^^^
+For readability, access policies can include a ``when`` clause.
+
+.. code-block:: sdl
+
+  type BlogPost {
+    required property title -> str;
+    link author -> User;
+    access policy own_posts
+      when ( .title[0] = "A" )
+      allow all
+      using ( .author.id ?= global current_user )
+  }
+
+Conceptually, you can think of the ``when`` clause as defining the *set of
+objects* to which the policy applies while the ``using`` clause represents the
+*access check* (likely referencing a global). Logically, the ``when`` and
+``using`` expressions are combined with ``and`` together to determine the
+scope of the policy.
+
+In practice, any policy can be expressed with just ``when``, just ``using``,
+or split across the two; this syntax is intended to enhance readability and
+maintainability. We can re-write the policy above without the ``when`` clause.
+
+.. code-block:: sdl-diff
+
+    type BlogPost {
+      required property title -> str;
+      link author -> User;
+      access policy own_posts
+  -     when ( .title[0] = "A" )
+        allow all
+  -     using( .author.id ?= global current_user)
+  +     using( .author.id ?= global current_user and .title[0] = "A" )
+    }
+
+Resolution order
+^^^^^^^^^^^^^^^^
 
 An object type can contain an arbitrary number of access policies, including
 several conflicting ``allow`` and ``deny`` policies. EdgeDB uses a particular
@@ -192,22 +231,23 @@ algorithm for resolving these policies.
 
   The access policy resolution algorithm, explained with Venn diagrams.
 
-1. When no policies are defined on a given object type,
-   all objects of that type can be read or modified by any appropriately
+1. When no policies are defined on a given object type, object-level security
+   is all objects of that type can be read or modified by any appropriately
    authenticated connection.
 
 2. EdgeDB then applies all ``allow`` policies. Each policy grants a
    *permission* that is scoped to a particular *set of objects* as defined by
-   the ``using`` clause. Conceptually, these permissions are merged with the
-   ``union`` / ``or`` operator to determine the set of allowable actions.
+   the ``when/using`` clauses. Conceptually, these permissions are merged with
+   the ``union`` / ``or`` operator to determine the set of allowable actions.
 
 3. After the ``allow`` policies are resolved, the ``deny`` policies can be
-   used to carve out exceptions. As before, the set of objects targeted by the
-   policy is defined by the ``using`` clause.
+   used to carve out exceptions to the ``allow`` rules. Deny rules *supersede*
+   allow rules! As before, the set of objects targeted by the policy is
+   defined by the ``when/using`` clause.
 
-4. Once the ``deny`` policies are applied, we're left with a final access
-   level: a set of objects targetable by each of ``select``, ``insert``,
-   ``update read``, ``update write``, and ``delete``.
+4. This results in the final access level: a set of objects targetable by each
+   of ``select``, ``insert``, ``update read``, ``update write``, and
+   ``delete``.
 
 
 Examples
