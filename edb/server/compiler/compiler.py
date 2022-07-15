@@ -1647,13 +1647,15 @@ class Compiler:
             query = self._compile_ql_migration(
                 ctx, ql, in_script=in_script,
             )
-            if isinstance(
-                query,
-                (dbstate.MigrationControlQuery, dbstate.DDLQuery),
-            ):
-                return (query, enums.Capability.DDL)
+            if isinstance(query, dbstate.MigrationControlQuery):
+                capability = enums.Capability.DDL
+                if query.tx_action:
+                    capability |= enums.Capability.TRANSACTION
+                return query, capability
+            elif isinstance(query, dbstate.DDLQuery):
+                return query, enums.Capability.DDL
             else:  # DESCRIBE CURRENT MIGRATION
-                return (query, enums.Capability(0))
+                return query, enums.Capability(0)
 
         elif isinstance(ql, (qlast.DatabaseCommand, qlast.DDL)):
             return (
@@ -1937,6 +1939,12 @@ class Compiler:
             rv.append(unit)
 
         if script_info:
+            if ctx.state.current_tx().is_implicit():
+                if ctx.state.current_tx().get_migration_state() is not None:
+                    raise errors.QueryError(
+                        "Cannot leave an incomplete migration in scripts"
+                    )
+
             params, in_type_args = self._extract_params(
                 list(script_info.params.values()),
                 argmap=None, script_info=None, schema=script_info.schema,
