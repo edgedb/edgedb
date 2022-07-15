@@ -143,7 +143,8 @@ Unlike query parameters, globals can be referenced
     property is_self := (.id = global current_user_id)
   };
 
-This is particularly useful when declaring :ref:`access policies <ref_datamodel_ols>`.
+This is particularly useful when declaring :ref:`access policies
+<ref_datamodel_ols>`.
 
 .. code-block::
 

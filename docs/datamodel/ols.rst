@@ -9,7 +9,8 @@ Access Policies
   ⚠️ Only available in EdgeDB 2.0 or later.
 
 Object types can contain security policies that restrict the set of objects
-that can be selected, inserted, updated, or deleted by a particular query. This is known as *object-level security*.
+that can be selected, inserted, updated, or deleted by a particular query.
+This is known as *object-level security*.
 
 Let's start with a simple schema.
 
