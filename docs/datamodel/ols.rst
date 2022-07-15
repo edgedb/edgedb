@@ -27,7 +27,7 @@ Let's start with a simple schema.
 When no access policies are defined, object-level security is not activated.
 Any properly authenticated query can select or modify any object in the
 database. Once a policy is added to a particular object type, object-level
-security is activate; all operations on that type (``select``, ``insert``,
+security is activated; all operations on that type (``select``, ``insert``,
 etc.) are *disallowed by default* except those specifically permitted by its
 access policies.
 
@@ -90,21 +90,24 @@ Now let's break down the access policy syntax piece-by-piece.
     .author.id ?= global current_user
   )
 
-Adding policy grants full read-write access (``all``) to the ``author`` of each
+This policy grants full read-write access (``all``) to the ``author`` of each
 ``BlogPost``. It also implicitly *denies* access to everyone else.
 
-- ``access policy``: the keyword used to declare a policy inside an object
+.. note::
+
+  We're using the *coalescing equality* operator ``?=`` which returns
+  ``false`` even if one of its arguments is an empty set.
+
+- ``access policy``: The keyword used to declare a policy inside an object
   type.
-- ``own_posts``: the name of this policy; could be any string.
-- ``allow``: the kind of policy; could be ``allow`` or ``deny``
-- ``all``: the set of operations being allowed/denied; a comma-separated list
+- ``own_posts``: The name of this policy; could be any string.
+- ``allow``: The kind of policy; could be ``allow`` or ``deny``
+- ``all``: The set of operations being allowed/denied; a comma-separated list
   of the following: ``all``, ``select``, ``insert``, ``delete``, ``update``,
   ``update read``, ``update write``.
-- ``using (<expr>)``: a filter expression that determines the set of objects
-  to which the policy applies. This example resolves to true is the ``id`` of
-  the post's author is equal to the value specified in
-  ``global current_user``. We're using the *coalescing equality* operator,
-  which returns ``false`` even if one of its arguments is an empty set.
+- ``using (<expr>)``: A boolean expression. Think of this as a ``filter``
+  expression that defined the set of objects to which the policy applies.
+
 
 Let's do some experiments.
 
@@ -194,12 +197,13 @@ algorithm for resolving these policies.
    authenticated connection.
 
 2. EdgeDB then applies all ``allow`` policies. Each policy grants a
-   *permission* that is scoped to a particular *set of objects*. Conceptually,
-   these permissions are merged with the ``union`` / ``or`` operator to
-   determine the set of allowable actions.
+   *permission* that is scoped to a particular *set of objects* as defined by
+   the ``using`` clause. Conceptually, these permissions are merged with the
+   ``union`` / ``or`` operator to determine the set of allowable actions.
 
 3. After the ``allow`` policies are resolved, the ``deny`` policies can be
-   used to carve out exceptions.
+   used to carve out exceptions. As before, the set of objects targeted by the
+   policy is defined by the ``using`` clause.
 
 4. Once the ``deny`` policies are applied, we're left with a final access
    level: a set of objects targetable by each of ``select``, ``insert``,
