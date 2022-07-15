@@ -399,7 +399,7 @@ ALTER TYPE schema::AccessPolicy {
   CREATE MULTI PROPERTY access_kinds -> schema::AccessKind;
   CREATE PROPERTY condition -> std::str;
   CREATE REQUIRED PROPERTY action -> schema::AccessPolicyAction;
-  CREATE REQUIRED PROPERTY expr -> std::str;
+  CREATE PROPERTY expr -> std::str;
 };
 
 

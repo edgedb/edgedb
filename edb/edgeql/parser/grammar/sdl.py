@@ -947,7 +947,7 @@ class AccessPolicyDeclarationBlock(Nonterm):
         """%reduce
             ACCESS POLICY ShortNodeName
             OptWhenBlock AccessPolicyAction AccessKindList
-            USING LPAREN Expr RPAREN
+            OptUsingBlock
             CreateAccessPolicySDLCommandsBlock
         """
         self.val = qlast.CreateAccessPolicy(
@@ -955,8 +955,8 @@ class AccessPolicyDeclarationBlock(Nonterm):
             condition=kids[3].val,
             action=kids[4].val,
             access_kinds=[y for x in kids[5].val for y in x],
-            expr=kids[8].val,
-            commands=kids[10].val,
+            expr=kids[6].val,
+            commands=kids[7].val,
         )
 
 
@@ -965,14 +965,14 @@ class AccessPolicyDeclarationShort(Nonterm):
         """%reduce
             ACCESS POLICY ShortNodeName
             OptWhenBlock AccessPolicyAction AccessKindList
-            USING LPAREN Expr RPAREN
+            OptUsingBlock
         """
         self.val = qlast.CreateAccessPolicy(
             name=kids[2].val,
             condition=kids[3].val,
             action=kids[4].val,
             access_kinds=[y for x in kids[5].val for y in x],
-            expr=kids[8].val,
+            expr=kids[6].val,
         )
 
 

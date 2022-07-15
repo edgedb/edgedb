@@ -51,7 +51,7 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             alter type Owned {
                 create access policy disable_filter
                   when (not global filter_owned)
-                  allow select using (true);
+                  allow select;
 
                 create access policy cur_owner
                   when (global cur_owner_active)
@@ -206,7 +206,7 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                 CREATE ACCESS POLICY redact
                     ALLOW SELECT USING (not global filter_owned);
                 CREATE ACCESS POLICY dml_always
-                    ALLOW UPDATE, INSERT, DELETE USING (true);
+                    ALLOW UPDATE, INSERT, DELETE;
             };
             CREATE TYPE Ptr {
                 CREATE REQUIRED LINK tgt -> Tgt;
@@ -274,7 +274,7 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                 CREATE ACCESS POLICY redact
                     ALLOW SELECT USING (not global filter_owned);
                 CREATE ACCESS POLICY dml_always
-                    ALLOW UPDATE, INSERT, DELETE USING (true);
+                    ALLOW UPDATE, INSERT, DELETE;
             };
             CREATE TYPE BadTgt;
             CREATE TYPE Ptr {

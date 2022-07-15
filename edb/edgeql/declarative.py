@@ -784,7 +784,9 @@ def trace_AccessPolicy(
     *,
     ctx: DepTraceContext,
 ) -> None:
-    exprs = [ExprDependency(expr=node.expr)]
+    exprs = []
+    if node.expr:
+        exprs.append(ExprDependency(expr=node.expr))
     if node.condition:
         exprs.append(ExprDependency(expr=node.condition))
 

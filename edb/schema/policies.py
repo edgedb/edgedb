@@ -60,6 +60,7 @@ class AccessPolicy(
 
     expr = so.SchemaField(
         s_expr.Expression,
+        default=None,
         compcoef=0.909,
         special_ddl_syntax=True,
     )
@@ -367,14 +368,15 @@ class CreateAccessPolicy(
                 source_context=astnode.condition.context,
             )
 
-        cmd.set_attribute_value(
-            'expr',
-            s_expr.Expression.from_ast(
-                astnode.expr, schema, context.modaliases,
-                context.localnames,
-            ),
-            source_context=astnode.expr.context,
-        )
+        if astnode.expr:
+            cmd.set_attribute_value(
+                'expr',
+                s_expr.Expression.from_ast(
+                    astnode.expr, schema, context.modaliases,
+                    context.localnames,
+                ),
+                source_context=astnode.expr.context,
+            )
 
         cmd.set_attribute_value('action', astnode.action)
         cmd.set_attribute_value('access_kinds', astnode.access_kinds)

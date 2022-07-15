@@ -1783,7 +1783,7 @@ class CreateAccessPolicyStmt(Nonterm):
         """%reduce
             CREATE ACCESS POLICY UnqualifiedPointerName
             OptWhenBlock AccessPolicyAction AccessKindList
-            USING LPAREN Expr RPAREN
+            OptUsingBlock
             OptCreateAccessPolicyCommandsBlock
         """
         self.val = qlast.CreateAccessPolicy(
@@ -1791,8 +1791,8 @@ class CreateAccessPolicyStmt(Nonterm):
             condition=kids[4].val,
             action=kids[5].val,
             access_kinds=[y for x in kids[6].val for y in x],
-            expr=kids[9].val,
-            commands=kids[11].val,
+            expr=kids[7].val,
+            commands=kids[8].val,
         )
 
 
@@ -1809,6 +1809,13 @@ class AccessUsingStmt(Nonterm):
         self.val = qlast.SetField(
             name='expr',
             value=kids[1].val,
+            special_syntax=True,
+        )
+
+    def reduce_RESET_USING(self, *kids):
+        self.val = qlast.SetField(
+            name='expr',
+            value=None,
             special_syntax=True,
         )
 

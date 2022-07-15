@@ -471,6 +471,14 @@ class OptWhenBlock(Nonterm):
         self.val = None
 
 
+class OptUsingBlock(Nonterm):
+    def reduce_USING_LPAREN_Expr_RPAREN(self, *kids):
+        self.val = kids[2].val
+
+    def reduce_empty(self, *kids):
+        self.val = None
+
+
 class AccessKind(Nonterm):
 
     def reduce_ALL(self, *kids):
