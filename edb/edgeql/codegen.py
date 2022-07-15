@@ -1428,10 +1428,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             if node.access_kinds:
                 self._write_keywords(
                     self._format_access_kinds(node.access_kinds) + ' ')
-            self._write_keywords('USING ')
-            self.write('(')
-            self.visit(node.expr)
-            self.write(')')
+            if node.expr:
+                self._write_keywords('USING ')
+                self.write('(')
+                self.visit(node.expr)
+                self.write(')')
 
         keywords = []
         keywords.extend(['ACCESS', 'POLICY'])

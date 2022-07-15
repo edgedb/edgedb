@@ -92,7 +92,11 @@ def get_rewrite_filter(
             continue
 
         is_allow = pol.get_action(schema) == qltypes.AccessPolicyAction.Allow
-        expr = pol.get_expr(schema).qlast
+        expr_field = pol.get_expr(schema)
+        if expr_field:
+            expr = expr_field.qlast
+        else:
+            expr = qlast.BooleanConstant(value='true')
         if condition := pol.get_condition(schema):
             expr = qlast.BinOp(op='AND', left=condition.qlast, right=expr)
 
