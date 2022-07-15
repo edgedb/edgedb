@@ -4,8 +4,10 @@ v2
 
 :edb-alt-title: EdgeDB v2—Sagittarius
 
+.. warning::
 
-EdgeDB 2.0 will be released on July 28th, 2022.
+    This document is a work in progress and will keep being updated
+    until the v2 release on July 28th 2022.
 
 EdgeDB 2.0 RC1 was released to the "stable" channel on July 14th, 2022.
 
