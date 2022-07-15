@@ -11,3 +11,4 @@ Changes introduced in all of the releases of EdgeDB so far:
     :maxdepth: 1
 
     1_x
+    2_x
