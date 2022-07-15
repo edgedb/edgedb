@@ -3129,3 +3129,11 @@ class TestServerCapabilities(tb.QueryTestCase):
                 'CONFIGURE INSTANCE SET singleprop := "42"',
                 __allow_capabilities__=caps,
             )
+
+    async def test_server_capabilities_06(self):
+        caps = enums.Capability.ALL & ~enums.Capability.TRANSACTION
+        with self.assertRaises(edgedb.DisabledCapabilityError):
+            await self.con._fetchall(
+                'START MIGRATION TO {}',
+                __allow_capabilities__=caps,
+            )
