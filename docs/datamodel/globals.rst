@@ -25,9 +25,15 @@ referenced in queries with the ``global`` keyword.
   }
   filter .id = global current_user_id;
 
+
 As in the example above, this is particularly useful for representing the
-notion of a session or "current user". The value of global variables is set
-and stored with the client library.
+notion of a session or "current user".
+
+Setting global variables
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Global variables are set when initializing a client. The exact API depends on
+which client library you're using.
 
 .. tabs::
 
@@ -55,9 +61,9 @@ and stored with the client library.
     """)
     print(result)
 
-The ``.withGlobals()`` method returns a new ``Client`` instance that
-internally stores the assigned global variable values. The new instance shares
-a connection pool with the original instance.
+
+The ``.withGlobals/.with_globals`` method returns a new ``Client`` instance
+that stores the provided globals and sends them along with all future queries.
 
 Cardinality
 -----------
@@ -137,8 +143,7 @@ Unlike query parameters, globals can be referenced
     property is_self := (.id = global current_user_id)
   };
 
-This is particularly useful when declaring :ref:`object-level security
-policies <ref_datamodel_ols>`.
+This is particularly useful when declaring :ref:`access policies <ref_datamodel_ols>`.
 
 .. code-block::
 
@@ -147,7 +152,7 @@ policies <ref_datamodel_ols>`.
     access policy my_policy allow delete using (.id = global current_user_id);
   }
 
-Refer to :ref:`Object-Level Security <ref_datamodel_ols>` for complete
+Refer to :ref:`Access Policies <ref_datamodel_ols>` for complete
 documentation.
 
 

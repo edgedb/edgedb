@@ -1,15 +1,15 @@
 .. _ref_datamodel_ols:
 
-=====================
-Object-Level Security
-=====================
+===============
+Access Policies
+===============
 
 .. note::
 
   ⚠️ Only available in EdgeDB 2.0 or later.
 
 Object types can contain security policies that restrict the set of objects
-that can be selected, inserted, updated, or deleted by a particular query.
+that can be selected, inserted, updated, or deleted by a particular query. This is known as *object-level security*.
 
 Let's start with a simple schema.
 
