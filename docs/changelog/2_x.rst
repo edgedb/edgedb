@@ -2,80 +2,109 @@
 v2
 ==
 
-:edb-alt-title: EdgeDB v2—Something
-
-..
-   .. image:: images/v1_nova.jpg
-	   :width: 100%
+:edb-alt-title: EdgeDB v2—Sagittarius
 
 
-EdgeDB 2.0 was released on July XX, 2022. Read the announcement
-blog post `here <v2anno_>`_.
+EdgeDB 2.0 will be released on July 28th, 2022.
+
+EdgeDB 2.0 RC1 was released to the "stable" channel on July 14th, 2022.
 
 We would like to thank our community for reporting issues and
 contributing fixes. You are awesome! ❤️
 
 
+.. TODO: add illustration once it's ready
 
-===
-2.0
-===
 
-Major EdgeQL Features
-=====================
+Release Highlights
+==================
 
-* Add a ``GROUP`` statement for performming aggregation
-  (`RFC 1009 <group_>`_, :ref:`docs <ref_eql_group>`). The
-  output of ``GROUP`` are free objects that contain the aggregated
-  elements as a computed link:
+Integrated GUI
+--------------
 
-  .. code-block:: edgeql-repl
+EdgeDB v2 ships with a built-in rich graphical user inteface that can be
+accessed by typing the ``edgedb ui`` command in your terminal. The command
+opens the UI for the current project (or manually specified) instance
+in the default system browser.
 
-	  db> group Movie { title } by .release_year;
-	  {
-	    {
-	      key: {release_year: 2017},
-	      grouping: {'release_year'},
-	      elements: {
-		default::Movie {title: 'Guardians of the Galaxy Vol. 2'},
-		default::Movie {title: 'Spider-Man: Homecoming'},
-		default::Movie {title: 'Thor: Ragnarok'},
-	      },
-	    },
-	    {
-	      key: {release_year: 2013},
-	      grouping: {'release_year'},
-	      elements: {
-		default::Movie {title: 'Iron Man 3'},
-		default::Movie {title: 'Thor: The Dark World'},
-	      },
-	    },
-	    ...
-	  }
+The current iteration of the GUI has a REPL, a schema introspection and
+visualization pane, as well as a comprehensive data browser and editor.
 
-* Introduce global variables (`RFC 1010 <globals_>`_, DOC LINK).
+.. image:: images/v2_ui.jpg
+    :width: 100%
+
+
+GROUP BY
+--------
+
+The new :ref:`GROUP BY <ref_eql_group>` expression can be used to partition
+and aggregate data.  The output of ``GROUP BY`` are free objects that contain
+the aggregated elements, as well as additional information such as the
+grouping key and and fields:
+
+.. code-block:: edgeql-repl
+
+  db> group Movie { title } by .release_year;
+  {
+    {
+      key: {release_year: 2017},
+      grouping: {'release_year'},
+      elements: {
+  default::Movie {title: 'Guardians of the Galaxy Vol. 2'},
+  default::Movie {title: 'Spider-Man: Homecoming'},
+  default::Movie {title: 'Thor: Ragnarok'},
+      },
+    },
+    {
+      key: {release_year: 2013},
+      grouping: {'release_year'},
+      elements: {
+  default::Movie {title: 'Iron Man 3'},
+  default::Movie {title: 'Thor: The Dark World'},
+      },
+    },
+    ...
+  }
+
+Read more about ``GROUP BY`` in the `RFC 1009 <group_>`_. Browse the
+:ref:`relevant documentation <ref_eql_group>` for more details and examples.
+
+
+Global variables and access policies
+------------------------------------
+
+.. TODO:  add doc links
+
+* Introduce global variables (`RFC 1010 <globals_>`_).
   Globals may be set with a ``SET GLOBAL`` command or via language
   bindings.
 
-* Support access policies on object types (`RFC 1011 <acls_>`_, DOC LINK).
+* Support access policies on object types (`RFC 1011 <acls_>`_).
   When combined with global variables, access policies can be used to
   push authorization logic into the database.
 
-  TODO: EXAMPLE?
+
+Other changes
+-------------
+
+EdgeQL
+^^^^^^
 
 * Add "range types" representing *intervals* of values
-  (`RFC 1012 <range_>`_, TODO: DOC LINK).
+  (`RFC 1012 <range_>`_).
 
-  TODO: EXAMPLE?
+  .. TODO: EXAMPLE; add a link to docs
 
 * Support many more arithmetic operations on local date and time types
-  (`RFC 1013 <dates_>`_, TODO: DOC LINK).
+  (`RFC 1013 <dates_>`_).
+
+  .. TODO: add a link to docs
 
 * Add ``ON SOURCE DELETE DELETE TARGET`` and
   ``ON SOURCE DELETE DELETE TARGET IF ORPHAN`` to implement cascading
-  deletion. (TODO: DOC LINK)
+  deletion.
 
-  TODO: EXAMPLE?
+  .. TODO: EXAMPLE, docs
 
 * Support specifying ``id`` explicitly when inserting objects
   (:eql:gh:`#3895`). This can be useful when migrating data from
@@ -84,8 +113,9 @@ Major EdgeQL Features
 * Support partial constraints and indexes (:eql:gh:`#3949`,
   :ref:`docs <ref_datamodel_constraints_partial>`).
 
-Other
-=====
+
+Server
+^^^^^^
 
 * Support socket activation to reduce memory footprint on developer
   machines (:eql:gh:`#3899`).
@@ -97,7 +127,7 @@ Other
 
 
 Bug Fixes
-=========
+^^^^^^^^^
 
 * Generate unique ``id`` fields for each free shape object,
   and don't use an actual in-database object to represent it,
@@ -151,7 +181,7 @@ Bug Fixes
   (:eql:gh:`#4019`).
 
 Protocol Overhaul
-=================
+^^^^^^^^^^^^^^^^^
 
 * A new version of the protocol---version 1.0---has been introduced.
   It eliminates all server state associated with connections that
