@@ -15,10 +15,12 @@ DDL
     aliases
     indexes
     constraints
-    functions
     annotations
-    migrations
+    globals
+    access_policy
+    functions
     extensions
+    migrations
 
 :edb-alt-title: Data Definition Language
 

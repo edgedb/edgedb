@@ -13,6 +13,7 @@ Reset
     reset module ;
     reset alias <alias> ;
     reset alias * ;
+    reset global <name> ;
 
 
 Description
@@ -82,6 +83,11 @@ Variations
         reset alias *;
 
 
+:eql:synopsis:`reset global <name>`
+    Reset the global variable *name* to its default value or ``{}`` if the
+    variable has no default value and is ``optional``.
+
+
 Examples
 --------
 
@@ -92,6 +98,8 @@ Examples
     reset alias foo;
 
     reset alias *;
+
+    reset global current_user_id;
 
 
 .. list-table::
