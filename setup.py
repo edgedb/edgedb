@@ -280,7 +280,8 @@ def _get_env_with_openssl_flags():
 
 def _compile_postgres(build_base, *,
                       force_build=False, fresh_build=True,
-                      run_configure=True, build_contrib=True):
+                      run_configure=True, build_contrib=True,
+                      produce_compile_commands_json=False):
 
     proc = subprocess.run(
         ['git', 'submodule', 'status', 'postgres'],
@@ -329,14 +330,19 @@ def _compile_postgres(build_base, *,
                 '--with-uuid=' + uuidlib,
             ], check=True, cwd=str(build_dir), env=env)
 
+        if produce_compile_commands_json:
+            make = ['bear', '--', 'make']
+        else:
+            make = ['make']
+
         subprocess.run(
-            ['make', 'MAKELEVEL=0', '-j', str(max(os.cpu_count() - 1, 1))],
+            make + ['MAKELEVEL=0', '-j', str(max(os.cpu_count() - 1, 1))],
             cwd=str(build_dir), check=True)
 
         if build_contrib or fresh_build or is_outdated:
             subprocess.run(
-                [
-                    'make', '-C', 'contrib', 'MAKELEVEL=0', '-j',
+                make + [
+                    '-C', 'contrib', 'MAKELEVEL=0', '-j',
                     str(max(os.cpu_count() - 1, 1))
                 ],
                 cwd=str(build_dir), check=True)
@@ -352,6 +358,12 @@ def _compile_postgres(build_base, *,
 
         with open(postgres_build_stamp, 'w') as f:
             f.write(source_stamp)
+
+        if produce_compile_commands_json:
+            shutil.copy(
+                build_dir / "compile_commands.json",
+                postgres_src / "compile_commands.json",
+            )
 
 
 def _check_rust():
@@ -652,12 +664,14 @@ class build_postgres(setuptools.Command):
         ('configure', None, 'run ./configure'),
         ('build-contrib', None, 'build contrib'),
         ('fresh-build', None, 'rebuild from scratch'),
+        ('compile-commands', None, 'produce compile-commands.json using bear'),
     ]
 
     def initialize_options(self):
         self.configure = False
         self.build_contrib = False
         self.fresh_build = False
+        self.compile_commands = False
 
     def finalize_options(self):
         pass
@@ -669,7 +683,9 @@ class build_postgres(setuptools.Command):
             force_build=True,
             fresh_build=self.fresh_build,
             run_configure=self.configure,
-            build_contrib=self.build_contrib)
+            build_contrib=self.build_contrib,
+            produce_compile_commands_json=self.compile_commands,
+        )
 
 
 class build_ext(setuptools_build_ext.build_ext):
