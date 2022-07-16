@@ -152,6 +152,7 @@ class ClusterTestCase(tb.TestCase):
         arg_input = pickle.loads(result.stdout_bytes)
         arg_input["data_dir"] = pathlib.Path(cluster.get_data_dir())
         arg_input["tls_cert_mode"] = "generate_self_signed"
+        arg_input["jose_key_mode"] = "generate"
         cls.dbname = cluster.get_db_name('edgedb')
         args = edb_args.parse_args(**arg_input)
         await bootstrap.ensure_bootstrapped(cluster, args)
