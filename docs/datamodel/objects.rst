@@ -4,13 +4,9 @@
 Object Types
 ============
 
-
 *Object types* are the primary components of EdgeDB schema. They are analogous
 to SQL *tables* or ORM *models*, and consist of :ref:`properties
 <ref_datamodel_props>` and :ref:`links <ref_datamodel_links>`.
-
-.. Properties
-.. ----------
 
 Properties are used to attach primitive data to an object type. They are
 declared with the ``property`` keyword. For the full documentation on
@@ -105,12 +101,12 @@ types out of combinations of more basic types.
 If multiple supertypes share links or properties, those properties must be
 of the same type and cardinality.
 
-
 .. note::
 
   Refer to the dedicated pages on :ref:`Indexes <ref_datamodel_indexes>`,
-  :ref:`Constraints <ref_datamodel_constraints>`, and :ref:`Annotations
-  <ref_datamodel_annotations>` for full documentation on those concepts.
+  :ref:`Constraints <ref_datamodel_constraints>`, :ref:`Object-Level Security
+  <ref_datamodel_ols>`, and :ref:`Annotations
+  <ref_datamodel_annotations>` for documentation on these concepts.
 
 .. list-table::
   :class: seealso
