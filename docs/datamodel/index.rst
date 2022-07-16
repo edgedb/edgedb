@@ -23,11 +23,12 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     constraints
     aliases
     annotations
+    globals
+    ols
     functions
     inheritance
     extensions
     comparison
-
 
 
 EdgeDB schemas are declared using **SDL** (EdgeDB Schema Definition Language).
