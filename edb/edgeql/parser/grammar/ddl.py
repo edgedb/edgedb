@@ -769,12 +769,13 @@ class CreateExtensionStmt(Nonterm):
 
     def reduce_CreateExtensionStmt(self, *kids):
         r"""%reduce CREATE EXTENSION ShortNodeName OptExtensionVersion
-                    OptCreateExtensionCommandsBlock
+                    OptIfNotExists OptCreateExtensionCommandsBlock
         """
         self.val = qlast.CreateExtension(
             name=kids[2].val,
             version=kids[3].val,
-            commands=kids[4].val,
+            create_if_not_exists=kids[4].val,
+            commands=kids[5].val,
         )
 
 
@@ -784,10 +785,13 @@ class CreateExtensionStmt(Nonterm):
 class DropExtensionStmt(Nonterm):
 
     def reduce_DropExtensionPackageStmt(self, *kids):
-        r"""%reduce DROP EXTENSION ShortNodeName OptExtensionVersion"""
+        r"""%reduce DROP EXTENSION ShortNodeName
+                    OptExtensionVersion OptIfExists
+        """
         self.val = qlast.DropExtension(
             name=kids[2].val,
             version=kids[3].val,
+            drop_if_exists=kids[4].val,
         )
 
 

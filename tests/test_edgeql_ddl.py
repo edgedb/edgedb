@@ -8032,6 +8032,89 @@ type default::Foo {
                 CREATE EXTENSION MyExtension VERSION '3.0';
             """)
 
+    async def test_edgeql_ddl_extension_02(self):
+        await self.con.execute(r"""
+            CREATE EXTENSION PACKAGE MyExtension VERSION '1.0';
+        """)
+
+        await self.con.execute(r"""
+            CREATE EXTENSION MyExtension IF NOT EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                    package: {
+                        ver := (.version.major, .version.minor)
+                    }
+                }
+                FILTER .name = 'MyExtension'
+            """,
+            [{
+                'name': 'MyExtension',
+                'package': {
+                    'ver': [1, 0],
+                }
+            }]
+        )
+
+        await self.con.execute(r"""
+            CREATE EXTENSION MyExtension IF NOT EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                    package: {
+                        ver := (.version.major, .version.minor)
+                    }
+                }
+                FILTER .name = 'MyExtension'
+            """,
+            [{
+                'name': 'MyExtension',
+                'package': {
+                    'ver': [1, 0],
+                }
+            }]
+        )
+
+        await self.con.execute(r"""
+            DROP EXTENSION MyExtension IF EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                    package: {
+                        ver := (.version.major, .version.minor)
+                    }
+                }
+                FILTER .name = 'MyExtension'
+            """,
+            [],
+        )
+
+        await self.con.execute(r"""
+            DROP EXTENSION MyExtension IF EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                    package: {
+                        ver := (.version.major, .version.minor)
+                    }
+                }
+                FILTER .name = 'MyExtension'
+            """,
+            [],
+        )
+
     async def test_edgeql_ddl_role_01(self):
         if not self.has_create_role:
             self.skipTest("create role is not supported by the backend")
