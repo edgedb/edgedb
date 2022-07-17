@@ -3443,8 +3443,7 @@ class AlterObject(AlterObjectOrFragment[so.Object_T], Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-
-        if not context.canonical and self.if_exists:
+        if self.if_exists:
             scls = self.get_object(schema, context, default=None)
             if scls is None:
                 context.current().op.discard(self)
