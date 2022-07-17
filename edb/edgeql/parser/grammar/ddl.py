@@ -909,41 +909,49 @@ class DropRoleStmt(Nonterm):
 class CreateConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
         r"""%reduce CREATE ABSTRACT CONSTRAINT NodeName OptOnExpr \
-                    OptExtendingSimple OptCreateCommandsBlock"""
+                    OptExtendingSimple OptIfNotExists \
+                    OptCreateCommandsBlock
+        """
         self.val = qlast.CreateConstraint(
             name=kids[3].val,
             subjectexpr=kids[4].val,
             bases=kids[5].val,
-            commands=kids[6].val,
+            create_if_not_exists=kids[6].val,
+            commands=kids[7].val,
         )
 
     def reduce_CreateConstraint_CreateFunctionArgs(self, *kids):
         r"""%reduce CREATE ABSTRACT CONSTRAINT NodeName CreateFunctionArgs \
-                    OptOnExpr OptExtendingSimple OptCreateCommandsBlock"""
+                    OptOnExpr OptExtendingSimple OptIfNotExists \
+                    OptCreateCommandsBlock
+        """
         self.val = qlast.CreateConstraint(
             name=kids[3].val,
             params=kids[4].val,
             subjectexpr=kids[5].val,
             bases=kids[6].val,
-            commands=kids[7].val,
+            create_if_not_exists=kids[7].val,
+            commands=kids[8].val,
         )
 
 
 class AlterConstraintStmt(Nonterm):
-    def reduce_CreateConstraint(self, *kids):
-        r"""%reduce ALTER ABSTRACT CONSTRAINT NodeName \
+    def reduce_AlterConstraint(self, *kids):
+        r"""%reduce ALTER ABSTRACT CONSTRAINT NodeName OptIfExists \
                     AlterCommandsBlock"""
         self.val = qlast.AlterConstraint(
             name=kids[3].val,
-            commands=kids[4].val,
+            alter_if_exists=kids[4].val,
+            commands=kids[5].val,
         )
 
 
 class DropConstraintStmt(Nonterm):
-    def reduce_CreateConstraint(self, *kids):
-        r"""%reduce DROP ABSTRACT CONSTRAINT NodeName"""
+    def reduce_DropConstraint(self, *kids):
+        r"""%reduce DROP ABSTRACT CONSTRAINT NodeName OptIfExists"""
         self.val = qlast.DropConstraint(
-            name=kids[3].val
+            name=kids[3].val,
+            drop_if_exists=kids[4].val,
         )
 
 

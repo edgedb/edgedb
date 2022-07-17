@@ -667,9 +667,13 @@ class ConstraintCommand(
             # Get the original constraint.
             constr = schema.get(
                 utils.ast_ref_to_name(objref),
+                default=None,
                 module_aliases=modaliases,
                 type=Constraint,
             )
+
+            if astnode.alter_if_exists and constr is None:
+                return localnames
 
             localnames |= {param.get_parameter_name(schema) for param in
                            constr.get_params(schema).objects(schema)}

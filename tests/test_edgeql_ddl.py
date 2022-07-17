@@ -9677,6 +9677,36 @@ type default::Foo {
                 };
             """)
 
+    async def test_edgeql_ddl_constraint_21(self):
+        await self.con.execute(r"""
+            CREATE ABSTRACT CONSTRAINT NewConstraint IF NOT EXISTS {
+                USING ((__subject__ < 10));
+            };
+            CREATE TYPE Foo {
+                CREATE PROPERTY x -> int64 {
+                    CREATE CONSTRAINT NewConstraint;
+                };
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER ABSTRACT CONSTRAINT NewConstraint IF EXISTS
+            RENAME TO NewConstraint2;
+        """)
+
+        await self.con.execute(r"""
+            ALTER ABSTRACT CONSTRAINT NonExistent IF EXISTS RENAME TO NonExistent2;
+        """)
+
+        await self.con.execute(r"""
+            DROP TYPE Foo;
+            DROP ABSTRACT CONSTRAINT NewConstraint2 IF EXISTS;
+        """)
+
+        await self.con.execute(r"""
+            DROP ABSTRACT CONSTRAINT NonExistent IF EXISTS;
+        """)
+
     async def test_edgeql_ddl_constraint_check_01a(self):
         await self.con.execute(r"""
             create type Foo {
