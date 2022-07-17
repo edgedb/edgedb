@@ -8325,6 +8325,68 @@ type default::Foo {
         finally:
             await con.aclose()
 
+    async def test_edgeql_ddl_role_06(self):
+        if not self.has_create_role:
+            self.skipTest("create role is not supported by the backend")
+
+        await self.con.execute(r"""
+            ALTER ROLE foo1 IF EXISTS {
+                SET password := 'secret';
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::Role {
+                    name
+                } FILTER .name = 'foo1'
+            """,
+            []
+        )
+
+        await self.con.execute(r"""
+            CREATE SUPERUSER ROLE foo1 IF NOT EXISTS {
+                SET password := 'secret';
+            };
+        """)
+
+        role = await self.con.query_single('''
+            SELECT sys::Role { password }
+            FILTER .name = 'foo1'
+        ''')
+
+        self.assertIsNotNone(role.password)
+
+        await self.con.execute(r"""
+            ALTER ROLE foo1 IF EXISTS {
+                SET password := {};
+            };
+        """)
+
+        role = await self.con.query_single('''
+            SELECT sys::Role { password }
+            FILTER .name = 'foo1'
+        ''')
+
+        self.assertIsNone(role.password)
+
+        await self.con.execute(r"""
+            DROP ROLE foo1 IF EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::Role {
+                    name
+                } FILTER .name = 'foo1'
+            """,
+            []
+        )
+
+        await self.con.execute(r"""
+            DROP ROLE foo1 IF EXISTS;
+        """)
+
     async def test_edgeql_ddl_describe_roles(self):
         if not self.has_create_role:
             self.skipTest("create role is not supported by the backend")

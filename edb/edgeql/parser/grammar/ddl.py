@@ -881,10 +881,14 @@ commands_block(
 
 
 class AlterRoleStmt(Nonterm):
-    def reduce_ALTER_ROLE_ShortNodeName_AlterRoleCommandsBlock(self, *kids):
+    def reduce_AlterRoleStmt(self, *kids):
+        r"""%reduce ALTER ROLE ShortNodeName OptIfExists
+                    AlterRoleCommandsBlock
+        """
         self.val = qlast.AlterRole(
             name=kids[2].val,
-            commands=kids[3].val,
+            alter_if_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -892,9 +896,10 @@ class AlterRoleStmt(Nonterm):
 # DROP ROLE
 #
 class DropRoleStmt(Nonterm):
-    def reduce_DROP_ROLE_ShortNodeName(self, *kids):
+    def reduce_DROP_ROLE_ShortNodeName_OptIfExists(self, *kids):
         self.val = qlast.DropRole(
             name=kids[2].val,
+            drop_if_exists=kids[3].val,
         )
 
 
