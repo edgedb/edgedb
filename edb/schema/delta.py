@@ -3403,10 +3403,11 @@ class AlterObject(AlterObjectOrFragment[so.Object_T], Generic[so.Object_T]):
         context: CommandContext,
     ) -> Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        assert isinstance(astnode, qlast.AlterObject)
         assert isinstance(cmd, AlterObject)
 
-        cmd.if_exists = astnode.alter_if_exists
+        # idk how, but somehow there could be an instance of CreateConcreteLink here
+        if isinstance(astnode, qlast.AlterObject):
+            cmd.if_exists = astnode.alter_if_exists
 
         if getattr(astnode, 'abstract', False):
             cmd.set_attribute_value('abstract', True)
