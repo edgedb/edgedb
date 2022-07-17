@@ -1083,13 +1083,15 @@ class CreateScalarTypeStmt(Nonterm):
     def reduce_CreateAbstractScalarTypeStmt(self, *kids):
         r"""%reduce \
             CREATE ABSTRACT SCALAR TYPE NodeName \
-            OptExtending OptCreateScalarTypeCommandsBlock \
+            OptExtending OptIfNotExists \
+            OptCreateScalarTypeCommandsBlock \
         """
         self.val = qlast.CreateScalarType(
             name=kids[4].val,
             abstract=True,
             bases=kids[5].val,
-            commands=kids[6].val
+            create_if_not_exists=kids[6].val,
+            commands=kids[7].val,
         )
 
     def reduce_CreateFinalScalarTypeStmt(self, *kids):
@@ -1111,12 +1113,14 @@ class CreateScalarTypeStmt(Nonterm):
     def reduce_CreateScalarTypeStmt(self, *kids):
         r"""%reduce \
             CREATE SCALAR TYPE NodeName \
-            OptExtending OptCreateScalarTypeCommandsBlock \
+            OptExtending OptIfNotExists \
+            OptCreateScalarTypeCommandsBlock \
         """
         self.val = qlast.CreateScalarType(
             name=kids[3].val,
             bases=kids[4].val,
-            commands=kids[5].val
+            create_if_not_exists=kids[5].val,
+            commands=kids[6].val,
         )
 
 
@@ -1143,19 +1147,21 @@ commands_block(
 class AlterScalarTypeStmt(Nonterm):
     def reduce_AlterScalarTypeStmt(self, *kids):
         r"""%reduce \
-            ALTER SCALAR TYPE NodeName \
+            ALTER SCALAR TYPE NodeName OptIfExists \
             AlterScalarTypeCommandsBlock \
         """
         self.val = qlast.AlterScalarType(
             name=kids[3].val,
-            commands=kids[4].val
+            alter_if_exists=kids[4].val,
+            commands=kids[5].val,
         )
 
 
 class DropScalarTypeStmt(Nonterm):
-    def reduce_DROP_SCALAR_TYPE_NodeName(self, *kids):
+    def reduce_DROP_SCALAR_TYPE_NodeName_OptIfExists(self, *kids):
         self.val = qlast.DropScalarType(
-            name=kids[3].val
+            name=kids[3].val,
+            drop_if_exists=kids[4].val,
         )
 
 

@@ -5500,6 +5500,46 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
+    async def test_edgeql_ddl_scalar_14(self):
+        await self.con.execute('''
+            CREATE ABSTRACT SCALAR TYPE a EXTENDING std::int64 IF NOT EXISTS;
+        ''')
+
+        await self.con.execute('''
+            CREATE ABSTRACT SCALAR TYPE a EXTENDING std::int64 IF NOT EXISTS;
+        ''')
+
+        await self.con.execute('''
+            CREATE SCALAR TYPE b EXTENDING std::int64 IF NOT EXISTS;
+        ''')
+
+        await self.con.execute('''
+            CREATE SCALAR TYPE b EXTENDING std::int64 IF NOT EXISTS;
+        ''')
+
+        await self.con.execute('''
+            ALTER SCALAR TYPE b IF EXISTS
+            CREATE CONSTRAINT std::one_of(1, 2);
+        ''')
+
+        await self.con.execute('''
+            ALTER SCALAR TYPE non_existent IF EXISTS
+            CREATE CONSTRAINT std::one_of(1, 2);
+        ''')
+
+        await self.con.execute('''
+            DROP SCALAR TYPE a IF EXISTS;
+        ''')
+
+        await self.con.execute('''
+            DROP SCALAR TYPE a IF EXISTS;
+        ''')
+
+        await self.con.execute('''
+            DROP SCALAR TYPE non_existent IF EXISTS;
+        ''')
+
+
     async def test_edgeql_ddl_cast_01(self):
         await self.con.execute('''
             CREATE SCALAR TYPE type_a EXTENDING std::str;
