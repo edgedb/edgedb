@@ -3403,7 +3403,10 @@ class AlterObject(AlterObjectOrFragment[so.Object_T], Generic[so.Object_T]):
         context: CommandContext,
     ) -> Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(astnode, qlast.AlterObject)
         assert isinstance(cmd, AlterObject)
+
+        cmd.if_exists = astnode.alter_if_exists
 
         if getattr(astnode, 'abstract', False):
             cmd.set_attribute_value('abstract', True)
@@ -3598,6 +3601,21 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         ]
 
         return bool(refs)
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: CommandContext,
+    ) -> Command:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(astnode, qlast.DropObject)
+        assert isinstance(cmd, DeleteObject)
+
+        cmd.if_exists = astnode.drop_if_exists
+
+        return cmd
 
     def apply(
         self,

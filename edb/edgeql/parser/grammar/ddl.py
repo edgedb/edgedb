@@ -227,6 +227,14 @@ class UnqualifiedPointerName(Nonterm):
         self.val = kids[0].val
 
 
+class OptIfExists(Nonterm):
+    def reduce_IF_EXISTS(self, *kids):
+        self.val = True
+
+    def reduce_empty(self, *kids):
+        self.val = False
+
+
 class OptIfNotExists(Nonterm):
     def reduce_IF_NOT_EXISTS(self, *kids):
         self.val = True
