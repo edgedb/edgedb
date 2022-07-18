@@ -969,8 +969,7 @@ def parse_args(**kwargs: Any):
             }
         if kwargs['tls_cert_mode'] == 'default':
             kwargs['tls_cert_mode'] = 'generate_self_signed'
-        if kwargs['jose_key_mode'] == 'default':
-            kwargs['jose_key_mode'] = 'generate'
+
     elif not kwargs['default_auth_method']:
         kwargs['default_auth_method'] = DEFAULT_AUTH_METHODS
 
@@ -984,7 +983,7 @@ def parse_args(**kwargs: Any):
         kwargs['tls_cert_mode'] = 'require_file'
 
     if kwargs['jose_key_mode'] == 'default':
-        kwargs['jose_key_mode'] = 'require_file'
+        kwargs['jose_key_mode'] = 'generate'
 
     kwargs['security'] = ServerSecurityMode(kwargs['security'])
     kwargs['binary_endpoint_security'] = ServerEndpointSecurityMode(
