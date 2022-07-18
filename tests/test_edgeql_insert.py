@@ -4055,6 +4055,31 @@ class TestInsert(tb.QueryTestCase):
             [{"name": "obj", "foo": {"name": "foo"}, "bar": {"name": "bar"}}],
         )
 
+    async def test_edgeql_insert_dependent_28(self):
+        await self.con.execute(r"""
+            create type X {
+                create required property name -> str {
+                    create constraint exclusive
+                };
+                create multi link notes -> Note;
+            };
+        """)
+
+        # The Madeline note insert shouldn't happen
+        q = r"""
+            INSERT X {name := "Madeline Hatch",
+                      notes := (INSERT Note {name := "tag" })}
+            UNLESS CONFLICT;
+        """
+        await self.con.query(q)
+        await self.con.query(q)
+
+        # Should only be one note
+        await self.assert_query_result(
+            r'''SELECT count(Note)''',
+            [1],
+        )
+
     async def test_edgeql_insert_unless_conflict_self_01(self):
         # It would also be a reasonable semantics for this test to
         # return two objects

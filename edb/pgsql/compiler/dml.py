@@ -35,6 +35,7 @@ from __future__ import annotations
 from typing import *
 
 from edb.common import uuidgen
+from edb.common.typeutils import not_none
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -357,7 +358,7 @@ def merge_iterator(
 ) -> None:
     merge_iterator_scope(iterator, select, ctx=ctx)
 
-    while iterator:
+    if iterator:
         iterator_rvar = relctx.rvar_for_rel(iterator.cte, ctx=ctx)
 
         pathctx.put_path_bond(select, iterator.path_id)
@@ -370,14 +371,6 @@ def merge_iterator(
         # iterators in some cases that the path_id_mask blocks
         # otherwise.
         select.path_id_mask.discard(iterator.path_id)
-
-        # DML pseudo iterators can't output the values from their
-        # surrounding iterators, since all they have to work with is
-        # their __edb_token, so we need to keep going up and including
-        # things.
-        if not iterator.is_dml_pseudo_iterator:
-            break
-        iterator = iterator.parent
 
 
 def fini_dml_stmt(
@@ -562,7 +555,8 @@ def process_insert_body(
         dml_parts:
             A DMLParts tuple returned by init_dml_stmt().
     """
-    cols = [pgast.ColumnRef(name=['__type__'])]
+
+    # We build the tuples to insert in a select we put into a CTE
     select = pgast.SelectStmt(target_list=[])
     values = select.target_list
 
@@ -572,15 +566,13 @@ def process_insert_body(
     insert_stmt = insert_cte.query
     assert isinstance(insert_stmt, pgast.InsertStmt)
 
-    insert_stmt.cols = cols
-    insert_stmt.select_stmt = select
-
     typeref = ir_stmt.subject.typeref
     if typeref.material_type is not None:
         typeref = typeref.material_type
 
     values.append(
         pgast.ResTarget(
+            name='__type__',
             val=pgast.TypeCast(
                 arg=pgast.StringConstant(val=str(typeref.id)),
                 type_name=pgast.TypeName(name=('uuid',))
@@ -658,9 +650,6 @@ def process_insert_body(
 
             # First, process all local link inserts.
             if ptr_info.table_type == 'ObjectType':
-                field = pgast.ColumnRef(name=[ptr_info.column_name])
-                cols.append(field)
-
                 rel = compile_insert_shape_element(
                     ir_stmt=ir_stmt,
                     shape_el=shape_el,
@@ -680,7 +669,8 @@ def process_insert_body(
                         ),
                     )
 
-                values.append(pgast.ResTarget(val=insvalue))
+                values.append(pgast.ResTarget(
+                    name=ptr_info.column_name, val=insvalue))
 
             # Register all link table inserts to be run after the main
             # insert.  Note that single links with link properties are
@@ -694,21 +684,60 @@ def process_insert_body(
                 external_inserts.append(shape_el)
 
         if iterator is not None:
-            cols.append(pgast.ColumnRef(name=['__edb_token']))
+            pathctx.put_path_bond(select, iterator.path_id)
 
-            iterator_id = relctx.get_path_var(
-                select, iterator.path_id, aspect='identity', ctx=ctx)
-            values.append(pgast.ResTarget(val=iterator_id))
+    pathctx._put_path_output_var(
+        select, ir_stmt.subject.path_id, aspect='identity',
+        var=pgast.ColumnRef(name=['id']), env=ctx.env,
+    )
 
-            pathctx.put_path_identity_var(
-                insert_stmt, iterator.path_id,
-                cols[-1], force=True, env=subctx.env
-            )
+    # Put the select that builds the tuples to insert into its own CTE.
+    # We do this for two reasons:
+    # 1. Generating the object ids outside of the actual SQL insert allows
+    #    us to join any enclosing iterators into any nested external inserts.
+    # 2. We can use the contents CTE to evaluate insert access policies
+    #    before we actually try the insert. This is important because
+    #    otherwise an exclusive constraint could be raised first,
+    #    which leaks information.
+    pathctx.put_path_bond(select, ir_stmt.subject.path_id)
+    contents_cte = pgast.CommonTableExpr(
+        query=select,
+        name=ctx.env.aliases.get('ins_contents')
+    )
+    ctx.toplevel_stmt.append_cte(contents_cte)
+    contents_rvar = relctx.rvar_for_rel(contents_cte, ctx=ctx)
 
-            pathctx.put_path_bond(insert_stmt, iterator.path_id)
+    # Populate the real insert statement based on the select we generated
+    insert_stmt.cols = [
+        pgast.ColumnRef(name=[not_none(value.name)])
+        for value in values
+    ]
+    insert_stmt.select_stmt = pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(val=col) for col in insert_stmt.cols
+        ],
+        from_clause=[contents_rvar],
+    )
+    pathctx.put_path_bond(insert_stmt, ir_stmt.subject.path_id)
 
-    toplevel = ctx.toplevel_stmt
-    toplevel.append_cte(insert_cte)
+    real_insert_cte = pgast.CommonTableExpr(
+        query=insert_stmt,
+        name=ctx.env.aliases.get('ins')
+    )
+    ctx.toplevel_stmt.append_cte(real_insert_cte)
+
+    # Create the final CTE for the insert that joins the insert
+    # and the select together.
+    with ctx.newrel() as ictx:
+        merge_iterator(iterator, ictx.rel, ctx=ictx)
+        insert_rvar = relctx.rvar_for_rel(real_insert_cte, ctx=ctx)
+        relctx.include_rvar(
+            ictx.rel, insert_rvar, ir_stmt.subject.path_id, ctx=ictx)
+        relctx.include_rvar(
+            ictx.rel, contents_rvar, ir_stmt.subject.path_id, ctx=ictx)
+    # TODO: set up dml_parts with a SelectStmt for inserts always?
+    insert_cte.query = ictx.rel
+    ctx.toplevel_stmt.append_cte(insert_cte)
 
     # Process necessary updates to the link tables.
     for shape_el in external_inserts:
@@ -1131,8 +1160,7 @@ def process_update_body(
     iterator = pgast.IteratorCTE(
         path_id=ir_stmt.subject.path_id,
         cte=dml_parts.range_cte,
-        parent=ctx.enclosing_cte_iterator,
-        is_dml_pseudo_iterator=False)
+        parent=ctx.enclosing_cte_iterator)
 
     with ctx.newscope() as subctx:
         # It is necessary to process the expressions in
@@ -1291,8 +1319,7 @@ def process_update_conflicts(
 
         conflict_iterator = pgast.IteratorCTE(
             path_id=q_set.path_id, cte=cte,
-            parent=ctx.enclosing_cte_iterator,
-            is_dml_pseudo_iterator=True)
+            parent=ctx.enclosing_cte_iterator)
 
         compile_insert_else_body(
             None,
@@ -2014,17 +2041,16 @@ def process_link_values(
         if isinstance(ir_stmt, irast.InsertStmt):
             subrelctx.enclosing_cte_iterator = pgast.IteratorCTE(
                 path_id=ir_stmt.subject.path_id, cte=dml_cte,
-                parent=iterator,
-                is_dml_pseudo_iterator=True)
+                parent=iterator)
         else:
             subrelctx.enclosing_cte_iterator = iterator
         row_query = subrelctx.rel
 
-        relctx.include_rvar(row_query, dml_rvar,
+        merge_iterator(iterator, row_query, ctx=subrelctx)
+
+        relctx.include_rvar(row_query, dml_rvar, pull_namespace=False,
                             path_id=ir_stmt.subject.path_id, ctx=subrelctx)
         subrelctx.path_scope[ir_stmt.subject.path_id] = row_query
-
-        merge_iterator(iterator, row_query, ctx=subrelctx)
 
         ir_rptr = ir_expr.rptr
         assert ir_rptr is not None
