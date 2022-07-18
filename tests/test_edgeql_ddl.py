@@ -5099,6 +5099,26 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             CREATE TYPE spam::Test;
         ''')
 
+    async def test_edgeql_ddl_module_03(self):
+        await self.con.execute('''\
+            CREATE MODULE spam IF NOT EXISTS;
+        ''')
+
+        await self.con.execute('''\
+            DROP MODULE spam IF EXISTS;
+        ''')
+
+        await self.con.execute('''\
+            DROP MODULE spam IF EXISTS;
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.UnknownModuleError,
+                r"module 'spam' is not in this schema"):
+            await self.con.execute('''\
+                CREATE TYPE spam::Foo;
+            ''')
+
     async def test_edgeql_ddl_operator_01(self):
         await self.con.execute('''
             CREATE INFIX OPERATOR `+++`

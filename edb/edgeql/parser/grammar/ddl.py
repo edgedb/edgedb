@@ -2136,11 +2136,12 @@ class CreateModuleStmt(Nonterm):
 # ALTER MODULE
 #
 class AlterModuleStmt(Nonterm):
-    def reduce_ALTER_MODULE_ModuleName_AlterCommandsBlock(
+    def reduce_ALTER_MODULE_ModuleName_OptIfExists_AlterCommandsBlock(
             self, *kids):
         self.val = qlast.AlterModule(
             name=qlast.ObjectRef(module=None, name='.'.join(kids[2].val)),
-            commands=kids[3].val
+            alter_if_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -2148,9 +2149,10 @@ class AlterModuleStmt(Nonterm):
 # DROP MODULE
 #
 class DropModuleStmt(Nonterm):
-    def reduce_DROP_MODULE_ModuleName(self, *kids):
+    def reduce_DROP_MODULE_ModuleName_OptIfExists(self, *kids):
         self.val = qlast.DropModule(
-            name=qlast.ObjectRef(module=None, name='.'.join(kids[2].val))
+            name=qlast.ObjectRef(module=None, name='.'.join(kids[2].val)),
+            drop_if_exists=kids[3].val,
         )
 
 
