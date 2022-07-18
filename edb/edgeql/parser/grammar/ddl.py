@@ -2723,7 +2723,7 @@ class CreateGlobalStmt(Nonterm):
     def reduce_CreateRegularGlobal(self, *kids):
         """%reduce
             CREATE OptPtrQuals GLOBAL NodeName
-            ARROW FullTypeExpr
+            ARROW FullTypeExpr OptIfNotExists
             OptCreateGlobalCommandsBlock
         """
         self.val = qlast.CreateGlobal(
@@ -2731,26 +2731,28 @@ class CreateGlobalStmt(Nonterm):
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
             target=kids[5].val,
-            commands=kids[6].val,
+            create_if_not_exists=kids[6].val,
+            commands=kids[7].val,
         )
 
     def reduce_CreateComputableGlobal(self, *kids):
         """%reduce
-            CREATE OptPtrQuals GLOBAL NodeName ASSIGN Expr
+            CREATE OptPtrQuals GLOBAL NodeName OptIfNotExists ASSIGN Expr
         """
         self.val = qlast.CreateGlobal(
             name=kids[3].val,
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
-            target=kids[5].val,
+            create_if_not_exists=kids[4].val,
+            target=kids[6].val,
         )
 
     def reduce_CreateComputableGlobalWithUsing(self, *kids):
         """%reduce
-            CREATE OptPtrQuals GLOBAL NodeName
+            CREATE OptPtrQuals GLOBAL NodeName OptIfNotExists
             OptCreateConcretePropertyCommandsBlock
         """
-        cmds = kids[4].val
+        cmds = kids[5].val
         target = None
 
         for cmd in cmds:
@@ -2770,6 +2772,7 @@ class CreateGlobalStmt(Nonterm):
             name=kids[3].val,
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
+            create_if_not_exists=kids[4].val,
             target=target,
             commands=cmds,
         )
@@ -2814,20 +2817,22 @@ commands_block(
 class AlterGlobalStmt(Nonterm):
     def reduce_AlterGlobal(self, *kids):
         r"""%reduce \
-            ALTER GLOBAL NodeName \
+            ALTER GLOBAL NodeName OptIfExists \
             AlterGlobalCommandsBlock \
         """
         self.val = qlast.AlterGlobal(
             name=kids[2].val,
-            commands=kids[3].val
+            alter_if_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
 class DropGlobalStmt(Nonterm):
     def reduce_DropGlobal(self, *kids):
-        r"""%reduce DROP GLOBAL NodeName"""
+        r"""%reduce DROP GLOBAL NodeName OptIfExists"""
         self.val = qlast.DropGlobal(
-            name=kids[2].val
+            name=kids[2].val,
+            drop_if_exists=kids[3].val,
         )
 
 #

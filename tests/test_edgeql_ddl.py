@@ -6591,6 +6591,57 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 alter global foo set type str using ('lol');
             """)
 
+    async def test_edgeql_ddl_global_09(self):
+        await self.con.execute('''
+            CREATE GLOBAL foo -> str IF NOT EXISTS;
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT GLOBAL foo;''',
+            []
+        )
+
+        await self.con.execute('''
+            CREATE GLOBAL foo IF NOT EXISTS := 'foo';
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT GLOBAL foo''',
+            []
+        )
+
+        await self.con.execute('''
+            CREATE GLOBAL bar IF NOT EXISTS := 'bar';
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT GLOBAL bar;''',
+            ['bar']
+        )
+
+        await self.con.execute('''
+            ALTER GLOBAL foo IF EXISTS SET TYPE int64 RESET TO DEFAULT;
+            SET GLOBAL foo := 42;
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT GLOBAL foo''',
+            [42]
+        )
+
+        await self.con.execute('''
+            ALTER GLOBAL non_existent IF EXISTS
+            SET TYPE int64 RESET TO DEFAULT;
+        ''')
+
+        await self.con.execute('''
+            DROP GLOBAL non_existent IF EXISTS;
+        ''')
+
+        await self.con.execute('''
+            DROP GLOBAL bar IF EXISTS;
+        ''')
+
     async def test_edgeql_ddl_property_computable_01(self):
         await self.con.execute('''\
             CREATE TYPE CompProp;
