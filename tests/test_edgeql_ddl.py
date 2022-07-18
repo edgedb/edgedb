@@ -4627,6 +4627,64 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
             """)
 
+    async def test_edgeql_ddl_function_36(self):
+        await self.con.execute(r"""
+            CREATE FUNCTION f1(a: std::int64) -> std::int64
+            IF NOT EXISTS
+            USING EdgeQL $$
+                SELECT a
+            $$;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT f1(2)
+            """,
+            [2],
+        )
+
+        await self.con.execute(r"""
+            CREATE FUNCTION f1(a: std::int64) -> std::int64
+            IF NOT EXISTS
+            USING EdgeQL $$
+                SELECT a*a
+            $$;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT f1(2)
+            """,
+            [2],
+        )
+
+        await self.con.execute(r"""
+            ALTER FUNCTION f1(a: std::int64)
+            IF EXISTS
+            RENAME TO new_f1
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT new_f1(1)
+            """,
+            [1],
+        )
+
+        await self.con.execute(r"""
+            ALTER FUNCTION non_existent(a: std::int64)
+            IF EXISTS
+            RENAME TO non_existent2
+        """)
+
+        await self.con.execute(r"""
+            DROP FUNCTION new_f1(a: std::int64) IF EXISTS
+        """)
+
+        await self.con.execute(r"""
+            DROP FUNCTION non_existent(a: std::int64) IF EXISTS
+        """)
+
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
             CREATE FUNCTION foo(s: str) -> str {

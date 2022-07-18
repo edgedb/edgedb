@@ -2174,7 +2174,7 @@ commands_block(
 class CreateFunctionStmt(Nonterm, commondl.ProcessFunctionBlockMixin):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce CREATE FUNCTION NodeName CreateFunctionArgs \
-                ARROW OptTypeQualifier FunctionType \
+                ARROW OptTypeQualifier FunctionType OptIfNotExists \
                 CreateFunctionCommandsBlock
         """
         self.val = qlast.CreateFunction(
@@ -2182,16 +2182,19 @@ class CreateFunctionStmt(Nonterm, commondl.ProcessFunctionBlockMixin):
             params=kids[3].val,
             returning=kids[6].val,
             returning_typemod=kids[5].val,
-            **self._process_function_body(kids[7])
+            create_if_not_exists=kids[7].val,
+            **self._process_function_body(kids[8]),
         )
 
 
 class DropFunctionStmt(Nonterm):
     def reduce_DropFunction(self, *kids):
-        r"""%reduce DROP FUNCTION NodeName CreateFunctionArgs"""
+        r"""%reduce DROP FUNCTION NodeName CreateFunctionArgs OptIfExists"""
         self.val = qlast.DropFunction(
             name=kids[2].val,
-            params=kids[3].val)
+            params=kids[3].val,
+            drop_if_exists=kids[4].val,
+        )
 
 
 #
@@ -2214,13 +2217,14 @@ commands_block(
 class AlterFunctionStmt(Nonterm, commondl.ProcessFunctionBlockMixin):
     def reduce_AlterFunctionStmt(self, *kids):
         """%reduce
-           ALTER FUNCTION NodeName CreateFunctionArgs
+           ALTER FUNCTION NodeName CreateFunctionArgs OptIfExists
            AlterFunctionCommandsBlock
         """
         self.val = qlast.AlterFunction(
             name=kids[2].val,
             params=kids[3].val,
-            **self._process_function_body(kids[4], optional_using=True)
+            alter_if_exists=kids[4].val,
+            **self._process_function_body(kids[5], optional_using=True)
         )
 
 
