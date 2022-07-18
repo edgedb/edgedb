@@ -9362,6 +9362,91 @@ type default::Foo {
             alter alias X using (Bar);
         """)
 
+    async def test_edgeql_ddl_alias_11(self):
+        await self.con.execute("""
+            CREATE TYPE Foo {
+                CREATE PROPERTY bar -> str;
+            };
+            INSERT Foo { bar := 'spam' };
+        """)
+
+        await self.con.execute("""
+            CREATE ALIAS FooAlias IF NOT EXISTS := Foo;
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT FooAlias {bar};
+            ''',
+            [{
+                'bar': 'spam',
+            }],
+        )
+
+        await self.con.execute("""
+            CREATE ALIAS FooAlias IF NOT EXISTS := Foo { spam := 42 };
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                "object type 'default::Foo' has no link or property 'spam'"):
+            await self.con.execute(
+                r'''
+                    SELECT FooAlias {bar, spam};
+                ''',
+            )
+
+    async def test_edgeql_ddl_alias_12(self):
+        await self.con.execute("""
+            CREATE TYPE Foo {
+                CREATE PROPERTY bar -> str;
+            };
+            INSERT Foo { bar := 'spam' };
+        """)
+
+        await self.con.execute("""
+            CREATE ALIAS FooAlias IF NOT EXISTS := Foo;
+        """)
+
+        await self.con.execute("""
+            ALTER ALIAS FooAlias IF EXISTS USING (Foo { bar2 := 42 });
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT FooAlias {bar, bar2};
+            ''',
+            [{
+                'bar': 'spam',
+                'bar2': 42
+            }],
+        )
+
+        await self.con.execute("""
+            ALTER ALIAS NonExistent IF EXISTS USING (Foo);
+        """)
+
+        await self.con.execute("""
+            DROP ALIAS FooAlias IF EXISTS;
+        """)
+
+        await self.con.execute("""
+            DROP ALIAS FooAlias IF EXISTS;
+        """)
+
+        await self.con.execute("""
+            DROP ALIAS NonExistent IF EXISTS;
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                "object type or alias 'default::FooAlias' does not exist"):
+            await self.con.execute(
+                r'''
+                    SELECT FooAlias {bar};
+                ''',
+            )
+
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE InhTest01 {

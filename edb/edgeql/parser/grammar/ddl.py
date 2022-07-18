@@ -2048,14 +2048,15 @@ commands_block(
 class CreateAliasStmt(Nonterm):
     def reduce_CreateAliasShortStmt(self, *kids):
         r"""%reduce
-            CREATE ALIAS NodeName ASSIGN Expr
+            CREATE ALIAS NodeName OptIfNotExists ASSIGN Expr
         """
         self.val = qlast.CreateAlias(
             name=kids[2].val,
+            create_if_not_exists=kids[3].val,
             commands=[
                 qlast.SetField(
                     name='expr',
-                    value=kids[4].val,
+                    value=kids[5].val,
                     special_syntax=True,
                 )
             ]
@@ -2063,12 +2064,13 @@ class CreateAliasStmt(Nonterm):
 
     def reduce_CreateAliasRegularStmt(self, *kids):
         r"""%reduce
-            CREATE ALIAS NodeName
+            CREATE ALIAS NodeName OptIfNotExists
             CreateAliasCommandsBlock
         """
         self.val = qlast.CreateAlias(
             name=kids[2].val,
-            commands=kids[3].val,
+            create_if_not_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -2092,12 +2094,13 @@ commands_block(
 class AlterAliasStmt(Nonterm):
     def reduce_AlterAliasStmt(self, *kids):
         r"""%reduce
-            ALTER ALIAS NodeName
+            ALTER ALIAS NodeName OptIfExists
             AlterAliasCommandsBlock
         """
         self.val = qlast.AlterAlias(
             name=kids[2].val,
-            commands=kids[3].val
+            alter_if_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -2108,10 +2111,11 @@ class AlterAliasStmt(Nonterm):
 class DropAliasStmt(Nonterm):
     def reduce_DropAlias(self, *kids):
         r"""%reduce
-            DROP ALIAS NodeName
+            DROP ALIAS NodeName OptIfExists
         """
         self.val = qlast.DropAlias(
             name=kids[2].val,
+            drop_if_exists=kids[3].val,
         )
 
 
