@@ -49,6 +49,7 @@ from edb.edgeql import quote as qlquote
 from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
+from edb.server import main as edgedb_main
 
 from edb.common import assert_data_shape
 from edb.common import devmode
@@ -89,6 +90,9 @@ def get_test_cases(tests):
 
 
 bag = assert_data_shape.bag
+
+generate_jwk = edgedb_main.generate_jwk
+generate_tls_cert = edgedb_main.generate_tls_cert
 
 
 class TestCaseMeta(type(unittest.TestCase)):
@@ -187,6 +191,10 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
     def tearDownClass(cls):
         cls.loop.close()
         asyncio.set_event_loop(None)
+
+    @classmethod
+    def uses_server(cls) -> bool:
+        return True
 
     def add_fail_notes(self, **kwargs):
         if not hasattr(self, 'fail_notes'):
@@ -1296,6 +1304,15 @@ def get_test_cases_setup(
         result.append((case, dbname, setup_script))
 
     return result
+
+
+def test_cases_use_server(cases: Iterable[unittest.TestCase]) -> bool:
+    for case in cases:
+        if not hasattr(case, 'uses_server'):
+            continue
+
+        if case.uses_server():
+            return True
 
 
 async def setup_test_cases(cases, conn, num_jobs, verbose=False):
