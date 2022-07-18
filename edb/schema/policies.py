@@ -34,6 +34,7 @@ from . import expr as s_expr
 from . import links as s_links
 from . import name as sn
 from . import objects as so
+from . import properties as s_props
 from . import referencing
 from . import schema as s_schema
 from . import sources as s_sources
@@ -103,6 +104,14 @@ class AccessPolicy(
         shortname = self.get_shortname(schema)
         return sn.QualName(module='__', name=shortname.name)
 
+    def get_expr_refs(self, schema: s_schema.Schema) -> List[so.Object]:
+        objs: List[so.Object] = []
+        if (condition := self.get_condition(schema)) and condition.refs:
+            objs.extend(condition.refs.objects(schema))
+        if (expr := self.get_expr(schema)) and expr.refs:
+            objs.extend(expr.refs.objects(schema))
+        return objs
+
 
 class AccessPolicyCommandContext(
     sd.ObjectCommandContext[AccessPolicy],
@@ -163,7 +172,7 @@ class AccessPolicyCommand(
                     f'{vname} expression for {pol_name} is of invalid type: '
                     f'{expr_type.get_displayname(schema)}, '
                     f'expected {target.get_displayname(schema)}',
-                    context=srcctx,
+                    context=self.source_context,
                 )
 
         return schema
@@ -258,6 +267,34 @@ class AccessPolicyCommand(
         subject = self.scls.get_subject(schema)
         assert isinstance(subject, s_objtypes.ObjectType)
 
+        for obj in self.scls.get_expr_refs(schema):
+            if isinstance(obj, s_props.Property):
+                # Disable access of link properties with default
+                # values from all the post-check DML changes. This is
+                # because linkprop default values currently come from
+                # the postgres side, so we don't have access to them
+                # before actually doing the link table inserts.
+                # TODO: Fix this.
+                if (
+                    obj.is_link_property(schema)
+                    and obj.get_default(schema)
+                    and any(
+                        # XXX: apparently we don't do this coercion
+                        # automatically!
+                        qltypes.AccessKind(kind).is_data_check()
+                        for kind in self.scls.get_access_kinds(schema)
+                    )
+                ):
+                    pol_name = self.get_verbosename(
+                        parent=subject.get_verbosename(schema))
+                    obj_name = obj.get_verbosename(schema, with_parent=True)
+                    raise errors.UnsupportedFeatureError(
+                        f'insert and update write access policies may not '
+                        f'refer to link properties with default values: '
+                        f'{pol_name} refers to {obj_name}',
+                        context=self.source_context,
+                    )
+
         try:
             check_type_policy_ordering(subject, schema)
         except topological.CycleError as e:
@@ -284,11 +321,7 @@ def get_type_policy_deps(
 
     typs: Set[s_objtypes.ObjectType] = set()
     for pol in stype.get_access_policies(schema).objects(schema):
-        objs: List[s_objtypes.ObjectType] = []
-        if (condition := pol.get_condition(schema)) and condition.refs:
-            objs.extend(condition.refs.objects(schema))
-        if (expr := pol.get_expr(schema)) and expr.refs:
-            objs.extend(expr.refs.objects(schema))
+        objs = pol.get_expr_refs(schema)
 
         for obj in objs:
             if isinstance(obj, s_objtypes.ObjectType):

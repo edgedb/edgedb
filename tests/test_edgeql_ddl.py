@@ -5742,6 +5742,27 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
+    async def test_edgeql_ddl_policies_04(self):
+        # Ideally we will make this actually work instead of rejecting it!
+        await self.con.execute("""
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE MULTI LINK tgt -> Tgt {
+                    CREATE PROPERTY foo -> str;
+                };
+                CREATE ACCESS POLICY asdf
+                    ALLOW ALL USING (all(.tgt@foo LIKE '%!'));
+            };
+        """)
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"may not refer to link properties with default values"
+        ):
+            await self.con.execute("""
+                ALTER TYPE Foo ALTER LINK tgt ALTER property foo
+                  SET default := "!!!";
+            """)
+
     # A big collection of tests to make sure that functions get
     # updated when access policies change
     async def test_edgeql_ddl_func_policies_01(self):
