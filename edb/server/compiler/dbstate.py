@@ -43,9 +43,6 @@ from . import enums
 from . import sertypes
 
 
-ABORT_MIGRATION_SAVEPOINT = '__edb_migration_sp__'
-
-
 class TxAction(enum.IntEnum):
 
     START = 1
@@ -234,6 +231,10 @@ class QueryUnit:
     # 'ROLLBACK TO SAVEPOINT' is always compiled to a separate QueryUnit.
     tx_savepoint_rollback: bool = False
     tx_savepoint_declare: bool = False
+
+    # True if this unit is `ABORT MIGRATION` command within a transaction,
+    # that means abort_migration and tx_rollback cannot be both True
+    tx_abort_migration: bool = False
 
     # For SAVEPOINT commands, the name and sp_id
     sp_name: Optional[str] = None

@@ -324,10 +324,11 @@ cdef class DatabaseConnectionView:
         self._in_tx_dbver = 0
         self._invalidate_local_cache()
 
+    cdef clear_tx_error(self):
+        self._tx_error = False
+
     cdef rollback_tx_to_savepoint(self, name):
         self._tx_error = False
-        if name == dbstate.ABORT_MIGRATION_SAVEPOINT:
-            return
         # See also CompilerConnectionState.rollback_to_savepoint().
         while self._in_tx_savepoints:
             if self._in_tx_savepoints[-1][0] == name:
@@ -979,8 +980,11 @@ cdef class DatabaseConnectionView:
             # all commands except ROLLBACK or ROLLBACK TO SAVEPOINT.
             first = query_unit_group[0]
             if (
-                not (first.tx_rollback or first.tx_savepoint_rollback)
-                or len(query_unit_group) > 1
+                not (
+                    first.tx_rollback
+                    or first.tx_savepoint_rollback
+                    or first.tx_abort_migration
+                ) or len(query_unit_group) > 1
             ):
                 self.raise_in_tx_error()
 
