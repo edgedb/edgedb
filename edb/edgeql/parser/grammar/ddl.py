@@ -1177,19 +1177,21 @@ commands_block(
 class CreateAnnotationStmt(Nonterm):
     def reduce_CreateAnnotation(self, *kids):
         r"""%reduce CREATE ABSTRACT ANNOTATION NodeName \
-                    OptCreateAnnotationCommandsBlock"""
+                    OptIfNotExists OptCreateAnnotationCommandsBlock"""
         self.val = qlast.CreateAnnotation(
             name=kids[3].val,
-            commands=kids[4].val,
+            create_if_not_exists=kids[4].val,
+            commands=kids[5].val,
             inheritable=False,
         )
 
     def reduce_CreateInheritableAnnotation(self, *kids):
         r"""%reduce CREATE ABSTRACT INHERITABLE ANNOTATION
-                    NodeName OptCreateCommandsBlock"""
+                    NodeName OptIfNotExists OptCreateCommandsBlock"""
         self.val = qlast.CreateAnnotation(
             name=kids[4].val,
-            commands=kids[5].val,
+            create_if_not_exists=kids[5].val,
+            commands=kids[6].val,
             inheritable=True,
         )
 
@@ -1210,10 +1212,11 @@ commands_block(
 class AlterAnnotationStmt(Nonterm):
     def reduce_AlterAnnotation(self, *kids):
         r"""%reduce ALTER ABSTRACT ANNOTATION NodeName \
-                    AlterAnnotationCommandsBlock"""
+                    OptIfExists AlterAnnotationCommandsBlock"""
         self.val = qlast.AlterAnnotation(
             name=kids[3].val,
-            commands=kids[4].val
+            alter_if_exists=kids[4].val,
+            commands=kids[5].val
         )
 
 
@@ -1222,9 +1225,10 @@ class AlterAnnotationStmt(Nonterm):
 #
 class DropAnnotationStmt(Nonterm):
     def reduce_DropAnnotation(self, *kids):
-        r"""%reduce DROP ABSTRACT ANNOTATION NodeName"""
+        r"""%reduce DROP ABSTRACT ANNOTATION NodeName OptIfExists"""
         self.val = qlast.DropAnnotation(
             name=kids[3].val,
+            drop_if_exists=kids[4].val,
         )
 
 

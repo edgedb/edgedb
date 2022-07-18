@@ -7395,6 +7395,85 @@ type default::Foo {
             [{"annotations": []}]
         )
 
+    async def test_edgeql_ddl_annotation_19(self):
+        await self.con.execute("""
+            CREATE ABSTRACT ANNOTATION ann IF NOT EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation {
+                    name,
+                }
+                FILTER
+                    .name LIKE 'default::ann';
+            ''',
+            [{"name": "default::ann"}]
+        )
+
+        await self.con.execute("""
+            CREATE ABSTRACT ANNOTATION ann IF NOT EXISTS;
+        """)
+
+
+        await self.con.execute("""
+            ALTER ABSTRACT ANNOTATION ann IF EXISTS {
+                CREATE ANNOTATION description := "bar";
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation {
+                    annotations: {
+                        name,
+                        @value
+                    }
+                }
+                FILTER .name = 'default::ann'
+            ''',
+            [{"annotations": [{"@value": "bar", "name": "std::description"}]}]
+        )
+
+        await self.con.execute("""
+            ALTER ABSTRACT ANNOTATION non_existent IF EXISTS {
+                ALTER ANNOTATION description := "bar";
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation {
+                    annotations: {
+                        name,
+                        @value
+                    }
+                }
+                FILTER .name = 'default::non_existent'
+            ''',
+            []
+        )
+
+        await self.con.execute("""
+            DROP ABSTRACT ANNOTATION ann IF EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation { name }
+                FILTER .name = 'default::ann'
+            ''',
+            []
+        )
+
+        await self.con.execute("""
+            DROP ABSTRACT ANNOTATION non_existent IF EXISTS;
+        """)
+
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
