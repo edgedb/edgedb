@@ -74,3 +74,9 @@ class TestDatabase(tb.ConnectedTestCase):
                 await self.con.execute('CREATE DATABASE databasename;')
         finally:
             await self.con.execute('DROP DATABASE databasename;')
+
+    async def test_database_drop_01(self):
+        with self.assertRaisesRegex(
+                edgedb.UnknownDatabaseError,
+                r'database "databasename" does not exist'):
+            await self.con.execute('DROP DATABASE databasename;')
