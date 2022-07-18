@@ -1934,25 +1934,29 @@ class CreateObjectTypeStmt(Nonterm):
     def reduce_CreateAbstractObjectTypeStmt(self, *kids):
         r"""%reduce \
             CREATE ABSTRACT TYPE NodeName \
-            OptExtendingSimple OptCreateObjectTypeCommandsBlock \
+            OptExtendingSimple OptIfNotExists \
+            OptCreateObjectTypeCommandsBlock \
         """
         self.val = qlast.CreateObjectType(
             name=kids[3].val,
             bases=kids[4].val,
             abstract=True,
-            commands=kids[5].val,
+            create_if_not_exists=kids[5].val,
+            commands=kids[6].val,
         )
 
     def reduce_CreateRegularObjectTypeStmt(self, *kids):
         r"""%reduce \
             CREATE TYPE NodeName \
-            OptExtendingSimple OptCreateObjectTypeCommandsBlock \
+            OptExtendingSimple OptIfNotExists \
+            OptCreateObjectTypeCommandsBlock \
         """
         self.val = qlast.CreateObjectType(
             name=kids[2].val,
             bases=kids[3].val,
             abstract=False,
-            commands=kids[4].val,
+            create_if_not_exists=kids[4].val,
+            commands=kids[5].val,
         )
 
 
@@ -1991,12 +1995,13 @@ commands_block(
 class AlterObjectTypeStmt(Nonterm):
     def reduce_AlterObjectTypeStmt(self, *kids):
         r"""%reduce \
-            ALTER TYPE NodeName \
+            ALTER TYPE NodeName OptIfExists \
             AlterObjectTypeCommandsBlock \
         """
         self.val = qlast.AlterObjectType(
             name=kids[2].val,
-            commands=kids[3].val
+            alter_if_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -2017,11 +2022,12 @@ class DropObjectTypeStmt(Nonterm):
     def reduce_DropObjectType(self, *kids):
         r"""%reduce \
             DROP TYPE \
-            NodeName OptDropObjectTypeCommandsBlock \
+            NodeName OptIfExists OptDropObjectTypeCommandsBlock \
         """
         self.val = qlast.DropObjectType(
             name=kids[2].val,
-            commands=kids[3].val
+            drop_if_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 

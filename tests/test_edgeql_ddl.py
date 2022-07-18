@@ -307,6 +307,68 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
+    async def test_edgeql_ddl_type_07(self):
+        await self.con.execute("""
+            CREATE TYPE A IF NOT EXISTS;
+        """)
+
+        await self.assert_query_result(
+            """
+                SELECT schema::ObjectType {
+                    name
+                }
+                FILTER .name = 'default::A';
+            """,
+            [{'name': 'default::A'}],
+        )
+
+        await self.con.execute("""
+            CREATE TYPE A IF NOT EXISTS;
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE A IF EXISTS {
+                CREATE SINGLE PROPERTY prop -> str;
+            };
+        """)
+
+        await self.assert_query_result(
+            """
+                SELECT schema::ObjectType {
+                    name,
+                    properties: {
+                        name,
+                    } FILTER .name = 'prop'
+                }
+                FILTER .name = 'default::A';
+            """,
+            [{'name': 'default::A', 'properties': [{'name': 'prop'}]}],
+        )
+
+        await self.con.execute("""
+            ALTER TYPE NonExistent IF EXISTS {
+                CREATE SINGLE PROPERTY prop -> str;
+            };
+        """)
+
+        await self.con.execute("""
+            DROP TYPE A IF EXISTS;
+        """)
+
+        await self.assert_query_result(
+            """
+                SELECT schema::ObjectType {
+                    name,
+                }
+                FILTER .name = 'default::A';
+            """,
+            [],
+        )
+
+        await self.con.execute("""
+            DROP TYPE NonExistent IF EXISTS;
+        """)
+
     @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
