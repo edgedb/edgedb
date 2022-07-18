@@ -1870,6 +1870,10 @@ class AlterPointer(
         if (
             self.get_attribute_value('expr') is not None
             or bool(self.get_subcommands(type=constraints.ConstraintCommand))
+            or (
+                self.get_attribute_value('default') is not None
+                and self.scls.is_link_property(schema)
+            )
         ):
             # If the expression gets changed, we need to propagate
             # this change to other expressions referring to this one,
@@ -1877,6 +1881,10 @@ class AlterPointer(
             #
             # Also, if constraints are modified, that can affect
             # cardinality of other expressions using backlinks.
+            #
+            # Also when setting a default on a link property, since
+            # access policies need to be prevented from accessing them.
+            # (Ugh.)
             schema = self._propagate_if_expr_refs(
                 schema,
                 context,

@@ -200,6 +200,9 @@ class AccessKind(s_enum.StrEnum):
     Delete = 'Delete'
     Insert = 'Insert'
 
+    def is_data_check(self) -> bool:
+        return self is AccessKind.UpdateWrite or self is AccessKind.Insert
+
 
 class DescribeLanguage(s_enum.StrEnum):
     DDL = 'DDL'
