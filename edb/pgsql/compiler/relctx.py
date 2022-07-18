@@ -2051,3 +2051,14 @@ def get_ptr_rel_overlays(
 ]:
     typeref = ptrref.out_source.real_material_type
     return ctx.ptr_rel_overlays[dml_source][typeref.id, ptrref.shortname.name]
+
+
+def clone_ptr_rel_overlays(
+    *,
+    ctx: context.CompilerContextLevel,
+) -> None:
+    ctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
+    for k, v in ctx.ptr_rel_overlays.items():
+        ctx.ptr_rel_overlays[k] = v.copy()
+        for k2, v2 in v.items():
+            v[k2] = list(v2)
