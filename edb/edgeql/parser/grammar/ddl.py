@@ -1583,13 +1583,14 @@ commands_block(
 class CreateLinkStmt(Nonterm):
     def reduce_CreateLink(self, *kids):
         r"""%reduce \
-            CREATE ABSTRACT LINK NodeName OptExtendingSimple \
+            CREATE ABSTRACT LINK NodeName OptExtendingSimple OptIfNotExists \
             OptCreateLinkCommandsBlock \
         """
         self.val = qlast.CreateLink(
             name=kids[3].val,
             bases=kids[4].val,
-            commands=kids[5].val,
+            create_if_not_exists=kids[5].val,
+            commands=kids[6].val,
             abstract=True,
         )
 
@@ -1623,12 +1624,13 @@ commands_block(
 class AlterLinkStmt(Nonterm):
     def reduce_AlterLink(self, *kids):
         r"""%reduce \
-            ALTER ABSTRACT LINK NodeName \
+            ALTER ABSTRACT LINK NodeName OptIfExists \
             AlterLinkCommandsBlock \
         """
         self.val = qlast.AlterLink(
             name=kids[3].val,
-            commands=kids[4].val
+            alter_if_exists=kids[4].val,
+            commands=kids[5].val,
         )
 
 
@@ -1648,12 +1650,13 @@ commands_block(
 class DropLinkStmt(Nonterm):
     def reduce_DropLink(self, *kids):
         r"""%reduce \
-            DROP ABSTRACT LINK NodeName \
+            DROP ABSTRACT LINK NodeName OptIfExists \
             OptDropLinkCommandsBlock \
         """
         self.val = qlast.DropLink(
             name=kids[3].val,
-            commands=kids[4].val
+            drop_if_exists=kids[4].val,
+            commands=kids[5].val,
         )
 
 

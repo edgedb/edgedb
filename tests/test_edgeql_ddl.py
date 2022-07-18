@@ -1297,6 +1297,72 @@ class TestEdgeQLDDL(tb.DDLTestCase):
               {"@computed_prop": 84, "@test_link_prop": 42}}]
         )
 
+    async def test_edgeql_ddl_abstract_link_05(self):
+        await self.con.execute("""
+            CREATE ABSTRACT LINK test_link IF NOT EXISTS {
+                CREATE PROPERTY test_link_prop -> int64;
+            };
+        """)
+
+        await self.con.execute("""
+            CREATE ABSTRACT LINK test_link IF NOT EXISTS {
+                CREATE PROPERTY test_link_prop2 -> int64;
+            };
+        """)
+
+        await self.con.execute("""
+            CREATE TYPE Target;
+            CREATE TYPE TestObjectType {
+                CREATE LINK test_object_link EXTENDING test_link
+                   -> Target;
+            };
+
+            INSERT TestObjectType {
+                test_object_link := (INSERT Target { @test_link_prop := 42 })
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT TestObjectType {
+                    test_object_link: { @test_link_prop },
+                };
+            """,
+            [{"test_object_link": {"@test_link_prop": 42}}]
+        )
+
+        await self.con.execute("""
+            ALTER ABSTRACT LINK test_link IF EXISTS {
+                DROP PROPERTY test_link_prop;
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "link 'test_object_link' of object type "
+            "'default::TestObjectType' has no property 'test_link_prop'",
+        ):
+            await self.con.execute(
+                r"""
+                    SELECT TestObjectType {
+                        test_object_link: { @test_link_prop },
+                    };
+                """
+            )
+
+        await self.con.execute("""
+            DROP TYPE TestObjectType;
+            DROP TYPE Target;
+        """)
+
+        await self.con.execute("""
+            DROP ABSTRACT LINK test_link IF EXISTS;
+        """)
+
+        await self.con.execute("""
+            DROP ABSTRACT LINK non_existent IF EXISTS;
+        """)
+
     async def test_edgeql_ddl_drop_extending_01(self):
         await self.con.execute("""
 
