@@ -69,29 +69,18 @@ class ContextSwitchMode(enum.Enum):
     DETACHED = enum.auto()
 
 
+@dataclasses.dataclass
 class ViewRPtr:
-    def __init__(
-        self,
-        source: s_sources.Source,
-        *,
-        ptrcls: Optional[s_pointers.Pointer],
-        ptrcls_name: Optional[s_name.QualName] = None,
-        base_ptrcls: Optional[s_pointers.Pointer] = None,
-        ptrcls_is_linkprop: bool = False,
-        ptrcls_is_alias: bool = False,
-        rptr: Optional[irast.Pointer] = None,
-        exprtype: s_types.ExprType = s_types.ExprType.Select,
-        rptr_dir: Optional[s_pointers.PointerDirection] = None,
-    ) -> None:
-        self.source = source
-        self.ptrcls = ptrcls
-        self.base_ptrcls = base_ptrcls
-        self.ptrcls_name = ptrcls_name
-        self.ptrcls_is_linkprop = ptrcls_is_linkprop
-        self.ptrcls_is_alias = ptrcls_is_alias
-        self.rptr = rptr
-        self.exprtype = exprtype
-        self.rptr_dir = rptr_dir
+    source: s_sources.Source
+    _: dataclasses.KW_ONLY
+    ptrcls: Optional[s_pointers.Pointer]
+    ptrcls_name: Optional[s_name.QualName] = None
+    base_ptrcls: Optional[s_pointers.Pointer] = None
+    ptrcls_is_linkprop: bool = False
+    ptrcls_is_alias: bool = False
+    rptr: Optional[irast.Pointer] = None
+    exprtype: s_types.ExprType = s_types.ExprType.Select
+    rptr_dir: Optional[s_pointers.PointerDirection] = None
 
 
 @dataclasses.dataclass
