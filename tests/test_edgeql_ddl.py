@@ -5539,7 +5539,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             DROP SCALAR TYPE non_existent IF EXISTS;
         ''')
 
-
     async def test_edgeql_ddl_cast_01(self):
         await self.con.execute('''
             CREATE SCALAR TYPE type_a EXTENDING std::str;
@@ -7415,7 +7414,6 @@ type default::Foo {
         await self.con.execute("""
             CREATE ABSTRACT ANNOTATION ann IF NOT EXISTS;
         """)
-
 
         await self.con.execute("""
             ALTER ABSTRACT ANNOTATION ann IF EXISTS {
@@ -9814,7 +9812,8 @@ type default::Foo {
         """)
 
         await self.con.execute(r"""
-            ALTER ABSTRACT CONSTRAINT NonExistent IF EXISTS RENAME TO NonExistent2;
+            ALTER ABSTRACT CONSTRAINT NonExistent IF EXISTS
+            RENAME TO NonExistent2;
         """)
 
         await self.con.execute(r"""
