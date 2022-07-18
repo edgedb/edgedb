@@ -162,6 +162,7 @@ class TestServerOps(tb.TestCase):
             '--emit-server-status', status_file,
             '--emit-server-status', status_file_2,
             '--tls-cert-mode=generate_self_signed',
+            '--jose-key-mode=generate',
         ]
 
         proc: Optional[asyncio.Process] = None
