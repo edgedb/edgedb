@@ -767,6 +767,12 @@ def process_insert_body(
 
     dml_cte = contents_cte if not needs_insert_on_conflict else insert_cte
 
+    pol_expr = ir_stmt.write_policy_exprs.get(typeref.id)
+    pol_ctx = None
+    if pol_expr:
+        with ctx.new() as pol_ctx:
+            pass
+
     # Process necessary updates to the link tables.
     link_ctes = []
     for shape_el in external_inserts:
@@ -776,7 +782,7 @@ def process_insert_body(
             dml_cte=dml_cte,
             source_typeref=typeref,
             iterator=iterator,
-            use_select_for_overlays=True,
+            policy_ctx=pol_ctx,
             ctx=ctx,
         )
         if link_cte:
@@ -784,10 +790,11 @@ def process_insert_body(
         if check_cte is not None:
             ctx.env.check_ctes.append(check_cte)
 
-    if pol_expr := ir_stmt.write_policy_exprs.get(typeref.id):
+    if pol_expr:
+        assert pol_ctx
         assert not needs_insert_on_conflict
         policy_cte = compile_policy_check(
-            contents_cte, ir_stmt, pol_expr, typeref=typeref, ctx=ctx
+            contents_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
         )
         force_policy_checks(
             policy_cte,
@@ -1412,6 +1419,10 @@ def process_update_body(
         update_cte.query = update_stmt
 
     pol_expr = ir_stmt.write_policy_exprs.get(typeref.id)
+    pol_ctx = None
+    if pol_expr:
+        with ctx.new() as pol_ctx:
+            pass
 
     # Process necessary updates to the link tables.
     link_ctes = []
@@ -1423,8 +1434,8 @@ def process_update_body(
             iterator=iterator,
             shape_op=shape_op,
             source_typeref=typeref,
-            use_select_for_overlays=pol_expr is not None,
             ctx=ctx,
+            policy_ctx=pol_ctx,
         )
         if link_cte:
             link_ctes.append(link_cte)
@@ -1433,8 +1444,9 @@ def process_update_body(
             ctx.env.check_ctes.append(check_cte)
 
     if pol_expr:
+        assert pol_ctx
         policy_cte = compile_policy_check(
-            contents_cte, ir_stmt, pol_expr, typeref=typeref, ctx=ctx
+            contents_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
         )
         force_policy_checks(
             policy_cte,
@@ -1589,8 +1601,8 @@ def process_link_update(
     source_typeref: irast.TypeRef,
     dml_cte: pgast.CommonTableExpr,
     iterator: Optional[pgast.IteratorCTE] = None,
-    use_select_for_overlays: bool,
     ctx: context.CompilerContextLevel,
+    policy_ctx: Optional[context.CompilerContextLevel],
 ) -> Tuple[Optional[pgast.CommonTableExpr], Optional[pgast.CommonTableExpr]]:
     """Perform updates to a link relation as part of a DML statement.
 
@@ -1611,10 +1623,16 @@ def process_link_update(
         iterator:
             IR and CTE representing the iterator range in the FOR clause
             of the EdgeQL DML statement (if present).
-        use_select_for_overlays:
-            Whether to use the select CTE for overlays instead of the
+        policy_ctx:
+            Optionally, a context in which to populate overlays that
+            use the select CTE for overlays instead of the
             actual insert CTE. This is needed if an access policy is to
-            be applied but requires disabling a potential optimization.
+            be applied, and requires disabling a potential optimization.
+
+            We need separate overlay contexts because default values for
+            link properties don't currently get populated in our IR, so we
+            need to do actual SQL DML to get their values. (And so we disallow
+            their use in policies.)
     """
     toplevel = ctx.toplevel_stmt
     is_insert = isinstance(ir_stmt, irast.InsertStmt)
@@ -2017,7 +2035,7 @@ def process_link_update(
     elif (
         len(cols) == len(conflict_cols)
         and delqry is not None
-        and not use_select_for_overlays
+        and not policy_ctx
     ):
         # There are no link properties, so we can optimize the
         # link replacement operation by omitting the overlapping
@@ -2123,24 +2141,32 @@ def process_link_update(
     pathctx.put_path_value_rvar(
         updcte.query, path_id.ptr_path(), target_rvar, env=ctx.env)
 
-    overlay_cte = data_cte if use_select_for_overlays else updcte
+    def register_overlays(
+        overlay_cte: pgast.CommonTableExpr, octx: context.CompilerContextLevel
+    ) -> None:
+        assert isinstance(mptrref, irast.PointerRef)
+        # Record the effect of this insertion in the relation overlay
+        # context to ensure that references to the link in the result
+        # of this DML statement yield the expected results.
+        if shape_op is qlast.ShapeOp.APPEND and not target_is_scalar:
+            # When doing an UPDATE with +=, we need to do an anti-join
+            # based filter to filter out links that were already present
+            # and have been re-added.
+            relctx.add_ptr_rel_overlay(
+                mptrref, 'filter', overlay_cte, dml_stmts=ctx.dml_stmt_stack,
+                path_id=path_id.ptr_path(),
+                ctx=octx)
 
-    # Record the effect of this insertion in the relation overlay
-    # context to ensure that references to the link in the result
-    # of this DML statement yield the expected results.
-    if shape_op is qlast.ShapeOp.APPEND and not target_is_scalar:
-        # When doing an UPDATE with +=, we need to do an anti-join
-        # based filter to filter out links that were already present
-        # and have been re-added.
         relctx.add_ptr_rel_overlay(
-            mptrref, 'filter', overlay_cte, dml_stmts=ctx.dml_stmt_stack,
+            mptrref, 'union', overlay_cte, dml_stmts=ctx.dml_stmt_stack,
             path_id=path_id.ptr_path(),
-            ctx=ctx)
+            ctx=octx)
 
-    relctx.add_ptr_rel_overlay(
-        mptrref, 'union', overlay_cte, dml_stmts=ctx.dml_stmt_stack,
-        path_id=path_id.ptr_path(),
-        ctx=ctx)
+    if policy_ctx:
+        relctx.clone_ptr_rel_overlays(ctx=policy_ctx)
+        register_overlays(data_cte, policy_ctx)
+
+    register_overlays(updcte, ctx)
 
     return updcte, None
 
