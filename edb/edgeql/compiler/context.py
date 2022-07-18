@@ -69,10 +69,9 @@ class ContextSwitchMode(enum.Enum):
     DETACHED = enum.auto()
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(kw_only=True)
 class ViewRPtr:
     source: s_sources.Source
-    _: dataclasses.KW_ONLY
     ptrcls: Optional[s_pointers.Pointer]
     ptrcls_name: Optional[s_name.QualName] = None
     base_ptrcls: Optional[s_pointers.Pointer] = None
