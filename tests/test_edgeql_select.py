@@ -6304,6 +6304,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    async def test_edgeql_select_missing_shape_field(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidReferenceError,
+            "has no link or property",
+            _position=51,
+        ):
+            await self.con.execute("""
+                SELECT User {
+                    missing,
+                }
+            """)
+
     async def test_edgeql_select_big_set_literal(self):
         res = await self.con.query("""
             SELECT {
