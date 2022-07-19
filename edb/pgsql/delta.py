@@ -3250,9 +3250,6 @@ class CreateObjectType(ObjectTypeMetaCommand,
             schema, self.scls, catenate=False)
         self.table_name = new_table_name
         columns = []
-        token_col = dbops.Column(
-            name='__edb_token', type='uuid', required=False)
-        columns.append(token_col)
 
         objtype_table = dbops.Table(name=new_table_name, columns=columns)
         self.pgops.add(dbops.CreateTable(table=objtype_table))
