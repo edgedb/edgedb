@@ -514,7 +514,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         """
         INSERT User {name := "Madz"}
         UNLESS CONFLICT ON (.name)
-        ELSE (INSERT User {name := "Madz2"})
+        ELSE (DETACHED (INSERT User {name := "Madz2"}))
 % OK %
         ONE
         """
