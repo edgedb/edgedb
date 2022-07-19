@@ -1393,7 +1393,7 @@ def computable_ptr_set(
         if result_stype != base_object:
             subctx.view_scls = result_stype
         subctx.view_rptr = context.ViewRPtr(
-            source_scls, ptrcls=ptrcls, rptr=rptr)  # type: ignore
+            source=source_scls, ptrcls=ptrcls, rptr=rptr)  # type: ignore
         subctx.anchors[qlast.Source().name] = source_set
         subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
         subctx.partial_path_prefix = source_set
