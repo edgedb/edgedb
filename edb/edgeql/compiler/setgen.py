@@ -244,6 +244,22 @@ def new_array_set(
     return ensure_set(arr, type_override=stype, ctx=ctx)
 
 
+def raise_self_insert_error(
+    stype: s_obj.Object, source_context: Optional[parsing.ParserContext], *,
+    ctx: context.ContextLevel,
+) -> NoReturn:
+    dname = stype.get_displayname(ctx.env.schema)
+    raise errors.QueryError(
+        f'invalid reference to {dname}: '
+        f'self-referencing INSERTs are not allowed',
+        hint=(
+            f'Use DETACHED if you meant to refer to an '
+            f'uncorrelated {dname} set'
+        ),
+        context=source_context,
+    )
+
+
 def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     """Create an ir.Set representing the given EdgeQL path expression."""
     anchors = ctx.anchors
@@ -518,17 +534,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if is_computable:
             computables.append(path_tip)
 
-        if pathctx.path_is_banned(path_tip.path_id, ctx=ctx):
-            dname = stype.get_displayname(ctx.env.schema)
-            raise errors.QueryError(
-                f'invalid reference to {dname}: '
-                f'self-referencing INSERTs are not allowed',
-                hint=(
-                    f'Use DETACHED if you meant to refer to an '
-                    f'uncorrelated {dname} set'
-                ),
-                context=step.context,
-            )
+        if pathctx.path_is_inserting(path_tip.path_id, ctx=ctx):
+            raise_self_insert_error(stype, step.context, ctx=ctx)
 
         path_sets.append(path_tip)
 

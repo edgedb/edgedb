@@ -469,8 +469,8 @@ class ContextLevel(compiler.ContextLevel):
     pending_stmt_full_path_id_namespace: FrozenSet[str]
     """A set of path id namespaces to use in path ids in the next statement."""
 
-    banned_paths: Set[irast.PathId]
-    """A set of path ids that are considered invalid in this context."""
+    inserting_paths: Dict[irast.PathId, Literal['body'] | Literal['else']]
+    """A set of path ids that are currently being inserted."""
 
     view_map: ChainMap[
         irast.PathId,
@@ -588,7 +588,7 @@ class ContextLevel(compiler.ContextLevel):
             self.path_id_namespace = frozenset()
             self.pending_stmt_own_path_id_namespace = frozenset()
             self.pending_stmt_full_path_id_namespace = frozenset()
-            self.banned_paths = set()
+            self.inserting_paths = {}
             self.view_map = collections.ChainMap()
             self.path_scope = env.path_scope
             self.path_scope_map = {}
@@ -633,7 +633,7 @@ class ContextLevel(compiler.ContextLevel):
                 prevlevel.pending_stmt_own_path_id_namespace
             self.pending_stmt_full_path_id_namespace = \
                 prevlevel.pending_stmt_full_path_id_namespace
-            self.banned_paths = prevlevel.banned_paths
+            self.inserting_paths = prevlevel.inserting_paths
             self.view_map = prevlevel.view_map
             if prevlevel.path_scope is None:
                 prevlevel.path_scope = self.env.path_scope
@@ -667,7 +667,7 @@ class ContextLevel(compiler.ContextLevel):
 
                 self.pending_stmt_own_path_id_namespace = frozenset()
                 self.pending_stmt_full_path_id_namespace = frozenset()
-                self.banned_paths = prevlevel.banned_paths.copy()
+                self.inserting_paths = prevlevel.inserting_paths.copy()
 
                 self.view_rptr = None
                 self.view_scls = None
@@ -690,7 +690,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.path_id_namespace = frozenset({self.aliases.get('ns')})
                 self.pending_stmt_own_path_id_namespace = frozenset()
                 self.pending_stmt_full_path_id_namespace = frozenset()
-                self.banned_paths = set()
+                self.inserting_paths = {}
 
                 self.iterator_path_ids = frozenset()
 
