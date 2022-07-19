@@ -433,6 +433,13 @@ def compile_InsertQuery(
         assert isinstance(subject, irast.Set)
 
         subject_stype = setgen.get_set_type(subject, ctx=ictx)
+
+        # If we are INSERTing a type that we are in the ELSE block of,
+        # we need to error out.
+        if ictx.inserting_paths.get(subject.path_id) == 'else':
+            setgen.raise_self_insert_error(
+                subject_stype, expr.subject.context, ctx=ctx)
+
         if subject_stype.get_abstract(ctx.env.schema):
             raise errors.QueryError(
                 f'cannot insert into abstract '
@@ -452,8 +459,8 @@ def compile_InsertQuery(
 
         with ictx.new() as bodyctx:
             # Self-references in INSERT are prohibited.
-            bodyctx.banned_paths = ictx.banned_paths.copy()
-            pathctx.ban_path(subject.path_id, ctx=bodyctx)
+            pathctx.ban_inserting_path(
+                subject.path_id, location='body', ctx=bodyctx)
 
             bodyctx.class_view_overrides = ictx.class_view_overrides.copy()
             bodyctx.implicit_id_in_shapes = False

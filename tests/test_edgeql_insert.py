@@ -2768,12 +2768,22 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_unless_conflict_11(self):
-        # ELSE without ON, using object constraint
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "self-referencing INSERTs are not allowed"):
+            await self.con.execute(r'''
+                SELECT (
+                    INSERT Person {name := "Madz"}
+                    UNLESS CONFLICT ON (.name)
+                    ELSE (INSERT Person {name := "Maddy"})
+                ) {name};
+            ''')
+
         query = r'''
             SELECT (
                 INSERT Person {name := "Madz"}
                 UNLESS CONFLICT ON (.name)
-                ELSE (INSERT Person {name := "Maddy"})
+                ELSE (DETACHED (INSERT Person {name := "Maddy"}))
             ) {name};
         '''
 
