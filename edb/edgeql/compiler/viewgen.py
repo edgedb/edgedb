@@ -578,7 +578,8 @@ def _normalize_view_ptr_expr(
 
     if compexpr is None:
         ptrcls = setgen.resolve_ptr(
-            ptrsource, ptrname, track_ref=lexpr, ctx=ctx)
+            ptrsource, ptrname, track_ref=lexpr, ctx=ctx,
+            source_context=shape_el.context)
         if is_polymorphic:
             ptrcls = schemactx.derive_ptr(
                 ptrcls, view_scls, ctx=ctx)
