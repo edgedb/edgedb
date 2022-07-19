@@ -895,8 +895,11 @@ def finalize_args(
             # cast the arguments so that the backend has no
             # wiggle room to apply its own (potentially different)
             # casting.
+            orig_arg = arg
             arg = casts.compile_cast(
                 arg, paramtype, srcctx=None, ctx=ctx)
+            if ctx.path_scope.is_optional(orig_arg.path_id):
+                pathctx.register_set_in_scope(arg, optional=True, ctx=ctx)
 
         args.append(
             irast.CallArg(expr=arg, expr_type_path_id=arg_type_path_id,
