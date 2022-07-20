@@ -53,7 +53,7 @@ of objects by some property:
     }
 
 Notice that the result of ``group`` is a set of :ref:`free objects
-<ref_eql_free_objects>` with three fields:
+<ref_eql_select_free_objects>` with three fields:
 
 * ``key``: another free object containing the specific value of the
   grouping parameter for a given subset.

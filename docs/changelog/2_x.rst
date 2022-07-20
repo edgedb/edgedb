@@ -45,8 +45,8 @@ Analytical queries with ``GROUP``
 
 The new :ref:`GROUP <ref_eql_group>` expression can be used to partition
 and aggregate data. The output of ``GROUP`` are :ref:`free objects
-<ref_eql_free_objects>` representing each group, including the grouping, the
-grouping *key*, and the set of elements.
+<ref_eql_select_free_objects>` representing each group, including the
+grouping, the grouping *key*, and the set of elements.
 
 .. code-block:: edgeql-repl
 

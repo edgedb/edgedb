@@ -13,6 +13,7 @@ Client Libraries
 * `TypeScript/Javascript <js/index>`_
 * `Go <go/index>`_
 
+
 **Community-Maintained Clients**
 
 * `.NET <https://github.com/quinchs/EdgeDB.Net>`_
