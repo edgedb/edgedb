@@ -317,7 +317,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     Unlike :eql:type:`std::duration` a ``relative_duration`` is not a precise
     measurement because it uses 3 different units under the hood: months, days
     and seconds. However not all months have the same number of days and not
-    all days have the same number of seconds. For example 2019 was a leap year
+    all days have the same number of seconds. For example 2020 was a leap year
     and had 366 days. Notice how the number of hours in each year below is
     different.
 
