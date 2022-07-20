@@ -3137,3 +3137,12 @@ class TestServerCapabilities(tb.QueryTestCase):
                 'START MIGRATION TO {}',
                 __allow_capabilities__=caps,
             )
+
+    async def test_server_capabilities_07(self):
+        caps = enums.Capability.ALL & ~enums.Capability.TRANSACTION
+        await self.con._fetchall(
+            'START MIGRATION TO {};'
+            'POPULATE MIGRATION;'
+            'ABORT MIGRATION;',
+            __allow_capabilities__=caps,
+        )
