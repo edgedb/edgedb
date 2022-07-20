@@ -123,7 +123,7 @@ specific range type:
     ... }');
     {range(1, 10, inc_lower := true, inc_upper := false)}
 
-Empty ranges have a shorhand :eql:type:`json` representation:
+Empty ranges have a shorthand :eql:type:`json` representation:
 
 .. code-block:: edgeql-repl
 

@@ -377,11 +377,20 @@ EdgeQL supports a set of functions and operators on datetime types.
 Durations
 ---------
 
-
 EdgeDB's typesystem contains three duration types.
 
-Absolute durations
-^^^^^^^^^^^^^^^^^^
+
+.. list-table::
+
+  * - :eql:type:`duration`
+    - Exact duration
+  * - :eql:type:`cal::relative_duration`
+    - Duration in relative units
+  * - :eql:type:`cal::date_duration`
+    - Duration in months and days only
+
+Exact durations
+^^^^^^^^^^^^^^^
 
 The :eql:type:`duration` type represents *exact* durations that can be
 represented by some fixed number of microseconds. It can be negative and it
@@ -466,6 +475,54 @@ EdgeQL supports a set of functions and operators on duration types.
   * - Conversion
     - :eql:func:`duration_truncate` :eql:func:`cal::duration_normalize_hours`
       :eql:func:`cal::duration_normalize_days`
+
+
+.. _ref_eql_ranges:
+
+Ranges #New
+^^^^^^^^^^^
+
+.. warning::
+
+  This type is only available in EdgeDB 2.0 or later.
+
+Ranges represent a range of orderable scalar values. A range comprises a lower
+bound, upper bound, and two boolean flags indicating whether each bound is
+inclusive.
+
+Create a range literal with the ``range`` constructor function.
+
+.. code-block:: edgeql-repl
+
+    db> select range(1, 10);
+    {range(1, 10, inc_lower := true, inc_upper := false)}
+    db> select range(2.2, 3.3);
+    {range(2.2, 3.3, inc_lower := true, inc_upper := false)}
+
+Ranges can be *empty* or *unbounded*. An empty set is used to indicate the
+lack of a paricular bound.
+
+.. code-block:: edgeql-repl
+
+    db> select range(1, 1);
+    {range({}, empty := true)}
+    db> select range(4, <int64>{});
+    {range(4, {})}
+    db> select range(<int64>{}, 4);
+    {range({}, 4)}
+    db> select range(<int64>{}, <int64>{});
+    {range({}, {})}
+
+To compute the set of concrete values defined by a range literal, use
+``range_unpack``.
+
+.. code-block:: edgeql-repl
+
+    db> select range_unpack(range(0, 10));
+    {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+    db> select range_unpack(range(0, <int64>{}));
+    edgedb error: InvalidValueError: cannot unpack an unbounded range
+
 
 .. _ref_eql_literal_bytes:
 
