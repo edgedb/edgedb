@@ -10858,6 +10858,13 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         ''')
 
+    async def test_edgeql_migration_uuid_array_01(self):
+        await self.migrate(r'''
+            type Foo {
+                property x -> array<uuid>;
+            }
+        ''')
+
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False

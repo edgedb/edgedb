@@ -100,6 +100,9 @@ def parse_into(
         name = s_name.name_from_string(entry['name__internal'])
         layout = schema_class_layout[mcls]
 
+        if base_schema.has_object(objid) and str(name) != '__schema_version__':
+            continue
+
         if isinstance(obj, s_obj.QualifiedObject):
             name_to_id[name] = objid
         else:
