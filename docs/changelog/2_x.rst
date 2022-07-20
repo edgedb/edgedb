@@ -268,10 +268,10 @@ Bug fixes
   constraints to be violated in some complex type hierarchies
   (:eql:gh:`#3887`).
 
-* Fix issue wehre server might attempt to acquire one more connection
+* Fix issue where server might attempt to acquire one more connection
   than it is configured to permit (:eql:gh:`#3901`).
 
-* Fix use of assert_exists on properties that are being directly output
+* Fix use of ``assert_exists`` on properties that are being directly output
   (:eql:gh:`#3911`).
 
 * Fix a scope leakage that could cause a link referenced inside a computable
@@ -282,12 +282,13 @@ Bug fixes
   operators where we could return incorrect values or produce spurious
   errors, especially on very large values (:eql:gh:`#3909`).
 
-* Make annotations a valid annotation subject (:eql:gh:`#3929`).
+* Allow adding annotations to ``abstract annotation`` definitions
+  (:eql:gh:`#3929`).
 
 * Expose ``body`` and ``language`` fields on ``schema::Function``
   (:eql:gh:`#3944`).
 
-* Make indexes extend from ``schema::InheritingObject`` (:eql:gh:`#3942`)
+* Make indexes extend from ``schema::InheritingObject`` (:eql:gh:`#3942`).
 
 * Fix some mis-compilations of nested shapes inside calls to functions
   like ``assert_single`` (:eql:gh:`#3927`).
@@ -297,9 +298,9 @@ Bug fixes
 * Fix ``describe``/``populate``/``describe`` sequence (:eql:gh:`#3959`).
 
 * Upgrade many casts and functions from "Stable" to "Immutable"
-  (:eql:gh:`#3975`)
+  (:eql:gh:`#3975`).
 
-* Fix linkprops in type filtered shape links (:eql:gh:`#3987`).
+* Fix link properties in type filtered shape links (:eql:gh:`#3987`).
 
 * Allow DML statements in free shapes (:eql:gh:`#4002`).
 
