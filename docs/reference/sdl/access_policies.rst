@@ -153,8 +153,10 @@ The access policy declaration options are as follows:
     Set access policy :ref:`annotation <ref_eql_sdl_annotations>`
     to a given *value*.
 
+
 .. list-table::
   :class: seealso
 
   * - **See also**
-  * - :ref:`DDL > Access Policy <ref_eql_ddl_access_policies>`
+  * - :ref:`Schema > Access policies <ref_datamodel_access_policies>`
+  * - :ref:`DDL > Access policies <ref_eql_ddl_access_policies>`

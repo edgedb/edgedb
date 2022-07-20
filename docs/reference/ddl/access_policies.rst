@@ -213,4 +213,5 @@ removes the specified access policy from a given object type.
   :class: seealso
 
   * - **See also**
-  * - :ref:`SDL > Access Policy <ref_eql_sdl_access_policies>`
+  * - :ref:`Schema > Access policies <ref_datamodel_access_policies>`
+  * - :ref:`SDL > Access policies <ref_eql_sdl_access_policies>`
