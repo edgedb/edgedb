@@ -76,6 +76,9 @@ class TestDatabase(tb.ConnectedTestCase):
             await self.con.execute('DROP DATABASE databasename;')
 
     async def test_database_drop_01(self):
+        if not self.has_create_database:
+            self.skipTest("create database is not supported by the backend")
+
         with self.assertRaisesRegex(
                 edgedb.UnknownDatabaseError,
                 r'database "databasename" does not exist'):
