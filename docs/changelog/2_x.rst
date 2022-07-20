@@ -2,7 +2,7 @@
 v2
 ==
 
-:edb-alt-title: EdgeDB v2 — Sagittarius | Changelog
+:edb-alt-title: EdgeDB v2 (Sagittarius)
 
 .. warning::
 

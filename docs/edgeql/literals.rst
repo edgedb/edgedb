@@ -436,7 +436,7 @@ The :eql:type:`cal::date_duration` represents spans consisting of some number
 of *months* and *days*. This type is primarily intended to simplify logic
 involving :eql:type:`cal::local_date` values.
 
-.. code-block::
+.. code-block:: edgeql-repl
 
   db> select <cal::date_duration>'5 days';
   {<cal::date_duration>'P5D'}
