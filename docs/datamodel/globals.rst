@@ -156,12 +156,9 @@ This is particularly useful when declaring :ref:`access policies
 Refer to :ref:`Access Policies <ref_datamodel_access_policies>` for complete
 documentation.
 
-
 .. list-table::
   :class: seealso
 
   * - **See also**
-  * - :ref:`SDL > Object types <ref_eql_sdl_object_types>`
-  * - :ref:`DDL > Object types <ref_eql_ddl_object_types>`
-  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`
-  * - :ref:`Cheatsheets > Object types <ref_cheatsheet_object_types>`
+  * - :ref:`SDL > Globals <ref_eql_sdl_globals>`
+  * - :ref:`DDL > Globals <ref_eql_ddl_globals>`

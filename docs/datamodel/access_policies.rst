@@ -299,12 +299,10 @@ the author.
     );
   }
 
-.. .. list-table::
-..   :class: seealso
+.. list-table::
+  :class: seealso
 
-..   * - **See also**
-..   * - :ref:`SDL > Object types <ref_eql_sdl_object_types>`
-..   * - :ref:`DDL > Object-level security <ref_eql_ddl_access_policies>`
-..   * - :ref:`Introspection > Object types
-  <ref_eql_introspection_object_types>`
-..   * - :ref:`Cheatsheets > Object types <ref_cheatsheet_object_types>`
+  * - **See also**
+  * - :ref:`SDL > Access policies <ref_eql_sdl_access_policies>`
+  * - :ref:`DDL > Access policies <ref_eql_ddl_access_policies>`
+
