@@ -380,7 +380,8 @@ Durations
 
 EdgeDB's typesystem contains three duration types.
 
-``duration``
+Absolute durations
+^^^^^^^^^^^^^^^^^^
 
 The :eql:type:`duration` type represents *exact* durations that can be
 represented by some fixed number of microseconds. It can be negative and it
@@ -402,7 +403,8 @@ All temporal units beyond ``hour`` no longer correspond to a fixed duration of
 time; the length of a day/month/year/etc changes based on daylight savings
 time, the month in question, leap years, etc.
 
-``cal::relative_duration``
+Relative durations
+^^^^^^^^^^^^^^^^^^
 
 By contrast, the :eql:type:`cal::relative_duration` type represents a
 "calendar" duration, like ``1 month``. Because months have different number of
@@ -426,7 +428,8 @@ To declare relative duration literals:
   db> select <cal::relative_duration>'-7 millennia';
   {<cal::relative_duration>'P-7000Y'}
 
-``cal::date_duration``
+Date durations #New
+^^^^^^^^^^^^^^^^^^^
 
 .. warning::
 

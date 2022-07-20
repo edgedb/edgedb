@@ -829,6 +829,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     Extract a specific element of input duration by name.
 
+    .. warning::
+
+      Only available in EdgeDB 2.0 or later.
+
     There units avaialble for extraction are grouped into 3 categories. The
     largest units category of months or greater:
 
@@ -1278,6 +1282,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     Convert 24-hour chunks into days.
 
+    .. warning::
+
+      Only available in EdgeDB 2.0 or later.
+
     This function converts all 24-hour chunks into day units. The resulting
     :eql:type:`cal::relative_duration` is guaranteed to have less than 24
     hours in total in the units smaler than days.
@@ -1307,6 +1315,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     :index: justify_days
 
     Convert 30-day chunks into months.
+
+    .. warning::
+
+      Only available in EdgeDB 2.0 or later.
 
     This function converts all 30-day chunks into month units. The resulting
     :eql:type:`cal::relative_duration` or :eql:type:`cal::date_duration` is

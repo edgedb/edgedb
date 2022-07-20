@@ -213,13 +213,36 @@ append ``if orphan``.
       }
     }
 
+Client libraries
+================
+
+We've released new versions of our client libraries that support all 2.0
+features and implement the updated protocol (discussed in more detail later).
+
+.. list-table::
+
+  * - :ref:`TypeScript/JS <edgedb-js-intro>`
+    - ``edgedb@0.21.0``
+  * - :ref:`Python <edgedb-python-intro>`
+    - ``edgedb@0.24.0``
+  * - `Golang <https://www.edgedb.com/docs/clients/go/index>`_
+    - ``edgedb@0.11.0``
+  * - `Rust <https://github.com/edgedb/edgedb-rust>`_
+    - ``edgedb-tokio@0.3.0``
+
+There are also community-maintained clients for
+`.NET <https://github.com/quinchs/EdgeDB.Net>`_ and
+`Elixir <https://github.com/nsidnev/edgedb-elixir>`_ that support the 2.0
+protocol.
+
+
 Additional changes
 ==================
 
 EdgeQL
 ------
 
-* Support additional arithmetic operations on local date and time types,
+* Support additional operations on local date and time types,
   including :eql:func:`duration_get`,
   :eql:func:`cal::duration_normalize_hours`, and
   :eql:func:`cal::duration_normalize_days`. Per `RFC 1013 <dates_>`_.
@@ -232,7 +255,7 @@ EdgeQL
   .. code-block::
 
     insert User {
-      id := "5abf67cc-9f9f-4bbc-b009-d117d463a12e",
+      id := <uuid>"5abf67cc-9f9f-4bbc-b009-d117d463a12e",
       email := "jayz@example.com"
     }
 
