@@ -29,8 +29,8 @@ Client Libraries
     :hidden:
 
     connection
-    python/index
     js/index
+    python/index
     go/index
     http/index
 

@@ -25,7 +25,8 @@ Integrated admin UI
 -------------------
 
 All v2 instances ship with a built-in rich admin GUI. Access it by running
-``edgedb ui`` inside any :ref:`EdgeDB project <ref_guide_using_projects>`, or specify a local instance name with ``edgedb ui -I my_inst``. The
+``edgedb ui`` inside any :ref:`EdgeDB project <ref_guide_using_projects>`, or
+specify a local instance name with ``edgedb ui -I my_inst``. The
 command opens the instance's admin UI using the default system browser.
 
 The current iteration of the GUI has
@@ -90,7 +91,9 @@ referenced in your queries and schema.
 
   select User filter .id = global current_user;
 
-Client libraries have been updated to provide method for attaching global variables to a ``Client`` instance; these values are sent along with all queries originating from that ``Client``.
+Client libraries have been updated to provide method for attaching global
+variables to a ``Client`` instance; these values are sent along with all
+queries originating from that ``Client``.
 
 .. tabs::
 
@@ -117,12 +120,14 @@ Client libraries have been updated to provide method for attaching global variab
     """)
 
 
-Globals are primarily intended as an enabling mechanism for object-level security.
+Globals are primarily intended as an enabling mechanism for object-level
+security.
 
 Object-level security
 ---------------------
 
-Object types can now be augmented with object-level access policies. When combined with global variables, access policies can be used to
+Object types can now be augmented with object-level access policies. When
+combined with global variables, access policies can be used to
 push authorization logic into the database.
 
 .. code-block:: sdl
@@ -141,15 +146,17 @@ push authorization logic into the database.
     )
   }
 
-Refer to :ref:`the docs <ref_datamodel_access_policies>` or `RFC 1011 <acls_>`_ for full details.
+Refer to :ref:`the docs <ref_datamodel_access_policies>` or `RFC 1011
+<acls_>`_ for full details.
 
 
 Range types
 -----------
 
-EdgeDB now supports :ref:`range types <ref_std_range>` representing intervals of values.
+EdgeDB now supports :ref:`range types <ref_std_range>` representing intervals
+of values.
 
-.. code-block:: edgeqpl-repl
+.. code-block:: edgeql-repl
 
   db> select range(1, 10);
   {range(1, 10, inc_lower := true, inc_upper := false)}
@@ -159,7 +166,9 @@ EdgeDB now supports :ref:`range types <ref_std_range>` representing intervals of
 The ``cal::date_duration`` type
 -------------------------------
 
-This release also introduces a new datatype :eql:type:`cal::date_duration` to represent a span of *months/days*. It is nearly equivalent to the existing :eql:type:`cal::relative_duration` but cannot represent sub-day durations.
+This release also introduces a new datatype :eql:type:`cal::date_duration` to
+represent a span of *months/days*. It is nearly equivalent to the existing
+:eql:type:`cal::relative_duration` but cannot represent sub-day durations.
 
 This type is primarily intended to simplify :eql:type:`cal::local_date` logic.
 
@@ -189,9 +198,11 @@ Add deletion cascade functionality with ``on source delete``.
     }
   }
 
-Under this policy, deleting a ``User`` will unconditionally delete its ``posts`` as well.
+Under this policy, deleting a ``User`` will unconditionally delete its
+``posts`` as well.
 
-To avoid deleting a ``Post`` that is linked to by other schema entities, append ``if orphan``.
+To avoid deleting a ``Post`` that is linked to by other schema entities,
+append ``if orphan``.
 
 .. code-block:: sdl-diff
 
@@ -208,7 +219,10 @@ Additional changes
 EdgeQL
 ------
 
-* Support additional arithmetic operations on local date and time types, including :eql:func:`duration_get`, :eql:func:`cal::duration_normalize_hours`, and :eql:func:`cal::duration_normalize_days`. Per `RFC 1013 <dates_>`_.
+* Support additional arithmetic operations on local date and time types,
+  including :eql:func:`duration_get`,
+  :eql:func:`cal::duration_normalize_hours`, and
+  :eql:func:`cal::duration_normalize_days`. Per `RFC 1013 <dates_>`_.
 
 
 * Support user-provided values for the ``id`` property when inserting objects

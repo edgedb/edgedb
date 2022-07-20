@@ -473,7 +473,6 @@ class TestDocSnippets(unittest.TestCase):
                 [
                     sys.executable,
                     '-m', 'sphinx',
-                    '-W',
                     '-n',
                     '-b', 'xml',
                     '-q',
