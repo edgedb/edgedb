@@ -1,11 +1,11 @@
 .. _ref_std_datetime:
 
 
-========
-Temporal
-========
+===============
+Dates and Times
+===============
 
-:edb-alt-title: Temporal Types, Functions, and Operators
+:edb-alt-title: Types, Functions, and Operators for Dates and Times
 
 .. list-table::
     :class: funcoptable

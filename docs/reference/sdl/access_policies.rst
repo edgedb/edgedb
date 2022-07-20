@@ -1,4 +1,4 @@
-.. _ref_eql_sdl_acl:
+.. _ref_eql_sdl_access_policies:
 
 ===============
 Access Policies
@@ -39,13 +39,13 @@ Declare a schema where users can only see their own profiles:
             allow all using (.owner = global current_user);
     }
 
-.. _ref_eql_sdl_acl_syntax:
+.. _ref_eql_sdl_access_policies_syntax:
 
 Syntax
 ------
 
 Define a new access policy corresponding to the :ref:`more explicit DDL
-commands <ref_eql_ddl_acl>`.
+commands <ref_eql_ddl_access_policies>`.
 
 .. sdl:synopsis::
 
@@ -157,4 +157,4 @@ The access policy declaration options are as follows:
   :class: seealso
 
   * - **See also**
-  * - :ref:`DDL > Access Policy <ref_eql_ddl_acl>`
+  * - :ref:`DDL > Access Policy <ref_eql_ddl_access_policies>`

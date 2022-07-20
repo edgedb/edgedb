@@ -1,8 +1,8 @@
 .. _ref_std_range:
 
-=====
-Range
-=====
+======
+Ranges
+======
 
 :edb-alt-title: Range Functions and Operators
 

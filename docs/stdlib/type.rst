@@ -1,9 +1,9 @@
 .. _ref_std_type:
 
 
-====
-Type
-====
+=====
+Types
+=====
 
 :edb-alt-title: Type Operators
 

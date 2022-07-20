@@ -1,8 +1,8 @@
 .. _ref_eql_ddl_globals:
 
-================
-Global Variables
-================
+=======
+Globals
+=======
 
 .. note::
 

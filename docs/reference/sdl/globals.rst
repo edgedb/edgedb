@@ -1,8 +1,8 @@
 .. _ref_eql_sdl_globals:
 
-================
-Global Variables
-================
+=======
+Globals
+=======
 
 .. note::
 

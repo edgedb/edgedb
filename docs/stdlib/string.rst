@@ -1,8 +1,8 @@
 .. _ref_std_string:
 
-======
-String
-======
+=======
+Strings
+=======
 
 :edb-alt-title: String Functions and Operators
 
