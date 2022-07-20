@@ -1,8 +1,8 @@
 .. _ref_datamodel_globals:
 
-=======
-Globals
-=======
+============
+Globals #New
+============
 
 .. note::
 

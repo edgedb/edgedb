@@ -2,7 +2,7 @@
 v1
 ==
 
-:edb-alt-title: EdgeDB v1—Nova
+:edb-alt-title: EdgeDB v1 — Nova | Changelog
 
 .. image:: images/v1_nova.jpg
     :width: 100%

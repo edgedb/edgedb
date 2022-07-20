@@ -91,7 +91,7 @@ Output
 
 The ``group`` statement partitions a starting set into subsets based on some
 specified parameters. The output is organized into a set of :ref:`free objects
-<ref_eql_select_free_objects>` of the following structure:
+<ref_eql_free_objects>` of the following structure:
 
 .. eql:synopsis::
 
@@ -103,7 +103,7 @@ specified parameters. The output is organized into a set of :ref:`free objects
 
 :eql:synopsis:`"key"`
     The :eql:synopsis:`"key"` contains another :ref:`free object
-    <ref_eql_select_free_objects>`, which contains all the aliases or field
+    <ref_eql_free_objects>`, which contains all the aliases or field
     names used as the key together with the specific values these parameters
     take for this particular subset.
 

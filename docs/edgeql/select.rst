@@ -9,7 +9,7 @@ Select
 - :ref:`Pagination <ref_eql_select_pagination>`
 - :ref:`Computed fields <ref_eql_select_computeds>`
 - :ref:`Polymorphic queries <ref_eql_select_polymorphic>`
-- :ref:`Free objects <ref_eql_select_free_objects>`
+- :ref:`Free objects <ref_eql_free_objects>`
 - :ref:`With blocks <ref_eql_select_with>`
 
 
@@ -659,7 +659,7 @@ exclusively fetch the ``Movie.characters`` of type ``Hero``.
     ...
   }
 
-.. _ref_eql_select_free_objects:
+.. _ref_eql_free_objects:
 
 Free objects
 ------------

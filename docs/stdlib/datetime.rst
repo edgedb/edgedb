@@ -473,6 +473,11 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     A type representing a span of time in days.
 
+    .. warning::
+
+      This type is only available in EdgeDB 2.0 or later.
+
+
     The ``date_duration`` type is similar to ``relative_duration``, but it
     only uses 2 different units under the hood: months and days. It is the
     result of subtracting one :eql:type:`cal::local_date` from another. The

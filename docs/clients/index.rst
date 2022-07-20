@@ -7,7 +7,7 @@
 Client Libraries
 ================
 
-Clients currently available:
+First-party clients currently available:
 
 * `Python <00_python/index>`_
 * `TypeScript/Javascript <01_js/index>`_
@@ -25,5 +25,8 @@ Other ways to query EdgeDB:
     :hidden:
 
     connection
-    */index
+    python/index
+    js/index
+    go/index
+    http/index
 
