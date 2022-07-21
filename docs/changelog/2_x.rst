@@ -9,11 +9,29 @@ v2
     This document is a work in progress and will keep being updated
     until the `v2 release <https://lu.ma/edgedb>`_ on July 28th 2022.
 
-EdgeDB 2.0 RC1 was released to the "stable" channel on July 14th, 2022.
+EdgeDB 2.0 RC1 was released to the "stable" channel on July 14th, 2022. We
+would like to thank our community for reporting issues and contributing fixes.
+You are awesome! ❤️
 
-We would like to thank our community for reporting issues and
-contributing fixes. You are awesome! ❤️
+To play with the new features, install `the CLI
+<https://www.edgedb.com/install>`_ and initialize a new project. For an
+interesting schema with test data, check out the `MCU Sandbox
+<https://github.com/edgedb/mcu-sandbox>`_ repo.
 
+.. code-block:: bash
+
+  $ edgedb project init
+
+Or to upgrade an existing project:
+
+.. code-block:: bash
+
+  $ edgedb project upgrade --to-latest
+
+
+These ``project`` commands are intended to be used on local development
+instances only. For users running EdgeDB in production, we'll have a more
+comprehensive migration guide out soon.
 
 .. TODO: add illustration once it's ready
 
