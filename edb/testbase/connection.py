@@ -549,7 +549,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
                     if e.reason == 'CERTIFICATE_VERIFY_FAILED':
                         raise con_utils.wrap_error(e) from e
                     tr, pr = await loop.create_connection(
-                        functools.partial(protocol_factory, tls_compat=True),
+                        protocol_factory,
                         *addr,
                     )
                 else:
