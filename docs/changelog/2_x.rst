@@ -52,9 +52,9 @@ upgrade.
     - ``edgedb@0.21.0``
   * - :ref:`Python <edgedb-python-intro>`
     - ``edgedb@0.24.0``
+  * - `Golang <https://www.edgedb.com/docs/clients/go/index>`_
+    - ``edgedb@0.11.0``
 
-.. * - `Golang <https://www.edgedb.com/docs/clients/go/index>`_
-..   - ``edgedb@0.11.0``
 .. * - `Rust <https://github.com/edgedb/edgedb-rust>`_
 ..   - ``edgedb-tokio@0.3.0``
 
@@ -144,7 +144,7 @@ queries originating from that ``Client``.
 
   .. code-tab:: typescript
 
-    import createClient from 'edgedb';
+    import {createClient} from 'edgedb';
 
     const client = createClient().withGlobals({
       current_user: '2141a5b4-5634-4ccc-b835-437863534c51',
@@ -153,6 +153,18 @@ queries originating from that ``Client``.
     await client.query(`select global current_user;`);
 
   .. code-tab:: python
+
+    from edgedb import create_client
+
+    client = create_client().with_globals({
+        'current_user': '580cc652-8ab8-4a20-8db9-4c79a4b1fd81'
+    })
+
+    result = client.query("""
+        select global current_user;
+    """)
+
+  .. code-tab:: go
 
     from edgedb import create_client
 
