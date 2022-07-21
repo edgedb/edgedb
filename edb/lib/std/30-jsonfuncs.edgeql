@@ -19,6 +19,7 @@
 
 ## JSON functions and operators.
 
+CREATE SCALAR TYPE std::JsonSetEmptyTreatment EXTENDING enum<ReturnEmpty, ReturnTarget, RaiseException, UseJsonNull, DeleteKey>;
 
 CREATE FUNCTION
 std::json_typeof(json: std::json) -> std::str
@@ -70,6 +71,42 @@ std::json_get(
     SELECT COALESCE(
         jsonb_extract_path("json", VARIADIC "path"),
         "default"
+    )
+    $$;
+};
+
+CREATE FUNCTION
+std::json_set(
+    target: std::json,
+    path: array<std::str>,
+    new_value: OPTIONAL std::json,
+    NAMED ONLY create_if_missing: std::bool = false,
+    NAMED ONLY empty_treatment: std::JsonSetEmptyTreatment = std::JsonSetEmptyTreatment.ReturnEmpty,
+) -> OPTIONAL std::json
+{
+    CREATE ANNOTATION std::description :=
+        'Update the JSON value at the end of the specified path.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT (
+        CASE
+        WHEN new_value IS NULL AND "empty_treatment" = 'ReturnEmpty' THEN
+            NULL
+        WHEN new_value IS NULL AND "empty_treatment" = 'ReturnTarget' THEN
+            "target"
+        WHEN new_value IS NULL AND "empty_treatment" = 'RaiseException' THEN
+            edgedb.raise(
+                NULL::jsonb,
+                'invalid_parameter_value',
+                msg => 'invalid empty JSON value'
+            )
+        WHEN new_value IS NULL AND "empty_treatment" = 'UseJsonNull' THEN
+            jsonb_set("target", "path", 'null'::jsonb, "create_if_missing")
+        WHEN new_value IS NULL AND "empty_treatment" = 'DeleteKey' THEN
+            "target" #- "path"
+        ELSE
+            jsonb_set("target", "path", "new_value", "create_if_missing")
+        END
     )
     $$;
 };

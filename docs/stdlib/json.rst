@@ -38,6 +38,9 @@ JSON
     * - :eql:func:`json_get`
       - :eql:func-desc:`json_get`
 
+    * - :eql:func:`json_set`
+      - :eql:func-desc:`json_set`
+
     * - :eql:func:`json_array_unpack`
       - :eql:func-desc:`json_array_unpack`
 
@@ -144,7 +147,7 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
     .. code-block:: edgeql-repl
 
         db> select <str>to_json('["a", "b", "c"]');
-        InternalServerError: expected json string, null; got json array
+        InvalidValueError: expected json string or null; got JSON array
 
     Use the :eql:func:`to_json` and :eql:func:`to_str`
     functions to dump or parse a :eql:type:`json` value to or
@@ -349,6 +352,85 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
         ... }'), 'w', '2') ?? <json>'mydefault';
         {'"mydefault"'}
 
+
+----------
+
+
+.. eql:function:: std::json_set( \
+                    target: json, \
+                    path: array<str>, \
+                    new_value: optional json, \
+                    named only create_if_missing: bool = false, \
+                    named only empty_treatment: JsonSetEmptyTreatment = \
+                      JsonSetEmptyTreatment.ReturnEmpty) \
+                  -> optional json
+
+    Returns an updated JSON target with a new value.
+
+    .. code-block:: edgeql-repl
+
+        db> select json_set(
+        ...   to_json('{"a": 10, "b": 20}'),
+        ...   ['a'],
+        ...   <json>true,
+        ... );
+        {'{"a": true, "b": 20}'}
+
+    If ``create_if_missing`` is set to ``true``, a new path for the value will
+    be created.
+
+    .. code-block:: edgeql-repl
+
+        db> select json_set(
+        ...   to_json('{"a": 10, "b": 20}'),
+        ...   ['с'],
+        ...   <json>42,
+        ...   create_if_missing := true,
+        ... );
+        {'{"a": 10, "b": 20, "c": 42}'}
+
+    ``empty_treatment`` is an enumeration responsible for the behavior of the
+    function if an empty set is passed to ``new_value``. It contains one of
+    the following values:
+
+    - ``ReturnEmpty``: return empty set, default
+    - ``ReturnTarget``: return ``target`` unmodified
+    - ``RaiseException``: raise an ``InvalidValueError``
+    - ``UseJsonNull``: use a ``null`` JSON value
+    - ``DeleteKey``: delete the object key
+
+    .. code-block:: edgeql-repl
+
+        db> select json_set(to_json('{"a": 10, "b": 20}'), ['a'], <json>{});
+        {}
+        db> select json_set(
+        ...   to_json('{"a": 10, "b": 20}'),
+        ...   ['с'],
+        ...   <json>{},
+        ...   empty_treatment := JsonSetEmptyTreatment.ReturnTarget,
+        ... );
+        {'{"a": 10, "b": 20}'}
+        db> select json_set(
+        ...   to_json('{"a": 10, "b": 20}'),
+        ...   ['a'],
+        ...   <json>{},
+        ...   empty_treatment := JsonSetEmptyTreatment.RaiseException,
+        ... );
+        InvalidValueError: invalid empty JSON value
+        db> select json_set(
+        ...   to_json('{"a": 10, "b": 20}'),
+        ...   ['a'],
+        ...   <json>{},
+        ...   empty_treatment := JsonSetEmptyTreatment.UseJsonNull,
+        ... );
+        {'{"a": null, "b": 20}'}
+        db> select json_set(
+        ...   to_json('{"a": 10, "b": 20}'),
+        ...   ['a'],
+        ...   <json>{},
+        ...   empty_treatment := JsonSetEmptyTreatment.DeleteKey,
+        ... );
+        {'{"b": 20}'}
 
 ----------
 

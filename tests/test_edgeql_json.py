@@ -1094,6 +1094,112 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ['"42!"']
         )
 
+    async def test_edgeql_json_set_01(self):
+        await self.assert_query_result(
+            r'''
+                WITH JT0 := (SELECT JSONTest FILTER .number = 0)
+                SELECT json_set(JT0.j_object, ['a'], <json>42);
+            ''',
+            [{"a": 42, "b": 2}],
+            ['{"a": 42, "b": 2}'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH JT0 := (SELECT JSONTest FILTER .number = 0)
+                SELECT json_set(
+                    JT0.j_object,
+                    ['c'],
+                    <json>42,
+                    create_if_missing := true,
+                );
+            ''',
+            [{"a": 1, "b": 2, "c": 42}],
+            ['{"a": 1, "b": 2, "c": 42}'],
+        )
+
+        # default empty_treatment
+        await self.assert_query_result(
+            r'''
+                WITH JT0 := (SELECT JSONTest FILTER .number = 0)
+                SELECT json_set(JT0.j_object, ['a'], <json>{});
+            ''',
+            [],
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH JT0 := (SELECT JSONTest FILTER .number = 0)
+                SELECT json_set(
+                    JT0.j_object,
+                    ['a'],
+                    <json>{},
+                    empty_treatment := JsonSetEmptyTreatment.ReturnEmpty,
+                );
+            ''',
+            [],
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH JT0 := (SELECT JSONTest FILTER .number = 0)
+                SELECT json_set(
+                    JT0.j_object,
+                    ['a'],
+                    <json>{},
+                    empty_treatment := JsonSetEmptyTreatment.ReturnTarget,
+                );
+            ''',
+            [{"a": 1, "b": 2}],
+            ['{"a": 1, "b": 2}'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH JT0 := (SELECT JSONTest FILTER .number = 0)
+                SELECT json_set(
+                    JT0.j_object,
+                    ['a'],
+                    <json>{},
+                    empty_treatment := JsonSetEmptyTreatment.UseJsonNull,
+                );
+            ''',
+            [{"a": None, "b": 2}],
+            ['{"a": null, "b": 2}'],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH JT0 := (SELECT JSONTest FILTER .number = 0)
+                SELECT json_set(
+                    JT0.j_object,
+                    ['a'],
+                    <json>{},
+                    empty_treatment := JsonSetEmptyTreatment.DeleteKey,
+                );
+            ''',
+            [{"b": 2}],
+            ['{"b": 2}'],
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"invalid empty JSON value"):
+            await self.con.execute(
+                r'''
+                    WITH JT0 := (SELECT JSONTest FILTER .number = 0)
+                    SELECT json_set(
+                        JT0.j_object,
+                        ['a'],
+                        <json>{},
+                        empty_treatment :=
+                            JsonSetEmptyTreatment.RaiseException,
+                    );
+                ''',
+            )
+
     async def test_edgeql_json_cast_object_to_json_01(self):
         res = await self.con.query("""
             WITH MODULE schema
