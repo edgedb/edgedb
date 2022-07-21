@@ -1,9 +1,9 @@
 .. _ref_std_logical:
 
 
-=======
-Boolean
-=======
+========
+Booleans
+========
 
 :edb-alt-title: Boolean Functions and Operators
 

@@ -1,10 +1,14 @@
 .. _ref_std_range:
 
-=====
-Range
-=====
+===========
+Ranges #New
+===========
 
 :edb-alt-title: Range Functions and Operators
+
+.. warning::
+
+  This type is only available in EdgeDB 2.0 or later.
 
 Ranges represent some interval of values. The intervals can include or exclude
 their boundaries or can even omit one or both boundaries. Only some scalar
@@ -119,7 +123,7 @@ specific range type:
     ... }');
     {range(1, 10, inc_lower := true, inc_upper := false)}
 
-Empty ranges have a shorhand :eql:type:`json` representation:
+Empty ranges have a shorthand :eql:type:`json` representation:
 
 .. code-block:: edgeql-repl
 

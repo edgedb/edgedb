@@ -1,11 +1,11 @@
 .. _ref_std_datetime:
 
 
-========
-Temporal
-========
+===============
+Dates and Times
+===============
 
-:edb-alt-title: Temporal Types, Functions, and Operators
+:edb-alt-title: Types, Functions, and Operators for Dates and Times
 
 .. list-table::
     :class: funcoptable
@@ -317,7 +317,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     Unlike :eql:type:`std::duration` a ``relative_duration`` is not a precise
     measurement because it uses 3 different units under the hood: months, days
     and seconds. However not all months have the same number of days and not
-    all days have the same number of seconds. For example 2019 was a leap year
+    all days have the same number of seconds. For example 2020 was a leap year
     and had 366 days. Notice how the number of hours in each year below is
     different.
 
@@ -472,6 +472,11 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 .. eql:type:: cal::date_duration
 
     A type representing a span of time in days.
+
+    .. warning::
+
+      This type is only available in EdgeDB 2.0 or later.
+
 
     The ``date_duration`` type is similar to ``relative_duration``, but it
     only uses 2 different units under the hood: months and days. It is the
@@ -823,6 +828,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
                                     el: str) -> float64
 
     Extract a specific element of input duration by name.
+
+    .. warning::
+
+      Only available in EdgeDB 2.0 or later.
 
     There units avaialble for extraction are grouped into 3 categories. The
     largest units category of months or greater:
@@ -1273,6 +1282,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     Convert 24-hour chunks into days.
 
+    .. warning::
+
+      Only available in EdgeDB 2.0 or later.
+
     This function converts all 24-hour chunks into day units. The resulting
     :eql:type:`cal::relative_duration` is guaranteed to have less than 24
     hours in total in the units smaler than days.
@@ -1302,6 +1315,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     :index: justify_days
 
     Convert 30-day chunks into months.
+
+    .. warning::
+
+      Only available in EdgeDB 2.0 or later.
 
     This function converts all 30-day chunks into month units. The resulting
     :eql:type:`cal::relative_duration` or :eql:type:`cal::date_duration` is

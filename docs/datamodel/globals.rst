@@ -1,8 +1,8 @@
 .. _ref_datamodel_globals:
 
-=======
-Globals
-=======
+============
+Globals #New
+============
 
 .. note::
 
@@ -144,7 +144,7 @@ Unlike query parameters, globals can be referenced
   };
 
 This is particularly useful when declaring :ref:`access policies
-<ref_datamodel_ols>`.
+<ref_datamodel_access_policies>`.
 
 .. code-block::
 
@@ -153,15 +153,12 @@ This is particularly useful when declaring :ref:`access policies
     access policy my_policy allow all using (.id = global current_user_id);
   }
 
-Refer to :ref:`Access Policies <ref_datamodel_ols>` for complete
+Refer to :ref:`Access Policies <ref_datamodel_access_policies>` for complete
 documentation.
-
 
 .. list-table::
   :class: seealso
 
   * - **See also**
-  * - :ref:`SDL > Object types <ref_eql_sdl_object_types>`
-  * - :ref:`DDL > Object types <ref_eql_ddl_object_types>`
-  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`
-  * - :ref:`Cheatsheets > Object types <ref_cheatsheet_object_types>`
+  * - :ref:`SDL > Globals <ref_eql_sdl_globals>`
+  * - :ref:`DDL > Globals <ref_eql_ddl_globals>`

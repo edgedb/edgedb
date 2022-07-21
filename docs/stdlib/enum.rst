@@ -1,8 +1,8 @@
 .. _ref_std_enum:
 
-====
-Enum
-====
+=====
+Enums
+=====
 
 :edb-alt-title: Enum Type
 

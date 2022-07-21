@@ -108,8 +108,12 @@ details, see :ref:`EdgeQL > Literals > Tuples <ref_eql_literal_tuple>`.
 
 .. _ref_datamodel_ranges:
 
-Ranges
-^^^^^^
+Ranges #New
+^^^^^^^^^^^
+
+.. warning::
+
+  Only available in EdgeDB 2.0 or later.
 
 Ranges represent some interval of values. The intervals can be bounded or
 unbounded on either end. They can also be empty, containing no values. Only

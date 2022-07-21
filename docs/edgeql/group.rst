@@ -1,7 +1,7 @@
 .. _ref_eql_group:
 
-Group
-=====
+Group #New
+==========
 
 .. note::
 
