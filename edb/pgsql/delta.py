@@ -2142,9 +2142,7 @@ class AlterConstraint(
             ):
                 op = self.enforce_constraint(
                     constraint, schema, context, self.source_context)
-                self.schedule_post_inhview_update_command(
-                    schema, context, op,
-                    s_objtypes.ObjectTypeCommandContext,)
+                self.pgops.add(op)
 
             self.pgops.add(self.fixup_base_constraint_triggers(
                 constraint, orig_schema, schema, context, self.source_context,
