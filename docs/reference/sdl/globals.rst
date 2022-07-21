@@ -1,8 +1,8 @@
 .. _ref_eql_sdl_globals:
 
-================
-Global Variables
-================
+=======
+Globals
+=======
 
 .. note::
 
@@ -147,4 +147,5 @@ The valid SDL sub-declarations are listed below:
   :class: seealso
 
   * - **See also**
-  * - :ref:`SDL > Globals <ref_eql_ddl_globals>`
+  * - :ref:`Schema > Globals <ref_datamodel_globals>`
+  * - :ref:`DDL > Globals <ref_eql_ddl_globals>`

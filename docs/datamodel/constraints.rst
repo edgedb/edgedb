@@ -81,8 +81,8 @@ constraint logic must reference multiple links or properties.
 .. _ref_datamodel_constraints_partial:
 
 
-Partial constraints
--------------------
+Partial constraints #New
+------------------------
 
 Constraints on object types can be made partial, so that they don't apply
 when some condition holds.

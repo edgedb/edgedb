@@ -7,14 +7,19 @@
 Client Libraries
 ================
 
-Clients currently available:
+**Official Client Libraries**
 
-* `Python <00_python/index>`_
-* `TypeScript/Javascript <01_js/index>`_
-* `Go <02_go/index>`_
+* `Python <python/index>`_
+* `TypeScript/Javascript <js/index>`_
+* `Go <go/index>`_
 
 
-Other ways to query EdgeDB:
+**Community-Maintained Clients**
+
+* `.NET <https://github.com/quinchs/EdgeDB.Net>`_
+* `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
+
+**HTTP Protocols**
 
 * :ref:`EdgeQL over HTTP <ref_edgeql_http>`
 * :ref:`GraphQL over HTTP <ref_graphql_protocol>`
@@ -25,5 +30,8 @@ Other ways to query EdgeDB:
     :hidden:
 
     connection
-    */index
+    js/index
+    python/index
+    go/index
+    http/index
 

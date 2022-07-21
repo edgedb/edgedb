@@ -1,8 +1,8 @@
 .. _ref_eql_ddl_globals:
 
-================
-Global Variables
-================
+=======
+Globals
+=======
 
 .. note::
 
@@ -234,4 +234,6 @@ Remove the ``current_user`` global variable:
   :class: seealso
 
   * - **See also**
+  * - :ref:`Schema > Globals <ref_datamodel_globals>`
   * - :ref:`SDL > Globals <ref_eql_sdl_globals>`
+

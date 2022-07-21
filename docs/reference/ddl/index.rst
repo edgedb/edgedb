@@ -17,7 +17,7 @@ DDL
     constraints
     annotations
     globals
-    access_policy
+    access_policies
     functions
     extensions
     migrations

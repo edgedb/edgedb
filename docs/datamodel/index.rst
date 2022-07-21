@@ -24,7 +24,7 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     aliases
     annotations
     globals
-    ols
+    access_policies
     functions
     inheritance
     extensions
