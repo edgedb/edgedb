@@ -25,6 +25,7 @@ from edb.testbase import server as tb
 
 class TestDatabase(tb.ConnectedTestCase):
     TRANSACTION_ISOLATION = False
+    PARALLELISM_GRANULARITY = 'suite'
 
     async def test_database_create_01(self):
         if not self.has_create_database:
