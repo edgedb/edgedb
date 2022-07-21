@@ -1,12 +1,12 @@
-.. _ref_datamodel_ols:
+.. _ref_datamodel_access_policies:
 
-===============
-Access Policies
-===============
+====================
+Access Policies #New
+====================
 
-.. note::
+.. warning::
 
-  ⚠️ Only available in EdgeDB 2.0 or later.
+  This type is only available in EdgeDB 2.0 or later.
 
 Object types can contain security policies that restrict the set of objects
 that can be selected, inserted, updated, or deleted by a particular query.
@@ -299,12 +299,10 @@ the author.
     );
   }
 
-.. .. list-table::
-..   :class: seealso
+.. list-table::
+  :class: seealso
 
-..   * - **See also**
-..   * - :ref:`SDL > Object types <ref_eql_sdl_object_types>`
-..   * - :ref:`DDL > Object-level security <ref_eql_ddl_acl>`
-..   * - :ref:`Introspection > Object types
-  <ref_eql_introspection_object_types>`
-..   * - :ref:`Cheatsheets > Object types <ref_cheatsheet_object_types>`
+  * - **See also**
+  * - :ref:`SDL > Access policies <ref_eql_sdl_access_policies>`
+  * - :ref:`DDL > Access policies <ref_eql_ddl_access_policies>`
+

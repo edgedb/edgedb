@@ -2,7 +2,7 @@
 v1
 ==
 
-:edb-alt-title: EdgeDB v1—Nova
+:edb-alt-title: EdgeDB v1 (Nova)
 
 .. image:: images/v1_nova.jpg
     :width: 100%
@@ -18,7 +18,7 @@ contributing fixes. You are awesome! ❤️
 1.4
 ===
 
-* Avoid unnecessary updates to parent views and triggers (:eql:gh:`#3771``)
+* Avoid unnecessary updates to parent views and triggers (:eql:gh:`#3771`)
 
 * Drop broken special case for nested insert ``FOR`` (:eql:gh:`#3797`)
 

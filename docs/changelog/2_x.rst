@@ -2,12 +2,12 @@
 v2
 ==
 
-:edb-alt-title: EdgeDB v2—Sagittarius
+:edb-alt-title: EdgeDB v2 (Sagittarius)
 
 .. warning::
 
     This document is a work in progress and will keep being updated
-    until the v2 release on July 28th 2022.
+    until the `v2 release <https://lu.ma/edgedb>`_ on July 28th 2022.
 
 EdgeDB 2.0 RC1 was released to the "stable" channel on July 14th, 2022.
 
@@ -18,31 +18,35 @@ contributing fixes. You are awesome! ❤️
 .. TODO: add illustration once it's ready
 
 
-Release Highlights
-==================
+New features
+============
 
-Integrated GUI
---------------
+Integrated admin UI
+-------------------
 
-EdgeDB v2 ships with a built-in rich graphical user inteface that can be
-accessed by typing the ``edgedb ui`` command in your terminal. The command
-opens the UI for the current project (or manually specified) instance
-in the default system browser.
+All v2 instances ship with a built-in rich admin GUI. Access it by running
+``edgedb ui`` inside any :ref:`EdgeDB project <ref_guide_using_projects>`, or
+specify a local instance name with ``edgedb ui -I my_inst``. The
+command opens the instance's admin UI using the default system browser.
 
-The current iteration of the GUI has a REPL, a schema introspection and
-visualization pane, as well as a comprehensive data browser and editor.
+The current iteration of the GUI has
+
+- a data browser and editor
+- a REPL for writing and executing EdgeQL queries
+- a schema introspection tool with text-based and graphical visualizations of
+  the instance's current schema
 
 .. image:: images/v2_ui.jpg
     :width: 100%
 
 
-GROUP BY
---------
+Analytical queries with ``GROUP``
+---------------------------------
 
-The new :ref:`GROUP BY <ref_eql_group>` expression can be used to partition
-and aggregate data.  The output of ``GROUP BY`` are free objects that contain
-the aggregated elements, as well as additional information such as the
-grouping key and and fields:
+The new :ref:`GROUP <ref_eql_group>` expression can be used to partition
+and aggregate data. The output of ``GROUP`` are :ref:`free objects
+<ref_eql_select_free_objects>` representing each group, including the
+grouping, the grouping *key*, and the set of elements.
 
 .. code-block:: edgeql-repl
 
@@ -52,72 +56,215 @@ grouping key and and fields:
       key: {release_year: 2017},
       grouping: {'release_year'},
       elements: {
-  default::Movie {title: 'Guardians of the Galaxy Vol. 2'},
-  default::Movie {title: 'Spider-Man: Homecoming'},
-  default::Movie {title: 'Thor: Ragnarok'},
+        default::Movie {title: 'Guardians of the Galaxy Vol. 2'},
+        default::Movie {title: 'Spider-Man: Homecoming'},
+        default::Movie {title: 'Thor: Ragnarok'},
       },
     },
     {
       key: {release_year: 2013},
       grouping: {'release_year'},
       elements: {
-  default::Movie {title: 'Iron Man 3'},
-  default::Movie {title: 'Thor: The Dark World'},
+        default::Movie {title: 'Iron Man 3'},
+        default::Movie {title: 'Thor: The Dark World'},
       },
     },
     ...
   }
 
-Read more about ``GROUP BY`` in the `RFC 1009 <group_>`_. Browse the
-:ref:`relevant documentation <ref_eql_group>` for more details and examples.
+Browse the :ref:`docs <ref_eql_group>` for more details and examples, or refer
+to the original `RFC 1009 <group_>`_.
 
 
-Global variables and access policies
-------------------------------------
+Global variables
+----------------
 
-.. TODO:  add doc links
+Your schema can now contain :ref:`global variables <ref_datamodel_globals>`.
+These are contextual variables that are provided by the client and can be
+referenced in your queries and schema.
 
-* Introduce global variables (`RFC 1010 <globals_>`_).
-  Globals may be set with a ``SET GLOBAL`` command or via language
-  bindings.
+.. code-block:: sdl
 
-* Support access policies on object types (`RFC 1011 <acls_>`_).
-  When combined with global variables, access policies can be used to
-  push authorization logic into the database.
+  global current_user -> uuid;
+
+.. code-block:: edgeql
+
+  select User filter .id = global current_user;
+
+Client libraries have been updated to provide method for attaching global
+variables to a ``Client`` instance; these values are sent along with all
+queries originating from that ``Client``.
+
+.. tabs::
+
+  .. code-tab:: typescript
+
+    import createClient from 'edgedb';
+
+    const client = createClient().withGlobals({
+      current_user: '2141a5b4-5634-4ccc-b835-437863534c51',
+    });
+
+    await client.query(`select global current_user;`);
+
+  .. code-tab:: python
+
+    from edgedb import create_client
+
+    client = create_client().with_globals({
+        'current_user': '580cc652-8ab8-4a20-8db9-4c79a4b1fd81'
+    })
+
+    result = client.query("""
+        select global current_user;
+    """)
 
 
-Other changes
--------------
+Globals are primarily intended as an enabling mechanism for object-level
+security.
+
+Object-level security
+---------------------
+
+Object types can now be augmented with object-level access policies. When
+combined with global variables, access policies can be used to
+push authorization logic into the database.
+
+.. code-block:: sdl
+
+  global current_user -> uuid;
+
+  type User {
+    required property email -> str { constraint exclusive; };
+  }
+
+  type BlogPost {
+    required property title -> str;
+    link author -> User;
+    access policy own_posts allow all using (
+      .author.id ?= global current_user
+    )
+  }
+
+Refer to :ref:`the docs <ref_datamodel_access_policies>` or `RFC 1011
+<acls_>`_ for full details.
+
+
+Range types
+-----------
+
+EdgeDB now supports :ref:`range types <ref_std_range>` representing intervals
+of values.
+
+.. code-block:: edgeql-repl
+
+  db> select range(1, 10);
+  {range(1, 10, inc_lower := true, inc_upper := false)}
+  db> select range_unpack(range(1, 10))
+  {1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+The ``cal::date_duration`` type
+-------------------------------
+
+This release also introduces a new datatype :eql:type:`cal::date_duration` to
+represent a span of *months/days*. It is nearly equivalent to the existing
+:eql:type:`cal::relative_duration` but cannot represent sub-day durations.
+
+This type is primarily intended to simplify :eql:type:`cal::local_date` logic.
+
+.. code-block::
+
+  db> select <cal::local_date>'2022-06-25' +
+  ...   <cal::date_duration>'5 days';
+  {<cal::local_date>'2022-06-30'}
+  db> select <cal::local_date>'2022-06-30' -
+  ...   <cal::local_date>'2022-06-25';
+  {<cal::date_duration>'P5D'}
+
+Source deletion policies
+------------------------
+
+Add deletion cascade functionality with ``on source delete``.
+
+.. code-block:: sdl
+
+  type BlogPost {
+    property title -> str;
+  }
+
+  type Person {
+    multi link posts -> BlogPost {
+      on source delete delete target;
+    }
+  }
+
+Under this policy, deleting a ``User`` will unconditionally delete its
+``posts`` as well.
+
+To avoid deleting a ``Post`` that is linked to by other schema entities,
+append ``if orphan``.
+
+.. code-block:: sdl-diff
+
+    type Person {
+      multi link posts -> BlogPost {
+  -     on source delete delete target;
+  +     on source delete delete target if orphan;
+      }
+    }
+
+Client libraries
+================
+
+We've released new versions of our client libraries that support all 2.0
+features and implement the updated protocol (discussed in more detail later).
+
+.. list-table::
+
+  * - :ref:`TypeScript/JS <edgedb-js-intro>`
+    - ``edgedb@0.21.0``
+  * - :ref:`Python <edgedb-python-intro>`
+    - ``edgedb@0.24.0``
+  * - `Golang <https://www.edgedb.com/docs/clients/go/index>`_
+    - ``edgedb@0.11.0``
+  * - `Rust <https://github.com/edgedb/edgedb-rust>`_
+    - ``edgedb-tokio@0.3.0``
+
+There are also community-maintained clients for
+`.NET <https://github.com/quinchs/EdgeDB.Net>`_ and
+`Elixir <https://github.com/nsidnev/edgedb-elixir>`_ that support the 2.0
+protocol.
+
+
+Additional changes
+==================
 
 EdgeQL
-^^^^^^
+------
 
-* Add "range types" representing *intervals* of values
-  (`RFC 1012 <range_>`_).
+* Support additional operations on local date and time types,
+  including :eql:func:`duration_get`,
+  :eql:func:`cal::duration_normalize_hours`, and
+  :eql:func:`cal::duration_normalize_days`. Per `RFC 1013 <dates_>`_.
 
-  .. TODO: EXAMPLE; add a link to docs
 
-* Support many more arithmetic operations on local date and time types
-  (`RFC 1013 <dates_>`_).
-
-  .. TODO: add a link to docs
-
-* Add ``ON SOURCE DELETE DELETE TARGET`` and
-  ``ON SOURCE DELETE DELETE TARGET IF ORPHAN`` to implement cascading
-  deletion.
-
-  .. TODO: EXAMPLE, docs
-
-* Support specifying ``id`` explicitly when inserting objects
+* Support user-provided values for the ``id`` property when inserting objects
   (:eql:gh:`#3895`). This can be useful when migrating data from
   an existing database.
+
+  .. code-block::
+
+    insert User {
+      id := <uuid>"5abf67cc-9f9f-4bbc-b009-d117d463a12e",
+      email := "jayz@example.com"
+    }
 
 * Support partial constraints and indexes (:eql:gh:`#3949`,
   :ref:`docs <ref_datamodel_constraints_partial>`).
 
 
 Server
-^^^^^^
+------
 
 * Support socket activation to reduce memory footprint on developer
   machines (:eql:gh:`#3899`).
@@ -128,8 +275,8 @@ Server
 * Support using JWT to authenticate to local instances (:eql:gh:`#3991`).
 
 
-Bug Fixes
-^^^^^^^^^
+Bug fixes
+---------
 
 * Generate unique ``id`` fields for each free shape object,
   and don't use an actual in-database object to represent it,
@@ -138,16 +285,16 @@ Bug Fixes
 
 * Fail if local Postgres cluster fails to start.
 
-* add ``cfg::memory`` to base types descriptor IDs table (:eql:gh:`#3882`).
+* Add ``cfg::memory`` to base types descriptor IDs table (:eql:gh:`#3882`).
 
 * Fix a cross-type exclusive constraint bug that could allow exclusive
   constraints to be violated in some complex type hierarchies
   (:eql:gh:`#3887`).
 
-* Fix issue wehre server might attempt to acquire one more connection
+* Fix issue where server might attempt to acquire one more connection
   than it is configured to permit (:eql:gh:`#3901`).
 
-* Fix use of assert_exists on properties that are being directly output
+* Fix use of ``assert_exists`` on properties that are being directly output
   (:eql:gh:`#3911`).
 
 * Fix a scope leakage that could cause a link referenced inside a computable
@@ -158,14 +305,15 @@ Bug Fixes
   operators where we could return incorrect values or produce spurious
   errors, especially on very large values (:eql:gh:`#3909`).
 
-* Make annotations a valid annotation subject (:eql:gh:`#3929`).
+* Allow adding annotations to ``abstract annotation`` definitions
+  (:eql:gh:`#3929`).
 
 * Expose ``body`` and ``language`` fields on ``schema::Function``
   (:eql:gh:`#3944`).
 
-* Make indexes extend from ``schema::InheritingObject`` (:eql:gh:`#3942`)
+* Make indexes extend from ``schema::InheritingObject`` (:eql:gh:`#3942`).
 
-* Fix some miscompilations of nested shapes inside calls to functions
+* Fix some mis-compilations of nested shapes inside calls to functions
   like ``assert_single`` (:eql:gh:`#3927`).
 
 * Fix ``SET TYPE`` on properties with default values (:eql:gh:`#3954`).
@@ -173,17 +321,17 @@ Bug Fixes
 * Fix ``describe``/``populate``/``describe`` sequence (:eql:gh:`#3959`).
 
 * Upgrade many casts and functions from "Stable" to "Immutable"
-  (:eql:gh:`#3975`)
+  (:eql:gh:`#3975`).
 
-* Fix linkprops in type filtered shape links (:eql:gh:`#3987`).
+* Fix link properties in type filtered shape links (:eql:gh:`#3987`).
 
 * Allow DML statements in free shapes (:eql:gh:`#4002`).
 
 * Allow customizing assertion messages in ``assert_exists`` and friends
   (:eql:gh:`#4019`).
 
-Protocol Overhaul
-^^^^^^^^^^^^^^^^^
+Protocol overhaul
+-----------------
 
 * A new version of the protocol---version 1.0---has been introduced.
   It eliminates all server state associated with connections that

@@ -1,4 +1,4 @@
-.. _ref_eql_ddl_acl:
+.. _ref_eql_ddl_access_policies:
 
 ===============
 Access Policies
@@ -15,7 +15,7 @@ Create access policy
 
 :eql-statement:
 
-:ref:`Declare <ref_eql_sdl_acl>` a new object access policy.
+:ref:`Declare <ref_eql_sdl_access_policies>` a new object access policy.
 
 .. eql:synopsis::
 
@@ -47,7 +47,7 @@ Parameters
 ----------
 
 Most sub-commands and options of this command are identical to the
-:ref:`SDL access policy declaration <ref_eql_sdl_acl_syntax>`.
+:ref:`SDL access policy declaration <ref_eql_sdl_access_policies_syntax>`.
 
 :eql:synopsis:`<name>`
     The name of the access policy.
@@ -131,7 +131,7 @@ Alter access policy
 
 :eql-statement:
 
-:ref:`Declare <ref_eql_sdl_acl>` a new object access policy.
+:ref:`Declare <ref_eql_sdl_access_policies>` a new object access policy.
 
 .. eql:synopsis::
 
@@ -213,4 +213,5 @@ removes the specified access policy from a given object type.
   :class: seealso
 
   * - **See also**
-  * - :ref:`SDL > Access Policy <ref_eql_sdl_acl>`
+  * - :ref:`Schema > Access policies <ref_datamodel_access_policies>`
+  * - :ref:`SDL > Access policies <ref_eql_sdl_access_policies>`

@@ -32,7 +32,7 @@ link in the left column to jump to the associated section.
       ``cal::local_time`` ``cal::relative_duration``
 
   * - :ref:`Durations <ref_eql_literal_durations>`
-    - ``duration`` ``cal::relative_duration``
+    - ``duration`` ``cal::relative_duration`` ``cal::date_duration``
 
   * - :ref:`Bytes <ref_eql_literal_bytes>`
     - ``bytes``
@@ -366,7 +366,7 @@ EdgeQL supports a set of functions and operators on datetime types.
     - :eql:func:`datetime_get` :eql:func:`cal::time_get`
       :eql:func:`cal::date_get`
   * - Truncation
-    - :eql:func:`duration_truncate`
+    - :eql:func:`datetime_truncate`
   * - System timestamps
     - :eql:func:`datetime_current` :eql:func:`datetime_of_transaction`
       :eql:func:`datetime_of_statement`
@@ -377,9 +377,20 @@ EdgeQL supports a set of functions and operators on datetime types.
 Durations
 ---------
 
+EdgeDB's typesystem contains three duration types.
 
-EdgeDB's typesystem contains two duration types.
 
+.. list-table::
+
+  * - :eql:type:`duration`
+    - Exact duration
+  * - :eql:type:`cal::relative_duration`
+    - Duration in relative units
+  * - :eql:type:`cal::date_duration`
+    - Duration in months and days only
+
+Exact durations
+^^^^^^^^^^^^^^^
 
 The :eql:type:`duration` type represents *exact* durations that can be
 represented by some fixed number of microseconds. It can be negative and it
@@ -398,8 +409,11 @@ and ``hours``.
   {<duration>'8760:00:00'}
 
 All temporal units beyond ``hour`` no longer correspond to a fixed duration of
-time; the length of a day/month/year/etc. changes based on daylight savings
+time; the length of a day/month/year/etc changes based on daylight savings
 time, the month in question, leap years, etc.
+
+Relative durations
+^^^^^^^^^^^^^^^^^^
 
 By contrast, the :eql:type:`cal::relative_duration` type represents a
 "calendar" duration, like ``1 month``. Because months have different number of
@@ -423,6 +437,25 @@ To declare relative duration literals:
   db> select <cal::relative_duration>'-7 millennia';
   {<cal::relative_duration>'P-7000Y'}
 
+Date durations #New
+^^^^^^^^^^^^^^^^^^^
+
+.. warning::
+
+  This type is only available in EdgeDB 2.0 or later.
+
+The :eql:type:`cal::date_duration` represents spans consisting of some number
+of *months* and *days*. This type is primarily intended to simplify logic
+involving :eql:type:`cal::local_date` values.
+
+.. code-block:: edgeql-repl
+
+  db> select <cal::date_duration>'5 days';
+  {<cal::date_duration>'P5D'}
+  db> select <cal::local_date>'2022-06-25' + <cal::date_duration>'5 days';
+  {<cal::local_date>'2022-06-30'}
+  db> select <cal::local_date>'2022-06-30' - <cal::local_date>'2022-06-25';
+  {<cal::date_duration>'P5D'}
 
 EdgeQL supports a set of functions and operators on duration types.
 
@@ -436,8 +469,59 @@ EdgeQL supports a set of functions and operators on duration types.
     - :eql:op:`dt + dt <dtplus>` :eql:op:`dt - dt <dtminus>`
   * - Duration string parsing
     - :eql:func:`to_duration` :eql:func:`cal::to_relative_duration`
-  * - Truncation
-    - :eql:func:`duration_truncate`
+      :eql:func:`cal::to_date_duration`
+  * - Component extraction
+    - :eql:func:`duration_get`
+  * - Conversion
+    - :eql:func:`duration_truncate` :eql:func:`cal::duration_normalize_hours`
+      :eql:func:`cal::duration_normalize_days`
+
+
+.. _ref_eql_ranges:
+
+Ranges #New
+^^^^^^^^^^^
+
+.. warning::
+
+  This type is only available in EdgeDB 2.0 or later.
+
+Ranges represent a range of orderable scalar values. A range comprises a lower
+bound, upper bound, and two boolean flags indicating whether each bound is
+inclusive.
+
+Create a range literal with the ``range`` constructor function.
+
+.. code-block:: edgeql-repl
+
+    db> select range(1, 10);
+    {range(1, 10, inc_lower := true, inc_upper := false)}
+    db> select range(2.2, 3.3);
+    {range(2.2, 3.3, inc_lower := true, inc_upper := false)}
+
+Ranges can be *empty* or *unbounded*. An empty set is used to indicate the
+lack of a paricular bound.
+
+.. code-block:: edgeql-repl
+
+    db> select range(1, 1);
+    {range({}, empty := true)}
+    db> select range(4, <int64>{});
+    {range(4, {})}
+    db> select range(<int64>{}, 4);
+    {range({}, 4)}
+    db> select range(<int64>{}, <int64>{});
+    {range({}, {})}
+
+To compute the set of concrete values defined by a range literal, use
+``range_unpack``.
+
+.. code-block:: edgeql-repl
+
+    db> select range_unpack(range(0, 10));
+    {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+    db> select range_unpack(range(0, <int64>{}));
+    edgedb error: InvalidValueError: cannot unpack an unbounded range
 
 
 .. _ref_eql_literal_bytes:

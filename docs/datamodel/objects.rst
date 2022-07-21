@@ -105,7 +105,7 @@ of the same type and cardinality.
 
   Refer to the dedicated pages on :ref:`Indexes <ref_datamodel_indexes>`,
   :ref:`Constraints <ref_datamodel_constraints>`, :ref:`Object-Level Security
-  <ref_datamodel_ols>`, and :ref:`Annotations
+  <ref_datamodel_access_policies>`, and :ref:`Annotations
   <ref_datamodel_annotations>` for documentation on these concepts.
 
 .. list-table::

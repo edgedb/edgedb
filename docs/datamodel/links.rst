@@ -150,8 +150,31 @@ Due to how they're persisted under the hood, link properties must always be
 Deletion policies
 -----------------
 
-Links can declare their own **deletion policy**. When the target of a link is
-deleted, there are 4 possible *actions* that can be taken:
+Links can declare their own **deletion policy**. There are two kinds of events
+that might trigger these policies: *target deletion* and *source deletion*.
+
+Target deletion
+^^^^^^^^^^^^^^^
+
+Target deletion policies determine what action should be taken when the
+*target* of a given link is deleted. They are declared with the ``on target
+delete`` clause.
+
+.. code-block:: sdl
+
+  type MessageThread {
+    property title -> str;
+  }
+
+  type Message {
+    property content -> str;
+    link chat -> MessageThread {
+      on target delete delete source;
+    }
+  }
+
+The ``Message.chat`` link in the example uses the ``delete source`` policy.
+There are 4 available target deletion policies.
 
 - ``restrict`` (default) - Any attempt to delete the target object immediately
   raises an exception.
@@ -170,21 +193,45 @@ deleted, there are 4 possible *actions* that can be taken:
   raises an exception at the end of the transaction, unless by
   that time this object is no longer in the set of link targets.
 
-To set a policy:
+Source deletion #New
+^^^^^^^^^^^^^^^^^^^^
+
+.. warning::
+
+  Only available in EdgeDB 2.0 or later.
+
+Source deletion policies determine what action should be taken when the
+*source* of a given link is deleted. They are declared with the ``on source
+delete`` clause.
 
 .. code-block:: sdl
 
   type MessageThread {
-    property name -> str;
-  }
-
-  type Message {
-    link chat -> MessageThread {
-      on target delete delete source;
+    property title -> str;
+    multi link messages -> Message {
+      on source delete delete target;
     }
   }
 
+  type Message {
+    property content -> str;
+  }
 
+Under this policy, deleting a ``MessageThread`` will *unconditionally* delete
+its ``messages`` as well.
+
+To avoid deleting a ``Message`` that is linked to by other schema entities,
+append ``if orphan``.
+
+.. code-block:: sdl-diff
+
+    type MessageThread {
+      property title -> str;
+      multi link messages -> Message {
+  -     on source delete delete target;
+  +     on source delete delete target if orphan;
+      }
+    }
 
 Polymorphic links
 -----------------

@@ -81,6 +81,6 @@ to the previous migration:
     constraints
     annotations
     globals
-    access_policy
+    access_policies
     functions
     extensions
