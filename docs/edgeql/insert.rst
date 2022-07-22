@@ -3,16 +3,6 @@
 Insert
 ======
 
-
-- :ref:`Basic usage <ref_eql_insert_basic>`
-- :ref:`Inserting links <ref_eql_insert_links>`
-- :ref:`Nested inserts <ref_eql_insert_nested>`
-- :ref:`With block <ref_eql_insert_with>`
-- :ref:`Conflicts <ref_eql_insert_conflicts>`
-- :ref:`Bulk inserts <ref_eql_insert_bulk>`
-
-
-
 The ``insert`` command is used to create instances of object types. The code
 samples on this page assume the following schema:
 
