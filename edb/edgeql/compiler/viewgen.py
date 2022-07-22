@@ -1078,6 +1078,14 @@ def _normalize_view_ptr_expr(
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.Unknown)
 
+    # Prohibit update of readonly
+    if exprtype.is_update() and ptrcls.get_readonly(ctx.env.schema):
+        raise errors.QueryError(
+            f'cannot update {ptrcls.get_verbosename(ctx.env.schema)}: '
+            f'it is declared as read-only',
+            context=compexpr and compexpr.context,
+        )
+
     # Prohibit invalid operations on id and __type__
     ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
     id_access = (
@@ -1103,13 +1111,6 @@ def _normalize_view_ptr_expr(
             hint = None
 
         raise errors.QueryError(msg, context=shape_el.context, hint=hint)
-
-    if exprtype.is_update() and ptrcls.get_readonly(ctx.env.schema):
-        raise errors.QueryError(
-            f'cannot update {ptrcls.get_verbosename(ctx.env.schema)}: '
-            f'it is declared as read-only',
-            context=compexpr and compexpr.context,
-        )
 
     return ptrcls, irexpr
 
