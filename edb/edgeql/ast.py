@@ -1181,6 +1181,7 @@ class AccessPolicyCommand(ObjectDDL):
 
 
 class CreateAccessPolicy(CreateObject, AccessPolicyCommand):
+    # condition is the deprecated and largely removed 'when'
     condition: typing.Optional[Expr]
     action: qltypes.AccessPolicyAction
     access_kinds: typing.List[qltypes.AccessKind]

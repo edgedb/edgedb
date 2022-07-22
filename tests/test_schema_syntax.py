@@ -1742,7 +1742,6 @@ annotation test::foo;
         module test {
             type Foo {
                 access policy test
-                when (true)
                 deny all
                 using (true) {
                    annotation title := 'foo';
@@ -1757,7 +1756,6 @@ annotation test::foo;
         module test {
             type Foo {
                 access policy test
-                when (true)
                 deny all
                 using (true);
                 property x -> str;

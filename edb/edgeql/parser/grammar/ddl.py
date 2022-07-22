@@ -1820,23 +1820,6 @@ class AccessUsingStmt(Nonterm):
         )
 
 
-class AccessWhenStmt(Nonterm):
-
-    def reduce_WHEN_ParenExpr(self, *kids):
-        self.val = qlast.SetField(
-            name='condition',
-            value=kids[1].val,
-            special_syntax=True,
-        )
-
-    def reduce_RESET_WHEN(self, *kids):
-        self.val = qlast.SetField(
-            name='condition',
-            value=None,
-            special_syntax=True,
-        )
-
-
 commands_block(
     'AlterAccessPolicy',
     CreateAnnotationValueStmt,
@@ -1845,7 +1828,6 @@ commands_block(
     RenameStmt,
     AccessPermStmt,
     AccessUsingStmt,
-    AccessWhenStmt,
     opt=False
 )
 

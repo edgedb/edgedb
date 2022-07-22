@@ -946,17 +946,16 @@ class AccessPolicyDeclarationBlock(Nonterm):
     def reduce_CreateAccessPolicy(self, *kids):
         """%reduce
             ACCESS POLICY ShortNodeName
-            OptWhenBlock AccessPolicyAction AccessKindList
+            AccessPolicyAction AccessKindList
             OptUsingBlock
             CreateAccessPolicySDLCommandsBlock
         """
         self.val = qlast.CreateAccessPolicy(
             name=kids[2].val,
-            condition=kids[3].val,
-            action=kids[4].val,
-            access_kinds=[y for x in kids[5].val for y in x],
-            expr=kids[6].val,
-            commands=kids[7].val,
+            action=kids[3].val,
+            access_kinds=[y for x in kids[4].val for y in x],
+            expr=kids[5].val,
+            commands=kids[6].val,
         )
 
 
@@ -964,15 +963,14 @@ class AccessPolicyDeclarationShort(Nonterm):
     def reduce_CreateAccessPolicy(self, *kids):
         """%reduce
             ACCESS POLICY ShortNodeName
-            OptWhenBlock AccessPolicyAction AccessKindList
+            AccessPolicyAction AccessKindList
             OptUsingBlock
         """
         self.val = qlast.CreateAccessPolicy(
             name=kids[2].val,
-            condition=kids[3].val,
-            action=kids[4].val,
-            access_kinds=[y for x in kids[5].val for y in x],
-            expr=kids[6].val,
+            action=kids[3].val,
+            access_kinds=[y for x in kids[4].val for y in x],
+            expr=kids[5].val,
         )
 
 

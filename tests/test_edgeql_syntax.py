@@ -5555,7 +5555,6 @@ aa';
         """
         create type Foo {
             alter access policy test {
-                when (false);
                 allow all;
                 using (true);
             };
@@ -5566,7 +5565,6 @@ aa';
         """
         create type Foo {
             alter access policy test {
-                reset when;
                 allow all;
                 using (true);
             };

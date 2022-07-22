@@ -97,8 +97,6 @@ def get_rewrite_filter(
             expr = expr_field.qlast
         else:
             expr = qlast.BooleanConstant(value='true')
-        if condition := pol.get_condition(schema):
-            expr = qlast.BinOp(op='AND', left=condition.qlast, right=expr)
 
         if is_allow:
             allow.append(expr)

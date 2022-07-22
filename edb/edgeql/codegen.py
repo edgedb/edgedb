@@ -1192,14 +1192,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.write(' (')
                     self.visit(node.value)
                     self.write(')')
-            elif node.name == 'condition':
-                if node.value is None:
-                    self._write_keywords('RESET', 'WHEN')
-                else:
-                    self._write_keywords('WHEN')
-                    self.write(' (')
-                    self.visit(node.value)
-                    self.write(')')
             elif node.name == 'target':
                 if node.value is None:
                     self._write_keywords('RESET', 'TYPE')

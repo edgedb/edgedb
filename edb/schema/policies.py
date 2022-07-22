@@ -51,14 +51,6 @@ class AccessPolicy(
     data_safe=True,
 ):
 
-    condition = so.SchemaField(
-        s_expr.Expression,
-        default=None,
-        coerce=True,
-        compcoef=0.909,
-        special_ddl_syntax=True,
-    )
-
     expr = so.SchemaField(
         s_expr.Expression,
         default=None,
@@ -106,8 +98,6 @@ class AccessPolicy(
 
     def get_expr_refs(self, schema: s_schema.Schema) -> List[so.Object]:
         objs: List[so.Object] = []
-        if (condition := self.get_condition(schema)) and condition.refs:
-            objs.extend(condition.refs.objects(schema))
         if (expr := self.get_expr(schema)) and expr.refs:
             objs.extend(expr.refs.objects(schema))
         return objs
@@ -143,11 +133,11 @@ class AccessPolicyCommand(
         source = parent_ctx.op.scls
         pol_name = self.get_verbosename(parent=source.get_verbosename(schema))
 
-        for field in ('expr', 'condition'):
+        for field in ('expr',):
             if (expr := self.get_local_attribute_value(field)) is None:
                 continue
 
-            vname = 'when' if field == 'condition' else 'using'
+            vname = 'using'
 
             expression = self.compile_expr_field(
                 schema, context,
@@ -185,7 +175,7 @@ class AccessPolicyCommand(
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
-        if field.name in {'expr', 'condition'}:
+        if field.name == 'expr':
             parent_ctx = self.get_referrer_context_or_die(context)
             source = parent_ctx.op.get_object(schema, context)
             parent_vname = source.get_verbosename(schema)
@@ -219,7 +209,7 @@ class AccessPolicyCommand(
         field: so.Field[Any],
         value: Any,
     ) -> Optional[s_expr.Expression]:
-        if field.name in {'expr', 'condition'}:
+        if field.name == 'expr':
             return s_expr.Expression(text='false')
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
@@ -372,7 +362,7 @@ class CreateAccessPolicy(
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
         if (
-            field in ('expr', 'condition', 'action', 'access_kinds')
+            field in ('expr', 'action', 'access_kinds')
             and issubclass(astnode, qlast.CreateAccessPolicy)
         ):
             return field
@@ -391,24 +381,28 @@ class CreateAccessPolicy(
         assert isinstance(astnode, qlast.CreateAccessPolicy)
         assert isinstance(cmd, AccessPolicyCommand)
 
-        if astnode.condition is not None:
-            cmd.set_attribute_value(
-                'condition',
-                s_expr.Expression.from_ast(
-                    astnode.condition, schema, context.modaliases,
-                    context.localnames,
-                ),
-                source_context=astnode.condition.context,
-            )
+        expr = astnode.expr
 
-        if astnode.expr:
+        if astnode.condition is not None:
+            condition = s_expr.Expression.from_ast(
+                astnode.condition, schema, context.modaliases,
+                context.localnames,
+            )
+            if expr:
+                expr = qlast.BinOp(
+                    op='AND', left=condition.qlast, right=expr,
+                    context=expr.context)
+            else:
+                expr = condition.qlast
+
+        if expr:
             cmd.set_attribute_value(
                 'expr',
                 s_expr.Expression.from_ast(
-                    astnode.expr, schema, context.modaliases,
+                    expr, schema, context.modaliases,
                     context.localnames,
                 ),
-                source_context=astnode.expr.context,
+                source_context=expr.context,
             )
 
         cmd.set_attribute_value('action', astnode.action)

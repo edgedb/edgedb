@@ -5578,8 +5578,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 create required property name -> str;
                 create access policy all_on allow all using (true);
                 create access policy filtering
-                    when (global filtering)
-                    deny select, delete using (.name ?!= global cur);
+                    deny select, delete using (
+                        global filtering and (.name ?!= global cur)
+                    );
             };
             create type Bot extending User;
         """)
@@ -5587,7 +5588,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.assert_query_result(
             '''
                 select schema::AccessPolicy {
-                    name, condition, expr, action, access_kinds,
+                    name,  expr, action, access_kinds,
                     sname := .subject.name, root := not exists .bases }
                 filter .sname like 'default::%'
             ''',
@@ -5598,7 +5599,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         "Insert"
                     },
                     "action": "Allow",
-                    "condition": None,
                     "expr": "true",
                     "name": "all_on",
                     "sname": "default::User",
@@ -5607,8 +5607,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 {
                     "access_kinds": {"Select", "Delete"},
                     "action": "Deny",
-                    "condition": "global default::filtering",
-                    "expr": "(.name ?!= global default::cur)",
+                    "expr": (
+                        "(global default::filtering AND "
+                        "(.name ?!= global default::cur))"
+                    ),
                     "name": "filtering",
                     "sname": "default::User",
                     "root": True,
@@ -5619,7 +5621,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                         "Insert"
                     },
                     "action": "Allow",
-                    "condition": None,
                     "expr": "true",
                     "name": "all_on",
                     "sname": "default::Bot",
@@ -5628,8 +5629,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 {
                     "access_kinds": {"Select", "Delete"},
                     "action": "Deny",
-                    "condition": "global default::filtering",
-                    "expr": "(.name ?!= global default::cur)",
+                    "expr": (
+                        "(global default::filtering AND "
+                        "(.name ?!= global default::cur))"
+                    ),
                     "name": "filtering",
                     "sname": "default::Bot",
                     "root": False,
@@ -5640,7 +5643,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(r"""
             alter type User {
                 alter access policy filtering {
-                    reset when;
                     deny select;
                     using (false);
                 }
@@ -5650,7 +5652,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.assert_query_result(
             '''
                 select schema::AccessPolicy {
-                    name, condition, expr, action, access_kinds,
+                    name, expr, action, access_kinds,
                     sname := .subject.name, root := not exists .bases }
                 filter .sname = 'default::User' and .name = 'filtering'
             ''',
@@ -5658,7 +5660,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 {
                     "access_kinds": {"Select"},
                     "action": "Deny",
-                    "condition": None,
                     "expr": "false",
                     "name": "filtering",
                     "sname": "default::User",
@@ -5676,18 +5677,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''')
 
     async def test_edgeql_ddl_policies_02(self):
-        async with self.assertRaisesRegexTx(
-            edgedb.SchemaDefinitionError,
-            r"when expression.* is of invalid type",
-        ):
-            await self.con.execute("""
-                create type X {
-                    create access policy test
-                        when (1)
-                        allow all using (true);
-                };
-            """)
-
         async with self.assertRaisesRegexTx(
             edgedb.SchemaDefinitionError,
             r"using expression.* is of invalid type",
@@ -5762,6 +5751,26 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER TYPE Foo ALTER LINK tgt ALTER property foo
                   SET default := "!!!";
             """)
+
+    async def test_edgeql_ddl_policies_05(self):
+        # Test that the backwards compatibility WHEN gets merged into expr
+        await self.con.execute(r"""
+            create type Foo {
+                create access policy nonsense
+                    when (1 = 1)
+                    allow all using (2 = 2)
+            };
+        """)
+
+        await self.assert_query_result(
+            '''
+                select schema::AccessPolicy {expr}
+                filter .name = 'nonsense'
+            ''',
+            [{
+                "expr": "((1 = 1) AND (2 = 2))",
+            }]
+        )
 
     # A big collection of tests to make sure that functions get
     # updated when access policies change

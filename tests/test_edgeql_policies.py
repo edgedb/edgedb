@@ -50,19 +50,20 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
 
             alter type Owned {
                 create access policy disable_filter
-                  when (not global filter_owned)
-                  allow select;
+                  allow select using (not global filter_owned);
 
                 create access policy cur_owner
-                  when (global cur_owner_active)
-                  allow all using (.owner.name ?= global cur_user);
+                  allow all using (
+                      (global cur_owner_active)
+                      and .owner.name ?= global cur_user
+                  );
             };
 
             alter type Issue {
                 create access policy cur_watchers
-                  when (global watchers_active)
                   allow select using (
-                      (global cur_user IN __subject__.watchers.name) ?? false
+                      global watchers_active and
+                      ((global cur_user IN __subject__.watchers.name) ?? false)
                   )
             };
 
