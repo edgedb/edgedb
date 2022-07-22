@@ -299,6 +299,13 @@ def compile_dml_policy(
 
         subctx.anchors[qlast.Subject().name] = result
         subctx.partial_path_prefix = result
+
+        # Make sure an explicit object reference also routes to the
+        # right set
+        subctx.path_scope = subctx.env.path_scope.root.attach_fence()
+        subctx.path_scope.attach_path(result.path_id, context=None)
+        setgen.update_view_map(result.path_id, result, ctx=subctx)
+
         return irast.PolicyExpr(
             expr=dispatch.compile(condition, ctx=subctx)
         )
