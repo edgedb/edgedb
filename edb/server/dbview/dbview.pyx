@@ -1027,6 +1027,7 @@ cdef class DatabaseConnectionView:
                     self._protocol_version,
                     query_req.inline_objectids,
                     query_req.input_format is compiler.InputFormat.JSON,
+                    self.in_tx_error(),
                 )
             else:
                 result = await compiler_pool.compile(

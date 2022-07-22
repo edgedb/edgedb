@@ -105,6 +105,7 @@ class CompileContext:
     expected_cardinality_one: bool
     protocol_version: Tuple[int, int]
     skip_first: bool = False
+    expect_rollback: bool = False
     json_parameters: bool = False
     schema_reflection_mode: bool = False
     implicit_limit: int = 0
@@ -996,6 +997,17 @@ class Compiler:
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema(self._std_schema)
 
+        if ctx.expect_rollback and not isinstance(ql, qlast.AbortMigration):
+            # Only allow ABORT MIGRATION to pass when expecting a rollback
+            if current_tx.get_migration_state() is None:
+                raise errors.TransactionError(
+                    'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
+                )
+            else:
+                raise errors.TransactionError(
+                    'expected a ROLLBACK or ABORT MIGRATION command'
+                )
+
         if isinstance(ql, qlast.CreateMigration):
             self._assert_not_in_migration_block(ctx, ql)
 
@@ -1422,6 +1434,13 @@ class Compiler:
         sp_name = None
         sp_id = None
 
+        if ctx.expect_rollback and not isinstance(
+            ql, (qlast.RollbackTransaction, qlast.RollbackToSavepoint)
+        ):
+            raise errors.TransactionError(
+                'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
+            )
+
         if isinstance(ql, qlast.StartTransaction):
             self._assert_not_in_migration_block(ctx, ql)
 
@@ -1760,6 +1779,13 @@ class Compiler:
         is_script = statements_len > 1
         script_info = None
         if is_script:
+            if ctx.expect_rollback:
+                # We are in a failed transaction expecting a rollback, while a
+                # script cannot be a rollback
+                raise errors.TransactionError(
+                    'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
+                )
+
             script_info = qlcompiler.preprocess_script(
                 statements,
                 schema=ctx.state.current_tx().get_schema(self._std_schema),
@@ -2196,6 +2222,7 @@ class Compiler:
         protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
         json_parameters: bool = False,
+        expect_rollback: bool = False,
     ) -> Tuple[dbstate.QueryUnitGroup, dbstate.CompilerConnectionState]:
         state.sync_tx(txid)
 
@@ -2211,6 +2238,7 @@ class Compiler:
             source=source,
             protocol_version=protocol_version,
             json_parameters=json_parameters,
+            expect_rollback=expect_rollback,
         )
 
         return self._compile(ctx=ctx, source=source), ctx.state

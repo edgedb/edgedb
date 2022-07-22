@@ -11081,11 +11081,15 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
                 }
             };
         """)
+        await self.con.execute('POPULATE MIGRATION')
 
         with self.assertRaises(edgedb.EdgeQLSyntaxError):
             await self.con.execute(r"""
                 ALTER TYPE Foo;
             """)
+
+        with self.assertRaises(edgedb.TransactionError):
+            await self.con.execute("COMMIT MIGRATION")
 
         await self.con.execute("ABORT MIGRATION")
 
