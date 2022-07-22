@@ -182,44 +182,6 @@ the others.
 - ``all``: A shorthand policy that can be used to allow or deny full read/
   write permissions. Exactly equivalent to ``select, insert, update, delete``.
 
-The ``when`` clause
-^^^^^^^^^^^^^^^^^^^
-
-For readability, access policies can include a ``when`` clause.
-
-.. code-block:: sdl
-
-  type BlogPost {
-    required property title -> str;
-    link author -> User;
-    access policy own_posts
-      when ( .title[0] = "A" )
-      allow all
-      using ( .author.id ?= global current_user )
-  }
-
-Conceptually, you can think of the ``when`` clause as defining the *set of
-objects* to which the policy applies while the ``using`` clause represents the
-*access check* (likely referencing a global). Logically, the ``when`` and
-``using`` expressions are combined with ``and`` together to determine the
-scope of the policy.
-
-In practice, any policy can be expressed with just ``when``, just ``using``,
-or split across the two; this syntax is intended to enhance readability and
-maintainability. We can re-write the policy above without the ``when`` clause.
-
-.. code-block:: sdl-diff
-
-    type BlogPost {
-      required property title -> str;
-      link author -> User;
-      access policy own_posts
-  -     when ( .title[0] = "A" )
-        allow all
-  -     using( .author.id ?= global current_user)
-  +     using( .author.id ?= global current_user and .title[0] = "A" )
-    }
-
 Resolution order
 ^^^^^^^^^^^^^^^^
 
@@ -305,4 +267,3 @@ the author.
   * - **See also**
   * - :ref:`SDL > Access policies <ref_eql_sdl_access_policies>`
   * - :ref:`DDL > Access policies <ref_eql_ddl_access_policies>`
-
