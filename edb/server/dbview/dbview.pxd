@@ -158,6 +158,7 @@ cdef class DatabaseConnectionView:
     cdef _invalidate_local_cache(self)
     cdef _reset_tx_state(self)
 
+    cdef clear_tx_error(self)
     cdef rollback_tx_to_savepoint(self, name)
     cdef declare_savepoint(self, name, spid)
     cdef recover_aliases_and_config(self, modaliases, config, globals)
