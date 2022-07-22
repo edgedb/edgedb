@@ -86,7 +86,7 @@ client library you're using; refer to the :ref:`Global Variables
 
 Now let's break down the access policy syntax piece-by-piece.
 
-.. code-block::
+.. code-block:: sdl
 
   access policy own_posts allow all using (
     .author.id ?= global current_user
@@ -278,7 +278,7 @@ Blog posts are visible to friends but only modifiable by the author.
 Blog posts are publicly visible except to users that have been ``blocked`` by
 the author.
 
-.. code-block::
+.. code-block:: sdl
 
   type User {
     required property email -> str { constraint exclusive; };

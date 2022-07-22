@@ -231,7 +231,7 @@ format:
     if the current migration is fully defined, i.e. the recorded statements
     bring the schema to the state specified by :eql:stmt:`start migration`.
 
-:eql:synopsis:`as jaon`
+:eql:synopsis:`as json`
     Provide a machine-readable description of the migration using the following
     JSON format:
 
