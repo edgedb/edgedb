@@ -1106,7 +1106,7 @@ def _normalize_view_ptr_expr(
         else:
             msg = f'cannot assign to {ptrcls_sn.name}'
         if id_access and not ctx.env.options.allow_user_specified_id:
-            hint = 'config setting allow_user_specified_id must be enabled'
+            hint = 'consider enabling the "allow_user_specified_id" configuration parameter to allow setting custom object ids'
         else:
             hint = None
 
