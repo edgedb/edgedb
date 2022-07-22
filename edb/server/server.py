@@ -668,6 +668,23 @@ class Server(ha_base.ClusterProtocol):
             schema_class_layout=self._schema_class_layout,
         )
 
+    async def _acquire_intro_pgcon(self, dbname):
+        try:
+            conn = await self.acquire_pgcon(dbname)
+        except pgcon_errors.BackendError as e:
+            if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
+                # database does not exist (anymore)
+                logger.warning(
+                    "Detected concurrently-dropped database %s; skipping.",
+                    dbname,
+                )
+                if self._dbindex is not None and self._dbindex.has_db(dbname):
+                    self._dbindex.unregister_db(dbname)
+                return None
+            else:
+                raise
+        return conn
+
     async def introspect_db(self, dbname):
         """Use this method to (re-)introspect a DB.
 
@@ -685,20 +702,9 @@ class Server(ha_base.ClusterProtocol):
         """
         logger.info("introspecting database '%s'", dbname)
 
-        try:
-            conn = await self.acquire_pgcon(dbname)
-        except pgcon_errors.BackendError as e:
-            if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
-                # database does not exist (anymore)
-                logger.warning(
-                    "Detected concurrently-dropped database %s; skipping.",
-                    dbname,
-                )
-                if self._dbindex is not None and self._dbindex.has_db(dbname):
-                    self._dbindex.unregister_db(dbname)
-                return
-            else:
-                raise
+        conn = await self._acquire_intro_pgcon(dbname)
+        if not conn:
+            return
 
         try:
             user_schema = await self.introspect_user_schema(conn)
@@ -754,6 +760,41 @@ class Server(ha_base.ClusterProtocol):
         result = await conn.sql_fetch_val(self.get_sys_query('dbconfig'))
         return config.from_json(config.get_settings(), result)
 
+    async def _early_introspect_db(self, dbname):
+        """We need to always introspect the extensions for each database.
+
+        Otherwise we won't know to accept connections for graphql or
+        http, for example, until a native connection is made.
+        """
+        logger.info("introspecting extensions for database '%s'", dbname)
+
+        conn = await self._acquire_intro_pgcon(dbname)
+        if not conn:
+            return
+
+        try:
+            extension_names_json = await conn.sql_fetch_val(
+                b'''
+                    SELECT json_agg(name) FROM edgedb."_SchemaExtension";
+                ''',
+            )
+            if extension_names_json:
+                extensions = set(json.loads(extension_names_json))
+            else:
+                extensions = set()
+
+            assert self._dbindex is not None
+            self._dbindex.register_db(
+                dbname,
+                user_schema=None,
+                db_config=None,
+                reflection_cache=None,
+                backend_ids=None,
+                extensions=extensions,
+            )
+        finally:
+            self.release_pgcon(dbname, conn)
+
     async def _introspect_dbs(self):
         syscon = await self._acquire_sys_pgcon()
         try:
@@ -763,14 +804,12 @@ class Server(ha_base.ClusterProtocol):
         finally:
             self._release_sys_pgcon()
 
-        for dbname in dbnames:
-            self._dbindex.register_db(
-                dbname,
-                user_schema=None,
-                db_config=None,
-                reflection_cache=None,
-                backend_ids=None,
-            )
+        async with taskgroup.TaskGroup(name='introspect DB extensions') as g:
+            for dbname in dbnames:
+                # There's a risk of the DB being dropped by another server
+                # between us building the list of databases and loading
+                # information about them.
+                g.create_task(self._early_introspect_db(dbname))
 
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()
@@ -1790,7 +1829,7 @@ class Server(ha_base.ClusterProtocol):
                 name=db.name,
                 dbver=db.dbver,
                 config=serialize_config(db.db_config),
-                extensions=list(db.extensions.keys()),
+                extensions=sorted(db.extensions),
                 query_cache_size=db.get_query_cache_size(),
                 connections=[
                     dict(
