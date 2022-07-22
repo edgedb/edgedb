@@ -696,14 +696,9 @@ class Pointer(referencing.ReferencedInheritingObject,
     def is_link_property(self, schema: s_schema.Schema) -> bool:
         raise NotImplementedError
 
-    def is_protected_pointer(
-        self, exprtype: s_types.ExprType, schema: s_schema.Schema
-    ) -> bool:
+    def is_protected_pointer(self, schema: s_schema.Schema) -> bool:
         sn = self.get_shortname(schema).name
-        return (
-            sn == '__type__'
-            or (sn == 'id' and not exprtype.is_mutation())
-        )
+        return sn == '__type__'
 
     def is_dumpable(self, schema: s_schema.Schema) -> bool:
         return (
