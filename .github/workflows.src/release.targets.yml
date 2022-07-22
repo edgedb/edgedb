@@ -1,45 +1,90 @@
 targets:
     linux:
-        - name: debian-stretch
+        - name: debian-stretch-x86_64
           platform: debian
           platform_version: stretch
           family: debian
-        - name: debian-buster
+        - name: debian-stretch-aarch64
+          platform: debian
+          platform_version: stretch
+          family: debian
+          runs_on: [self-hosted, linux, arm64]
+        - name: debian-buster-x86_64
           platform: debian
           platform_version: buster
           family: debian
-        - name: debian-bullseye
+        - name: debian-buster-aarch64
+          platform: debian
+          platform_version: buster
+          family: debian
+          runs_on: [self-hosted, linux, arm64]
+        - name: debian-bullseye-x86_64
           platform: debian
           platform_version: bullseye
           family: debian
-        - name: ubuntu-xenial
+        - name: debian-bullseye-aarch64
+          platform: debian
+          platform_version: bullseye
+          family: debian
+          runs_on: [self-hosted, linux, arm64]
+        - name: ubuntu-xenial-x86_64
           platform: ubuntu
           platform_version: xenial
           family: debian
-        - name: ubuntu-bionic
+        - name: ubuntu-xenial-aarch64
+          platform: ubuntu
+          platform_version: xenial
+          family: debian
+          runs_on: [self-hosted, linux, arm64]
+        - name: ubuntu-bionic-x86_64
           platform: ubuntu
           platform_version: bionic
           family: debian
-        - name: ubuntu-focal
+        - name: ubuntu-bionic-aarch64
+          platform: ubuntu
+          platform_version: bionic
+          family: debian
+          runs_on: [self-hosted, linux, arm64]
+        - name: ubuntu-focal-x86_64
           platform: ubuntu
           platform_version: focal
           family: debian
-        - name: ubuntu-jammy
+        - name: ubuntu-focal-aarch64
+          platform: ubuntu
+          platform_version: focal
+          family: debian
+          runs_on: [self-hosted, linux, arm64]
+        - name: ubuntu-jammy-x86_64
           platform: ubuntu
           platform_version: jammy
           family: debian
-        - name: centos-7
+        - name: ubuntu-jammy-aarch64
+          platform: ubuntu
+          platform_version: jammy
+          family: debian
+          runs_on: [self-hosted, linux, arm64]
+        - name: centos-7-x86_64
           platform: centos
           platform_version: 7
           family: redhat
-        - name: centos-8
+        - name: centos-8-x86_64
           platform: centos
           platform_version: 8
           family: redhat
+        - name: centos-8-aarch64
+          platform: centos
+          platform_version: 8
+          family: redhat
+          runs_on: [self-hosted, linux, arm64]
         - name: linux-x86_64
           platform: linux
           platform_version: x86_64
           family: generic
+        - name: linux-aarch64
+          platform: linux
+          platform_version: aarch64
+          family: generic
+          runs_on: [self-hosted, linux, arm64]
 
     macos:
         - name: macos-x86_64
