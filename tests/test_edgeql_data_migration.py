@@ -11081,11 +11081,15 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
                 }
             };
         """)
+        await self.con.execute('POPULATE MIGRATION')
 
         with self.assertRaises(edgedb.EdgeQLSyntaxError):
             await self.con.execute(r"""
                 ALTER TYPE Foo;
             """)
+
+        with self.assertRaises(edgedb.TransactionError):
+            await self.con.execute("COMMIT MIGRATION")
 
         await self.con.execute("ABORT MIGRATION")
 
@@ -11101,3 +11105,67 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
                 };
                 POPULATE MIGRATION;
             """)
+
+    async def test_edgeql_migration_recovery_in_tx(self):
+        await self.con.execute("START TRANSACTION")
+        try:
+            await self.con.execute("CREATE TYPE Bar")
+            await self.con.execute(r"""
+                START MIGRATION TO {
+                    module test {
+                        type Foo;
+                    }
+                };
+            """)
+
+            with self.assertRaises(edgedb.EdgeQLSyntaxError):
+                await self.con.execute(r"""
+                    ALTER TYPE Foo;
+                """)
+
+            await self.con.execute("ABORT MIGRATION")
+
+            self.assertEqual(await self.con.query("SELECT Bar"), [])
+        finally:
+            await self.con.execute("ROLLBACK")
+
+    async def test_edgeql_migration_recovery_in_script(self):
+        await self.migrate("""
+            type Base;
+        """)
+        await self.con.execute("""
+            SET MODULE test;
+
+            INSERT Base;
+        """)
+        res = await self.con.query(r"""
+            CREATE TYPE Bar;
+            START MIGRATION TO {
+                module test {
+                    type Base {
+                        required property name -> str;
+                    }
+                }
+            };
+            POPULATE MIGRATION;
+            ABORT MIGRATION;
+            SELECT Bar;
+        """)
+        self.assertEqual(res, [])
+
+    async def test_edgeql_migration_recovery_commit_fail(self):
+        con2 = await self.connect(database=self.con.dbname)
+        try:
+            await con2.execute('START MIGRATION TO {}')
+            await con2.execute('POPULATE MIGRATION')
+
+            await self.migrate("type Base;")
+
+            with self.assertRaises(edgedb.TransactionError):
+                await con2.execute("COMMIT MIGRATION")
+
+            await con2.execute("ROLLBACK")
+
+            self.assertEqual(await con2.query_single("SELECT 1"), 1)
+        finally:
+            await con2.aclose()

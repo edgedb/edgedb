@@ -1042,7 +1042,11 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         query_unit = compiled.query_unit_group[0]
         _dbview = self.get_dbview()
-        if not (query_unit.tx_savepoint_rollback or query_unit.tx_rollback):
+        if not (
+            query_unit.tx_savepoint_rollback or
+            query_unit.tx_rollback or
+            query_unit.tx_abort_migration
+        ):
             _dbview.raise_in_tx_error()
 
         conn = await self.get_pgcon()
@@ -1050,7 +1054,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             if query_unit.sql:
                 await conn.sql_execute(query_unit.sql)
 
-            if query_unit.tx_savepoint_rollback:
+            if query_unit.tx_abort_migration:
+                _dbview.clear_tx_error()
+            elif query_unit.tx_savepoint_rollback:
                 _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
             else:
                 assert query_unit.tx_rollback
@@ -1255,6 +1261,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if (
             _dbview.in_tx_error()
             or query_unit_group[0].tx_savepoint_rollback
+            or query_unit_group[0].tx_abort_migration
         ):
             assert len(query_unit_group) == 1
             await self._execute_rollback(compiled)
