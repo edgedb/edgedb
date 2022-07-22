@@ -43,7 +43,7 @@ Client libraries
 
 We've released new versions of our JavaScript and Python client libraries that
 support all 2.0 features and implement the updated protocol. These versions
-are backwards compatible with v1.x instance, so we encourage all users to
+are backwards compatible with v1.x instances, so we encourage all users to
 upgrade.
 
 .. list-table::
@@ -166,15 +166,40 @@ queries originating from that ``Client``.
 
   .. code-tab:: go
 
-    from edgedb import create_client
+    package main
 
-    client = create_client().with_globals({
-        'current_user': '580cc652-8ab8-4a20-8db9-4c79a4b1fd81'
-    })
+    import (
+      "context"
+      "fmt"
+      "log"
 
-    result = client.query("""
-        select global current_user;
-    """)
+      "github.com/edgedb/edgedb-go"
+    )
+
+    func main() {
+      ctx := context.Background()
+      client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+      if err != nil {
+        log.Fatal(err)
+      }
+      defer client.Close()
+
+      id, err := edgedb.ParseUUID("2141a5b4-5634-4ccc-b835-437863534c51")
+      if err != nil {
+        log.Fatal(err)
+      }
+
+      var result edgedb.UUID
+      err = client.
+        WithGlobals(map[string]interface{}{"current_user": id}).
+        QuerySingle(ctx, "SELECT global current_user;", &result)
+      if err != nil {
+        log.Fatal(err)
+      }
+
+      fmt.Println(result)
+    }
+
 
 
 Globals are primarily intended as an enabling mechanism for object-level
