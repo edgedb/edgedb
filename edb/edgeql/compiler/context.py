@@ -77,7 +77,6 @@ class ViewRPtr:
     base_ptrcls: Optional[s_pointers.Pointer] = None
     ptrcls_is_linkprop: bool = False
     ptrcls_is_alias: bool = False
-    rptr: Optional[irast.Pointer] = None
     exprtype: s_types.ExprType = s_types.ExprType.Select
     rptr_dir: Optional[s_pointers.PointerDirection] = None
 

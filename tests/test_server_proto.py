@@ -1992,6 +1992,19 @@ class TestServerProto(tb.QueryTestCase):
             finally:
                 await con2.aclose()
 
+    async def test_server_proto_tx_22(self):
+        await self.con.query('START TRANSACTION')
+        try:
+            with self.assertRaises(edgedb.DivisionByZeroError):
+                await self.con.execute('SELECT 1/0')
+            # The commit
+            with self.assertRaises(edgedb.TransactionError):
+                await self.con.query('COMMIT')
+        finally:
+            await self.con.query('ROLLBACK')
+
+        self.assertEqual(await self.con.query_single('SELECT 42'), 42)
+
 
 class TestServerProtoMigration(tb.QueryTestCase):
 
