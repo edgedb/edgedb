@@ -510,3 +510,65 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             await self.con.query('''
                 update CurOnlyM set { name := "!" }
             ''')
+
+    async def test_edgeql_policies_scope_01(self):
+        await self.con.execute('''
+            create type Foo {
+                create required property val -> int64;
+            };
+        ''')
+
+        await self.con.execute('''
+            insert Foo { val := 0 }
+        ''')
+
+        await self.con.execute('''
+            alter type Foo {
+                create access policy pol allow all using(Foo.val > 5);
+            };
+        ''')
+
+        await self.con.execute('''
+            insert Foo { val := 10 }
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation"):
+            await self.con.query('''
+                 insert Foo { val := 1 }
+            ''')
+
+        await self.assert_query_result(
+            '''
+                select Foo { val }
+            ''',
+            [{'val': 10}],
+        )
+
+        await self.assert_query_result(
+            '''
+                update Foo filter .val = 10 set { val := 11 }
+            ''',
+            [{}],
+        )
+        await self.assert_query_result(
+            '''
+                update Foo filter .val = 0 set { val := 11 }
+            ''',
+            [],
+        )
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation"):
+            await self.con.execute('''
+                update Foo filter .val = 11 set { val := 2 }
+            ''')
+
+        await self.assert_query_result(
+            '''
+                delete Foo
+            ''',
+            [{}],
+        )

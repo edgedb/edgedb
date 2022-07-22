@@ -303,8 +303,8 @@ class AccessPolicyCommand(
 
             item_vn = e.item.get_verbosename(schema, with_parent=True)
             # Recursion involving more than one schema object.
-            rec_vn = e.path[-1].get_verbosename(
-                schema, with_parent=True)
+            el = e.path[-1] if e.path else e.item
+            rec_vn = el.get_verbosename(schema, with_parent=True)
             # Sort for output determinism
             vn1, vn2 = sorted([rec_vn, item_vn])
             msg = (
