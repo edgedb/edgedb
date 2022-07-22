@@ -25,13 +25,14 @@ jobs:
       id: whichver
 
 <% for tgt in targets.linux %>
+<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   build-<< tgt.name >>:
-    runs-on: ubuntu-latest
+    runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
     needs: prep
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.platform >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/<< plat_id >>@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
@@ -49,9 +50,10 @@ jobs:
     - uses: actions/upload-artifact@v2
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
+        path: artifacts/<< plat_id >>
 <% endfor %>
 <% for tgt in targets.macos %>
+<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
     needs: prep
@@ -91,31 +93,33 @@ jobs:
     - uses: actions/upload-artifact@v2
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
+        path: artifacts/<< plat_id >>
 <% endfor %>
 <% for tgt in targets.linux %>
+<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   test-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
-    runs-on: ubuntu-latest
+    runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
 
     steps:
     - uses: actions/download-artifact@v2
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
+        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/<< tgt.name >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/test/<< plat_id >>@master
       env:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: << 0 if tgt.runs_on and 'self-hosted' in tgt.runs_on else 1 >>
 
 <% endfor %>
 <% for tgt in targets.macos %>
+<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   test-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
@@ -130,7 +134,7 @@ jobs:
     - uses: actions/download-artifact@v2
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
+        path: artifacts/<< plat_id >>
 
     - name: Test
       env:
@@ -141,6 +145,7 @@ jobs:
         edgedb-pkg/integration/macos/test.sh
 <% endfor %>
 <% for tgt in targets.linux %>
+<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   publish-<< tgt.name >>:
     needs: [test-<< tgt.name >>]
     runs-on: ubuntu-latest
@@ -149,13 +154,7 @@ jobs:
     - uses: actions/download-artifact@v2
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: << tgt.name >>
+        path: artifacts/<< plat_id >>
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -165,8 +164,24 @@ jobs:
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
+  check-published-<< tgt.name >>:
+    needs: [publish-<< tgt.name >>]
+    runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-<< tgt.name >>
+        path: artifacts/<< plat_id >>
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: << plat_id >>
+
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< tgt.name >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< plat_id >>@master
       env:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
@@ -192,15 +207,16 @@ jobs:
     <% endif %>
 <% endfor %>
 <% for tgt in targets.macos %>
+<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   publish-<< tgt.name >>:
     needs: [test-<< tgt.name >>]
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v2
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
+        path: artifacts/<< plat_id >>
 
     - uses: actions/checkout@v2
       with:
@@ -212,14 +228,13 @@ jobs:
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: << tgt.name >>
+        target: << plat_id >>
 
     - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-      run: |
-        edgedb-pkg/integration/macos/publish.sh
 <% endfor %>
