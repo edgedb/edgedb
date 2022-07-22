@@ -1078,19 +1078,31 @@ def _normalize_view_ptr_expr(
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.Unknown)
 
+    # Prohibit invalid operations on id and __type__
+    ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
+    id_access = (
+        ptrcls_sn.name == 'id'
+        and (
+            not ctx.env.options.allow_user_specified_id
+            or not exprtype.is_mutation()
+        )
+    )
     if (
-        ptrcls.is_protected_pointer(exprtype, ctx.env.schema)
-        and (compexpr is not None or is_polymorphic)
+        (compexpr is not None or is_polymorphic)
+        and (id_access or ptrcls.is_protected_pointer(ctx.env.schema))
         and not from_default
-        and not ctx.env.options.allow_writing_protected_pointers
     ):
-        ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
         if is_polymorphic:
             msg = (f'cannot access {ptrcls_sn.name} on a polymorphic '
                    f'shape element')
         else:
             msg = f'cannot assign to {ptrcls_sn.name}'
-        raise errors.QueryError(msg, context=shape_el.context)
+        if id_access and not ctx.env.options.allow_user_specified_id:
+            hint = 'config setting allow_user_specified_id must be enabled'
+        else:
+            hint = None
+
+        raise errors.QueryError(msg, context=shape_el.context, hint=hint)
 
     if exprtype.is_update() and ptrcls.get_readonly(ctx.env.schema):
         raise errors.QueryError(
