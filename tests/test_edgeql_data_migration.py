@@ -11152,3 +11152,20 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             SELECT Bar;
         """)
         self.assertEqual(res, [])
+
+    async def test_edgeql_migration_recovery_commit_fail(self):
+        con2 = await self.connect(database=self.con.dbname)
+        try:
+            await con2.execute('START MIGRATION TO {}')
+            await con2.execute('POPULATE MIGRATION')
+
+            await self.migrate("type Base;")
+
+            with self.assertRaises(edgedb.TransactionError):
+                await con2.execute("COMMIT MIGRATION")
+
+            await con2.execute("ROLLBACK")
+
+            self.assertEqual(await con2.query_single("SELECT 1"), 1)
+        finally:
+            await con2.aclose()

@@ -2027,8 +2027,14 @@ class Compiler:
     # API
 
     @staticmethod
-    def try_compile_rollback(eql: bytes, protocol_version: tuple[int, int]):
-        statements = edgeql.parse_block(eql.decode())
+    def try_compile_rollback(
+        eql: Union[edgeql.Source, bytes], protocol_version: tuple[int, int]
+    ):
+        if isinstance(eql, edgeql.Source):
+            source = eql
+        else:
+            source = eql.decode()
+        statements = edgeql.parse_block(source)
 
         stmt = statements[0]
         unit = None
@@ -2224,7 +2230,18 @@ class Compiler:
         json_parameters: bool = False,
         expect_rollback: bool = False,
     ) -> Tuple[dbstate.QueryUnitGroup, dbstate.CompilerConnectionState]:
-        state.sync_tx(txid)
+        if (
+            expect_rollback and
+            state.current_tx().id != txid and
+            not state.can_sync_to_savepoint(txid)
+        ):
+            # This is a special case when COMMIT MIGRATION fails, the compiler
+            # doesn't have the right transaction state, so we just roll back.
+            return (
+                self.try_compile_rollback(source, protocol_version)[0], state
+            )
+        else:
+            state.sync_tx(txid)
 
         ctx = CompileContext(
             state=state,
