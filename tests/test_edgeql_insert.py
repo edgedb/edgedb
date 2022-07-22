@@ -5217,7 +5217,22 @@ class TestInsert(tb.QueryTestCase):
 
         )
 
+    async def test_edgeql_insert_explicit_id_00(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "cannot assign to id"):
+            await self.con.execute('''
+                INSERT Person {
+                    id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                    name := "test",
+                 }
+            ''')
+
     async def test_edgeql_insert_explicit_id_01(self):
+        await self.con.execute('''
+            configure session set allow_user_specified_id := true
+        ''')
+
         await self.con.execute('''
             INSERT Person {
                 id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
@@ -5235,6 +5250,10 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_explicit_id_02(self):
+        await self.con.execute('''
+            configure session set allow_user_specified_id := true
+        ''')
+
         await self.con.execute('''
             INSERT Person {
                 id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
@@ -5254,6 +5273,10 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_explicit_id_03(self):
         await self.con.execute('''
+            configure session set allow_user_specified_id := true
+        ''')
+
+        await self.con.execute('''
             INSERT Person {
                 id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
                 name := "test",
@@ -5271,6 +5294,10 @@ class TestInsert(tb.QueryTestCase):
             ''')
 
     async def test_edgeql_insert_explicit_id_04(self):
+        await self.con.execute('''
+            configure session set allow_user_specified_id := true
+        ''')
+
         await self.con.execute('''
             create required global break -> bool { set default := false; };
             create type X {

@@ -592,7 +592,6 @@ class Compiler:
             constant_folding=not disable_constant_folding,
             json_parameters=ctx.json_parameters,
             implicit_limit=ctx.implicit_limit,
-            allow_writing_protected_pointers=ctx.schema_reflection_mode,
             bootstrap_mode=ctx.bootstrap_mode,
             apply_query_rewrites=(
                 not ctx.bootstrap_mode
@@ -600,6 +599,8 @@ class Compiler:
             ),
             apply_user_access_policies=self.get_config_val(
                 ctx, 'apply_access_policies'),
+            allow_user_specified_id=self.get_config_val(
+                ctx, 'allow_user_specified_id') or ctx.schema_reflection_mode,
             testmode=self.get_config_val(ctx, '__internal_testmode'),
             devmode=self._is_dev_instance(),
         )
