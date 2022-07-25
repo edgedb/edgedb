@@ -276,7 +276,8 @@ class AccessPolicyCommand(
                 # before actually doing the link table inserts.
                 # TODO: Fix this.
                 if (
-                    obj.is_link_property(schema)
+                    obj.get_source(schema)
+                    and obj.is_link_property(schema)
                     and obj.get_default(schema)
                     and any(
                         # XXX: apparently we don't do this coercion

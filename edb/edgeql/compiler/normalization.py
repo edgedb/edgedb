@@ -111,7 +111,7 @@ def _normalize_recursively(
             modaliases=modaliases,
             localnames=localnames,
         )
-    elif isinstance(value, list):
+    elif isinstance(value, (tuple, list)):
         if value and isinstance(value[0], qlast.Base):
             for el in value:
                 normalize(
@@ -155,6 +155,7 @@ def normalize_DDL(
 def _normalize_with_block(
     node: qlast.Statement,
     *,
+    field: str='aliases',
     schema: s_schema.Schema,
     modaliases: Mapping[Optional[str], str],
     localnames: AbstractSet[str] = frozenset(),
@@ -164,7 +165,8 @@ def _normalize_with_block(
     modaliases = dict(modaliases)
     newaliases: List[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]] = []
 
-    for alias in (node.aliases or ()):
+    aliases: Optional[List[qlast.AliasedExpr]] = getattr(node, field)
+    for alias in (aliases or ()):
         if isinstance(alias, qlast.ModuleAliasDecl):
             if alias.alias:
                 modaliases[alias.alias] = alias.module
@@ -408,7 +410,39 @@ def normalize_GroupQuery(
     modaliases: Mapping[Optional[str], str],
     localnames: AbstractSet[str] = frozenset(),
 ) -> None:
-    raise AssertionError(f'normalize: cannot handle {node!r}')
+    # Process WITH block
+    modaliases, localnames = _normalize_with_block(
+        node,
+        schema=schema,
+        modaliases=modaliases,
+        localnames=localnames,
+    )
+
+    # Process the result expression
+    localnames = _normalize_aliased_field(
+        node,
+        'subject',
+        schema=schema,
+        modaliases=modaliases,
+        localnames=localnames,
+    )
+
+    modaliases, localnames = _normalize_with_block(
+        node,
+        field='using',
+        schema=schema,
+        modaliases=modaliases,
+        localnames=localnames,
+    )
+
+    _normalize_recursively(
+        node,
+        'by',
+        node.by,
+        schema=schema,
+        modaliases=modaliases,
+        localnames=localnames,
+    )
 
 
 def _normalize_objref(

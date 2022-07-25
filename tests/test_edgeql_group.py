@@ -1110,3 +1110,52 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 }
             ])
         )
+
+    async def test_edgeql_group_policies_01(self):
+        await self.con.execute('''
+            with module cards
+            alter type User {
+                create access policy ok allow select, delete, update read;
+                create access policy two_elements allow insert, update write
+                  using (count((group .deck by .element)) = 2);
+            }
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on insert"):
+            await self.con.query('''
+                with module cards
+                insert User {
+                    name := 'Sully',
+                    deck := (select Card filter .element = 'Water')
+                };
+            ''')
+
+        await self.con.query('''
+            with module cards
+            insert User {
+                name := 'Sully',
+                deck := (select Card filter .element = {'Water', 'Air'})
+            };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on update"):
+            await self.con.query('''
+                with module cards
+                update User filter .name = 'Sully' set {
+                    deck += (select Card filter .element = 'Earth')
+                };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on update"):
+            await self.con.query('''
+                with module cards
+                update User filter .name = 'Sully' set {
+                    deck -= (select Card filter .element = 'Water')
+                };
+            ''')
