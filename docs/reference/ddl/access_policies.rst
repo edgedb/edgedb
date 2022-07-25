@@ -23,6 +23,7 @@ Create access policy
     { create | alter } type <TypeName> "{"
       [ ... ]
       create access policy <name> "{"
+        [ when (<condition>) ; ]
         { allow | deny } <action> [, <action> ... ; ]
         [ using (<expr>) ; ]
         [ create annotation <annotation-name> := <value> ; ]
@@ -50,6 +51,13 @@ Most sub-commands and options of this command are identical to the
 
 :eql:synopsis:`<name>`
     The name of the access policy.
+
+:eql:synopsis:`when (<condition>)`
+    Specifies which objects this policy applies to. The
+    :eql:synopsis:`<condition>` has to be a :eql:type:`bool` expression.
+
+    When omitted, it is assumed that this policy applies to all objects of a
+    given type.
 
 :eql:synopsis:`allow`
     Indicates that qualifying objects should allow access under this policy.
@@ -101,10 +109,11 @@ Most sub-commands and options of this command are identical to the
     Note that any object that cannot be selected, cannot be modified either.
 
 :eql:synopsis:`using <expr>`
-    Specifies what the policy is with respect to a given object. The
-    :eql:synopsis:`<expr>` has to be a :eql:type:`bool` expression. The
-    specific meaning of this value also depends on whether this policy flavor
-    is :eql:synopsis:`allow` or :eql:synopsis:`deny`.
+    Specifies what the policy is with respect to a given eligible (based on
+    :eql:synopsis:`when` clause) object. The :eql:synopsis:`<expr>` has to be
+    a :eql:type:`bool` expression. The specific meaning of this value also
+    depends on whether this policy flavor is :eql:synopsis:`allow` or
+    :eql:synopsis:`deny`.
 
     When omitted, it is assumed that this policy applies to all eligible
     objects of a given type.
@@ -130,6 +139,8 @@ Alter access policy
     alter type <TypeName> "{"
       [ ... ]
       alter access policy <name> "{"
+        [ when (<condition>) ; ]
+        [ reset when ; ]
         { allow | deny } <action> [, <action> ... ; ]
         [ using (<expr>) ; ]
         [ create annotation <annotation-name> := <value> ; ]
@@ -157,6 +168,11 @@ Parameters
 The parameters describing the action policy are identical to the parameters
 used by ``create action policy``. There are a handful of additional
 subcommands that are allowed in the ``create access policy`` block:
+
+:eql:synopsis:`reset when`
+    Clear the :eql:synopsis:`when (<condition>)` so that the policy applies to
+    all objects of a given type. This is exactly equivalent to ``when
+    (true)``.
 
 :eql:synopsis:`alter annotation <annotation-name>;`
     Alter access policy annotation :eql:synopsis:`<annotation-name>`.

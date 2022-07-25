@@ -51,6 +51,7 @@ commands <ref_eql_ddl_access_policies>`.
 
     # Access policy used inside a type declaration:
     access policy <name> "{"
+      [ when (<condition>) ]
       { allow | deny } <action> [, <action> ... ]
       [ using (<expr>) ]
       [ <annotation-declarations> ]
@@ -81,6 +82,13 @@ The access policy declaration options are as follows:
 
 :eql:synopsis:`<name>`
     The name of the access policy.
+
+:eql:synopsis:`when (<condition>)`
+    Specifies which objects this policy applies to. The
+    :eql:synopsis:`<condition>` has to be a :eql:type:`bool` expression.
+
+    When omitted, it is assumed that this policy applies to all objects of a
+    given type.
 
 :eql:synopsis:`allow`
     Indicates that qualifying objects should allow access under this policy.
@@ -132,10 +140,11 @@ The access policy declaration options are as follows:
     Note that any object that cannot be selected, cannot be modified either.
 
 :eql:synopsis:`using <expr>`
-    Specifies what the policy is with respect to a given object. The
-    :eql:synopsis:`<expr>` has to be a :eql:type:`bool` expression. The
-    specific meaning of this value also depends on whether this policy flavor
-    is :eql:synopsis:`allow` or :eql:synopsis:`deny`.
+    Specifies what the policy is with respect to a given eligible (based on
+    :eql:synopsis:`when` clause) object. The :eql:synopsis:`<expr>` has to be
+    a :eql:type:`bool` expression. The specific meaning of this value also
+    depends on whether this policy flavor is :eql:synopsis:`allow` or
+    :eql:synopsis:`deny`.
 
     When omitted, it is assumed that this policy applies to all eligible
     objects of a given type.
