@@ -1499,7 +1499,9 @@ class Server(ha_base.ClusterProtocol):
                 if fut.result() is not None
             })
 
-        if not servers and not (admin and port):
+        # Fail if none of the servers can be started, except when the admin
+        # server on a UNIX domain socket will be started.
+        if not servers and (not admin or port == 0):
             raise StartupError("could not create any listen sockets")
 
         addrs = []
