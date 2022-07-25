@@ -40,14 +40,14 @@ class GlobalCompilerOptions:
     #: Whether to allow the expression to be of a generic type.
     allow_generic_type_output: bool = False
 
-    #: Allow writing to protected pointers in INSERT.
-    allow_writing_protected_pointers: bool = False
-
     #: Whether to apply various query rewrites, including access policy.
     apply_query_rewrites: bool = True
 
     #: Whether to apply user-specified access policies
     apply_user_access_policies: bool = True
+
+    #: Whether to allow specifying 'id' explicitly in INSERT
+    allow_user_specified_id: bool = False
 
     #: Enables constant folding optimization (enabled by default).
     constant_folding: bool = True
