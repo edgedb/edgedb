@@ -1185,9 +1185,6 @@ class TestSeparateCluster(tb.TestCase):
                     self.assertEqual(await con.query_single(f"SELECT {i}"), i)
 
                 await con1.execute("""
-                    CONFIGURE INSTANCE SET listen_addresses := <str>{};
-                """)
-                await con1.execute("""
                     CONFIGURE INSTANCE SET listen_addresses := {
                         '0.0.0.0',
                     };
