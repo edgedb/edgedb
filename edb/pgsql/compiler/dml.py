@@ -898,6 +898,12 @@ def force_policy_checks(
                 stmt.where_clause, scan
             )
 
+    # If there aren't any update/insert queries to put it into
+    # (because it is just an update with a -=, probably), make it a
+    # normal check CTE.
+    if not queries:
+        ctx.env.check_ctes.append(policy_cte)
+
 
 def insert_needs_conflict_cte(
     ir_stmt: irast.MutatingStmt,
