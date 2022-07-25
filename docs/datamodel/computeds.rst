@@ -116,7 +116,7 @@ to traverse a link in the *reverse* direction.
 The ``User.blog_posts`` expression above uses the *backlink operator* ``.<`` in
 conjunction with a *type filter* ``[is BlogPost]`` to fetch all the
 ``BlogPosts`` associated with a given ``User``. For details on this syntax, see
-the EdgeQL docs for :ref:`Backlinks <ref_eql_paths>`.
+the EdgeQL docs for :ref:`Backlinks <ref_eql_paths_backlinks>`.
 
 
 .. list-table::
