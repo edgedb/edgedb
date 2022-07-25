@@ -1104,6 +1104,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ['{"a": 42, "b": 2}'],
         )
 
+        # by default create_if_missing should create new value
         await self.assert_query_result(
             r'''
                 WITH JT0 := (SELECT JSONTest FILTER .number = 0)
@@ -1111,14 +1112,27 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                     JT0.j_object,
                     ['c'],
                     <json>42,
-                    create_if_missing := true,
                 );
             ''',
             [{"a": 1, "b": 2, "c": 42}],
             ['{"a": 1, "b": 2, "c": 42}'],
         )
 
-        # default empty_treatment
+        await self.assert_query_result(
+            r'''
+                WITH JT0 := (SELECT JSONTest FILTER .number = 0)
+                SELECT json_set(
+                    JT0.j_object,
+                    ['c'],
+                    <json>42,
+                    create_if_missing := false,
+                );
+            ''',
+            [{"a": 1, "b": 2}],
+            ['{"a": 1, "b": 2}'],
+        )
+
+        # by default empty_treatment should return empty set
         await self.assert_query_result(
             r'''
                 WITH JT0 := (SELECT JSONTest FILTER .number = 0)

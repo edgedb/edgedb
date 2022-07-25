@@ -80,7 +80,7 @@ std::json_set(
     target: std::json,
     path: array<std::str>,
     new_value: OPTIONAL std::json,
-    NAMED ONLY create_if_missing: std::bool = false,
+    NAMED ONLY create_if_missing: std::bool = true,
     NAMED ONLY empty_treatment: std::JsonSetEmptyTreatment = std::JsonSetEmptyTreatment.ReturnEmpty,
 ) -> OPTIONAL std::json
 {

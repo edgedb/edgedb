@@ -360,7 +360,7 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
                     target: json, \
                     path: array<str>, \
                     new_value: optional json, \
-                    named only create_if_missing: bool = false, \
+                    named only create_if_missing: bool = true, \
                     named only empty_treatment: JsonSetEmptyTreatment = \
                       JsonSetEmptyTreatment.ReturnEmpty) \
                   -> optional json
@@ -376,8 +376,8 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
         ... );
         {'{"a": true, "b": 20}'}
 
-    If ``create_if_missing`` is set to ``true``, a new path for the value will
-    be created.
+    If ``create_if_missing`` is set to ``false``, a new path for the value
+    won't be created.
 
     .. code-block:: edgeql-repl
 
@@ -385,9 +385,15 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
         ...   to_json('{"a": 10, "b": 20}'),
         ...   ['с'],
         ...   <json>42,
-        ...   create_if_missing := true,
         ... );
         {'{"a": 10, "b": 20, "c": 42}'}
+        db> select json_set(
+        ...   to_json('{"a": 10, "b": 20}'),
+        ...   ['с'],
+        ...   <json>42,
+        ...   create_if_missing := false,
+        ... );
+        {'{"a": 10, "b": 20}'}
 
     ``empty_treatment`` is an enumeration responsible for the behavior of the
     function if an empty set is passed to ``new_value``. It contains one of
@@ -405,7 +411,7 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
         {}
         db> select json_set(
         ...   to_json('{"a": 10, "b": 20}'),
-        ...   ['с'],
+        ...   ['a'],
         ...   <json>{},
         ...   empty_treatment := JsonSetEmptyTreatment.ReturnTarget,
         ... );
