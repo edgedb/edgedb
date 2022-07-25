@@ -1,6 +1,6 @@
-==
-v1
-==
+====
+v1.0
+====
 
 :edb-alt-title: EdgeDB v1 (Nova)
 

@@ -1,6 +1,6 @@
-==
-v2
-==
+====
+v2.0
+====
 
 :edb-alt-title: EdgeDB v2 (Sagittarius)
 
