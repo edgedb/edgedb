@@ -1098,7 +1098,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH JT0 := (SELECT JSONTest FILTER .number = 0)
-                SELECT json_set(JT0.j_object, ['a'], <json>42);
+                SELECT json_set(JT0.j_object, 'a', value := <json>42);
             ''',
             [{"a": 42, "b": 2}],
             ['{"a": 42, "b": 2}'],
@@ -1108,14 +1108,21 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH JT0 := (SELECT JSONTest FILTER .number = 0)
-                SELECT json_set(
-                    JT0.j_object,
-                    ['c'],
-                    <json>42,
-                );
+                SELECT json_set(JT0.j_object, 'c', value := <json>42);
             ''',
             [{"a": 1, "b": 2, "c": 42}],
             ['{"a": 1, "b": 2, "c": 42}'],
+        )
+
+        # create_if_missing should also work inside of nested objects
+        # by variadic path
+        await self.assert_query_result(
+            r'''
+                WITH j_object := to_json('{"a": {"b": {}}}')
+                SELECT json_set(j_object, 'a', 'b', 'c', value := <json>42);
+            ''',
+            [{"a": {"b": {"c": 42}}}],
+            ['{"a": {"b": {"c": 42}}}'],
         )
 
         await self.assert_query_result(
@@ -1123,8 +1130,8 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 WITH JT0 := (SELECT JSONTest FILTER .number = 0)
                 SELECT json_set(
                     JT0.j_object,
-                    ['c'],
-                    <json>42,
+                    'c',
+                    value := <json>42,
                     create_if_missing := false,
                 );
             ''',
@@ -1136,7 +1143,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH JT0 := (SELECT JSONTest FILTER .number = 0)
-                SELECT json_set(JT0.j_object, ['a'], <json>{});
+                SELECT json_set(JT0.j_object, 'a', value := <json>{});
             ''',
             [],
             [],
@@ -1147,8 +1154,8 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 WITH JT0 := (SELECT JSONTest FILTER .number = 0)
                 SELECT json_set(
                     JT0.j_object,
-                    ['a'],
-                    <json>{},
+                    'a',
+                    value := <json>{},
                     empty_treatment := JsonSetEmptyTreatment.ReturnEmpty,
                 );
             ''',
@@ -1161,8 +1168,8 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 WITH JT0 := (SELECT JSONTest FILTER .number = 0)
                 SELECT json_set(
                     JT0.j_object,
-                    ['a'],
-                    <json>{},
+                    'a',
+                    value := <json>{},
                     empty_treatment := JsonSetEmptyTreatment.ReturnTarget,
                 );
             ''',
@@ -1175,8 +1182,8 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 WITH JT0 := (SELECT JSONTest FILTER .number = 0)
                 SELECT json_set(
                     JT0.j_object,
-                    ['a'],
-                    <json>{},
+                    'a',
+                    value := <json>{},
                     empty_treatment := JsonSetEmptyTreatment.UseJsonNull,
                 );
             ''',
@@ -1189,8 +1196,8 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 WITH JT0 := (SELECT JSONTest FILTER .number = 0)
                 SELECT json_set(
                     JT0.j_object,
-                    ['a'],
-                    <json>{},
+                    'a',
+                    value := <json>{},
                     empty_treatment := JsonSetEmptyTreatment.DeleteKey,
                 );
             ''',
@@ -1206,8 +1213,8 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                     WITH JT0 := (SELECT JSONTest FILTER .number = 0)
                     SELECT json_set(
                         JT0.j_object,
-                        ['a'],
-                        <json>{},
+                        'a',
+                        value := <json>{},
                         empty_treatment :=
                             JsonSetEmptyTreatment.RaiseException,
                     );

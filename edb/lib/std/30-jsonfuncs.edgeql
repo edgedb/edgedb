@@ -78,34 +78,34 @@ std::json_get(
 CREATE FUNCTION
 std::json_set(
     target: std::json,
-    path: array<std::str>,
-    new_value: OPTIONAL std::json,
+    VARIADIC path: std::str,
+    NAMED ONLY value: OPTIONAL std::json,
     NAMED ONLY create_if_missing: std::bool = true,
     NAMED ONLY empty_treatment: std::JsonSetEmptyTreatment = std::JsonSetEmptyTreatment.ReturnEmpty,
 ) -> OPTIONAL std::json
 {
     CREATE ANNOTATION std::description :=
-        'Update the JSON value at the end of the specified path.';
+        'Return an updated JSON target with a new value.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         CASE
-        WHEN new_value IS NULL AND "empty_treatment" = 'ReturnEmpty' THEN
+        WHEN "value" IS NULL AND "empty_treatment" = 'ReturnEmpty' THEN
             NULL
-        WHEN new_value IS NULL AND "empty_treatment" = 'ReturnTarget' THEN
+        WHEN "value" IS NULL AND "empty_treatment" = 'ReturnTarget' THEN
             "target"
-        WHEN new_value IS NULL AND "empty_treatment" = 'RaiseException' THEN
+        WHEN "value" IS NULL AND "empty_treatment" = 'RaiseException' THEN
             edgedb.raise(
                 NULL::jsonb,
                 'invalid_parameter_value',
                 msg => 'invalid empty JSON value'
             )
-        WHEN new_value IS NULL AND "empty_treatment" = 'UseJsonNull' THEN
+        WHEN "value" IS NULL AND "empty_treatment" = 'UseJsonNull' THEN
             jsonb_set("target", "path", 'null'::jsonb, "create_if_missing")
-        WHEN new_value IS NULL AND "empty_treatment" = 'DeleteKey' THEN
+        WHEN "value" IS NULL AND "empty_treatment" = 'DeleteKey' THEN
             "target" #- "path"
         ELSE
-            jsonb_set("target", "path", "new_value", "create_if_missing")
+            jsonb_set("target", "path", "value", "create_if_missing")
         END
     )
     $$;
