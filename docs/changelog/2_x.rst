@@ -1,13 +1,13 @@
-==
-v2
-==
+====
+v2.0
+====
 
 :edb-alt-title: EdgeDB v2 (Sagittarius)
 
-.. warning::
+.. note::
 
-    This document is a work in progress and will keep being updated
-    until the `v2 release <https://lu.ma/edgedb>`_ on July 28th 2022.
+    This document is a work in progress. We'll continue updating it
+    until the stable `v2 release <https://lu.ma/edgedb>`_ on July 28th 2022.
 
 EdgeDB 2.0 RC1 was released to the "stable" channel on July 14th, 2022. We
 would like to thank our community for reporting issues and contributing fixes.
@@ -43,7 +43,7 @@ Client libraries
 
 We've released new versions of our JavaScript and Python client libraries that
 support all 2.0 features and implement the updated protocol. These versions
-are backwards compatible with v1.x instance, so we encourage all users to
+are backwards compatible with v1.x instances, so we encourage all users to
 upgrade.
 
 .. list-table::
@@ -52,9 +52,9 @@ upgrade.
     - ``edgedb@0.21.0``
   * - :ref:`Python <edgedb-python-intro>`
     - ``edgedb@0.24.0``
+  * - `Golang <https://www.edgedb.com/docs/clients/go/index>`_
+    - ``edgedb@0.12.0``
 
-.. * - `Golang <https://www.edgedb.com/docs/clients/go/index>`_
-..   - ``edgedb@0.11.0``
 .. * - `Rust <https://github.com/edgedb/edgedb-rust>`_
 ..   - ``edgedb-tokio@0.3.0``
 
@@ -144,7 +144,7 @@ queries originating from that ``Client``.
 
   .. code-tab:: typescript
 
-    import createClient from 'edgedb';
+    import {createClient} from 'edgedb';
 
     const client = createClient().withGlobals({
       current_user: '2141a5b4-5634-4ccc-b835-437863534c51',
@@ -163,6 +163,43 @@ queries originating from that ``Client``.
     result = client.query("""
         select global current_user;
     """)
+
+  .. code-tab:: go
+
+    package main
+
+    import (
+      "context"
+      "fmt"
+      "log"
+
+      "github.com/edgedb/edgedb-go"
+    )
+
+    func main() {
+      ctx := context.Background()
+      client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+      if err != nil {
+        log.Fatal(err)
+      }
+      defer client.Close()
+
+      id, err := edgedb.ParseUUID("2141a5b4-5634-4ccc-b835-437863534c51")
+      if err != nil {
+        log.Fatal(err)
+      }
+
+      var result edgedb.UUID
+      err = client.
+        WithGlobals(map[string]interface{}{"current_user": id}).
+        QuerySingle(ctx, "SELECT global current_user;", &result)
+      if err != nil {
+        log.Fatal(err)
+      }
+
+      fmt.Println(result)
+    }
+
 
 
 Globals are primarily intended as an enabling mechanism for object-level

@@ -182,44 +182,6 @@ the others.
 - ``all``: A shorthand policy that can be used to allow or deny full read/
   write permissions. Exactly equivalent to ``select, insert, update, delete``.
 
-The ``when`` clause
-^^^^^^^^^^^^^^^^^^^
-
-For readability, access policies can include a ``when`` clause.
-
-.. code-block:: sdl
-
-  type BlogPost {
-    required property title -> str;
-    link author -> User;
-    access policy own_posts
-      when ( .title[0] = "A" )
-      allow all
-      using ( .author.id ?= global current_user )
-  }
-
-Conceptually, you can think of the ``when`` clause as defining the *set of
-objects* to which the policy applies while the ``using`` clause represents the
-*access check* (likely referencing a global). Logically, the ``when`` and
-``using`` expressions are combined with ``and`` together to determine the
-scope of the policy.
-
-In practice, any policy can be expressed with just ``when``, just ``using``,
-or split across the two; this syntax is intended to enhance readability and
-maintainability. We can re-write the policy above without the ``when`` clause.
-
-.. code-block:: sdl-diff
-
-    type BlogPost {
-      required property title -> str;
-      link author -> User;
-      access policy own_posts
-  -     when ( .title[0] = "A" )
-        allow all
-  -     using( .author.id ?= global current_user)
-  +     using( .author.id ?= global current_user and .title[0] = "A" )
-    }
-
 Resolution order
 ^^^^^^^^^^^^^^^^
 
@@ -237,13 +199,13 @@ algorithm for resolving these policies.
 
 2. EdgeDB then applies all ``allow`` policies. Each policy grants a
    *permission* that is scoped to a particular *set of objects* as defined by
-   the ``when/using`` clauses. Conceptually, these permissions are merged with
+   the ``using`` clause. Conceptually, these permissions are merged with
    the ``union`` / ``or`` operator to determine the set of allowable actions.
 
 3. After the ``allow`` policies are resolved, the ``deny`` policies can be
    used to carve out exceptions to the ``allow`` rules. Deny rules *supersede*
    allow rules! As before, the set of objects targeted by the policy is
-   defined by the ``when/using`` clause.
+   defined by the ``using`` clause.
 
 4. This results in the final access level: a set of objects targetable by each
    of ``select``, ``insert``, ``update read``, ``update write``, and
