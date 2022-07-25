@@ -9786,6 +9786,90 @@ type default::Foo {
                 };
             """)
 
+    async def test_edgeql_ddl_constraint_check_09(self):
+        # Test a diamond pattern with a delegated constraint
+
+        await self.con.execute(r"""
+            CREATE ABSTRACT TYPE R {
+                CREATE REQUIRED PROPERTY name -> std::str {
+                    CREATE DELEGATED CONSTRAINT std::exclusive;
+                };
+            };
+            CREATE TYPE S EXTENDING R;
+            CREATE TYPE T EXTENDING R;
+            CREATE TYPE V EXTENDING S, T;
+
+            INSERT S { name := "S" };
+            INSERT T { name := "T" };
+            INSERT V { name := "V" };
+        """)
+
+        for t1, t2 in ["SV", "TV", "VT", "VS"]:
+            with self.annotate(tables=(t1, t2)):
+                async with self.assertRaisesRegexTx(
+                        edgedb.ConstraintViolationError,
+                        r'violates exclusivity constraint'):
+                    await self.con.execute(f"""
+                        insert {t1} {{ name := "{t2}" }}
+                    """)
+
+                async with self.assertRaisesRegexTx(
+                        edgedb.ConstraintViolationError,
+                        r'violates exclusivity constraint'):
+                    await self.con.execute(f"""
+                        select {{
+                            (insert {t1} {{ name := "!" }}),
+                            (insert {t2} {{ name := "!" }}),
+                        }}
+                    """)
+
+        await self.con.execute(r"""
+            ALTER TYPE default::R {
+                DROP PROPERTY name;
+            };
+        """)
+
+    async def test_edgeql_ddl_constraint_check_10(self):
+        # Test a half-delegated twice inherited constraint pattern
+
+        await self.con.execute(r"""
+            CREATE ABSTRACT TYPE R {
+                CREATE REQUIRED PROPERTY name -> std::str {
+                    CREATE DELEGATED CONSTRAINT std::exclusive;
+                };
+            };
+            CREATE TYPE S EXTENDING R;
+            CREATE TYPE T {
+                CREATE REQUIRED PROPERTY name -> std::str {
+                    CREATE CONSTRAINT std::exclusive;
+                };
+            };
+            CREATE TYPE V EXTENDING S, T;
+
+            INSERT S { name := "S" };
+            INSERT T { name := "T" };
+            INSERT V { name := "V" };
+        """)
+
+        for t1, t2 in ["SV", "TV", "VT", "VS"]:
+            with self.annotate(tables=(t1, t2)):
+                async with self.assertRaisesRegexTx(
+                        edgedb.ConstraintViolationError,
+                        r'violates exclusivity constraint'):
+                    await self.con.execute(f"""
+                        insert {t1} {{ name := "{t2}" }}
+                    """)
+
+                async with self.assertRaisesRegexTx(
+                        edgedb.ConstraintViolationError,
+                        r'violates exclusivity constraint'):
+                    await self.con.execute(f"""
+                        select {{
+                            (insert {t1} {{ name := "!" }}),
+                            (insert {t2} {{ name := "!" }}),
+                        }}
+                    """)
+
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE ConTest01 {
