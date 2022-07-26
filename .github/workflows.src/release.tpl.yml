@@ -79,6 +79,7 @@ jobs:
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_PLATFORM_ARCH: "<< tgt.platform_arch if tgt.platform_arch else '' >>"
 <% if tgt.family == "generic" %>
         BUILD_GENERIC: true
 <% endif %>

@@ -22,7 +22,7 @@ jobs:
 
 
   build-debian-stretch-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -68,7 +68,7 @@ jobs:
 
 
   build-debian-buster-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -114,7 +114,7 @@ jobs:
 
 
   build-debian-bullseye-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -160,7 +160,7 @@ jobs:
 
 
   build-ubuntu-xenial-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -206,7 +206,7 @@ jobs:
 
 
   build-ubuntu-bionic-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -252,7 +252,7 @@ jobs:
 
 
   build-ubuntu-focal-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -298,7 +298,7 @@ jobs:
 
 
   build-ubuntu-jammy-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -344,7 +344,7 @@ jobs:
 
 
   build-centos-7-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -367,7 +367,7 @@ jobs:
 
 
   build-centos-8-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -413,7 +413,7 @@ jobs:
 
 
   build-linux-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -464,7 +464,7 @@ jobs:
 
 
   build-macos-x86_64:
-    runs-on: macos-latest
+    runs-on: ['self-hosted', 'macOS', 'X64']
     needs: prep
 
     steps:
@@ -476,7 +476,7 @@ jobs:
 
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
-      if: true
+      if: false
       with:
         profile: minimal
         toolchain: stable
@@ -484,7 +484,7 @@ jobs:
 
     - name: Set up Python
       uses: actions/setup-python@v1
-      if: true
+      if: false
 
     - name: Build
       env:
@@ -493,6 +493,7 @@ jobs:
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "x86_64"
+        PKG_PLATFORM_ARCH: "x86_64"
 
         BUILD_GENERIC: true
 
@@ -535,6 +536,7 @@ jobs:
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "aarch64"
+        PKG_PLATFORM_ARCH: ""
 
         BUILD_GENERIC: true
 
@@ -550,7 +552,7 @@ jobs:
 
   test-debian-stretch-x86_64:
     needs: [build-debian-stretch-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -565,7 +567,7 @@ jobs:
         PKG_PLATFORM_VERSION: "stretch"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
 
@@ -592,7 +594,7 @@ jobs:
 
   test-debian-buster-x86_64:
     needs: [build-debian-buster-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -607,7 +609,7 @@ jobs:
         PKG_PLATFORM_VERSION: "buster"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
 
@@ -634,7 +636,7 @@ jobs:
 
   test-debian-bullseye-x86_64:
     needs: [build-debian-bullseye-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -649,7 +651,7 @@ jobs:
         PKG_PLATFORM_VERSION: "bullseye"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
 
@@ -676,7 +678,7 @@ jobs:
 
   test-ubuntu-xenial-x86_64:
     needs: [build-ubuntu-xenial-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -691,7 +693,7 @@ jobs:
         PKG_PLATFORM_VERSION: "xenial"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
 
@@ -718,7 +720,7 @@ jobs:
 
   test-ubuntu-bionic-x86_64:
     needs: [build-ubuntu-bionic-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -733,7 +735,7 @@ jobs:
         PKG_PLATFORM_VERSION: "bionic"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
 
@@ -760,7 +762,7 @@ jobs:
 
   test-ubuntu-focal-x86_64:
     needs: [build-ubuntu-focal-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -775,7 +777,7 @@ jobs:
         PKG_PLATFORM_VERSION: "focal"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
 
@@ -802,7 +804,7 @@ jobs:
 
   test-ubuntu-jammy-x86_64:
     needs: [build-ubuntu-jammy-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -817,7 +819,7 @@ jobs:
         PKG_PLATFORM_VERSION: "jammy"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
 
@@ -844,7 +846,7 @@ jobs:
 
   test-centos-7-x86_64:
     needs: [build-centos-7-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -859,13 +861,13 @@ jobs:
         PKG_PLATFORM_VERSION: "7"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
 
   test-centos-8-x86_64:
     needs: [build-centos-8-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -880,7 +882,7 @@ jobs:
         PKG_PLATFORM_VERSION: "8"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
 
@@ -907,7 +909,7 @@ jobs:
 
   test-linux-x86_64:
     needs: [build-linux-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -922,7 +924,7 @@ jobs:
         PKG_PLATFORM_VERSION: "x86_64"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
 
@@ -950,7 +952,7 @@ jobs:
 
   test-macos-x86_64:
     needs: [build-macos-x86_64]
-    runs-on: macos-latest
+    runs-on: ['self-hosted', 'macOS', 'X64']
 
     steps:
     - uses: actions/checkout@v2
@@ -1016,7 +1018,7 @@ jobs:
 
   check-published-debian-stretch-x86_64:
     needs: [publish-debian-stretch-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -1104,7 +1106,7 @@ jobs:
 
   check-published-debian-buster-x86_64:
     needs: [publish-debian-buster-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -1192,7 +1194,7 @@ jobs:
 
   check-published-debian-bullseye-x86_64:
     needs: [publish-debian-bullseye-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -1280,7 +1282,7 @@ jobs:
 
   check-published-ubuntu-xenial-x86_64:
     needs: [publish-ubuntu-xenial-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -1368,7 +1370,7 @@ jobs:
 
   check-published-ubuntu-bionic-x86_64:
     needs: [publish-ubuntu-bionic-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -1456,7 +1458,7 @@ jobs:
 
   check-published-ubuntu-focal-x86_64:
     needs: [publish-ubuntu-focal-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -1544,7 +1546,7 @@ jobs:
 
   check-published-ubuntu-jammy-x86_64:
     needs: [publish-ubuntu-jammy-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -1632,7 +1634,7 @@ jobs:
 
   check-published-centos-7-x86_64:
     needs: [publish-centos-7-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -1676,7 +1678,7 @@ jobs:
 
   check-published-centos-8-x86_64:
     needs: [publish-centos-8-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -1764,7 +1766,7 @@ jobs:
 
   check-published-linux-x86_64:
     needs: [publish-linux-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
