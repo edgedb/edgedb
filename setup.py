@@ -118,6 +118,10 @@ EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 # This can be a branch, tag, or commit
 EDGEDBCLI_COMMIT = 'master'
 
+EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
+# This can be a branch, tag, or commit
+EDGEDBGUI_COMMIT = 'main'
+
 EXTRA_DEPS = {
     'test': TEST_DEPS,
     'docs': DOCS_DEPS,
@@ -387,15 +391,22 @@ def _check_rust():
             f'edgedb from source (see https://rustup.rs/)')
 
 
-def _get_edgedbcli_rev(name):
+def _get_git_rev(repo, ref):
     output = subprocess.check_output(
-        ['git', 'ls-remote', EDGEDBCLI_REPO, name],
+        ['git', 'ls-remote', repo, ref],
         universal_newlines=True,
     ).strip()
-    if not output:
-        return None
-    rev, _ = output.split()
-    return rev
+
+    if output:
+        rev, _ = output.split()
+        rev = rev.strip()
+    else:
+        rev = ''
+
+    # The name can be a branch or tag, so we attempt to look it up
+    # with ls-remote. If we don't find anything, we assume it's a
+    # commit hash.
+    return rev if rev else ref
 
 
 def _get_pg_source_stamp():
@@ -415,15 +426,8 @@ def _compile_cli(build_base, build_temp):
     env = dict(os.environ)
     env['CARGO_TARGET_DIR'] = str(build_temp / 'rust' / 'cli')
     env['PSQL_DEFAULT_PATH'] = build_base / 'postgres' / 'install' / 'bin'
-    git_name = env.get("EDGEDBCLI_GIT_REV")
-    if not git_name:
-        git_name = EDGEDBCLI_COMMIT
-    # The name can be a branch or tag, so we attempt to look it up
-    # with ls-remote. If we don't find anything, we assume it's a
-    # commit hash.
-    git_rev = _get_edgedbcli_rev(git_name)
-    if not git_rev:
-        git_rev = git_name
+    git_ref = env.get("EDGEDBCLI_GIT_REV") or EDGEDBCLI_COMMIT
+    git_rev = _get_git_rev(EDGEDBCLI_REPO, git_ref)
 
     subprocess.run(
         [
@@ -458,23 +462,33 @@ def _compile_cli(build_base, build_temp):
 def _build_ui(build_base, build_temp):
     from edb import buildmeta
 
+    git_ref = os.environ.get("EDGEDB_UI_GIT_REV") or EDGEDBGUI_COMMIT
+    git_rev = _get_git_rev(EDGEDBGUI_REPO, git_ref)
+
     ui_root = build_base / 'edgedb-studio'
     if not ui_root.exists():
         subprocess.run(
             [
                 'git',
                 'clone',
-                'https://github.com/edgedb/edgedb-studio.git',
+                '--recursive',
+                EDGEDBGUI_REPO,
                 ui_root,
             ],
             check=True
         )
     else:
         subprocess.run(
-            ['git', 'pull'],
+            ['git', 'fetch', '--all'],
             check=True,
             cwd=ui_root,
         )
+
+    subprocess.run(
+        ['git', 'reset', '--hard', git_rev],
+        check=True,
+        cwd=ui_root,
+    )
 
     dest = buildmeta.get_shared_data_dir_path() / 'ui'
     if dest.exists():
@@ -634,7 +648,10 @@ class ci_helper(setuptools.Command):
             print(binascii.hexlify(ext_hash).decode())
 
         elif self.type == 'cli':
-            print(_get_edgedbcli_rev(EDGEDBCLI_COMMIT) or EDGEDBCLI_COMMIT)
+            print(_get_git_rev(EDGEDBCLI_REPO, EDGEDBCLI_COMMIT))
+
+        elif self.type == 'ui':
+            print(_get_git_rev(EDGEDBGUI_REPO, EDGEDBGUI_COMMIT))
 
         elif self.type == 'build_temp':
             print(pathlib.Path(build.build_temp).resolve())
