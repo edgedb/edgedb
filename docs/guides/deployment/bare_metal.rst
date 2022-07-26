@@ -42,7 +42,7 @@ Install the EdgeDB package.
 
 .. code-block:: bash
 
-   $ sudo apt-get update && sudo apt-get install edgedb-1
+   $ sudo apt-get update && sudo apt-get install edgedb-2
 
 
 CentOS/RHEL 7/8
@@ -59,7 +59,7 @@ Install the EdgeDB package.
 
 .. code-block:: bash
 
-   $ sudo yum install edgedb-1
+   $ sudo yum install edgedb-2
 
 
 .. _ref_guide_deployment_bare_metal_enable_unit:
@@ -72,7 +72,7 @@ default. You can start the server by enabling the unit.
 
 .. code-block:: bash
 
-   $ sudo systemctl enable --now edgedb-server-1
+   $ sudo systemctl enable --now edgedb-server-2
 
 This will start the server on port 5656, and the data directory will be
 ``/var/lib/edgedb/1/data``. You can edit the unit to specify server arguments
@@ -109,7 +109,7 @@ You may need to restart the server after changing the listen port or addresses.
 
 .. code-block:: bash
 
-   $ sudo systemctl restart edgedb-server-1
+   $ sudo systemctl restart edgedb-server-2
 
 
 Linking a Bare Metal Instance
@@ -139,7 +139,7 @@ Upgrading EdgeDB
 ================
 
 When you want to upgrade to the newest point release upgrade the package and
-restart the ``edgedb-server-1`` unit.
+restart the ``edgedb-server-2`` unit.
 
 
 Debian/Ubuntu LTS
@@ -147,8 +147,8 @@ Debian/Ubuntu LTS
 
 .. code-block:: bash
 
-   $ sudo apt-get update && sudo apt-get install --only-upgrade edgedb-1
-   $ sudo systemctl restart edgedb-server-1
+   $ sudo apt-get update && sudo apt-get install --only-upgrade edgedb-2
+   $ sudo systemctl restart edgedb-server-2
 
 
 CentOS/RHEL 7/8
@@ -156,5 +156,5 @@ CentOS/RHEL 7/8
 
 .. code-block:: bash
 
-   $ sudo yum update edgedb-1
-   $ sudo systemctl restart edgedb-server-1
+   $ sudo yum update edgedb-2
+   $ sudo systemctl restart edgedb-server-2

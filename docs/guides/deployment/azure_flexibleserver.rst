@@ -102,7 +102,7 @@ Start an EdgeDB container.
    $ az container create \
        --resource-group $GROUP \
        --name edgedb-container-group \
-       --image edgedb/edgedb:1 \
+       --image edgedb/edgedb \
        --dns-name-label edgedb \
        --ports 5656 \
        --secure-environment-variables \
@@ -136,7 +136,7 @@ or reboots copy the certificate files and use their contents in the
    $ az container create \
        --resource-group $GROUP \
        --name edgedb-container-group \
-       --image edgedb/edgedb:1 \
+       --image edgedb/edgedb \
        --dns-name-label edgedb \
        --ports 5656 \
        --secure-environment-variables \
