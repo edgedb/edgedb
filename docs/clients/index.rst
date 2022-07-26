@@ -1,6 +1,5 @@
 .. eql:section-intro-page:: clients
 
-
 .. _ref_clients_index:
 
 ================
@@ -12,6 +11,7 @@ Client Libraries
 * `Python <python/index>`_
 * `TypeScript/Javascript <js/index>`_
 * `Go <go/index>`_
+* `Rust <rust/index>`_
 
 
 **Community-Maintained Clients**
@@ -33,5 +33,6 @@ Client Libraries
     js/index
     python/index
     go/index
+    rust/index
     http/index
 
