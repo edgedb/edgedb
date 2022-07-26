@@ -361,8 +361,8 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
                     variadic path: str, \
                     named only value: optional json, \
                     named only create_if_missing: bool = true, \
-                    named only empty_treatment: JsonSetEmptyTreatment = \
-                      JsonSetEmptyTreatment.ReturnEmpty) \
+                    named only empty_treatment: JsonEmpty = \
+                      JsonEmpty.ReturnEmpty) \
                   -> optional json
 
     Return an updated JSON target with a new value.
@@ -411,8 +411,8 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
 
     - ``ReturnEmpty``: return empty set, default
     - ``ReturnTarget``: return ``target`` unmodified
-    - ``RaiseException``: raise an ``InvalidValueError``
-    - ``UseJsonNull``: use a ``null`` JSON value
+    - ``Error``: raise an ``InvalidValueError``
+    - ``UseNull``: use a ``null`` JSON value
     - ``DeleteKey``: delete the object key
 
     .. code-block:: edgeql-repl
@@ -427,28 +427,28 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
         ...   to_json('{"a": 10, "b": 20}'),
         ...   'a',
         ...   value := <json>{},
-        ...   empty_treatment := JsonSetEmptyTreatment.ReturnTarget,
+        ...   empty_treatment := JsonEmpty.ReturnTarget,
         ... );
         {'{"a": 10, "b": 20}'}
         db> select json_set(
         ...   to_json('{"a": 10, "b": 20}'),
         ...   'a',
         ...   value := <json>{},
-        ...   empty_treatment := JsonSetEmptyTreatment.RaiseException,
+        ...   empty_treatment := JsonEmpty.Error,
         ... );
         InvalidValueError: invalid empty JSON value
         db> select json_set(
         ...   to_json('{"a": 10, "b": 20}'),
         ...   'a',
         ...   value := <json>{},
-        ...   empty_treatment := JsonSetEmptyTreatment.UseJsonNull,
+        ...   empty_treatment := JsonEmpty.UseNull,
         ... );
         {'{"a": null, "b": 20}'}
         db> select json_set(
         ...   to_json('{"a": 10, "b": 20}'),
         ...   'a',
         ...   value := <json>{},
-        ...   empty_treatment := JsonSetEmptyTreatment.DeleteKey,
+        ...   empty_treatment := JsonEmpty.DeleteKey,
         ... );
         {'{"b": 20}'}
 

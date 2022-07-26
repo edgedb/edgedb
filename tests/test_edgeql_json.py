@@ -1156,7 +1156,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                     JT0.j_object,
                     'a',
                     value := <json>{},
-                    empty_treatment := JsonSetEmptyTreatment.ReturnEmpty,
+                    empty_treatment := JsonEmpty.ReturnEmpty,
                 );
             ''',
             [],
@@ -1170,7 +1170,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                     JT0.j_object,
                     'a',
                     value := <json>{},
-                    empty_treatment := JsonSetEmptyTreatment.ReturnTarget,
+                    empty_treatment := JsonEmpty.ReturnTarget,
                 );
             ''',
             [{"a": 1, "b": 2}],
@@ -1184,7 +1184,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                     JT0.j_object,
                     'a',
                     value := <json>{},
-                    empty_treatment := JsonSetEmptyTreatment.UseJsonNull,
+                    empty_treatment := JsonEmpty.UseNull,
                 );
             ''',
             [{"a": None, "b": 2}],
@@ -1198,7 +1198,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                     JT0.j_object,
                     'a',
                     value := <json>{},
-                    empty_treatment := JsonSetEmptyTreatment.DeleteKey,
+                    empty_treatment := JsonEmpty.DeleteKey,
                 );
             ''',
             [{"b": 2}],
@@ -1215,8 +1215,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                         JT0.j_object,
                         'a',
                         value := <json>{},
-                        empty_treatment :=
-                            JsonSetEmptyTreatment.RaiseException,
+                        empty_treatment := JsonEmpty.Error,
                     );
                 ''',
             )

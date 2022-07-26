@@ -19,7 +19,7 @@
 
 ## JSON functions and operators.
 
-CREATE SCALAR TYPE std::JsonSetEmptyTreatment EXTENDING enum<ReturnEmpty, ReturnTarget, RaiseException, UseJsonNull, DeleteKey>;
+CREATE SCALAR TYPE std::JsonEmpty EXTENDING enum<ReturnEmpty, ReturnTarget, Error, UseNull, DeleteKey>;
 
 CREATE FUNCTION
 std::json_typeof(json: std::json) -> std::str
@@ -81,7 +81,7 @@ std::json_set(
     VARIADIC path: std::str,
     NAMED ONLY value: OPTIONAL std::json,
     NAMED ONLY create_if_missing: std::bool = true,
-    NAMED ONLY empty_treatment: std::JsonSetEmptyTreatment = std::JsonSetEmptyTreatment.ReturnEmpty,
+    NAMED ONLY empty_treatment: std::JsonEmpty = std::JsonEmpty.ReturnEmpty,
 ) -> OPTIONAL std::json
 {
     CREATE ANNOTATION std::description :=
@@ -94,13 +94,13 @@ std::json_set(
             NULL
         WHEN "value" IS NULL AND "empty_treatment" = 'ReturnTarget' THEN
             "target"
-        WHEN "value" IS NULL AND "empty_treatment" = 'RaiseException' THEN
+        WHEN "value" IS NULL AND "empty_treatment" = 'Error' THEN
             edgedb.raise(
                 NULL::jsonb,
                 'invalid_parameter_value',
                 msg => 'invalid empty JSON value'
             )
-        WHEN "value" IS NULL AND "empty_treatment" = 'UseJsonNull' THEN
+        WHEN "value" IS NULL AND "empty_treatment" = 'UseNull' THEN
             jsonb_set("target", "path", 'null'::jsonb, "create_if_missing")
         WHEN "value" IS NULL AND "empty_treatment" = 'DeleteKey' THEN
             "target" #- "path"
