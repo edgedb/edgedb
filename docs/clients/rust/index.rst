@@ -4,7 +4,8 @@ Rust
 
 :edb-alt-title: EdgeDB Rust Client
 
-EdgeDB maintains an client library for Rust. View the `full documentation <https://docs.rs/edgedb-tokio/latest/edgedb_tokio/>`_.
+EdgeDB maintains an client library for Rust. View the `full documentation
+<https://docs.rs/edgedb-tokio/latest/edgedb_tokio/>`_.
 
 .. code-block:: rust
 
@@ -18,4 +19,3 @@ EdgeDB maintains an client library for Rust. View the `full documentation <https
       println!("7*8 is: {}", val);
       Ok(())
   }
-
