@@ -4,6 +4,7 @@ targets:
           platform: debian
           platform_version: stretch
           family: debian
+          runs_on: [self-hosted, linux, x64]
         - name: debian-stretch-aarch64
           platform: debian
           platform_version: stretch
@@ -13,6 +14,7 @@ targets:
           platform: debian
           platform_version: buster
           family: debian
+          runs_on: [self-hosted, linux, x64]
         - name: debian-buster-aarch64
           platform: debian
           platform_version: buster
@@ -22,6 +24,7 @@ targets:
           platform: debian
           platform_version: bullseye
           family: debian
+          runs_on: [self-hosted, linux, x64]
         - name: debian-bullseye-aarch64
           platform: debian
           platform_version: bullseye
@@ -31,6 +34,7 @@ targets:
           platform: ubuntu
           platform_version: xenial
           family: debian
+          runs_on: [self-hosted, linux, x64]
         - name: ubuntu-xenial-aarch64
           platform: ubuntu
           platform_version: xenial
@@ -40,6 +44,7 @@ targets:
           platform: ubuntu
           platform_version: bionic
           family: debian
+          runs_on: [self-hosted, linux, x64]
         - name: ubuntu-bionic-aarch64
           platform: ubuntu
           platform_version: bionic
@@ -49,6 +54,7 @@ targets:
           platform: ubuntu
           platform_version: focal
           family: debian
+          runs_on: [self-hosted, linux, x64]
         - name: ubuntu-focal-aarch64
           platform: ubuntu
           platform_version: focal
@@ -58,6 +64,7 @@ targets:
           platform: ubuntu
           platform_version: jammy
           family: debian
+          runs_on: [self-hosted, linux, x64]
         - name: ubuntu-jammy-aarch64
           platform: ubuntu
           platform_version: jammy
@@ -67,10 +74,12 @@ targets:
           platform: centos
           platform_version: 7
           family: redhat
+          runs_on: [self-hosted, linux, x64]
         - name: centos-8-x86_64
           platform: centos
           platform_version: 8
           family: redhat
+          runs_on: [self-hosted, linux, x64]
         - name: centos-8-aarch64
           platform: centos
           platform_version: 8
@@ -80,6 +89,7 @@ targets:
           platform: linux
           platform_version: x86_64
           family: generic
+          runs_on: [self-hosted, linux, x64]
         - name: linux-aarch64
           platform: linux
           platform_version: aarch64
@@ -91,6 +101,8 @@ targets:
           platform: macos
           platform_version: x86_64
           family: generic
+          platform_arch: x86_64
+          runs_on: [self-hosted, macOS, X64]
         - name: macos-aarch64
           platform: macos
           platform_version: aarch64
