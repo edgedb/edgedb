@@ -2,7 +2,7 @@ name: Build Test and Publish Nightly Packages
 
 on:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 1 * * *"
   workflow_dispatch:
     inputs: {}
   push:
@@ -84,6 +84,7 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_PLATFORM_ARCH: "<< tgt.platform_arch if tgt.platform_arch else '' >>"
 <% if tgt.family == "generic" %>
         BUILD_GENERIC: true
 <% endif %>
