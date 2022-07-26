@@ -120,7 +120,7 @@ EDGEDBCLI_COMMIT = 'master'
 
 EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
 # This can be a branch, tag, or commit
-EDGEDBGUI_COMMIT = 'main'
+EDGEDBGUI_COMMIT = '2.x'
 
 EXTRA_DEPS = {
     'test': TEST_DEPS,
