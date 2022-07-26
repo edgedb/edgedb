@@ -118,3 +118,9 @@ class CompilerOptions(GlobalCompilerOptions):
     #: as singletons in the context of this compilation.
     singletons: Collection[Union[s_types.Type, s_pointers.Pointer]] = (
         frozenset())
+
+    #: Type references that should be remaped to another type.  This
+    #: is for dealing with remapping explicit type names in schema
+    #: expressions to their subtypes when necessary.
+    type_remaps: Dict[s_types.Type, s_types.Type] = (
+        dc_field(default_factory=dict))

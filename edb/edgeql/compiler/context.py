@@ -84,7 +84,7 @@ class ViewRPtr:
 @dataclasses.dataclass
 class ScopeInfo:
     path_scope: irast.ScopeTreeNode
-    binding_kind: irast.BindingKind
+    binding_kind: Optional[irast.BindingKind]
     pinned_path_id_ns: Optional[FrozenSet[str]] = None
 
 
