@@ -221,5 +221,5 @@ your droplet and run the following.
 
 .. code-block:: bash
 
-   $ apt-get update && apt-get install --only-upgrade edgedb-1
+   $ apt-get update && apt-get install --only-upgrade edgedb-server-2
    $ systemctl restart edgedb
