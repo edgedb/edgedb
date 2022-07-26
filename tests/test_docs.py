@@ -353,6 +353,7 @@ class TestDocSnippets(unittest.TestCase):
                     'go',
                     'yaml',
                     'jsx',
+                    'rust',
                     'tsx',
                     'elixir'
                 }:
