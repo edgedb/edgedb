@@ -173,6 +173,13 @@ class ConstraintMech:
             path_prefix_anchor=qlast.Subject().name,
             apply_query_rewrites=not context.stdmode,
             singletons=singletons,
+            # Remap the constraint origin to the subject, so that if
+            # we have B <: A, and the constraint references A.foo, it
+            # gets rewritten in the subtype to B.foo. It's OK to only
+            # look at one constraint origin, because if there were
+            # multiple different origins, they couldn't get away with
+            # referring to the type explicitly.
+            type_remaps={constraint_origins[0].get_subject(schema): subject},
         )
 
         ir = qlcompiler.compile_ast_to_ir(

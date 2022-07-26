@@ -89,6 +89,13 @@ def init_context(
             ctx.env.path_scope.attach_path(path_id, context=None)
             ctx.env.singletons.append(path_id)
 
+    for orig, remapped in options.type_remaps.items():
+        rset = compile_anchor('__', remapped, ctx=ctx)
+        ctx.view_sets[orig] = rset
+        ctx.path_scope_map[rset] = context.ScopeInfo(
+            path_scope=ctx.path_scope, binding_kind=None
+        )
+
     ctx.modaliases.update(options.modaliases)
 
     if options.anchors:
