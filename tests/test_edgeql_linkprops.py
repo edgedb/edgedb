@@ -1318,3 +1318,23 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     };
                 '''
             )
+
+    async def test_edgeql_props_modification_01(self):
+        await self.con.execute(r'''
+            CREATE TYPE Tgt;
+            CREATE TYPE Src {
+                CREATE LINK l -> Tgt {
+                    CREATE PROPERTY x -> str;
+                };
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                r"link 'l' of object type 'default::Src' has no property 'y'",
+                _hint="did you mean 'x'?"):
+            await self.con.query(
+                r'''
+                    insert Src { l := assert_single(Tgt { @y := "..." }) };
+                '''
+            )
