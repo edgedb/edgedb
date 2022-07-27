@@ -5720,29 +5720,6 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         """)
 
     async def test_edgeql_ddl_policies_03(self):
-        async with self.assertRaisesRegexTx(
-            edgedb.SchemaDefinitionError,
-            r"dependency cycle between access policies of object type "
-            r"'default::Bar' and object type 'default::Foo'"
-        ):
-            await self.con.execute("""
-                CREATE TYPE Bar {
-                    CREATE REQUIRED PROPERTY b -> bool;
-                };
-                CREATE TYPE Foo {
-                    CREATE LINK bar -> Bar;
-                    CREATE REQUIRED PROPERTY b -> bool;
-                    CREATE ACCESS POLICY redact
-                        ALLOW ALL USING ((.bar.b ?? false));
-                };
-                ALTER TYPE Bar {
-                    CREATE LINK foo -> Foo;
-                    CREATE ACCESS POLICY redact
-                        ALLOW ALL USING ((.foo.b ?? false));
-                };
-            """)
-
-    async def test_edgeql_ddl_policies_04(self):
         # Ideally we will make this actually work instead of rejecting it!
         await self.con.execute("""
             CREATE TYPE Tgt;

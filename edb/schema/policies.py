@@ -112,6 +112,15 @@ class AccessPolicy(
             objs.extend(expr.refs.objects(schema))
         return objs
 
+    def get_subject(self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
+        subj: s_objtypes.ObjectType = self.get_field_value(schema, 'subject')
+        return subj
+
+    def get_original_subject(
+            self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
+        ancs = (self,) + self.get_ancestors(schema).objects(schema)
+        return ancs[-1].get_subject(schema)
+
 
 class AccessPolicyCommandContext(
     sd.ObjectCommandContext[AccessPolicy],
@@ -264,9 +273,7 @@ class AccessPolicyCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
-        from . import objtypes as s_objtypes
         subject = self.scls.get_subject(schema)
-        assert isinstance(subject, s_objtypes.ObjectType)
 
         for obj in self.scls.get_expr_refs(schema):
             if isinstance(obj, s_props.Property):
@@ -325,19 +332,26 @@ def get_type_policy_deps(
     for pol in stype.get_access_policies(schema).objects(schema):
         objs = pol.get_expr_refs(schema)
 
+        ntyps = set()
         for obj in objs:
             if isinstance(obj, s_objtypes.ObjectType):
-                typs.add(obj)
-                typs.update(stype.get_union_of(schema).objects(schema))
-                typs.update(stype.get_intersection_of(schema).objects(schema))
+                ntyps.add(obj)
+                ntyps.update(stype.get_union_of(schema).objects(schema))
+                ntyps.update(stype.get_intersection_of(schema).objects(schema))
             elif isinstance(obj, s_links.Link):
                 if tgt := obj.get_target(schema):
-                    typs.add(tgt)
+                    ntyps.add(tgt)
 
-    typs.discard(stype)
+        # The original subject of a rule and its children don't have
+        # their policies applied while evaluating a policy, so we
+        # don't depend on them.
+        orig_subj = pol.get_original_subject(schema)
+        ntyps.discard(orig_subj)
+        ntyps.difference_update(orig_subj.descendants(schema))
+
+        typs.update(ntyps)
+
     typs.update({x for typ in typs for x in typ.descendants(schema)})
-    # ... discard again, to avoid self cycles
-    typs.discard(stype)
 
     return typs
 

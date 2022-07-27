@@ -103,9 +103,7 @@ def compile_pol(
         expr = qlast.BinOp(op='AND', left=condition.qlast, right=expr)
 
     # Find all descendants of the original subject of the rule
-    ancs = (pol,) + pol.get_ancestors(schema).objects(schema)
-    subject = ancs[-1].get_subject(schema)
-    assert isinstance(subject, s_objtypes.ObjectType)
+    subject = pol.get_original_subject(schema)
     descs = {subject} | {
         desc for desc in subject.descendants(schema)
         if desc.is_material_object_type(schema)

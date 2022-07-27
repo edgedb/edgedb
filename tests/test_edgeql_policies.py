@@ -660,3 +660,73 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             ''',
             []
         )
+
+    async def test_edgeql_policies_cycle_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"dependency cycle between access policies of object type "
+            r"'default::Bar' and object type 'default::Foo'"
+        ):
+            await self.con.execute("""
+                CREATE TYPE Bar {
+                    CREATE REQUIRED PROPERTY b -> bool;
+                };
+                CREATE TYPE Foo {
+                    CREATE LINK bar -> Bar;
+                    CREATE REQUIRED PROPERTY b -> bool;
+                    CREATE ACCESS POLICY redact
+                        ALLOW ALL USING ((.bar.b ?? false));
+                };
+                ALTER TYPE Bar {
+                    CREATE LINK foo -> Foo;
+                    CREATE ACCESS POLICY redact
+                        ALLOW ALL USING ((.foo.b ?? false));
+                };
+            """)
+
+    async def test_edgeql_policies_cycle_02(self):
+        # This is a cycle because Bar selecting Foo requires indirectly
+        # evaluating Bar as part of doing Foo in a way we can't handle
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidDefinitionError,
+                r"dependency cycle between access policies"):
+            await self.con.execute('''
+                create type Foo {
+                    create required property val -> int64;
+                };
+                create type Bar extending Foo {
+                  create access policy x allow all using (
+                    not exists (select Foo filter .val = -__subject__.val));
+                };
+            ''')
+
+    async def test_edgeql_policies_cycle_03(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidDefinitionError,
+                r"dependency cycle between access policies"):
+            await self.con.execute('''
+                create type Z;
+                create type A {
+                    create access policy z allow all using (exists Z);
+                };
+                create type B extending A;
+                alter type Z {
+                    create access policy z allow all using (exists B);
+                };
+            ''')
+
+    async def test_edgeql_policies_cycle_04(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidDefinitionError,
+                r"dependency cycle between access policies"):
+            await self.con.execute('''
+                create type Z;
+                create type A {
+                    create access policy z allow all using (exists Z);
+                };
+                create type C;
+                create type B extending A, C;
+                alter type Z {
+                    create access policy z allow all using (exists C);
+                };
+            ''')
