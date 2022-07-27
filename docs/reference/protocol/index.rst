@@ -119,17 +119,6 @@ Similarly to ``ErrorResponse`` the server may send a
 message and continue as before.
 
 
-Flushing
-========
-
-The server by default accumulates its output messages in a buffer to minimize
-the number of network calls.  Some messages, such as
-:ref:`ref_protocol_msg_sync` and :ref:`ref_protocol_msg_ready_for_command`
-flush the server buffer automatically.  In other cases, a client can send
-a :ref:`ref_protocol_msg_flush` message to ask the server to flush its
-send buffer.
-
-
 Message Flow
 ============
 
