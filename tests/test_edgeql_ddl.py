@@ -5722,6 +5722,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"has a volatile using expression",
+        ):
+            await self.con.execute("""
+                create type X {
+                    create access policy test
+                        allow all using (random() < 0.5);
+                };
+            """)
+
     async def test_edgeql_ddl_policies_03(self):
         # Ideally we will make this actually work instead of rejecting it!
         await self.con.execute("""
