@@ -1063,8 +1063,10 @@ def init_stmt(
         elif (
             (dv := ctx.defining_view) is not None
             and dv.get_expr_type(ctx.env.schema) is s_types.ExprType.Select
-            and not irutils.is_trivial_free_object(
-                not_none(ctx.partial_path_prefix))
+            and not (
+                ctx.partial_path_prefix
+                and irutils.is_trivial_free_object(ctx.partial_path_prefix)
+            )
         ):
             # This is some shape in a regular query. Although
             # DML is not allowed in the computable, but it may

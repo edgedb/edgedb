@@ -5534,3 +5534,24 @@ class TestInsert(tb.QueryTestCase):
                      )
                 };
             ''')
+
+    async def test_edgeql_insert_rebind_with_typenames_01(self):
+        await self.assert_query_result(
+            '''
+            with
+              update1 := (insert InsertTest {l2:=1}),
+            select (select update1);
+            ''',
+            [{'id': str}],
+            always_typenames=True,
+        )
+
+        await self.assert_query_result(
+            '''
+            with
+              update1 := (insert InsertTest {l2:=1}),
+            select {update1};
+            ''',
+            [{'id': str}],
+            always_typenames=True,
+        )
