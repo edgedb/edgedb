@@ -788,7 +788,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             '''
         )
 
-    async def test_edgeql_group_id_errors(self):
+    async def test_edgeql_group_errors_id(self):
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
             r"may not name a grouping alias 'id'"
@@ -804,6 +804,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ):
             await self.con.execute('''
                 group cards::Card{name} by .id
+            ''')
+
+    async def test_edgeql_group_errors_ref(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r"variable 'name' referenced in BY but not declared in USING"
+        ):
+            await self.con.execute('''
+                group User by name
             ''')
 
     async def test_edgeql_group_tuple_01(self):
