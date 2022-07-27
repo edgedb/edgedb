@@ -137,10 +137,13 @@ called ``default``.
 The following module names are reserved by EdgeDB and contain pre-defined
 types, utility functions, and operators.
 
-- ``std``
-- ``math``
-- ``cal``
-- ``schema``
-- ``sys``
-- ``cfg``
-
+* ``std``: standard types, functions, and operators in the :ref:`standard
+  library <ref_std>`
+* ``math``: algebraic and statistical :ref:`functions <ref_std_math>`
+* ``cal``: local (non-timezone-aware) and relative date/time :ref:`types and
+  functions <ref_std_datetime>`
+* ``schema``: types describing the :ref:`introspection <ref_eql_introspection>`
+  schema
+* ``sys``: system-wide entities, such as user roles and
+  :ref:`databases <ref_datamodel_databases>`
+* ``cfg``: configuration and settings
