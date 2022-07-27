@@ -165,8 +165,9 @@ class AccessPolicyCommand(
             )
             assert isinstance(expression.irast, irast.Statement)
 
+            srcctx = self.get_attribute_source_context(field)
+
             if expression.irast.cardinality.can_be_zero():
-                srcctx = self.get_attribute_source_context(field)
                 raise errors.SchemaDefinitionError(
                     f'possibly an empty set returned by {vname} '
                     f'expression for the {pol_name} ',
@@ -174,10 +175,16 @@ class AccessPolicyCommand(
                 )
 
             if expression.irast.cardinality.is_multi():
-                srcctx = self.get_attribute_source_context(field)
                 raise errors.SchemaDefinitionError(
                     f'possibly more than one element returned by {vname} '
                     f'expression for the {pol_name} ',
+                    context=srcctx
+                )
+
+            if expression.irast.volatility.is_volatile():
+                raise errors.SchemaDefinitionError(
+                    f'{pol_name} has a volatile {vname} expression, '
+                    f'which is not allowed',
                     context=srcctx
                 )
 
