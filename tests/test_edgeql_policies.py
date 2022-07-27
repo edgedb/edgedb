@@ -75,7 +75,10 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                     create constraint exclusive;
                 };
                 create access policy cur_only allow all
-                using (not exists global cur_user or global cur_user ?= .name);
+                using (
+                    not exists global cur_user
+                    or (global cur_user in .name) ?? false
+                );
             };
         '''
     ]
