@@ -27,6 +27,7 @@ from collections import defaultdict
 import textwrap
 
 from edb import errors
+from edb.common import ast
 from edb.common import context as pctx
 from edb.common.typeutils import not_none
 
@@ -362,6 +363,17 @@ def compile_InternalGroupQuery(
                 )
                 stmt.grouping_binding = _make_group_binding(
                     grouping_stype, expr.grouping_alias, ctx=topctx)
+
+        # Check that the by clause is legit
+        by_refs: List[qlast.ObjectRef] = ast.find_children(
+            stmt.by, lambda n: isinstance(n, qlast.ObjectRef))
+        for by_ref in by_refs:
+            if by_ref.name not in stmt.using:
+                raise errors.InvalidReferenceError(
+                    f"variable '{by_ref.name}' referenced in BY but not "
+                    f"declared in USING",
+                    context=by_ref.context,
+                )
 
         # compile the output
         # newscope because we don't want the result to get assigned the
