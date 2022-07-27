@@ -78,6 +78,46 @@ def has_own_policies(
     )
 
 
+def compile_pol(
+    stype: s_objtypes.ObjectType,
+    pol: s_policies.AccessPolicy, *,
+    ctx: context.ContextLevel,
+) -> irast.Set:
+    """Compile the condition from an individual policy.
+
+    A policy is evaluated in a context where it is allowed to access
+    the *original subject type of the policy* and *all of its
+    descendants*.
+
+    Because it is based on the original source of the policy,
+    we need to compile each policy separately.
+    """
+    schema = ctx.env.schema
+
+    expr_field = pol.get_expr(schema)
+    if expr_field:
+        expr = expr_field.qlast
+    else:
+        expr = qlast.BooleanConstant(value='true')
+    if condition := pol.get_condition(schema):
+        expr = qlast.BinOp(op='AND', left=condition.qlast, right=expr)
+
+    # Find all descendants of the original subject of the rule
+    subject = pol.get_original_subject(schema)
+    descs = {subject} | {
+        desc for desc in subject.descendants(schema)
+        if desc.is_material_object_type(schema)
+    }
+
+    # Compile it with all of the
+    with ctx.detached() as dctx:
+        dctx.partial_path_prefix = ctx.partial_path_prefix
+        dctx.expr_exposed = context.Exposure.UNEXPOSED
+        dctx.suppress_rewrites = frozenset(descs)
+
+        return dispatch.compile(expr, ctx=dctx)
+
+
 def get_rewrite_filter(
     stype: s_objtypes.ObjectType, *,
     mode: qltypes.AccessKind,
@@ -86,20 +126,17 @@ def get_rewrite_filter(
     schema = ctx.env.schema
     pols = get_access_policies(stype, ctx=ctx)
 
+    ctx.anchors = ctx.anchors.copy()
+
     allow, deny = [], []
     for pol in pols:
         if mode not in pol.get_access_kinds(schema):
             continue
 
-        is_allow = pol.get_action(schema) == qltypes.AccessPolicyAction.Allow
-        expr_field = pol.get_expr(schema)
-        if expr_field:
-            expr = expr_field.qlast
-        else:
-            expr = qlast.BooleanConstant(value='true')
-        if condition := pol.get_condition(schema):
-            expr = qlast.BinOp(op='AND', left=condition.qlast, right=expr)
+        ir_set = compile_pol(stype, pol, ctx=ctx)
+        expr = ctx.create_anchor(ir_set)
 
+        is_allow = pol.get_action(schema) == qltypes.AccessPolicyAction.Allow
         if is_allow:
             allow.append(expr)
         else:
@@ -286,9 +323,10 @@ def compile_dml_policy(
     if not ctx.type_rewrites.get((stype, False)):
         return None
 
-    condition = get_rewrite_filter(stype, mode=mode, ctx=ctx)
-    if not condition:
+    pols = get_access_policies(stype, ctx=ctx)
+    if not pols:
         return None
+
     with ctx.detached() as subctx:
         # TODO: can we make sure to always avoid generating needless
         # select filters
@@ -300,11 +338,8 @@ def compile_dml_policy(
         subctx.anchors[qlast.Subject().name] = result
         subctx.partial_path_prefix = result
 
-        # Make sure an explicit object reference also routes to the
-        # right set
-        subctx.path_scope = subctx.env.path_scope.root.attach_fence()
-        subctx.path_scope.attach_path(result.path_id, context=None)
-        setgen.update_view_map(result.path_id, result, ctx=subctx)
+        condition = get_rewrite_filter(stype, mode=mode, ctx=subctx)
+        assert condition
 
         return irast.PolicyExpr(
             expr=dispatch.compile(condition, ctx=subctx)

@@ -88,6 +88,9 @@ def new_set(
     ignore_rewrites: bool = kwargs.get('ignore_rewrites', False)
     rw_key = (stype, skip_subtypes)
 
+    if stype in ctx.suppress_rewrites:
+        ignore_rewrites = kwargs['ignore_rewrites'] = True
+
     if (
         not ignore_rewrites
         and rw_key not in ctx.type_rewrites

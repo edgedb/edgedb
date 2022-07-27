@@ -109,6 +109,9 @@ def init_context(
         ctx.partial_path_prefix.anchor = options.path_prefix_anchor
         ctx.partial_path_prefix.show_as_anchor = options.path_prefix_anchor
 
+    if options.detached:
+        ctx.path_id_namespace = frozenset({ctx.aliases.get('ns')})
+
     ctx.derived_target_module = options.derived_target_module
     ctx.toplevel_result_view_name = options.result_view_name
     ctx.implicit_id_in_shapes = options.implicit_id_in_shapes
