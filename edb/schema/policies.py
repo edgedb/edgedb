@@ -164,6 +164,14 @@ class AccessPolicyCommand(
                     context=srcctx
                 )
 
+            if expression.irast.cardinality.is_multi():
+                srcctx = self.get_attribute_source_context(field)
+                raise errors.SchemaDefinitionError(
+                    f'possibly more than one element returned by {vname} '
+                    f'expression for the {pol_name} ',
+                    context=srcctx
+                )
+
             target = schema.get(sn.QualName('std', 'bool'), type=s_types.Type)
             expr_type = expression.irast.stype
             if not expr_type.issubclass(schema, target):
