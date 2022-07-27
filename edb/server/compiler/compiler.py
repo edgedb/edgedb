@@ -752,7 +752,8 @@ class Compiler:
         else:
             first_extra = None
 
-        user_params = first_extra if first_extra is not None else len(params)
+        total_params = len(script_info.params) if script_info else len(params)
+        user_params = first_extra if first_extra is not None else total_params
 
         if script_info is not None:
             outer_mapping = {n: i for i, n in enumerate(script_info.params)}

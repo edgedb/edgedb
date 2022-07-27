@@ -830,6 +830,29 @@ class TestServerProto(tb.QueryTestCase):
             ),
             edgedb.Set(('!?',)))
 
+    async def test_server_proto_args_11(self):
+        async with self._run_and_rollback():
+            self.assertEqual(
+                await self.con.query(
+                    '''
+                        insert Tmp { tmp := <str>$0 };
+                        select Tmp.tmp ++ <str>$1;
+                    ''',
+                    "?", "!"),
+                edgedb.Set(["?!"]),
+            )
+
+        async with self._run_and_rollback():
+            self.assertEqual(
+                await self.con.query(
+                    '''
+                        insert Tmp { tmp := <str>$foo };
+                        select Tmp.tmp ++ <str>$bar;
+                    ''',
+                    foo="?", bar="!"),
+                edgedb.Set(["?!"]),
+            )
+
     async def test_server_proto_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
         # by closing.
