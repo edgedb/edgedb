@@ -124,3 +124,5 @@ class CompilerOptions(GlobalCompilerOptions):
     #: expressions to their subtypes when necessary.
     type_remaps: Dict[s_types.Type, s_types.Type] = (
         dc_field(default_factory=dict))
+
+    detached: bool = False

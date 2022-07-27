@@ -206,6 +206,7 @@ class AccessPolicyCommand(
                     apply_query_rewrites=not context.stdmode,
                     track_schema_ref_exprs=track_schema_ref_exprs,
                     in_ddl_context_name=in_ddl_context_name,
+                    detached=True,
                 ),
             )
         else:
@@ -334,8 +335,9 @@ def get_type_policy_deps(
                     typs.add(tgt)
 
     typs.discard(stype)
-
     typs.update({x for typ in typs for x in typ.descendants(schema)})
+    # ... discard again, to avoid self cycles
+    typs.discard(stype)
 
     return typs
 

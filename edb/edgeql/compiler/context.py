@@ -406,6 +406,9 @@ class ContextLevel(compiler.ContextLevel):
     that had rewrites in its components.
     """
 
+    suppress_rewrites: FrozenSet[s_types.Type]
+    """Types to suppress using rewrites on"""
+
     aliased_views: ChainMap[s_name.Name, s_types.Type]
     """A dictionary of views aliased in a statement body."""
 
@@ -563,6 +566,7 @@ class ContextLevel(compiler.ContextLevel):
             self.view_nodes = {}
             self.view_sets = {}
             self.type_rewrites = {}
+            self.suppress_rewrites = frozenset()
             self.aliased_views = collections.ChainMap()
             self.must_use_views = {}
             self.expr_view_cache = {}
@@ -610,6 +614,7 @@ class ContextLevel(compiler.ContextLevel):
             self.view_nodes = prevlevel.view_nodes
             self.view_sets = prevlevel.view_sets
             self.type_rewrites = prevlevel.type_rewrites
+            self.suppress_rewrites = prevlevel.suppress_rewrites
             self.must_use_views = prevlevel.must_use_views
             self.expr_view_cache = prevlevel.expr_view_cache
             self.shape_type_cache = prevlevel.shape_type_cache

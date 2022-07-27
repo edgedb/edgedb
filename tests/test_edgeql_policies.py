@@ -518,57 +518,145 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             };
         ''')
 
-        await self.con.execute('''
-            insert Foo { val := 0 }
-        ''')
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaDefinitionError,
+                r'possibly an empty set returned'):
+            await self.con.execute('''
+                alter type Foo {
+                    create access policy pol allow all using(Foo.val > 5);
+                };
+            ''')
 
+    async def test_edgeql_policies_binding_01(self):
         await self.con.execute('''
-            alter type Foo {
-                create access policy pol allow all using(Foo.val > 5);
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY val -> int64;
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+            ALTER TYPE Foo {
+                CREATE ACCESS POLICY ap0
+                    ALLOW ALL USING ((count(Bar) = 0));
             };
         ''')
 
         await self.con.execute('''
-            insert Foo { val := 10 }
+            insert Foo { val := 0 };
+            insert Foo { val := 1 };
+            insert Bar { val := 10 };
         ''')
 
-        async with self.assertRaisesRegexTx(
-                edgedb.InvalidValueError,
-                r"access policy violation"):
-            await self.con.query('''
-                 insert Foo { val := 1 }
-            ''')
-
         await self.assert_query_result(
-            '''
-                select Foo { val }
+            r'''
+                select Foo
             ''',
-            [{'val': 10}],
+            []
         )
 
         await self.assert_query_result(
-            '''
-                update Foo filter .val = 10 set { val := 11 }
+            r'''
+                select Bar
             ''',
-            [{}],
-        )
-        await self.assert_query_result(
-            '''
-                update Foo filter .val = 0 set { val := 11 }
-            ''',
-            [],
+            []
         )
 
-        async with self.assertRaisesRegexTx(
-                edgedb.InvalidValueError,
-                r"access policy violation"):
-            await self.con.execute('''
-                update Foo filter .val = 11 set { val := 2 }
-            ''')
+    async def test_edgeql_policies_binding_02(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY val -> int64;
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+            ALTER TYPE Foo {
+                CREATE ACCESS POLICY ins ALLOW INSERT;
+                CREATE ACCESS POLICY ap0
+                    ALLOW ALL USING (
+                        not exists (select Foo filter .val = 1));
+            };
+        ''')
+
+        await self.con.execute('''
+            insert Foo { val := 0 };
+            insert Foo { val := 1 };
+            insert Bar { val := 10 };
+        ''')
 
         await self.assert_query_result(
-            '''
-                delete Foo
+            r'''
+                select Foo
             ''',
-            [{}],
+            []
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Bar
+            ''',
+            []
+        )
+
+    async def test_edgeql_policies_binding_03(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY val -> int64;
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+            ALTER TYPE Foo {
+                CREATE MULTI LINK bar -> Bar;
+            };
+
+            insert Foo { val := 0 };
+            insert Foo { val := 1 };
+            insert Bar { val := 10 };
+            update Foo set { bar := Bar };
+
+            ALTER TYPE Foo {
+                CREATE ACCESS POLICY ap0
+                    ALLOW ALL USING (not exists .bar);
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select Foo
+            ''',
+            []
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Bar
+            ''',
+            []
+        )
+
+    async def test_edgeql_policies_binding_04(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY val -> int64;
+                CREATE MULTI LINK foo -> Foo;
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+
+            insert Foo { val := 0 };
+            insert Foo { val := 1 };
+            insert Bar { val := 10 };
+            update Foo set { foo := Foo };
+
+            ALTER TYPE Foo {
+                CREATE ACCESS POLICY ap0
+                    ALLOW ALL USING (not exists .foo);
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select Foo
+            ''',
+            []
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Bar
+            ''',
+            []
         )
