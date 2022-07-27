@@ -323,6 +323,8 @@ EdgeQL
 * Support partial constraints and indexes (:eql:gh:`#3949`,
   :ref:`docs <ref_datamodel_constraints_partial>`).
 
+* Add the new :eql:func:`json_set` function (:eql:gh:`#4118`).
+
 
 Server
 ------
