@@ -32,6 +32,7 @@ from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
 from edb.ir import typeutils
+from edb.ir import utils as irutils
 
 from edb.schema import links as s_links
 from edb.schema import name as sn
@@ -755,6 +756,10 @@ def _normalize_view_ptr_expr(
                     raise
 
         qlexpr = astutils.ensure_qlstmt(compexpr)
+        # HACK: For scope tree related reasons, DML inside of free objects
+        # needs to be wrapped in a SELECT. This is probably fixable.
+        if irutils.is_trivial_free_object(ir_source):
+            qlexpr = astutils.ensure_ql_select(qlexpr)
 
         if ((ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
                 and ctx.implicit_limit
@@ -1489,7 +1494,7 @@ def _late_compile_view_shapes_in_set(
     # This is to avoid losing subquery distinctions (in cases
     # like test_edgeql_scope_tuple_15), and generally seems more natural.
     if (
-            isinstance(ir_set.expr, irast.Stmt)
+            isinstance(ir_set.expr, (irast.SelectStmt, irast.GroupStmt))
             and not (ir_set.rptr and not ir_set.rptr.is_definition)
             and (setgen.get_set_type(ir_set, ctx=ctx) ==
                  setgen.get_set_type(ir_set.expr.result, ctx=ctx))):
@@ -1507,11 +1512,7 @@ def _late_compile_view_shapes_in_set(
                 parent_view_type=parent_view_type,
                 ctx=scopectx)
 
-        # Don't reach into mutation result fields when populating
-        # shape_source, because mutation results are *not* the source
-        # for linkprops.
-        if not isinstance(ir_set.expr, irast.MutatingStmt):
-            ir_set.shape_source = child if child.shape else child.shape_source
+        ir_set.shape_source = child if child.shape else child.shape_source
         return
 
     if shape_ptrs:
