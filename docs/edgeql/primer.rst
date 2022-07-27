@@ -3,15 +3,21 @@
 Primer
 ======
 
-This page is indended as a rapid-fire overview of EdgeQL so you can hit
-the ground running with EdgeDB. Refer to the linked pages for more in-depth
-documentation.
+EdgeQL is the query language of EdgeDB. It's intended as a spiritual successor
+to SQL that solves some of its biggest design limitations. This page is
+indended as a rapid-fire overview so you can hit the ground running with
+EdgeDB. Refer to the linked pages for more in-depth documentation.
+
+As with most databases, you can write and execute queries as strings with one
+of our first-party :ref:`client libraries <ref_clients_index>` for JavaScript,
+Python, Golang, and Rust, or you can execute queries :ref:`over HTTP
+<ref_edgeql_http>`.
 
 .. note::
 
-  Sample code is also shown for the :ref:`TypeScript query builder
-  <edgedb-js-qb>`, which can express any EdgeQL query and automatically infers
-  the return type of your queries.
+  The examples below also demonstrate how to express the query with the
+  :ref:`TypeScript query builder <edgedb-js-qb>`, which lets you write
+  strongly-typed EdgeQL queries in a code-first way.
 
 
 Literals
