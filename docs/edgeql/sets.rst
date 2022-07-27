@@ -3,19 +3,6 @@
 Sets
 ====
 
-- :ref:`Everything is a set <ref_eql_everything_is_a_set>`
-- :ref:`Constructing sets <ref_eql_set_constructor>`
-- :ref:`Literals are singletons <ref_eql_set_literals_are_singletons>`
-- :ref:`Empty sets <ref_eql_empty_sets>`
-- :ref:`Set references <ref_eql_set_references>`
-- :ref:`Multisets <ref_eql_set_distinct>`
-- :ref:`Checking membership <ref_eql_set_in>`
-- :ref:`Merging <ref_eql_set_union>`
-- :ref:`Coalescing <ref_eql_set_coalesce>`
-- :ref:`Inheritance <ref_eql_set_type_filter>`
-- :ref:`Aggregate vs element-wise operations <ref_eql_set_aggregate>`
-- :ref:`Conversion to/from arrays <ref_eql_set_array_conversion>`
-
 .. _ref_eql_everything_is_a_set:
 
 Everything is a set

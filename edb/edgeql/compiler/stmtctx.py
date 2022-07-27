@@ -89,6 +89,13 @@ def init_context(
             ctx.env.path_scope.attach_path(path_id, context=None)
             ctx.env.singletons.append(path_id)
 
+    for orig, remapped in options.type_remaps.items():
+        rset = compile_anchor('__', remapped, ctx=ctx)
+        ctx.view_sets[orig] = rset
+        ctx.path_scope_map[rset] = context.ScopeInfo(
+            path_scope=ctx.path_scope, binding_kind=None
+        )
+
     ctx.modaliases.update(options.modaliases)
 
     if options.anchors:
@@ -101,6 +108,9 @@ def init_context(
             options.path_prefix_anchor, path_prefix, ctx=ctx)
         ctx.partial_path_prefix.anchor = options.path_prefix_anchor
         ctx.partial_path_prefix.show_as_anchor = options.path_prefix_anchor
+
+    if options.detached:
+        ctx.path_id_namespace = frozenset({ctx.aliases.get('ns')})
 
     ctx.derived_target_module = options.derived_target_module
     ctx.toplevel_result_view_name = options.result_view_name

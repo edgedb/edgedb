@@ -3,15 +3,6 @@
 Select
 ======
 
-- :ref:`Selecting objects <ref_eql_select_objects>`
-- :ref:`Filtering <ref_eql_select_filter>`
-- :ref:`Ordering <ref_eql_select_order>`
-- :ref:`Pagination <ref_eql_select_pagination>`
-- :ref:`Computed fields <ref_eql_select_computeds>`
-- :ref:`Polymorphic queries <ref_eql_select_polymorphic>`
-- :ref:`Free objects <ref_eql_select_free_objects>`
-- :ref:`With blocks <ref_eql_select_with>`
-
 
 The ``select`` command retrieves or computes a set of values. We've already
 seen simple queries that select primitive values.

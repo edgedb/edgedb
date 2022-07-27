@@ -746,8 +746,13 @@ def _normalize_view_ptr_expr(
                 base_ptrcls = ptrcls.get_bases(
                     ctx.env.schema).first(ctx.env.schema)
             except errors.InvalidReferenceError:
-                # This is a NEW computable pointer, it's fine.
-                pass
+                # Check if we aren't inside of modifying statement
+                # for link property, otherwise this is a NEW
+                # computable pointer, it's fine.
+                if (view_rptr is not None
+                        and view_rptr.exprtype.is_mutation()
+                        and is_linkprop):
+                    raise
 
         qlexpr = astutils.ensure_qlstmt(compexpr)
 
