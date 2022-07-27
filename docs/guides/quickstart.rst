@@ -62,10 +62,10 @@ up your first EdgeDB instance. You should see something like this:
 .. code-block:: bash
 
   $ edgedb project init
-  No `edgedb.toml` found in `/Users/colinmcd94/Documents/edgedb/playgrounds/quickstart` or above
+  No `edgedb.toml` found in `/path/to/quickstart` or above
   Do you want to initialize a new project? [Y/n]
   > Y
-  Specify the name of EdgeDB instance to use with this project [default: quickstart]:
+  Specify the name of EdgeDB instance to use with this project [quickstart]:
   > quickstart
   Checking EdgeDB versions...
   Specify the version of EdgeDB to use with this project [default: 2.0-rc.3]:
@@ -175,10 +175,12 @@ Let's build a simple movie database. We'll need to define two **object types**
 A few things to note here.
 
 - Our types don't contain an ``id`` property; EdgeDB automatically
-  creates this property and assigned a unique UUID to every object inserted into the database.
+  creates this property and assigned a unique UUID to every object inserted
+  into the database.
 - The ``Movie`` type also includes two **links**. In EdgeDB, links are used to
   represent relationships between object types. They entirely abstract away the
-  concept of foreign keys; later, you'll see just how easy it is to write "deep" queries without JOINs.
+  concept of foreign keys; later, you'll see just how easy it is to write
+  "deep" queries without JOINs.
 
 Now we're ready to run a migration to apply this schema to the database.
 

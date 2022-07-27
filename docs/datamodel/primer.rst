@@ -5,8 +5,8 @@ This page is indended as a rapid-fire overview of SDL syntax so you can hit
 the ground running with EdgeDB. Refer to the linked pages for more in-depth
 documentation.
 
-Define object types
-^^^^^^^^^^^^^^^^^^^
+Object types
+^^^^^^^^^^^^
 
 Object types contain **properties** and **links** to other
 object types. They are analogous to tables in SQL.
@@ -19,8 +19,8 @@ object types. They are analogous to tables in SQL.
 
 See :ref:`Schema > Object types <ref_std_object_types>`.
 
-Define properties
-^^^^^^^^^^^^^^^^^
+Optional and required properties
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: sdl
 
@@ -31,8 +31,8 @@ Define properties
 
 See :ref:`Schema > Properties <ref_datamodel_props>`.
 
-Define constraints
-^^^^^^^^^^^^^^^^^^
+Constraints
+^^^^^^^^^^^
 
 .. code-block:: sdl
 
@@ -46,8 +46,8 @@ Define constraints
 
 See :ref:`Schema > Constraints <ref_datamodel_constraints>`.
 
-Define indexes
-^^^^^^^^^^^^^^
+Indexes
+^^^^^^^
 
 .. code-block:: sdl
 
@@ -55,9 +55,9 @@ Define indexes
     required property title -> str;
     required property release_year -> int64;
 
-    index on (.title);                 # simple index
-    index on (.title, .release_year);  # compound index
-    index on (str_upper(.title));      # computed index
+    index on (.title);                        # simple index
+    index on ((.title, .release_year));       # composite index
+    index on (str_trim(str_lower(.title)));   # computed index
   }
 
 The ``id`` property, all links, and all properties with ``exclusive``
@@ -65,8 +65,8 @@ constraints are automatically indexed.
 
 See :ref:`Schema > Indexes <ref_datamodel_indexes>`.
 
-Define computed properties
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Computed properties
+^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: sdl
 
@@ -77,8 +77,8 @@ Define computed properties
 
 See :ref:`Schema > Computeds <ref_datamodel_computed>`.
 
-Define links
-^^^^^^^^^^^^
+Links
+^^^^^
 
 .. code-block:: sdl
 
@@ -100,7 +100,7 @@ relation.
     required property title -> str;
 
     link cinematographer -> Person;             # zero or one
-    required link director -> Person            # exactly one
+    required link director -> Person;           # exactly one
     multi link writers -> Person;               # zero or more
     required multi link actors -> Person;       # one or more
   }
@@ -127,8 +127,8 @@ To define a one-to-one relation, use an ``exclusive`` constraint.
 
 See :ref:`Schema > Links <ref_datamodel_links>`.
 
-Define computed links
-^^^^^^^^^^^^^^^^^^^^^
+Computed links
+^^^^^^^^^^^^^^
 
 Links can be computed. The example below defines a backlink.
 
@@ -141,13 +141,13 @@ Links can be computed. The example below defines a backlink.
 
   type Person {
     required property name -> str;
-    link acted_in := .<actors[is Movie]
+    link acted_in := .<actors[is Movie];
   }
 
 See :ref:`Schema > Computeds > Backlinks <ref_datamodel_links_backlinks>`.
 
-Define schema mixins
-^^^^^^^^^^^^^^^^^^^^
+Schema mixins
+^^^^^^^^^^^^^
 
 .. code-block:: sdl
 
@@ -166,8 +166,8 @@ Define schema mixins
 See :ref:`Schema > Object types > Inheritance
 <ref_datamodel_objects_inheritance>`.
 
-Define polymorphic links
-^^^^^^^^^^^^^^^^^^^^^^^^
+Polymorphic links
+^^^^^^^^^^^^^^^^^
 
 .. code-block:: sdl
 
