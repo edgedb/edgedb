@@ -380,8 +380,8 @@ which properties to select, add a :ref:`shape <ref_reference_shapes>`:
   }
 
 This time, the results contain ``title`` and ``release_year`` as requested in
-the query **shape**. Note that the ``release_year`` for Dune is given as ``{}`` (the
-empty set). This is the equivalent of a ``null`` value in SQL.
+the query **shape**. Note that the ``release_year`` for Dune is given as
+``{}`` (the empty set). This is the equivalent of a ``null`` value in SQL.
 
 Let's retrieve some information about Blade Runner 2049.
 
