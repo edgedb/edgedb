@@ -73,7 +73,7 @@ System
     .. code-block:: edgeql-repl
 
         db> select sys::get_transaction_isolation();
-        {sys::TransactionIsolation.RepeatableRead}
+        {sys::TransactionIsolation.Serializable}
 
 
 ----------
@@ -99,5 +99,4 @@ System
     :eql:type:`Enum <enum>` indicating the possible transaction
     isolation modes.
 
-    This enum takes the following values: ``RepeatableRead``,
-    ``Serializable``.
+    This enum only accepts a value of ``Serializable``.
