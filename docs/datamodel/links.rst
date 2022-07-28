@@ -233,6 +233,9 @@ append ``if orphan``.
       }
     }
 
+
+.. _ref_datamodel_link_polymorphic:
+
 Polymorphic links
 -----------------
 

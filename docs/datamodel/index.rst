@@ -6,14 +6,11 @@
 Schema
 ======
 
-One of EdgeDB's foundational features is **declarative schema modeling**.
-
 .. toctree::
     :maxdepth: 3
     :hidden:
 
-    terminology
-    modules
+    primer
     primitives
     objects
     properties
@@ -31,11 +28,23 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     comparison
 
 
-EdgeDB schemas are declared using **SDL** (EdgeDB Schema Definition Language).
-SDL's declarative, object-oriented syntax will look familiar to users of ORM
-libraries.
+EdgeDB schemas are declared using **SDL** (EdgeDB's Schema Definition
+Language).
+
+SDL
+---
+
+Your schema is defined inside ``.esdl`` files. Its common to define your
+entire schema in a single file called ``default.esdl``, but you can split it
+across multiple files if you wish.
+
+By convention, your schema
+files should live in a directory called ``dbschema`` in the root of your
+project.
 
 .. code-block:: sdl
+
+  # dbschema/default.esdl
 
   type Movie {
     required property title -> str;
@@ -46,36 +55,6 @@ libraries.
     required property name -> str;
   }
 
-
-SDL
----
-
-SDL has two important properties. First, it's **declarative**; you can just
-write your schema down exactly as you want it to be. It's easy to see the
-entire state of your schema at a glance.
-
-Secondly, it's **object-oriented**. There are no foreign keys; instead,
-relationships between types are directly represented with :ref:`Links
-<ref_datamodel_links>`; this is part of what makes deep EdgeQL queries so
-concise. For example:
-
-.. code-block:: edgeql
-
-  select Movie {
-    title,
-    director: {
-      name
-    }
-  }
-
-
-``.esdl`` files
----------------
-
-Your schema should be defined in one or more ``.esdl`` files. These files
-should be placed in a directory called ``dbschema`` in the root of your
-project.
-
 .. important::
 
   Syntax highlighter packages/extensions for ``.esdl`` files are available for
@@ -85,23 +64,86 @@ project.
   `Atom <https://atom.io/packages/edgedb>`_, and `Vim <https://github.com/
   edgedb/edgedb-vim>`_.
 
-
 Migrations
 ----------
 
-EdgeDB’s baked-in migration system lets you painlessly evolve your schema
-throughout the development process. After modifying your ``.esdl`` files, you
-can *create* and *apply* a migration with the EdgeDB command-line tool. For a
-full guide on how migrations work, reference the :ref:`Creating and applying
+EdgeDB's baked-in migration system lets you painlessly evolve your schema over
+time. Just update the contents of your ``.esdl`` file(s) and use the EdgeDB CLI
+to *create* and *apply* migrations.
+
+.. code-block:: bash
+
+  $ edgedb migration create
+  Created dbschema/migrations/00001.esdl
+  $ edgedb migrate
+  Applied dbschema/migrations/00001.esdl.
+
+For a full guide on migrations, refer to the :ref:`Creating and applying
 migrations <ref_guide_migrations>` guide.
 
 .. important::
 
   A migration consists of a sequence of *imperative* schema-modifying commands
   like ``create type``, ``alter property``, etc. Collectively these commands
-  are known as DDL (*data definition language*). We recommend that most users
-  use SDL and migrations when building applications. However, if you prefer
-  SQL-style imperative schema modeling, you are free to use DDL directly;
-  go to :ref:`Reference > DDL <ref_eql_ddl>` to learn more.
+  are known as :ref:`DDL <ref_eql_ddl>` (*data definition language*). We
+  recommend using SDL and the migration system when building applications,
+  however you're free to use DDL directly if you prefer.
 
+.. _ref_datamodel_terminology:
 
+Terminology
+-----------
+
+.. _ref_datamodel_instances:
+
+.. rubric:: Instance
+
+An EdgeDB **instance** is a collection of databases that store their data in
+a shared directory, listen for queries on a particular port, and are managed
+by a running EdgeDB process. Instances can be created, started, stopped, and
+destroyed locally with the :ref:`EdgeDB CLI <ref_cli_overview>`.
+
+.. _ref_datamodel_databases:
+
+.. rubric:: Database
+
+Each instance can contain several **databases**, each with a unique name. At
+the time of creation, all instances contain a single default database called
+``edgedb``. All incoming queries are executed
+against it unless otherwise specified.
+
+.. _ref_datamodel_modules:
+
+.. rubric:: Module
+
+Each database has a schema consisting of several **modules**, each with a
+unique name. Modules can be used to organize large schemas into logical units.
+In practice, though, most users put their entire schema inside a single module
+called ``default``.
+
+.. code-block:: sdl
+
+  module default {
+    # declare types here
+  }
+
+.. _ref_name_resolution:
+
+.. note:: Name resolution
+
+  When referencing schema objects from another module, you must use
+  a *fully-qualified* name in the form ``module_name::object_name``.
+
+The following module names are reserved by EdgeDB and contain pre-defined
+types, utility functions, and operators.
+
+* ``std``: standard types, functions, and operators in the :ref:`standard
+  library <ref_std>`
+* ``math``: algebraic and statistical :ref:`functions <ref_std_math>`
+* ``cal``: local (non-timezone-aware) and relative date/time :ref:`types and
+  functions <ref_std_datetime>`
+* ``schema``: types describing the :ref:`introspection <ref_eql_introspection>`
+  schema
+* ``sys``: system-wide entities, such as user roles and
+  :ref:`databases <ref_datamodel_databases>`
+* ``cfg``: configuration and settings

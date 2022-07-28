@@ -43,6 +43,8 @@ These queries can also be rewritten to use inline aliases, like so:
   ... filter x >= 3;
 
 
+.. _ref_eql_select_objects:
+
 Selecting objects
 -----------------
 
@@ -71,11 +73,6 @@ demonstration purposes, the queries below assume the following schema.
       multi link characters -> Person;
     }
   }
-
-.. _ref_eql_select_objects:
-
-Selecting objects
------------------
 
 Let's start by selecting all ``Villains`` objects in the database. In this
 example, there are only three. Remember, ``Villain`` is a :ref:`reference
@@ -109,7 +106,7 @@ this result would look like this:
 .. _ref_eql_shapes:
 
 Shapes
-^^^^^^
+------
 
 To specify which properties to select, we attach a **shape** to ``Hero``. A
 shape can be attached to any object type expression in EdgeQL.
@@ -410,7 +407,7 @@ As with nested filters, the *current scope* changes inside nested shapes.
 .. _ref_eql_select_backlinks:
 
 Backlinks
-^^^^^^^^^
+---------
 
 Fetching backlinks is a common use case for computed fields. To demonstrate
 this, let's fetch a list of all movies starring a particular Hero.
@@ -473,8 +470,10 @@ shapes just like a non-computed link.
 
 
 
+.. _ref_eql_select_subqueries:
+
 Subqueries
-^^^^^^^^^^
+----------
 
 There's no limit to the complexity of computed expressions. EdgeQL is designed
 to be fully composable; entire queries can be embedded inside each other.
