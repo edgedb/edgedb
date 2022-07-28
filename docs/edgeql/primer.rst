@@ -411,7 +411,7 @@ Update objects
 ^^^^^^^^^^^^^^
 
 The ``update`` statement accepts a ``filter`` clause upfront, followed by a
-``set`` clause that specifies the pro
+``set`` shape indicating how the matching objects should be updated.
 
 .. tabs::
 
