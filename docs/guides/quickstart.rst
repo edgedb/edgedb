@@ -166,7 +166,7 @@ Let's build a simple movie database. We'll need to define two **object types**
 
     type Movie {
       required property title -> str;
-      property release_year -> int64;
+      property year -> int64;
       multi link actors -> Person;
       link director -> Person;
     }
