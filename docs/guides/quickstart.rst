@@ -280,7 +280,7 @@ previous query.
   edgedb> with director_id := <uuid>$director_id
   ....... insert Movie {
   .......   title := 'Blade Runnr 2049', # typo is intentional 🙃
-  .......   year := 2017,
+  .......   release_year := 2017,
   .......   director := (
   .......     select Person
   .......     filter .id = director_id
@@ -343,7 +343,7 @@ Our database is still a little sparse. Let's quickly add a couple more movies.
   {default::Movie {id: 64d024dc-54d5-11e9-8c54-a3f59e1d995e}}
   edgedb> insert Movie {
   .......   title := "Arrival",
-  .......   year := 2016
+  .......   release_year := 2016
   ....... };
   {default::Movie {id: ca69776e-40df-11ec-b1b8-b7c909ac034a}}
 
@@ -371,17 +371,17 @@ which properties to select, add a :ref:`shape <ref_reference_shapes>`:
 
   edgedb> select Movie {
   .......   title,
-  .......   year
+  .......   release_year
   ....... };
   {
-    default::Movie {title: 'Blade Runner 2049', year: 2017},
-    default::Movie {title: 'Dune', year: {}},
-    default::Movie {title: 'Arrival', year: 2016}
+    default::Movie {title: 'Blade Runner 2049', release_year: 2017},
+    default::Movie {title: 'Dune', release_year: {}},
+    default::Movie {title: 'Arrival', release_year: 2016}
   }
 
-This time, the results contain ``title`` and ``year`` as requested in
-the query **shape**. Note that the ``year`` for Dune is given as ``{}`` (the
-empty set). This is the equivalent of a ``null`` value in SQL.
+This time, the results contain ``title`` and ``release_year`` as requested in
+the query **shape**. Note that the ``release_year`` for Dune is given as
+``{}`` (the empty set). This is the equivalent of a ``null`` value in SQL.
 
 Let's retrieve some information about Blade Runner 2049.
 
@@ -389,7 +389,7 @@ Let's retrieve some information about Blade Runner 2049.
 
   edgedb> select Movie {
   .......   title,
-  .......   year,
+  .......   release_year,
   .......   actors: {
   .......     first_name,
   .......     last_name
@@ -399,7 +399,7 @@ Let's retrieve some information about Blade Runner 2049.
   {
     default::Movie {
       title: 'Blade Runner 2049',
-      year: 2017,
+      release_year: 2017,
       director: default::Person {first_name: 'Denis', last_name: 'Villeneuve'},
       actors: {
         default::Person {first_name: 'Harrison', last_name: 'Ford'},
@@ -452,7 +452,7 @@ If necessary, close the REPL with ``\q``, then open ``dbschema/default.esdl``.
       }
       type Movie {
         required property title -> str;
-        property year -> int64; # the year of release
+        property release_year -> int64;
         link director -> Person;
         multi link actors -> Person;
       }
@@ -530,7 +530,7 @@ properties of ``Person``. Let's update ``dbschema/default.esdl``:
       }
       type Movie {
         required property title -> str;
-        property year -> int64; # the year of release
+        property release_year -> int64;
         link director -> Person;
         multi link actors -> Person;
       }
