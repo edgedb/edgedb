@@ -94,6 +94,8 @@ queries, consider defining a computed field that encapsulates the filter.
     property is_active -> bool;
   }
 
+.. _ref_datamodel_links_backlinks:
+
 Backlinks
 ^^^^^^^^^
 

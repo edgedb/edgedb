@@ -83,6 +83,43 @@ client library you're using; refer to the :ref:`Global Variables
         select global current_user;
     """)
 
+  .. code-tab:: golang
+
+    package main
+
+    import (
+      "context"
+      "fmt"
+      "log"
+
+      "github.com/edgedb/edgedb-go"
+    )
+
+    func main() {
+      ctx := context.Background()
+      client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+      if err != nil {
+        log.Fatal(err)
+      }
+      defer client.Close()
+
+      id, err := edgedb.ParseUUID("2141a5b4-5634-4ccc-b835-437863534c51")
+      if err != nil {
+        log.Fatal(err)
+      }
+
+      var result edgedb.UUID
+      err = client.
+        WithGlobals(map[string]interface{}{"current_user": id}).
+        QuerySingle(ctx, "SELECT global current_user;", &result)
+      if err != nil {
+        log.Fatal(err)
+      }
+
+      fmt.Println(result)
+    }
+
+
 
 Now let's break down the access policy syntax piece-by-piece.
 

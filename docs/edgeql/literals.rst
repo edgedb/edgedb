@@ -93,8 +93,6 @@ backslash ``\`` as a literal character instead of an escape character.
     if you need to use "$$" in your string.',
   }
 
-
-
 EdgeQL contains a set of built-in functions and operators for searching,
 comparing, and manipulating strings.
 
