@@ -4,14 +4,15 @@ v2.0
 
 :edb-alt-title: EdgeDB v2 (Sagittarius)
 
-.. note::
+.. image:: images/v2_sagittarius.jpg
+    :width: 100%
 
-    This document is a work in progress. We'll continue updating it
-    until the stable `v2 release <https://lu.ma/edgedb>`_ on July 28th 2022.
+EdgeDB 2.0 was released on July 28th, 2022. Read the announcement
+blog post `here <v2anno_>`_.
 
-EdgeDB 2.0 RC1 was released to the "stable" channel on July 14th, 2022. We
-would like to thank our community for reporting issues and contributing fixes.
-You are awesome! ❤️
+We would like to thank our community for reporting issues and contributing
+fixes. You are awesome! ❤️
+
 
 Try it out
 ==========
@@ -418,3 +419,7 @@ Protocol overhaul
     https://www.edgedb.com/blog/edgedb-2-0
 
 .. lint-on
+
+
+.. _v2anno:
+    https://www.edgedb.com/blog/edgedb-2-0
