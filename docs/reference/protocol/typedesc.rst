@@ -313,6 +313,26 @@ Input objects are encoded on the wire as
 :ref:`sparse objects <ref_protocol_fmt_sparse_obj>`.
 
 
+Range Type Descriptor
+===========================
+
+.. code-block:: c
+
+    struct RangeTypeDescriptor {
+        // Indicates that this is a
+        // Range Type descriptor.
+        uint8        type = 9;
+
+        // Descriptor ID.
+        uuid         id;
+
+        // Range type descriptor index.
+        uint16       type_pos;
+    };
+
+Ranges are encoded on the wire as :ref:`ranges <ref_protocol_fmt_range>`.
+
+
 Scalar Type Name Annotation
 ===========================
 
