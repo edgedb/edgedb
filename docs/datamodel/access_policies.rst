@@ -125,9 +125,9 @@ Now let's break down the access policy syntax piece-by-piece.
 
 .. code-block::
 
-  access policy own_posts allow all using (
-    .author.id ?= global current_user
-  )
+  access policy own_posts
+    allow all
+    using (.author.id ?= global current_user)
 
 This policy grants full read-write access (``all``) to the ``author`` of each
 ``BlogPost``. It also implicitly *denies* access to everyone else.
@@ -277,7 +277,7 @@ Blog posts are visible to friends but only modifiable by the author.
 Blog posts are publicly visible except to users that have been ``blocked`` by
 the author.
 
-.. code-block::
+.. code-block:: sdl
 
   type User {
     required property email -> str { constraint exclusive; };
