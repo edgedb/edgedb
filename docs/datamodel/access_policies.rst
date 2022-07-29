@@ -86,11 +86,11 @@ client library you're using; refer to the :ref:`Global Variables
 
 Now let's break down the access policy syntax piece-by-piece.
 
-.. code-block:: sdl
+.. code-block::
 
-  access policy own_posts allow all using (
-    .author.id ?= global current_user
-  )
+  access policy own_posts
+    allow all
+    using (.author.id ?= global current_user)
 
 This policy grants full read-write access (``all``) to the ``author`` of each
 ``BlogPost``. It also implicitly *denies* access to everyone else.
