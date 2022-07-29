@@ -1,12 +1,12 @@
-.. _ref_datamodel_ols:
+.. _ref_datamodel_access_policies:
 
-===============
-Access Policies
-===============
+====================
+Access Policies #New
+====================
 
-.. note::
+.. warning::
 
-  ⚠️ Only available in EdgeDB 2.0 or later.
+  This type is only available in EdgeDB 2.0 or later.
 
 Object types can contain security policies that restrict the set of objects
 that can be selected, inserted, updated, or deleted by a particular query.
@@ -82,6 +82,43 @@ client library you're using; refer to the :ref:`Global Variables
     result = client.query("""
         select global current_user;
     """)
+
+  .. code-tab:: golang
+
+    package main
+
+    import (
+      "context"
+      "fmt"
+      "log"
+
+      "github.com/edgedb/edgedb-go"
+    )
+
+    func main() {
+      ctx := context.Background()
+      client, err := edgedb.CreateClient(ctx, edgedb.Options{})
+      if err != nil {
+        log.Fatal(err)
+      }
+      defer client.Close()
+
+      id, err := edgedb.ParseUUID("2141a5b4-5634-4ccc-b835-437863534c51")
+      if err != nil {
+        log.Fatal(err)
+      }
+
+      var result edgedb.UUID
+      err = client.
+        WithGlobals(map[string]interface{}{"current_user": id}).
+        QuerySingle(ctx, "SELECT global current_user;", &result)
+      if err != nil {
+        log.Fatal(err)
+      }
+
+      fmt.Println(result)
+    }
+
 
 
 Now let's break down the access policy syntax piece-by-piece.
@@ -182,44 +219,6 @@ the others.
 - ``all``: A shorthand policy that can be used to allow or deny full read/
   write permissions. Exactly equivalent to ``select, insert, update, delete``.
 
-The ``when`` clause
-^^^^^^^^^^^^^^^^^^^
-
-For readability, access policies can include a ``when`` clause.
-
-.. code-block:: sdl
-
-  type BlogPost {
-    required property title -> str;
-    link author -> User;
-    access policy own_posts
-      when ( .title[0] = "A" )
-      allow all
-      using ( .author.id ?= global current_user )
-  }
-
-Conceptually, you can think of the ``when`` clause as defining the *set of
-objects* to which the policy applies while the ``using`` clause represents the
-*access check* (likely referencing a global). Logically, the ``when`` and
-``using`` expressions are combined with ``and`` together to determine the
-scope of the policy.
-
-In practice, any policy can be expressed with just ``when``, just ``using``,
-or split across the two; this syntax is intended to enhance readability and
-maintainability. We can re-write the policy above without the ``when`` clause.
-
-.. code-block:: sdl-diff
-
-    type BlogPost {
-      required property title -> str;
-      link author -> User;
-      access policy own_posts
-  -     when ( .title[0] = "A" )
-        allow all
-  -     using( .author.id ?= global current_user)
-  +     using( .author.id ?= global current_user and .title[0] = "A" )
-    }
-
 Resolution order
 ^^^^^^^^^^^^^^^^
 
@@ -237,13 +236,13 @@ algorithm for resolving these policies.
 
 2. EdgeDB then applies all ``allow`` policies. Each policy grants a
    *permission* that is scoped to a particular *set of objects* as defined by
-   the ``when/using`` clauses. Conceptually, these permissions are merged with
+   the ``using`` clause. Conceptually, these permissions are merged with
    the ``union`` / ``or`` operator to determine the set of allowable actions.
 
 3. After the ``allow`` policies are resolved, the ``deny`` policies can be
    used to carve out exceptions to the ``allow`` rules. Deny rules *supersede*
    allow rules! As before, the set of objects targeted by the policy is
-   defined by the ``when/using`` clause.
+   defined by the ``using`` clause.
 
 4. This results in the final access level: a set of objects targetable by each
    of ``select``, ``insert``, ``update read``, ``update write``, and
@@ -299,12 +298,10 @@ the author.
     );
   }
 
-.. .. list-table::
-..   :class: seealso
+.. list-table::
+  :class: seealso
 
-..   * - **See also**
-..   * - :ref:`SDL > Object types <ref_eql_sdl_object_types>`
-..   * - :ref:`DDL > Object-level security <ref_eql_ddl_acl>`
-..   * - :ref:`Introspection > Object types
-  <ref_eql_introspection_object_types>`
-..   * - :ref:`Cheatsheets > Object types <ref_cheatsheet_object_types>`
+  * - **See also**
+  * - :ref:`SDL > Access policies <ref_eql_sdl_access_policies>`
+  * - :ref:`DDL > Access policies <ref_eql_ddl_access_policies>`
+

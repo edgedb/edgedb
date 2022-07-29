@@ -69,35 +69,22 @@ class ContextSwitchMode(enum.Enum):
     DETACHED = enum.auto()
 
 
+@dataclasses.dataclass(kw_only=True)
 class ViewRPtr:
-    def __init__(
-        self,
-        source: s_sources.Source,
-        *,
-        ptrcls: Optional[s_pointers.Pointer],
-        ptrcls_name: Optional[s_name.QualName] = None,
-        base_ptrcls: Optional[s_pointers.Pointer] = None,
-        ptrcls_is_linkprop: bool = False,
-        ptrcls_is_alias: bool = False,
-        rptr: Optional[irast.Pointer] = None,
-        exprtype: s_types.ExprType = s_types.ExprType.Select,
-        rptr_dir: Optional[s_pointers.PointerDirection] = None,
-    ) -> None:
-        self.source = source
-        self.ptrcls = ptrcls
-        self.base_ptrcls = base_ptrcls
-        self.ptrcls_name = ptrcls_name
-        self.ptrcls_is_linkprop = ptrcls_is_linkprop
-        self.ptrcls_is_alias = ptrcls_is_alias
-        self.rptr = rptr
-        self.exprtype = exprtype
-        self.rptr_dir = rptr_dir
+    source: s_sources.Source
+    ptrcls: Optional[s_pointers.Pointer]
+    ptrcls_name: Optional[s_name.QualName] = None
+    base_ptrcls: Optional[s_pointers.Pointer] = None
+    ptrcls_is_linkprop: bool = False
+    ptrcls_is_alias: bool = False
+    exprtype: s_types.ExprType = s_types.ExprType.Select
+    rptr_dir: Optional[s_pointers.PointerDirection] = None
 
 
 @dataclasses.dataclass
 class ScopeInfo:
     path_scope: irast.ScopeTreeNode
-    binding_kind: irast.BindingKind
+    binding_kind: Optional[irast.BindingKind]
     pinned_path_id_ns: Optional[FrozenSet[str]] = None
 
 
@@ -419,6 +406,9 @@ class ContextLevel(compiler.ContextLevel):
     that had rewrites in its components.
     """
 
+    suppress_rewrites: FrozenSet[s_types.Type]
+    """Types to suppress using rewrites on"""
+
     aliased_views: ChainMap[s_name.Name, s_types.Type]
     """A dictionary of views aliased in a statement body."""
 
@@ -469,8 +459,8 @@ class ContextLevel(compiler.ContextLevel):
     pending_stmt_full_path_id_namespace: FrozenSet[str]
     """A set of path id namespaces to use in path ids in the next statement."""
 
-    banned_paths: Set[irast.PathId]
-    """A set of path ids that are considered invalid in this context."""
+    inserting_paths: Dict[irast.PathId, Literal['body'] | Literal['else']]
+    """A set of path ids that are currently being inserted."""
 
     view_map: ChainMap[
         irast.PathId,
@@ -576,6 +566,7 @@ class ContextLevel(compiler.ContextLevel):
             self.view_nodes = {}
             self.view_sets = {}
             self.type_rewrites = {}
+            self.suppress_rewrites = frozenset()
             self.aliased_views = collections.ChainMap()
             self.must_use_views = {}
             self.expr_view_cache = {}
@@ -588,7 +579,7 @@ class ContextLevel(compiler.ContextLevel):
             self.path_id_namespace = frozenset()
             self.pending_stmt_own_path_id_namespace = frozenset()
             self.pending_stmt_full_path_id_namespace = frozenset()
-            self.banned_paths = set()
+            self.inserting_paths = {}
             self.view_map = collections.ChainMap()
             self.path_scope = env.path_scope
             self.path_scope_map = {}
@@ -623,6 +614,7 @@ class ContextLevel(compiler.ContextLevel):
             self.view_nodes = prevlevel.view_nodes
             self.view_sets = prevlevel.view_sets
             self.type_rewrites = prevlevel.type_rewrites
+            self.suppress_rewrites = prevlevel.suppress_rewrites
             self.must_use_views = prevlevel.must_use_views
             self.expr_view_cache = prevlevel.expr_view_cache
             self.shape_type_cache = prevlevel.shape_type_cache
@@ -633,7 +625,7 @@ class ContextLevel(compiler.ContextLevel):
                 prevlevel.pending_stmt_own_path_id_namespace
             self.pending_stmt_full_path_id_namespace = \
                 prevlevel.pending_stmt_full_path_id_namespace
-            self.banned_paths = prevlevel.banned_paths
+            self.inserting_paths = prevlevel.inserting_paths
             self.view_map = prevlevel.view_map
             if prevlevel.path_scope is None:
                 prevlevel.path_scope = self.env.path_scope
@@ -667,7 +659,7 @@ class ContextLevel(compiler.ContextLevel):
 
                 self.pending_stmt_own_path_id_namespace = frozenset()
                 self.pending_stmt_full_path_id_namespace = frozenset()
-                self.banned_paths = prevlevel.banned_paths.copy()
+                self.inserting_paths = prevlevel.inserting_paths.copy()
 
                 self.view_rptr = None
                 self.view_scls = None
@@ -690,7 +682,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.path_id_namespace = frozenset({self.aliases.get('ns')})
                 self.pending_stmt_own_path_id_namespace = frozenset()
                 self.pending_stmt_full_path_id_namespace = frozenset()
-                self.banned_paths = set()
+                self.inserting_paths = {}
 
                 self.iterator_path_ids = frozenset()
 

@@ -105,6 +105,7 @@ class CompileContext:
     expected_cardinality_one: bool
     protocol_version: Tuple[int, int]
     skip_first: bool = False
+    expect_rollback: bool = False
     json_parameters: bool = False
     schema_reflection_mode: bool = False
     implicit_limit: int = 0
@@ -591,7 +592,6 @@ class Compiler:
             constant_folding=not disable_constant_folding,
             json_parameters=ctx.json_parameters,
             implicit_limit=ctx.implicit_limit,
-            allow_writing_protected_pointers=ctx.schema_reflection_mode,
             bootstrap_mode=ctx.bootstrap_mode,
             apply_query_rewrites=(
                 not ctx.bootstrap_mode
@@ -599,6 +599,8 @@ class Compiler:
             ),
             apply_user_access_policies=self.get_config_val(
                 ctx, 'apply_access_policies'),
+            allow_user_specified_id=self.get_config_val(
+                ctx, 'allow_user_specified_id') or ctx.schema_reflection_mode,
             testmode=self.get_config_val(ctx, '__internal_testmode'),
             devmode=self._is_dev_instance(),
         )
@@ -750,7 +752,8 @@ class Compiler:
         else:
             first_extra = None
 
-        user_params = first_extra if first_extra is not None else len(params)
+        total_params = len(script_info.params) if script_info else len(params)
+        user_params = first_extra if first_extra is not None else total_params
 
         if script_info is not None:
             outer_mapping = {n: i for i, n in enumerate(script_info.params)}
@@ -995,6 +998,17 @@ class Compiler:
     ):
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema(self._std_schema)
+
+        if ctx.expect_rollback and not isinstance(ql, qlast.AbortMigration):
+            # Only allow ABORT MIGRATION to pass when expecting a rollback
+            if current_tx.get_migration_state() is None:
+                raise errors.TransactionError(
+                    'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
+                )
+            else:
+                raise errors.TransactionError(
+                    'expected a ROLLBACK or ABORT MIGRATION command'
+                )
 
         if isinstance(ql, qlast.CreateMigration):
             self._assert_not_in_migration_block(ctx, ql)
@@ -1422,6 +1436,13 @@ class Compiler:
         sp_name = None
         sp_id = None
 
+        if ctx.expect_rollback and not isinstance(
+            ql, (qlast.RollbackTransaction, qlast.RollbackToSavepoint)
+        ):
+            raise errors.TransactionError(
+                'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
+            )
+
         if isinstance(ql, qlast.StartTransaction):
             self._assert_not_in_migration_block(ctx, ql)
 
@@ -1760,6 +1781,13 @@ class Compiler:
         is_script = statements_len > 1
         script_info = None
         if is_script:
+            if ctx.expect_rollback:
+                # We are in a failed transaction expecting a rollback, while a
+                # script cannot be a rollback
+                raise errors.TransactionError(
+                    'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
+                )
+
             script_info = qlcompiler.preprocess_script(
                 statements,
                 schema=ctx.state.current_tx().get_schema(self._std_schema),
@@ -1899,6 +1927,8 @@ class Compiler:
                     unit.tx_commit = True
                 elif comp.tx_action == dbstate.TxAction.ROLLBACK:
                     unit.tx_rollback = True
+                elif comp.action == dbstate.MigrationAction.ABORT:
+                    unit.tx_abort_migration = True
 
             elif isinstance(comp, dbstate.SessionStateQuery):
                 unit.sql = comp.sql
@@ -1999,8 +2029,14 @@ class Compiler:
     # API
 
     @staticmethod
-    def try_compile_rollback(eql: bytes, protocol_version: tuple[int, int]):
-        statements = edgeql.parse_block(eql.decode())
+    def try_compile_rollback(
+        eql: Union[edgeql.Source, bytes], protocol_version: tuple[int, int]
+    ):
+        if isinstance(eql, edgeql.Source):
+            source = eql
+        else:
+            source = eql.decode()
+        statements = edgeql.parse_block(source)
 
         stmt = statements[0]
         unit = None
@@ -2194,8 +2230,20 @@ class Compiler:
         protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
         json_parameters: bool = False,
+        expect_rollback: bool = False,
     ) -> Tuple[dbstate.QueryUnitGroup, dbstate.CompilerConnectionState]:
-        state.sync_tx(txid)
+        if (
+            expect_rollback and
+            state.current_tx().id != txid and
+            not state.can_sync_to_savepoint(txid)
+        ):
+            # This is a special case when COMMIT MIGRATION fails, the compiler
+            # doesn't have the right transaction state, so we just roll back.
+            return (
+                self.try_compile_rollback(source, protocol_version)[0], state
+            )
+        else:
+            state.sync_tx(txid)
 
         ctx = CompileContext(
             state=state,
@@ -2209,6 +2257,7 @@ class Compiler:
             source=source,
             protocol_version=protocol_version,
             json_parameters=json_parameters,
+            expect_rollback=expect_rollback,
         )
 
         return self._compile(ctx=ctx, source=source), ctx.state

@@ -42,6 +42,7 @@ from . import astutils
 from . import context
 from . import dispatch
 from . import inference
+from . import pathctx
 from . import setgen
 from . import typegen
 
@@ -534,6 +535,9 @@ def compile_insert_unless_conflict_on(
         # The ELSE needs to be able to reference the subject in an
         # UPDATE, even though that would normally be prohibited.
         ctx.path_scope.factoring_allowlist.add(stmt.subject.path_id)
+
+        pathctx.ban_inserting_path(
+            stmt.subject.path_id, location='else', ctx=ctx)
 
         # Compile else
         else_ir = dispatch.compile(

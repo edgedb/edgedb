@@ -25,9 +25,13 @@ from . import delta as sd
 from . import objects as so
 
 
-class SchemaVersion(so.InternalObject):
+class BaseSchemaVersion(so.Object):
 
     version = so.SchemaField(uuid.UUID)
+
+
+class SchemaVersion(BaseSchemaVersion, so.InternalObject):
+    pass
 
 
 class SchemaVersionCommandContext(sd.ObjectCommandContext[SchemaVersion]):
@@ -55,9 +59,10 @@ class AlterSchemaVersion(
     pass
 
 
-class GlobalSchemaVersion(so.InternalObject, so.GlobalObject):
-
-    version = so.SchemaField(uuid.UUID)
+class GlobalSchemaVersion(
+    BaseSchemaVersion, so.InternalObject, so.GlobalObject
+):
+    pass
 
 
 class GlobalSchemaVersionCommandContext(

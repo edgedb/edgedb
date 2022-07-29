@@ -120,6 +120,11 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
         CREATE ANNOTATION cfg::affects_compilation := 'true';
     };
 
+    CREATE PROPERTY allow_user_specified_id -> std::bool {
+        SET default := false;
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+    };
+
     # Exposed backend settings follow.
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value

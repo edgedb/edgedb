@@ -1,8 +1,8 @@
 .. _ref_std_array:
 
-=====
-Array
-=====
+======
+Arrays
+======
 
 :edb-alt-title: Array Functions and Operators
 

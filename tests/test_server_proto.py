@@ -830,6 +830,29 @@ class TestServerProto(tb.QueryTestCase):
             ),
             edgedb.Set(('!?',)))
 
+    async def test_server_proto_args_11(self):
+        async with self._run_and_rollback():
+            self.assertEqual(
+                await self.con.query(
+                    '''
+                        insert Tmp { tmp := <str>$0 };
+                        select Tmp.tmp ++ <str>$1;
+                    ''',
+                    "?", "!"),
+                edgedb.Set(["?!"]),
+            )
+
+        async with self._run_and_rollback():
+            self.assertEqual(
+                await self.con.query(
+                    '''
+                        insert Tmp { tmp := <str>$foo };
+                        select Tmp.tmp ++ <str>$bar;
+                    ''',
+                    foo="?", bar="!"),
+                edgedb.Set(["?!"]),
+            )
+
     async def test_server_proto_wait_cancel_01(self):
         # Test that client protocol handles waits interrupted
         # by closing.
@@ -1992,6 +2015,19 @@ class TestServerProto(tb.QueryTestCase):
             finally:
                 await con2.aclose()
 
+    async def test_server_proto_tx_22(self):
+        await self.con.query('START TRANSACTION')
+        try:
+            with self.assertRaises(edgedb.DivisionByZeroError):
+                await self.con.execute('SELECT 1/0')
+            # The commit
+            with self.assertRaises(edgedb.TransactionError):
+                await self.con.query('COMMIT')
+        finally:
+            await self.con.query('ROLLBACK')
+
+        self.assertEqual(await self.con.query_single('SELECT 42'), 42)
+
 
 class TestServerProtoMigration(tb.QueryTestCase):
 
@@ -3137,3 +3173,12 @@ class TestServerCapabilities(tb.QueryTestCase):
                 'START MIGRATION TO {}',
                 __allow_capabilities__=caps,
             )
+
+    async def test_server_capabilities_07(self):
+        caps = enums.Capability.ALL & ~enums.Capability.TRANSACTION
+        await self.con._fetchall(
+            'START MIGRATION TO {};'
+            'POPULATE MIGRATION;'
+            'ABORT MIGRATION;',
+            __allow_capabilities__=caps,
+        )

@@ -34,6 +34,7 @@ from . import expr as s_expr
 from . import links as s_links
 from . import name as sn
 from . import objects as so
+from . import properties as s_props
 from . import referencing
 from . import schema as s_schema
 from . import sources as s_sources
@@ -103,6 +104,23 @@ class AccessPolicy(
         shortname = self.get_shortname(schema)
         return sn.QualName(module='__', name=shortname.name)
 
+    def get_expr_refs(self, schema: s_schema.Schema) -> List[so.Object]:
+        objs: List[so.Object] = []
+        if (condition := self.get_condition(schema)) and condition.refs:
+            objs.extend(condition.refs.objects(schema))
+        if (expr := self.get_expr(schema)) and expr.refs:
+            objs.extend(expr.refs.objects(schema))
+        return objs
+
+    def get_subject(self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
+        subj: s_objtypes.ObjectType = self.get_field_value(schema, 'subject')
+        return subj
+
+    def get_original_subject(
+            self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
+        ancs = (self,) + self.get_ancestors(schema).objects(schema)
+        return ancs[-1].get_subject(schema)
+
 
 class AccessPolicyCommandContext(
     sd.ObjectCommandContext[AccessPolicy],
@@ -147,11 +165,26 @@ class AccessPolicyCommand(
             )
             assert isinstance(expression.irast, irast.Statement)
 
+            srcctx = self.get_attribute_source_context(field)
+
             if expression.irast.cardinality.can_be_zero():
-                srcctx = self.get_attribute_source_context(field)
                 raise errors.SchemaDefinitionError(
                     f'possibly an empty set returned by {vname} '
                     f'expression for the {pol_name} ',
+                    context=srcctx
+                )
+
+            if expression.irast.cardinality.is_multi():
+                raise errors.SchemaDefinitionError(
+                    f'possibly more than one element returned by {vname} '
+                    f'expression for the {pol_name} ',
+                    context=srcctx
+                )
+
+            if expression.irast.volatility.is_volatile():
+                raise errors.SchemaDefinitionError(
+                    f'{pol_name} has a volatile {vname} expression, '
+                    f'which is not allowed',
                     context=srcctx
                 )
 
@@ -163,7 +196,7 @@ class AccessPolicyCommand(
                     f'{vname} expression for {pol_name} is of invalid type: '
                     f'{expr_type.get_displayname(schema)}, '
                     f'expected {target.get_displayname(schema)}',
-                    context=srcctx,
+                    context=self.source_context,
                 )
 
         return schema
@@ -197,6 +230,7 @@ class AccessPolicyCommand(
                     apply_query_rewrites=not context.stdmode,
                     track_schema_ref_exprs=track_schema_ref_exprs,
                     in_ddl_context_name=in_ddl_context_name,
+                    detached=True,
                 ),
             )
         else:
@@ -254,9 +288,36 @@ class AccessPolicyCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
-        from . import objtypes as s_objtypes
         subject = self.scls.get_subject(schema)
-        assert isinstance(subject, s_objtypes.ObjectType)
+
+        for obj in self.scls.get_expr_refs(schema):
+            if isinstance(obj, s_props.Property):
+                # Disable access of link properties with default
+                # values from all the post-check DML changes. This is
+                # because linkprop default values currently come from
+                # the postgres side, so we don't have access to them
+                # before actually doing the link table inserts.
+                # TODO: Fix this.
+                if (
+                    obj.get_source(schema)
+                    and obj.is_link_property(schema)
+                    and obj.get_default(schema)
+                    and any(
+                        # XXX: apparently we don't do this coercion
+                        # automatically!
+                        qltypes.AccessKind(kind).is_data_check()
+                        for kind in self.scls.get_access_kinds(schema)
+                    )
+                ):
+                    pol_name = self.get_verbosename(
+                        parent=subject.get_verbosename(schema))
+                    obj_name = obj.get_verbosename(schema, with_parent=True)
+                    raise errors.UnsupportedFeatureError(
+                        f'insert and update write access policies may not '
+                        f'refer to link properties with default values: '
+                        f'{pol_name} refers to {obj_name}',
+                        context=self.source_context,
+                    )
 
         try:
             check_type_policy_ordering(subject, schema)
@@ -266,8 +327,8 @@ class AccessPolicyCommand(
 
             item_vn = e.item.get_verbosename(schema, with_parent=True)
             # Recursion involving more than one schema object.
-            rec_vn = e.path[-1].get_verbosename(
-                schema, with_parent=True)
+            el = e.path[-1] if e.path else e.item
+            rec_vn = el.get_verbosename(schema, with_parent=True)
             # Sort for output determinism
             vn1, vn2 = sorted([rec_vn, item_vn])
             msg = (
@@ -284,22 +345,26 @@ def get_type_policy_deps(
 
     typs: Set[s_objtypes.ObjectType] = set()
     for pol in stype.get_access_policies(schema).objects(schema):
-        objs: List[s_objtypes.ObjectType] = []
-        if (condition := pol.get_condition(schema)) and condition.refs:
-            objs.extend(condition.refs.objects(schema))
-        if (expr := pol.get_expr(schema)) and expr.refs:
-            objs.extend(expr.refs.objects(schema))
+        objs = pol.get_expr_refs(schema)
 
+        ntyps = set()
         for obj in objs:
             if isinstance(obj, s_objtypes.ObjectType):
-                typs.add(obj)
-                typs.update(stype.get_union_of(schema).objects(schema))
-                typs.update(stype.get_intersection_of(schema).objects(schema))
+                ntyps.add(obj)
+                ntyps.update(stype.get_union_of(schema).objects(schema))
+                ntyps.update(stype.get_intersection_of(schema).objects(schema))
             elif isinstance(obj, s_links.Link):
                 if tgt := obj.get_target(schema):
-                    typs.add(tgt)
+                    ntyps.add(tgt)
 
-    typs.discard(stype)
+        # The original subject of a rule and its children don't have
+        # their policies applied while evaluating a policy, so we
+        # don't depend on them.
+        orig_subj = pol.get_original_subject(schema)
+        ntyps.discard(orig_subj)
+        ntyps.difference_update(orig_subj.descendants(schema))
+
+        typs.update(ntyps)
 
     typs.update({x for typ in typs for x in typ.descendants(schema)})
 

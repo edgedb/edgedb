@@ -25,6 +25,7 @@ from edb.testbase import server as tb
 
 class TestDatabase(tb.ConnectedTestCase):
     TRANSACTION_ISOLATION = False
+    PARALLELISM_GRANULARITY = 'suite'
 
     async def test_database_create_01(self):
         if not self.has_create_database:
@@ -73,4 +74,13 @@ class TestDatabase(tb.ConnectedTestCase):
                     r'database "databasename" already exists'):
                 await self.con.execute('CREATE DATABASE databasename;')
         finally:
+            await self.con.execute('DROP DATABASE databasename;')
+
+    async def test_database_drop_01(self):
+        if not self.has_create_database:
+            self.skipTest("create database is not supported by the backend")
+
+        with self.assertRaisesRegex(
+                edgedb.UnknownDatabaseError,
+                r'database "databasename" does not exist'):
             await self.con.execute('DROP DATABASE databasename;')

@@ -65,6 +65,21 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                       (global cur_user IN __subject__.watchers.name) ?? false
                   )
             };
+
+            create type CurOnly extending Dictionary {
+                create access policy cur_only allow all
+                using (not exists global cur_user or global cur_user ?= .name);
+            };
+            create type CurOnlyM {
+                create multi property name -> str {
+                    create constraint exclusive;
+                };
+                create access policy cur_only allow all
+                using (
+                    not exists global cur_user
+                    or (global cur_user in .name) ?? false
+                );
+            };
         '''
     ]
 
@@ -390,8 +405,8 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
         )
 
         async with self.assertRaisesRegexTx(
-                edgedb.ConstraintViolationError,
-                "violates exclusivity constraint"):
+                edgedb.InvalidValueError,
+                "access policy violation"):
             await self.con.query('''
                 INSERT Issue {
                     number := '4',
@@ -415,4 +430,306 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                     status := (SELECT Status FILTER Status.name = 'Closed'),
                 } UNLESS CONFLICT ON (.number) ELSE Issue),
                 select { required z := Z };
+            ''')
+
+    async def test_edgeql_policies_09(self):
+        # Create a type that we can write but not view
+        await self.con.execute('''
+            create type X extending Dictionary {
+                create access policy can_insert allow insert;
+            };
+            insert X { name := "!" };
+        ''')
+
+        # We need to raise a constraint violation error even though
+        # we are trying to do unless conflict, because we can't see
+        # the conflicting object!
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r"name violates exclusivity constraint"):
+            await self.con.query('''
+                insert X { name := "!" }
+                unless conflict on (.name) else (select X)
+            ''')
+
+    async def test_edgeql_policies_order_01(self):
+        await self.con.execute('''
+            insert CurOnly { name := "!" }
+        ''')
+        await self.con.execute('''
+            set global cur_user := "?"
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on insert of default::CurOnly"):
+            await self.con.query('''
+                insert CurOnly { name := "!" }
+            ''')
+
+    async def test_edgeql_policies_order_02(self):
+        await self.con.execute('''
+            insert CurOnly { name := "!" };
+            insert CurOnly { name := "?" };
+        ''')
+        await self.con.execute('''
+            set global cur_user := "?"
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on update of default::CurOnly"):
+            await self.con.query('''
+                update CurOnly set { name := "!" }
+            ''')
+
+    async def test_edgeql_policies_order_03(self):
+        await self.con.execute('''
+            insert CurOnlyM { name := "!" }
+        ''')
+        await self.con.execute('''
+            set global cur_user := "?"
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on insert of default::CurOnlyM"):
+            await self.con.query('''
+                insert CurOnlyM { name := "!" }
+            ''')
+
+    async def test_edgeql_policies_order_04(self):
+        await self.con.execute('''
+            insert CurOnlyM { name := "!" };
+            insert CurOnlyM { name := "?" };
+        ''')
+        await self.con.execute('''
+            set global cur_user := "?"
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on update of default::CurOnlyM"):
+            await self.con.query('''
+                update CurOnlyM set { name := "!" }
+            ''')
+
+    async def test_edgeql_policies_scope_01(self):
+        await self.con.execute('''
+            create type Foo {
+                create required property val -> int64;
+            };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaDefinitionError,
+                r'possibly an empty set returned'):
+            await self.con.execute('''
+                alter type Foo {
+                    create access policy pol allow all using(Foo.val > 5);
+                };
+            ''')
+
+    async def test_edgeql_policies_binding_01(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY val -> int64;
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+            ALTER TYPE Foo {
+                CREATE ACCESS POLICY ap0
+                    ALLOW ALL USING ((count(Bar) = 0));
+            };
+        ''')
+
+        await self.con.execute('''
+            insert Foo { val := 0 };
+            insert Foo { val := 1 };
+            insert Bar { val := 10 };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select Foo
+            ''',
+            []
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Bar
+            ''',
+            []
+        )
+
+    async def test_edgeql_policies_binding_02(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY val -> int64;
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+            ALTER TYPE Foo {
+                CREATE ACCESS POLICY ins ALLOW INSERT;
+                CREATE ACCESS POLICY ap0
+                    ALLOW ALL USING (
+                        not exists (select Foo filter .val = 1));
+            };
+        ''')
+
+        await self.con.execute('''
+            insert Foo { val := 0 };
+            insert Foo { val := 1 };
+            insert Bar { val := 10 };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select Foo
+            ''',
+            []
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Bar
+            ''',
+            []
+        )
+
+    async def test_edgeql_policies_binding_03(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY val -> int64;
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+            ALTER TYPE Foo {
+                CREATE MULTI LINK bar -> Bar;
+            };
+
+            insert Foo { val := 0 };
+            insert Foo { val := 1 };
+            insert Bar { val := 10 };
+            update Foo set { bar := Bar };
+
+            ALTER TYPE Foo {
+                CREATE ACCESS POLICY ap0
+                    ALLOW ALL USING (not exists .bar);
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select Foo
+            ''',
+            []
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Bar
+            ''',
+            []
+        )
+
+    async def test_edgeql_policies_binding_04(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY val -> int64;
+                CREATE MULTI LINK foo -> Foo;
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+
+            insert Foo { val := 0 };
+            insert Foo { val := 1 };
+            insert Bar { val := 10 };
+            update Foo set { foo := Foo };
+
+            ALTER TYPE Foo {
+                CREATE ACCESS POLICY ap0
+                    ALLOW ALL USING (not exists .foo);
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select Foo
+            ''',
+            []
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Bar
+            ''',
+            []
+        )
+
+    async def test_edgeql_policies_cycle_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"dependency cycle between access policies of object type "
+            r"'default::Bar' and object type 'default::Foo'"
+        ):
+            await self.con.execute("""
+                CREATE TYPE Bar {
+                    CREATE REQUIRED PROPERTY b -> bool;
+                };
+                CREATE TYPE Foo {
+                    CREATE LINK bar -> Bar;
+                    CREATE REQUIRED PROPERTY b -> bool;
+                    CREATE ACCESS POLICY redact
+                        ALLOW ALL USING ((.bar.b ?? false));
+                };
+                ALTER TYPE Bar {
+                    CREATE LINK foo -> Foo;
+                    CREATE ACCESS POLICY redact
+                        ALLOW ALL USING ((.foo.b ?? false));
+                };
+            """)
+
+    async def test_edgeql_policies_cycle_02(self):
+        # This is a cycle because Bar selecting Foo requires indirectly
+        # evaluating Bar as part of doing Foo in a way we can't handle
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidDefinitionError,
+                r"dependency cycle between access policies"):
+            await self.con.execute('''
+                create type Foo {
+                    create required property val -> int64;
+                };
+                create type Bar extending Foo {
+                  create access policy x allow all using (
+                    not exists (select Foo filter .val = -__subject__.val));
+                };
+            ''')
+
+    async def test_edgeql_policies_cycle_03(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidDefinitionError,
+                r"dependency cycle between access policies"):
+            await self.con.execute('''
+                create type Z;
+                create type A {
+                    create access policy z allow all using (exists Z);
+                };
+                create type B extending A;
+                alter type Z {
+                    create access policy z allow all using (exists B);
+                };
+            ''')
+
+    async def test_edgeql_policies_cycle_04(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidDefinitionError,
+                r"dependency cycle between access policies"):
+            await self.con.execute('''
+                create type Z;
+                create type A {
+                    create access policy z allow all using (exists Z);
+                };
+                create type C;
+                create type B extending A, C;
+                alter type Z {
+                    create access policy z allow all using (exists C);
+                };
             ''')

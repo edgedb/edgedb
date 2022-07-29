@@ -34,10 +34,10 @@ import sys
 import tempfile
 import uuid
 
-import uvloop
-
 import click
+from jwcrypto import jwk
 import setproctitle
+import uvloop
 
 from . import logsetup
 logsetup.early_setup()
@@ -212,7 +212,7 @@ async def _run_server(
             assert args.tls_cert_file is not None
             if not args.tls_cert_file.exists():
                 assert args.tls_key_file is not None
-                _generate_cert(
+                generate_tls_cert(
                     args.tls_cert_file,
                     args.tls_key_file,
                     ss.get_listen_hosts(),
@@ -225,10 +225,10 @@ async def _run_server(
             assert args.jws_key_file is not None
             assert args.jwe_key_file is not None
             if not args.jws_key_file.exists():
-                _generate_jose_keys(args.jws_key_file)
+                generate_jwk(args.jws_key_file)
                 jws_keys_newly_generated = True
             if not args.jwe_key_file.exists():
-                _generate_jose_keys(args.jwe_key_file)
+                generate_jwk(args.jwe_key_file)
                 jwe_keys_newly_generated = True
 
         if args.bootstrap_only:
@@ -267,7 +267,7 @@ async def _run_server(
             await sc.wait_for(ss.stop())
 
 
-def _generate_cert(
+def generate_tls_cert(
     tls_cert_file: pathlib.Path,
     tls_key_file: pathlib.Path,
     listen_hosts: Iterable[str]
@@ -329,23 +329,13 @@ def _generate_cert(
     tls_key_file.chmod(0o600)
 
 
-def _generate_jose_keys(keys_file: pathlib.Path) -> None:
+def generate_jwk(keys_file: pathlib.Path) -> None:
     logger.info(f'generating JOSE key pair in "{keys_file}"')
 
-    from cryptography.hazmat import backends
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric import ec
-
-    backend = backends.default_backend()
-    private_key = ec.generate_private_key(ec.SECP256R1(), backend=backend)
+    key = jwk.JWK(generate='EC')
     with keys_file.open("wb") as f:
-        f.write(
-            private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
-        )
+        f.write(key.export_to_pem(private_key=True, password=None))
+
     keys_file.chmod(0o600)
 
 

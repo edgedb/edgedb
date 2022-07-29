@@ -34,9 +34,11 @@ import multiprocessing
 import multiprocessing.reduction
 import multiprocessing.util
 import os
+import pathlib
 import random
 import re
 import sys
+import tempfile
 import threading
 import time
 import types
@@ -817,13 +819,52 @@ class ParallelTextTestRunner:
             cases, selected_shard, total_shards, self.verbosity, stats,
         )
         setup = tb.get_test_cases_setup(cases)
+        server_used = tb.test_cases_use_server(cases)
         lang_setup = tb_lang.get_test_cases_setup(cases)
         bootstrap_time_taken = 0
         tests_time_taken = 0
         result = None
         cluster = None
         conn = None
+        tempdir = None
         setup_stats = []
+
+        if server_used:
+            tempdir = tempfile.TemporaryDirectory(prefix="edb-test-")
+
+            if (
+                not os.environ.get("EDGEDB_SERVER_TLS_CERT_FILE")
+                and not os.environ.get("EDGEDB_SERVER_TLS_KEY_FILE")
+            ):
+                if self.verbosity >= 1:
+                    self._echo(
+                        'Generating TLS key and certificate...',
+                        fg='white',
+                    )
+                cert_file = pathlib.Path(tempdir.name) / "tlscert.pem"
+                key_file = pathlib.Path(tempdir.name) / "tlskey.pem"
+                tb.generate_tls_cert(cert_file, key_file, ["localhost"])
+
+                os.environ["EDGEDB_SERVER_TLS_CERT_FILE"] = str(cert_file)
+                os.environ["EDGEDB_SERVER_TLS_KEY_FILE"] = str(key_file)
+
+            if (
+                not os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE")
+                or not os.environ.get("EDGEDBV_SERVER_JWE_KEY_FILE")
+            ):
+                jwk_file = pathlib.Path(tempdir.name) / "jwk.pem"
+                if self.verbosity >= 1:
+                    self._echo(
+                        'Generating JSON Web Key...',
+                        fg='white',
+                    )
+                tb.generate_jwk(jwk_file)
+
+                if not os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE"):
+                    os.environ["EDGEDB_SERVER_JWS_KEY_FILE"] = str(jwk_file)
+
+                if not os.environ.get("EDGEDB_SERVER_JWE_KEY_FILE"):
+                    os.environ["EDGEDB_SERVER_JWE_KEY_FILE"] = str(jwk_file)
 
         if lang_setup:
             tb_lang.run_test_cases_setup(lang_setup, jobs=self.num_workers)
@@ -937,6 +978,9 @@ class ParallelTextTestRunner:
         finally:
             if self.verbosity == 1:
                 self._echo()
+
+            if tempdir is not None:
+                tempdir.cleanup()
 
             if setup:
                 self._echo()

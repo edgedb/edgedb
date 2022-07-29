@@ -164,11 +164,7 @@ class ConstraintMech:
             cls, subject, constraint, schema, context, source_context):
         assert constraint.get_subject(schema) is not None
 
-        constraint_origin = constraint.get_constraint_origin(schema)
-        if constraint_origin != constraint:
-            origin_subject = constraint_origin.get_subject(schema)
-        else:
-            origin_subject = subject
+        constraint_origins = constraint.get_constraint_origins(schema)
 
         singletons = frozenset({subject})
 
@@ -177,6 +173,13 @@ class ConstraintMech:
             path_prefix_anchor=qlast.Subject().name,
             apply_query_rewrites=not context.stdmode,
             singletons=singletons,
+            # Remap the constraint origin to the subject, so that if
+            # we have B <: A, and the constraint references A.foo, it
+            # gets rewritten in the subtype to B.foo. It's OK to only
+            # look at one constraint origin, because if there were
+            # multiple different origins, they couldn't get away with
+            # referring to the type explicitly.
+            type_remaps={constraint_origins[0].get_subject(schema): subject},
         )
 
         ir = qlcompiler.compile_ast_to_ir(
@@ -224,7 +227,14 @@ class ConstraintMech:
             'except_data': except_data,
         }
 
-        if constraint_origin != constraint:
+        different_origins = [
+            origin for origin in constraint_origins
+            if origin != constraint
+        ]
+
+        per_origin_parts = []
+        for constraint_origin in different_origins:
+            origin_subject = constraint_origin.get_subject(schema)
             origin_path_prefix_anchor = (
                 qlast.Subject().name
                 if isinstance(origin_subject, s_types.Type) else None
@@ -270,35 +280,72 @@ class ConstraintMech:
                 origin_except_data = cls._edgeql_tree_to_exprdata(except_sql)
 
             origin_exclusive_expr_refs = cls._get_exclusive_refs(origin_ir)
-            pg_constr_data['origin_subject_db_name'] = origin_subject_db_name
-            pg_constr_data['origin_except_data'] = origin_except_data
-        else:
-            origin_exclusive_expr_refs = None
-            pg_constr_data['origin_subject_db_name'] = subject_db_name
-            pg_constr_data['origin_except_data'] = except_data
+            per_origin_parts.append((
+                origin_subject,
+                origin_exclusive_expr_refs,
+                origin_subject_db_name,
+                origin_except_data,
+            ))
+
+        if not per_origin_parts:
+            origin_subject = subject
+            origin_subject_db_name = subject_db_name
+            origin_except_data = except_data
+            per_origin_parts.append((
+                origin_subject,
+                None,
+                origin_subject_db_name,
+                origin_except_data,
+            ))
 
         if exclusive_expr_refs:
+            exprdatas = []
             for ref in exclusive_expr_refs:
                 exprdata = cls._edgeql_ref_to_pg_constr(
-                    subject, origin_subject, ref, schema)
-                pg_constr_data['expressions'].append(exprdata)
+                    subject, None, ref, schema)
+                exprdata.update(
+                    origin_subject_db_name=subject_db_name,
+                    origin_except_data=except_data,
+                )
+                exprdatas.append(exprdata)
+
+            pg_constr_data['expressions'].extend(exprdatas)
+
+        else:
+            assert len(constraint_origins) == 1
+            exprdata = cls._edgeql_ref_to_pg_constr(
+                subject, origin_subject, ir, schema)
+            exprdata.update(
+                origin_subject_db_name=origin_subject_db_name,
+                origin_except_data=origin_except_data,
+            )
+            pg_constr_data['expressions'].append(exprdata)
+
+        for (
+            origin_subject,
+            origin_exclusive_expr_refs,
+            origin_subject_db_name,
+            origin_except_data
+        ) in per_origin_parts:
+            if not exclusive_expr_refs:
+                continue
 
             if origin_exclusive_expr_refs:
                 for ref in origin_exclusive_expr_refs:
                     exprdata = cls._edgeql_ref_to_pg_constr(
                         subject, origin_subject, ref, schema)
+                    exprdata.update(
+                        origin_subject_db_name=origin_subject_db_name,
+                        origin_except_data=origin_except_data,
+                    )
                     pg_constr_data['origin_expressions'].append(exprdata)
             else:
-                pg_constr_data['origin_expressions'] = (
-                    pg_constr_data['expressions'])
+                pg_constr_data['origin_expressions'].extend(exprdatas)
 
+        if exclusive_expr_refs:
             pg_constr_data['scope'] = 'relation'
             pg_constr_data['type'] = 'unique'
         else:
-            exprdata = cls._edgeql_ref_to_pg_constr(
-                subject, origin_subject, ir, schema)
-            pg_constr_data['expressions'].append(exprdata)
-
             pg_constr_data['scope'] = 'row'
             pg_constr_data['type'] = 'check'
 
@@ -374,18 +421,15 @@ class SchemaTableConstraint:
         pg_c = constr._pg_constr_data
 
         table_name = pg_c['subject_db_name']
-        origin_table_name = pg_c['origin_subject_db_name']
         expressions = pg_c['expressions']
         origin_expressions = pg_c['origin_expressions']
 
         constr = deltadbops.SchemaConstraintTableConstraint(
             table_name,
-            origin_table_name=origin_table_name,
             constraint=constr._constraint,
             exprdata=expressions,
             origin_exprdata=origin_expressions,
             except_data=pg_c['except_data'],
-            origin_except_data=pg_c['origin_except_data'],
             scope=pg_c['scope'],
             type=pg_c['type'],
             schema=constr._schema,
@@ -439,13 +483,15 @@ class SchemaTableConstraint:
         raw_constr_name = tabconstr.constraint_name(quote=False)
 
         for expr, origin_expr in zip(
-                tabconstr._exprdata, tabconstr._origin_exprdata):
+            itertools.cycle(tabconstr._exprdata),
+            tabconstr._origin_exprdata
+        ):
             exprdata = expr['exprdata']
             origin_exprdata = origin_expr['exprdata']
             old_expr = origin_exprdata['old']
             new_expr = exprdata['new']
 
-            schemaname, tablename = tabconstr.get_origin_table_name()
+            schemaname, tablename = origin_expr['origin_subject_db_name']
             real_tablename = tabconstr.get_subject_name(quote=False)
 
             errmsg = 'duplicate key value violates unique ' \
@@ -462,10 +508,13 @@ class SchemaTableConstraint:
             else:
                 key = "id"
 
-            if tabconstr._except_data:
+            except_data = tabconstr._except_data
+            origin_except_data = origin_expr['origin_except_data']
+
+            if except_data:
                 except_part = f'''
-                    AND ({tabconstr._origin_except_data['old']} is not true)
-                    AND ({tabconstr._except_data['new']} is not true)
+                    AND ({origin_except_data['old']} is not true)
+                    AND ({except_data['new']} is not true)
                 '''
             else:
                 except_part = ''

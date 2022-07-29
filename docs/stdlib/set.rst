@@ -1,8 +1,8 @@
 .. _ref_std_set:
 
-===
-Set
-===
+====
+Sets
+====
 
 :edb-alt-title: Set Functions and Operators
 :index: set aggregate

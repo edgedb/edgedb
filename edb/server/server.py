@@ -668,6 +668,23 @@ class Server(ha_base.ClusterProtocol):
             schema_class_layout=self._schema_class_layout,
         )
 
+    async def _acquire_intro_pgcon(self, dbname):
+        try:
+            conn = await self.acquire_pgcon(dbname)
+        except pgcon_errors.BackendError as e:
+            if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
+                # database does not exist (anymore)
+                logger.warning(
+                    "Detected concurrently-dropped database %s; skipping.",
+                    dbname,
+                )
+                if self._dbindex is not None and self._dbindex.has_db(dbname):
+                    self._dbindex.unregister_db(dbname)
+                return None
+            else:
+                raise
+        return conn
+
     async def introspect_db(self, dbname):
         """Use this method to (re-)introspect a DB.
 
@@ -685,20 +702,9 @@ class Server(ha_base.ClusterProtocol):
         """
         logger.info("introspecting database '%s'", dbname)
 
-        try:
-            conn = await self.acquire_pgcon(dbname)
-        except pgcon_errors.BackendError as e:
-            if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
-                # database does not exist (anymore)
-                logger.warning(
-                    "Detected concurrently-dropped database %s; skipping.",
-                    dbname,
-                )
-                if self._dbindex is not None and self._dbindex.has_db(dbname):
-                    self._dbindex.unregister_db(dbname)
-                return
-            else:
-                raise
+        conn = await self._acquire_intro_pgcon(dbname)
+        if not conn:
+            return
 
         try:
             user_schema = await self.introspect_user_schema(conn)
@@ -754,6 +760,41 @@ class Server(ha_base.ClusterProtocol):
         result = await conn.sql_fetch_val(self.get_sys_query('dbconfig'))
         return config.from_json(config.get_settings(), result)
 
+    async def _early_introspect_db(self, dbname):
+        """We need to always introspect the extensions for each database.
+
+        Otherwise we won't know to accept connections for graphql or
+        http, for example, until a native connection is made.
+        """
+        logger.info("introspecting extensions for database '%s'", dbname)
+
+        conn = await self._acquire_intro_pgcon(dbname)
+        if not conn:
+            return
+
+        try:
+            extension_names_json = await conn.sql_fetch_val(
+                b'''
+                    SELECT json_agg(name) FROM edgedb."_SchemaExtension";
+                ''',
+            )
+            if extension_names_json:
+                extensions = set(json.loads(extension_names_json))
+            else:
+                extensions = set()
+
+            assert self._dbindex is not None
+            self._dbindex.register_db(
+                dbname,
+                user_schema=None,
+                db_config=None,
+                reflection_cache=None,
+                backend_ids=None,
+                extensions=extensions,
+            )
+        finally:
+            self.release_pgcon(dbname, conn)
+
     async def _introspect_dbs(self):
         syscon = await self._acquire_sys_pgcon()
         try:
@@ -763,14 +804,12 @@ class Server(ha_base.ClusterProtocol):
         finally:
             self._release_sys_pgcon()
 
-        for dbname in dbnames:
-            self._dbindex.register_db(
-                dbname,
-                user_schema=None,
-                db_config=None,
-                reflection_cache=None,
-                backend_ids=None,
-            )
+        async with taskgroup.TaskGroup(name='introspect DB extensions') as g:
+            for dbname in dbnames:
+                # There's a risk of the DB being dropped by another server
+                # between us building the list of databases and loading
+                # information about them.
+                g.create_task(self._early_introspect_db(dbname))
 
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()
@@ -857,8 +896,11 @@ class Server(ha_base.ClusterProtocol):
     async def _restart_servers_new_addr(self, nethosts, netport):
         if not netport:
             raise RuntimeError('cannot restart without network port specified')
-        nethosts = await _resolve_interfaces(nethosts)
+        nethosts, has_ipv4_wc, has_ipv6_wc = await _resolve_interfaces(
+            nethosts
+        )
         servers_to_stop = []
+        servers_to_stop_early = []
         servers = {}
         if self._listen_port == netport:
             hosts_to_start = [
@@ -867,7 +909,25 @@ class Server(ha_base.ClusterProtocol):
             for host, srv in self._servers.items():
                 if host == ADMIN_PLACEHOLDER or host in nethosts:
                     servers[host] = srv
+                elif host in ['::', '0.0.0.0']:
+                    servers_to_stop_early.append(srv)
                 else:
+                    if has_ipv4_wc:
+                        try:
+                            ipaddress.IPv4Address(host)
+                        except ValueError:
+                            pass
+                        else:
+                            servers_to_stop_early.append(srv)
+                            continue
+                    if has_ipv6_wc:
+                        try:
+                            ipaddress.IPv6Address(host)
+                        except ValueError:
+                            pass
+                        else:
+                            servers_to_stop_early.append(srv)
+                            continue
                     servers_to_stop.append(srv)
             admin = False
         else:
@@ -875,17 +935,29 @@ class Server(ha_base.ClusterProtocol):
             servers_to_stop = self._servers.values()
             admin = True
 
+        if servers_to_stop_early:
+            await self._stop_servers_with_logging(servers_to_stop_early)
+
         if hosts_to_start:
-            new_servers, *_ = await self._start_servers(
-                hosts_to_start,
-                netport,
-                admin=admin,
-            )
-            servers.update(new_servers)
+            try:
+                new_servers, *_ = await self._start_servers(
+                    hosts_to_start,
+                    netport,
+                    admin=admin,
+                )
+                servers.update(new_servers)
+            except StartupError:
+                raise errors.ConfigurationError(
+                    'Server updated its config but cannot serve on requested '
+                    'address/port, please see server log for more information.'
+                )
         self._servers = servers
         self._listen_hosts = nethosts
         self._listen_port = netport
 
+        await self._stop_servers_with_logging(servers_to_stop)
+
+    async def _stop_servers_with_logging(self, servers_to_stop):
         addrs = []
         unix_addr = None
         port = None
@@ -893,7 +965,7 @@ class Server(ha_base.ClusterProtocol):
             for s in srv.sockets:
                 addr = s.getsockname()
                 if isinstance(addr, tuple):
-                    addrs.append(addr)
+                    addrs.append(addr[:2])
                     if port is None:
                         port = addr[1]
                     elif port != addr[1]:
@@ -1427,7 +1499,9 @@ class Server(ha_base.ClusterProtocol):
                 if fut.result() is not None
             })
 
-        if not servers:
+        # Fail if none of the servers can be started, except when the admin
+        # server on a UNIX domain socket will be started.
+        if not servers and (not admin or port == 0):
             raise StartupError("could not create any listen sockets")
 
         addrs = []
@@ -1593,7 +1667,7 @@ class Server(ha_base.ClusterProtocol):
             )
 
         self._servers, actual_port, listen_addrs = await self._start_servers(
-            await _resolve_interfaces(self._listen_hosts),
+            (await _resolve_interfaces(self._listen_hosts))[0],
             self._listen_port,
             sockets=self._listen_sockets,
         )
@@ -1790,7 +1864,7 @@ class Server(ha_base.ClusterProtocol):
                 name=db.name,
                 dbver=db.dbver,
                 config=serialize_config(db.db_config),
-                extensions=list(db.extensions.keys()),
+                extensions=sorted(db.extensions),
                 query_cache_size=db.get_query_cache_size(),
                 connections=[
                     dict(
@@ -1810,7 +1884,7 @@ class Server(ha_base.ClusterProtocol):
 
 def _cleanup_wildcard_addrs(
     hosts: Sequence[str]
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[str], list[str], bool, bool]:
     """Filter out conflicting addresses in presence of INADDR_ANY wildcards.
 
     Attempting to bind to 0.0.0.0 (or ::) _and_ a non-wildcard address will
@@ -1853,28 +1927,36 @@ def _cleanup_wildcard_addrs(
         named_hosts.add(host)
 
     if not ipv4_hosts and not ipv6_hosts:
-        return (list(hosts), [])
+        return (list(hosts), [], False, False)
 
     if ipv4_wc not in ipv4_hosts and ipv6_wc not in ipv6_hosts:
-        return (list(hosts), [])
+        return (list(hosts), [], False, False)
 
     if ipv4_wc in ipv4_hosts and ipv6_wc in ipv6_hosts:
         return (
             ['0.0.0.0', '::'],
-            [str(a) for a in
-                ((named_hosts | ipv4_hosts | ipv6_hosts) - {ipv4_wc, ipv6_wc})]
+            [
+                str(a) for a in
+                ((named_hosts | ipv4_hosts | ipv6_hosts) - {ipv4_wc, ipv6_wc})
+            ],
+            True,
+            True,
         )
 
     if ipv4_wc in ipv4_hosts:
         return (
             [str(a) for a in ({ipv4_wc} | ipv6_hosts)],
-            [str(a) for a in ((named_hosts | ipv4_hosts) - {ipv4_wc})]
+            [str(a) for a in ((named_hosts | ipv4_hosts) - {ipv4_wc})],
+            True,
+            False,
         )
 
     if ipv6_wc in ipv6_hosts:
         return (
             [str(a) for a in ({ipv6_wc} | ipv4_hosts)],
-            [str(a) for a in ((named_hosts | ipv6_hosts) - {ipv6_wc})]
+            [str(a) for a in ((named_hosts | ipv6_hosts) - {ipv6_wc})],
+            False,
+            True,
         )
 
     raise AssertionError('unreachable')
@@ -1896,7 +1978,9 @@ async def _resolve_host(host: str) -> list[str] | Exception:
         return [addr[4][0] for addr in addrinfo]
 
 
-async def _resolve_interfaces(hosts: Sequence[str]) -> Sequence[str]:
+async def _resolve_interfaces(
+    hosts: Sequence[str]
+) -> Tuple[Sequence[str], bool, bool]:
 
     async with taskgroup.TaskGroup() as g:
         resolve_tasks = {
@@ -1913,7 +1997,9 @@ async def _resolve_interfaces(hosts: Sequence[str]) -> Sequence[str]:
         else:
             addrs.extend(result)
 
-    clean_addrs, rejected_addrs = _cleanup_wildcard_addrs(addrs)
+    (
+        clean_addrs, rejected_addrs, has_ipv4_wc, has_ipv6_wc
+    ) = _cleanup_wildcard_addrs(addrs)
 
     if rejected_addrs:
         logger.warning(
@@ -1922,4 +2008,4 @@ async def _resolve_interfaces(hosts: Sequence[str]) -> Sequence[str]:
             ", ".join(repr(h) for h in rejected_addrs)
         )
 
-    return clean_addrs
+    return clean_addrs, has_ipv4_wc, has_ipv6_wc

@@ -36,6 +36,7 @@ from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import operators as s_oper
 from edb.schema import schema as s_schema
+from edb.schema import version as s_ver
 
 from . import structure as sr_struct
 
@@ -99,6 +100,12 @@ def parse_into(
         mcls = type(obj)
         name = s_name.name_from_string(entry['name__internal'])
         layout = schema_class_layout[mcls]
+
+        if (
+            base_schema.has_object(objid)
+            and not isinstance(obj, s_ver.BaseSchemaVersion)
+        ):
+            continue
 
         if isinstance(obj, s_obj.QualifiedObject):
             name_to_id[name] = objid

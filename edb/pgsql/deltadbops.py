@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 
+import itertools
+
 from edb.common import adapter
 
 from edb.schema import name as s_name
@@ -99,28 +101,21 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         self,
         table_name,
         *,
-        origin_table_name,
         constraint,
         exprdata,
         origin_exprdata,
         scope,
         type,
         except_data,
-        origin_except_data,
         schema,
     ):
         ConstraintCommon.__init__(self, constraint, schema)
         dbops.TableConstraint.__init__(self, table_name, None)
-        self._origin_table_name = origin_table_name
         self._exprdata = exprdata
         self._origin_exprdata = origin_exprdata
         self._scope = scope
         self._type = type
         self._except_data = except_data
-        self._origin_except_data = origin_except_data
-
-    def get_origin_table_name(self):
-        return self._origin_table_name
 
     def constraint_code(self, block: dbops.PLBlock) -> str:
         if self._scope == 'row':
@@ -200,19 +195,24 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         errmsg = 'duplicate key value violates unique ' \
                  'constraint {constr}'.format(constr=constr_name)
 
-        for expr, origin_expr in zip(self._exprdata, self._origin_exprdata):
+        for expr, origin_expr in zip(
+            itertools.cycle(self._exprdata), self._origin_exprdata
+        ):
             exprdata = expr['exprdata']
             origin_exprdata = origin_expr['exprdata']
 
+            except_data = self._except_data
+            origin_except_data = origin_expr['origin_except_data']
+
             if self._except_data:
                 except_part = f'''
-                    AND ({self._origin_except_data['plain']} is not true)
-                    AND ({self._except_data['new']} is not true)
+                    AND ({origin_except_data['plain']} is not true)
+                    AND ({except_data['new']} is not true)
                 '''
             else:
                 except_part = ''
 
-            schemaname, tablename = self.get_origin_table_name()
+            schemaname, tablename = origin_expr['origin_subject_db_name']
             text = '''
                 PERFORM
                     TRUE

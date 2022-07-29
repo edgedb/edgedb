@@ -173,21 +173,22 @@ class Constraint(
         else:
             return [self.get_nearest_generic_parent(schema)]
 
-    def get_constraint_origin(
-            self, schema: s_schema.Schema) -> Constraint:
-        ancestors = list(self.get_ancestors(schema).objects(schema))
-        origin = self
-        for ancestor in ancestors:
-            if ancestor.generic(schema) or ancestor.get_delegated(schema):
-                break
-            origin = ancestor
+    def get_constraint_origins(
+            self, schema: s_schema.Schema) -> List[Constraint]:
+        origins: List[Constraint] = []
+        for base in self.get_bases(schema).objects(schema):
+            if not base.generic(schema) and not base.get_delegated(schema):
+                origins.extend(
+                    x for x in base.get_constraint_origins(schema)
+                    if x not in origins
+                )
 
-        return origin
+        return [self] if not origins else origins
 
     def is_independent(self, schema: s_schema.Schema) -> bool:
         return (
             not self.descendants(schema)
-            and self.get_constraint_origin(schema) == self
+            and self.get_constraint_origins(schema) == [self]
         )
 
     def get_verbosename(

@@ -2142,9 +2142,7 @@ class AlterConstraint(
             ):
                 op = self.enforce_constraint(
                     constraint, schema, context, self.source_context)
-                self.schedule_post_inhview_update_command(
-                    schema, context, op,
-                    s_objtypes.ObjectTypeCommandContext,)
+                self.pgops.add(op)
 
             self.pgops.add(self.fixup_base_constraint_triggers(
                 constraint, orig_schema, schema, context, self.source_context,
@@ -2955,6 +2953,25 @@ class CompositeMetaCommand(MetaCommand):
                     alter_ancestors=False,
                 )
 
+    def alter_ancestor_source_inhviews(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        obj: s_pointers.Pointer,
+        *,
+        exclude_children: FrozenSet[s_sources.Source] = frozenset(),
+    ) -> None:
+        for base in obj.get_ancestors(schema).objects(schema):
+            src = base.get_source(schema)
+            if src and has_table(src, schema) and not context.is_deleting(src):
+                self.alter_inhview(
+                    schema,
+                    context,
+                    src,
+                    exclude_children=exclude_children,
+                    alter_ancestors=False,
+                )
+
     def create_inhview(
         self,
         schema: s_schema.Schema,
@@ -3250,9 +3267,6 @@ class CreateObjectType(ObjectTypeMetaCommand,
             schema, self.scls, catenate=False)
         self.table_name = new_table_name
         columns = []
-        token_col = dbops.Column(
-            name='__edb_token', type='uuid', required=False)
-        columns.append(token_col)
 
         objtype_table = dbops.Table(name=new_table_name, columns=columns)
         self.pgops.add(dbops.CreateTable(table=objtype_table))
@@ -3606,7 +3620,10 @@ class PointerMetaCommand(MetaCommand):
 
             self.pgops.add(dbops.Query(update_qry))
 
-            self.recreate_inhview(schema, context, ref_op.scls)
+            self.recreate_inhview(
+                schema, context, ref_op.scls, alter_ancestors=False)
+            self.alter_ancestor_source_inhviews(
+                schema, context, ptr)
 
             ref_op = self.get_referrer_context_or_die(context).op
             alter_table = ref_op.get_alter_table(
@@ -3890,8 +3907,9 @@ class PointerMetaCommand(MetaCommand):
 
         if changing_col_type:
             self.drop_inhview(schema, context, source)
-            self.alter_ancestor_inhviews(
-                schema, context, source, exclude_children=frozenset((source,)))
+            self.alter_ancestor_source_inhviews(
+                schema, context, pointer,
+                exclude_children=frozenset((source,)))
 
         tab = q(*old_ptr_stor_info.table_name)
         target_col = old_ptr_stor_info.column_name
@@ -4047,7 +4065,8 @@ class PointerMetaCommand(MetaCommand):
         self._recreate_constraints(pointer, schema, context)
 
         if changing_col_type:
-            self.create_inhview(schema, context, source)
+            self.create_inhview(schema, context, source, alter_ancestors=False)
+            self.alter_ancestor_source_inhviews(schema, context, pointer)
 
     def _compile_conversion_expr(
         self,
@@ -4470,6 +4489,10 @@ class LinkMetaCommand(CompositeMetaCommand, PointerMetaCommand):
                     context,
                     objtype.scls,
                     exclude_ptrs=frozenset((link,)),
+                    alter_ancestors=False,
+                )
+                self.alter_ancestor_source_inhviews(
+                    schema, context, link
                 )
                 alter_table = objtype.op.get_alter_table(
                     schema, context, manual=True)
@@ -4904,12 +4927,20 @@ class PropertyMetaCommand(CompositeMetaCommand, PointerMetaCommand):
                 alter_table = source_op.get_alter_table(
                     schema, context, force_new=True, manual=True)
 
+                # source and target don't have a proper inheritence
+                # hierarchy, so we can't do the source trick for them
+                is_endpoint_ptr = prop.is_endpoint_pointer(schema)
                 self.recreate_inhview(
                     schema,
                     context,
                     source,
                     exclude_ptrs=frozenset((prop,)),
+                    alter_ancestors=is_endpoint_ptr,
                 )
+                if not is_endpoint_ptr:
+                    self.alter_ancestor_source_inhviews(
+                        schema, context, prop
+                    )
 
                 col = dbops.AlterTableDropColumn(
                     dbops.Column(name=ptr_stor_info.column_name,

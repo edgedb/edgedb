@@ -232,6 +232,10 @@ class QueryUnit:
     tx_savepoint_rollback: bool = False
     tx_savepoint_declare: bool = False
 
+    # True if this unit is `ABORT MIGRATION` command within a transaction,
+    # that means abort_migration and tx_rollback cannot be both True
+    tx_abort_migration: bool = False
+
     # For SAVEPOINT commands, the name and sp_id
     sp_name: Optional[str] = None
     sp_id: Optional[str] = None

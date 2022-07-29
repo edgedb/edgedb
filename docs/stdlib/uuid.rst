@@ -1,8 +1,8 @@
 .. _ref_std_uuid:
 
-====
-UUID
-====
+=====
+UUIDs
+=====
 
 .. list-table::
     :class: funcoptable

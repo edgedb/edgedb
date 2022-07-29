@@ -149,7 +149,8 @@ cdef class Database:
         object user_schema,
         object db_config,
         object reflection_cache,
-        object backend_ids
+        object backend_ids,
+        object extensions,
     ):
         self.name = name
 
@@ -170,11 +171,11 @@ cdef class Database:
         self.backend_ids = backend_ids
         if user_schema is not None:
             self.extensions = {
-                ext.get_name(user_schema).name: ext
+                ext.get_name(user_schema).name
                 for ext in user_schema.get_objects(type=s_ext.Extension)
             }
         else:
-            self.extensions = {}
+            self.extensions = extensions
 
     @property
     def server(self):
@@ -198,7 +199,7 @@ cdef class Database:
         self.user_schema = new_schema
 
         self.extensions = {
-            ext.get_name(new_schema).name: ext
+            ext.get_name(new_schema).name
             for ext in new_schema.get_objects(type=s_ext.Extension)
         }
 
@@ -323,6 +324,9 @@ cdef class DatabaseConnectionView:
         self._tx_error = False
         self._in_tx_dbver = 0
         self._invalidate_local_cache()
+
+    cdef clear_tx_error(self):
+        self._tx_error = False
 
     cdef rollback_tx_to_savepoint(self, name):
         self._tx_error = False
@@ -977,8 +981,11 @@ cdef class DatabaseConnectionView:
             # all commands except ROLLBACK or ROLLBACK TO SAVEPOINT.
             first = query_unit_group[0]
             if (
-                not (first.tx_rollback or first.tx_savepoint_rollback)
-                or len(query_unit_group) > 1
+                not (
+                    first.tx_rollback
+                    or first.tx_savepoint_rollback
+                    or first.tx_abort_migration
+                ) or len(query_unit_group) > 1
             ):
                 self.raise_in_tx_error()
 
@@ -1021,6 +1028,7 @@ cdef class DatabaseConnectionView:
                     self._protocol_version,
                     query_req.inline_objectids,
                     query_req.input_format is compiler.InputFormat.JSON,
+                    self.in_tx_error(),
                 )
             else:
                 result = await compiler_pool.compile(
@@ -1121,6 +1129,7 @@ cdef class DatabaseIndex:
         db_config,
         reflection_cache,
         backend_ids,
+        extensions=None,
     ):
         cdef Database db
         db = self._dbs.get(dbname)
@@ -1135,6 +1144,7 @@ cdef class DatabaseIndex:
                 db_config=db_config,
                 reflection_cache=reflection_cache,
                 backend_ids=backend_ids,
+                extensions=extensions,
             )
             self._dbs[dbname] = db
 

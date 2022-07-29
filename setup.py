@@ -46,7 +46,7 @@ CYTHON_DEPENDENCY = 'Cython(>=0.29.24,<0.30.0)'
 
 # Dependencies needed both at build- and run-time
 COMMON_DEPS = [
-    'edgedb==0.24.0a7',
+    'edgedb==0.24.0',
     'parsing~=2.0',
 ]
 
@@ -117,6 +117,10 @@ RUST_VERSION = '1.59.0'  # Also update docs/internal/dev.rst
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 # This can be a branch, tag, or commit
 EDGEDBCLI_COMMIT = 'master'
+
+EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
+# This can be a branch, tag, or commit
+EDGEDBGUI_COMMIT = 'main'
 
 EXTRA_DEPS = {
     'test': TEST_DEPS,
@@ -280,7 +284,8 @@ def _get_env_with_openssl_flags():
 
 def _compile_postgres(build_base, *,
                       force_build=False, fresh_build=True,
-                      run_configure=True, build_contrib=True):
+                      run_configure=True, build_contrib=True,
+                      produce_compile_commands_json=False):
 
     proc = subprocess.run(
         ['git', 'submodule', 'status', 'postgres'],
@@ -329,14 +334,19 @@ def _compile_postgres(build_base, *,
                 '--with-uuid=' + uuidlib,
             ], check=True, cwd=str(build_dir), env=env)
 
+        if produce_compile_commands_json:
+            make = ['bear', '--', 'make']
+        else:
+            make = ['make']
+
         subprocess.run(
-            ['make', 'MAKELEVEL=0', '-j', str(max(os.cpu_count() - 1, 1))],
+            make + ['MAKELEVEL=0', '-j', str(max(os.cpu_count() - 1, 1))],
             cwd=str(build_dir), check=True)
 
         if build_contrib or fresh_build or is_outdated:
             subprocess.run(
-                [
-                    'make', '-C', 'contrib', 'MAKELEVEL=0', '-j',
+                make + [
+                    '-C', 'contrib', 'MAKELEVEL=0', '-j',
                     str(max(os.cpu_count() - 1, 1))
                 ],
                 cwd=str(build_dir), check=True)
@@ -352,6 +362,12 @@ def _compile_postgres(build_base, *,
 
         with open(postgres_build_stamp, 'w') as f:
             f.write(source_stamp)
+
+        if produce_compile_commands_json:
+            shutil.copy(
+                build_dir / "compile_commands.json",
+                postgres_src / "compile_commands.json",
+            )
 
 
 def _check_rust():
@@ -375,15 +391,22 @@ def _check_rust():
             f'edgedb from source (see https://rustup.rs/)')
 
 
-def _get_edgedbcli_rev(name):
+def _get_git_rev(repo, ref):
     output = subprocess.check_output(
-        ['git', 'ls-remote', EDGEDBCLI_REPO, name],
+        ['git', 'ls-remote', repo, ref],
         universal_newlines=True,
     ).strip()
-    if not output:
-        return None
-    rev, _ = output.split()
-    return rev
+
+    if output:
+        rev, _ = output.split()
+        rev = rev.strip()
+    else:
+        rev = ''
+
+    # The name can be a branch or tag, so we attempt to look it up
+    # with ls-remote. If we don't find anything, we assume it's a
+    # commit hash.
+    return rev if rev else ref
 
 
 def _get_pg_source_stamp():
@@ -403,15 +426,8 @@ def _compile_cli(build_base, build_temp):
     env = dict(os.environ)
     env['CARGO_TARGET_DIR'] = str(build_temp / 'rust' / 'cli')
     env['PSQL_DEFAULT_PATH'] = build_base / 'postgres' / 'install' / 'bin'
-    git_name = env.get("EDGEDBCLI_GIT_REV")
-    if not git_name:
-        git_name = EDGEDBCLI_COMMIT
-    # The name can be a branch or tag, so we attempt to look it up
-    # with ls-remote. If we don't find anything, we assume it's a
-    # commit hash.
-    git_rev = _get_edgedbcli_rev(git_name)
-    if not git_rev:
-        git_rev = git_name
+    git_ref = env.get("EDGEDBCLI_GIT_REV") or EDGEDBCLI_COMMIT
+    git_rev = _get_git_rev(EDGEDBCLI_REPO, git_ref)
 
     subprocess.run(
         [
@@ -446,23 +462,33 @@ def _compile_cli(build_base, build_temp):
 def _build_ui(build_base, build_temp):
     from edb import buildmeta
 
+    git_ref = os.environ.get("EDGEDB_UI_GIT_REV") or EDGEDBGUI_COMMIT
+    git_rev = _get_git_rev(EDGEDBGUI_REPO, git_ref)
+
     ui_root = build_base / 'edgedb-studio'
     if not ui_root.exists():
         subprocess.run(
             [
                 'git',
                 'clone',
-                'https://github.com/edgedb/edgedb-studio.git',
+                '--recursive',
+                EDGEDBGUI_REPO,
                 ui_root,
             ],
             check=True
         )
     else:
         subprocess.run(
-            ['git', 'pull'],
+            ['git', 'fetch', '--all'],
             check=True,
             cwd=ui_root,
         )
+
+    subprocess.run(
+        ['git', 'reset', '--hard', git_rev],
+        check=True,
+        cwd=ui_root,
+    )
 
     dest = buildmeta.get_shared_data_dir_path() / 'ui'
     if dest.exists():
@@ -622,7 +648,10 @@ class ci_helper(setuptools.Command):
             print(binascii.hexlify(ext_hash).decode())
 
         elif self.type == 'cli':
-            print(_get_edgedbcli_rev(EDGEDBCLI_COMMIT) or EDGEDBCLI_COMMIT)
+            print(_get_git_rev(EDGEDBCLI_REPO, EDGEDBCLI_COMMIT))
+
+        elif self.type == 'ui':
+            print(_get_git_rev(EDGEDBGUI_REPO, EDGEDBGUI_COMMIT))
 
         elif self.type == 'build_temp':
             print(pathlib.Path(build.build_temp).resolve())
@@ -652,12 +681,14 @@ class build_postgres(setuptools.Command):
         ('configure', None, 'run ./configure'),
         ('build-contrib', None, 'build contrib'),
         ('fresh-build', None, 'rebuild from scratch'),
+        ('compile-commands', None, 'produce compile-commands.json using bear'),
     ]
 
     def initialize_options(self):
         self.configure = False
         self.build_contrib = False
         self.fresh_build = False
+        self.compile_commands = False
 
     def finalize_options(self):
         pass
@@ -669,7 +700,9 @@ class build_postgres(setuptools.Command):
             force_build=True,
             fresh_build=self.fresh_build,
             run_configure=self.configure,
-            build_contrib=self.build_contrib)
+            build_contrib=self.build_contrib,
+            produce_compile_commands_json=self.compile_commands,
+        )
 
 
 class build_ext(setuptools_build_ext.build_ext):

@@ -32,6 +32,7 @@ from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
 from edb.ir import typeutils
+from edb.ir import utils as irutils
 
 from edb.schema import links as s_links
 from edb.schema import name as sn
@@ -467,7 +468,7 @@ def _compile_qlexpr(
         # evaluation of link properties on computable links,
         # most importantly, in INSERT/UPDATE context.
         shape_expr_ctx.view_rptr = context.ViewRPtr(
-            ptrsource if is_linkprop else view_scls,
+            source=ptrsource if is_linkprop else view_scls,
             ptrcls=ptrcls,
             ptrcls_name=ptr_name,
             ptrcls_is_linkprop=is_linkprop,
@@ -578,7 +579,8 @@ def _normalize_view_ptr_expr(
 
     if compexpr is None:
         ptrcls = setgen.resolve_ptr(
-            ptrsource, ptrname, track_ref=lexpr, ctx=ctx)
+            ptrsource, ptrname, track_ref=lexpr, ctx=ctx,
+            source_context=shape_el.context)
         if is_polymorphic:
             ptrcls = schemactx.derive_ptr(
                 ptrcls, view_scls, ctx=ctx)
@@ -745,10 +747,19 @@ def _normalize_view_ptr_expr(
                 base_ptrcls = ptrcls.get_bases(
                     ctx.env.schema).first(ctx.env.schema)
             except errors.InvalidReferenceError:
-                # This is a NEW computable pointer, it's fine.
-                pass
+                # Check if we aren't inside of modifying statement
+                # for link property, otherwise this is a NEW
+                # computable pointer, it's fine.
+                if (view_rptr is not None
+                        and view_rptr.exprtype.is_mutation()
+                        and is_linkprop):
+                    raise
 
         qlexpr = astutils.ensure_qlstmt(compexpr)
+        # HACK: For scope tree related reasons, DML inside of free objects
+        # needs to be wrapped in a SELECT. This is probably fixable.
+        if irutils.is_trivial_free_object(ir_source):
+            qlexpr = astutils.ensure_ql_select(qlexpr)
 
         if ((ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
                 and ctx.implicit_limit
@@ -1077,26 +1088,42 @@ def _normalize_view_ptr_expr(
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.Unknown)
 
-    if (
-        ptrcls.is_protected_pointer(exprtype, ctx.env.schema)
-        and (compexpr is not None or is_polymorphic)
-        and not from_default
-        and not ctx.env.options.allow_writing_protected_pointers
-    ):
-        ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
-        if is_polymorphic:
-            msg = (f'cannot access {ptrcls_sn.name} on a polymorphic '
-                   f'shape element')
-        else:
-            msg = f'cannot assign to {ptrcls_sn.name}'
-        raise errors.QueryError(msg, context=shape_el.context)
-
+    # Prohibit update of readonly
     if exprtype.is_update() and ptrcls.get_readonly(ctx.env.schema):
         raise errors.QueryError(
             f'cannot update {ptrcls.get_verbosename(ctx.env.schema)}: '
             f'it is declared as read-only',
             context=compexpr and compexpr.context,
         )
+
+    # Prohibit invalid operations on id and __type__
+    ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
+    id_access = (
+        ptrcls_sn.name == 'id'
+        and (
+            not ctx.env.options.allow_user_specified_id
+            or not exprtype.is_mutation()
+        )
+    )
+    if (
+        (compexpr is not None or is_polymorphic)
+        and (id_access or ptrcls.is_protected_pointer(ctx.env.schema))
+        and not from_default
+    ):
+        if is_polymorphic:
+            msg = (f'cannot access {ptrcls_sn.name} on a polymorphic '
+                   f'shape element')
+        else:
+            msg = f'cannot assign to {ptrcls_sn.name}'
+        if id_access and not ctx.env.options.allow_user_specified_id:
+            hint = (
+                'consider enabling the "allow_user_specified_id" '
+                'configuration parameter to allow setting custom object ids'
+            )
+        else:
+            hint = None
+
+        raise errors.QueryError(msg, context=shape_el.context, hint=hint)
 
     return ptrcls, irexpr
 
@@ -1467,7 +1494,7 @@ def _late_compile_view_shapes_in_set(
     # This is to avoid losing subquery distinctions (in cases
     # like test_edgeql_scope_tuple_15), and generally seems more natural.
     if (
-            isinstance(ir_set.expr, irast.Stmt)
+            isinstance(ir_set.expr, (irast.SelectStmt, irast.GroupStmt))
             and not (ir_set.rptr and not ir_set.rptr.is_definition)
             and (setgen.get_set_type(ir_set, ctx=ctx) ==
                  setgen.get_set_type(ir_set.expr.result, ctx=ctx))):
@@ -1485,11 +1512,7 @@ def _late_compile_view_shapes_in_set(
                 parent_view_type=parent_view_type,
                 ctx=scopectx)
 
-        # Don't reach into mutation result fields when populating
-        # shape_source, because mutation results are *not* the source
-        # for linkprops.
-        if not isinstance(ir_set.expr, irast.MutatingStmt):
-            ir_set.shape_source = child if child.shape else child.shape_source
+        ir_set.shape_source = child if child.shape else child.shape_source
         return
 
     if shape_ptrs:

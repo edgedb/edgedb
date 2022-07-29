@@ -11,6 +11,9 @@ Standard Library
     :hidden:
 
     generic
+    set
+    type
+    math
     string
     bool
     numbers
@@ -18,15 +21,12 @@ Standard Library
     uuid
     enum
     datetime
-    bytes
-    sequence
     array
     tuple
     range
+    bytes
+    sequence
     objects
-    set
-    type
-    math
     abstract
     constraints
     sys

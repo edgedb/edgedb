@@ -271,6 +271,28 @@ class IntersectionRangeVar(PathRangeVar):
     component_rvars: typing.List[PathRangeVar]
 
 
+class DynamicRangeVarFunc(typing.Protocol):
+    """A 'dynamic' range var that provides a callback hook.
+
+    Used to sneak more complex search logic in.
+    I am 100% going to regret this.
+    """
+
+    # Lookup function for a DynamicRangeVar. If it returns a
+    # PathRangeVar, keep looking in that rvar. If it returns
+    # another expression, that's the output.
+    def __call__(
+        self, rel: Query, path_id: irast.PathId, *,
+        flavor: str, aspect: str, env: typing.Any
+    ) -> typing.Optional[BaseExpr | PathRangeVar]:
+        pass
+
+
+class DynamicRangeVar(PathRangeVar):
+
+    dynamic_get_path: DynamicRangeVarFunc
+
+
 class TypeName(ImmutableBase):
     """Type in definitions and casts."""
 
@@ -394,8 +416,8 @@ class ResTarget(ImmutableBaseExpr):
 class UpdateTarget(ImmutableBaseExpr):
     """Query update target."""
 
-    # column name (optional)
-    name: str
+    # column names
+    name: str | typing.List[str]
     # value expression to assign
     val: BaseExpr
 
@@ -936,4 +958,3 @@ class IteratorCTE(ImmutableBase):
     path_id: irast.PathId
     cte: CommonTableExpr
     parent: typing.Optional[IteratorCTE]
-    is_dml_pseudo_iterator: bool = False

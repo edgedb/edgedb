@@ -788,7 +788,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             '''
         )
 
-    async def test_edgeql_group_id_errors(self):
+    async def test_edgeql_group_errors_id(self):
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
             r"may not name a grouping alias 'id'"
@@ -804,6 +804,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
         ):
             await self.con.execute('''
                 group cards::Card{name} by .id
+            ''')
+
+    async def test_edgeql_group_errors_ref(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            r"variable 'name' referenced in BY but not declared in USING"
+        ):
+            await self.con.execute('''
+                group User by name
             ''')
 
     async def test_edgeql_group_tuple_01(self):
@@ -1110,3 +1119,52 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 }
             ])
         )
+
+    async def test_edgeql_group_policies_01(self):
+        await self.con.execute('''
+            with module cards
+            alter type User {
+                create access policy ok allow select, delete, update read;
+                create access policy two_elements allow insert, update write
+                  using (count((group .deck by .element)) = 2);
+            }
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on insert"):
+            await self.con.query('''
+                with module cards
+                insert User {
+                    name := 'Sully',
+                    deck := (select Card filter .element = 'Water')
+                };
+            ''')
+
+        await self.con.query('''
+            with module cards
+            insert User {
+                name := 'Sully',
+                deck := (select Card filter .element = {'Water', 'Air'})
+            };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on update"):
+            await self.con.query('''
+                with module cards
+                update User filter .name = 'Sully' set {
+                    deck += (select Card filter .element = 'Earth')
+                };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on update"):
+            await self.con.query('''
+                with module cards
+                update User filter .name = 'Sully' set {
+                    deck -= (select Card filter .element = 'Water')
+                };
+            ''')

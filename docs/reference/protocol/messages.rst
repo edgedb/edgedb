@@ -75,9 +75,6 @@ Messages
     * - :ref:`ref_protocol_msg_dump`
       - Initiate database backup
 
-    * - :ref:`ref_protocol_msg_flush`
-      - Force the server to flush its output buffers.
-
     * - :ref:`ref_protocol_msg_parse`
       - Parse EdgeQL command(s).
 
@@ -269,18 +266,6 @@ Sent by: client.
 Format:
 
 .. eql:struct:: edb.protocol.Sync
-
-
-.. _ref_protocol_msg_flush:
-
-Flush
-=====
-
-Sent by: client.
-
-Format:
-
-.. eql:struct:: edb.protocol.Flush
 
 
 .. _ref_protocol_msg_restore:

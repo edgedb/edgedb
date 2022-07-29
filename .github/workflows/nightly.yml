@@ -2,7 +2,7 @@ name: Build Test and Publish Nightly Packages
 
 on:
   schedule:
-    - cron: "0 0 * * *"
+    - cron: "0 1 * * *"
   workflow_dispatch:
     inputs: {}
   push:
@@ -25,8 +25,9 @@ jobs:
       id: whichver
 
 
-  build-debian-stretch:
-    runs-on: ubuntu-latest
+
+  build-debian-stretch-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -44,11 +45,35 @@ jobs:
 
     - uses: actions/upload-artifact@v2
       with:
-        name: builds-debian-stretch
+        name: builds-debian-stretch-x86_64
         path: artifacts/debian-stretch
 
-  build-debian-buster:
-    runs-on: ubuntu-latest
+
+  build-debian-stretch-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/debian-stretch@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "stretch"
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-debian-stretch-aarch64
+        path: artifacts/debian-stretch
+
+
+  build-debian-buster-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -66,11 +91,35 @@ jobs:
 
     - uses: actions/upload-artifact@v2
       with:
-        name: builds-debian-buster
+        name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
 
-  build-debian-bullseye:
-    runs-on: ubuntu-latest
+
+  build-debian-buster-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "buster"
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-debian-buster-aarch64
+        path: artifacts/debian-buster
+
+
+  build-debian-bullseye-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -88,11 +137,35 @@ jobs:
 
     - uses: actions/upload-artifact@v2
       with:
-        name: builds-debian-bullseye
+        name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
 
-  build-ubuntu-xenial:
-    runs-on: ubuntu-latest
+
+  build-debian-bullseye-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-debian-bullseye-aarch64
+        path: artifacts/debian-bullseye
+
+
+  build-ubuntu-xenial-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -110,11 +183,35 @@ jobs:
 
     - uses: actions/upload-artifact@v2
       with:
-        name: builds-ubuntu-xenial
+        name: builds-ubuntu-xenial-x86_64
         path: artifacts/ubuntu-xenial
 
-  build-ubuntu-bionic:
-    runs-on: ubuntu-latest
+
+  build-ubuntu-xenial-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-xenial@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "xenial"
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-ubuntu-xenial-aarch64
+        path: artifacts/ubuntu-xenial
+
+
+  build-ubuntu-bionic-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -132,11 +229,35 @@ jobs:
 
     - uses: actions/upload-artifact@v2
       with:
-        name: builds-ubuntu-bionic
+        name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
 
-  build-ubuntu-focal:
-    runs-on: ubuntu-latest
+
+  build-ubuntu-bionic-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "bionic"
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-ubuntu-bionic-aarch64
+        path: artifacts/ubuntu-bionic
+
+
+  build-ubuntu-focal-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -154,11 +275,35 @@ jobs:
 
     - uses: actions/upload-artifact@v2
       with:
-        name: builds-ubuntu-focal
+        name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
 
-  build-ubuntu-jammy:
-    runs-on: ubuntu-latest
+
+  build-ubuntu-focal-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "focal"
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-ubuntu-focal-aarch64
+        path: artifacts/ubuntu-focal
+
+
+  build-ubuntu-jammy-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -176,11 +321,35 @@ jobs:
 
     - uses: actions/upload-artifact@v2
       with:
-        name: builds-ubuntu-jammy
+        name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
 
-  build-centos-7:
-    runs-on: ubuntu-latest
+
+  build-ubuntu-jammy-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "jammy"
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-ubuntu-jammy-aarch64
+        path: artifacts/ubuntu-jammy
+
+
+  build-centos-7-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -198,11 +367,12 @@ jobs:
 
     - uses: actions/upload-artifact@v2
       with:
-        name: builds-centos-7
+        name: builds-centos-7-x86_64
         path: artifacts/centos-7
 
-  build-centos-8:
-    runs-on: ubuntu-latest
+
+  build-centos-8-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -220,11 +390,35 @@ jobs:
 
     - uses: actions/upload-artifact@v2
       with:
-        name: builds-centos-8
+        name: builds-centos-8-x86_64
         path: artifacts/centos-8
 
+
+  build-centos-8-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "8"
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-centos-8-aarch64
+        path: artifacts/centos-8
+
+
   build-linux-x86_64:
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
     steps:
@@ -248,8 +442,34 @@ jobs:
         path: artifacts/linux-x86_64
 
 
+  build-linux-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/linux-aarch64@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        EXTRA_OPTIMIZATIONS: "true"
+
+        BUILD_GENERIC: true
+
+
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-linux-aarch64
+        path: artifacts/linux-aarch64
+
+
+
   build-macos-x86_64:
-    runs-on: macos-latest
+    runs-on: ['self-hosted', 'macOS', 'X64']
     needs: prep
 
     steps:
@@ -261,6 +481,7 @@ jobs:
 
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
+      if: false
       with:
         profile: minimal
         toolchain: stable
@@ -268,6 +489,7 @@ jobs:
 
     - name: Set up Python
       uses: actions/setup-python@v1
+      if: false
 
     - name: Build
       env:
@@ -276,6 +498,7 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "x86_64"
+        PKG_PLATFORM_ARCH: "x86_64"
 
         BUILD_GENERIC: true
 
@@ -288,14 +511,58 @@ jobs:
         path: artifacts/macos-x86_64
 
 
-  test-debian-stretch:
-    needs: [build-debian-stretch]
-    runs-on: ubuntu-latest
+  build-macos-aarch64:
+    runs-on: ['self-hosted', 'macOS', 'ARM64']
+    needs: prep
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      if: false
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v1
+      if: false
+
+    - name: Build
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "macos"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PKG_PLATFORM_ARCH: ""
+
+        BUILD_GENERIC: true
+
+      run: |
+        edgedb-pkg/integration/macos/build.sh
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-macos-aarch64
+        path: artifacts/macos-aarch64
+
+
+
+  test-debian-stretch-x86_64:
+    needs: [build-debian-stretch-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-debian-stretch
+        name: builds-debian-stretch-x86_64
         path: artifacts/debian-stretch
 
     - name: Test
@@ -306,17 +573,40 @@ jobs:
         PKG_PLATFORM_VERSION: "stretch"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
-  test-debian-buster:
-    needs: [build-debian-buster]
-    runs-on: ubuntu-latest
+
+  test-debian-stretch-aarch64:
+    needs: [build-debian-stretch-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-debian-buster
+        name: builds-debian-stretch-aarch64
+        path: artifacts/debian-stretch
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/debian-stretch@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "stretch"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
+
+
+  test-debian-buster-x86_64:
+    needs: [build-debian-buster-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
 
     - name: Test
@@ -327,17 +617,40 @@ jobs:
         PKG_PLATFORM_VERSION: "buster"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
-  test-debian-bullseye:
-    needs: [build-debian-bullseye]
-    runs-on: ubuntu-latest
+
+  test-debian-buster-aarch64:
+    needs: [build-debian-buster-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-debian-bullseye
+        name: builds-debian-buster-aarch64
+        path: artifacts/debian-buster
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/debian-buster@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "buster"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
+
+
+  test-debian-bullseye-x86_64:
+    needs: [build-debian-bullseye-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
 
     - name: Test
@@ -348,17 +661,40 @@ jobs:
         PKG_PLATFORM_VERSION: "bullseye"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
-  test-ubuntu-xenial:
-    needs: [build-ubuntu-xenial]
-    runs-on: ubuntu-latest
+
+  test-debian-bullseye-aarch64:
+    needs: [build-debian-bullseye-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-ubuntu-xenial
+        name: builds-debian-bullseye-aarch64
+        path: artifacts/debian-bullseye
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/debian-bullseye@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
+
+
+  test-ubuntu-xenial-x86_64:
+    needs: [build-ubuntu-xenial-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-xenial-x86_64
         path: artifacts/ubuntu-xenial
 
     - name: Test
@@ -369,17 +705,40 @@ jobs:
         PKG_PLATFORM_VERSION: "xenial"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
-  test-ubuntu-bionic:
-    needs: [build-ubuntu-bionic]
-    runs-on: ubuntu-latest
+
+  test-ubuntu-xenial-aarch64:
+    needs: [build-ubuntu-xenial-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-ubuntu-bionic
+        name: builds-ubuntu-xenial-aarch64
+        path: artifacts/ubuntu-xenial
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-xenial@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "xenial"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
+
+
+  test-ubuntu-bionic-x86_64:
+    needs: [build-ubuntu-bionic-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
 
     - name: Test
@@ -390,17 +749,40 @@ jobs:
         PKG_PLATFORM_VERSION: "bionic"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
-  test-ubuntu-focal:
-    needs: [build-ubuntu-focal]
-    runs-on: ubuntu-latest
+
+  test-ubuntu-bionic-aarch64:
+    needs: [build-ubuntu-bionic-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-ubuntu-focal
+        name: builds-ubuntu-bionic-aarch64
+        path: artifacts/ubuntu-bionic
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-bionic@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "bionic"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
+
+
+  test-ubuntu-focal-x86_64:
+    needs: [build-ubuntu-focal-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
 
     - name: Test
@@ -411,17 +793,40 @@ jobs:
         PKG_PLATFORM_VERSION: "focal"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
-  test-ubuntu-jammy:
-    needs: [build-ubuntu-jammy]
-    runs-on: ubuntu-latest
+
+  test-ubuntu-focal-aarch64:
+    needs: [build-ubuntu-focal-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-ubuntu-jammy
+        name: builds-ubuntu-focal-aarch64
+        path: artifacts/ubuntu-focal
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-focal@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "focal"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
+
+
+  test-ubuntu-jammy-x86_64:
+    needs: [build-ubuntu-jammy-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
 
     - name: Test
@@ -432,17 +837,40 @@ jobs:
         PKG_PLATFORM_VERSION: "jammy"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
-  test-centos-7:
-    needs: [build-centos-7]
-    runs-on: ubuntu-latest
+
+  test-ubuntu-jammy-aarch64:
+    needs: [build-ubuntu-jammy-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-centos-7
+        name: builds-ubuntu-jammy-aarch64
+        path: artifacts/ubuntu-jammy
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/ubuntu-jammy@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "jammy"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
+
+
+  test-centos-7-x86_64:
+    needs: [build-centos-7-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-centos-7-x86_64
         path: artifacts/centos-7
 
     - name: Test
@@ -453,17 +881,18 @@ jobs:
         PKG_PLATFORM_VERSION: "7"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
 
 
-  test-centos-8:
-    needs: [build-centos-8]
-    runs-on: ubuntu-latest
+
+  test-centos-8-x86_64:
+    needs: [build-centos-8-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-centos-8
+        name: builds-centos-8-x86_64
         path: artifacts/centos-8
 
     - name: Test
@@ -474,12 +903,35 @@ jobs:
         PKG_PLATFORM_VERSION: "8"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
+
+
+
+  test-centos-8-aarch64:
+    needs: [build-centos-8-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-centos-8-aarch64
+        path: artifacts/centos-8
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/centos-8@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "8"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
 
 
   test-linux-x86_64:
     needs: [build-linux-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -495,13 +947,36 @@ jobs:
         PKG_PLATFORM_VERSION: "x86_64"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
-        PKG_TEST_JOBS: 1
+        PKG_TEST_JOBS: 0
+
+
+
+  test-linux-aarch64:
+    needs: [build-linux-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-linux-aarch64
+        path: artifacts/linux-aarch64
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/linux-aarch64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
 
 
 
   test-macos-x86_64:
     needs: [build-macos-x86_64]
-    runs-on: macos-latest
+    runs-on: ['self-hosted', 'macOS', 'X64']
 
     steps:
     - uses: actions/checkout@v2
@@ -524,21 +999,41 @@ jobs:
         edgedb-pkg/integration/macos/test.sh
 
 
-  publish-debian-stretch:
-    needs: [test-debian-stretch]
+  test-macos-aarch64:
+    needs: [build-macos-aarch64]
+    runs-on: ['self-hosted', 'macOS', 'ARM64']
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-macos-aarch64
+        path: artifacts/macos-aarch64
+
+    - name: Test
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "macos"
+        PKG_PLATFORM_VERSION: "aarch64"
+      run: |
+        edgedb-pkg/integration/macos/test.sh
+
+
+
+  publish-debian-stretch-x86_64:
+    needs: [test-debian-stretch-x86_64]
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-debian-stretch
+        name: builds-debian-stretch-x86_64
         path: artifacts/debian-stretch
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: debian-stretch
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -547,6 +1042,22 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-debian-stretch-x86_64:
+    needs: [publish-debian-stretch-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-debian-stretch-x86_64
+        path: artifacts/debian-stretch
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-stretch
 
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-stretch@master
@@ -559,21 +1070,62 @@ jobs:
 
     
 
-  publish-debian-buster:
-    needs: [test-debian-buster]
+
+  publish-debian-stretch-aarch64:
+    needs: [test-debian-stretch-aarch64]
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-debian-buster
-        path: artifacts/debian-buster
+        name: builds-debian-stretch-aarch64
+        path: artifacts/debian-stretch
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "stretch"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-debian-stretch-aarch64:
+    needs: [publish-debian-stretch-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-debian-stretch-aarch64
+        path: artifacts/debian-stretch
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: debian-buster
+        target: debian-stretch
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-stretch@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "stretch"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    
+
+
+  publish-debian-buster-x86_64:
+    needs: [test-debian-buster-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-debian-buster-x86_64
+        path: artifacts/debian-buster
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -582,6 +1134,22 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-debian-buster-x86_64:
+    needs: [publish-debian-buster-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-debian-buster-x86_64
+        path: artifacts/debian-buster
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-buster
 
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
@@ -593,37 +1161,63 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     
-    - uses: actions/checkout@v2
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: dockerfile
-    - name: Publish Docker Image
-      uses: elgohr/Publish-Docker-Github-Action@3.04
-      with:
-        name: edgedb/edgedb
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-        tags: "nightly,nightly_${{ steps.describe.outputs.version-slot }}_cv${{ steps.describe.outputs.catalog-version }}"
-        workdir: dockerfile
-        buildargs: version=${{ steps.describe.outputs.version-slot }},subdist=nightly
-    
 
-  publish-debian-bullseye:
-    needs: [test-debian-bullseye]
+
+  publish-debian-buster-aarch64:
+    needs: [test-debian-buster-aarch64]
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-debian-bullseye
-        path: artifacts/debian-bullseye
+        name: builds-debian-buster-aarch64
+        path: artifacts/debian-buster
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "buster"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-debian-buster-aarch64:
+    needs: [publish-debian-buster-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-debian-buster-aarch64
+        path: artifacts/debian-buster
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: debian-bullseye
+        target: debian-buster
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "buster"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    
+
+
+  publish-debian-bullseye-x86_64:
+    needs: [test-debian-bullseye-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-debian-bullseye-x86_64
+        path: artifacts/debian-bullseye
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -632,6 +1226,22 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-debian-bullseye-x86_64:
+    needs: [publish-debian-bullseye-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-debian-bullseye-x86_64
+        path: artifacts/debian-bullseye
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-bullseye
 
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
@@ -644,21 +1254,62 @@ jobs:
 
     
 
-  publish-ubuntu-xenial:
-    needs: [test-ubuntu-xenial]
+
+  publish-debian-bullseye-aarch64:
+    needs: [test-debian-bullseye-aarch64]
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-ubuntu-xenial
-        path: artifacts/ubuntu-xenial
+        name: builds-debian-bullseye-aarch64
+        path: artifacts/debian-bullseye
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-debian-bullseye-aarch64:
+    needs: [publish-debian-bullseye-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-debian-bullseye-aarch64
+        path: artifacts/debian-bullseye
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: ubuntu-xenial
+        target: debian-bullseye
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    
+
+
+  publish-ubuntu-xenial-x86_64:
+    needs: [test-ubuntu-xenial-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-xenial-x86_64
+        path: artifacts/ubuntu-xenial
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -667,6 +1318,22 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-ubuntu-xenial-x86_64:
+    needs: [publish-ubuntu-xenial-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-xenial-x86_64
+        path: artifacts/ubuntu-xenial
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-xenial
 
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-xenial@master
@@ -679,21 +1346,62 @@ jobs:
 
     
 
-  publish-ubuntu-bionic:
-    needs: [test-ubuntu-bionic]
+
+  publish-ubuntu-xenial-aarch64:
+    needs: [test-ubuntu-xenial-aarch64]
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-ubuntu-bionic
-        path: artifacts/ubuntu-bionic
+        name: builds-ubuntu-xenial-aarch64
+        path: artifacts/ubuntu-xenial
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "xenial"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-ubuntu-xenial-aarch64:
+    needs: [publish-ubuntu-xenial-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-xenial-aarch64
+        path: artifacts/ubuntu-xenial
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: ubuntu-bionic
+        target: ubuntu-xenial
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-xenial@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "xenial"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    
+
+
+  publish-ubuntu-bionic-x86_64:
+    needs: [test-ubuntu-bionic-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-bionic-x86_64
+        path: artifacts/ubuntu-bionic
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -702,6 +1410,22 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-ubuntu-bionic-x86_64:
+    needs: [publish-ubuntu-bionic-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-bionic-x86_64
+        path: artifacts/ubuntu-bionic
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-bionic
 
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
@@ -714,21 +1438,62 @@ jobs:
 
     
 
-  publish-ubuntu-focal:
-    needs: [test-ubuntu-focal]
+
+  publish-ubuntu-bionic-aarch64:
+    needs: [test-ubuntu-bionic-aarch64]
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-ubuntu-focal
-        path: artifacts/ubuntu-focal
+        name: builds-ubuntu-bionic-aarch64
+        path: artifacts/ubuntu-bionic
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "bionic"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-ubuntu-bionic-aarch64:
+    needs: [publish-ubuntu-bionic-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-bionic-aarch64
+        path: artifacts/ubuntu-bionic
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: ubuntu-focal
+        target: ubuntu-bionic
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "bionic"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    
+
+
+  publish-ubuntu-focal-x86_64:
+    needs: [test-ubuntu-focal-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-focal-x86_64
+        path: artifacts/ubuntu-focal
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -737,6 +1502,22 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-ubuntu-focal-x86_64:
+    needs: [publish-ubuntu-focal-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-focal-x86_64
+        path: artifacts/ubuntu-focal
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-focal
 
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
@@ -749,21 +1530,62 @@ jobs:
 
     
 
-  publish-ubuntu-jammy:
-    needs: [test-ubuntu-jammy]
+
+  publish-ubuntu-focal-aarch64:
+    needs: [test-ubuntu-focal-aarch64]
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-ubuntu-jammy
-        path: artifacts/ubuntu-jammy
+        name: builds-ubuntu-focal-aarch64
+        path: artifacts/ubuntu-focal
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "focal"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-ubuntu-focal-aarch64:
+    needs: [publish-ubuntu-focal-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-focal-aarch64
+        path: artifacts/ubuntu-focal
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: ubuntu-jammy
+        target: ubuntu-focal
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "focal"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    
+
+
+  publish-ubuntu-jammy-x86_64:
+    needs: [test-ubuntu-jammy-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-jammy-x86_64
+        path: artifacts/ubuntu-jammy
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -772,6 +1594,22 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-ubuntu-jammy-x86_64:
+    needs: [publish-ubuntu-jammy-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-jammy-x86_64
+        path: artifacts/ubuntu-jammy
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-jammy
 
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
@@ -784,21 +1622,62 @@ jobs:
 
     
 
-  publish-centos-7:
-    needs: [test-centos-7]
+
+  publish-ubuntu-jammy-aarch64:
+    needs: [test-ubuntu-jammy-aarch64]
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-centos-7
-        path: artifacts/centos-7
+        name: builds-ubuntu-jammy-aarch64
+        path: artifacts/ubuntu-jammy
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "jammy"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-ubuntu-jammy-aarch64:
+    needs: [publish-ubuntu-jammy-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-ubuntu-jammy-aarch64
+        path: artifacts/ubuntu-jammy
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: centos-7
+        target: ubuntu-jammy
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "jammy"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    
+
+
+  publish-centos-7-x86_64:
+    needs: [test-centos-7-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-centos-7-x86_64
+        path: artifacts/centos-7
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -807,6 +1686,22 @@ jobs:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-centos-7-x86_64:
+    needs: [publish-centos-7-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-centos-7-x86_64
+        path: artifacts/centos-7
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: centos-7
 
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-7@master
@@ -819,21 +1714,16 @@ jobs:
 
     
 
-  publish-centos-8:
-    needs: [test-centos-8]
+
+  publish-centos-8-x86_64:
+    needs: [test-centos-8-x86_64]
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v2
       with:
-        name: builds-centos-8
+        name: builds-centos-8-x86_64
         path: artifacts/centos-8
-
-    - name: Describe
-      id: describe
-      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
-      with:
-        target: centos-8
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -842,6 +1732,22 @@ jobs:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-centos-8-x86_64:
+    needs: [publish-centos-8-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-centos-8-x86_64
+        path: artifacts/centos-8
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: centos-8
 
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
@@ -854,9 +1760,74 @@ jobs:
 
     
 
+
+  publish-centos-8-aarch64:
+    needs: [test-centos-8-aarch64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-centos-8-aarch64
+        path: artifacts/centos-8
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "8"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-centos-8-aarch64:
+    needs: [publish-centos-8-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-centos-8-aarch64
+        path: artifacts/centos-8
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: centos-8
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "8"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    
+
+
   publish-linux-x86_64:
     needs: [test-linux-x86_64]
     runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-linux-x86_64
+        path: artifacts/linux-x86_64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-linux-x86_64:
+    needs: [publish-linux-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
     - uses: actions/download-artifact@v2
@@ -870,14 +1841,6 @@ jobs:
       with:
         target: linux-x86_64
 
-    - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "linux"
-        PKG_PLATFORM_VERSION: "x86_64"
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
       env:
@@ -890,9 +1853,56 @@ jobs:
     
 
 
+  publish-linux-aarch64:
+    needs: [test-linux-aarch64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-linux-aarch64
+        path: artifacts/linux-aarch64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-linux-aarch64:
+    needs: [publish-linux-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-linux-aarch64
+        path: artifacts/linux-aarch64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linux-aarch64
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    
+
+
+
   publish-macos-x86_64:
     needs: [test-macos-x86_64]
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v2
@@ -913,11 +1923,41 @@ jobs:
         target: macos-x86_64
 
     - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "x86_64"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-      run: |
-        edgedb-pkg/integration/macos/publish.sh
+
+
+  publish-macos-aarch64:
+    needs: [test-macos-aarch64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-macos-aarch64
+        path: artifacts/macos-aarch64
+
+    - uses: actions/checkout@v2
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: macos-aarch64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "macos"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 

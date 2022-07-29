@@ -28,64 +28,83 @@ class TestServerUnittests(unittest.TestCase):
         CASES = [
             (
                 ['*'],
-                (['0.0.0.0', '::'], [])
+                (['0.0.0.0', '::'], []),
+                (True, True),
             ),
             (
                 ['0.0.0.0', '::0'],
-                (['0.0.0.0', '::'], [])
+                (['0.0.0.0', '::'], []),
+                (True, True),
             ),
             (
                 ['0.0.0.0', '127.0.0.1', '2001:db8::8a2e:370:7334', '::0'],
-                (['0.0.0.0', '::'], ['127.0.0.1', '2001:db8::8a2e:370:7334'])
+                (['0.0.0.0', '::'], ['127.0.0.1', '2001:db8::8a2e:370:7334']),
+                (True, True),
             ),
             (
                 ['0.0.0.0', 'example.com', '2001:db8::8a2e:370:7334', '::0'],
-                (['0.0.0.0', '::'], ['example.com', '2001:db8::8a2e:370:7334'])
+                (
+                    ['0.0.0.0', '::'],
+                    ['example.com', '2001:db8::8a2e:370:7334'],
+                ),
+                (True, True),
             ),
             (
                 ['127.0.0.1', 'example.com', '2001:db8::8a2e:370:7334', '::0'],
                 (
                     ['127.0.0.1', '::'],
                     ['example.com', '2001:db8::8a2e:370:7334']
-                )
+                ),
+                (False, True),
             ),
             (
                 ['example.com', '2001:db8::8a2e:370:7334', '::0'],
-                (['::'], ['example.com', '2001:db8::8a2e:370:7334'])
+                (['::'], ['example.com', '2001:db8::8a2e:370:7334']),
+                (False, True),
             ),
             (
                 ['example.com', 'sub.example.com'],
-                (['example.com', 'sub.example.com'], [])
+                (['example.com', 'sub.example.com'], []),
+                (False, False),
             ),
             (
                 ['example.com', '127.0.0.1'],
-                (['example.com', '127.0.0.1'], [])
+                (['example.com', '127.0.0.1'], []),
+                (False, False),
             ),
             (
                 ['example.com', '::1'],
-                (['::1', 'example.com'], [])
+                (['::1', 'example.com'], []),
+                (False, False),
             ),
             (
                 ['example.com', '::'],
-                (['::'], ['example.com'])
+                (['::'], ['example.com']),
+                (False, True),
             ),
             (
                 ['example.com', '::1', '127.0.0.1'],
-                (['example.com', '::1', '127.0.0.1'], [])
+                (['example.com', '::1', '127.0.0.1'], []),
+                (False, False),
             ),
             (
                 ['0.0.0.0', '2001:db8::8a2e:370:7334'],
-                (['0.0.0.0', '2001:db8::8a2e:370:7334'], [])
+                (['0.0.0.0', '2001:db8::8a2e:370:7334'], []),
+                (True, False),
             ),
             (
                 ['127.0.0.1', '2001:db8::8a2e:370:7334', '::'],
-                (['127.0.0.1', '::'], ['2001:db8::8a2e:370:7334'])
+                (['127.0.0.1', '::'], ['2001:db8::8a2e:370:7334']),
+                (False, True),
             ),
         ]
 
-        for hosts, expected in CASES:
-            new_hosts, rej_hosts = server._cleanup_wildcard_addrs(hosts)
+        for hosts, expected, expected_wildcard in CASES:
+            (
+                new_hosts, rej_hosts, *has_wildcards
+            ) = server._cleanup_wildcard_addrs(hosts)
             self.assertEqual(
                 (set(new_hosts), set(rej_hosts)),
                 (set(expected[0]), set(expected[1]))
             )
+            self.assertEqual(tuple(has_wildcards), expected_wildcard)

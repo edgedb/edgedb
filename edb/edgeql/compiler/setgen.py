@@ -88,6 +88,9 @@ def new_set(
     ignore_rewrites: bool = kwargs.get('ignore_rewrites', False)
     rw_key = (stype, skip_subtypes)
 
+    if stype in ctx.suppress_rewrites:
+        ignore_rewrites = kwargs['ignore_rewrites'] = True
+
     if (
         not ignore_rewrites
         and rw_key not in ctx.type_rewrites
@@ -242,6 +245,22 @@ def new_array_set(
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
     arr = irast.Array(elements=elements, typeref=typeref)
     return ensure_set(arr, type_override=stype, ctx=ctx)
+
+
+def raise_self_insert_error(
+    stype: s_obj.Object, source_context: Optional[parsing.ParserContext], *,
+    ctx: context.ContextLevel,
+) -> NoReturn:
+    dname = stype.get_displayname(ctx.env.schema)
+    raise errors.QueryError(
+        f'invalid reference to {dname}: '
+        f'self-referencing INSERTs are not allowed',
+        hint=(
+            f'Use DETACHED if you meant to refer to an '
+            f'uncorrelated {dname} set'
+        ),
+        context=source_context,
+    )
 
 
 def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
@@ -518,17 +537,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if is_computable:
             computables.append(path_tip)
 
-        if pathctx.path_is_banned(path_tip.path_id, ctx=ctx):
-            dname = stype.get_displayname(ctx.env.schema)
-            raise errors.QueryError(
-                f'invalid reference to {dname}: '
-                f'self-referencing INSERTs are not allowed',
-                hint=(
-                    f'Use DETACHED if you meant to refer to an '
-                    f'uncorrelated {dname} set'
-                ),
-                context=step.context,
-            )
+        if pathctx.path_is_inserting(path_tip.path_id, ctx=ctx):
+            raise_self_insert_error(stype, step.context, ctx=ctx)
 
         path_sets.append(path_tip)
 
@@ -1392,8 +1402,10 @@ def computable_ptr_set(
             subctx.disable_shadowing.add(ptrcls_to_shadow)
         if result_stype != base_object:
             subctx.view_scls = result_stype
+        assert isinstance(source_scls, s_sources.Source)
+        assert isinstance(ptrcls, s_pointers.Pointer)
         subctx.view_rptr = context.ViewRPtr(
-            source_scls, ptrcls=ptrcls, rptr=rptr)  # type: ignore
+            source=source_scls, ptrcls=ptrcls)
         subctx.anchors[qlast.Source().name] = source_set
         subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
         subctx.partial_path_prefix = source_set

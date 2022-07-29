@@ -49,6 +49,7 @@ from edb.schema import objects as s_obj
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
+from edb.schema import types as s_types
 
 from edb.server import args as edbargs
 from edb.server import config
@@ -490,7 +491,7 @@ async def _make_stdlib(
     testmode: bool,
     global_ids: Mapping[str, uuid.UUID],
 ) -> StdlibBits:
-    schema = s_schema.ChainedSchema(
+    schema: s_schema.Schema = s_schema.ChainedSchema(
         s_schema.FlatSchema(),
         s_schema.FlatSchema(),
         s_schema.FlatSchema(),
@@ -551,6 +552,16 @@ async def _make_stdlib(
     reflection = s_refl.generate_structure(schema)
     reflschema, reflplan = _process_delta(
         ctx, reflection.intro_schema_delta, schema)
+
+    # Any collection types that made it into reflschema need to get
+    # to get pulled back into the stdschema, or else they will be in
+    # an inconsistent state.
+    for obj in reflschema.get_objects(type=s_types.Collection):
+        if not schema.has_object(obj.id):
+            delta = sd.DeltaRoot()
+            delta.add(obj.as_shell(reflschema).as_create_delta(reflschema))
+            schema = delta.apply(schema, sd.CommandContext())
+    assert isinstance(schema, s_schema.ChainedSchema)
 
     assert current_block is not None
     reflplan.generate(current_block)
