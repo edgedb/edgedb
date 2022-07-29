@@ -557,7 +557,7 @@ a query.
         # => "Play it, Sam"
 
 
-  .. code-tab:: golang
+  .. code-tab:: go
 
     package main
 
