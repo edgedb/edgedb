@@ -419,7 +419,9 @@ def compile_insert_unless_conflict(
     This requires synthesizing a conditional based on all the exclusive
     constraints on the object.
     """
-    pointers = _get_exclusive_ptr_constraints(typ, include_id=False, ctx=ctx)
+    has_id_write = _has_explicit_id_write(stmt)
+    pointers = _get_exclusive_ptr_constraints(
+        typ, include_id=has_id_write, ctx=ctx)
     obj_constrs = typ.get_constraints(ctx.env.schema).objects(ctx.env.schema)
 
     select_ir, always_check, _ = compile_conflict_select(
@@ -427,7 +429,6 @@ def compile_insert_unless_conflict(
         constrs=pointers,
         obj_constrs=obj_constrs,
         parser_context=stmt.context, ctx=ctx)
-    assert not _has_explicit_id_write(stmt)
 
     return irast.OnConflictClause(
         constraint=None, select_ir=select_ir, always_check=always_check,

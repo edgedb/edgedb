@@ -5324,6 +5324,58 @@ class TestInsert(tb.QueryTestCase):
                 };
             ''')
 
+    async def test_edgeql_insert_explicit_id_05(self):
+        await self.con.execute('''
+            configure session set allow_user_specified_id := true
+        ''')
+
+        await self.con.execute('''
+            INSERT Person {
+                id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                name := "test",
+             }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                INSERT Person {
+                    id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                    name := "test",
+                 } UNLESS CONFLICT
+            ''',
+            []
+        )
+
+        await self.assert_query_result(
+            r'''
+                INSERT Person {
+                    id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                    name := "test",
+                 } UNLESS CONFLICT ON (.id)
+            ''',
+            []
+        )
+
+        await self.assert_query_result(
+            r'''
+                INSERT Note {
+                    id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                    name := "test",
+                 } UNLESS CONFLICT
+            ''',
+            []
+        )
+
+        await self.assert_query_result(
+            r'''
+                INSERT Note {
+                    id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                    name := "test",
+                 } UNLESS CONFLICT ON (.id)
+            ''',
+            []
+        )
+
     async def test_edgeql_insert_except_constraint_01(self):
         # Test basic behavior of a constraint using except
         await self.con.execute('''
