@@ -11073,6 +11073,19 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             """
         )
 
+    async def test_edgeql_migration_access_policy_01(self):
+        await self.migrate(r"""
+            type Test2 {
+                access policy asdf allow all using (true);
+            }
+        """)
+
+        await self.migrate(r"""
+            type Test2 {
+                access policy asdf allow all;
+            }
+        """)
+
     async def test_edgeql_migration_recovery(self):
         await self.con.execute(r"""
             START MIGRATION TO {
