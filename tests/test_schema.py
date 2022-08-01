@@ -5860,7 +5860,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """, r"""
             required global foo -> int64 {
-                default := 0;
+                default := 0 + 1;
             }
         """])
 
