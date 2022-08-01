@@ -143,6 +143,7 @@ Alter access policy
         [ reset when ; ]
         { allow | deny } <action> [, <action> ... ; ]
         [ using (<expr>) ; ]
+        [ reset expression ; ]
         [ create annotation <annotation-name> := <value> ; ]
         [ alter annotation <annotation-name> := <value> ; ]
         [ drop annotation <annotation-name>; ]
@@ -171,8 +172,11 @@ subcommands that are allowed in the ``create access policy`` block:
 
 :eql:synopsis:`reset when`
     Clear the :eql:synopsis:`when (<condition>)` so that the policy applies to
-    all objects of a given type. This is exactly equivalent to ``when
-    (true)``.
+    all objects of a given type. This is equivalent to ``when (true)``.
+
+:eql:synopsis:`reset expression`
+    Clear the :eql:synopsis:`using (<condition>)` so that the policy always
+    passes. This is equivalent to ``using (true)``.
 
 :eql:synopsis:`alter annotation <annotation-name>;`
     Alter access policy annotation :eql:synopsis:`<annotation-name>`.

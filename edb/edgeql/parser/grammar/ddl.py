@@ -1812,7 +1812,7 @@ class AccessUsingStmt(Nonterm):
             special_syntax=True,
         )
 
-    def reduce_RESET_USING(self, *kids):
+    def reduce_RESET_EXPRESSION(self, *kids):
         self.val = qlast.SetField(
             name='expr',
             value=None,
