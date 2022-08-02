@@ -372,6 +372,17 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.InvalidReferenceError,
+                  "object type or alias 'std::str' does not exist")
+    def test_schema_bad_prop_07(self):
+        """
+            type Person {
+                required property name := str {
+                    # empty block
+                }
+            }
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
                   "type 'test::int' does not exist",
                   position=73)
     def test_schema_bad_type_01(self):
