@@ -131,6 +131,10 @@ class GlobalCommand(
 
         expression = self.get_attribute_value('expr')
         assert isinstance(expression, s_expr.Expression)
+        # If it's not compiled, don't worry about it. This should just
+        # be a dummy expression.
+        if not expression.irast:
+            return schema
         assert isinstance(expression.irast, irast.Statement)
 
         required, card = expression.irast.cardinality.to_schema_value()
@@ -282,10 +286,12 @@ class GlobalCommand(
         field: so.Field[Any],
         value: Any,
     ) -> Optional[s_expr.Expression]:
-        if field.name == 'expr':
-            return None
-        elif field.name == 'default':
-            return None
+        if field.name in ('expr', 'default'):
+            rt = self.scls.get_target(schema)
+            if isinstance(rt, so.DerivableInheritingObject):
+                rt = rt.get_nearest_non_derived_parent(schema)
+            text = f'SELECT assert_exists(<{rt.get_displayname(schema)}>{{}})'
+            return s_expr.Expression(text=text)
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
 
