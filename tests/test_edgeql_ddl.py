@@ -1935,6 +1935,30 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
+    async def test_edgeql_ddl_default_10(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                'default expression is of invalid type: array<std::int32>, '
+                'expected array<std::int16>'):
+            await self.con.execute(r"""
+                CREATE TYPE X {
+                    CREATE PROPERTY y -> array<int16> {
+                        SET default := <array<int32>>[]
+                    };
+                };
+            """)
+
+    async def test_edgeql_ddl_default_11(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                'default expression is of invalid type: array<std::int32>, '
+                'expected array<std::int16>'):
+            await self.con.execute(r"""
+                CREATE GLOBAL y -> array<int16> {
+                    SET default := <array<int32>>[]
+                };
+            """)
+
     async def test_edgeql_ddl_default_circular(self):
         await self.con.execute(r"""
             CREATE TYPE TestDefaultCircular {
@@ -9561,6 +9585,18 @@ type default::Foo {
                 r'violates exclusivity constraint'):
             await self.con.execute("""
                 insert B { x := "!" }
+            """)
+
+    async def test_edgeql_ddl_constraint_22(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidConstraintDefinitionError,
+                r'expected to return a bool value, got collection'):
+            await self.con.execute("""
+                create type X {
+                    create property y -> str {
+                        create constraint expression on (<array<int32>>[]);
+                    }
+                };
             """)
 
     async def test_edgeql_ddl_constraint_check_01a(self):

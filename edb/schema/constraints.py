@@ -799,11 +799,12 @@ class ConstraintCommand(
         assert isinstance(final_expr.irast, ir_ast.Statement)
 
         expr_type = final_expr.irast.stype
-        if not expr_type.issubclass(schema, bool_t):
+        expr_schema = final_expr.irast.schema
+        if not expr_type.issubclass(expr_schema, bool_t):
             raise errors.InvalidConstraintDefinitionError(
                 f'{name} constraint expression expected '
                 f'to return a bool value, got '
-                f'{expr_type.get_verbosename(schema)}',
+                f'{expr_type.get_verbosename(expr_schema)}',
                 context=sourcectx
             )
 
