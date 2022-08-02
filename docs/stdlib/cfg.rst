@@ -85,6 +85,9 @@ Query planning
 Client connections
 ------------------
 
+:eql:synopsis:`allow_user_specified_id -> bool`
+  Makes it possible to set the `.id` property when inserting new objects.
+
 :eql:synopsis:`session_idle_timeout -> std::duration`
   Sets the timeout for how long client connections can stay inactive
   before being forcefully closed by the server.
