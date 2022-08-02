@@ -1595,21 +1595,23 @@ class PointerCommand(
 
             assert isinstance(default_expr.irast, irast.Statement)
 
+            default_schema = default_expr.irast.schema
             default_type = default_expr.irast.stype
             assert default_type is not None
             ptr_target = scls.get_target(schema)
             assert ptr_target is not None
 
             source_context = self.get_attribute_source_context('default')
-            if default_type.is_view(default_expr.irast.schema):
+            if default_type.is_view(default_schema):
                 raise errors.SchemaDefinitionError(
                     f'default expression may not include a shape',
                     context=source_context,
                 )
-            if not default_type.assignment_castable_to(ptr_target, schema):
+            if not default_type.assignment_castable_to(
+                    ptr_target, default_schema):
                 raise errors.SchemaDefinitionError(
                     f'default expression is of invalid type: '
-                    f'{default_type.get_displayname(schema)}, '
+                    f'{default_type.get_displayname(default_schema)}, '
                     f'expected {ptr_target.get_displayname(schema)}',
                     context=source_context,
                 )
