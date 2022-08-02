@@ -1189,7 +1189,10 @@ class PointerCommandOrFragment(
                 # link props). Random paths coming from other sources
                 # get treated same as any other arbitrary expression
                 # in a computable.
-                if aliased_ptr.get_source(new_schema) == source:
+                if (
+                    aliased_ptr.get_source(new_schema) == source
+                    and isinstance(aliased_ptr, self.get_schema_metaclass())
+                ):
                     base = aliased_ptr
                     schema = new_schema
 
