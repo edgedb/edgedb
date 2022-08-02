@@ -1317,7 +1317,12 @@ def process_set_as_subquery(
 
             if is_objtype_path and not source_is_visible:
                 # Non-scalar computable semi-join.
-                semi_join = _source_path_needs_semi_join(ir_source, ctx=ctx)
+
+                # TODO: The basic path case has a more sophisticated
+                # understanding of when to do semi-joins. Using that
+                # naively here doesn't work, but perhaps it could be
+                # adapted?
+                semi_join = True
 
                 # We need to compile the source and include it in,
                 # since we need to do the semi-join deduplication here
