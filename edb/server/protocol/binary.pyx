@@ -749,7 +749,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
                 if authzid:
                     raise errors.UnsupportedFeatureError(
-                        'client users SASL authorization identity, '
+                        'client uses SASL authorization identity, '
                         'which is not supported')
 
                 server_nonce = scram.generate_nonce()
