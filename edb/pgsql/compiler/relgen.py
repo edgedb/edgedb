@@ -1001,16 +1001,6 @@ def process_set_as_path(
     ptrref = rptr.ptrref
     ir_source = rptr.source
 
-    backtrack_src = ir_source
-    new_paths = {backtrack_src.path_id}
-    while (
-        backtrack_src.rptr
-        and backtrack_src.path_id.is_type_intersection_path()
-    ):
-        backtrack_src = backtrack_src.rptr.source
-        new_paths.add(backtrack_src.path_id)
-
-    root_source_is_visible = ctx.scope_tree.is_visible(backtrack_src.path_id)
     source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
 
     rvars = []
@@ -1033,11 +1023,7 @@ def process_set_as_path(
     is_inline_primitive_ref = is_inline_ref and is_primitive_ref
     is_id_ref_to_inline_source = False
 
-    if is_linkprop:
-        ctx.disable_semi_join |= new_paths
-
     semi_join = (
-        not root_source_is_visible and
         ir_set.path_id not in ctx.disable_semi_join and
         not (is_linkprop or is_primitive_ref) and
         _source_path_needs_semi_join(ir_source, ctx=ctx) and
