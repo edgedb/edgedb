@@ -964,6 +964,32 @@ def process_set_as_path_type_intersection(
         ir_set, stmt, aspects=['value', 'source'], ctx=ctx)
 
 
+def _source_path_is_visible(
+        ir_source: irast.Set,
+        ctx: context.CompilerContextLevel) -> bool:
+    """Check if the path is 'visible enough' to avoid a semi-join.
+
+    This means that it has a visible prefix followed by single pointers.
+    This is an optimization that allows us to avoid doing a semi-join
+    when there is a chain of single links referenced (probably in a filter
+    or a computable).
+    """
+    if ctx.scope_tree.is_visible(ir_source.path_id):
+        return True
+
+    while (
+        ir_source.rptr
+        and ir_source.rptr.dir_cardinality.is_single()
+        and not ir_source.expr
+    ):
+        ir_source = ir_source.rptr.source
+
+        if ctx.scope_tree.is_visible(ir_source.path_id):
+            return True
+
+    return False
+
+
 def process_set_as_path(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -983,6 +1009,8 @@ def process_set_as_path(
 
     root_source_is_visible = ctx.scope_tree.is_visible(backtrack_src.path_id)
     source_is_visible = ctx.scope_tree.is_visible(ir_source.path_id)
+
+    source_is_single = _source_path_is_visible(ir_source, ctx=ctx)
 
     rvars = []
 
@@ -1008,7 +1036,7 @@ def process_set_as_path(
         ctx.disable_semi_join |= new_paths
 
     semi_join = (
-        not source_is_visible and
+        not source_is_single and
         not root_source_is_visible and
         ir_set.path_id not in ctx.disable_semi_join and
         not (is_linkprop or is_primitive_ref) and
