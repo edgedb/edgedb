@@ -75,7 +75,7 @@ def sd_notify(message: str) -> None:
             logger.info('Could not send systemd notification: %s', e)
 
 
-def sd_get_activation_listen_sockets() -> dict[str, socket.socket]:
+def sd_get_activation_listen_sockets() -> dict[str, list[socket.socket]]:
     # Prevent socket activation variables from being inherited by
     # child processes (regardless of success below).
     listen_pid = os.environ.pop("LISTEN_PID", "")
@@ -124,7 +124,7 @@ def sd_get_activation_listen_sockets() -> dict[str, socket.socket]:
 
         sock = _stream_socket_from_fd(fd)
         if sock is not None:
-            sockets[name] = sock
+            sockets.setdefault(name, []).append(sock)
 
     return sockets
 
@@ -160,7 +160,9 @@ if sys.platform == "darwin":
         else:
             raise LaunchActivateSocketError(result)
 
-    def launchd_get_activation_listen_sockets() -> dict[str, socket.socket]:
+    def launchd_get_activation_listen_sockets() -> dict[
+        str, list[socket.socket]
+    ]:
         names = ["edgedb-server"]
         sockets = {}
 
@@ -188,16 +190,18 @@ if sys.platform == "darwin":
             os.set_inheritable(fd, False)
             sock = _stream_socket_from_fd(fd)
             if sock is not None:
-                sockets[name] = sock
+                sockets.setdefault(name, []).append(sock)
 
         return sockets
 
 else:
-    def launchd_get_activation_listen_sockets() -> dict[str, socket.socket]:
+    def launchd_get_activation_listen_sockets() -> dict[
+        str, list[socket.socket]
+    ]:
         return {}
 
 
-def get_activation_listen_sockets() -> dict[str, socket.socket]:
+def get_activation_listen_sockets() -> dict[str, list[socket.socket]]:
     if sys.platform == "darwin":
         sockets = launchd_get_activation_listen_sockets()
     else:
@@ -205,17 +209,24 @@ def get_activation_listen_sockets() -> dict[str, socket.socket]:
 
     port = 0
 
-    for name, sock in list(sockets.items()):
-        this_port = sock.getsockname()[1]
-        if port == 0:
-            port = this_port
-        elif port == this_port:
-            continue
+    for name, socks in list(sockets.items()):
+        result = []
+        for sock in socks:
+            host, this_port = sock.getsockname()[:2]
+            if port == 0:
+                port = this_port
+                result.append(sock)
+            elif port == this_port:
+                result.append(sock)
+                continue
+            else:
+                logger.warning(
+                    f"activation sockets are not all on the same TCP port, "
+                    f"first socket is at {port} and socket {name!r}({host!r}) "
+                    f"is at {this_port}, ignoring the latter")
+        if result:
+            sockets[name] = result
         else:
-            logger.warning(
-                f"activation sockets are not all on the same TCP port, "
-                f"first socket is at {port} and socket {name!r} is at "
-                f"{this_port}, ignoring the latter")
             sockets.pop(name)
 
     return sockets

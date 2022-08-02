@@ -191,7 +191,7 @@ async def _run_server(
             compiler_pool_addr=args.compiler_pool_addr,
             nethosts=args.bind_addresses,
             netport=args.port,
-            listen_sockets=tuple(sockets.values()),
+            listen_sockets=tuple(s for ss in sockets.values() for s in ss),
             auto_shutdown_after=args.auto_shutdown_after,
             echo_runtime_info=args.echo_runtime_info,
             status_sinks=args.status_sinks,
