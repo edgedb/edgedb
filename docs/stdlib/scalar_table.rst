@@ -34,7 +34,7 @@
       - UUID type
 
     * - :eql:type:`bytes`
-      - Arbitrary precision number
+      - Raw binary data
 
     * - :eql:type:`datetime`
       - Timezone-aware point in time
