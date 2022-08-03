@@ -19,8 +19,6 @@
 
 import os.path
 
-import edgedb
-
 from edb.testbase import server as tb
 
 
@@ -37,6 +35,7 @@ class DumpTestCaseMixin:
     async def _ensure_schema_data_integrity(self):
         # Nothing yet
         pass
+
 
 class TestDumpV3(tb.StableDumpTestCase, DumpTestCaseMixin):
     DEFAULT_MODULE = 'test'
