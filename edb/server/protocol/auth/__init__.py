@@ -29,10 +29,25 @@ from . import scram
 
 async def handle_request(request, response, path_parts, server):
     try:
-        if path_parts == ['scram']:
-            scram.handle_request(request, response, server)
+        if path_parts == ["token"]:
+            if not request.authorization:
+                response.status = http.HTTPStatus.UNAUTHORIZED
+                response.custom_headers["WWW-Authenticate"] = "SCRAM-SHA-256"
+                return
+
+            scheme, _, auth_str = request.authorization.decode(
+                "ascii"
+            ).partition(" ")
+
+            if scheme.lower().startswith("scram"):
+                scram.handle_request(scheme, auth_str, response, server)
+            else:
+                response.body = b"Unsupported authentication scheme"
+                response.status = http.HTTPStatus.UNAUTHORIZED
+                response.custom_headers["WWW-Authenticate"] = "SCRAM-SHA-256"
+                response.close_connection = True
         else:
-            response.body = b'Unknown path'
+            response.body = b"Unknown path"
             response.status = http.HTTPStatus.NOT_FOUND
             response.close_connection = True
     except errors.EdgeDBError as ex:
@@ -55,11 +70,11 @@ async def handle_request(request, response, path_parts, server):
 
 def _response_error(response, status, message, ex_type):
     err_dct = {
-        'message': message,
-        'type': str(ex_type.__name__),
-        'code': ex_type.get_code(),
+        "message": message,
+        "type": str(ex_type.__name__),
+        "code": ex_type.get_code(),
     }
 
-    response.body = json.dumps({'error': err_dct}).encode()
+    response.body = json.dumps({"error": err_dct}).encode()
     response.status = status
     response.close_connection = True

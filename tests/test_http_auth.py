@@ -30,15 +30,13 @@ from edb.testbase import server as tb_server
 class TestHttpAuth(tb.BaseHttpTest, tb_server.ConnectedTestCase):
     @classmethod
     def get_api_path(cls) -> str:
-        return "/"
+        return "/auth"
 
     def test_http_auth_scram(self):
         args = self.get_connect_args()
 
         with self.http_con() as con:
-            _, headers, status = self.http_con_request(
-                con, {}, path="auth/scram"
-            )
+            _, headers, status = self.http_con_request(con, {}, path="token")
             self.assertEqual(status, 401)
             self.assertEqual(
                 headers, headers | {"www-authenticate": "scram-sha-256"}
@@ -55,7 +53,7 @@ class TestHttpAuth(tb.BaseHttpTest, tb_server.ConnectedTestCase):
         with self.http_con() as con:
             con.request(
                 "GET",
-                "/auth/scram",
+                "/auth/token",
                 headers={
                     "Authorization": f"SCRAM-SHA-256 data={client_first_b64}"
                 },
@@ -97,7 +95,7 @@ class TestHttpAuth(tb.BaseHttpTest, tb_server.ConnectedTestCase):
         with self.http_con() as con:
             con.request(
                 "GET",
-                "/auth/scram",
+                "/auth/token",
                 headers={
                     "Authorization": f"SCRAM-SHA-256 sid={sid} "
                     f"data={client_final_b64}"

@@ -35,13 +35,7 @@ SESSION_HIGH_WATER_MARK = SESSION_TIMEOUT * 10
 sessions: collections.OrderedDict[str, tuple] = collections.OrderedDict()
 
 
-def handle_request(request, response, server):
-    if not request.authorization:
-        response.status = http.HTTPStatus.UNAUTHORIZED
-        response.custom_headers["WWW-Authenticate"] = "SCRAM-SHA-256"
-        return
-
-    scheme, _, auth_str = request.authorization.decode("ascii").partition(" ")
+def handle_request(scheme, auth_str, response, server):
     if scheme != "SCRAM-SHA-256":
         response.body = (
             b"Client selected an invalid SASL authentication mechanism"
