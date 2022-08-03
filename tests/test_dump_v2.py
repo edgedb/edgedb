@@ -115,26 +115,24 @@ class DumpTestCaseMixin:
         )
 
 
-class TestDump04(tb.StableDumpTestCase, DumpTestCaseMixin):
+class TestDumpV2(tb.StableDumpTestCase, DumpTestCaseMixin):
     DEFAULT_MODULE = 'test'
 
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
-                                  'dump04_default.esdl')
+                                  'dump_v2_default.esdl')
 
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'dump04_setup.edgeql')
+                         'dump_v2_setup.edgeql')
 
-    STABLE_DUMP = False
-
-    async def test_dump04_dump_restore(self):
+    async def test_dump_v2_dump_restore(self):
         await self.check_dump_restore(
             DumpTestCaseMixin.ensure_schema_data_integrity)
 
 
-class TestDump04Compat(
+class TestDumpV2Compat(
     tb.DumpCompatTestCase,
     DumpTestCaseMixin,
-    dump_subdir='dump04',
+    dump_subdir='dumpv2',
     check_method=DumpTestCaseMixin.ensure_schema_data_integrity,
 ):
     pass
