@@ -964,6 +964,35 @@ def process_set_as_path_type_intersection(
         ir_set, stmt, aspects=['value', 'source'], ctx=ctx)
 
 
+def _source_path_needs_semi_join(
+        ir_source: irast.Set,
+        ctx: context.CompilerContextLevel) -> bool:
+    """Check if the path might need a semi-join
+
+    It does not need one if it has a visible prefix followed by single
+    pointers. Otherwise it might.
+
+    This is an optimization that allows us to avoid doing a semi-join
+    when there is a chain of single links referenced (probably in a filter
+    or a computable).
+
+    """
+    if ctx.scope_tree.is_visible(ir_source.path_id):
+        return False
+
+    while (
+        ir_source.rptr
+        and ir_source.rptr.dir_cardinality.is_single()
+        and not ir_source.expr
+    ):
+        ir_source = ir_source.rptr.source
+
+        if ctx.scope_tree.is_visible(ir_source.path_id):
+            return False
+
+    return True
+
+
 def process_set_as_path(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -1008,10 +1037,10 @@ def process_set_as_path(
         ctx.disable_semi_join |= new_paths
 
     semi_join = (
-        not source_is_visible and
         not root_source_is_visible and
         ir_set.path_id not in ctx.disable_semi_join and
         not (is_linkprop or is_primitive_ref) and
+        _source_path_needs_semi_join(ir_source, ctx=ctx) and
         # This is an optimization for when we are inside of a semi-join on
         # a computable: process_set_as_subquery will have included an
         # rvar for the computable source, and we want to join on it
@@ -1288,6 +1317,11 @@ def process_set_as_subquery(
 
             if is_objtype_path and not source_is_visible:
                 # Non-scalar computable semi-join.
+
+                # TODO: The basic path case has a more sophisticated
+                # understanding of when to do semi-joins. Using that
+                # naively here doesn't work, but perhaps it could be
+                # adapted?
                 semi_join = True
 
                 # We need to compile the source and include it in,
