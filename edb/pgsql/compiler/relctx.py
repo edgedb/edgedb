@@ -616,7 +616,7 @@ def _new_mapped_pointer_rvar(
     # Set up references according to the link direction.
     if (
         ir_ptr.direction == s_pointers.PointerDirection.Inbound
-        or ptrref.is_computed_backlink
+        or ptrref.computed_backlink
     ):
         near_ref = target_ref
         far_ref = source_ref
@@ -1752,6 +1752,8 @@ def range_for_ptrref(
         # needs to appear in *all* of the tables, so we just pick any
         # one of them.
         refs = {next(iter((ptrref.intersection_components)))}
+    elif ptrref.computed_backlink:
+        refs = {ptrref.computed_backlink}
     else:
         refs = {ptrref}
         assert isinstance(ptrref, irast.PointerRef), \

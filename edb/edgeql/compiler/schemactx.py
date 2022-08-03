@@ -313,8 +313,7 @@ def derive_ptr(
 
     if derive_backlink:
         attrs = attrs.copy() if attrs else {}
-        attrs['union_of'] = [ptr]
-        attrs['intersection_of'] = [ptr]
+        attrs['computed_backlink'] = ptr
 
     ctx.env.schema, derived = ptr.derive_ref(
         ctx.env.schema,

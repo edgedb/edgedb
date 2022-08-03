@@ -611,7 +611,7 @@ def _infer_set_inner(
                     card = cartesian_cardinality([source_card, rptr_spec_card])
 
         else:
-            if rptrref.union_components and not rptrref.is_computed_backlink:
+            if rptrref.union_components:
                 # We use cartesian cardinality instead of union cardinality
                 # because the union of pointers in this context is disjoint
                 # in a sense that for any specific source only a given union

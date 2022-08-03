@@ -223,6 +223,7 @@ class BasePointerRef(ImmutableBase):
     # Inbound cardinality of the pointer.
     in_cardinality: qltypes.Cardinality = qltypes.Cardinality.MANY
     defined_here: bool = False
+    computed_backlink: typing.Optional[BasePointerRef] = None
 
     def dir_target(self, direction: s_pointers.PointerDirection) -> TypeRef:
         if direction is s_pointers.PointerDirection.Outbound:
@@ -261,10 +262,6 @@ class BasePointerRef(ImmutableBase):
     @property
     def real_base_ptr(self) -> BasePointerRef:
         return self.base_ptr or self
-
-    @property
-    def is_computed_backlink(self) -> bool:
-        return bool(self.intersection_components and self.union_components)
 
     def __repr__(self) -> str:
         return f'<ir.{type(self).__name__} \'{self.name}\' at 0x{id(self):x}>'
