@@ -2733,14 +2733,33 @@ def process_set_as_std_range(
         type_name=pgast.TypeName(name=pg_type),
     )
 
+    # If any of the non-optional arguments are nullable, add an explicit
+    # null check for them.
+    null_checks = [
+        pgast.NullTest(arg=e) for e in [empty, inc_upper, inc_lower]
+        if e.nullable
+    ]
+    if null_checks:
+        null_case = [
+            pgast.CaseWhen(
+                expr=astutils.extend_binop(None, *null_checks, op='OR'),
+                result=pgast.NullConstant(),
+            )
+        ]
+    else:
+        null_case = []
+
     set_expr = pgast.CaseExpr(
-        args=[pgast.CaseWhen(
-            expr=pgast.FuncCall(
-                name=('edgedb', 'range_validate'),
-                args=[lower, upper, inc_lower, inc_upper, empty],
+        args=[
+            *null_case,
+            pgast.CaseWhen(
+                expr=pgast.FuncCall(
+                    name=('edgedb', 'range_validate'),
+                    args=[lower, upper, inc_lower, inc_upper, empty],
+                ),
+                result=empty_range,
             ),
-            result=empty_range,
-        )],
+        ],
         defresult=non_empty_range,
     )
 

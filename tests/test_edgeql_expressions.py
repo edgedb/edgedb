@@ -6499,6 +6499,15 @@ aa \
                 }');
             """)
 
+        await self.assert_query_result(
+            r'''
+                select range_is_empty(<range<int64>>to_json('{
+                    "empty": true
+                }'))
+            ''',
+            [True],
+        )
+
     async def test_edgeql_expr_range_35(self):
         # Test casting shapes containing ranges to JSON.
 
@@ -6570,6 +6579,41 @@ aa \
                 select range(<cal::local_date>'2022-07-09',
                              <cal::local_date>'2022-07-08');
             """)
+
+    async def test_edgeql_expr_range_37(self):
+        # Test nullable arguments to range
+        await self.assert_query_result(
+            r'''
+                select range(<int64>{}, empty:=<optional bool>$0);
+            ''',
+            [],
+            variables=(None,),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select range(<int64>{}, inc_lower:=<optional bool>$0);
+            ''',
+            [],
+            variables=(None,),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select range(<int64>{}, inc_upper:=<optional bool>$0);
+            ''',
+            [],
+            variables=(None,),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select range(
+                    <int64>{}, inc_upper:=<optional bool>$0, empty := true);
+            ''',
+            [],
+            variables=(None,),
+        )
 
     async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
         with self.assertRaisesRegex(
