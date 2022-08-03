@@ -676,6 +676,12 @@ def _cast_json_to_range(
                     type=ql_range_el_t,
                 ),
             ],
+            # inc_lower and inc_upper are required to be present for
+            # non-empty casts from json, and this is checked in
+            # __range_validate_json. We still need to provide default
+            # arguments when fetching them, though, since if those
+            # arguments to range are {} it will cause {"empty": true}
+            # to evaluate to {}.
             kwargs={
                 "inc_lower": qlast.TypeCast(
                     expr=qlast.FunctionCall(
@@ -684,6 +690,12 @@ def _cast_json_to_range(
                             source_path,
                             qlast.StringConstant(value='inc_lower'),
                         ],
+                        kwargs={
+                            'default': qlast.FunctionCall(
+                                func=('__std__', 'to_json'),
+                                args=[qlast.StringConstant(value="true")],
+                            ),
+                        },
                     ),
                     type=ql_bool_t
                 ),
@@ -694,6 +706,12 @@ def _cast_json_to_range(
                             source_path,
                             qlast.StringConstant(value='inc_upper'),
                         ],
+                        kwargs={
+                            'default': qlast.FunctionCall(
+                                func=('__std__', 'to_json'),
+                                args=[qlast.StringConstant(value="false")],
+                            ),
+                        },
                     ),
                     type=ql_bool_t
                 ),
@@ -704,6 +722,12 @@ def _cast_json_to_range(
                             source_path,
                             qlast.StringConstant(value='empty'),
                         ],
+                        kwargs={
+                            'default': qlast.FunctionCall(
+                                func=('__std__', 'to_json'),
+                                args=[qlast.StringConstant(value="false")],
+                            ),
+                        },
                     ),
                     type=ql_bool_t
                 ),
