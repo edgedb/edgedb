@@ -13,9 +13,6 @@ EdgeDB 2.0 RC1 was released to the "stable" channel on July 14th, 2022. We
 would like to thank our community for reporting issues and contributing fixes.
 You are awesome! ❤️
 
-Try it out
-==========
-
 To play with the new features, install `the CLI
 <https://www.edgedb.com/install>`_ and initialize a new project. For an
 interesting schema with test data, check out the `MCU Sandbox
@@ -25,42 +22,59 @@ interesting schema with test data, check out the `MCU Sandbox
 
   $ edgedb project init
 
-Or to upgrade an existing project:
+
+Upgrading
+=========
+
+**Local instances**
+
+To upgrade a local project, run the following command inside the project
+directory.
 
 .. code-block:: bash
 
-  $ edgedb project upgrade --to-latest
+  edgedb project upgrade --to-latest
 
+Alternatively, specify an instance name if you aren't using a project.
 
-These ``project`` commands are intended to be used on local development
-instances only. For users running EdgeDB in production, we'll have a more
-comprehensive migration guide out soon.
+.. code-block:: bash
 
-.. TODO: add illustration once it's ready
+  edgedb project upgrade --to-latest -I my_instance
 
-Client libraries
-----------------
+**Hosted instances**
 
-We've released new versions of our JavaScript and Python client libraries that
-support all 2.0 features and implement the updated protocol. These versions
-are backwards compatible with v1.x instances, so we encourage all users to
-upgrade.
+To upgrade a remote (hosted) instance, we recommend the following
+dump-and-restore process.
 
-.. list-table::
+1. Spin up an empty 2.0 instance by following one of our :ref:`deployment
+guides <ref_guide_deployment>`. These guides have been updated to 2.0. Keep
+the DSN of the newly created instance handy.
 
-  * - :ref:`TypeScript/JS <edgedb-js-intro>`
-    - ``edgedb@0.21.0``
-  * - :ref:`Python <edgedb-python-intro>`
-    - ``edgedb@0.24.0``
-  * - `Golang <https://www.edgedb.com/docs/clients/go/index>`_
-    - ``edgedb@0.12.0``
-  * - `Rust <https://github.com/edgedb/edgedb-rust>`_
-    - ``edgedb-tokio@0.3.0``
-  * - `.NET <https://github.com/quinchs/EdgeDB.Net>`_ (community-maintained)
-    - ``EdgeDB.Net.Driver@0.3.0``
+2. Take your application offline, then dump your v1.x database with the CLI
 
-There is also a community-maintained `Elixir
-<https://github.com/nsidnev/edgedb-elixir>`_ client with partial 2.0 support.
+   .. code-block:: bash
+
+     edgedb dump my_database.dump --dsn <old dsn>
+
+   This will dump the schema and contents of your current database to a file
+   on your local disk called ``my_database.dump``. The file name isn't
+   important.
+
+3. Restore the empty v2.x instance from the dump
+
+   .. code-block:: bash
+
+     edgedb restore my_database.dump --dsn <new dsn>
+
+   Once the restore is complete, update your application to connect to the new
+   instance.
+
+This process will involve some downtime, specifically during steps 2 and 3. We
+are working on an in-place upgrade workflow that will reduce the amount of
+downtime involved and avoid the need to spin up a new instance. We'll publish
+that soon; join the Discord for updates. Though for most applications the
+dump-and-restore workflow will be simpler and less error-prone.
+
 
 New features
 ============
