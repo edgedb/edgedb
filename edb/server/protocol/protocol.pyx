@@ -528,6 +528,16 @@ cdef class HttpProtocol:
                     )
 
         elif route == 'auth':
+            if (
+                    debug.flags.http_inject_cors
+                    and request.method == b'OPTIONS'
+                ):
+                    response.status = http.HTTPStatus.NO_CONTENT
+                    response.custom_headers['Access-Control-Allow-Methods'] = \
+                        'GET, OPTIONS'
+                    response.custom_headers['Access-Control-Max-Age'] = '86400'
+                    return
+
             # Authentication request
             await auth.handle_request(
                 request,
