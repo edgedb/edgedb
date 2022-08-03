@@ -32,7 +32,7 @@ from edb.common import markup
 
 SESSION_TIMEOUT = 30
 SESSION_HIGH_WATER_MARK = SESSION_TIMEOUT * 10
-sessions = collections.OrderedDict()
+sessions: collections.OrderedDict[str, tuple] = collections.OrderedDict()
 
 
 def handle_request(request, response, server):
