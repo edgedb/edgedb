@@ -64,7 +64,7 @@ the DSN of the newly created instance handy.
 
    .. code-block:: bash
 
-     edgedb restore my_database.dump --dsn <new dsn>
+     edgedb restore --all my_database.dump/ --dsn <new dsn>
 
    Once the restore is complete, update your application to connect to the new
    instance.
