@@ -43,6 +43,7 @@ from edb.server import defines as edbdef
 # can't cimport `protocol.binary` for some reason.
 from edb.server.pgproto.debug cimport PG_DEBUG
 
+from . import auth
 from . import edgeql_ext
 from . import metrics
 from . import server_info
@@ -526,6 +527,24 @@ cdef class HttpProtocol:
                         request, response, db, args, self.server
                     )
 
+        elif route == 'auth':
+            if (
+                    debug.flags.http_inject_cors
+                    and request.method == b'OPTIONS'
+                ):
+                    response.status = http.HTTPStatus.NO_CONTENT
+                    response.custom_headers['Access-Control-Allow-Methods'] = \
+                        'GET, OPTIONS'
+                    response.custom_headers['Access-Control-Max-Age'] = '86400'
+                    return
+
+            # Authentication request
+            await auth.handle_request(
+                request,
+                response,
+                path_parts[1:],
+                self.server,
+            )
         elif route == 'server':
             # System API request
             await system_api.handle_request(
