@@ -59,9 +59,8 @@ upgrade.
     - ``edgedb-tokio@0.3.0``
   * - `.NET <https://github.com/quinchs/EdgeDB.Net>`_ (community-maintained)
     - ``EdgeDB.Net.Driver@0.3.0``
-
-There is also a community-maintained `Elixir
-<https://github.com/nsidnev/edgedb-elixir>`_ client with partial 2.0 support.
+  * - `Elixir <https://github.com/nsidnev/edgedb-elixir>`_ (community-maintained)
+    - ``edgedb@0.4.0``
 
 New features
 ============
