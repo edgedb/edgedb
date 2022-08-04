@@ -11073,6 +11073,74 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             """
         )
 
+    async def test_edgeql_migration_access_policy_01(self):
+        await self.migrate(r"""
+            type Test2 {
+                access policy asdf allow all using (true);
+            }
+        """)
+
+        await self.migrate(r"""
+            type Test2 {
+                access policy asdf allow all;
+            }
+        """)
+
+    async def test_edgeql_migration_globals_01(self):
+        schema = r"""
+            global current_user_id -> uuid;
+            global current_user := (
+              select Member filter .id = global current_user_id
+            );
+
+            type Foo {
+              link owner := .<avatar[is Member];
+            };
+            type Member {
+              link avatar -> Foo {
+                constraint exclusive;
+              }
+            }
+        """
+        # Make sure it doesn't get into a wedged state
+        await self.migrate(schema)
+        await self.migrate(schema)
+
+    async def test_edgeql_migration_globals_02(self):
+        await self.migrate(r"""
+            global current_user_id -> uuid;
+            global current_user := (
+              select Member filter .id = global current_user_id
+            );
+
+            type Foo;
+            type Base {
+              link avatar -> Foo {
+                constraint exclusive;
+              }
+            }
+            type Member;
+        """)
+
+        schema = r"""
+            global current_user_id -> uuid;
+            global current_user := (
+              select Member filter .id = global current_user_id
+            );
+
+            type Foo;
+            type Base {
+              link avatar -> Foo {
+                constraint exclusive;
+              }
+            }
+            type Member extending Base;
+        """
+
+        # Make sure it doesn't get into a wedged state
+        await self.migrate(schema)
+        await self.migrate(schema)
+
     async def test_edgeql_migration_recovery(self):
         await self.con.execute(r"""
             START MIGRATION TO {

@@ -229,3 +229,15 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             " IN ", sql,
             "unexpected semi-join",
         )
+
+    def test_codegen_chained_single_no_semijoin(self):
+        sql = self._compile('''
+            select Issue {
+               z := .owner.todo
+            }
+       ''')
+
+        self.assertNotIn(
+            " IN ", sql,
+            "unexpected semi-join",
+        )

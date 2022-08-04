@@ -307,6 +307,25 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         return dropped_refs
 
+    def _fixup_inheritance_refdicts(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        # HACK?: Derived object types and pointers are created
+        # with inheritance_refdicts={'pointers'}, and typically
+        # don't get persisted. However, for globals and aliases,
+        # they *do* get persisted, and will be altered if a parent
+        # is modified. Make sure those alters are also executed
+        # with a restricted inheritance_refdicts or else whether
+        # things like constraints are created on derived views
+        # will be ordering dependent.
+        # TODO: Clean this up--maybe make it driven explicitly by
+        # is_derived, always?
+        if self.scls.get_is_derived(schema):
+            context.current().inheritance_refdicts = {'pointers'}
+            context.current().inheritance_merge = True
+
     def _recompute_inheritance(
         self,
         schema: s_schema.Schema,
@@ -336,9 +355,10 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         deleted_refs = {}
         for refdict in mcls.get_refdicts():
-            schema, deleted = self._reinherit_classref_dict(
-                schema, context, refdict)
-            deleted_refs.update(deleted)
+            if _needs_refdict(refdict, context):
+                schema, deleted = self._reinherit_classref_dict(
+                    schema, context, refdict)
+                deleted_refs.update(deleted)
 
         # Finalize the deletes. We need to linearize them, since they might
         # have dependencies between them.
@@ -717,11 +737,7 @@ class CreateInheritingObject(
             mcls = self.get_schema_metaclass()
 
             for refdict in mcls.get_refdicts():
-                inheritance_refdicts = context.inheritance_refdicts
-                if ((inheritance_refdicts is None
-                        or refdict.attr in inheritance_refdicts)
-                        and (context.inheritance_merge is None
-                             or context.inheritance_merge)):
+                if _needs_refdict(refdict, context):
                     cmd.add(self.inherit_classref_dict(
                         schema, context, refdict))
 
@@ -860,6 +876,8 @@ class AlterInheritingObjectOrFragment(
         scls = self.scls
 
         if not context.canonical:
+            self._fixup_inheritance_refdicts(schema, context)
+
             props = self.enumerate_attributes()
             if props:
                 bases = scls.get_bases(schema).objects(schema)
@@ -1048,12 +1066,12 @@ class RebaseInheritingObject(
         # would still usually say 'alter', so just always do that.
         return 'alter'
 
-    def apply(
+    def _alter_finalize(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext
     ) -> s_schema.Schema:
-        schema = super().apply(schema, context)
+        schema = super()._alter_finalize(schema, context)
 
         if not context.canonical:
             schema = self._recompute_inheritance(schema, context)
@@ -1064,6 +1082,8 @@ class RebaseInheritingObject(
                             schema, context, sd.AlterObject))
                     assert isinstance(d_alter_cmd, InheritingObjectCommand)
                     with ctx_stack():
+                        d_alter_cmd._fixup_inheritance_refdicts(
+                            schema, context)
                         schema = d_alter_cmd._recompute_inheritance(
                             schema, context)
                     self.add_caused(d_root_cmd)
@@ -1198,3 +1218,11 @@ class RebaseInheritingObject(
         mcls = self.get_schema_metaclass()
         roots = set(mcls.get_root_classes())
         return tuple(b for b in bases if b.name not in roots)
+
+
+def _needs_refdict(refdict: so.RefDict, context: sd.CommandContext) -> bool:
+    inheritance_refdicts = context.inheritance_refdicts
+    return (
+        inheritance_refdicts is None
+        or refdict.attr in inheritance_refdicts
+    ) and (context.inheritance_merge is None or context.inheritance_merge)

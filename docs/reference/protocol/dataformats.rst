@@ -162,6 +162,52 @@ The values are represented as the following structure:
     };
 
 
+.. _ref_protocol_fmt_range:
+
+Ranges
+====================================
+
+The ranges are represented as the following structure:
+
+.. code-block:: c
+
+    struct Range {
+        // A bit mask of range definition.
+        uint8<RangeFlag> flags;
+
+        // Lower boundary data.
+        Boundary         lower;
+
+        // Upper boundary data.
+        Boundary         upper;
+    };
+
+    struct Boundary {
+        // Encoded boundary data length in bytes.
+        int32       length;
+
+        // Boundary data.
+        uint8       data[length];
+    };
+
+    enum RangeFlag {
+        // Empty range.
+        EMPTY   = 0x0001;
+
+        // Included lower boundary.
+        LB_INC  = 0x0002;
+
+        // Included upper boundary.
+        UB_INC  = 0x0004;
+
+        // Inifinity (excluded) lower boundary.
+        LB_INF  = 0x0008;
+
+        // Infinity (excluded) upper boundary.
+        UB_INF  = 0x0010;
+    };
+
+
 .. _ref_protocol_fmt_uuid:
 
 std::uuid

@@ -75,7 +75,7 @@ def sd_notify(message: str) -> None:
             logger.info('Could not send systemd notification: %s', e)
 
 
-def sd_get_activation_listen_sockets() -> dict[str, socket.socket]:
+def sd_get_activation_listen_sockets() -> dict[str, list[socket.socket]]:
     # Prevent socket activation variables from being inherited by
     # child processes (regardless of success below).
     listen_pid = os.environ.pop("LISTEN_PID", "")
@@ -112,7 +112,7 @@ def sd_get_activation_listen_sockets() -> dict[str, socket.socket]:
 
     fd_names = listen_fdnames.split(":")
     fd_range = range(SD_LISTEN_FDS_START, SD_LISTEN_FDS_START + num_fds)
-    sockets = {}
+    sockets: dict[str, list[socket.socket]] = {}
 
     for i, fd in enumerate(fd_range):
         os.set_inheritable(fd, False)
@@ -124,7 +124,7 @@ def sd_get_activation_listen_sockets() -> dict[str, socket.socket]:
 
         sock = _stream_socket_from_fd(fd)
         if sock is not None:
-            sockets[name] = sock
+            sockets.setdefault(name, []).append(sock)
 
     return sockets
 
@@ -160,9 +160,11 @@ if sys.platform == "darwin":
         else:
             raise LaunchActivateSocketError(result)
 
-    def launchd_get_activation_listen_sockets() -> dict[str, socket.socket]:
+    def launchd_get_activation_listen_sockets() -> dict[
+        str, list[socket.socket]
+    ]:
         names = ["edgedb-server"]
-        sockets = {}
+        sockets: dict[str, list[socket.socket]] = {}
 
         for name in names:
             try:
@@ -173,49 +175,25 @@ if sys.platform == "darwin":
                     f"launch_activate_socket() returned {e.errno}")
                 continue
 
-            if len(fds) == 0:
-                # No activation
-                continue
-            elif len(fds) != 1:
-                logger.warning(
-                    f"more than one socket returned by "
-                    f"launch_activate_socket({name}), ignoring all but the "
-                    f"first"
-                )
-                continue
-
-            fd = fds[0]
-            os.set_inheritable(fd, False)
-            sock = _stream_socket_from_fd(fd)
-            if sock is not None:
-                sockets[name] = sock
+            for fd in fds:
+                os.set_inheritable(fd, False)
+                sock = _stream_socket_from_fd(fd)
+                if sock is not None:
+                    sockets.setdefault(name, []).append(sock)
 
         return sockets
 
 else:
-    def launchd_get_activation_listen_sockets() -> dict[str, socket.socket]:
+    def launchd_get_activation_listen_sockets() -> dict[
+        str, list[socket.socket]
+    ]:
         return {}
 
 
-def get_activation_listen_sockets() -> dict[str, socket.socket]:
+def get_activation_listen_sockets() -> dict[str, list[socket.socket]]:
     if sys.platform == "darwin":
         sockets = launchd_get_activation_listen_sockets()
     else:
         sockets = sd_get_activation_listen_sockets()
-
-    port = 0
-
-    for name, sock in list(sockets.items()):
-        this_port = sock.getsockname()[1]
-        if port == 0:
-            port = this_port
-        elif port == this_port:
-            continue
-        else:
-            logger.warning(
-                f"activation sockets are not all on the same TCP port, "
-                f"first socket is at {port} and socket {name!r} is at "
-                f"{this_port}, ignoring the latter")
-            sockets.pop(name)
 
     return sockets

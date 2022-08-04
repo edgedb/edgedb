@@ -523,6 +523,12 @@ def ptrref_from_ptrcls(  # NoQA: F811
         ircls = irast.PointerRef
         kwargs['id'] = ptrcls.id
         kwargs['defined_here'] = ptrcls.get_defined_here(schema)
+        if backlink := ptrcls.get_computed_backlink(schema):
+            assert isinstance(backlink, s_pointers.Pointer)
+            kwargs['computed_backlink'] = ptrref_from_ptrcls(
+                ptrcls=backlink, schema=schema,
+                cache=cache, typeref_cache=typeref_cache,
+            )
 
     else:
         raise AssertionError(f'unexpected pointer class: {ptrcls}')

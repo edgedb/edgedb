@@ -131,6 +131,10 @@ class GlobalCommand(
 
         expression = self.get_attribute_value('expr')
         assert isinstance(expression, s_expr.Expression)
+        # If it's not compiled, don't worry about it. This should just
+        # be a dummy expression.
+        if not expression.irast:
+            return schema
         assert isinstance(expression.irast, irast.Statement)
 
         required, card = expression.irast.cardinality.to_schema_value()
@@ -227,6 +231,7 @@ class GlobalCommand(
 
             assert isinstance(default_expr.irast, irast.Statement)
 
+            default_schema = default_expr.irast.schema
             default_type = default_expr.irast.stype
 
             source_context = self.get_attribute_source_context('default')
@@ -237,10 +242,10 @@ class GlobalCommand(
                     context=source_context,
                 )
 
-            if not default_type.assignment_castable_to(target, schema):
+            if not default_type.assignment_castable_to(target, default_schema):
                 raise errors.SchemaDefinitionError(
                     f'default expression is of invalid type: '
-                    f'{default_type.get_displayname(schema)}, '
+                    f'{default_type.get_displayname(default_schema)}, '
                     f'expected {target.get_displayname(schema)}',
                     context=source_context,
                 )
@@ -282,10 +287,12 @@ class GlobalCommand(
         field: so.Field[Any],
         value: Any,
     ) -> Optional[s_expr.Expression]:
-        if field.name == 'expr':
-            return None
-        elif field.name == 'default':
-            return None
+        if field.name in ('expr', 'default'):
+            rt = self.scls.get_target(schema)
+            if isinstance(rt, so.DerivableInheritingObject):
+                rt = rt.get_nearest_non_derived_parent(schema)
+            text = f'SELECT assert_exists(<{rt.get_displayname(schema)}>{{}})'
+            return s_expr.Expression(text=text)
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
 

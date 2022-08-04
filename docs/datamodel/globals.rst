@@ -146,7 +146,7 @@ Unlike query parameters, globals can be referenced
 This is particularly useful when declaring :ref:`access policies
 <ref_datamodel_access_policies>`.
 
-.. code-block::
+.. code-block:: sdl
 
   type Person {
     required property name -> str;

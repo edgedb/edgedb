@@ -1024,7 +1024,8 @@ def _register_item(
             elif (isinstance(cmd, qlast.SetField)
                   and not cmd.special_syntax
                   and not isinstance(cmd.value, qlast.BaseConstant)
-                  and not isinstance(op, qlast.CreateAlias)):
+                  and not isinstance(
+                      op, (qlast.CreateAlias, qlast.CreateGlobal))):
                 subcmds.append(cmd)
             else:
                 commands.append(cmd)
