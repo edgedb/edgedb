@@ -20,6 +20,7 @@
 import base64
 import struct
 
+import edgedb
 from edgedb import scram
 
 from edb import protocol
@@ -27,14 +28,12 @@ from edb.testbase import http as tb
 from edb.testbase import server as tb_server
 
 
-class TestHttpAuth(tb.BaseHttpTest, tb_server.ConnectedTestCase):
+class BaseTestHttpAuth(tb.BaseHttpTest, tb_server.ConnectedTestCase):
     @classmethod
     def get_api_path(cls) -> str:
         return "/auth"
 
-    def test_http_auth_scram(self):
-        args = self.get_connect_args()
-
+    def _scram_auth(self, user, password):
         with self.http_con() as con:
             _, headers, status = self.http_con_request(con, {}, path="token")
             self.assertEqual(status, 401)
@@ -44,7 +43,7 @@ class TestHttpAuth(tb.BaseHttpTest, tb_server.ConnectedTestCase):
 
         client_nonce = scram.generate_nonce()
         client_first, client_first_bare = scram.build_client_first_message(
-            client_nonce, args["user"]
+            client_nonce, user
         )
         client_first_b64 = base64.b64encode(
             client_first.encode("ascii")
@@ -81,7 +80,7 @@ class TestHttpAuth(tb.BaseHttpTest, tb_server.ConnectedTestCase):
         )
 
         client_final, expected_server_sig = scram.build_client_final_message(
-            args["password"],
+            password,
             salt,
             itercount,
             client_first_bare.encode("utf-8"),
@@ -102,10 +101,32 @@ class TestHttpAuth(tb.BaseHttpTest, tb_server.ConnectedTestCase):
                 },
             )
             resp = con.getresponse()
-            token = resp.read()
+            content = resp.read()
             headers = {k.lower(): v for k, v in resp.getheaders()}
-            self.assertEqual(resp.status, 200)
+            return content, headers, resp.status, sid, expected_server_sig
 
+    def _scram_auth_expect_failure(self, user, password):
+        (
+            content,
+            headers,
+            status,
+            sid,
+            expected_server_sig,
+        ) = self._scram_auth(user, password)
+        self.assertEqual(status, 401)
+        self.assertEqual(content, b"Authentication failed")
+        self.assertEqual(
+            headers, headers | {"www-authenticate": "SCRAM-SHA-256"}
+        )
+
+
+class TestHttpAuth(BaseTestHttpAuth):
+    def test_http_auth_scram(self):
+        args = self.get_connect_args()
+        (token, headers, status, sid, expected_server_sig) = self._scram_auth(
+            args["user"], args["password"]
+        )
+        self.assertEqual(status, 200)
         values = {}
         for kv_str in headers["authentication-info"].split():
             key, _, value = kv_str.rstrip(",").partition("=")
@@ -166,3 +187,28 @@ class TestHttpAuth(tb.BaseHttpTest, tb_server.ConnectedTestCase):
             msgs[3].transaction_state,
             protocol.TransactionState.NOT_IN_TRANSACTION,
         )
+
+    def test_http_auth_scram_invalid_password(self):
+        args = self.get_connect_args()
+        self._scram_auth_expect_failure(args["user"], "bad-password")
+
+    def test_http_auth_scram_no_user(self):
+        self._scram_auth_expect_failure("scram_no_user", "bad-password")
+
+
+class TestHttpAuthSystem(BaseTestHttpAuth):
+
+    PARALLELISM_GRANULARITY = "system"
+    TRANSACTION_ISOLATION = False
+
+    async def test_http_auth_scram_no_password(self):
+        if not self.has_create_role:
+            self.skipTest("create role is not supported by the backend")
+        await self.con.execute("create superuser role scram_no_pass")
+        roles = await self.con.query("SELECT sys::Role.name")
+        self.assertIn("scram_no_pass", roles)
+        with self.assertRaisesRegex(
+            edgedb.AuthenticationError, "authentication failed"
+        ):
+            await self.connect(user="scram_no_pass", password="password")
+        self._scram_auth_expect_failure("scram_no_pass", "password")

@@ -260,29 +260,26 @@ def get_scram_verifier(user, server):
     rolerec = roles.get(user)
     if rolerec is not None:
         verifier_string = rolerec["password"]
-        if verifier_string is None:
-            raise ValueError(f"invalid SCRAM verifier for user {user!r}")
+        if verifier_string is not None:
+            verifier = scram.parse_verifier(verifier_string)
+            is_mock = False
+            return verifier, is_mock
 
-        verifier = scram.parse_verifier(verifier_string)
-        is_mock = False
-    else:
-        # To avoid revealing the validity of the submitted user name,
-        # generate a mock verifier using a salt derived from the
-        # received user name and the cluster mock auth nonce.
-        # The same approach is taken by Postgres.
-        nonce = server.get_instance_data("mock_auth_nonce")
-        salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
+    # To avoid revealing the validity of the submitted user name,
+    # generate a mock verifier using a salt derived from the
+    # received user name and the cluster mock auth nonce.
+    # The same approach is taken by Postgres.
+    nonce = server.get_instance_data("mock_auth_nonce")
+    salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
 
-        verifier = scram.SCRAMVerifier(
-            mechanism="SCRAM-SHA-256",
-            iterations=scram.DEFAULT_ITERATIONS,
-            salt=salt[: scram.DEFAULT_SALT_LENGTH],
-            stored_key=b"",
-            server_key=b"",
-        )
-
-        is_mock = True
-
+    verifier = scram.SCRAMVerifier(
+        mechanism="SCRAM-SHA-256",
+        iterations=scram.DEFAULT_ITERATIONS,
+        salt=salt[: scram.DEFAULT_SALT_LENGTH],
+        stored_key=b"",
+        server_key=b"",
+    )
+    is_mock = True
     return verifier, is_mock
 
 
