@@ -54,7 +54,7 @@ the DSN of the newly created instance handy.
 
    .. code-block:: bash
 
-     edgedb dump my_database.dump --dsn <old dsn>
+     edgedb dump --dsn <old dsn> --all my_database.dump/
 
    This will dump the schema and contents of your current database to a file
    on your local disk called ``my_database.dump``. The file name isn't
