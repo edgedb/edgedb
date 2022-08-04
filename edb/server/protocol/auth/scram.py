@@ -293,7 +293,10 @@ def generate_jwt_token(user, server):
     namespace = "edgedb.server"
     token = jwt.JWT(
         header={"alg": "ES256" if skey["kty"] == "EC" else "RS256"},
-        claims={f"{namespace}.roles": {user: rolerec["password"]}},
+        claims={
+            f"{namespace}.roles": {user: rolerec["password"]},
+            "iat": int(time.time()),
+        },
     )
     token.make_signed_token(skey)
     encrypted_token = jwt.JWT(
