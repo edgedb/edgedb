@@ -24,4 +24,19 @@ from typing import *
 
 
 PATCHES: list[tuple[str, str]] = [
+    ('sql', '''
+CREATE OR REPLACE FUNCTION
+ edgedbstd."std|cast@std|json@array<std||json>_f"(val jsonb)
+ RETURNS jsonb[]
+ LANGUAGE sql
+AS $function$
+SELECT (
+    CASE WHEN nullif(val, 'null'::jsonb) IS NULL THEN NULL
+    ELSE
+        (SELECT COALESCE(array_agg(j), ARRAY[]::jsonb[])
+        FROM jsonb_array_elements(val) as j)
+    END
+)
+$function$
+    '''),
 ]

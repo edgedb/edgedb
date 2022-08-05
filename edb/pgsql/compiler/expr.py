@@ -191,34 +191,6 @@ def compile_BooleanConstant(
     )
 
 
-def _json_to_json_array_cast(
-        arg: pgast.BaseExpr, res: pgast.BaseExpr) -> pgast.BaseExpr:
-
-    return pgast.CaseExpr(
-        args=[
-            pgast.CaseWhen(
-                expr=astutils.new_binop(
-                    lexpr=pgast.FuncCall(name=('jsonb_typeof',), args=[arg]),
-                    op='=',
-                    rexpr=pgast.StringConstant(val='null'),
-                ),
-                result=pgast.NullConstant(),
-            ),
-            pgast.CaseWhen(
-                expr=pgast.NullTest(arg=arg),
-                result=pgast.NullConstant(),
-            ),
-        ],
-        defresult=pgast.CoalesceExpr(args=[
-            res,
-            pgast.TypeCast(
-                arg=pgast.ArrayExpr(elements=[]),
-                type_name=pgast.TypeName(name=('jsonb[]',)),
-            )
-        ])
-    )
-
-
 @dispatch.compile.register(irast.TypeCast)
 def compile_TypeCast(
         expr: irast.TypeCast, *,
@@ -254,13 +226,6 @@ def compile_TypeCast(
 
     else:
         raise errors.UnsupportedFeatureError('cast not supported')
-
-    # HACK: the cast from json to array<json> in the stdlib produces
-    # '{}' on the '[]' case when it ought to return an empty
-    # array. Since we can't make stdlib changes in point releases, fix
-    # up the code on the compiler side.
-    if str(expr.cast_name) == 'std::std|cast@std|json@array<std||json>':
-        res = _json_to_json_array_cast(pg_expr, res)
 
     if expr.cardinality_mod is qlast.CardinalityModifier.Required:
         res = pgast.FuncCall(
