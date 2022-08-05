@@ -338,14 +338,13 @@ class Server(ha_base.ClusterProtocol):
         self._report_connections(event="closed")
         metrics.current_client_connections.dec()
 
-        if not self._binary_conns and self._auto_shutdown_after >= 0:
-
-            def shutdown():
-                self._accepting_connections = False
-                self._stop_evt.set()
-
+        if (
+            not self._binary_conns
+            and self._auto_shutdown_after >= 0
+            and self._auto_shutdown_handler is None
+        ):
             self._auto_shutdown_handler = self.__loop.call_later(
-                self._auto_shutdown_after, shutdown)
+                self._auto_shutdown_after, self.request_auto_shutdown)
 
     def _report_connections(self, *, event: str) -> None:
         log_metrics.info(
@@ -1698,6 +1697,21 @@ class Server(ha_base.ClusterProtocol):
                 "jwe_keys_newly_generated": self._jwe_keys_newly_generated,
             }
             status_sink(f'READY={json.dumps(status)}')
+
+        if self._auto_shutdown_after > 0:
+            self._auto_shutdown_handler = self.__loop.call_later(
+                self._auto_shutdown_after, self.request_auto_shutdown)
+
+    def request_auto_shutdown(self):
+        if self._auto_shutdown_after == 0:
+            logger.info("shutting down server: all clients disconnected")
+        else:
+            logger.info(
+                f"shutting down server: no clients connected in last"
+                f" {self._auto_shutdown_after} seconds"
+            )
+        self._accepting_connections = False
+        self._stop_evt.set()
 
     async def stop(self):
         try:

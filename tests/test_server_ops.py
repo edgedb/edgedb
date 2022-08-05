@@ -53,7 +53,7 @@ class TestServerOps(tb.TestCase):
         except TimeoutError:
             proc.kill()
 
-    async def test_server_ops_temp_dir(self):
+    async def test_server_ops_auto_shutdown_after_zero(self):
         # Test that "edgedb-server" works as expected with the
         # following arguments:
         #
@@ -63,7 +63,7 @@ class TestServerOps(tb.TestCase):
         # * "--emit-server-status"
 
         async with tb.start_edgedb_server(
-            auto_shutdown=True,
+            auto_shutdown_after=0,
         ) as sd:
 
             con1 = await sd.connect()
@@ -83,9 +83,17 @@ class TestServerOps(tb.TestCase):
                 # the cluster was started with an "--auto-shutdown-after=0"
                 # option, we expect this connection to be rejected
                 # and the cluster to be shutdown soon.
-                await sd.connect(
-                    wait_until_available=0,
-                )
+                await sd.connect(wait_until_available=0)
+
+    async def test_server_ops_auto_shutdown_after_one(self):
+        async with tb.start_edgedb_server(
+            auto_shutdown_after=1,
+        ) as sd:
+            await asyncio.sleep(2)
+
+            with self.assertRaises(
+                    (ConnectionError, edgedb.ClientConnectionError)):
+                await sd.connect(wait_until_available=0)
 
     async def test_server_ops_bootstrap_script(self):
         # Test that "edgedb-server" works as expected with the
