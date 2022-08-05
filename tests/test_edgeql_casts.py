@@ -2412,6 +2412,21 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [],
         )
 
+    async def test_edgeql_casts_json_14(self):
+        await self.assert_query_result(
+            r'''
+                select <array<json>>to_json('[]')
+            ''',
+            [[]],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <array<str>>to_json('[]')
+            ''',
+            [[]],
+        )
+
     async def test_edgeql_casts_assignment_01(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
