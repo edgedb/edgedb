@@ -441,6 +441,50 @@ Protocol overhaul
 * Support passing parameters to and returning values from multi-statement
   scripts.
 
+2.1
+===
+* Fix global defaults with nontrivial computation
+  (:eql:gh:`#4182`)
+
+* Fix migration that removes policy using clause
+  (:eql:gh:`#4183`)
+
+* Support ELSE-less UNLESS CONFLICT on explicit id INSERT
+  (:eql:gh:`#4185`)
+
+* Don't create constraints on derived views when adding a pointer to a type
+  (:eql:gh:`#4187`)
+
+* Fix a bunch of missing source contexts in declarative
+  (:eql:gh:`#4188`)
+
+* Fix an ISE when a computed link is directly a property reference
+  (:eql:gh:`#4193`)
+
+* Fix an ISE when using an empty shape in some contexts
+  (:eql:gh:`#4194`)
+
+* Fix a number of error messages involving collection types in schemas
+  (:eql:gh:`#4195`)
+
+* Avoid doing semi-joins after a sequence of single links
+  (:eql:gh:`#4196`)
+
+* Make range() properly strict in its non-optional arguments
+  (:eql:gh:`#4207`)
+
+* Allow multiple FDs per socket in activation
+  (:eql:gh:`#4189`)
+
+* Add SCRAM authentication over HTTP
+  (:eql:gh:`#4197`)
+
+* Always arm auto-shutdown timer when it's greater than zero
+  (:eql:gh:`#4214`)
+
+* Fix json -> array<json> cast of '[]'
+  (:eql:gh:`#4217`)
+
 .. lint-off
 
 .. _group:
