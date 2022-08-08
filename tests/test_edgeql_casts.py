@@ -2215,6 +2215,12 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
+                r'invalid null value in cast'):
+            await self.con.query_single(
+                r"select <tuple<array<str>>>to_json('[null]')")
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
                 r'cannot extract elements from a scalar'):
             await self.con.query_single(
                 r"SELECT <array<int64>><json>'asdf'")
