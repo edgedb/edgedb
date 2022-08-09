@@ -86,13 +86,13 @@ Client connections
 ------------------
 
 :eql:synopsis:`allow_user_specified_id -> bool`
-  Makes it possible to set the `.id` property when inserting new objects.
+  Makes it possible to set the ``.id`` property when inserting new objects.
 
   Enabling this feature introduces some security vulnerabilities:
 
   1. An unprivileged user can discover ids that already exist in the database
      by trying to insert new values and noting when there is a constraint
-     violation on `.id` even if the user doesn't have access to the relevant
+     violation on ``.id`` even if the user doesn't have access to the relevant
      table.
 
   2. It allows re-using object ids for a different object type, which the
