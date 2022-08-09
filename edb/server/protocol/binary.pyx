@@ -2163,7 +2163,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     restore_block = restore_blocks[block_id]
                     type_id_map = self._build_type_id_map_for_restore_mending(
                         restore_block)
+                    self._transport.pause_reading()
                     await pgcon.restore(restore_block, block_data, type_id_map)
+                    self._transport.resume_reading()
 
                 elif mtype == b'.':
                     self.buffer.finish_message()
@@ -2183,6 +2185,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             await self._execute_utility_stmt('COMMIT', pgcon)
 
         finally:
+            self._transport.resume_reading()
             self._in_dump_restore = False
             server.release_pgcon(dbname, pgcon)
 
