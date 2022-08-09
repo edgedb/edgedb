@@ -241,8 +241,9 @@ cdef class HttpProtocol:
         self.server._http_last_minute_requests += 1
 
     cdef close(self):
-        self.transport.close()
-        self.transport = None
+        if self.transport is not None:
+            self.transport.close()
+            self.transport = None
         self.unprocessed = None
 
     cdef unhandled_exception(self, ex):
