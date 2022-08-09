@@ -231,7 +231,7 @@ async def wipe_tenant(
         )
 
         if owner:
-            stmts.append(f'SET ROLE {qi(owner)}')
+            stmts.append(f'SET ROLE {qi(owner.decode("utf-8"))}')
 
         if pg_db == tpl_db:
             stmts.append(f'ALTER DATABASE {qi(pg_db)} IS_TEMPLATE = false')
