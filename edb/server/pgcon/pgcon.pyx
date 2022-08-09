@@ -1363,7 +1363,9 @@ cdef class PGConnection:
                     out, b'd', fragment_suggested_size)
 
                 if out._length >= fragment_suggested_size:
+                    self.transport.pause_reading()
                     await output_queue.put((block, i, out))
+                    self.transport.resume_reading()
                     i += 1
                     out = None
 
@@ -1402,6 +1404,8 @@ cdef class PGConnection:
 
                 await self._dump(block, output_queue, fragment_suggested_size)
         finally:
+            # In case we errored while the transport was suspended.
+            self.transport.resume_reading()
             await self.after_command()
 
     async def _restore(self, restore_block, bytes data, dict type_map):
