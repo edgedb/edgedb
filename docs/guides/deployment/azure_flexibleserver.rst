@@ -69,7 +69,7 @@ Then create a Postgres Flexible server.
        --admin-user edgedb \
        --admin-password $PASSWORD \
        --sku-name Standard_D2s_v3 \
-       --version 12 \
+       --version 13 \
        --yes
 
 .. note::
@@ -87,6 +87,16 @@ Allow other Azure services access to the Postgres instance.
        --rule-name allow-azure-internal \
        --start-ip-address 0.0.0.0 \
        --end-ip-address 0.0.0.0
+
+EdgeDB requires postgres' ``uuid-ossp`` extension which needs to be enabled.
+
+.. code-block:: bash
+
+   $ az postgres flexible-server parameter set \
+       --resource-group $GROUP \
+       --server-name $PG_SERVER_NAME \
+       --name azure.extensions \
+       --value uuid-ossp
 
 Start an EdgeDB container.
 
@@ -122,12 +132,12 @@ or reboots copy the certificate files and use their contents in the
    $ key="$( az container exec \
                --resource-group $GROUP \
                --name edgedb-container-group \
-               --exec-command "cat /etc/ssl/edgedb/edbprivkey.pem" \
+               --exec-command "cat /tmp/edgedb/edbprivkey.pem" \
              | tr -d "\r" )"
    $ cert="$( az container exec \
                 --resource-group $GROUP \
                 --name edgedb-container-group \
-                --exec-command "cat /etc/ssl/edgedb/edbtlscert.pem" \
+                --exec-command "cat /tmp/edgedb/edbtlscert.pem" \
              | tr -d "\r" )"
    $ az container delete \
        --resource-group $GROUP \
