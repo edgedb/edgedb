@@ -77,6 +77,30 @@ that soon; join the Discord for updates. Though for most applications the
 dump-and-restore workflow will be simpler and less error-prone.
 
 
+Client libraries
+----------------
+
+We've released new versions of our JavaScript and Python client libraries that
+support all 2.0 features and implement the updated protocol. These versions
+are backwards compatible with v1.x instances, so we encourage all users to
+upgrade.
+
+.. list-table::
+
+  * - :ref:`TypeScript/JS <edgedb-js-intro>`
+    - ``edgedb@0.21.0``
+  * - :ref:`Python <edgedb-python-intro>`
+    - ``edgedb@0.24.0``
+  * - `Golang <https://www.edgedb.com/docs/clients/go/index>`_
+    - ``edgedb@0.12.0``
+  * - `Rust <https://github.com/edgedb/edgedb-rust>`_
+    - ``edgedb-tokio@0.3.0``
+  * - `.NET <https://github.com/quinchs/EdgeDB.Net>`_ (community-maintained)
+    - ``EdgeDB.Net.Driver@0.3.0``
+  * - `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
+      (community-maintained)
+    - ``edgedb@0.4.0``
+
 New features
 ============
 
