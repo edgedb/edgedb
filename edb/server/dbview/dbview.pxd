@@ -192,11 +192,11 @@ cdef class DatabaseConnectionView:
     cdef set_state_serializer(self, new_serializer)
 
     cdef update_database_config(self)
-    cdef get_database_config(self)
+    cpdef get_database_config(self)
     cdef set_database_config(self, new_conf)
 
     cdef get_system_config(self)
-    cdef get_compilation_system_config(self)
+    cpdef get_compilation_system_config(self)
 
     cdef set_modaliases(self, new_aliases)
     cpdef get_modaliases(self)
