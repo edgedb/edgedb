@@ -99,7 +99,7 @@ queries, consider defining a computed field that encapsulates the filter.
 Backlinks
 ^^^^^^^^^
 
-Backlinks are one of the most common use cases for computed links. In EdgeBD
+Backlinks are one of the most common use cases for computed links. In EdgeDB
 links are *directional*; they have a source and a target. Often it's convenient
 to traverse a link in the *reverse* direction.
 
