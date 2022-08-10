@@ -10865,108 +10865,6 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         ''')
 
-
-class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
-    TRANSACTION_ISOLATION = False
-
-    async def test_edgeql_migration_eq_collections_25(self):
-        await self.con.execute(r"""
-            START MIGRATION TO {
-                module test {
-                    alias Foo := [20];
-                }
-            };
-            POPULATE MIGRATION;
-            COMMIT MIGRATION;
-        """)
-
-        await self.con.execute(r"""
-            START MIGRATION TO {
-                module test {
-                }
-            };
-            POPULATE MIGRATION;
-            COMMIT MIGRATION;
-        """)
-
-    async def test_edgeql_ddl_collection_cleanup_06(self):
-        for _ in range(2):
-            await self.con.execute(r"""
-                CREATE FUNCTION cleanup_06(
-                    a: int64
-                ) -> tuple<int64, tuple<int64>>
-                    USING EdgeQL $$
-                        SELECT (a, ((a + 1),))
-                    $$;
-            """)
-
-            await self.con.execute(r"""
-                DROP FUNCTION cleanup_06(a: int64)
-            """)
-
-    async def test_edgeql_migration_enum_01(self):
-        # Test some enum stuff. This needs to be nonisolated because postgres
-        # won't let you *use* an enum until it has been committed!
-        await self.migrate('''
-            scalar type Status extending enum<pending, in_progress, finished>;
-            scalar type ImportStatus extending Status;
-            scalar type ImportAnalyticsStatus extending Status;
-
-            type Foo { property x -> ImportStatus };
-        ''')
-        await self.con.execute('''
-            with module test
-            insert Foo { x := 'pending' };
-        ''')
-
-        await self.migrate('''
-            scalar type Status extending enum<
-                pending, in_progress, finished, wontfix>;
-            scalar type ImportStatus extending Status;
-            scalar type ImportAnalyticsStatus extending Status;
-
-            type Foo { property x -> ImportStatus };
-            function f(x: Status) -> str USING (<str>x);
-        ''')
-
-        await self.migrate('''
-            scalar type Status extending enum<
-                pending, in_progress, finished, wontfix, again>;
-            scalar type ImportStatus extending Status;
-            scalar type ImportAnalyticsStatus extending Status;
-
-            type Foo { property x -> ImportStatus };
-            function f(x: Status) -> str USING (<str>x);
-        ''')
-
-        await self.assert_query_result(
-            r"""
-                with module test
-                select <ImportStatus>'wontfix'
-            """,
-            ['wontfix'],
-        )
-
-        await self.assert_query_result(
-            r"""
-                with module test
-                select f(<ImportStatus>'wontfix')
-            """,
-            ['wontfix'],
-        )
-
-        await self.migrate('''
-            scalar type Status extending enum<
-                pending, in_progress, wontfix, again>;
-            scalar type ImportStatus extending Status;
-            scalar type ImportAnalyticsStatus extending Status;
-
-            type Foo { property x -> ImportStatus };
-            function f(x: Status) -> str USING (<str>x);
-        ''')
-
-        await self.migrate('')
-
     async def test_edgeql_migration_on_target_delete_01(self):
         await self.migrate(
             r"""
@@ -11141,6 +11039,131 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         await self.migrate(schema)
         await self.migrate(schema)
 
+    @test.xfail('''
+        Infinite recursion via _propagate_if_expr_refs
+    ''')
+    async def test_edgeql_migration_policies_and_collections(self):
+        # An infinite recursion bug with this this was found by accident
+        # when a number of tests accidentally were in the non isolated test.
+        # (Simplified a bit.)
+        await self.migrate(r"""
+            abstract type Base {
+                access policy locked allow all using (false);
+            }
+
+            type Src {
+                required link tgt -> Base {
+                    constraint exclusive;
+                }
+            }
+        """)
+
+        await self.migrate(r"""
+            alias Foo := 20;
+        """)
+
+
+class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
+    TRANSACTION_ISOLATION = False
+
+    async def test_edgeql_migration_eq_collections_25(self):
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                module test {
+                    alias Foo := [20];
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+        await self.con.execute(r"""
+            START MIGRATION TO {
+                module test {
+                }
+            };
+            POPULATE MIGRATION;
+            COMMIT MIGRATION;
+        """)
+
+    async def test_edgeql_ddl_collection_cleanup_06(self):
+        for _ in range(2):
+            await self.con.execute(r"""
+                CREATE FUNCTION cleanup_06(
+                    a: int64
+                ) -> tuple<int64, tuple<int64>>
+                    USING EdgeQL $$
+                        SELECT (a, ((a + 1),))
+                    $$;
+            """)
+
+            await self.con.execute(r"""
+                DROP FUNCTION cleanup_06(a: int64)
+            """)
+
+    async def test_edgeql_migration_enum_01(self):
+        # Test some enum stuff. This needs to be nonisolated because postgres
+        # won't let you *use* an enum until it has been committed!
+        await self.migrate('''
+            scalar type Status extending enum<pending, in_progress, finished>;
+            scalar type ImportStatus extending Status;
+            scalar type ImportAnalyticsStatus extending Status;
+
+            type Foo { property x -> ImportStatus };
+        ''')
+        await self.con.execute('''
+            with module test
+            insert Foo { x := 'pending' };
+        ''')
+
+        await self.migrate('''
+            scalar type Status extending enum<
+                pending, in_progress, finished, wontfix>;
+            scalar type ImportStatus extending Status;
+ scalar type ImportAnalyticsStatus extending Status;
+
+            type Foo { property x -> ImportStatus };
+            function f(x: Status) -> str USING (<str>x);
+        ''')
+
+        await self.migrate('''
+            scalar type Status extending enum<
+                pending, in_progress, finished, wontfix, again>;
+            scalar type ImportStatus extending Status;
+            scalar type ImportAnalyticsStatus extending Status;
+
+            type Foo { property x -> ImportStatus };
+            function f(x: Status) -> str USING (<str>x);
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                with module test
+                select <ImportStatus>'wontfix'
+            """,
+            ['wontfix'],
+        )
+
+        await self.assert_query_result(
+            r"""
+                with module test
+                select f(<ImportStatus>'wontfix')
+            """,
+            ['wontfix'],
+        )
+
+        await self.migrate('''
+            scalar type Status extending enum<
+                pending, in_progress, wontfix, again>;
+            scalar type ImportStatus extending Status;
+            scalar type ImportAnalyticsStatus extending Status;
+
+            type Foo { property x -> ImportStatus };
+            function f(x: Status) -> str USING (<str>x);
+        ''')
+
+        await self.migrate('')
+
     async def test_edgeql_migration_recovery(self):
         await self.con.execute(r"""
             START MIGRATION TO {
@@ -11220,6 +11243,8 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             SELECT Bar;
         """)
         self.assertEqual(res, [])
+
+        await self.migrate('')
 
     async def test_edgeql_migration_recovery_commit_fail(self):
         con2 = await self.connect(database=self.con.dbname)
