@@ -193,7 +193,7 @@ with a vowel or not:
       },
     }
 
-It is also possible to group scalars instead of obejcts, in which case you
+It is also possible to group scalars instead of objects, in which case you
 need to define an ad-hoc alias to refer to the scalar set in order to specify
 how it will be grouped:
 
