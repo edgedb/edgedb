@@ -10984,6 +10984,22 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         """)
 
+    async def test_edgeql_migration_access_policy_constraint(self):
+        # Make sure policies don't interfere with constraints.
+        await self.migrate(r"""
+            abstract type Base {
+                access policy locked allow all using (false);
+            }
+
+            type Tgt extending Base;
+
+            type Src {
+                required link tgt -> Tgt {
+                    constraint exclusive;
+                }
+            }
+        """)
+
     async def test_edgeql_migration_globals_01(self):
         schema = r"""
             global current_user_id -> uuid;
