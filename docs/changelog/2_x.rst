@@ -34,13 +34,13 @@ directory.
 
 .. code-block:: bash
 
-  edgedb project upgrade --to-latest
+  $ edgedb project upgrade --to-latest
 
 Alternatively, specify an instance name if you aren't using a project.
 
 .. code-block:: bash
 
-  edgedb project upgrade --to-latest -I my_instance
+  $ edgedb project upgrade --to-latest -I my_instance
 
 **Hosted instances**
 
@@ -55,7 +55,7 @@ the DSN of the newly created instance handy.
 
    .. code-block:: bash
 
-     edgedb dump --dsn <old dsn> --all my_database.dump/
+     $ edgedb dump --dsn <old dsn> --all my_database.dump/
 
    This will dump the schema and contents of your current database to a file
    on your local disk called ``my_database.dump``. The file name isn't
@@ -65,7 +65,7 @@ the DSN of the newly created instance handy.
 
    .. code-block:: bash
 
-     edgedb restore --all my_database.dump/ --dsn <new dsn>
+     $ edgedb restore --all my_database.dump/ --dsn <new dsn>
 
    Once the restore is complete, update your application to connect to the new
    instance.
