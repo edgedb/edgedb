@@ -781,6 +781,7 @@ _server_options = [
         help='Show the version and exit.'),
     click.option(
         '--admin-ui',
+        envvar="EDGEDB_SERVER_ADMIN_UI",
         type=click.Choice(
             ['default', 'enabled', 'disabled'],
             case_sensitive=True,

@@ -364,6 +364,10 @@ socket and other transient files.
 
 Maps directly to the ``edgedb-server`` flag ``--runstate-dir``.
 
+EDGEDB_SERVER_ADMIN_UI
+......................
+
+Set to ``enabled`` to enable the Web-based admininstrative UI for the instance.
 
 EDGEDB_SERVER_EXTRA_ARGS
 ........................
