@@ -573,18 +573,32 @@ cdef class HttpProtocol:
                 response,
                 self.server,
             )
-        elif path_parts[0] == 'ui' and self.server.is_admin_ui_enabled():
-            await ui_ext.handle_request(
-                request,
-                response,
-                path_parts[1:],
-                self.server,
-            )
+        elif path_parts[0] == 'ui':
+            if not self.server.is_admin_ui_enabled():
+                return self._not_found(
+                    request,
+                    response,
+                    "Admin UI is not enabled on this EdgeDB instance. "
+                    "Run the server with --admin-ui=enabled "
+                    "(or EDGEDB_SERVER_ADMIN_UI=enabled) to enable."
+                )
+            else:
+                await ui_ext.handle_request(
+                    request,
+                    response,
+                    path_parts[1:],
+                    self.server,
+                )
         else:
             return self._not_found(request, response)
 
-    cdef _not_found(self, HttpRequest request, HttpResponse response):
-        response.body = b'Unknown path'
+    cdef _not_found(
+        self,
+        HttpRequest request,
+        HttpResponse response,
+        str message = "Unknown path",
+    ):
+        response.body = message.encode("utf-8")
         response.status = http.HTTPStatus.NOT_FOUND
         response.close_connection = True
 
