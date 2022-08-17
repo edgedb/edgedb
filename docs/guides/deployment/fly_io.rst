@@ -317,6 +317,11 @@ alias to the remote instance.
 You can now run CLI commands against this instance by specifying it by name
 with ``-I fly``; for example, to apply migrations:
 
+.. note::
+
+   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   intended to manage production instances.
+
 .. code-block:: bash
 
    $ edgedb -I fly migrate

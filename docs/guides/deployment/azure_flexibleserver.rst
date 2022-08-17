@@ -172,6 +172,11 @@ machine link the instance.
            --output tsv ) \
        azure
 
+.. note::
+
+   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   intended to manage production instances.
+
 You can now connect to your instance.
 
 .. code-block:: bash

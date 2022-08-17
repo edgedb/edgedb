@@ -239,6 +239,11 @@ In development
 To make this instance easier to work with during local development, create an
 alias using ``edgedb instance link``.
 
+.. note::
+
+   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   intended to manage production instances.
+
 .. code-block:: bash
 
     $ echo $PASSWORD | edgedb instance link \
