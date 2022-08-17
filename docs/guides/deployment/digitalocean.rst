@@ -216,3 +216,8 @@ Set the security policy to strict.
 That's it! Refer to the :ref:`Construct the DSN
 <ref_guide_deployment_digitalocean_link>` section above to connect to your
 instance.
+
+.. note::
+
+   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   intended to manage production instances.

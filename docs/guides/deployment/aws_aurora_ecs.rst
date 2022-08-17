@@ -82,6 +82,11 @@ This aliases the remote instance to ``my_aws_instance`` (this name can be
 anything). You can now use the ``-I my_aws_instance`` flag to run CLI commands
 against this instance, as with local instances.
 
+.. note::
+
+   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   intended to manage production instances.
+
 .. code-block:: bash
 
   $ edgedb -I my_aws_instance
@@ -832,5 +837,10 @@ link``:
             | [0].Association.PublicIp" \
         )" \
         aws
+
+.. note::
+
+   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   intended to manage production instances.
 
 You can now open a REPL to this instance
