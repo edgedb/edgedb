@@ -50,12 +50,14 @@ terminal window before the ``edgedb`` command is available.
 Installing EdgeDB
 -----------------
 
-Once the CLI is installed, you can spin up local instances. The latest version
-of EdgeDB will be automatically installed whenever you create a new instance.
+The CLI automatically installs EdgeDB when you create a new first instance.
+You can create an instance by :ref:`initializing a project
+<ref_guide_using_projects>` (recommended) or use ``edgedb instance create``.
 
 .. code-block:: bash
 
-    $ edgedb instance create my_instance
+    $ cd my_project
+    $ edgedb project init
     Downloading package...
     00:00:00 [====================] 34.03MiB/34.03MiB 45.41MiB/s | ETA: 0s
     Successfully installed 1.x+abcdefg
@@ -74,16 +76,21 @@ the :ref:`Quickstart <ref_quickstart>` guide.
 Nightly installations
 ^^^^^^^^^^^^^^^^^^^^^
 
-You can also install a nightly build of EdgeDB with the ``nightly`` flag.
+You can install a nightly build of EdgeDB by specifying ``nightly`` when
+prompted for a version.
 
 .. code-block:: bash
 
-    $ edgedb instance create my_instance --nightly
+    $ edgedb project init --server-version nightly
+    <prompts>
     Downloading package...
-    00:00:00 [====================] 34.03MiB/34.03MiB 45.41MiB/s | ETA: 0s
-    Successfully installed 2.0-dev.6521+1886f44
+    00:00:01 [====================] 33.05MiB/33.05MiB 27.25MiB/s | ETA: 0s
+    Successfully installed 3.0-dev.6850+7ab2ac5
     Initializing EdgeDB instance...
-    Instance my_instance is up and running.
+    Applying migrations...
+    Everything is up to date. Revision initial
+    Project initialized.
+
 
 This installs the nightly build of the upcoming *major version*
 (currently 2.0).
@@ -98,11 +105,9 @@ To view all versions of EdgeDB that exist and their installation status:
     $ edgedb server list-versions
     ┌─────────┬──────────────────────┬───────────┐
     │ Channel │ Version              │ Installed │
-    │ stable  │ 1.0+9236fa8          │           │
-    │ stable  │ 1.1+ab7d5a1          │ ✓         │
-    │ stable  │ 1.2+0f7e719          │ ✓         │
-    │ stable  │ 1.3+804c096          │ ✓         │
-    │ nightly │ 2.0-dev.6355+e7dd871 │ ✓         │
+    │ stable  │ 2.0+88c1706          │           │
+    │ stable  │ 2.1+52c90a7          │ ✓         │
+    │ nightly │ 3.0-dev.6355+e7dd871 │ ✓         │
     └─────────┴──────────────────────┴───────────┘
 
 Uninstall

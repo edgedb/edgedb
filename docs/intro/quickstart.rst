@@ -113,7 +113,7 @@ running on your computer! Try executing a simple query:
 
 .. code-block:: edgeql-repl
 
-  edgedb> select 1 + 1;
+  db> select 1 + 1;
   {2}
 
 Run ``\q`` to exit the REPL. More interesting queries are coming soon,
@@ -222,7 +222,7 @@ Let's apply the migration:
 Let's make sure that worked. Run ``edgedb list types`` to view all
 currently-defined object types.
 
-.. code-block::
+.. code-block:: bash
 
   $ edgedb list types
   ┌─────────────────┬──────────────────────────────┐
@@ -258,10 +258,10 @@ Now, let's add Denis Villeneuve to the database with a simple EdgeQL query:
 
 .. code-block:: edgeql-repl
 
-  edgedb> insert Person {
-  .......     first_name := 'Denis',
-  .......     last_name := 'Villeneuve',
-  ....... };
+  db> insert Person {
+  ...     first_name := 'Denis',
+  ...     last_name := 'Villeneuve',
+  ... };
   {default::Person {id: 86d0eb18-b7ff-11eb-ba80-7b8e9facf817}}
 
 As you can see, EdgeQL differs from SQL in some important ways. It
@@ -277,25 +277,25 @@ previous query.
 
 .. code-block:: edgeql-repl
 
-  edgedb> with director_id := <uuid>$director_id
-  ....... insert Movie {
-  .......   title := 'Blade Runnr 2049', # typo is intentional 🙃
-  .......   release_year := 2017,
-  .......   director := (
-  .......     select Person
-  .......     filter .id = director_id
-  .......   ),
-  .......   actors := {
-  .......     (insert Person {
-  .......       first_name := 'Harrison',
-  .......       last_name := 'Ford',
-  .......     }),
-  .......     (insert Person {
-  .......       first_name := 'Ana',
-  .......       last_name := 'de Armas',
-  .......     }),
-  .......   }
-  ....... };
+  db> with director_id := <uuid>$director_id
+  ... insert Movie {
+  ...   title := 'Blade Runnr 2049', # typo is intentional 🙃
+  ...   release_year := 2017,
+  ...   director := (
+  ...     select Person
+  ...     filter .id = director_id
+  ...   ),
+  ...   actors := {
+  ...     (insert Person {
+  ...       first_name := 'Harrison',
+  ...       last_name := 'Ford',
+  ...     }),
+  ...     (insert Person {
+  ...       first_name := 'Ana',
+  ...       last_name := 'de Armas',
+  ...     }),
+  ...   }
+  ... };
   Parameter <uuid>$director_id: 86d0eb18-b7ff-11eb-ba80-7b8e9facf817
   {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
 
@@ -307,11 +307,11 @@ Oops, we misspelled "Runner". Let's fix that with an :ref:`update
 
 .. code-block:: edgeql-repl
 
-  edgedb> update Movie
-  ....... filter .title = 'Blade Runnr 2049'
-  ....... set {
-  .......   title := "Blade Runner 2049",
-  ....... };
+  db> update Movie
+  ... filter .title = 'Blade Runnr 2049'
+  ... set {
+  ...   title := "Blade Runner 2049",
+  ... };
   {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
 
 Now for something a little more interesting; let's add Ryan Gosling to the
@@ -319,16 +319,16 @@ cast.
 
 .. code-block:: edgeql-repl
 
-  edgedb> update Movie
-  ....... filter .title = 'Blade Runner 2049'
-  ....... set {
-  .......   actors += (
-  .......     insert Person {
-  .......       first_name := "Ryan",
-  .......       last_name := "Gosling"
-  .......     }
-  .......   )
-  ....... };
+  db> update Movie
+  ... filter .title = 'Blade Runner 2049'
+  ... set {
+  ...   actors += (
+  ...     insert Person {
+  ...       first_name := "Ryan",
+  ...       last_name := "Gosling"
+  ...     }
+  ...   )
+  ... };
   {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
 
 This query uses the ``+=`` operator to assign an additional item to the
@@ -339,12 +339,12 @@ Our database is still a little sparse. Let's quickly add a couple more movies.
 
 .. code-block:: edgeql-repl
 
-  edgedb> insert Movie { title := "Dune" };
+  db> insert Movie { title := "Dune" };
   {default::Movie {id: 64d024dc-54d5-11e9-8c54-a3f59e1d995e}}
-  edgedb> insert Movie {
-  .......   title := "Arrival",
-  .......   release_year := 2016
-  ....... };
+  db> insert Movie {
+  ...   title := "Arrival",
+  ...   release_year := 2016
+  ... };
   {default::Movie {id: ca69776e-40df-11ec-b1b8-b7c909ac034a}}
 
 .. _ref_quickstart_queries:
@@ -356,7 +356,7 @@ Let's write some basic queries:
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Movie;
+  db> select Movie;
   {
     default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05},
     default::Movie {id: 64d024dc-54d5-11e9-8c54-a3f59e1d995e},
@@ -369,10 +369,10 @@ which properties to select, add a :ref:`shape <ref_reference_shapes>`:
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Movie {
-  .......   title,
-  .......   release_year
-  ....... };
+  db> select Movie {
+  ...   title,
+  ...   release_year
+  ... };
   {
     default::Movie {title: 'Blade Runner 2049', release_year: 2017},
     default::Movie {title: 'Dune', release_year: {}},
@@ -387,15 +387,15 @@ Let's retrieve some information about Blade Runner 2049.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Movie {
-  .......   title,
-  .......   release_year,
-  .......   actors: {
-  .......     first_name,
-  .......     last_name
-  .......   }
-  ....... }
-  ....... filter .title = "Blade Runner 2049";
+  db> select Movie {
+  ...   title,
+  ...   release_year,
+  ...   actors: {
+  ...     first_name,
+  ...     last_name
+  ...   }
+  ... }
+  ... filter .title = "Blade Runner 2049";
   {
     default::Movie {
       title: 'Blade Runner 2049',
@@ -422,17 +422,17 @@ Let's add some more information about "Dune"; for starters, we'll insert
 
 .. code-block:: edgeql-repl
 
-  edgedb> insert Person {
-  .......   first_name := 'Jason',
-  .......   last_name := 'Momoa'
-  ....... };
+  db> insert Person {
+  ...   first_name := 'Jason',
+  ...   last_name := 'Momoa'
+  ... };
   default::Person {id: 618d4cd6-54db-11e9-8c54-67c38dbbba18}
-  edgedb> insert Person {
-  .......   first_name := 'Oscar',
-  .......   last_name := 'Isaac'
-  ....... };
+  db> insert Person {
+  ...   first_name := 'Oscar',
+  ...   last_name := 'Isaac'
+  ... };
   default::Person {id: 618d5a64-54db-11e9-8c54-9393cfcd9598}
-  edgedb> insert Person { first_name := 'Zendaya'};
+  db> insert Person { first_name := 'Zendaya'};
   ERROR: MissingRequiredError: missing value for required property
   'last_name' of object type 'default::Person'
 
@@ -482,9 +482,9 @@ query works.
 
 .. code-block:: edgeql-repl
 
-  edgeql> insert Person {
-  .......   first_name := 'Zendaya'
-  ....... };
+  db> insert Person {
+  ...   first_name := 'Zendaya'
+  ... };
   {default::Person {id: 65fce84c-54dd-11e9-8c54-5f000ca496c9}}
 
 .. _ref_quickstart_computeds:
@@ -498,12 +498,12 @@ name for a given Person. We'll do this with a :ref:`computed property
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Person {
-  .......   full_name :=
-  .......    .first_name ++ ' ' ++ .last_name
-  .......      if exists .last_name
-  .......      else .first_name
-  ....... };
+  db> select Person {
+  ...   full_name :=
+  ...    .first_name ++ ' ' ++ .last_name
+  ...      if exists .last_name
+  ...      else .first_name
+  ... };
   {
     default::Person {full_name: 'Zendaya'},
     default::Person {full_name: 'Harrison Ford'},
@@ -555,9 +555,9 @@ Now we can easily fetch ``full_name`` just like any other property!
 
 .. code-block:: edgeql-repl
 
-  edgeql> select Person {
-  .......   full_name
-  ....... };
+  db> select Person {
+  ...   full_name
+  ... };
   {
     default::Person {full_name: 'Denis Villeneuve'},
     default::Person {full_name: 'Harrison Ford'},

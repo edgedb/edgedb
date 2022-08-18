@@ -1,9 +1,9 @@
-Primer
-------
+Intro to SDL
+------------
 
-This page is indended as a rapid-fire overview of SDL syntax so you can hit
-the ground running with EdgeDB. Refer to the linked pages for more in-depth
-documentation.
+This page is indended as a rapid-fire overview of EdgeDB's schema definition
+language (SDL) so you can hit the ground running with EdgeDB. Refer to the
+linked pages for more in-depth documentation!
 
 Object types
 ^^^^^^^^^^^^
@@ -22,6 +22,9 @@ See :ref:`Schema > Object types <ref_std_object_types>`.
 Optional and required properties
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Properties are optional by default. Use the ``required`` keyword to make them
+required.
+
 .. code-block:: sdl
 
   type Movie {
@@ -33,6 +36,9 @@ See :ref:`Schema > Properties <ref_datamodel_props>`.
 
 Constraints
 ^^^^^^^^^^^
+
+Add a pair of curly braces after the property to define additional
+information, including constraints.
 
 .. code-block:: sdl
 
@@ -48,6 +54,8 @@ See :ref:`Schema > Constraints <ref_datamodel_constraints>`.
 
 Indexes
 ^^^^^^^
+
+Use ``index on`` to define indexes on an object type.
 
 .. code-block:: sdl
 
@@ -68,6 +76,10 @@ See :ref:`Schema > Indexes <ref_datamodel_indexes>`.
 Computed properties
 ^^^^^^^^^^^^^^^^^^^
 
+Object types can contain *computed properties* that correspond to EdgeQL
+expressions. This expression is dynamically computed whenever the property is
+queried.
+
 .. code-block:: sdl
 
   type Movie {
@@ -79,6 +91,8 @@ See :ref:`Schema > Computeds <ref_datamodel_computed>`.
 
 Links
 ^^^^^
+
+Object types can have links to other object types.
 
 .. code-block:: sdl
 

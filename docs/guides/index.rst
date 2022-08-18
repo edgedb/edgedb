@@ -17,11 +17,6 @@ guide!
 .. toctree::
     :maxdepth: 1
 
-    quickstart
-    installation
-    projects
-    relations
-    link_properties
     tutorials/index
     deployment/index
     migrations/index

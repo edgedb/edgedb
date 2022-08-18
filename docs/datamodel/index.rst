@@ -10,7 +10,6 @@ Schema
     :maxdepth: 3
     :hidden:
 
-    primer
     primitives
     objects
     properties

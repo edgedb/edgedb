@@ -1,7 +1,20 @@
 .. eql:section-intro-page:: introduction
 
-Introduction
-============
+
+
+Get Started
+===========
+
+
+.. toctree::
+    :maxdepth: 3
+    :hidden:
+
+    quickstart
+    installation
+    projects
+    edgeql
+    schema
 
 EdgeDB is a next-generation `graph-relational database
 </blog/the-graph-relational-database-defined>`_ designed as a spiritual
@@ -94,7 +107,3 @@ document-like data is trivial.
 EdgeDB is not a traditional object database, despite the classification,
 it is not an implementation of OOP persistence.
 
-
-.. toctree::
-    :maxdepth: 3
-    :hidden:
