@@ -18,6 +18,7 @@
 
 
 import binascii
+import importlib
 import os
 import os.path
 import pathlib
@@ -28,89 +29,15 @@ import textwrap
 
 import setuptools
 from setuptools import extension as setuptools_extension
+from setuptools.command import build as setuptools_build
 from setuptools.command import build_ext as setuptools_build_ext
-from setuptools.command import develop as setuptools_develop
 
 import distutils
-from distutils.command import build as distutils_build
 
-try:
-    import setuptools_rust
-except ImportError:
-    setuptools_rust = None
+import Cython.Build
+import parsing
+import setuptools_rust
 
-from typing import List
-
-
-CYTHON_DEPENDENCY = 'Cython(>=0.29.24,<0.30.0)'
-
-# Dependencies needed both at build- and run-time
-COMMON_DEPS = [
-    'edgedb==0.24.0',
-    'parsing~=2.0',
-]
-
-RUNTIME_DEPS = [
-    'httptools>=0.3.0',
-    'immutables>=0.18',
-    'uvloop~=0.16.0',
-
-    'click~=7.1',
-    'cryptography~=35.0',
-    'graphql-core~=3.1.5',
-    'jwcrypto~=1.3.1',
-    'psutil~=5.8',
-    'setproctitle~=1.2',
-    'wcwidth~=0.2',
-] + COMMON_DEPS
-
-
-DOCS_DEPS = [
-    'docutils~=0.17.0',
-    'lxml~=4.8.0',
-    'Pygments~=2.10.0',
-    'Sphinx~=4.2.0',
-    'sphinxcontrib-asyncio~=0.3.0',
-    'sphinx_code_tabs~=0.5.3',
-]
-
-TEST_DEPS = [
-    # Code QA
-    'black~=21.7b0',
-    'coverage~=5.5',
-    'flake8~=3.9.2',
-    'flake8-bugbear~=21.4.3',
-    'pycodestyle~=2.7.0',
-    'pyflakes~=2.3.1',
-
-    # Needed for test_docs_sphinx_ext
-    'requests-xml~=0.2.3',
-
-    # For rebuilding GHA workflows
-    'Jinja2~=2.11',
-    'MarkupSafe~=1.1',
-    'PyYAML~=5.4',
-
-    'mypy==0.941',
-    # mypy stub packages; when updating, you can use mypy --install-types
-    # to install stub packages and then pip freeze to read out the specifier
-    'types-click~=7.1',
-    'types-docutils~=0.17.0,<0.17.6',  # incomplete nodes.document.__init__
-    'types-Jinja2~=2.11',
-    'types-MarkupSafe~=1.1',
-    'types-pkg-resources~=0.1.3',
-    'types-typed-ast~=1.4.2',
-    'types-requests~=2.25.6',
-
-    'prometheus_client~=0.11.0',
-] + DOCS_DEPS
-
-BUILD_DEPS = [
-    CYTHON_DEPENDENCY,
-    'packaging>=21.0',
-    'setuptools-rust~=0.12.1',
-    'wheel',  # needed by PyYAML and immutables, refs pypa/pip#5865
-] + COMMON_DEPS
 
 RUST_VERSION = '1.59.0'  # Also update docs/internal/dev.rst
 
@@ -122,18 +49,12 @@ EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
 # This can be a branch, tag, or commit
 EDGEDBGUI_COMMIT = 'main'
 
-EXTRA_DEPS = {
-    'test': TEST_DEPS,
-    'docs': DOCS_DEPS,
-    'build': BUILD_DEPS,
-}
-
-EXT_CFLAGS: List[str] = []
+EXT_CFLAGS: list[str] = []
 if flag := os.getenv('EDGEDB_OPT_CFLAG'):
     EXT_CFLAGS += [flag]
 else:
     EXT_CFLAGS += ['-O2']
-EXT_LDFLAGS: List[str] = []
+EXT_LDFLAGS: list[str] = []
 
 ROOT_PATH = pathlib.Path(__file__).parent.resolve()
 
@@ -144,25 +65,6 @@ if platform.uname().system != 'Windows':
     EXT_CFLAGS.extend([
         '-std=c99', '-fsigned-char', '-Wall', '-Wsign-compare', '-Wconversion'
     ])
-
-
-def _compile_parsers(build_lib, inplace=False):
-    import parsing
-
-    import edb.edgeql.parser.grammar.single as edgeql_spec
-    import edb.edgeql.parser.grammar.block as edgeql_spec2
-    import edb.edgeql.parser.grammar.sdldocument as schema_spec
-
-    for spec in (edgeql_spec, edgeql_spec2, schema_spec):
-        spec_path = pathlib.Path(spec.__file__).parent
-        subpath = pathlib.Path(str(spec_path)[len(str(ROOT_PATH)) + 1:])
-        pickle_name = spec.__name__.rpartition('.')[2] + '.pickle'
-        pickle_path = subpath / pickle_name
-        cache = build_lib / pickle_path
-        cache.parent.mkdir(parents=True, exist_ok=True)
-        parsing.Spec(spec, pickleFile=str(cache), verbose=True)
-        if inplace:
-            shutil.copy2(cache, ROOT_PATH / pickle_path)
 
 
 def _compile_build_meta(build_lib, version, pg_config, runstate_dir,
@@ -223,7 +125,7 @@ def _compile_build_meta(build_lib, version, pg_config, runstate_dir,
         shared_dir_path=shared_dir_path,
     )
 
-    directory = build_lib / 'edb'
+    directory = pathlib.Path(build_lib) / 'edb'
     if not directory.exists():
         directory.mkdir(parents=True)
 
@@ -289,7 +191,11 @@ def _compile_postgres(build_base, *,
 
     proc = subprocess.run(
         ['git', 'submodule', 'status', 'postgres'],
-        stdout=subprocess.PIPE, universal_newlines=True, check=True)
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        check=True,
+        cwd=ROOT_PATH,
+    )
     status = proc.stdout
     if status[0] == '-':
         print('postgres submodule not initialized, '
@@ -324,6 +230,8 @@ def _compile_postgres(build_base, *,
         build_dir = postgres_build / 'build'
         if not build_dir.exists():
             build_dir.mkdir(parents=True)
+        if not run_configure:
+            run_configure = not (build_dir / 'Makefile').exists()
 
         if run_configure or fresh_build or is_outdated:
             env = _get_env_with_openssl_flags()
@@ -411,7 +319,9 @@ def _get_git_rev(repo, ref):
 
 def _get_pg_source_stamp():
     output = subprocess.check_output(
-        ['git', 'submodule', 'status', 'postgres'], universal_newlines=True,
+        ['git', 'submodule', 'status', 'postgres'],
+        universal_newlines=True,
+        cwd=ROOT_PATH,
     )
     revision, _, _ = output[1:].partition(' ')
     # I don't know why we needed the first empty char, but we don't want to
@@ -459,63 +369,27 @@ def _compile_cli(build_base, build_temp):
     )
 
 
-def _build_ui(build_base, build_temp):
-    from edb import buildmeta
+class build(setuptools_build.build):
 
-    git_ref = os.environ.get("EDGEDB_UI_GIT_REV") or EDGEDBGUI_COMMIT
-    git_rev = _get_git_rev(EDGEDBGUI_REPO, git_ref)
+    user_options = setuptools_build.build.user_options
 
-    ui_root = build_base / 'edgedb-studio'
-    if not ui_root.exists():
-        subprocess.run(
-            [
-                'git',
-                'clone',
-                '--recursive',
-                EDGEDBGUI_REPO,
-                ui_root,
-            ],
-            check=True
-        )
-    else:
-        subprocess.run(
-            ['git', 'fetch', '--all'],
-            check=True,
-            cwd=ui_root,
-        )
-
-    subprocess.run(
-        ['git', 'reset', '--hard', git_rev],
-        check=True,
-        cwd=ui_root,
+    sub_commands = (
+        setuptools_build.build.sub_commands
+        + [
+            ("build_metadata", lambda self: True),
+            ("build_parsers", lambda self: True),
+            ("build_postgres", lambda self: True),
+            ("build_cli", lambda self: True),
+            ("build_ui", lambda self: True),
+        ]
     )
 
-    dest = buildmeta.get_shared_data_dir_path() / 'ui'
-    if dest.exists():
-        shutil.rmtree(dest)
 
-    # install deps
-    subprocess.run(['yarn'], check=True, cwd=ui_root)
+class build_metadata(setuptools.Command):
 
-    # run build
-    env = dict(os.environ)
-    # With CI=true (set in GH CI) `yarn build` fails if there are any
-    # warnings. We don't need this check in our build so we're disabling
-    # this behavior.
-    env['CI'] = ''
-    subprocess.run(
-        ['yarn', 'build'],
-        check=True,
-        cwd=ui_root / 'web',
-        env=env
-    )
+    build_lib: str
 
-    shutil.copytree(ui_root / 'web' / 'build', dest)
-
-
-class build(distutils_build.build):
-
-    user_options = distutils_build.build.user_options + [
+    user_options = [
         ('pg-config=', None, 'path to pg_config to use with this build'),
         ('runstatedir=', None, 'directory to use for the runtime state'),
         ('shared-dir=', None, 'directory to use for shared data'),
@@ -523,14 +397,15 @@ class build(distutils_build.build):
     ]
 
     def initialize_options(self):
-        super().initialize_options()
+        self.build_lib = None
+        self.editable_mode = False
         self.pg_config = None
         self.runstatedir = None
         self.shared_dir = None
         self.version_suffix = None
 
     def finalize_options(self):
-        super().finalize_options()
+        self.set_undefined_options("build_py", ("build_lib", "build_lib"))
         if self.pg_config is None:
             self.pg_config = os.environ.get("EDGEDB_BUILD_PG_CONFIG")
         if self.runstatedir is None:
@@ -540,57 +415,32 @@ class build(distutils_build.build):
         if self.version_suffix is None:
             self.version_suffix = os.environ.get("EDGEDB_BUILD_VERSION_SUFFIX")
 
-    def run(self, *args, **kwargs):
-        super().run(*args, **kwargs)
-        build_lib = pathlib.Path(self.build_lib)
-        _compile_parsers(build_lib)
-        if (
+    def has_build_metadata(self) -> bool:
+        return bool(
             self.pg_config
             or self.runstatedir
             or self.shared_dir
             or self.version_suffix
-        ):
+        )
+
+    def get_outputs(self) -> list[str]:
+        if self.has_build_metadata():
+            return [
+                str(pathlib.Path(self.build_lib) / 'edb' / '_buildmeta.py'),
+            ]
+        else:
+            return []
+
+    def run(self, *args, **kwargs):
+        if self.has_build_metadata():
             _compile_build_meta(
-                build_lib,
+                self.build_lib,
                 self.distribution.metadata.version,
                 self.pg_config,
                 self.runstatedir,
                 self.shared_dir,
                 self.version_suffix,
             )
-
-
-class develop(setuptools_develop.develop):
-
-    def run(self, *args, **kwargs):
-        from edb import buildmeta
-        from edb.common import devmode
-
-        try:
-            buildmeta.get_build_metadata_value("SHARED_DATA_DIR")
-        except buildmeta.MetadataError:
-            # buildmeta path resolution needs this
-            devmode.enable_dev_mode()
-
-        build = self.get_finalized_command('build')
-        build_temp = pathlib.Path(build.build_temp).resolve()
-        build_base = pathlib.Path(build.build_base).resolve()
-
-        _compile_cli(build_base, build_temp)
-        scripts = self.distribution.entry_points['console_scripts']
-        patched_scripts = []
-        for s in scripts:
-            s = f'{s}_dev'
-            patched_scripts.append(s)
-        patched_scripts.append('edb = edb.tools.edb:edbcommands')
-        patched_scripts.append('edgedb = edb.cli:rustcli')
-        self.distribution.entry_points['console_scripts'] = patched_scripts
-
-        super().run(*args, **kwargs)
-
-        _compile_parsers(build_base / 'lib', inplace=True)
-        _compile_postgres(build_base)
-        _build_ui(build_base, build_temp)
 
 
 class ci_helper(setuptools.Command):
@@ -684,7 +534,10 @@ class build_postgres(setuptools.Command):
         ('compile-commands', None, 'produce compile-commands.json using bear'),
     ]
 
+    editable_mode: bool
+
     def initialize_options(self):
+        self.editable_mode = False
         self.configure = False
         self.build_contrib = False
         self.fresh_build = False
@@ -694,6 +547,8 @@ class build_postgres(setuptools.Command):
         pass
 
     def run(self, *args, **kwargs):
+        if os.environ.get("EDGEDB_BUILD_PACKAGE"):
+            return
         build = self.get_finalized_command('build')
         _compile_postgres(
             pathlib.Path(build.build_base).resolve(),
@@ -750,28 +605,6 @@ class build_ext(setuptools_build_ext.build_ext):
             super(build_ext, self).finalize_options()
             return
 
-        import pkg_resources
-
-        # Double check Cython presence in case setup_requires
-        # didn't go into effect (most likely because someone
-        # imported Cython before setup_requires injected the
-        # correct egg into sys.path.
-        try:
-            import Cython
-        except ImportError:
-            raise RuntimeError(
-                'please install {} to compile edgedb from source'.format(
-                    CYTHON_DEPENDENCY))
-
-        cython_dep = pkg_resources.Requirement.parse(CYTHON_DEPENDENCY)
-        if Cython.__version__ not in cython_dep:
-            raise RuntimeError(
-                'edgedb requires {}, got Cython=={}'.format(
-                    CYTHON_DEPENDENCY, Cython.__version__
-                ))
-
-        from Cython.Build import cythonize
-
         directives = {
             'language_level': '3'
         }
@@ -786,7 +619,7 @@ class build_ext(setuptools_build_ext.build_ext):
 
                 directives[k] = v
 
-        self.distribution.ext_modules[:] = cythonize(
+        self.distribution.ext_modules[:] = Cython.Build.cythonize(
             self.distribution.ext_modules,
             compiler_directives=directives,
             annotate=self.cython_annotate,
@@ -805,15 +638,18 @@ class build_ext(setuptools_build_ext.build_ext):
 class build_cli(setuptools.Command):
 
     description = "build the EdgeDB CLI"
-    user_options: List[str] = []
+    user_options: list[str] = []
+    editable_mode: bool
 
     def initialize_options(self):
-        pass
+        self.editable_mode = False
 
     def finalize_options(self):
         pass
 
     def run(self, *args, **kwargs):
+        if os.environ.get("EDGEDB_BUILD_PACKAGE"):
+            return
         build = self.get_finalized_command('build')
         _compile_cli(
             pathlib.Path(build.build_base).resolve(),
@@ -824,13 +660,16 @@ class build_cli(setuptools.Command):
 class build_ui(setuptools.Command):
 
     description = "build EdgeDB UI"
-    user_options: List[str] = []
+    user_options: list[str] = []
+    editable_mode: bool
+    build_lib: str
 
     def initialize_options(self):
-        pass
+        self.editable_mode = False
+        self.build_lib = None
 
     def finalize_options(self):
-        pass
+        self.set_undefined_options("build_py", ("build_lib", "build_lib"))
 
     def run(self, *args, **kwargs):
         from edb import buildmeta
@@ -843,103 +682,161 @@ class build_ui(setuptools.Command):
             devmode.enable_dev_mode()
 
         build = self.get_finalized_command('build')
-        _build_ui(
-            pathlib.Path(build.build_base).resolve(),
-            pathlib.Path(build.build_temp).resolve(),
+        self._build_ui(pathlib.Path(build.build_base).resolve())
+
+    def _build_ui(self, build_base: pathlib.Path) -> None:
+        from edb import buildmeta
+
+        git_ref = os.environ.get("EDGEDB_UI_GIT_REV") or EDGEDBGUI_COMMIT
+        git_rev = _get_git_rev(EDGEDBGUI_REPO, git_ref)
+
+        ui_root = build_base / 'edgedb-studio'
+        if not ui_root.exists():
+            subprocess.run(
+                [
+                    'git',
+                    'clone',
+                    '--recursive',
+                    EDGEDBGUI_REPO,
+                    ui_root,
+                ],
+                check=True
+            )
+        else:
+            subprocess.run(
+                ['git', 'fetch', '--all'],
+                check=True,
+                cwd=ui_root,
+            )
+
+        subprocess.run(
+            ['git', 'reset', '--hard', git_rev],
+            check=True,
+            cwd=ui_root,
         )
+
+        dest = buildmeta.get_shared_data_dir_path() / 'ui'
+        if dest.exists():
+            shutil.rmtree(dest)
+
+        # install deps
+        subprocess.run(['yarn'], check=True, cwd=ui_root)
+
+        # run build
+        env = dict(os.environ)
+        # With CI=true (set in GH CI) `yarn build` fails if there are any
+        # warnings. We don't need this check in our build so we're disabling
+        # this behavior.
+        env['CI'] = ''
+        subprocess.run(
+            ['yarn', 'build'],
+            check=True,
+            cwd=ui_root / 'web',
+            env=env
+        )
+
+        shutil.copytree(ui_root / 'web' / 'build', dest)
 
 
 class build_parsers(setuptools.Command):
 
     description = "build the parsers"
+
+    build_lib: str
+    target_root: pathlib.Path
+    editable_mode: bool
+    inplace: bool
+
     user_options = [
         ('inplace', None,
          'ignore build-lib and put compiled parsers into the source directory '
          'alongside your pure Python modules')]
 
-    def initialize_options(self):
-        self.inplace = None
-
-    def finalize_options(self):
-        pass
-
-    def run(self, *args, **kwargs):
-        build = self.get_finalized_command('build')
-        if self.inplace:
-            build_base = pathlib.Path(build.build_base).resolve()
-            _compile_parsers(build_base / 'lib', inplace=True)
-        else:
-            build_lib = pathlib.Path(build.build_lib)
-            _compile_parsers(build_lib)
-
-
-COMMAND_CLASSES = {
-    'build': build,
-    'build_ext': build_ext,
-    'develop': develop,
-    'build_postgres': build_postgres,
-    'build_cli': build_cli,
-    'build_parsers': build_parsers,
-    'build_ui': build_ui,
-    'ci_helper': ci_helper,
-}
-
-if setuptools_rust is not None:
-    rust_extensions = [
-        setuptools_rust.RustExtension(
-            "edb._edgeql_rust",
-            path="edb/edgeql-rust/Cargo.toml",
-            binding=setuptools_rust.Binding.RustCPython,
-        ),
-        setuptools_rust.RustExtension(
-            "edb._graphql_rewrite",
-            path="edb/graphql-rewrite/Cargo.toml",
-            binding=setuptools_rust.Binding.RustCPython,
-        ),
+    sources = [
+        "edb.edgeql.parser.grammar.single",
+        "edb.edgeql.parser.grammar.block",
+        "edb.edgeql.parser.grammar.sdldocument",
     ]
 
-    class build_rust(setuptools_rust.build.build_rust):
-        def run(self):
-            _check_rust()
-            build_ext = self.get_finalized_command("build_ext")
-            if build_ext.build_mode not in {'both', 'rust-only'}:
-                distutils.log.info(f'Skipping build_rust because '
-                                   f'BUILD_EXT_MODE={build_ext.build_mode}')
-                return
-            self.plat_name = build_ext.plat_name
-            copy_list = []
-            if not build_ext.inplace:
-                for ext in self.distribution.rust_extensions:
-                    # Always build in-place because later stages of the build
-                    # may depend on the modules having been built
-                    dylib_path = pathlib.Path(
-                        build_ext.get_ext_fullpath(ext.name))
-                    build_ext.inplace = True
-                    target_path = pathlib.Path(
-                        build_ext.get_ext_fullpath(ext.name))
-                    build_ext.inplace = False
-                    copy_list.append((dylib_path, target_path))
+    def initialize_options(self):
+        self.editable_mode = False
+        self.inplace = None
+        self.build_lib = None
+        self.target_root = None
 
-                    # Workaround a bug in setuptools-rust: it uses
-                    # shutil.copyfile(), which is not safe w.r.t mmap,
-                    # so if the target module has been previously loaded
-                    # bad things will happen.
-                    if target_path.exists():
-                        target_path.unlink()
+    def finalize_options(self):
+        self.set_undefined_options("build_py", ("build_lib", "build_lib"))
+        if self.editable_mode:
+            self.inplace = True
+        if self.inplace:
+            self.target_root = ROOT_PATH
+        else:
+            self.target_root = pathlib.Path(self.build_lib)
 
-                    target_path.parent.mkdir(parents=True, exist_ok=True)
+    def get_output_mapping(self) -> dict[str, str]:
+        return {
+            str(self.target_root / src.parent / f"{src.stem}.pickle"): str(src)
+            for src in self._get_source_files()
+        }
 
-            os.environ['CARGO_TARGET_DIR'] = str(
-                pathlib.Path(build_ext.build_temp) / 'rust' / 'extensions',
+    def get_outputs(self) -> list[str]:
+        return list(self.get_output_mapping())
+
+    def get_source_files(self) -> list[str]:
+        return [str(src) for src in self._get_source_files()]
+
+    def run(self, *args, **kwargs):
+        for src, dst in zip(self.sources, self.get_outputs()):
+            spec_mod = importlib.import_module(src)
+            parsing.Spec(spec_mod, pickleFile=dst, verbose=True)
+
+    def _get_source_files(self) -> list[pathlib.Path]:
+        return [
+            pathlib.Path(src.replace(".", "/") + ".py")
+            for src in self.sources
+        ]
+
+
+class build_rust(setuptools_rust.build.build_rust):
+    def run(self):
+        _check_rust()
+        build_ext = self.get_finalized_command("build_ext")
+        if build_ext.build_mode not in {'both', 'rust-only'}:
+            distutils.log.info(
+                f'Skipping build_rust because '
+                f'BUILD_EXT_MODE={build_ext.build_mode}'
             )
-            super().run()
+            return
+        self.plat_name = build_ext.plat_name
+        copy_list = []
+        if not build_ext.inplace:
+            for ext in self.distribution.rust_extensions:
+                # Always build in-place because later stages of the build
+                # may depend on the modules having been built
+                dylib_path = pathlib.Path(
+                    build_ext.get_ext_fullpath(ext.name))
+                build_ext.inplace = True
+                target_path = pathlib.Path(
+                    build_ext.get_ext_fullpath(ext.name))
+                build_ext.inplace = False
+                copy_list.append((dylib_path, target_path))
 
-            for src, dst in copy_list:
-                shutil.copyfile(src, dst)
+                # Workaround a bug in setuptools-rust: it uses
+                # shutil.copyfile(), which is not safe w.r.t mmap,
+                # so if the target module has been previously loaded
+                # bad things will happen.
+                if target_path.exists():
+                    target_path.unlink()
 
-    COMMAND_CLASSES['build_rust'] = build_rust
-else:
-    rust_extensions = []
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+
+        os.environ['CARGO_TARGET_DIR'] = str(
+            pathlib.Path(build_ext.build_temp) / 'rust' / 'extensions',
+        )
+        super().run()
+
+        for src, dst in copy_list:
+            shutil.copyfile(src, dst)
 
 
 def _version():
@@ -947,21 +844,28 @@ def _version():
     return buildmeta.get_version_from_scm(ROOT_PATH)
 
 
+_entry_points = {
+    'edgedb-server = edb.server.main:main',
+    'edgedb = edb.cli:rustcli',
+    'edb = edb.tools.edb:edbcommands',
+}
+
+
 setuptools.setup(
     version=_version(),
-    setup_requires=BUILD_DEPS,
-    python_requires='>=3.10.0',
-    name='edgedb-server',
-    description='EdgeDB Server',
-    author='MagicStack Inc.',
-    author_email='hello@magic.io',
-    packages=['edb'],
-    include_package_data=True,
-    cmdclass=COMMAND_CLASSES,
     entry_points={
-        'console_scripts': [
-            'edgedb-server = edb.server.main:main',
-        ],
+        "console_scripts": _entry_points,
+    },
+    cmdclass={
+        'build': build,
+        'build_metadata': build_metadata,
+        'build_ext': build_ext,
+        'build_rust': build_rust,
+        'build_postgres': build_postgres,
+        'build_cli': build_cli,
+        'build_parsers': build_parsers,
+        'build_ui': build_ui,
+        'ci_helper': ci_helper,
     },
     ext_modules=[
         setuptools_extension.Extension(
@@ -1084,7 +988,16 @@ setuptools.setup(
             include_dirs=EXT_INC_DIRS,
         ),
     ],
-    rust_extensions=rust_extensions,
-    install_requires=RUNTIME_DEPS,
-    extras_require=EXTRA_DEPS,
+    rust_extensions=[
+        setuptools_rust.RustExtension(
+            "edb._edgeql_rust",
+            path="edb/edgeql-rust/Cargo.toml",
+            binding=setuptools_rust.Binding.RustCPython,
+        ),
+        setuptools_rust.RustExtension(
+            "edb._graphql_rewrite",
+            path="edb/graphql-rewrite/Cargo.toml",
+            binding=setuptools_rust.Binding.RustCPython,
+        ),
+    ],
 )
