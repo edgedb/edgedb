@@ -40,10 +40,14 @@ jobs:
 
     - name: Install Python dependencies
       if: steps.venv-cache.outputs.cache-hit != 'true'
+      shell: bash
       run: |
-        pip install wheel
-        pip download --use-feature=in-tree-build --dest=$VIRTUAL_ENV/deps .[test,docs,build]
-        pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
+        set -e
+        python -m pip install -U pip setuptools wheel build
+        bdeps_script="import build; print('\n'.join(build.ProjectBuilder('.').build_system_requires))"
+        readarray -t build_deps < <(python -c "${bdeps_script}")
+        python -m pip download --dest=$VIRTUAL_ENV/deps "${build_deps[@]}" .[test]
+        python -m pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
 
     # Prepare environment variables and shared artifacts
 
@@ -278,9 +282,9 @@ jobs:
         if [[ "$CACHE_HIT" == "true" ]]; then
           rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
         else
-          # --no-use-pep517 because we have explicitly installed all deps
+          # --no-build-isolation because we have explicitly installed all deps
           # and don't want them to be reinstalled in an "isolated env".
-          pip install --no-use-pep517 --no-deps -e .[test,docs]
+          pip install --no-build-isolation --no-deps -e .[test,docs]
           rsync -av ./edgedb_server.egg-info/ $VIRTUAL_ENV/edgedb_server.egg-info/
         fi
 

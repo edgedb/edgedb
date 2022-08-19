@@ -157,7 +157,7 @@ jobs:
 
       - name: Install Python deps
         run: |
-          pip install requests
+          python -m pip install requests
 
       - name: Download shared artifacts
         uses: actions/download-artifact@v2
