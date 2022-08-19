@@ -7,7 +7,7 @@ BUILD_REQS_SCRIPT='print("\x00".join(__import__("build").ProjectBuilder(".").bui
 
 build-reqs:
 	python -m pip install --no-build-isolation build
-	python -c $(BUILD_REQS_SCRIPT) | xargs --null python -m pip install --no-build-isolation
+	python -c $(BUILD_REQS_SCRIPT) | xargs -0 python -m pip install --no-build-isolation
 
 
 cython: build-reqs
