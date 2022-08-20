@@ -78,11 +78,11 @@ std::range_unpack(
             generate_series(
                 (
                     edgedb.range_lower_validate(val) +
-                    (CASE WHEN lower_inc(val) THEN 0 ELSE step END)
+                    (CASE WHEN lower_inc(val) THEN 0 ELSE 1 END)
                 )::int8,
                 (
                     edgedb.range_upper_validate(val) -
-                    (CASE WHEN upper_inc(val) THEN 0 ELSE step END)
+                    (CASE WHEN upper_inc(val) THEN 0 ELSE 1 END)
                 )::int8,
                 step::int8
             )::int4
@@ -124,11 +124,11 @@ std::range_unpack(
             generate_series(
                 (
                     edgedb.range_lower_validate(val) +
-                    (CASE WHEN lower_inc(val) THEN 0 ELSE step END)
+                    (CASE WHEN lower_inc(val) THEN 0 ELSE 1 END)
                 )::int8,
                 (
                     edgedb.range_upper_validate(val) -
-                    (CASE WHEN upper_inc(val) THEN 0 ELSE step END)
+                    (CASE WHEN upper_inc(val) THEN 0 ELSE 1 END)
                 )::int8,
                 step
             )
@@ -144,18 +144,20 @@ std::range_unpack(
 {
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT
+        SELECT num::float4
+        FROM
             generate_series(
                 (
                     edgedb.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE step END)
                 )::numeric,
                 (
-                    edgedb.range_upper_validate(val) -
-                    (CASE WHEN upper_inc(val) THEN 0 ELSE step END)
+                    edgedb.range_upper_validate(val)
                 )::numeric,
                 step::numeric
-            )::float4
+            ) AS num
+        WHERE
+            upper_inc(val) OR num::float4 < upper(val)
     $$;
 };
 
@@ -168,18 +170,20 @@ std::range_unpack(
 {
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT
+        SELECT num::float8
+        FROM
             generate_series(
                 (
                     edgedb.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE step END)
                 )::numeric,
                 (
-                    edgedb.range_upper_validate(val) -
-                    (CASE WHEN upper_inc(val) THEN 0 ELSE step END)
+                    edgedb.range_upper_validate(val)
                 )::numeric,
                 step::numeric
-            )::float8
+            ) AS num
+        WHERE
+            upper_inc(val) OR num::float8 < upper(val)
     $$;
 };
 
@@ -192,14 +196,16 @@ std::range_unpack(
 {
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT
+        SELECT num
+        FROM
             generate_series(
                 edgedb.range_lower_validate(val) +
                     (CASE WHEN lower_inc(val) THEN 0 ELSE step END),
-                edgedb.range_upper_validate(val) -
-                    (CASE WHEN upper_inc(val) THEN 0 ELSE step END),
+                edgedb.range_upper_validate(val),
                 step
-            )
+            ) AS num
+        WHERE
+            upper_inc(val) OR num < upper(val)
     $$;
 };
 
@@ -212,7 +218,8 @@ std::range_unpack(
 {
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT
+        SELECT d::edgedb.timestamptz_t
+        FROM
             generate_series(
                 (
                     edgedb.range_lower_validate(val) + (
@@ -223,15 +230,12 @@ std::range_unpack(
                     )
                 )::timestamptz,
                 (
-                    edgedb.range_upper_validate(val) - (
-                        CASE WHEN upper_inc(val)
-                            THEN '0'::interval
-                            ELSE step
-                        END
-                    )
+                    edgedb.range_upper_validate(val)
                 )::timestamptz,
                 step::interval
-            )::edgedb.timestamptz_t
+            ) AS d
+        WHERE
+            upper_inc(val) OR d::edgedb.timestamptz_t < upper(val)
     $$;
 };
 
