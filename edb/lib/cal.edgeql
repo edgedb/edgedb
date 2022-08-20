@@ -1950,7 +1950,8 @@ std::range_unpack(
 {
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT
+        SELECT d::edgedb.timestamp_t
+        FROM
             generate_series(
                 (
                     edgedb.range_lower_validate(val) + (
@@ -1959,17 +1960,14 @@ std::range_unpack(
                             ELSE step
                         END
                     )
-                )::timestamp,
+                )::timestamptz,
                 (
-                    edgedb.range_upper_validate(val) - (
-                        CASE WHEN upper_inc(val)
-                            THEN '0'::interval
-                            ELSE step
-                        END
-                    )
-                )::timestamp,
+                    edgedb.range_upper_validate(val)
+                )::timestamptz,
                 step::interval
-            )::edgedb.timestamp_t
+            ) AS d
+        WHERE
+            upper_inc(val) OR d::edgedb.timestamp_t < upper(val)
     $$;
 };
 
@@ -2019,7 +2017,7 @@ std::range_unpack(
                     edgedb.range_lower_validate(val) + (
                         CASE WHEN lower_inc(val)
                             THEN '0'::interval
-                            ELSE step
+                            ELSE 'P1D'::interval
                         END
                     )
                 )::timestamp,
@@ -2027,7 +2025,7 @@ std::range_unpack(
                     edgedb.range_upper_validate(val) - (
                         CASE WHEN upper_inc(val)
                             THEN '0'::interval
-                            ELSE step
+                            ELSE 'P1D'::interval
                         END
                     )
                 )::timestamp,

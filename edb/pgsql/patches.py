@@ -39,4 +39,210 @@ SELECT (
 )
 $function$
     '''),
+    ('edgeql', '''
+ALTER FUNCTION
+std::range_unpack(
+    val: range<int32>,
+    step: int32
+)
+{
+    USING SQL $$
+        SELECT
+            generate_series(
+                (
+                    edgedb.range_lower_validate(val) +
+                    (CASE WHEN lower_inc(val) THEN 0 ELSE 1 END)
+                )::int8,
+                (
+                    edgedb.range_upper_validate(val) -
+                    (CASE WHEN upper_inc(val) THEN 0 ELSE 1 END)
+                )::int8,
+                step::int8
+            )::int4
+    $$;
+};
+    '''),
+    ('edgeql', '''
+ALTER FUNCTION
+std::range_unpack(
+    val: range<int64>,
+    step: int64
+)
+{
+    USING SQL $$
+        SELECT
+            generate_series(
+                (
+                    edgedb.range_lower_validate(val) +
+                    (CASE WHEN lower_inc(val) THEN 0 ELSE 1 END)
+                )::int8,
+                (
+                    edgedb.range_upper_validate(val) -
+                    (CASE WHEN upper_inc(val) THEN 0 ELSE 1 END)
+                )::int8,
+                step
+            )
+    $$;
+};
+    '''),
+    ('edgeql', '''
+ALTER FUNCTION
+std::range_unpack(
+    val: range<float32>,
+    step: float32
+)
+{
+    USING SQL $$
+        SELECT num::float4
+        FROM
+            generate_series(
+                (
+                    edgedb.range_lower_validate(val) +
+                    (CASE WHEN lower_inc(val) THEN 0 ELSE step END)
+                )::numeric,
+                (
+                    edgedb.range_upper_validate(val)
+                )::numeric,
+                step::numeric
+            ) AS num
+        WHERE
+            upper_inc(val) OR num::float4 < upper(val)
+    $$;
+};
+    '''),
+    ('edgeql', '''
+ALTER FUNCTION
+std::range_unpack(
+    val: range<float64>,
+    step: float64
+)
+{
+    USING SQL $$
+        SELECT num::float8
+        FROM
+            generate_series(
+                (
+                    edgedb.range_lower_validate(val) +
+                    (CASE WHEN lower_inc(val) THEN 0 ELSE step END)
+                )::numeric,
+                (
+                    edgedb.range_upper_validate(val)
+                )::numeric,
+                step::numeric
+            ) AS num
+        WHERE
+            upper_inc(val) OR num::float8 < upper(val)
+    $$;
+};
+    '''),
+    ('edgeql', '''
+ALTER FUNCTION
+std::range_unpack(
+    val: range<decimal>,
+    step: decimal
+)
+{
+    USING SQL $$
+        SELECT num
+        FROM
+            generate_series(
+                edgedb.range_lower_validate(val) +
+                    (CASE WHEN lower_inc(val) THEN 0 ELSE step END),
+                edgedb.range_upper_validate(val),
+                step
+            ) AS num
+        WHERE
+            upper_inc(val) OR num < upper(val)
+    $$;
+};
+    '''),
+    ('edgeql', '''
+ALTER FUNCTION
+std::range_unpack(
+    val: range<datetime>,
+    step: duration
+)
+{
+    USING SQL $$
+        SELECT d::edgedb.timestamptz_t
+        FROM
+            generate_series(
+                (
+                    edgedb.range_lower_validate(val) + (
+                        CASE WHEN lower_inc(val)
+                            THEN '0'::interval
+                            ELSE step
+                        END
+                    )
+                )::timestamptz,
+                (
+                    edgedb.range_upper_validate(val)
+                )::timestamptz,
+                step::interval
+            ) AS d
+        WHERE
+            upper_inc(val) OR d::edgedb.timestamptz_t < upper(val)
+    $$;
+};
+    '''),
+    ('edgeql', '''
+ALTER FUNCTION
+std::range_unpack(
+    val: range<cal::local_datetime>,
+    step: cal::relative_duration
+)
+{
+    USING SQL $$
+        SELECT d::edgedb.timestamp_t
+        FROM
+            generate_series(
+                (
+                    edgedb.range_lower_validate(val) + (
+                        CASE WHEN lower_inc(val)
+                            THEN '0'::interval
+                            ELSE step
+                        END
+                    )
+                )::timestamptz,
+                (
+                    edgedb.range_upper_validate(val)
+                )::timestamptz,
+                step::interval
+            ) AS d
+        WHERE
+            upper_inc(val) OR d::edgedb.timestamp_t < upper(val)
+    $$;
+};
+    '''),
+    ('edgeql', '''
+ALTER FUNCTION
+std::range_unpack(
+    val: range<cal::local_date>,
+    step: cal::date_duration
+)
+{
+    USING SQL $$
+        SELECT
+            generate_series(
+                (
+                    edgedb.range_lower_validate(val) + (
+                        CASE WHEN lower_inc(val)
+                            THEN '0'::interval
+                            ELSE 'P1D'::interval
+                        END
+                    )
+                )::timestamp,
+                (
+                    edgedb.range_upper_validate(val) - (
+                        CASE WHEN upper_inc(val)
+                            THEN '0'::interval
+                            ELSE 'P1D'::interval
+                        END
+                    )
+                )::timestamp,
+                step::interval
+            )::edgedb.date_t
+    $$;
+};
+    '''),
 ]

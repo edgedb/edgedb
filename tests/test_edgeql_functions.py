@@ -6422,6 +6422,51 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             )
 
     async def test_edgeql_functions_range_unpack_02(self):
+        # Test `range_unpack` for numeric ranges with both inclusive
+        # boundaries.
+        for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''
+                    select range_unpack(
+                        range(<{st}>1, <{st}>10,
+                              inc_lower := true,
+                              inc_upper := true),
+                        <{st}>3
+                    );
+                ''',
+                [1, 4, 7, 10],
+            )
+
+    async def test_edgeql_functions_range_unpack_03(self):
+        # Test `range_unpack` for numeric ranges with both exclusive
+        # boundaries.
+        for st in ['int32', 'int64']:
+            await self.assert_query_result(
+                f'''
+                    select range_unpack(
+                        range(<{st}>1, <{st}>11,
+                              inc_lower := false,
+                              inc_upper := false),
+                        <{st}>3
+                    );
+                ''',
+                [2, 5, 8],
+            )
+
+        for st in ['float32', 'float64', 'decimal']:
+            await self.assert_query_result(
+                f'''
+                    select range_unpack(
+                        range(<{st}>1, <{st}>10,
+                              inc_lower := false,
+                              inc_upper := false),
+                        <{st}>3
+                    );
+                ''',
+                [4, 7],
+            )
+
+    async def test_edgeql_functions_range_unpack_04(self):
         # Test `range_unpack` for date/time.
         await self.assert_query_result(
             f'''select <str>range_unpack(
@@ -6487,10 +6532,71 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 '2023-02-09',
                 '2023-03-10',
                 '2023-04-11',
+                '2023-05-12',
             ],
         )
 
-    async def test_edgeql_functions_range_unpack_03(self):
+    async def test_edgeql_functions_range_unpack_05(self):
+        # Test `range_unpack` for date/time with non-standard boundaries
+        # inclusion.
+        await self.assert_query_result(
+            f'''select <str>range_unpack(
+                    range(<datetime>'2022-06-01T07:00:00Z',
+                          <datetime>'2022-06-10T07:00:00Z',
+                          inc_lower := false,
+                          inc_upper := true),
+                    <duration>'36:00:00');''',
+            [
+                '2022-06-02T19:00:00+00:00',
+                '2022-06-04T07:00:00+00:00',
+                '2022-06-05T19:00:00+00:00',
+                '2022-06-07T07:00:00+00:00',
+                '2022-06-08T19:00:00+00:00',
+                '2022-06-10T07:00:00+00:00',
+            ],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_unpack(
+                    range(<cal::local_datetime>'2022-06-01T07:00:00',
+                          <cal::local_datetime>'2022-06-10T07:00:00',
+                          inc_lower := false,
+                          inc_upper := true),
+                    <cal::relative_duration>'36:00:00');''',
+            [
+                '2022-06-02T19:00:00',
+                '2022-06-04T07:00:00',
+                '2022-06-05T19:00:00',
+                '2022-06-07T07:00:00',
+                '2022-06-08T19:00:00',
+                '2022-06-10T07:00:00',
+            ],
+        )
+
+        await self.assert_query_result(
+            f'''select <str>range_unpack(
+                    range(<cal::local_date>'2022-06-01',
+                          <cal::local_date>'2023-05-13',
+                          inc_lower := false,
+                          inc_upper := true),
+                    <cal::date_duration>'P1M1D');''',
+            [
+                '2022-06-02',
+                '2022-07-03',
+                '2022-08-04',
+                '2022-09-05',
+                '2022-10-06',
+                '2022-11-07',
+                '2022-12-08',
+                '2023-01-09',
+                '2023-02-10',
+                '2023-03-11',
+                '2023-04-12',
+                '2023-05-13',
+            ],
+        )
+
+    async def test_edgeql_functions_range_unpack_06(self):
         # Test `range_unpack` of empty ranges.
         for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
             await self.assert_query_result(
@@ -6526,7 +6632,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [],
         )
 
-    async def test_edgeql_functions_range_unpack_04(self):
+    async def test_edgeql_functions_range_unpack_07(self):
         # Test errors for `range_unpack`.
         for st in ['int32', 'int64', 'float32', 'float64', 'decimal']:
             async with self.assertRaisesRegexTx(
