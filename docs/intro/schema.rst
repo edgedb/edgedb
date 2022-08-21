@@ -1,5 +1,5 @@
-Intro to SDL
-------------
+Defining a schema
+-----------------
 
 This page is indended as a rapid-fire overview of EdgeDB's schema definition
 language (SDL) so you can hit the ground running with EdgeDB. Refer to the

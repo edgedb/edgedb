@@ -1,8 +1,8 @@
 .. _ref_guide_using_projects:
 
-========
-Projects
-========
+================
+Create a project
+================
 
 Projects are the most convenient way to develop applications with EdgeDB. This
 is the recommended approach.
@@ -127,8 +127,6 @@ steps to convert it into an EdgeDB project:
 This will create ``edgedb.toml`` and link your project directory to the
 instance. And you're done! Try running some commands without connection flags.
 Feels good, right?
-
-
 
 How does this make projects more portable?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

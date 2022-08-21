@@ -5,16 +5,16 @@
 Get Started
 ===========
 
-
 .. toctree::
     :maxdepth: 3
     :hidden:
 
     quickstart
-    installation
-    projects
-    edgeql
+    cli
     schema
+    migrations
+    edgeql
+    clients
 
 EdgeDB is a next-generation `graph-relational database
 </blog/the-graph-relational-database-defined>`_ designed as a spiritual

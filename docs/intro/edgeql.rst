@@ -1,6 +1,6 @@
 .. _ref_eql_primer:
 
-Intro to EdgeQL
+Writing queries
 ===============
 
 EdgeQL is the query language of EdgeDB. It's intended as a spiritual successor
