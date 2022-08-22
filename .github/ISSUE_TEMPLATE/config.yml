@@ -1,8 +1,17 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Long question or idea
+  - name: 🤔 Long question or idea
     url: https://github.com/edgedb/edgedb/discussions
     about: Ask long-form questions and discuss ideas.
-  - name: Quick questions or chat
+  - name: 👥 Community Discord Chat
     url: https://www.edgedb.com/p/discord
-    about: Ask quick questions or simply chat on the EdgeDB Discord server.
+    about: Ask quick questions, meet other's using EdgeDB or simply chat on the EdgeDB Discord server.
+  - name: 🐤 Twitter - News Updates / Demos
+    url: https://twitter.com/edgedatabase
+    about: Link to our twitter account if you want to follow us and stay up to date with news
+  - name: 💬 Official Website
+    url: https://www.edgedb.com/blog
+    about: Link to our websites official blog for staying up to date with news
+  - name: 🍿 YouTube Channel - News Updates / Demos
+    url: https://www.youtube.com/c/EdgeDB
+    about: Are you a techlead or wanting to learn more about EdgeDB in depth? Checkout our YouTube Channel
