@@ -173,3 +173,50 @@ project init`` inside project again to create or select a new instance.
   Specify the version of EdgeDB to use with this project [default: 1.0-rc.4]:
   > 1.0-rc.4
 
+
+How do I use ``edgedb project`` with a non-local instance?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Sometimes you may want to work on an EdgeDB instance that is just not in your
+local development environment, like you may have a second workstation, or you
+want to test against a staging database shared by the team.
+
+This is totally a valid case and EdgeDB fully supports it!
+
+Before running ``edgedb project init``, you just need to create a local link to
+the remote EdgeDB instance first:
+
+.. lint-off
+
+.. code-block:: bash
+
+  $ edgedb instance link
+  Specify the host of the server [default: localhost]:
+  > 192.168.4.2
+  Specify the port of the server [default: 5656]:
+  > 10818
+  Specify the database user [default: edgedb]:
+  > edgedb
+  Specify the database name [default: edgedb]:
+  > edgedb
+  Unknown server certificate: SHA1:c38a7a90429b033dfaf7a81e08112a9d58d97286. Trust? [y/N]
+  > y
+  Password for 'edgedb':
+  Specify a new instance name for the remote server [default: 192_168_4_2_10818]:
+  > staging_db
+  Successfully linked to remote instance. To connect run:
+    edgedb -I staging_db
+
+.. lint-on
+
+Then you could run the normal ``edgedb project init`` and use ``staging_db`` as
+the instance name.
+
+.. note::
+
+  When using an existing instance, make sure that the project source tree is in
+  sync with the current migration revision of the instance. If the current
+  revision in the database doesn't exist under ``dbschema/migrations/``, it'll
+  raise an error trying to migrate or create new migrations. In this case, you
+  should update your local source tree to the revision that matches the current
+  revision of the database.
