@@ -186,6 +186,8 @@ This is totally a valid case and EdgeDB fully supports it!
 Before running ``edgedb project init``, you just need to create a local link to
 the remote EdgeDB instance first:
 
+.. lint-off
+
 .. code-block:: bash
 
   $ edgedb instance link
@@ -204,6 +206,8 @@ the remote EdgeDB instance first:
   > staging_db
   Successfully linked to remote instance. To connect run:
     edgedb -I staging_db
+
+.. lint-on
 
 Then you could run the normal ``edgedb project init`` and use ``staging_db`` as
 the instance name.
