@@ -11,6 +11,7 @@ Get Started
 
     quickstart
     cli
+    instances
     schema
     migrations
     edgeql
