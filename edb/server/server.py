@@ -1707,13 +1707,8 @@ class Server(ha_base.ClusterProtocol):
 
         return servers, port, addrs
 
-    def init_tls(
-        self,
-        tls_cert_file,
-        tls_key_file,
-        tls_cert_newly_generated,
-    ):
-        assert self._sslctx is None
+    def reload_tls(self, tls_cert_file, tls_key_file):
+        logger.info("loading TLS certificates")
         tls_password_needed = False
 
         def _tls_private_key_password():
@@ -1765,6 +1760,16 @@ class Server(ha_base.ClusterProtocol):
 
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
         self._sslctx = sslctx
+
+    def init_tls(
+        self,
+        tls_cert_file,
+        tls_key_file,
+        tls_cert_newly_generated,
+    ):
+        assert self._sslctx is None
+        self.reload_tls(tls_cert_file, tls_key_file)
+
         self._tls_cert_file = str(tls_cert_file)
         self._tls_cert_newly_generated = tls_cert_newly_generated
 
