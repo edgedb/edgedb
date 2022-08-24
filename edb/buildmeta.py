@@ -392,7 +392,7 @@ def get_version_metadata() -> VersionMetadata:
 
 def _decode_build_target(val: str) -> str:
     return (
-        base64.b32decode(val + "=" * (-len(val) % 4), casefold=True).decode()
+        base64.b32decode(val + "=" * (-len(val) % 8), casefold=True).decode()
     )
 
 

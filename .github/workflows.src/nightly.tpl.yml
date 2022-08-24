@@ -25,7 +25,7 @@ jobs:
       id: whichver
 
 <% for tgt in targets.linux %>
-<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
     needs: prep
@@ -53,7 +53,7 @@ jobs:
         path: artifacts/<< plat_id >>
 <% endfor %>
 <% for tgt in targets.macos %>
-<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
     needs: prep
@@ -97,7 +97,7 @@ jobs:
         path: artifacts/<< plat_id >>
 <% endfor %>
 <% for tgt in targets.linux %>
-<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   test-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
@@ -120,7 +120,7 @@ jobs:
 
 <% endfor %>
 <% for tgt in targets.macos %>
-<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   test-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
@@ -146,7 +146,7 @@ jobs:
         edgedb-pkg/integration/macos/test.sh
 <% endfor %>
 <% for tgt in targets.linux %>
-<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   publish-<< tgt.name >>:
     needs: [test-<< tgt.name >>]
     runs-on: ubuntu-latest
@@ -208,7 +208,7 @@ jobs:
     <% endif %>
 <% endfor %>
 <% for tgt in targets.macos %>
-<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   publish-<< tgt.name >>:
     needs: [test-<< tgt.name >>]
     runs-on: ubuntu-latest
