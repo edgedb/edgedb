@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Problem with EdgeDB UI
+    url: https://github.com/edgedb/edgedb-ui/issues
+    about: If you've found a bug or have a feature request for EdgeDB UI, please open an issue in the edgedb-ui repo.
   - name: Long question or idea
     url: https://github.com/edgedb/edgedb/discussions
     about: Ask long-form questions and discuss ideas.
