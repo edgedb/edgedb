@@ -467,6 +467,60 @@ jobs:
         path: artifacts/linux-aarch64
 
 
+  build-linuxmusl-x86_64:
+    runs-on: ['self-hosted', 'linux', 'x64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-x86_64@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        EXTRA_OPTIMIZATIONS: "true"
+
+        BUILD_GENERIC: true
+
+
+        PKG_PLATFORM_LIBC: "musl"
+
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-linuxmusl-x86_64
+        path: artifacts/linuxmusl-x86_64
+
+
+  build-linuxmusl-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-aarch64@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        EXTRA_OPTIMIZATIONS: "true"
+
+        BUILD_GENERIC: true
+
+
+        PKG_PLATFORM_LIBC: "musl"
+
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-linuxmusl-aarch64
+        path: artifacts/linuxmusl-aarch64
+
+
 
   build-macos-x86_64:
     runs-on: ['self-hosted', 'macOS', 'X64']
@@ -963,6 +1017,50 @@ jobs:
 
     - name: Test
       uses: edgedb/edgedb-pkg/integration/linux/test/linux-aarch64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
+
+
+  test-linuxmusl-x86_64:
+    needs: [build-linuxmusl-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-linuxmusl-x86_64
+        path: artifacts/linux-x86_64
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/linuxmusl-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 0
+
+
+
+  test-linuxmusl-aarch64:
+    needs: [build-linuxmusl-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-linuxmusl-aarch64
+        path: artifacts/linux-aarch64
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/linuxmusl-aarch64@master
       env:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"
@@ -1889,6 +1987,98 @@ jobs:
 
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    
+
+
+  publish-linuxmusl-x86_64:
+    needs: [test-linuxmusl-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-linuxmusl-x86_64
+        path: artifacts/linuxmusl-x86_64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-linuxmusl-x86_64:
+    needs: [publish-linuxmusl-x86_64]
+    runs-on: ['self-hosted', 'linux', 'x64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-linuxmusl-x86_64
+        path: artifacts/linuxmusl-x86_64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linuxmusl-x86_64
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    
+
+
+  publish-linuxmusl-aarch64:
+    needs: [test-linuxmusl-aarch64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-linuxmusl-aarch64
+        path: artifacts/linuxmusl-aarch64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "aarch64"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+  check-published-linuxmusl-aarch64:
+    needs: [publish-linuxmusl-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-linuxmusl-aarch64
+        path: artifacts/linuxmusl-aarch64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linuxmusl-aarch64
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@master
       env:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"

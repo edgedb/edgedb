@@ -20,7 +20,7 @@ jobs:
       id: whichver
 
 <% for tgt in targets.linux %>
-<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
     needs: prep
