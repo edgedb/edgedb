@@ -42,12 +42,28 @@ class SignalError(Exception):
             return str(self.signo)
 
 
-class QueueWaiter(asyncio.Queue):
+class SignalHandler:
+    def __init__(self, callback, signals, controller):
+        self._cancelled = False
+        self._callback = callback
+        self._signals = signals
+        self._controller = controller
+        for signal in signals:
+            controller._register_waiter(signal, self)
+
     def done(self):
-        return False
+        return self._cancelled
+
+    def cancelled(self):
+        return self._cancelled
 
     def set_result(self, result):
-        self.put_nowait(result)
+        asyncio.get_running_loop().call_soon(self._callback, result)
+
+    def cancel(self):
+        self._cancelled = True
+        for signal in self._signals:
+            self._controller._discard_waiter(signal, self)
 
 
 class SignalController:
@@ -74,6 +90,14 @@ class SignalController:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        handlers = [
+            waiter
+            for waiters in self._waiters.values()
+            for waiter in waiters
+            if isinstance(waiter, SignalHandler)
+        ]
+        for handler in handlers:
+            handler.cancel()
         if self._waiters:
             warnings.warn(
                 "SignalController exited before wait_for() completed."
@@ -212,16 +236,10 @@ class SignalController:
         assert cancelled_by is not None
         raise cancelled_by
 
-    async def wait_for_signals(self):
-        waiter = QueueWaiter()
-        for signal in self._signals:
-            self._register_waiter(signal, waiter)
-        try:
-            while True:
-                yield await waiter.get()
-        finally:
-            for signal in self._signals:
-                self._discard_waiter(signal, waiter)
+    def add_handler(self, callback, signals=None) -> SignalHandler:
+        if signals is None:
+            signals = self._signals
+        return SignalHandler(callback, signals, self)
 
     @classmethod
     def _signal_callback(cls, signal):
