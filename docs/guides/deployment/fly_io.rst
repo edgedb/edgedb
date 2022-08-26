@@ -120,8 +120,7 @@ Attach the PostgreSQL cluster to the EdgeDB app:
 .. code-block:: bash
 
     $ PG_ROLE=myorg_edgedb
-    $ flyctl pg attach \
-        --postgres-app "$PG_APP" \
+    $ flyctl pg attach "$PG_APP" \
         --database-user "$PG_ROLE" \
         --app $EDB_APP
     Postgres cluster myorg-postgres is now attached to myorg-edgedb
@@ -135,7 +134,7 @@ to Postgres:
 .. code-block:: bash
 
     $ echo "alter role \"$PG_ROLE\" createrole createdb; \quit" \
-        | flyctl pg connect $PG_APP
+        | flyctl pg connect --app $PG_APP
     ...
     ALTER ROLE
 
