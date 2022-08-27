@@ -1,9 +1,8 @@
 .. _ref_intro_instances:
 
-=========
-Instances
-=========
-
+==================
+Managing instances
+==================
 
 Let's get to the good stuff. Spin up an EdgeDB instance with a single command:
 
@@ -25,7 +24,7 @@ name into the ``-I`` flag.
 
 .. code-block:: bash
 
-  $ edgedb query -I qb "select 3.14;"
+  $ edgedb query -I my_instance "select 3.14;"
   3.14
 
 

@@ -6,51 +6,6 @@ Arrays
 
 :edb-alt-title: Array Functions and Operators
 
-Arrays store expressions of the *same type* in an ordered list.
-
-.. _ref_std_array_constructor:
-
-Constructing arrays
-^^^^^^^^^^^^^^^^^^^
-
-An array constructor is an expression that consists of a sequence of
-comma-separated expressions *of the same type* enclosed in square brackets.
-It produces an array value:
-
-.. eql:synopsis::
-
-    "[" <expr> [, ...] "]"
-
-For example:
-
-.. code-block:: edgeql-repl
-
-    db> select [1, 2, 3];
-    {[1, 2, 3]}
-    db> select [('a', 1), ('b', 2), ('c', 3)];
-    {[('a', 1), ('b', 2), ('c', 3)]}
-
-Empty arrays
-^^^^^^^^^^^^
-
-An empty array can also be created, but it must be used together with
-a type cast, since EdgeDB cannot infer the type of an array that contains no
-elements.
-
-.. code-block:: edgeql-repl
-
-    db> select [];
-    QueryError: expression returns value of indeterminate type
-    Hint: Consider using an explicit type cast.
-    ### select [];
-    ###        ^
-
-    db> select <array<int64>>[];
-    {[]}
-
-Functions and operators
-^^^^^^^^^^^^^^^^^^^^^^^
-
 .. list-table::
     :class: funcoptable
 
@@ -94,6 +49,48 @@ Functions and operators
 
     * - :eql:func:`array_unpack`
       - :eql:func-desc:`array_unpack`
+
+Arrays store expressions of the *same type* in an ordered list.
+
+.. _ref_std_array_constructor:
+
+Constructing arrays
+^^^^^^^^^^^^^^^^^^^
+
+An array constructor is an expression that consists of a sequence of
+comma-separated expressions *of the same type* enclosed in square brackets.
+It produces an array value:
+
+.. eql:synopsis::
+
+    "[" <expr> [, ...] "]"
+
+For example:
+
+.. code-block:: edgeql-repl
+
+    db> select [1, 2, 3];
+    {[1, 2, 3]}
+    db> select [('a', 1), ('b', 2), ('c', 3)];
+    {[('a', 1), ('b', 2), ('c', 3)]}
+
+Empty arrays
+^^^^^^^^^^^^
+
+An empty array can also be created, but it must be used together with
+a type cast, since EdgeDB cannot infer the type of an array that contains no
+elements.
+
+.. code-block:: edgeql-repl
+
+    db> select [];
+    QueryError: expression returns value of indeterminate type
+    Hint: Consider using an explicit type cast.
+    ### select [];
+    ###        ^
+
+    db> select <array<int64>>[];
+    {[]}
 
 
 

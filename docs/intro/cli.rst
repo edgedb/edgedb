@@ -9,8 +9,8 @@ Using the CLI
 Below are instructions for installing the CLI, installed EdgeDB itself, and
 managing installing.
 
-Install the CLI
----------------
+Installation
+------------
 
 To get started with EdgeDB, the first step is install the ``edgedb`` CLI.
 

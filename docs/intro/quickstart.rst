@@ -33,8 +33,8 @@ command below.
 
 This command downloads and executes a bash script that installs the ``edgedb``
 CLI on your machine. You may be asked for your password. Once the installation
-completes, **restart your terminal** so the ``edgedb`` command becomes
-available.
+completes, you may need to **restart your terminal** before you can use the
+``edgedb`` command.
 
 Now let's set up your EdgeDB project.
 
@@ -68,19 +68,19 @@ up your first EdgeDB instance. You should see something like this:
   Specify the name of EdgeDB instance to use with this project [quickstart]:
   > quickstart
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 2.0-rc.3]:
-  > 2.0
+  Specify the version of EdgeDB to use with this project [default: 2.x]:
+  > 2.x
   ┌─────────────────────┬───────────────────────────────────────────────┐
   │ Project directory   │ ~/path/to/quickstart                          │
   │ Project config      │ ~/path/to/quickstart/edgedb.toml              │
   │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema                 │
   │ Installation method │ portable package                              │
-  │ Version             │ 2.0+c21decd                                   │
+  │ Version             │ 2.x+c21decd                                   │
   │ Instance name       │ quickstart                                    │
   └─────────────────────┴───────────────────────────────────────────────┘
   Downloading package...
   00:00:01 [====================] 32.98MiB/32.98MiB 32.89MiB/s | ETA: 0s
-  Successfully installed 2.0+c21decd
+  Successfully installed 2.x+c21decd
   Initializing EdgeDB instance...
   Applying migrations...
   Everything is up to date. Revision initial
@@ -92,13 +92,13 @@ This did a couple things.
 
 1. First, it scaffolded your project by creating an ``edgedb.toml`` config
    file and a schema file ``dbschema/default.esdl``. In the next section,
-   you'll define your schema in ``default.esdl``.
+   you'll define a schema in ``default.esdl``.
 
-2. Second, it spun up an EdgeDB instance called ``quickstart`` (unless you
-   overrode this with a different name). As long as you're inside the project
-   directory all ``edgedb`` CLI commands will be executed against this
+2. Second, it spun up an EdgeDB instance called ``quickstart`` and "linked" it
+   to the current directory. As long as you're inside the project
+   directory, all CLI commands will be executed against this
    instance. For more details on how EdgeDB projects work, check out the
-   :ref:`Using projects <ref_guide_using_projects>` guide.
+   :ref:`Managing instances <ref_intro_instances>` guide.
 
 .. note::
 
@@ -107,9 +107,7 @@ This did a couple things.
   database may contain several **modules** (though commonly your schema
   will be entirely defined inside the ``default`` module).
 
-Let's give it a try! Run ``edgedb`` in your terminal. This will connect to
-your database and open a REPL. You're now connected to a live EdgeDB instance
-running on your computer! Try executing a simple query:
+Let's connect to our new instance! Run ``edgedb`` in your terminal to open an interactive REPL to your instance. You're now connected to a live EdgeDB instance running on your computer! Try executing a simple query:
 
 .. code-block:: edgeql-repl
 
@@ -137,10 +135,11 @@ see the following file structure.
 
 EdgeDB schemas are defined with a dedicated schema description language called
 (predictably) EdgeDB SDL (or just **SDL** for short). It's an elegant,
-declarative way to define your data model. SDL lives inside ``.esdl`` files.
-Commonly, your entire schema will be declared in a file called
-``default.esdl`` but you can split your schema across several ``.esdl`` files;
-the filenames don't matter.
+declarative way to define your data model.
+
+SDL lives inside ``.esdl`` files. Commonly, your entire schema will be
+declared in a file called ``default.esdl`` but you can split your schema
+across several ``.esdl`` files if you prefer.
 
 .. note::
 
@@ -160,67 +159,61 @@ Let's build a simple movie database. We'll need to define two **object types**
 
   module default {
     type Person {
-      required property first_name -> str;
-      required property last_name -> str;
+      required property name -> str;
     }
 
     type Movie {
-      required property title -> str;
-      property release_year -> int64;
+      property title -> str;
       multi link actors -> Person;
-      link director -> Person;
     }
   };
+
 
 A few things to note here.
 
 - Our types don't contain an ``id`` property; EdgeDB automatically
   creates this property and assigned a unique UUID to every object inserted
   into the database.
-- The ``Movie`` type also includes two **links**. In EdgeDB, links are used to
-  represent relationships between object types. They entirely abstract away the
-  concept of foreign keys; later, you'll see just how easy it is to write
-  "deep" queries without JOINs.
+- The ``Movie`` type also includes two **links**: ``actors`` and ``director``.
+  In EdgeDB, links are used to represent relationships between object types.
+  They eliminate the need for foreign keys; later, you'll see just how easy it
+  is to write "deep" queries without JOINs.
+- The object types are inside a ``module`` called ``default``. You can split
+  up your schema into logical subunits called modules, though it's common to
+  define the entire schema in a single module called ``default``.
 
 Now we're ready to run a migration to apply this schema to the database.
 
-Generate the migration
-----------------------
+4. Run a migration
+==================
 
-First, we generate a migration file with ``edgedb migration create``. This
-starts an interactive tool that asks a series of questions. Pay attention to
-these questions to make sure you aren't making any unintended changes.
+Generate a migration file with ``edgedb migration create``. This command
+gathers up our ``*.esdl`` files and sends them to the database. The *database
+itself* parses these files, compares them against it's current schema, and
+generates a migration plan! Then the database sends this plan back to the CLI,
+which creates a migration file.
 
 .. code-block:: bash
 
   $ edgedb migration create
   Created ./dbschema/migrations/00001.edgeql, id: m1la5u4qi...
 
-This creates an ``.edgeql`` migration file in the ``dbschema/migrations``
-directory.
-
 .. note::
 
   If you're interested, open this migration file to see what's inside! It's
   a simple EdgeQL script consisting of :ref:`DDL <ref_eql_sdl>` commands like
-  ``create type``, ``alter type``, and ``create property``. When you generate
-  migrations, EdgeDB reads your declared ``.esdl`` schema and generates a
-  migration path.
+  ``create type``, ``alter type``, and ``create property``.
 
-
-Execute the migration
----------------------
-
-Let's apply the migration:
+The migration file has been *created* but we haven't *applied it* against the database. Let's do that.
 
 .. code-block:: bash
 
   $ edgedb migrate
-  Applied m1la5u4qi... (00001.edgeql)
-  Note: adding first migration disables DDL.
+  Applied m1k54jubcs62wlzfebn3pxwwngajvlbf6c6qfslsuagkylg2fzv2lq (00001.edgeql)
 
-Let's make sure that worked. Run ``edgedb list types`` to view all
-currently-defined object types.
+Looking good! Let's make sure that worked by running ``edgedb list types`` on
+the command line. This will print a table containing all currently-defined
+object types.
 
 .. code-block:: bash
 
@@ -232,18 +225,166 @@ currently-defined object types.
   │ default::Person │ std::BaseObject, std::Object │
   └─────────────────┴──────────────────────────────┘
 
-Looking good! Now let's add some data to the database.
+
+.. _ref_quickstart_migrations:
+
+.. _Migrate your schema:
+
+Before we procede, let's try making a small change to our schema: making the ``title`` property of ``Movie`` required. First, update the schema file:
+
+.. code-block:: sdl-diff
+
+
+      type Movie {
+  -     property title -> str;
+  +     required property title -> str;
+        multi link actors -> Person;
+      }
+
+Then create another migration. Because this isn't the initial migration, we see something a little different than before.
+
+.. code-block:: bash
+
+  $ edgedb migration create
+  did you make property 'title' of object type 'default::Movie' required? [y,n,l,c,b,s,q,?]
+  >
+
+As before, EdgeDB parses the schema files and compared them against its current internal schema. It correctly detects the change we made, and prompts us to confirm it. This interactive process lets you sanity check every change and provide guidance when a migration is ambiguous (e.g. when a property is renamed).
+
+Enter ``y`` to confirm the change.
+
+.. code-block:: bash
+
+  $ edgedb migration create
+  did you make property 'title' of object type 'default::Movie' required? [y,n,l,c,b,s,q,?]
+  > y
+  Please specify an expression to populate existing objects in order to make property 'title' of object type 'default::Movie' required:
+  fill_expr>
+
+Hm, now we're seeing another prompt. Because ``title`` is changing from *optional* to *required*, EdgeDB is asking us what to do for all the ``Movie`` objects that don't currently have a value for ``title`` defined. We'll just specify a placeholder value: ``"Untitled"``.
+
+.. code-block::
+
+  fill_expr> "Untitled"
+  Created dbschema/migrations/00002.edgeql, id: m1rd2ikgwdtlj5ws7ll6rwzvyiui2xbrkzig4adsvwy2sje7kxeh3a
+
+
+If we look at the generated migration file, we see it contains the following lines:
+
+.. code-block:: edgeql
+
+  ALTER TYPE default::Movie {
+    ALTER PROPERTY title {
+      SET REQUIRED USING ("Untitled");
+    };
+  };
+
+Let's wrap up by applying the new migration.
+
+.. code-block:: bash
+
+  $ edgedb migrate
+  Applied m1rd2ikgwdtlj5ws7ll6rwzvyiui2xbrkzig4adsvwy2sje7kxeh3a (00002.edgeql)
 
 .. _ref_quickstart_insert_data:
 
-4. Insert data
-==============
+.. _Insert data:
 
-For this tutorial we'll just use the REPL tool to execute queries. In
-practice, you'll probably be using one of EdgeDB's client libraries for
-`JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`__,
-`Go <https://github.com/edgedb/edgedb-go>`__,
-or `Python <https://github.com/edgedb/edgedb-python>`__.
+.. _Run some queries:
+
+5. Write some queries
+=====================
+
+Let's write some simple queries via *EdgeDB UI*, the admin dashboard baked into every EdgeDB instance (v2.0+ only). To open the dashboard:
+
+.. code-block:: bash
+
+  $ edgedb ui
+  Opening URL in browser:
+  http://localhost:107xx/ui?authToken=<jwt token>
+
+You should see a simple landing page, as below. You'll see a card for each database running on your instance—remember: each instance can contain multiple databases!
+
+.. image:: images/ui_landing.jpg
+  :width: 100%
+
+Currently, there's only one database, which is simply called ``edgedb`` by default. Click the ``edgedb`` card.
+
+.. image:: images/ui_db.jpg
+  :width: 100%
+
+Then click ``Open REPL`` so we can start writing some queries. We'll start simple: ``select "Hello world!"``. Click ``RUN`` to execute the query.
+
+.. image:: images/ui_hello.jpg
+    :width: 100%
+
+The query should appear in the "query notebook" on the right, along with the result of the query. The result  This column contains a history of executed queries in reverse chronological order.
+
+Now let's actually ``insert`` an object into our database. Copy the following query into the query textarea and hit ``Run``.
+
+.. code-block:: edgeql
+
+  insert Movie {
+    title := "Dune"
+  };
+
+Nice! You've officially inserted the first object into your database! Let's add a couple cast members with an ``update`` query.
+
+.. code-block:: edgeql
+
+  update Movie
+  filter .title = "Dune"
+  set {
+    actors := {
+      (insert Person { name := "Timothee Chalamet" }),
+      (insert Person { name := "Zendaya" })
+    }
+  };
+
+Finally, we can run a ``select`` query to fetch all the data we just inserted.
+
+.. code-block:: edgeql
+
+  select Movie {
+    title,
+    actors: {
+      name
+    }
+  };
+
+Click "COPY AS JSON" to copy the result of this query to your clipboard. It will look something like this:
+
+.. code-block:: json
+
+  [
+    {
+      "title": "Dune",
+      "actors": [
+        { "name": "Timothee Chalamet" },
+        { "name": "Zendaya" }
+      ]
+    }
+  ]
+
+
+5. Write some queries
+=====================
+
+EdgeDB UI is a good way to play around with queries. In practice, though, you'll likely be using one of EdgeDB's *client libraries* to execute queries from your application code.
+
+EdgeDB provides official libraries for `JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`__, `Go <https://github.com/edgedb/edgedb-go>`__, `Python <https://github.com/edgedb/edgedb-python>`__, and `Rust <https://github.com/edgedb/edgedb-rust>`_. Let's walk through the process of using these libaries.
+
+First install your library of choice.
+
+.. tabs::
+
+  .. code-tab:: bash#js
+
+    $ npm install edgedb
+
+  .. code-tab:: bash
+
+    $ cargo install edgedb-tokio
 
 Open the REPL:
 
@@ -349,8 +490,9 @@ Our database is still a little sparse. Let's quickly add a couple more movies.
 
 .. _ref_quickstart_queries:
 
-5. Run some queries
-===================
+
+6. Run queries with a client library
+====================================
 
 Let's write some basic queries:
 
@@ -412,171 +554,19 @@ Let's retrieve some information about Blade Runner 2049.
 Nice and easy! We're able to fetch the movie and its related objects by
 nesting shapes (similar to GraphQL).
 
-.. _ref_quickstart_migrations:
-
-6. Migrate your schema
-======================
-
-Let's add some more information about "Dune"; for starters, we'll insert
-``Person`` objects for its cast members Jason Momoa, Oscar Isaac, and Zendaya.
-
-.. code-block:: edgeql-repl
-
-  db> insert Person {
-  ...   first_name := 'Jason',
-  ...   last_name := 'Momoa'
-  ... };
-  default::Person {id: 618d4cd6-54db-11e9-8c54-67c38dbbba18}
-  db> insert Person {
-  ...   first_name := 'Oscar',
-  ...   last_name := 'Isaac'
-  ... };
-  default::Person {id: 618d5a64-54db-11e9-8c54-9393cfcd9598}
-  db> insert Person { first_name := 'Zendaya'};
-  ERROR: MissingRequiredError: missing value for required property
-  'last_name' of object type 'default::Person'
-
-Oh no! We can't add Zendaya with the current schema since both ``first_name``
-and ``last_name`` are required. So let's migrate our schema to make
-``last_name`` optional.
-
-If necessary, close the REPL with ``\q``, then open ``dbschema/default.esdl``.
-
-.. code-block:: sdl-diff
-
-    module default {
-      type Person {
-        required property first_name -> str;
-  -     required property last_name -> str;
-  +     property last_name -> str;
-      }
-      type Movie {
-        required property title -> str;
-        property release_year -> int64;
-        link director -> Person;
-        multi link actors -> Person;
-      }
-    };
-
-Then create a new migration.
-
-.. code-block:: bash
-
-  $ edgedb migration create
-  did you make property 'last_name' of object type
-  'default::Person' optional? [y,n,l,c,b,s,q,?]
-  > y
-  Created ./dbschema/migrations/00002.edgeql, id: m1k62y4x...
-
-EdgeDB detects the modifications to your schema, and prompts you to confirm
-each change. In this case there's only one modification. Answer ``y`` to
-proceed, then apply the migration.
-
-.. code-block:: bash
-
-  $ edgedb migrate
-  Applied m1k62y4x... (00002.edgeql)
-
-Now run ``edgedb`` to re-open the REPL and insert Zendaya. This time, the
-query works.
-
-.. code-block:: edgeql-repl
-
-  db> insert Person {
-  ...   first_name := 'Zendaya'
-  ... };
-  {default::Person {id: 65fce84c-54dd-11e9-8c54-5f000ca496c9}}
-
-.. _ref_quickstart_computeds:
-
-7. Computeds
-============
-
-Now that last names are optional, we may want an easy way to retrieve the full
-name for a given Person. We'll do this with a :ref:`computed property
-<ref_datamodel_computed>`:
-
-.. code-block:: edgeql-repl
-
-  db> select Person {
-  ...   full_name :=
-  ...    .first_name ++ ' ' ++ .last_name
-  ...      if exists .last_name
-  ...      else .first_name
-  ... };
-  {
-    default::Person {full_name: 'Zendaya'},
-    default::Person {full_name: 'Harrison Ford'},
-    default::Person {full_name: 'Ryan Gosling'},
-    ...
-  }
-
-Let's say we're planning to use ``full_name`` a lot. Instead of re-defining it
-in each query, we can add it directly to the schema alongside the other
-properties of ``Person``. Let's update ``dbschema/default.esdl``:
-
-.. code-block:: sdl-diff
-
-    module default {
-      type Person {
-        required property first_name -> str;
-        property last_name -> str;
-
-  +     property full_name :=
-  +       .first_name ++ ' ' ++ .last_name
-  +       if exists .last_name
-  +       else .first_name;
-
-      }
-      type Movie {
-        required property title -> str;
-        property release_year -> int64;
-        link director -> Person;
-        multi link actors -> Person;
-      }
-    };
-
-Then create and run another migration:
-
-.. code-block:: bash
-
-  $ edgedb migration create
-  did you create property 'full_name' of object type
-  'default::Person'? [y,n,l,c,b,s,q,?]
-  > y
-  Created ./dbschema/migrations/00003.edgeql, id:
-  m1gd3vxwz3oopur6ljgg7kzrin3jh65xhhjbj6de2xaou6i7owyhaq
-
-  $ edgedb migrate
-  Applied m1gd3vxwz3oopur6ljgg7kzrin3jh65xhhjbj6de2xaou6i7owyhaq
-  (00003.edgeql)
-
-Now we can easily fetch ``full_name`` just like any other property!
-
-.. code-block:: edgeql-repl
-
-  db> select Person {
-  ...   full_name
-  ... };
-  {
-    default::Person {full_name: 'Denis Villeneuve'},
-    default::Person {full_name: 'Harrison Ford'},
-    default::Person {full_name: 'Ana de Armas'},
-    default::Person {full_name: 'Ryan Gosling'},
-    default::Person {full_name: 'Jason Momoa'},
-    default::Person {full_name: 'Oscar Isaac'},
-    default::Person {full_name: 'Zendaya'},
-  }
-
 
 .. _ref_quickstart_onwards:
+
+.. _Computeds:
 
 8. Onwards and upwards
 ======================
 
 You now know the basics of EdgeDB! You've installed the CLI and database, set
-up a local project, created an initial schema, added and queried data, and run
-a schema migration.
+up a local project, run a couple migrations, inserted and queried some data, and used a client library.
+
+- For a more in-depth exploration of each topic covered here, continue reading
+  the other pages in the Getting Started section.
 
 - For guided tours of major concepts, check out the
   showcase pages for `Data Modeling </showcase/data-modeling>`_,

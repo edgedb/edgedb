@@ -35,32 +35,37 @@ EdgeDB is a complex system, but we've structured the documentation so you can
 learn it in "phases". You only need to learn as much as you need to start
 building your application.
 
-- **Quickstart** —
-  Go through the :ref:`quickstart <ref_quickstart>`. It walks
+- **Get Started** —
+  Start with the :ref:`quickstart <ref_quickstart>`. It walks
   through EdgeDB's core workflows: how to install EdgeDB, create an instance,
-  write a simple schema, execute a migration, and write some simple queries.
+  write a simple schema, execute a migration, write some simple queries, and use the client libraries. The rest of the section goes deeper on each of these subjects.
 
-- **Showcases** —
-  For a speedrun of EdgeDB's features and syntax, refer to the Showcase pages
-  for `Data Modeling </showcase/data-modeling>`_ and
-  `EdgeQL </showcase/edgeql>`_. These pages each contain a set of annotated
-  examples for all major features; it's a fast, practical way to hit the
-  ground running with EdgeDB.
+- **Schema** —
+  A set of pages that break down the concepts of syntax of EdgeDB's schema definition language (SDL). This starts with a rundown of EdgeDB's primitive type system (:ref:`Primitives <ref_datamodel_primitives>`), followed by a description of (:ref:`Object Types <ref_datamodel_object_types>`) and the things they can contain: links, properties, indexes, access policies, and more.
 
-- **Documentation** —
-  For a more in-depth understanding of EdgeDB's type system, concepts, and
-  advanced features, go through the :ref:`Schema <ref_datamodel_index>`
-  and :ref:`EdgeQL <ref_edgeql>` docs in order. The pages are carefully
-  structured to teach EdgeDB in a linear way.
+- **Schema** —
+  A set of pages that break down EdgeDB's query language, EdgeQL. It starts with a rundown of how to declare :ref:`literal values <ref_eql_literals>`, then introduces some key EdgeQL concepts like sets, paths, and type casts. With the basics established, it proceeds to break down all of EdgeQL's top-level statements: ``select``, ``insert``, and so on.
 
-- **Reference** —
-  As you move forward, more advanced or obscure questions are likely answered
-  in the encylopedic :ref:`Standard Library <ref_std>` and :ref:`Reference
-  <ref_reference_index>` sections. The Standard Library
-  section documents all types, functions, and operators. The Reference
-  section contains formal SDL and EdgeQL syntax breakdowns and reference
-  information on our dump format, binary protocol, configuration settings,
-  and more.
+- **Guides** —
+  Contains collections of guides on topics that are peripheral to EdgeDB itself: how to deploy to various cloud providers, how to integrate with various frameworks, and how to introspect the schema to build code-generation tools on top of EdgeDB.
+
+- **Standard Library** —
+  This section contains an encyclopedic breakdown of EdgeDB's built-in types and the functions/operators that can be used with them. We didn't want to clutter the **EdgeQL** section with all the nitty-gritty on each of these. If you're looking for a particular function (say, a ``replace``), go to the Standard Library page for the relevant type (in this case, :ref:`String <ref_std_string>`), and peruse the table for what you're looking for (:eql:func:`str_replace`).
+
+- **Client Libraries**
+  The documentation for EdgeDB's set of official client libraries. Client libraries let you write and execute queries using your favorite programming language. All client libraries implement EdgeDB's binary protocol and provide a standard interface for executing queries.
+
+- **CLI**
+  Complete reference for the ``edgedb`` command-line tool. The CLI is self-documenting—add the ``--help`` flag after any command to print the relevant documentation—so you shouldn't need to reference this section often.
+
+- **Client Libraries**
+  The documentation for EdgeDB's set of official client libraries for JavaScript/TypeScript, Python, Go, and Rust. All client libraries implement EdgeDB's binary protocol and provide a standard interface for executing queries. If you're using another language, you can execute queries :ref:`over HTTP <ref_edgeql_http>`.  This section also includes documentation for EdgeDB's :ref:`GraphQL <ref_graphql_overview>` endpoint.
+
+- **Reference**
+  The *Reference* section contains a complete breakdown of EdgeDB's *syntax* (for both EdgeQL and SDL), *internals* (like the binary protocol and dump file format), and *configuration settings*. Usually you'll only need to reference these once you're an advanced user.
+
+- **Changelog**
+  Detailed changelogs for each successive version of EdgeDB, including any breaking changes, new features, bigfixes, and links to
 
 
 Tooling

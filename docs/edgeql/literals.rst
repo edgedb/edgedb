@@ -478,7 +478,7 @@ EdgeQL supports a set of functions and operators on duration types.
 .. _ref_eql_ranges:
 
 Ranges #New
-^^^^^^^^^^^
+-----------
 
 .. warning::
 
