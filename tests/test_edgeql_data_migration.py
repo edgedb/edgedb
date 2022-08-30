@@ -11055,7 +11055,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.migrate(schema)
         await self.migrate(schema)
 
-    @test.xfail('''
+    @test.xerror('''
         Infinite recursion via _propagate_if_expr_refs
     ''')
     async def test_edgeql_migration_policies_and_collections(self):
