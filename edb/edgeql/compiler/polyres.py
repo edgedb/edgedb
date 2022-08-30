@@ -34,10 +34,12 @@ from edb.schema import name as sn
 from edb.schema import types as s_types
 from edb.schema import pseudo as s_pseudo
 
+from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 
 from . import context
 from . import dispatch
+from . import pathctx
 from . import setgen
 from . import typegen
 
@@ -438,6 +440,7 @@ def try_bind_call_args(
 
                 param = barg.param
                 param_shortname = param.get_parameter_name(schema)
+                param_typemod = param.get_typemod(ctx.env.schema)
                 null_args.add(param_shortname)
 
                 defaults_mask |= 1 << i
@@ -445,7 +448,8 @@ def try_bind_call_args(
                 if not has_inlined_defaults:
                     param_default = param.get_default(schema)
                     assert param_default is not None
-                    default = dispatch.compile(param_default.qlast, ctx=ctx)
+                    default = compile_arg(
+                        param_default.qlast, param_typemod, ctx=ctx)
 
                 empty_default = (
                     has_inlined_defaults or
@@ -471,15 +475,23 @@ def try_bind_call_args(
                     default_type = param_type
 
                 if has_inlined_defaults:
-                    default = setgen.new_empty_set(
-                        stype=default_type,
-                        alias=param_shortname,
-                        ctx=ctx)
+                    default = compile_arg(
+                        qlast.TypeCast(
+                            expr=qlast.Set(elements=[]),
+                            type=typegen.type_to_ql_typeref(
+                                default_type,
+                                ctx=ctx,
+                            ),
+                        ),
+                        ft.TypeModifier.OptionalType,
+                        ctx=ctx,
+                    )
 
                 default = setgen.ensure_set(
                     default,
                     typehint=default_type,
-                    ctx=ctx)
+                    ctx=ctx,
+                )
 
                 bound_param_args.append(
                     BoundArg(
@@ -538,3 +550,42 @@ def try_bind_call_args(
 
     return BoundCall(
         func, bound_param_args, null_args, return_type, has_empty_variadic)
+
+
+def compile_arg(
+    arg_ql: qlast.Expr,
+    typemod: ft.TypeModifier,
+    *,
+    in_conditional: bool=False,
+    ctx: context.ContextLevel,
+) -> irast.Set:
+    fenced = typemod is ft.TypeModifier.SetOfType
+    optional = typemod is ft.TypeModifier.OptionalType
+
+    # Create a a branch for OPTIONAL ones. The OPTIONAL branch is to
+    # have a place to mark as optional in the scope tree.
+    # For fenced arguments we instead wrap it in a SELECT below.
+    new = ctx.newscope(fenced=False) if optional else ctx.new()
+    with new as argctx:
+        if in_conditional:
+            argctx.in_conditional = arg_ql.context
+
+        if optional:
+            argctx.path_scope.mark_as_optional()
+
+        if fenced:
+            arg_ql = qlast.SelectQuery(
+                result=arg_ql, context=arg_ql.context,
+                implicit=True, rptr_passthrough=True)
+
+        argctx.inhibit_implicit_limit = True
+
+        arg_ir = dispatch.compile(arg_ql, ctx=argctx)
+
+        if optional:
+            pathctx.register_set_in_scope(arg_ir, optional=True, ctx=ctx)
+
+            if arg_ir.path_scope_id is None:
+                pathctx.assign_set_scope(arg_ir, argctx.path_scope, ctx=argctx)
+
+        return arg_ir
