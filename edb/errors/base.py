@@ -24,9 +24,11 @@ from typing import *
 from edb.common import context as pctx
 from edb.common import exceptions as ex
 
+import contextlib
+
 
 __all__ = (
-    'EdgeDBError', 'EdgeDBMessage',
+    'EdgeDBError', 'EdgeDBMessage', 'ensure_context',
 )
 
 
@@ -112,6 +114,9 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         if details is not None:
             self._attrs[FIELD_DETAILS] = details
 
+    def has_source_context(self):
+        return FIELD_DETAILS in self._attrs
+
     def set_source_context(self, context):
         start = context.start_point
         end = context.end_point
@@ -152,6 +157,16 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     @property
     def details(self):
         return self._attrs.get(FIELD_DETAILS)
+
+
+@contextlib.contextmanager
+def ensure_context(context: Any) -> Iterator[None]:
+    try:
+        yield
+    except EdgeDBError as e:
+        if not e.has_source_context():
+            e.set_source_context(context)
+        raise
 
 
 FIELD_HINT = 0x_00_01

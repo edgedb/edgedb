@@ -101,7 +101,9 @@ def compile_FunctionCall(
         ctx=ctx)
     args, kwargs = compile_func_call_args(
         expr, funcname, typemods, ctx=ctx)
-    matched = polyres.find_callable(funcs, args=args, kwargs=kwargs, ctx=ctx)
+    with errors.ensure_context(expr.context):
+        matched = polyres.find_callable(
+            funcs, args=args, kwargs=kwargs, ctx=ctx)
     if not matched:
         alts = [f.get_signature_as_str(env.schema) for f in funcs]
         sig: List[str] = []
