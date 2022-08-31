@@ -171,7 +171,7 @@ class ConstraintMech:
         options = qlcompiler.CompilerOptions(
             anchors={qlast.Subject().name: subject},
             path_prefix_anchor=qlast.Subject().name,
-            apply_query_rewrites=not context.stdmode,
+            apply_query_rewrites=False,
             singletons=singletons,
             # Remap the constraint origin to the subject, so that if
             # we have B <: A, and the constraint references A.foo, it
@@ -244,7 +244,7 @@ class ConstraintMech:
             origin_options = qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: origin_subject},
                 path_prefix_anchor=origin_path_prefix_anchor,
-                apply_query_rewrites=not context.stdmode,
+                apply_query_rewrites=False,
                 singletons=singletons,
             )
 
