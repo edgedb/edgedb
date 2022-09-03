@@ -169,6 +169,9 @@ The following table lists all EdgeDB base types descriptor IDs:
    * - ``00000000-0000-0000-0000-000000000111``
      - :ref:`cal::relative_duration <ref_protocol_fmt_relative_duration>`
 
+   * - ``00000000-0000-0000-0000-000000000112``
+     - :ref:`cal::date_duration <ref_protocol_fmt_date_duration>`
+
    * - ``00000000-0000-0000-0000-000000000130``
      - :ref:`cfg::memory <ref_protocol_fmt_memory>`
 
