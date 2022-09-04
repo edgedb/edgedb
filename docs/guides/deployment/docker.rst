@@ -286,7 +286,7 @@ user within default database.
 Custom scripts in ``/edgedb-bootstrap.d/`` and ``/edgedb-bootstrap-late.d``
 ...........................................................................
 
-To perform additional initialization, a derived image may include one ore more
+To perform additional initialization, a derived image may include one or more
 ``*.edgeql``, or ``*.sh`` scripts, which are executed in addition to and
 _after_ the initialization specified by the environment variables above or the
 ``/edgedb-bootstrap.edgeql`` script.  Parts in ``/edgedb-bootstrap.d`` are
