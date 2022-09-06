@@ -23,6 +23,19 @@ abstract type NamedObject {
     required property name -> str;
 }
 
+abstract type Commentable {
+    multi link comments := .<subject[is Comment];
+}
+
+type Blog extending Commentable {
+    required property content -> str;
+}
+
+type Comment {
+    required property content -> str;
+    required link subject -> Commentable;
+}
+
 type UserGroup extending NamedObject {
     multi link settings -> Setting {
         constraint exclusive;
