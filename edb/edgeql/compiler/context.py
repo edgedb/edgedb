@@ -185,6 +185,16 @@ class Environment:
 
     view_shapes_metadata: Dict[s_types.Type, irast.ViewShapeMetadata]
 
+    must_use_views: Dict[
+        s_types.Type,
+        Optional[Tuple[s_name.Name, Optional[parsing.ParserContext]]],
+    ]
+    """A set of views that *must* be used in an expression.
+
+    Once a view is used, we set it to None rather than removing it so
+    that we can avoid adding it again if it is defined inside a
+    computable."""
+
     schema_refs: Set[s_obj.Object]
     """A set of all schema objects referenced by an expression."""
 
@@ -272,6 +282,7 @@ class Environment:
         self.view_shapes = collections.defaultdict(list)
         self.view_shapes_metadata = collections.defaultdict(
             irast.ViewShapeMetadata)
+        self.must_use_views = {}
         self.schema_refs = set()
         self.schema_ref_exprs = {} if options.track_schema_ref_exprs else None
         self.created_schema_objects = set()
@@ -413,16 +424,6 @@ class ContextLevel(compiler.ContextLevel):
 
     aliased_views: ChainMap[s_name.Name, s_types.Type]
     """A dictionary of views aliased in a statement body."""
-
-    must_use_views: Dict[
-        s_types.Type,
-        Optional[Tuple[s_name.Name, Optional[parsing.ParserContext]]],
-    ]
-    """A set of views that *must* be used in an expression.
-
-    Once a view is used, we set it to None rather than removing it so
-    that we can avoid adding it again if it is defined inside a
-    computable."""
 
     expr_view_cache: Dict[Tuple[qlast.Base, s_name.Name], irast.Set]
     """Type cache used by expression-level views."""
@@ -568,7 +569,6 @@ class ContextLevel(compiler.ContextLevel):
             self.view_sets = {}
             self.suppress_rewrites = frozenset()
             self.aliased_views = collections.ChainMap()
-            self.must_use_views = {}
             self.expr_view_cache = {}
             self.shape_type_cache = {}
             self.class_view_overrides = {}
@@ -613,7 +613,6 @@ class ContextLevel(compiler.ContextLevel):
             self.view_nodes = prevlevel.view_nodes
             self.view_sets = prevlevel.view_sets
             self.suppress_rewrites = prevlevel.suppress_rewrites
-            self.must_use_views = prevlevel.must_use_views
             self.expr_view_cache = prevlevel.expr_view_cache
             self.shape_type_cache = prevlevel.shape_type_cache
 

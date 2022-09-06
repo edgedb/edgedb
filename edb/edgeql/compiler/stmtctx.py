@@ -243,7 +243,7 @@ def fini_expression(
                 hint='Consider using an explicit type cast.',
                 context=ctx.env.type_origins.get(anytype))
 
-    must_use_views = [val for val in ctx.must_use_views.values() if val]
+    must_use_views = [val for val in ctx.env.must_use_views.values() if val]
     if must_use_views:
         alias, srcctx = must_use_views[0]
         raise errors.QueryError(
@@ -655,8 +655,8 @@ def declare_view(
         ctx.aliased_views[alias] = view_type
         ctx.expr_view_cache[expr, alias] = view_set
 
-        if must_be_used and view_type not in ctx.must_use_views:
-            ctx.must_use_views[view_type] = (alias, expr.context)
+        if must_be_used and view_type not in ctx.env.must_use_views:
+            ctx.env.must_use_views[view_type] = (alias, expr.context)
 
     return view_set
 
