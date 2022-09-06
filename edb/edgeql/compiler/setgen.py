@@ -93,7 +93,7 @@ def new_set(
 
     if (
         not ignore_rewrites
-        and rw_key not in ctx.type_rewrites
+        and rw_key not in ctx.env.type_rewrites
         and isinstance(stype, s_objtypes.ObjectType)
         and ctx.env.options.apply_query_rewrites
     ):
@@ -852,7 +852,7 @@ def needs_rewrite_existence_assertion(
         ptrcls.get_required(ctx.env.schema)
         and direction == PtrDir.Outbound
         and (target := ptrcls.get_target(ctx.env.schema))
-        and ctx.type_rewrites.get((target, False))
+        and ctx.env.type_rewrites.get((target, False))
         and ptrcls.get_shortname(ctx.env.schema).name != '__type__'
     )
 

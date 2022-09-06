@@ -236,6 +236,14 @@ class Environment:
     source_map: Dict[s_pointers.PointerLike, irast.ComputableInfo]
     """A mapping of computable pointers to QL source AST and context."""
 
+    type_rewrites: Dict[
+        Tuple[s_types.Type, bool], irast.Set | None | Literal[True]]
+    """Access policy rewrites for schema-level types.
+
+    None indicates no rewrite, True indicates a compound type
+    that had rewrites in its components.
+    """
+
     def __init__(
         self,
         *,
@@ -280,6 +288,7 @@ class Environment:
         self.alias_result_view_name = alias_result_view_name
         self.script_params = {}
         self.source_map = {}
+        self.type_rewrites = {}
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
@@ -398,14 +407,6 @@ class ContextLevel(compiler.ContextLevel):
 
     view_sets: Dict[s_types.Type, irast.Set]
     """A dictionary of IR expressions for views declared in the query."""
-
-    type_rewrites: Dict[
-        Tuple[s_types.Type, bool], irast.Set | None | Literal[True]]
-    """Access policy rewrites for schema-level types.
-
-    None indicates no rewrite, True indicates a compound type
-    that had rewrites in its components.
-    """
 
     suppress_rewrites: FrozenSet[s_types.Type]
     """Types to suppress using rewrites on"""
@@ -565,7 +566,6 @@ class ContextLevel(compiler.ContextLevel):
 
             self.view_nodes = {}
             self.view_sets = {}
-            self.type_rewrites = {}
             self.suppress_rewrites = frozenset()
             self.aliased_views = collections.ChainMap()
             self.must_use_views = {}
@@ -612,7 +612,6 @@ class ContextLevel(compiler.ContextLevel):
 
             self.view_nodes = prevlevel.view_nodes
             self.view_sets = prevlevel.view_sets
-            self.type_rewrites = prevlevel.type_rewrites
             self.suppress_rewrites = prevlevel.suppress_rewrites
             self.must_use_views = prevlevel.must_use_views
             self.expr_view_cache = prevlevel.expr_view_cache

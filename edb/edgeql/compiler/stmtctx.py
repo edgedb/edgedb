@@ -166,7 +166,7 @@ def fini_expression(
     ctx.path_scope.validate_unique_ids()
 
     # Infer cardinalities of type rewrites
-    for rw in ctx.type_rewrites.values():
+    for rw in ctx.env.type_rewrites.values():
         if isinstance(rw, irast.Set):
             inference.infer_cardinality(
                 rw, scope_tree=ctx.path_scope, ctx=inf_ctx)
@@ -290,7 +290,7 @@ def fini_expression(
         ),
         type_rewrites={
             (typ.id, not skip_subtypes): s
-            for (typ, skip_subtypes), s in ctx.type_rewrites.items()
+            for (typ, skip_subtypes), s in ctx.env.type_rewrites.items()
             if isinstance(s, irast.Set)},
         dml_exprs=ctx.env.dml_exprs,
         singletons=ctx.env.singletons,
@@ -483,7 +483,7 @@ def compile_anchor(
     if isinstance(anchor, s_types.Type):
         # Anchors should not receive type rewrites; we are already
         # evaluating in their context.
-        ctx.type_rewrites[anchor, False] = None
+        ctx.env.type_rewrites[anchor, False] = None
         step = setgen.class_set(anchor, ctx=ctx)
 
     elif (isinstance(anchor, s_pointers.Pointer) and
@@ -491,7 +491,7 @@ def compile_anchor(
         src = anchor.get_source(ctx.env.schema)
         if src is not None:
             assert isinstance(src, s_objtypes.ObjectType)
-            ctx.type_rewrites[src, False] = None
+            ctx.env.type_rewrites[src, False] = None
             path = setgen.extend_path(
                 setgen.class_set(src, ctx=ctx),
                 anchor,
@@ -502,7 +502,7 @@ def compile_anchor(
             ptrcls = schemactx.derive_dummy_ptr(anchor, ctx=ctx)
             src = ptrcls.get_source(ctx.env.schema)
             assert isinstance(src, s_types.Type)
-            ctx.type_rewrites[src, False] = None
+            ctx.env.type_rewrites[src, False] = None
             path = setgen.extend_path(
                 setgen.class_set(src, ctx=ctx),
                 ptrcls,
