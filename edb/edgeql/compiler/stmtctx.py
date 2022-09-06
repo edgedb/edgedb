@@ -600,7 +600,7 @@ def declare_view(
             subctx.path_id_namespace = path_id_namespace
 
         if not fully_detached:
-            cached_view_set = ctx.expr_view_cache.get((expr, alias))
+            cached_view_set = ctx.env.expr_view_cache.get((expr, alias))
             # Detach the view namespace and record the prefix
             # in the parent statement's fence node.
             view_path_id_ns = ctx.aliases.get('ns')
@@ -653,7 +653,7 @@ def declare_view(
 
         view_type = setgen.get_set_type(view_set, ctx=ctx)
         ctx.aliased_views[alias] = view_type
-        ctx.expr_view_cache[expr, alias] = view_set
+        ctx.env.expr_view_cache[expr, alias] = view_set
 
         if must_be_used and view_type not in ctx.env.must_use_views:
             ctx.env.must_use_views[view_type] = (alias, expr.context)

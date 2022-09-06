@@ -76,7 +76,7 @@ def process_view(
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
 
     cache_key = (stype, exprtype, tuple(elements))
-    view_scls = ctx.shape_type_cache.get(cache_key)
+    view_scls = ctx.env.shape_type_cache.get(cache_key)
     if view_scls is not None:
         return view_scls, ir_set
 
@@ -104,7 +104,7 @@ def process_view(
         ctx=ctx,
     )
 
-    ctx.shape_type_cache[cache_key] = view_scls
+    ctx.env.shape_type_cache[cache_key] = view_scls
 
     return view_scls, ir
 

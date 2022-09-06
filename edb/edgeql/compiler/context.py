@@ -254,6 +254,19 @@ class Environment:
     that had rewrites in its components.
     """
 
+    expr_view_cache: Dict[Tuple[qlast.Base, s_name.Name], irast.Set]
+    """Type cache used by expression-level views."""
+
+    shape_type_cache: Dict[
+        Tuple[
+            s_objtypes.ObjectType,
+            s_types.ExprType,
+            Tuple[qlast.ShapeElement, ...],
+        ],
+        s_objtypes.ObjectType,
+    ]
+    """Type cache for shape expressions."""
+
     def __init__(
         self,
         *,
@@ -300,6 +313,8 @@ class Environment:
         self.script_params = {}
         self.source_map = {}
         self.type_rewrites = {}
+        self.shape_type_cache = {}
+        self.expr_view_cache = {}
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
@@ -424,19 +439,6 @@ class ContextLevel(compiler.ContextLevel):
 
     aliased_views: ChainMap[s_name.Name, s_types.Type]
     """A dictionary of views aliased in a statement body."""
-
-    expr_view_cache: Dict[Tuple[qlast.Base, s_name.Name], irast.Set]
-    """Type cache used by expression-level views."""
-
-    shape_type_cache: Dict[
-        Tuple[
-            s_objtypes.ObjectType,
-            s_types.ExprType,
-            Tuple[qlast.ShapeElement, ...],
-        ],
-        s_objtypes.ObjectType,
-    ]
-    """Type cache for shape expressions."""
 
     class_view_overrides: Dict[uuid.UUID, s_types.Type]
     """Object mapping used by implicit view override in SELECT."""
@@ -569,8 +571,6 @@ class ContextLevel(compiler.ContextLevel):
             self.view_sets = {}
             self.suppress_rewrites = frozenset()
             self.aliased_views = collections.ChainMap()
-            self.expr_view_cache = {}
-            self.shape_type_cache = {}
             self.class_view_overrides = {}
 
             self.toplevel_stmt = None
@@ -613,8 +613,6 @@ class ContextLevel(compiler.ContextLevel):
             self.view_nodes = prevlevel.view_nodes
             self.view_sets = prevlevel.view_sets
             self.suppress_rewrites = prevlevel.suppress_rewrites
-            self.expr_view_cache = prevlevel.expr_view_cache
-            self.shape_type_cache = prevlevel.shape_type_cache
 
             self.iterator_path_ids = prevlevel.iterator_path_ids
             self.path_id_namespace = prevlevel.path_id_namespace
