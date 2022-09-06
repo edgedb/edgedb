@@ -1106,3 +1106,11 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             await self.con.execute("""
                 SELECT __AwardAlias2__winner
             """)
+
+    async def test_edgeql_aliases_detached_01(self):
+        await self.assert_query_result(
+            r"""
+                select count((detached FireCard, detached FireCard))
+            """,
+            [4]
+        )

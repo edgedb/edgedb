@@ -661,13 +661,16 @@ def declare_view(
     return view_set
 
 
-def declare_view_from_schema(
+def _declare_view_from_schema(
         viewcls: s_types.Type, *,
-        ctx: context.ContextLevel) -> s_types.Type:
-    vc = ctx.env.schema_view_cache.get(viewcls)
-    if vc is not None:
-        return vc
+        ctx: context.ContextLevel) -> tuple[s_types.Type, irast.Set]:
+    e = ctx.env.schema_view_cache.get(viewcls)
+    if e is not None:
+        return e
 
+    # N.B: This takes a context, which we need to use to create a
+    # subcontext to compile in, but it should avoid depending on the
+    # context, because of the cache.
     with ctx.detached() as subctx:
         subctx.expr_exposed = context.Exposure.UNEXPOSED
         view_expr = viewcls.get_expr(ctx.env.schema)
@@ -679,16 +682,25 @@ def declare_view_from_schema(
                                 binding_kind=irast.BindingKind.With,
                                 fully_detached=True, ctx=subctx)
         # The view path id _itself_ should not be in the nested namespace.
-        view_set.path_id = view_set.path_id.replace_namespace(
-            ctx.path_id_namespace)
+        view_set.path_id = view_set.path_id.replace_namespace(frozenset())
 
         vc = subctx.aliased_views[viewcls_name]
         assert vc is not None
-        ctx.env.schema_view_cache[viewcls] = vc
-        ctx.source_map.update(subctx.source_map)
-        ctx.aliased_views[viewcls_name] = subctx.aliased_views[viewcls_name]
-        ctx.view_nodes[vc.get_name(ctx.env.schema)] = vc
-        ctx.view_sets[vc] = subctx.view_sets[vc]
+        ctx.env.schema_view_cache[viewcls] = vc, view_set
+
+    return vc, view_set
+
+
+def declare_view_from_schema(
+        viewcls: s_types.Type, *,
+        ctx: context.ContextLevel) -> s_types.Type:
+    vc, view_set = _declare_view_from_schema(viewcls, ctx=ctx)
+
+    viewcls_name = viewcls.get_name(ctx.env.schema)
+
+    ctx.aliased_views[viewcls_name] = vc
+    ctx.view_nodes[vc.get_name(ctx.env.schema)] = vc
+    ctx.view_sets[vc] = view_set
 
     return vc
 
