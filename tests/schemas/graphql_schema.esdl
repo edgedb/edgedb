@@ -23,6 +23,7 @@ abstract type NamedObject {
     required property name -> str;
 }
 
+# Abstract type with only a computed value to reproduce #4231
 abstract type Commentable {
     multi link comments := .<subject[is Comment];
 }

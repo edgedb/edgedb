@@ -1298,7 +1298,7 @@ class GQLCoreSchema:
                 # only objects that have at least one non-readonly
                 # link/property are eligible
                 pointers = t.get_pointers(self.edb_schema)
-                if any(not (p.get_readonly(self.edb_schema) or 
+                if any(not (p.get_readonly(self.edb_schema) or
                        p.is_pure_computable(self.edb_schema))
                        for _, p in pointers.items(self.edb_schema)):
                     gqlupdatetype = GraphQLInputObjectType(
