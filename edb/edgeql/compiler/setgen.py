@@ -880,7 +880,7 @@ def _is_computable_ptr(
     ctx: context.ContextLevel,
 ) -> bool:
     try:
-        qlexpr = ctx.source_map[ptrcls].qlexpr
+        qlexpr = ctx.env.source_map[ptrcls].qlexpr
     except KeyError:
         pass
     else:
@@ -1280,7 +1280,7 @@ def computable_ptr_set(
     qlctx: Optional[context.ContextLevel]
 
     try:
-        comp_info = ctx.source_map[ptrcls]
+        comp_info = ctx.env.source_map[ptrcls]
         qlexpr = comp_info.qlexpr
         assert isinstance(comp_info.context, context.ContextLevel)
         qlctx = comp_info.context
@@ -1667,8 +1667,8 @@ def should_materialize(
     ):
         reasons.append(irast.MaterializeVisible(sets=vis))
 
-    if ptrcls and ptrcls in ctx.source_map:
-        reasons += ctx.source_map[ptrcls].should_materialize
+    if ptrcls and ptrcls in ctx.env.source_map:
+        reasons += ctx.env.source_map[ptrcls].should_materialize
 
     reasons += should_materialize_type(typ, ctx=ctx)
 
@@ -1683,8 +1683,8 @@ def should_materialize_type(
     if isinstance(
             typ, (s_objtypes.ObjectType, s_pointers.Pointer)):
         for pointer in typ.get_pointers(schema).objects(schema):
-            if pointer in ctx.source_map:
-                reasons += ctx.source_map[pointer].should_materialize
+            if pointer in ctx.env.source_map:
+                reasons += ctx.env.source_map[pointer].should_materialize
     elif isinstance(typ, s_types.Collection):
         for sub in typ.get_subtypes(schema):
             reasons += should_materialize_type(sub, ctx=ctx)

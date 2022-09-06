@@ -270,9 +270,9 @@ def derive_view(
                 # computable expressions for pointers are carried over.
                 src_ptr = scls_pointers.get(ctx.env.schema, pn)
                 computable_data = (
-                    ctx.source_map.get(src_ptr) if src_ptr else None)
+                    ctx.env.source_map.get(src_ptr) if src_ptr else None)
                 if computable_data is not None:
-                    ctx.source_map[ptr] = computable_data
+                    ctx.env.source_map[ptr] = computable_data
 
                 if src_ptr in ctx.env.pointer_specified_info:
                     ctx.env.pointer_derivation_map[src_ptr].append(ptr)
@@ -348,9 +348,9 @@ def derive_ptr(
                 # mypy somehow loses the type argument in the
                 # "pointers" ObjectIndex.
                 assert isinstance(src_ptr, s_pointers.Pointer)
-                computable_data = ctx.source_map.get(src_ptr)
+                computable_data = ctx.env.source_map.get(src_ptr)
                 if computable_data is not None:
-                    ctx.source_map[ptr] = computable_data
+                    ctx.env.source_map[ptr] = computable_data
 
     if preserve_shape and ptr in ctx.env.view_shapes:
         preserve_view_shape(ptr, derived, ctx=ctx)

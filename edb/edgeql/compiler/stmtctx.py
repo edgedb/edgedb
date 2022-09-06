@@ -257,7 +257,7 @@ def fini_expression(
     group.infer_group_aggregates(ir, ctx=ctx)
 
     assert isinstance(ir, irast.Set)
-    source_map = {k: v for k, v in ctx.source_map.items()
+    source_map = {k: v for k, v in ctx.env.source_map.items()
                   if isinstance(k, s_pointers.Pointer)}
     params = list(ctx.env.query_parameters.values())
     if params and params[0].name.isdecimal():
@@ -304,7 +304,7 @@ def _fixup_materialized_sets(
     # Make sure that all materialized sets have their views compiled
     flt = lambda n: isinstance(n, irast.Stmt)
     children: List[irast.Stmt] = ast_visitor.find_children(ir, flt)
-    for nobe in ctx.source_map.values():
+    for nobe in ctx.env.source_map.values():
         if nobe.irexpr:
             children += ast_visitor.find_children(nobe.irexpr, flt)
 

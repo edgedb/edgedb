@@ -233,6 +233,9 @@ class Environment:
 
     Used to make sure the types are consistent."""
 
+    source_map: Dict[s_pointers.PointerLike, irast.ComputableInfo]
+    """A mapping of computable pointers to QL source AST and context."""
+
     def __init__(
         self,
         *,
@@ -276,6 +279,7 @@ class Environment:
         self.compiled_stmts = {}
         self.alias_result_view_name = alias_result_view_name
         self.script_params = {}
+        self.source_map = {}
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
@@ -388,9 +392,6 @@ class ContextLevel(compiler.ContextLevel):
 
     func: Optional[s_func.Function]
     """Schema function object required when compiling functions bodies."""
-
-    source_map: Dict[s_pointers.PointerLike, irast.ComputableInfo]
-    """A mapping of computable pointers to QL source AST and context."""
 
     view_nodes: Dict[s_name.Name, s_types.Type]
     """A dictionary of newly derived Node classes representing views."""
@@ -562,7 +563,6 @@ class ContextLevel(compiler.ContextLevel):
             self.anchors = {}
             self.modaliases = {}
 
-            self.source_map = {}
             self.view_nodes = {}
             self.view_sets = {}
             self.type_rewrites = {}
@@ -610,7 +610,6 @@ class ContextLevel(compiler.ContextLevel):
             self.derived_target_module = prevlevel.derived_target_module
             self.aliases = prevlevel.aliases
 
-            self.source_map = prevlevel.source_map
             self.view_nodes = prevlevel.view_nodes
             self.view_sets = prevlevel.view_sets
             self.type_rewrites = prevlevel.type_rewrites
