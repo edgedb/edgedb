@@ -318,7 +318,7 @@ Then click ``Open REPL`` so we can start writing some queries. We'll start simpl
 .. image:: images/ui_hello.jpg
     :width: 100%
 
-The query should appear in the "query notebook" on the right, along with the result of the query. The result  This column contains a history of executed queries in reverse chronological order.
+The query should appear in the "query notebook" on the right, along with the result of the query.
 
 Now let's actually ``insert`` an object into our database. Copy the following query into the query textarea and hit ``Run``.
 
@@ -367,129 +367,85 @@ Click "COPY AS JSON" to copy the result of this query to your clipboard. It will
   ]
 
 
-5. Write some queries
-=====================
+5. Use a client library
+=======================
 
-EdgeDB UI is a good way to play around with queries. In practice, though, you'll likely be using one of EdgeDB's *client libraries* to execute queries from your application code.
+EdgeDB UI is a useful development tool, but in practice your application will likely be using one of EdgeDB's *client libraries* to execute queries.
 
 EdgeDB provides official libraries for `JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`__, `Go <https://github.com/edgedb/edgedb-go>`__, `Python <https://github.com/edgedb/edgedb-python>`__, and `Rust <https://github.com/edgedb/edgedb-rust>`_. Let's walk through the process of using these libaries.
 
-First install your library of choice.
+First, configure your environment as needed for your preferred language.
 
 .. tabs::
 
-  .. code-tab:: bash#js
+  .. tab:: Something
+
+     asdflkjasdf
+
+  .. tab:: Else
+
+     qewlrqwer
+
+.. tabs::1
+
+  .. code-tab:: bash#Node.js
+
+    $ npm init -y
+
+  .. code-tab:: txt#Deno
+
+    n/a
+
+  .. code-tab:: txt#Python
+
+    n/a
+
+  .. code-tab:: bash#Rust
+
+    $ cargo init
+
+  .. code-tab:: bash#Go
+
+    $ go mod init example/quickstart
+
+  ..   code-tab:: bash#.NET
+
+    $ dotnet new console -o . -f net6.0
+
+Then install the EdgeDB client library.
+
+.. tabs::
+
+  .. code-tab:: bash#Node.js
 
     $ npm install edgedb
+    # or
+    $ yarn add edgedb
 
-  .. code-tab:: bash
+  .. code-tab:: txt#Deno
 
-    $ cargo install edgedb-tokio
+    n/a
 
-Open the REPL:
+  .. code-tab:: txt#Python
 
-.. code-block:: bash
+    $ pip install edgedb
 
-  $ edgedb
+  .. code-tab:: toml#Rust
 
-Inserting objects
------------------
+    edgedb-tokio = "0.3.0"
+    # additional dependencies
+    tokio = { version = "1", features = ["full"] }
+    anyhow = "1.0.63"
 
-Now, let's add Denis Villeneuve to the database with a simple EdgeQL query:
+  .. code-tab:: bash#Go
 
-.. code-block:: edgeql-repl
+    $ go get github.com/edgedb/edgedb-go
 
-  db> insert Person {
-  ...     first_name := 'Denis',
-  ...     last_name := 'Villeneuve',
-  ... };
-  {default::Person {id: 86d0eb18-b7ff-11eb-ba80-7b8e9facf817}}
+  ..   code-tab:: bash#.NET
 
-As you can see, EdgeQL differs from SQL in some important ways. It
-uses curly braces and the assignment operator (``:=``) to make queries
-**explicit** and **intuitive** for the people who write them: programmers.
-It's also completely **composable**, so subqueries are easy; let's try a
-nested insert.
+    $ dotnet add package EdgeDB.Net.Driver
 
-The query below contains a :ref:`query parameter <ref_eql_params>`
-``$director_id``. After executing the query in the REPL, we'll be prompted to
-provide a value for it. Copy and paste the UUID for Denis Villeneuve from the
-previous query.
-
-.. code-block:: edgeql-repl
-
-  db> with director_id := <uuid>$director_id
-  ... insert Movie {
-  ...   title := 'Blade Runnr 2049', # typo is intentional 🙃
-  ...   release_year := 2017,
-  ...   director := (
-  ...     select Person
-  ...     filter .id = director_id
-  ...   ),
-  ...   actors := {
-  ...     (insert Person {
-  ...       first_name := 'Harrison',
-  ...       last_name := 'Ford',
-  ...     }),
-  ...     (insert Person {
-  ...       first_name := 'Ana',
-  ...       last_name := 'de Armas',
-  ...     }),
-  ...   }
-  ... };
-  Parameter <uuid>$director_id: 86d0eb18-b7ff-11eb-ba80-7b8e9facf817
-  {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
-
-Updating objects
-----------------
-
-Oops, we misspelled "Runner". Let's fix that with an :ref:`update
-<ref_eql_update>` query.
-
-.. code-block:: edgeql-repl
-
-  db> update Movie
-  ... filter .title = 'Blade Runnr 2049'
-  ... set {
-  ...   title := "Blade Runner 2049",
-  ... };
-  {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
-
-Now for something a little more interesting; let's add Ryan Gosling to the
-cast.
-
-.. code-block:: edgeql-repl
-
-  db> update Movie
-  ... filter .title = 'Blade Runner 2049'
-  ... set {
-  ...   actors += (
-  ...     insert Person {
-  ...       first_name := "Ryan",
-  ...       last_name := "Gosling"
-  ...     }
-  ...   )
-  ... };
-  {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
-
-This query uses the ``+=`` operator to assign an additional item to the
-``actors`` link without overwriting the existing contents. By contrast, ``-=``
-unlinks elements and ``:=`` overwrites the link entirely.
-
-Our database is still a little sparse. Let's quickly add a couple more movies.
-
-.. code-block:: edgeql-repl
-
-  db> insert Movie { title := "Dune" };
-  {default::Movie {id: 64d024dc-54d5-11e9-8c54-a3f59e1d995e}}
-  db> insert Movie {
-  ...   title := "Arrival",
-  ...   release_year := 2016
-  ... };
-  {default::Movie {id: ca69776e-40df-11ec-b1b8-b7c909ac034a}}
-
-.. _ref_quickstart_queries:
-
+Then create
 
 6. Run queries with a client library
 ====================================
