@@ -5807,7 +5807,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 if target_is_affected and current_target is not None:
                     affected_targets.add(current_target)
             else:
-                if source.is_view(eff_schema):
+                if not source.is_material_object_type(eff_schema):
                     continue
 
                 current_source = schema.get_by_id(source.id, None)
@@ -5913,7 +5913,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     continue
 
                 source = link.get_source(schema)
-                if source.is_view(schema):
+                if not source.is_material_object_type(schema):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
                     link, schema=schema)
