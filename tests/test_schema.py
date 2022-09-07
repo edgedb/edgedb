@@ -1982,6 +1982,27 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    def test_schema_computed_04(self):
+        """
+            type User {
+                required property name -> str;
+
+                multi link likedPosts := .<author[is PostLike].post;
+            }
+
+            type Post {
+                required property content -> str;
+            }
+
+            abstract type ALike {
+                required link author -> User;
+            }
+
+            type PostLike extending ALike {
+                required link post -> Post;
+            }
+        """
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.
