@@ -742,9 +742,6 @@ def trace_Path(
                             ctx.refs.add(qualify_name(
                                 tip_name, prev_step.ptr.name))
 
-                        # This is a backwards link, so we need the source.
-                        tip = ptr.get_source(ctx.schema)
-
         else:
             tr = trace(step, ctx=ctx)
             if tr is not None:
