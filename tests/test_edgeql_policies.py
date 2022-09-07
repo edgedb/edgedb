@@ -733,3 +733,35 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                     create access policy z allow all using (exists C);
                 };
             ''')
+
+    async def test_edgeql_policies_missing_prop_01(self):
+        await self.con.execute('''
+            CREATE TYPE A {
+                CREATE PROPERTY ts -> datetime;
+                CREATE ACCESS POLICY soft_delete
+                    ALLOW SELECT, UPDATE READ, INSERT
+                    USING (NOT (EXISTS (.ts)));
+                CREATE ACCESS POLICY update_write
+                    ALLOW UPDATE WRITE;
+            }
+        ''')
+
+        await self.con.execute('''
+            insert A;
+        ''')
+
+    async def test_edgeql_policies_missing_prop_02(self):
+        await self.con.execute('''
+            CREATE TYPE A {
+                CREATE MULTI PROPERTY ts -> datetime;
+                CREATE ACCESS POLICY soft_delete
+                    ALLOW SELECT, UPDATE READ, INSERT
+                    USING (NOT (EXISTS (.ts)));
+                CREATE ACCESS POLICY update_write
+                    ALLOW UPDATE WRITE;
+            }
+        ''')
+
+        await self.con.execute('''
+            insert A;
+        ''')
