@@ -694,6 +694,7 @@ class ConstraintCommand(
         from edb.ir import utils as ir_utils
         from . import pointers as s_pointers
         from . import links as s_links
+        from . import objtypes as s_objtypes
         from . import scalars as s_scalars
 
         bases = self.get_resolved_attribute_value(
@@ -717,14 +718,25 @@ class ConstraintCommand(
         elif (base_subjectexpr is not None
                 and subjectexpr.text != base_subjectexpr.text):
             raise errors.InvalidConstraintDefinitionError(
-                f'subjectexpr is already defined for {name}'
+                f'subjectexpr is already defined for {name}',
+                context=sourcectx,
             )
 
         if (isinstance(subject_obj, s_scalars.ScalarType)
                 and constr_base.get_is_aggregate(schema)):
             raise errors.InvalidConstraintDefinitionError(
                 f'{constr_base.get_verbosename(schema)} may not '
-                f'be used on scalar types'
+                f'be used on scalar types',
+                context=sourcectx,
+            )
+
+        if (
+            subjectexpr is None
+            and isinstance(subject_obj, s_objtypes.ObjectType)
+        ):
+            raise errors.InvalidConstraintDefinitionError(
+                "constraints on object types must have an 'on' clause",
+                context=sourcectx,
             )
 
         if subjectexpr is not None:
