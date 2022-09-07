@@ -9539,6 +9539,7 @@ type default::Foo {
                 else:
                     await op
 
+    @test.xerror('only object constraints may use EXCEPT')
     async def test_edgeql_ddl_constraint_19(self):
         # This is pretty marginal, but make sure we can distinguish
         # on and except in name creation;
@@ -9552,8 +9553,10 @@ type default::Foo {
             create type ExceptTest {
                 create property b -> bool;
                 create property e -> bool;
-                create constraint always_ok except (.e);
-                create constraint always_ok on (.e);
+                create link l -> Object {
+                    create constraint always_ok except (.e);
+                    create constraint always_ok on (.e);
+                };
             };
         """)
 
@@ -9596,6 +9599,16 @@ type default::Foo {
                     create property y -> str {
                         create constraint expression on (<array<int32>>[]);
                     }
+                };
+            """)
+
+    async def test_edgeql_ddl_constraint_23(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidConstraintDefinitionError,
+                r"constraints on object types must have an 'on' clause"):
+            await self.con.execute("""
+                create type X {
+                    create constraint exclusive;
                 };
             """)
 
@@ -12757,7 +12770,7 @@ type default::Foo {
             };
 
             CREATE TYPE Foo {
-                CREATE CONSTRAINT bogus;
+                CREATE CONSTRAINT bogus on (true);
             };
         """)
 

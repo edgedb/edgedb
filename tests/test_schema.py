@@ -8745,7 +8745,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             type ExceptTest {
                 property e -> std::bool;
                 constraint always_ok on (.e);
-                constraint always_ok except (.e);
+                constraint always_ok on (.e) except (.e);
                 constraint expression on (true) except (.e);
                 index on (.id) except (.e);
             };
@@ -8757,8 +8757,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             create type test::ExceptTest {
                 create property e -> std::bool;
                 create constraint std::expression on (true) except (.e);
+                create constraint test::always_ok on (.e) except (.e);
                 create constraint test::always_ok on (.e);
-                create constraint test::always_ok except (.e);
                 create index on (.id) except (.e);
             };
             """,
