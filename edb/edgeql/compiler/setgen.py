@@ -93,7 +93,7 @@ def new_set(
 
     if (
         not ignore_rewrites
-        and rw_key not in ctx.type_rewrites
+        and rw_key not in ctx.env.type_rewrites
         and isinstance(stype, s_objtypes.ObjectType)
         and ctx.env.options.apply_query_rewrites
     ):
@@ -336,7 +336,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
                 view_set = ctx.view_sets.get(stype)
                 if view_set is not None:
-                    view_scope_info = ctx.path_scope_map[view_set]
+                    view_scope_info = ctx.env.path_scope_map[view_set]
                     path_tip = new_set_from_set(
                         view_set,
                         merge_current_ns=(
@@ -852,7 +852,7 @@ def needs_rewrite_existence_assertion(
         ptrcls.get_required(ctx.env.schema)
         and direction == PtrDir.Outbound
         and (target := ptrcls.get_target(ctx.env.schema))
-        and ctx.type_rewrites.get((target, False))
+        and ctx.env.type_rewrites.get((target, False))
         and ptrcls.get_shortname(ctx.env.schema).name != '__type__'
     )
 
@@ -880,7 +880,7 @@ def _is_computable_ptr(
     ctx: context.ContextLevel,
 ) -> bool:
     try:
-        qlexpr = ctx.source_map[ptrcls].qlexpr
+        qlexpr = ctx.env.source_map[ptrcls].qlexpr
     except KeyError:
         pass
     else:
@@ -1280,7 +1280,7 @@ def computable_ptr_set(
     qlctx: Optional[context.ContextLevel]
 
     try:
-        comp_info = ctx.source_map[ptrcls]
+        comp_info = ctx.env.source_map[ptrcls]
         qlexpr = comp_info.qlexpr
         assert isinstance(comp_info.context, context.ContextLevel)
         qlctx = comp_info.context
@@ -1667,8 +1667,8 @@ def should_materialize(
     ):
         reasons.append(irast.MaterializeVisible(sets=vis))
 
-    if ptrcls and ptrcls in ctx.source_map:
-        reasons += ctx.source_map[ptrcls].should_materialize
+    if ptrcls and ptrcls in ctx.env.source_map:
+        reasons += ctx.env.source_map[ptrcls].should_materialize
 
     reasons += should_materialize_type(typ, ctx=ctx)
 
@@ -1683,8 +1683,8 @@ def should_materialize_type(
     if isinstance(
             typ, (s_objtypes.ObjectType, s_pointers.Pointer)):
         for pointer in typ.get_pointers(schema).objects(schema):
-            if pointer in ctx.source_map:
-                reasons += ctx.source_map[pointer].should_materialize
+            if pointer in ctx.env.source_map:
+                reasons += ctx.env.source_map[pointer].should_materialize
     elif isinstance(typ, s_types.Collection):
         for sub in typ.get_subtypes(schema):
             reasons += should_materialize_type(sub, ctx=ctx)
