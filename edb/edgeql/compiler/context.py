@@ -132,7 +132,7 @@ class Environment:
     path_scope: irast.ScopeTreeNode
     """Overrall expression path scope tree."""
 
-    schema_view_cache: Dict[s_types.Type, s_types.Type]
+    schema_view_cache: Dict[s_types.Type, tuple[s_types.Type, irast.Set]]
     """Type cache used by schema-level views."""
 
     query_parameters: Dict[str, irast.Param]
