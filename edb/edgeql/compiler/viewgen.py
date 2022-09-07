@@ -76,7 +76,7 @@ def process_view(
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
 
     cache_key = (stype, exprtype, tuple(elements))
-    view_scls = ctx.shape_type_cache.get(cache_key)
+    view_scls = ctx.env.shape_type_cache.get(cache_key)
     if view_scls is not None:
         return view_scls, ir_set
 
@@ -104,7 +104,7 @@ def process_view(
         ctx=ctx,
     )
 
-    ctx.shape_type_cache[cache_key] = view_scls
+    ctx.env.shape_type_cache[cache_key] = view_scls
 
     return view_scls, ir
 
@@ -324,7 +324,7 @@ def _process_view(
             source = view_scls
 
         if is_defining_shape:
-            cinfo = ctx.source_map.get(ptrcls)
+            cinfo = ctx.env.source_map.get(ptrcls)
             if cinfo is not None:
                 shape_op = cinfo.shape_op
             else:
@@ -586,7 +586,7 @@ def _normalize_view_ptr_expr(
                 ptrcls, view_scls, ctx=ctx)
 
         base_ptrcls = ptrcls.get_bases(ctx.env.schema).first(ctx.env.schema)
-        base_ptr_is_computable = base_ptrcls in ctx.source_map
+        base_ptr_is_computable = base_ptrcls in ctx.env.source_map
         ptr_name = sn.QualName(
             module='__',
             name=ptrcls.get_shortname(ctx.env.schema).name,
@@ -991,7 +991,7 @@ def _normalize_view_ptr_expr(
         )
 
     if qlexpr is not None:
-        ctx.source_map[ptrcls] = irast.ComputableInfo(
+        ctx.env.source_map[ptrcls] = irast.ComputableInfo(
             qlexpr=qlexpr,
             irexpr=irexpr,
             context=ctx,
@@ -1260,7 +1260,7 @@ def _inline_type_computable(
         ptr = setgen.resolve_ptr(stype, compname, track_ref=None, ctx=ctx)
         # The pointer might exist on the base type. That doesn't count,
         # and we need to re-inject it.
-        if ptr not in ctx.source_map:
+        if ptr not in ctx.env.source_map:
             ptr = None
     except errors.InvalidReferenceError:
         ptr = None

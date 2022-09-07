@@ -184,23 +184,24 @@ def try_type_rewrite(
 ) -> None:
     schema = ctx.env.schema
     rw_key = (stype, skip_subtypes)
+    type_rewrites = ctx.env.type_rewrites
 
     # Make sure the base types in unions and intersections have their
     # rewrites compiled
     if stype.is_compound_type(schema):
-        ctx.type_rewrites[rw_key] = None
+        type_rewrites[rw_key] = None
         objs = (
             stype.get_union_of(schema).objects(schema) +
             stype.get_intersection_of(schema).objects(schema)
         )
         for obj in objs:
             srw_key = (obj, skip_subtypes)
-            if srw_key not in ctx.type_rewrites:
+            if srw_key not in type_rewrites:
                 try_type_rewrite(
                     stype=obj, skip_subtypes=skip_subtypes, ctx=ctx)
                 # Mark this as having a real rewrite if any parts do
-                if ctx.type_rewrites[srw_key]:
-                    ctx.type_rewrites[rw_key] = True
+                if type_rewrites[srw_key]:
+                    type_rewrites[rw_key] = True
         return
 
     # What we *hope* to do, is to just directly select from the view
@@ -223,7 +224,7 @@ def try_type_rewrite(
 
     pols = get_access_policies(stype, ctx=ctx)
     if not pols and not children_have_policies:
-        ctx.type_rewrites[rw_key] = None
+        type_rewrites[rw_key] = None
         return
 
     # TODO: caching?
@@ -239,7 +240,7 @@ def try_type_rewrite(
             children_overlap = True
 
     # Put a placeholder to prevent recursion.
-    ctx.type_rewrites[rw_key] = None
+    type_rewrites[rw_key] = None
 
     sets = []
     # Generate the the filters for the base type we are actually considering.
@@ -310,7 +311,7 @@ def try_type_rewrite(
     else:
         filtered_set = sets[0]
 
-    ctx.type_rewrites[rw_key] = filtered_set
+    type_rewrites[rw_key] = filtered_set
 
 
 def compile_dml_policy(
@@ -320,7 +321,7 @@ def compile_dml_policy(
     ctx: context.ContextLevel,
 ) -> Optional[irast.PolicyExpr]:
     """Compile a policy filter for a DML statement at a particular type"""
-    if not ctx.type_rewrites.get((stype, False)):
+    if not ctx.env.type_rewrites.get((stype, False)):
         return None
 
     pols = get_access_policies(stype, ctx=ctx)
@@ -330,7 +331,7 @@ def compile_dml_policy(
     with ctx.detached() as subctx:
         # TODO: can we make sure to always avoid generating needless
         # select filters
-        skip_subtypes = (stype, False) not in ctx.type_rewrites
+        skip_subtypes = (stype, False) not in ctx.env.type_rewrites
         result = setgen.class_set(
             stype, path_id=result.path_id, skip_subtypes=skip_subtypes,
             ctx=ctx)

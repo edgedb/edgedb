@@ -197,7 +197,7 @@ def compile_ForQuery(
                 context=ctx.env.type_origins.get(iterator_type),
             )
 
-        view_scope_info = sctx.path_scope_map[iterator_view]
+        view_scope_info = sctx.env.path_scope_map[iterator_view]
 
         pathctx.register_set_in_scope(
             iterator_stmt,
@@ -273,7 +273,7 @@ def _make_group_binding(
     name = s_name.UnqualName(alias)
     ctx.aliased_views[name] = binding_type
     ctx.view_sets[binding_type] = binding_set
-    ctx.path_scope_map[binding_set] = context.ScopeInfo(
+    ctx.env.path_scope_map[binding_set] = context.ScopeInfo(
         path_scope=ctx.path_scope,
         binding_kind=irast.BindingKind.For,
         pinned_path_id_ns=ctx.path_id_namespace,
