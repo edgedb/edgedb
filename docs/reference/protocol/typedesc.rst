@@ -336,10 +336,11 @@ Ranges are encoded on the wire as :ref:`ranges <ref_protocol_fmt_range>`.
 Scalar Type Name Annotation
 ===========================
 
-Part of the type descriptor when the :ref:`ref_protocol_msg_execute`
-client message has the ``INLINE_TYPENAMES`` header set.  Every non-builtin
-base scalar type and all enum types would have their full schema name
-provided via this annotation.
+Part of the type descriptor when the :ref:`ref_protocol_msg_parse` or
+:ref:`ref_protocol_msg_execute` client message has the
+``INJECT_OUTPUT_TYPE_NAMES`` CompilationFlag set.  Every scalar type, all enum
+types and object types would have their full schema name provided via this
+annotation.
 
 .. code-block:: c
 
