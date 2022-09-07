@@ -14022,6 +14022,28 @@ type default::Foo {
                 ALTER TYPE Foo ALTER LINK link SET REQUIRED;
             """)
 
+    async def test_edgeql_ddl_link_union_delete_01(self):
+        await self.con.execute(r"""
+            CREATE TYPE default::M;
+            CREATE ABSTRACT TYPE default::Base {
+                CREATE LINK l -> default::M;
+            };
+            CREATE TYPE default::A EXTENDING default::Base;
+            CREATE TYPE default::B EXTENDING default::Base;
+            CREATE TYPE default::L {
+                CREATE LINK l -> (default::B | default::A);
+            };
+            CREATE TYPE ForceRedo {
+                CREATE LINK l -> default::M;
+            };
+        """)
+        await self.con.execute(r"""
+            insert M;
+        """)
+        await self.con.execute(r"""
+            delete M;
+        """)
+
     async def test_edgeql_ddl_alter_union_01(self):
         await self.con.execute(r"""
             CREATE TYPE Foo;
