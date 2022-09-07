@@ -336,7 +336,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
                 view_set = ctx.view_sets.get(stype)
                 if view_set is not None:
-                    view_scope_info = ctx.path_scope_map[view_set]
+                    view_scope_info = ctx.env.path_scope_map[view_set]
                     path_tip = new_set_from_set(
                         view_set,
                         merge_current_ns=(

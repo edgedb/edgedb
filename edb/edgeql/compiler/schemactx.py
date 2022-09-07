@@ -256,7 +256,7 @@ def derive_view(
             and not (
                 stype.generic(ctx.env.schema)
                 and (view_ir := ctx.view_sets.get(stype))
-                and (scope_info := ctx.path_scope_map.get(view_ir))
+                and (scope_info := ctx.env.path_scope_map.get(view_ir))
                 and scope_info.binding_kind
             )
             and isinstance(derived, s_objtypes.ObjectType)

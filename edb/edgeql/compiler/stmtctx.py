@@ -92,7 +92,7 @@ def init_context(
     for orig, remapped in options.type_remaps.items():
         rset = compile_anchor('__', remapped, ctx=ctx)
         ctx.view_sets[orig] = rset
-        ctx.path_scope_map[rset] = context.ScopeInfo(
+        ctx.env.path_scope_map[rset] = context.ScopeInfo(
             path_scope=ctx.path_scope, binding_kind=None
         )
 
@@ -637,7 +637,7 @@ def declare_view(
         view_set = dispatch.compile(astutils.ensure_qlstmt(expr), ctx=subctx)
         assert isinstance(view_set, irast.Set)
 
-        ctx.path_scope_map[view_set] = context.ScopeInfo(
+        ctx.env.path_scope_map[view_set] = context.ScopeInfo(
             path_scope=subctx.path_scope,
             pinned_path_id_ns=pinned_pid_ns,
             binding_kind=binding_kind,

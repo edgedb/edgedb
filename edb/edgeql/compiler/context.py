@@ -267,6 +267,9 @@ class Environment:
     ]
     """Type cache for shape expressions."""
 
+    path_scope_map: Dict[irast.Set, ScopeInfo]
+    """A dictionary of scope info that are appropriate for a given view."""
+
     def __init__(
         self,
         *,
@@ -315,6 +318,7 @@ class Environment:
         self.type_rewrites = {}
         self.shape_type_cache = {}
         self.expr_view_cache = {}
+        self.path_scope_map = {}
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
@@ -487,9 +491,6 @@ class ContextLevel(compiler.ContextLevel):
     path_scope: irast.ScopeTreeNode
     """Path scope tree, with per-lexical-scope levels."""
 
-    path_scope_map: Dict[irast.Set, ScopeInfo]
-    """A dictionary of scope info that are appropriate for a given view."""
-
     iterator_ctx: Optional[ContextLevel]
     """The context of the statement where all iterators should be placed."""
 
@@ -582,7 +583,6 @@ class ContextLevel(compiler.ContextLevel):
             self.inserting_paths = {}
             self.view_map = collections.ChainMap()
             self.path_scope = env.path_scope
-            self.path_scope_map = {}
             self.iterator_path_ids = frozenset()
             self.scope_id_ctr = compiler.SimpleCounter()
             self.view_scls = None
@@ -625,7 +625,6 @@ class ContextLevel(compiler.ContextLevel):
             if prevlevel.path_scope is None:
                 prevlevel.path_scope = self.env.path_scope
             self.path_scope = prevlevel.path_scope
-            self.path_scope_map = prevlevel.path_scope_map
             self.scope_id_ctr = prevlevel.scope_id_ctr
             self.view_scls = prevlevel.view_scls
             self.expr_exposed = prevlevel.expr_exposed
