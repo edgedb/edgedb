@@ -627,7 +627,10 @@ def process_insert_body(
             return None
         if not (rptr := path_id.rptr()):
             return None
-        return ptr_map.get(rptr.real_material_ptr)
+        if ret := ptr_map.get(rptr.real_material_ptr):
+            return ret
+        # Properties that aren't specified are {}
+        return pgast.NullConstant()
 
     fallback_rvar = pgast.DynamicRangeVar(dynamic_get_path=dynamic_get_path)
     pathctx.put_path_source_rvar(
