@@ -397,7 +397,7 @@ class TypeSerializer:
                 buf.append(_uint16_packer(self.uuid_to_pos[el_type]))
 
             if self.inline_typenames:
-                self._add_annotation(mt, type_id.bytes)
+                self._add_typename_annotation(mt, type_id.bytes)
             self._register_type_id(type_id)
             return type_id
 
@@ -436,7 +436,7 @@ class TypeSerializer:
                 buf.append(_uint16_packer(self.uuid_to_pos[bt_id]))
 
             if self.inline_typenames:
-                self._add_annotation(mt)
+                self._add_typename_annotation(mt)
             self._register_type_id(type_id)
             return type_id
 
@@ -502,7 +502,7 @@ class TypeSerializer:
         else:
             return self._describe_type(t, {}, {}, protocol_version)
 
-    def _add_annotation(self, t: s_types.Type, type_id=None):
+    def _add_typename_annotation(self, t: s_types.Type, type_id=None):
         self.anno_buffer.append(CTYPE_ANNO_TYPENAME)
 
         self.anno_buffer.append(type_id or t.id.bytes)

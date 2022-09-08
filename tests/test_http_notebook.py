@@ -66,7 +66,8 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
                         'kind': 'data',
                         'data': [
                             'AAAAAAAAAAAAAAAAAAABBQ==',
-                            'AgAAAAAAAAAAAAAAAAAAAQU=',
+                            'AgAAAAAAAAAAAAAAAAAAAQX/AAAAAAAAAAAAAAAAAA'
+                            'ABBQAAAApzdGQ6OmludDY0',
                             'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
                             'U0VMRUNU'
                         ]
@@ -75,7 +76,8 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
                         'kind': 'data',
                         'data': [
                             'AAAAAAAAAAAAAAAAAAABAQ==',
-                            'AgAAAAAAAAAAAAAAAAAAAQE=',
+                            'AgAAAAAAAAAAAAAAAAAAAQH/AAAAAAAAAAAAAAAAAA'
+                            'ABAQAAAAhzdGQ6OnN0cg==',
                             'RAAAAA4AAQAAAARBQUFB',
                             'U0VMRUNU'
                         ]
@@ -100,7 +102,8 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
                         'kind': 'data',
                         'data': [
                             'AAAAAAAAAAAAAAAAAAABBQ==',
-                            'AgAAAAAAAAAAAAAAAAAAAQU=',
+                            'AgAAAAAAAAAAAAAAAAAAAQX/AAAAAAAAAAAAAAAAAA'
+                            'ABBQAAAApzdGQ6OmludDY0',
                             'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
                             'U0VMRUNU'
                         ]
@@ -181,7 +184,8 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
                         'kind': 'data',
                         'data': [
                             'AAAAAAAAAAAAAAAAAAABBQ==',
-                            'AgAAAAAAAAAAAAAAAAAAAQU=',
+                            'AgAAAAAAAAAAAAAAAAAAAQX/AAAAAAAAAAAAAAAAAA'
+                            'ABBQAAAApzdGQ6OmludDY0',
                             'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
                             'U0VMRUNU'
                         ]
