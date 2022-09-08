@@ -37,6 +37,7 @@ object types automatically contain a property ``id`` of type ``UUID`` that's
 *required*, *globally unique*, and *readonly*. This ``id`` is assigned upon
 creation and never changes.
 
+
 Abstract types
 --------------
 

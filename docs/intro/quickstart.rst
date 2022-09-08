@@ -24,11 +24,10 @@ command below.
 
   $ curl https://sh.edgedb.com --proto '=https' -sSf1 | sh
 
-**Windows**
+**Windows (Powershell)**
 
 .. code-block::
 
-  # in Powershell
   PS> iwr https://ps1.edgedb.com -useb | iex
 
 This command downloads and executes a bash script that installs the ``edgedb``
@@ -107,7 +106,9 @@ This did a couple things.
   database may contain several **modules** (though commonly your schema
   will be entirely defined inside the ``default`` module).
 
-Let's connect to our new instance! Run ``edgedb`` in your terminal to open an interactive REPL to your instance. You're now connected to a live EdgeDB instance running on your computer! Try executing a simple query:
+Let's connect to our new instance! Run ``edgedb`` in your terminal to open an
+interactive REPL to your instance. You're now connected to a live EdgeDB
+instance running on your computer! Try executing a simple query:
 
 .. code-block:: edgeql-repl
 
@@ -196,7 +197,7 @@ which creates a migration file.
 .. code-block:: bash
 
   $ edgedb migration create
-  Created ./dbschema/migrations/00001.edgeql, id: m1la5u4qi...
+  Created ./dbschema/migrations/00001.edgeql (id: <hash>)
 
 .. note::
 
@@ -204,7 +205,8 @@ which creates a migration file.
   a simple EdgeQL script consisting of :ref:`DDL <ref_eql_sdl>` commands like
   ``create type``, ``alter type``, and ``create property``.
 
-The migration file has been *created* but we haven't *applied it* against the database. Let's do that.
+The migration file has been *created* but we haven't *applied it* against the
+database. Let's do that.
 
 .. code-block:: bash
 
@@ -230,7 +232,8 @@ object types.
 
 .. _Migrate your schema:
 
-Before we procede, let's try making a small change to our schema: making the ``title`` property of ``Movie`` required. First, update the schema file:
+Before we procede, let's try making a small change to our schema: making the
+``title`` property of ``Movie`` required. First, update the schema file:
 
 .. code-block:: sdl-diff
 
@@ -241,35 +244,47 @@ Before we procede, let's try making a small change to our schema: making the ``t
         multi link actors -> Person;
       }
 
-Then create another migration. Because this isn't the initial migration, we see something a little different than before.
+Then create another migration. Because this isn't the initial migration, we
+see something a little different than before.
 
 .. code-block:: bash
 
   $ edgedb migration create
-  did you make property 'title' of object type 'default::Movie' required? [y,n,l,c,b,s,q,?]
+  did you make property 'title' of object type 'default::Movie'
+  required? [y,n,l,c,b,s,q,?]
   >
 
-As before, EdgeDB parses the schema files and compared them against its current internal schema. It correctly detects the change we made, and prompts us to confirm it. This interactive process lets you sanity check every change and provide guidance when a migration is ambiguous (e.g. when a property is renamed).
+As before, EdgeDB parses the schema files and compared them against its
+current internal schema. It correctly detects the change we made, and prompts
+us to confirm it. This interactive process lets you sanity check every change
+and provide guidance when a migration is ambiguous (e.g. when a property is
+renamed).
 
 Enter ``y`` to confirm the change.
 
 .. code-block:: bash
 
   $ edgedb migration create
-  did you make property 'title' of object type 'default::Movie' required? [y,n,l,c,b,s,q,?]
+  did you make property 'title' of object type 'default::Movie'
+  required? [y,n,l,c,b,s,q,?]
   > y
-  Please specify an expression to populate existing objects in order to make property 'title' of object type 'default::Movie' required:
+  Please specify an expression to populate existing objects in
+  order to make property 'title' of object type 'default::Movie' required:
   fill_expr>
 
-Hm, now we're seeing another prompt. Because ``title`` is changing from *optional* to *required*, EdgeDB is asking us what to do for all the ``Movie`` objects that don't currently have a value for ``title`` defined. We'll just specify a placeholder value: ``"Untitled"``.
+Hm, now we're seeing another prompt. Because ``title`` is changing from
+*optional* to *required*, EdgeDB is asking us what to do for all the ``Movie``
+objects that don't currently have a value for ``title`` defined. We'll just
+specify a placeholder value: ``"Untitled"``.
 
 .. code-block::
 
   fill_expr> "Untitled"
-  Created dbschema/migrations/00002.edgeql, id: m1rd2ikgwdtlj5ws7ll6rwzvyiui2xbrkzig4adsvwy2sje7kxeh3a
+  Created dbschema/migrations/00002.edgeql (id: <hash>)
 
 
-If we look at the generated migration file, we see it contains the following lines:
+If we look at the generated migration file, we see it contains the following
+lines:
 
 .. code-block:: edgeql
 
@@ -295,7 +310,8 @@ Let's wrap up by applying the new migration.
 5. Write some queries
 =====================
 
-Let's write some simple queries via *EdgeDB UI*, the admin dashboard baked into every EdgeDB instance (v2.0+ only). To open the dashboard:
+Let's write some simple queries via *EdgeDB UI*, the admin dashboard baked
+into every EdgeDB instance (v2.0+ only). To open the dashboard:
 
 .. code-block:: bash
 
@@ -303,24 +319,30 @@ Let's write some simple queries via *EdgeDB UI*, the admin dashboard baked into 
   Opening URL in browser:
   http://localhost:107xx/ui?authToken=<jwt token>
 
-You should see a simple landing page, as below. You'll see a card for each database running on your instance—remember: each instance can contain multiple databases!
+You should see a simple landing page, as below. You'll see a card for each
+database running on your instance—remember: each instance can contain multiple
+databases!
 
 .. image:: images/ui_landing.jpg
   :width: 100%
 
-Currently, there's only one database, which is simply called ``edgedb`` by default. Click the ``edgedb`` card.
+Currently, there's only one database, which is simply called ``edgedb`` by
+default. Click the ``edgedb`` card.
 
 .. image:: images/ui_db.jpg
   :width: 100%
 
-Then click ``Open REPL`` so we can start writing some queries. We'll start simple: ``select "Hello world!"``. Click ``RUN`` to execute the query.
+Then click ``Open REPL`` so we can start writing some queries. We'll start
+simple: ``select "Hello world!"``. Click ``RUN`` to execute the query.
 
 .. image:: images/ui_hello.jpg
     :width: 100%
 
-The query should appear in the "query notebook" on the right, along with the result of the query.
+The query should appear in the "query notebook" on the right, along with the
+result of the query.
 
-Now let's actually ``insert`` an object into our database. Copy the following query into the query textarea and hit ``Run``.
+Now let's actually ``insert`` an object into our database. Copy the following
+query into the query textarea and hit ``Run``.
 
 .. code-block:: edgeql
 
@@ -328,7 +350,8 @@ Now let's actually ``insert`` an object into our database. Copy the following qu
     title := "Dune"
   };
 
-Nice! You've officially inserted the first object into your database! Let's add a couple cast members with an ``update`` query.
+Nice! You've officially inserted the first object into your database! Let's
+add a couple cast members with an ``update`` query.
 
 .. code-block:: edgeql
 
@@ -352,7 +375,8 @@ Finally, we can run a ``select`` query to fetch all the data we just inserted.
     }
   };
 
-Click "COPY AS JSON" to copy the result of this query to your clipboard. It will look something like this:
+Click ``COPY AS JSON`` to copy the result of this query to your clipboard. It
+will look something like this:
 
 .. code-block:: json
 
@@ -366,163 +390,29 @@ Click "COPY AS JSON" to copy the result of this query to your clipboard. It will
     }
   ]
 
-
-5. Use a client library
-=======================
-
-EdgeDB UI is a useful development tool, but in practice your application will likely be using one of EdgeDB's *client libraries* to execute queries.
-
-EdgeDB provides official libraries for `JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`__, `Go <https://github.com/edgedb/edgedb-go>`__, `Python <https://github.com/edgedb/edgedb-python>`__, and `Rust <https://github.com/edgedb/edgedb-rust>`_. Let's walk through the process of using these libaries.
-
-First, configure your environment as needed for your preferred language.
-
-.. tabs::
-
-  .. tab:: Something
-
-     asdflkjasdf
-
-  .. tab:: Else
-
-     qewlrqwer
-
-.. tabs::1
-
-  .. code-tab:: bash#Node.js
-
-    $ npm init -y
-
-  .. code-tab:: txt#Deno
-
-    n/a
-
-  .. code-tab:: txt#Python
-
-    n/a
-
-  .. code-tab:: bash#Rust
-
-    $ cargo init
-
-  .. code-tab:: bash#Go
-
-    $ go mod init example/quickstart
-
-  ..   code-tab:: bash#.NET
-
-    $ dotnet new console -o . -f net6.0
-
-Then install the EdgeDB client library.
-
-.. tabs::
-
-  .. code-tab:: bash#Node.js
-
-    $ npm install edgedb
-    # or
-    $ yarn add edgedb
-
-  .. code-tab:: txt#Deno
-
-    n/a
-
-  .. code-tab:: txt#Python
-
-    $ pip install edgedb
-
-  .. code-tab:: toml#Rust
-
-    edgedb-tokio = "0.3.0"
-    # additional dependencies
-    tokio = { version = "1", features = ["full"] }
-    anyhow = "1.0.63"
-
-  .. code-tab:: bash#Go
-
-    $ go get github.com/edgedb/edgedb-go
-
-  ..   code-tab:: bash#.NET
-
-    $ dotnet add package EdgeDB.Net.Driver
-
-Then create
-
-6. Run queries with a client library
-====================================
-
-Let's write some basic queries:
-
-.. code-block:: edgeql-repl
-
-  db> select Movie;
-  {
-    default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05},
-    default::Movie {id: 64d024dc-54d5-11e9-8c54-a3f59e1d995e},
-    default::Movie {id: ca69776e-40df-11ec-b1b8-b7c909ac034a}
-  }
-
-This query simply returns all the ``Movie`` objects in the database. By
-default, only the ``id`` property is returned for each result. To specify
-which properties to select, add a :ref:`shape <ref_reference_shapes>`:
-
-.. code-block:: edgeql-repl
-
-  db> select Movie {
-  ...   title,
-  ...   release_year
-  ... };
-  {
-    default::Movie {title: 'Blade Runner 2049', release_year: 2017},
-    default::Movie {title: 'Dune', release_year: {}},
-    default::Movie {title: 'Arrival', release_year: 2016}
-  }
-
-This time, the results contain ``title`` and ``release_year`` as requested in
-the query **shape**. Note that the ``release_year`` for Dune is given as
-``{}`` (the empty set). This is the equivalent of a ``null`` value in SQL.
-
-Let's retrieve some information about Blade Runner 2049.
-
-.. code-block:: edgeql-repl
-
-  db> select Movie {
-  ...   title,
-  ...   release_year,
-  ...   actors: {
-  ...     first_name,
-  ...     last_name
-  ...   }
-  ... }
-  ... filter .title = "Blade Runner 2049";
-  {
-    default::Movie {
-      title: 'Blade Runner 2049',
-      release_year: 2017,
-      director: default::Person {first_name: 'Denis', last_name: 'Villeneuve'},
-      actors: {
-        default::Person {first_name: 'Harrison', last_name: 'Ford'},
-        default::Person {first_name: 'Ana', last_name: 'de Armas'},
-        default::Person {first_name: 'Ryan', last_name: 'Gosling'},
-      },
-    },
-  }
-
-Nice and easy! We're able to fetch the movie and its related objects by
-nesting shapes (similar to GraphQL).
-
+EdgeDB UI is a useful development tool, but in practice your application will
+likely be using one of EdgeDB's *client libraries* to execute queries. EdgeDB
+provides official libraries for
+`JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`__,
+`Go <https://github.com/edgedb/edgedb-go>`__,
+`Python <https://github.com/edgedb/edgedb-python>`__, and
+`Rust <https://github.com/edgedb/edgedb-rust>`_. Check out the :ref:`Clients
+<ref_intro_clients>` guide to get started with the language of your choice.
 
 .. _ref_quickstart_onwards:
 
 .. _Computeds:
 
-8. Onwards and upwards
-======================
+Onwards and upwards
+===================
 
 You now know the basics of EdgeDB! You've installed the CLI and database, set
-up a local project, run a couple migrations, inserted and queried some data, and used a client library.
+up a local project, run a couple migrations, inserted and queried some data,
+and used a client library.
 
 - For a more in-depth exploration of each topic covered here, continue reading
-  the other pages in the Getting Started section.
+  the other pages in the Getting Started section, which will cover important
+  topics like migrations, the schema language, and EdgeQL in greater detail.
 
 - For guided tours of major concepts, check out the
   showcase pages for `Data Modeling </showcase/data-modeling>`_,

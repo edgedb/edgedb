@@ -38,7 +38,6 @@ containing the value (``?host_file=./hostname.txt``).
   For a breakdown of these configuration options, see :ref:`Reference >
   Connection Parameters <ref_reference_connection_granular>`.
 
-
 .. list-table::
 
   * - **Plain param**

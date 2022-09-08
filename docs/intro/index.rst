@@ -12,6 +12,7 @@ Get Started
     quickstart
     cli
     instances
+    projects
     schema
     migrations
     edgeql
@@ -77,7 +78,7 @@ EdgeQL.
 - **CLI** —
   The most commonly used CLI functionality is covered in the :ref:`Quickstart
   <ref_quickstart>`. For additional details, we have dedicated guides for
-  :ref:`Migrations <ref_guide_migrations>` and :ref:`Projects
+  :ref:`Migrations <ref_intro_migrations>` and :ref:`Projects
   <ref_guide_using_projects>`. A full CLI reference is available under
   :ref:`CLI <ref_cli_overview>`.
 

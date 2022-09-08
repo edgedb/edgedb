@@ -13,6 +13,7 @@ declare *properties* on object types.
 
 Scalar types
 ^^^^^^^^^^^^
+
 .. include:: ../stdlib/scalar_table.rst
 
 Custom scalar types can also be declared. For full documentation, see :ref:`SDL

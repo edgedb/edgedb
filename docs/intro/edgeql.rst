@@ -1,7 +1,7 @@
-.. _ref_eql_primer:
+.. _ref_intro_edgeql:
 
-Writing queries
-===============
+EdgeQL
+======
 
 EdgeQL is the query language of EdgeDB. It's intended as a spiritual successor
 to SQL that solves some of its biggest design limitations. This page is
@@ -19,18 +19,19 @@ Python, Golang, and Rust, or you can execute queries :ref:`over HTTP
   :ref:`TypeScript query builder <edgedb-js-qb>`, which lets you write
   strongly-typed EdgeQL queries in a code-first way.
 
+Want to follow along with the queries below? Open the `Interactive
+Tutorial </tutorial>`_ in a separate tab. Copy and paste the queries below and
+execute them directly from the browser.
 
-Literals
-^^^^^^^^
+Scalar literals
+^^^^^^^^^^^^^^^
 
 .. tabs::
 
   .. code-tab:: edgeql-repl
 
-    db> select 'Hello there!';
+    db> select "i ❤️ edgedb";
     {'i ❤️ edgedb'}
-    db> select "Hello there!"[0:5];
-    {'Hello'}
     db> select false;
     {false}
     db> select 3.14;
@@ -54,8 +55,6 @@ Literals
 
     e.str("i ❤️ edgedb")
     // string
-    e.str("hello there!").slice(0, 5)
-    // string
     e.bool(false)
     // boolean
     e.int64(42)
@@ -77,7 +76,8 @@ Literals
     e.bytes(Buffer.from("bina\\x01ry"))
     // Buffer
 
-EdgeDB also supports collection types like arrays, tuples, and a ``json`` type.
+
+EdgeDB supports collection types like arrays, tuples, and a ``json`` type.
 
 .. tabs::
 
@@ -85,9 +85,9 @@ EdgeDB also supports collection types like arrays, tuples, and a ``json`` type.
 
     db> select ['hello', 'world'];
     {['hello', 'world']}
-    db> select ('Apple', 7, true);
+    db> select ('Apple', 7, true);   # unnamed tuple
     {('Apple', 7, true)}
-    db> select (fruit := 'Apple', quantity := 3.14, fresh := true);
+    db> select (fruit := 'Apple', quantity := 3.14, fresh := true);  # named tuple
     {(fruit := 'Apple', quantity := 3.14, fresh := true)}
     db> select <json>["this", "is", "an", "array"];
     {"[\"this\", \"is\", \"an\", \"array\"]"}
@@ -172,8 +172,7 @@ Similarly, it provides a comprehensive set of built-in operators.
     e.op(e.duration("5 minutes"), "+", e.duration("2 hours"))
 
 See :ref:`Docs > Standard Library <ref_std>` for reference documentation on
-all built-in types, functions, and operators.
-
+all built-in types, including the functions and operators that apply to them.
 
 Insert an object
 ^^^^^^^^^^^^^^^^
@@ -182,12 +181,10 @@ Insert an object
 
   .. code-tab:: edgeql-repl
 
-    db> insert Movie {
-    ...   title := 'Doctor Strange 2',
-    ...   release_year := 2022
-    ... };
-    {default::Movie {id: 4fb990b6-0d54-11ed-a86c-9b90e88c991b}}
-
+    insert Movie {
+      title := 'Doctor Strange 2',
+      release_year := 2022
+    };
 
   .. code-tab:: typescript
 
@@ -203,6 +200,37 @@ Insert an object
 
 See :ref:`Docs > EdgeQL > Insert <ref_eql_insert>`.
 
+Nested insert
+^^^^^^^^^^^^^
+
+One of EdgeQL's greatest features is that it's easy to compose. Nested inserts are easily achieved with subqueries.
+
+.. tabs::
+
+  .. code-tab:: edgeql
+
+    insert Movie {
+      title := 'Doctor Strange 2',
+      release_year := 2022,
+      director := (insert Person {
+        name := "Sam Raimi"
+      })
+    };
+
+
+  .. code-tab:: typescript
+
+    const query = e.insert(e.Movie, {
+      title: 'Doctor Strange 2',
+      release_year: 2022
+    });
+
+    const result = await query.run(client);
+    // {id: string}
+    // by default INSERT only returns
+    // the id of the new object
+
+
 Select objects
 ^^^^^^^^^^^^^^
 
@@ -213,18 +241,10 @@ type.
 
   .. code-tab:: edgeql-repl
 
-    db> select Movie {
-    ...   id,
-    ...   title
-    ... };
-    {
-      default::Movie {
-        id: 4fb990b6-0d54-11ed-a86c-9b90e88c991b,
-        title: 'Doctor Strange 2'
-      },
-      ...
-    }
-
+    select Movie {
+      id,
+      title
+    };
 
   .. code-tab:: typescript
 

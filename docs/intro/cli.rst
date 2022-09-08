@@ -2,12 +2,12 @@
 
 .. _ref_admin_install:
 
-=============
-Using the CLI
-=============
+===
+CLI
+===
 
-Below are instructions for installing the CLI, installed EdgeDB itself, and
-managing installing.
+The ``edgedb`` command line tool is an integral part of the developer workflow
+of building with EdgeDB. Below are instructions for installing it.
 
 Installation
 ------------
@@ -31,16 +31,13 @@ download the ``edgedb`` command built for your OS and add a path to it to your
 shell environment. To test the installation, run ``edgedb --version`` from the
 command line.
 
-
 .. code-block:: bash
 
     $ edgedb --version
     EdgeDB CLI 1.x+abcdefg
 
-
 If you encounter a ``command not found`` error, you may need to open a new
 terminal window before the ``edgedb`` command is available.
-
 
 .. note::
 
@@ -53,7 +50,59 @@ See ``help`` commands
 ---------------------
 
 The entire CLI is self-documenting. Once its installed, run ``edgedb --help``
-to see a breakdown of all the commands. You can append the ``--help`` flag to any command or group of commands to see documentation.
+to see a breakdown of all the commands and options.
+
+.. code-block:: bash
+
+  $ edgedb --help
+  EdgeDB CLI
+  Use the edgedb command-line tool to spin up local instances, manage EdgeDB
+  projects, create and apply migrations, and more.
+
+  Running edgedb without a subcommand opens an interactive shell.
+
+  USAGE:
+    edgedb [OPTIONS] [SUBCOMMAND]
+
+  OPTIONS:
+    <list of options>
+
+  CONNECTION OPTIONS (edgedb --help-connect to see the full list):
+    <list of connection options>
+
+  SUBCOMMANDS:
+    <list of all major commands>
+
+The majority of CLI commands perform some action against a *particular* EdgeDB instance. As such, there are a standard set of flags that are used to specify *which instance* should be the target of the command, plus additional information like TLS certificates. The following command documents these flags.
+
+.. code-block:: bash
+
+  $ edgedb --help-connect
+  -I, --instance <instance>
+        Local instance name created with edgedb instance create to connect to
+        (overrides host and port)
+  --dsn <dsn>
+        DSN for EdgeDB to connect to (overrides all other options except password)
+  --credentials-file <credentials_file>
+        Path to JSON file to read credentials from
+  -H, --host <host>
+        Host of the EdgeDB instance
+  -P, --port <port>
+        Port to connect to EdgeDB
+  --unix-path <unix_path>
+        Unix socket dir for the
+  -u, --user <user>
+        User name of the EdgeDB user
+  -d, --database <database>
+        Database name to connect to
+  --password
+        Ask for password on the terminal (TTY)
+  --no-password
+        Don't ask for password
+
+If you ever want to see documentation for a particular command (``edgedb
+migration create``) or group of commands (``edgedb instance``), just append
+the ``--help`` flag.
 
 .. code-block:: bash
 
@@ -73,4 +122,3 @@ to see a breakdown of all the commands. You can append the ``--help`` flag to an
       link              Link a remote instance
       list              Show all instances
       ...
-

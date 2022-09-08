@@ -62,7 +62,7 @@ There's no need for the modifier keywords you use for non-computed fields (like
 ``multi`` and ``required``). However, it's common to specify them anyway; it
 makes the schema more readable and acts as a sanity check: if the provided
 EdgeQL expression disagrees with the modifiers, an error will be thrown the
-next time you try to :ref:`create a migration <ref_guide_migrations>`.
+next time you try to :ref:`create a migration <ref_intro_migrations>`.
 
 .. code-block:: sdl
 
