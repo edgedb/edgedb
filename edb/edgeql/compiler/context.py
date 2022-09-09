@@ -29,6 +29,7 @@ import uuid
 import weakref
 
 from edb.common import compiler
+from edb.common import ordered
 from edb.common import parsing
 
 from edb.edgeql import ast as qlast
@@ -546,9 +547,8 @@ class ContextLevel(compiler.ContextLevel):
     in_conditional: Optional[parsing.ParserContext]
     """Whether currently in a conditional branch."""
 
-    disable_shadowing: Set[Union[s_obj.Object, s_pointers.PseudoPointer]]
-    """A set of schema objects for which the shadowing rewrite should be
-       disabled."""
+    active_computeds: ordered.OrderedSet[s_pointers.Pointer]
+    """A ordered set of currently compiling computeds"""
 
     def __init__(
         self,
@@ -602,7 +602,7 @@ class ContextLevel(compiler.ContextLevel):
             self.defining_view = None
             self.compiling_update_shape = False
             self.in_conditional = None
-            self.disable_shadowing = set()
+            self.active_computeds = ordered.OrderedSet()
             self.recompiling_schema_alias = False
 
         else:
@@ -641,7 +641,7 @@ class ContextLevel(compiler.ContextLevel):
             self.defining_view = prevlevel.defining_view
             self.compiling_update_shape = prevlevel.compiling_update_shape
             self.in_conditional = prevlevel.in_conditional
-            self.disable_shadowing = prevlevel.disable_shadowing
+            self.active_computeds = prevlevel.active_computeds
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
 
             if mode == ContextSwitchMode.SUBQUERY:
@@ -689,7 +689,6 @@ class ContextLevel(compiler.ContextLevel):
 
                 self.view_rptr = None
                 self.toplevel_result_view_name = None
-                self.disable_shadowing = prevlevel.disable_shadowing.copy()
             else:
                 self.anchors = prevlevel.anchors
                 self.modaliases = prevlevel.modaliases
