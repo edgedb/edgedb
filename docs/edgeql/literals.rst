@@ -438,7 +438,7 @@ To declare relative duration literals:
 Date durations #New
 ^^^^^^^^^^^^^^^^^^^
 
-.. warning::
+.. note::
 
   This type is only available in EdgeDB 2.0 or later.
 
@@ -480,7 +480,7 @@ EdgeQL supports a set of functions and operators on duration types.
 Ranges #New
 -----------
 
-.. warning::
+.. note::
 
   This type is only available in EdgeDB 2.0 or later.
 

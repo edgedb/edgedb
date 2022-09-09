@@ -112,7 +112,7 @@ details, see :ref:`EdgeQL > Literals > Tuples <ref_eql_literal_tuple>`.
 Ranges #New
 ^^^^^^^^^^^
 
-.. warning::
+.. note::
 
   Only available in EdgeDB 2.0 or later.
 

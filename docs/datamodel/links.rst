@@ -329,7 +329,7 @@ There are 4 available target deletion policies.
 Source deletion #New
 ^^^^^^^^^^^^^^^^^^^^
 
-.. warning::
+.. note::
 
   Only available in EdgeDB 2.0 or later.
 

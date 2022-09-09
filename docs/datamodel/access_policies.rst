@@ -4,7 +4,7 @@
 Access Policies #New
 ====================
 
-.. warning::
+.. note::
 
   This type is only available in EdgeDB 2.0 or later.
 

@@ -4,9 +4,6 @@ Dump file format
 This description uses the same :ref:`conventions <ref_protocol_conventions>`
 as the protocol description.
 
-.. warning:: The dump file format is not final and is subject to change before
-   EdgeDB 1.0.
-
 
 General Structure
 -----------------
