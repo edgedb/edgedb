@@ -765,3 +765,20 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
         await self.con.execute('''
             insert A;
         ''')
+
+    async def test_edgeql_policies_delete_union_01(self):
+        await self.con.execute('''
+            create type T {
+                create access policy insert_select
+                    allow insert, select;
+            };
+            create type S;
+            insert T;
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                delete {T, S};
+            ''',
+            []
+        )
