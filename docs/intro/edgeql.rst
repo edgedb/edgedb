@@ -8,27 +8,21 @@ to SQL that solves some of its biggest design limitations. This page is
 indended as a rapid-fire overview so you can hit the ground running with
 EdgeDB. Refer to the linked pages for more in-depth documentation.
 
-As with most databases, you can write and execute queries as strings with one
-of our first-party :ref:`client libraries <ref_clients_index>` for JavaScript,
-Python, Golang, and Rust, or you can execute queries :ref:`over HTTP
-<ref_edgeql_http>`.
+Want to follow along with the queries below? Open the `Interactive
+Tutorial </tutorial>`_ in a separate tab. Copy and paste the queries below and
+execute them directly from the browser.
 
 .. note::
 
   The examples below also demonstrate how to express the query with the
-  :ref:`TypeScript query builder <edgedb-js-qb>`, which lets you write
-  strongly-typed EdgeQL queries in a code-first way.
+  :ref:`TypeScript query builder <edgedb-js-qb>`, which lets you express
+  arbitrary EdgeQL queries in a code-first, typesafe way.
 
-Want to follow along with the queries below? Open the `Interactive
-Tutorial </tutorial>`_ in a separate tab. Copy and paste the queries below and
-execute them directly from the browser.
 
 Scalar literals
 ^^^^^^^^^^^^^^^
 
 EdgeDB has a rich primitive typesystem consisting of the following data types.
-
-EdgeDB implements rigorous typesystem containing the following primitive types.
 
 .. list-table::
 
@@ -50,7 +44,7 @@ EdgeDB implements rigorous typesystem containing the following primitive types.
   * - Binary data
     - ``bytes``
 
-Primitive literals can be declarated using familiar syntax.
+Basic literals can be declared using familiar syntax.
 
 .. tabs::
 
@@ -89,7 +83,7 @@ Primitive literals can be declarated using familiar syntax.
     e.bytes(Buffer.from("bina\\x01ry"))
     // Buffer
 
-Certain literal types can only be declared by *casting* an appropriately
+Other type literals are declared by *casting* an appropriately
 structured string.
 
 .. tabs::

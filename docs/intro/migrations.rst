@@ -118,7 +118,7 @@ database! The following command will apply all unapplied migration files:
 .. code-block:: bash
 
   $ edgedb migrate
-  Applied m1virjowa... (00001.edgeql)
+  Applied m1virjowa... (00002.edgeql)
 
 That's it! You've created and applied your first EdgeDB migration. Your
 instance is now using the latest schema.
@@ -187,9 +187,8 @@ We have a ``CREATE MIGRATION`` block containing an ``ALTER TYPE`` statement to
 make ``Post.title`` ``required``. We can see that our fill expression
 (``'Untitled'``) is included directly in the migration file.
 
-Note that we could have provide an *arbitrary EdgeQL expression* including
-entire ``select`` and ``insert`` queries! The following EdgeQL features are
-often useful:
+Note that we could have provide an *arbitrary EdgeQL expression*! The
+following EdgeQL features are often useful:
 
 .. list-table::
 
@@ -220,7 +219,7 @@ often useful:
 
       .. code-block::
 
-        cast_expr> <bigint>.xp``
+        cast_expr> <bigint>.xp
 
 
 

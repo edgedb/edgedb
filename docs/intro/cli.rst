@@ -2,9 +2,9 @@
 
 .. _ref_admin_install:
 
-===
-CLI
-===
+=======
+The CLI
+=======
 
 The ``edgedb`` command line tool is an integral part of the developer workflow
 of building with EdgeDB. Below are instructions for installing it.

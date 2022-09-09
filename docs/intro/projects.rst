@@ -15,8 +15,8 @@ That's one of the reasons we introduced the concept of an *EdgeDB
 project*. A project is a directory on your file system that is associated with
 an EdgeDB intance.
 
-Initialize a project
---------------------
+Initializing
+^^^^^^^^^^^^
 
 To initialize one, create a new directory and run ``edgedb
 project init`` inside it. You'll see something like this:
@@ -95,8 +95,8 @@ with the ``-I`` flag.
 Similarly, client libraries will auto-connect to the project's
 linked instance without additional configuration.
 
-Unlink a project
-^^^^^^^^^^^^^^^^
+Unlinking
+^^^^^^^^^
 
 An instance can be unlinked from a project. This leaves the instance running
 but effectively "uninitializes" the project. The ``edgedb.toml`` and
@@ -112,19 +112,6 @@ If you wish to delete the instance as well, use the ``-D`` flag.
 
     $ edgedb project unlink -D
 
-See project info
-^^^^^^^^^^^^^^^^
-
-You can see the location of a project and the name of its linked instance.
-
-.. code-block:: bash
-
-  $ edgedb project info
-  ┌───────────────┬──────────────────────────────────────────┐
-  │ Instance name │ my_app                                   │
-  │ Project root  │ /path/to/my_app                          │
-  └───────────────┴──────────────────────────────────────────┘
-
 Upgrading
 ^^^^^^^^^
 
@@ -137,3 +124,16 @@ A standalone instance (not linked to a project) can be upgraded with the
   $ edgedb project upgrade --to-nightly
   $ edgedb project upgrade --to-version 2.x
 
+
+See info
+^^^^^^^^
+
+You can see the location of a project and the name of its linked instance.
+
+.. code-block:: bash
+
+  $ edgedb project info
+  ┌───────────────┬──────────────────────────────────────────┐
+  │ Instance name │ my_app                                   │
+  │ Project root  │ /path/to/my_app                          │
+  └───────────────┴──────────────────────────────────────────┘

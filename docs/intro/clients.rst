@@ -4,17 +4,48 @@
 Client Libraries
 ================
 
+EdgeDB implements libraries for popular languages that make it easier to work
+with EdgeDB. These libraries provide a common set of functionality.
+
+- *Instantiating clients.* Most libraries implement a ``Client`` class that
+  internally manages a pool of physical connections to your EdgeDB instance.
+- *Resolving connections.* All client libraries implement a standard protocol
+  for determining how to connect to your database. In most cases, this will
+  involve checking for special environment variables like ``EDGEDB_DSN``.
+  (More on this in the Connection section below.)
+- *Executing queries.* A  ``Client`` will provide some methods for executing
+  queries against your database. Under the hood, this query is executed using
+  EdgeDB's efficient binary protocol.
+
+.. note::
+
+  For some use cases, you may not need a client library. EdgeDB allows you to
+  execute :ref:`queries over HTTP <ref_edgeql_http>`. This is slower than the
+  binary protocol and lacks support for transactions and rich data types, but
+  may be suitable if a client library isn't available for your language of
+  choice.
+
+Available libraries
+-------------------
+
 To execute queries from your application code, use one of EdgeDB's *client
 libraries* for the following languages.
+
 
 - `JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`_
 - `Go <https://github.com/edgedb/edgedb-go>`_
 - `Python <https://github.com/edgedb/edgedb-python>`_
 - `Rust <https://github.com/edgedb/edgedb-rust>`_
-- `.NET <https://github.com/quinchs/edgedb-dotnet>`_ (unofficial)
 
-Walkthrough
------------
+Unofficial (community-maintained) libraries are available for the following
+languages.
+
+- `.NET <https://github.com/quinchs/edgedb-dotnet>`_
+- `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
+
+
+Usage
+-----
 
 To follow along with the guide below, first create a new directory and
 initialize a project.
@@ -224,20 +255,18 @@ function.
 Connection
 ----------
 
-All client libraries (and the EdgeDB CLI) implement a standard protocol for
-determining how to connect to your instance. Below is the breakdown of the
-most common approaches.
+All client libraries implement a standard protocol for determining how to
+connect to your database.
 
 Using projects
 ^^^^^^^^^^^^^^
 
-**Development only** In development, we recommend :ref:`initializing a project
-<ref_intro_projects>` in the root of your codebase.
+In development, we recommend :ref:`initializing a
+project <ref_intro_projects>` in the root of your codebase.
 
 .. code-block:: bash
 
   $ edgedb project init
-
 
 Once the project is initialized, any code that uses an official client library
 will automatically connect to the project-linked instance—no need for
@@ -248,32 +277,40 @@ Using ``EDGEDB_DSN``
 ^^^^^^^^^^^^^^^^^^^^
 
 In production, connection information can be securely passed to the client
-library via environment variables. All official client libraries will read the
-following set of variables to determine how to connect.
+library via environment variables. Most commonly, you set a value for
+``EDGEDB_DSN``.
 
-Most commonly, you pass a value for ``EDGEDB_DSN``. A DSN is also known as a
-"connection string" and takes the following form.
+.. note::
+
+  If environment variables like ``EDGEDB_DSN`` are defined inside a project
+  directory, the environment variables will take precedence.
+
+A DSN is also known as a "connection string" and takes the
+following form.
 
 .. code-block::
 
   edgedb://<username>:<password>@<hostname>:<port>
 
-For instance, a sample DSN may look like this:
+Each element of the DSN is optional; in fact ``edgedb://`` is a technically a
+valid DSN. Any unspecified element will default to the following values.
+
+.. list-table::
+
+  * - ``<host>``
+    - ``localhost``
+  * - ``<port>``
+    - ``5656``
+  * - ``<user>``
+    - ``edgedb``
+  * - ``<password>``
+    -  ``null``
+
+A typical DSN may look like this:
 
 .. code-block::
 
   edgedb://username:pas$$word@db.domain.com:8080
-
-Each element of the DSN is optional; in fact ``edgedb://`` is a technically a
-valid DSN. Any unspecified element will default to the following values.
-
-.. code-block::
-
-  Host             "localhost"
-  Port             5656
-  User             "edgedb"
-  Password         null
-  Database         "edgedb"
 
 DSNs can also contain the following query parameters.
 
@@ -284,15 +321,16 @@ DSNs can also contain the following query parameters.
       ``edgedb``.
 
   * - ``tls_security``
-    - The TLS security mode.
+    - The TLS security mode. Accepts the following values.
 
       - ``"strict"`` (**default**) — verify certificates and hostnames
       - ``"no_host_verification"`` — verify certificates only
       - ``"insecure"`` — trust self-signed certificates
 
   * - ``tls_ca_file``
-    - A filesystem path pointing to a CA root certificate. This is usually
-      needed when your remote instance is using self-signed certificates.
+    - A filesystem path pointing to a CA root certificate. This is usually only
+      necessary when attempting to connect via TLS to a remote instance with a
+      self-signed certificate.
 
 These parameters can be added to any DSN using Web-standard query string
 notation.
@@ -304,7 +342,7 @@ notation.
 For a more comprehensive guide to DSNs, see the :ref:`DSN Specification
 <ref_dsn>`.
 
-Using separate environment variables
+Using multiple environment variables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 If needed for your deployment pipeline, each element of the DSN can be
@@ -312,9 +350,9 @@ specified independently.
 
 - ``EDGEDB_HOST``
 - ``EDGEDB_PORT``
-- ``EDGEDB_DATABASE``
 - ``EDGEDB_USER``
 - ``EDGEDB_PASSWORD``
+- ``EDGEDB_DATABASE``
 - ``EDGEDB_TLS_CA_FILE``
 - ``EDGEDB_CLIENT_TLS_SECURITY``
 
@@ -344,11 +382,8 @@ Other mechanisms
 ``EDGEDB_INSTANCE`` (local only)
   The name of a local instance. Only useful in development.
 
-
-The value of ``EDGEDB_DSN`` can also be an :ref:`instance name
-<ref_reference_connection_instance_name>`. You can create new instances
-manually with the :ref:`edgedb instance create
-<ref_cli_edgedb_instance_create>` command.
+Reference
+^^^^^^^^^
 
 These are the most common ways to connect to an instance, however EdgeDB
 supports several other options for advanced use cases. For a complete reference

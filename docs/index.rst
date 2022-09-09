@@ -17,7 +17,6 @@ Welcome to the EdgeDB |version| documentation.
     datamodel/index
     edgeql/index
     guides/index
-    graphql/index
     stdlib/index
     clients/index
     cli/index

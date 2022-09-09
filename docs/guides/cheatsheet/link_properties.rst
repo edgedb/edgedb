@@ -149,9 +149,6 @@ Querying
     },
   }
 
-
-
-
 .. list-table::
   :class: seealso
 
