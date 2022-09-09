@@ -85,10 +85,10 @@ EdgeDB supports collection types like arrays, tuples, and a ``json`` type.
 
     db> select ['hello', 'world'];
     {['hello', 'world']}
-    db> select ('Apple', 7, true);   # unnamed tuple
-    {('Apple', 7, true)}
-    db> select (fruit := 'Apple', quantity := 3.14, fresh := true);  # named tuple
-    {(fruit := 'Apple', quantity := 3.14, fresh := true)}
+    db> select ('Apple', 7, true);
+    {('Apple', 7, true)} # unnamed tuple
+    db> select (fruit := 'Apple', quantity := 3.14, fresh := true);
+    {(fruit := 'Apple', quantity := 3.14, fresh := true)} # unnamed tuple
     db> select <json>["this", "is", "an", "array"];
     {"[\"this\", \"is\", \"an\", \"array\"]"}
 
@@ -203,7 +203,8 @@ See :ref:`Docs > EdgeQL > Insert <ref_eql_insert>`.
 Nested insert
 ^^^^^^^^^^^^^
 
-One of EdgeQL's greatest features is that it's easy to compose. Nested inserts are easily achieved with subqueries.
+One of EdgeQL's greatest features is that it's easy to compose. Nested inserts
+are easily achieved with subqueries.
 
 .. tabs::
 
@@ -274,17 +275,7 @@ Fetch linked objects with a nested shape.
     ...     name
     ...   }
     ... };
-    {
-      default::Movie {
-        id: 9115be74-0979-11ed-8b9a-3bca6792708f,
-        title: 'Iron Man',
-        actors: {
-          default::Person {name: 'Robert Downey Jr.'},
-          default::Person {name: 'Gwyneth Paltrow'},
-        },
-      },
-      ...
-    }
+
 
   .. code-tab:: typescript
 

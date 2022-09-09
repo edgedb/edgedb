@@ -68,7 +68,8 @@ has been assigned to your EdgeDB instance:
 
 .. lint-on
 
-It's often convenient to create an alias for the remote instance using ``edgedb instance link``.
+It's often convenient to create an alias for the remote instance using
+``edgedb instance link``.
 
 .. code-block:: bash
 
@@ -79,7 +80,7 @@ It's often convenient to create an alias for the remote instance using ``edgedb 
 
 This aliases the remote instance to ``aws_instance`` (this can be
 anything). You can now use the ``-I aws_instance`` flag to run CLI commands
-against this instance, just like a local instance.
+against this instance, as with local instances.
 
 .. code-block:: bash
 

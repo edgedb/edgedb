@@ -45,7 +45,8 @@ This command does a couple important things.
    .. code-block:: toml
 
      [edgedb]
-     server-version = 2.1
+     server-version = "2.1"
+
 3. If no ``dbschema`` directory exists, it will be created, along with an
    empty ``default.esdl`` file which will contain your schema. If a
    ``dbschema`` directory exists and contains a subdirectory called
@@ -78,12 +79,14 @@ By contrast, if you leave the project directory, the CLI will no longer know
 which instance to connect to. You can solve this by specifing an instance name
 with the ``-I`` flag.
 
-.. code-block::
+.. code-block:: bash
 
   $ cd ~
   $ edgedb
-  ClientNoCredentialsError: no `edgedb.toml` found and no connection options are specified
-  Hint: Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments to specify connection parameters. See `--help` for details
+  ClientNoCredentialsError: no `edgedb.toml` found and no
+  connection options are specified
+  Hint: Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments
+  to specify connection parameters. See `--help` for details
   $ edgedb -I my_instance
   EdgeDB 2.0+88c1706 (repl 2.0.4+a7fc49b)
   Type \help for help, \quit to quit.
@@ -91,11 +94,6 @@ with the ``-I`` flag.
 
 Similarly, client libraries will auto-connect to the project's
 linked instance without additional configuration.
-
-.. note::
-
-  We `introduced projects <https://www.edgedb.com/blog/introducing-edgedb-projects>`_ as a simpler mechanism for developing
-
 
 Unlink a project
 ^^^^^^^^^^^^^^^^

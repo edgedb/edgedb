@@ -60,27 +60,45 @@ Use these variables to change the password for the default role ``edgedb``.
          "alter role edgedb set password := '${PASSWORD}'"
    OK: ALTER ROLE
 
-You can now link and connect to the new EdgeDB instance:
+Construct the DSN
+-----------------
+
+Let's construct your instance's DSN (also known as a "connection string").
+We'll write the value to a file called ``dsn.txt`` so it doesn't get stored in
+shell logs.
 
 .. code-block:: bash
 
-   $ printf $PASSWORD | edgedb instance link \
-         --password-from-stdin \
-         --trust-tls-cert \
-         --host $IP \
-         --non-interactive \
-         digitalocean
-   Authenticating to edgedb://edgedb@your-droplet-ip:5656/edgedb
-   Trusting unknown server certificate
+   $ echo edgedb://edgedb:$PASSWORD@$IP > dsn.txt
+
+Copy the value from ``dsn.txt``. Tun the following command to open a REPL
+to the new instance.
+
+..  code-block:: bash
+
+   $ edgedb --dsn <dsn> --tls-security insecure
+   edgedb>
+
+Success! You're now connected to your remote instance.
+
+It's often useful to assign an alias to the remote instance using ``edgedb
+instance link``.
+
+.. code-block:: bash
+
+   $ edgedb instance link --dsn <dsn> --trust-tls-cert my_instance
+   Authenticating to edgedb://edgedb@1.2.3.4:5656/edgedb
+   Trusting unknown server certificate:
+   SHA1:1880da9527be464e2cad3bdb20dfc430a6af5727
    Successfully linked to remote instance. To connect run:
-     edgedb -I digitalocean
+     edgedb -I my_instance
 
-You can now use the EdgeDB instance deployed on DigitalOcean as
-``digitalocean``, for example:
+You can now use the ``-I`` flag to execute CLI commands against your remote
+instance.
 
 .. code-block:: bash
 
-   $ edgedb -I digitalocean
+   $ edgedb -I my_instance
    edgedb>
 
 
@@ -181,45 +199,47 @@ Set the security policy to strict.
 That's it! You can now start using the EdgeDB instance located at
 ``edgedb://$IP``.
 
+.. _ref_guide_deployment_digitalocean_link:
 
 Get your instance's DSN
 =======================
 
 Let's construct your instance's DSN (also known as a "connection string").
+We'll write the value to a file called ``dsn.txt`` so it doesn't get stored in
+shell logs.
 
 .. code-block:: bash
 
-   $ echo edgedb://$IP
+   $ echo edgedb://edgedb:$PASSWORD@$IP > dsn.txt
 
-.. _ref_guide_deployment_digitalocean_link:
+Copy the value from ``dsn.txt``. Tun the following command to open a REPL
+to the new instance.
 
+..  code-block:: bash
 
-Create a local link to the new EdgeDB instance
-==============================================
+   $ edgedb --dsn <dsn> --tls-security insecure
+   edgedb>
 
-To access the EdgeDB instance you've just provisioned on DigitalOcean from your
-local machine run the following command.
+Success! You're now connected to your remote instance.
+
+It's often useful to assign an alias to the remote instance using ``edgedb
+instance link``.
 
 .. code-block:: bash
 
-   $ printf $PASSWORD | edgedb instance link \
-         --password-from-stdin \
-         --trust-tls-cert \
-         --host $IP \
-         --non-interactive \
-         digitalocean
-   Authenticating to edgedb://edgedb@137.184.227.94:5656/edgedb
+   $ edgedb instance link --dsn <dsn> --trust-tls-cert my_instance
+   Authenticating to edgedb://edgedb@1.2.3.4:5656/edgedb
    Trusting unknown server certificate:
    SHA1:1880da9527be464e2cad3bdb20dfc430a6af5727
    Successfully linked to remote instance. To connect run:
-     edgedb -I digitalocean
+     edgedb -I my_instance
 
 You can now use the EdgeDB instance deployed on DigitalOcean as
-``digitalocean``, for example:
+``my_instance``, for example:
 
 .. code-block:: bash
 
-   $ edgedb -I digitalocean
+   $ edgedb -I my_instance
    edgedb>
 
 
