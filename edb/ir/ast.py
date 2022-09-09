@@ -961,6 +961,14 @@ class MutatingStmt(Stmt):
     read_policy_exprs: typing.Dict[
         uuid.UUID, PolicyExpr] = ast.field(factory=dict)
 
+    @property
+    def material_type(self) -> TypeRef:
+        """The proper material type being operated on.
+
+        This should have all views stripped out.
+        """
+        raise NotImplementedError
+
 
 class PolicyExpr(Base):
     expr: Set
@@ -979,6 +987,10 @@ class OnConflictClause(Base):
 class InsertStmt(MutatingStmt):
     on_conflict: typing.Optional[OnConflictClause] = None
 
+    @property
+    def material_type(self) -> TypeRef:
+        return self.subject.typeref.real_material_type
+
 
 class UpdateStmt(MutatingStmt, FilteredStmt):
     # The pgsql DML compilation needs to be able to access __type__
@@ -987,10 +999,21 @@ class UpdateStmt(MutatingStmt, FilteredStmt):
     # BaseObject's __type__, from which we can derive whatever we need.
     # This is at least a bit of a hack.
     dunder_type_ptrref: BasePointerRef
+    _material_type: TypeRef | None = None
+
+    @property
+    def material_type(self) -> TypeRef:
+        assert self._material_type
+        return self._material_type
 
 
 class DeleteStmt(MutatingStmt, FilteredStmt):
-    pass
+    _material_type: TypeRef | None = None
+
+    @property
+    def material_type(self) -> TypeRef:
+        assert self._material_type
+        return self._material_type
 
 
 class SessionStateCmd(Command):
