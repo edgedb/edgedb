@@ -48,7 +48,7 @@ Disabling Version Check
 To disable version check do one of two things:
 
 1. Use ``--no-cli-update-check`` command-line parameter to disable just
-for this invocation
+   for this invocation
 2. Export ``EDGEDB_NO_VERSION_CHECK=true`` in the environment.
 
 To verify that check is skipped and no network access is being done
