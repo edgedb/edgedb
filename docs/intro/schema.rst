@@ -27,7 +27,8 @@ EdgeDB implements rigorous typesystem containing the following primitive types.
   * - JSON
     - ``json``
   * - Dates and times
-    - ``datetime`` ``cal::local_datetime`` ``cal::local_date`` ``cal::local_time``
+    - ``datetime`` ``cal::local_datetime`` ``cal::local_date``
+      ``cal::local_time``
   * - Durations
     - ``duration`` ``cal::relative_duration`` ``cal::date_duration``
   * - Binary data
@@ -50,12 +51,15 @@ These primitives can be combined into arrays, tuples, and ranges.
   * - Ranges
     - ``range<float64>``
 
-Collectively, *primitive* and *collection* types comprise EdgeDB's *scalar type system*.
+Collectively, *primitive* and *collection* types comprise EdgeDB's *scalar
+type system*.
 
 Object types
 ------------
 
-Object types are analogous to tables in SQL. The can contain **properties**—which can correspond to any scalar type— and **links**—which correspond to other object types.
+Object types are analogous to tables in SQL. The can contain
+**properties**—which can correspond to any scalar type— and **links**—which
+correspond to other object types.
 
 Properties
 ----------
@@ -175,7 +179,9 @@ See :ref:`Schema > Links <ref_datamodel_links>`.
 Computed links
 ^^^^^^^^^^^^^^
 
-Objects can contain "computed links": stored expressions that return a set of objects. Computed links are dynamically computed when they are fetched in queries. The example below defines a backlink.
+Objects can contain "computed links": stored expressions that return a set of
+objects. Computed links are dynamically computed when they are referenced in
+queries. The example below defines a backlink.
 
 .. code-block:: sdl
 
@@ -245,7 +251,7 @@ Constraints can contain exceptions; these are called *partial constraints*.
     property title -> str;
     property published -> bool;
 
-    constraint exclusive on (.title) except not .published;
+    constraint exclusive on (.title) except (not .published);
   }
 
 Indexes

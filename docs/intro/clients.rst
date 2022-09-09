@@ -19,7 +19,7 @@ Walkthrough
 To follow along with the guide below, first create a new directory and
 initialize a project.
 
-.. code-block::
+.. code-block:: bash
 
   $ mydir myproject
   $ cd myproject
@@ -35,11 +35,11 @@ Configure the environment as needed for your preferred language.
     $ tsc --init # (TypeScript only)
     $ touch index.ts
 
-  .. code-tab:: txt#Deno
+  .. code-tab:: bash#Deno
 
     $ touch index.ts
 
-  .. code-tab:: txt#Python
+  .. code-tab:: bash#Python
 
     $ python -m venv venv
     $ source venv/bin/activate
@@ -64,15 +64,14 @@ Install the EdgeDB client library.
 
   .. code-tab:: bash#Node.js
 
-    $ npm install edgedb
-    # or
-    $ yarn add edgedb
+    $ npm install edgedb    # npm
+    $ yarn add edgedb       # yarn
 
   .. code-tab:: txt#Deno
 
     n/a
 
-  .. code-tab:: txt#Python
+  .. code-tab:: bash#Python
 
     $ pip install edgedb
 
@@ -113,8 +112,10 @@ database and provide a set of methods for executing queries.
 
     const client = createClient();
 
-    const result = await client.querySingle(`select random()`);
-    console.log(result);
+    client.querySingle(`select random()`).then((result) => {
+      console.log(result);
+    });
+
 
   .. code-tab:: typescript#Deno
 
@@ -178,7 +179,7 @@ database and provide a set of methods for executing queries.
       fmt.Println(result)
     }
 
-  .. code-tab:: dotnet#.NET
+  .. code-tab:: csharp#.NET
 
     using EdgeDB;
 
@@ -195,17 +196,17 @@ Finally, execute the file.
 
     $ npx tsx index.ts
 
-  .. code-tab:: txt#Deno
+  .. code-tab:: bash#Deno
 
     $ deno run --allow-all --unstable index.deno.ts
 
-  .. code-tab:: txt#Python
+  .. code-tab:: bash#Python
 
-    $ python index.p
+    $ python index.py
 
-  .. code-tab:: toml#Rust
+  .. code-tab:: bash#Rust
 
-    cargo run
+    $ cargo run
 
   .. code-tab:: bash#Go
 
@@ -282,10 +283,6 @@ DSNs can also contain the following query parameters.
     - The database to connect to within the given instance. Defaults to
       ``edgedb``.
 
-      .. code-block::
-
-        edgedb://user:pass@example.com:8080?database=my_db
-
   * - ``tls_security``
     - The TLS security mode.
 
@@ -293,17 +290,16 @@ DSNs can also contain the following query parameters.
       - ``"no_host_verification"`` — verify certificates only
       - ``"insecure"`` — trust self-signed certificates
 
-      .. code-block::
-
-        edgedb://user:pass@example.com:8080?tls_security=insecure
   * - ``tls_ca_file``
-    - A path pointing to a CA root certificate. This is usually needed
-      when your remote instance is using self-signed certificates.
+    - A filesystem path pointing to a CA root certificate. This is usually
+      needed when your remote instance is using self-signed certificates.
 
-      .. code-block::
+These parameters can be added to any DSN using Web-standard query string
+notation.
 
-        edgedb://user:pass@example.com:8080?tls_ca_file=/path/to/server.crt
+.. code-block::
 
+  edgedb://user:pass@example.com:8080?database=my_db&tls_security=insecure
 
 For a more comprehensive guide to DSNs, see the :ref:`DSN Specification
 <ref_dsn>`.

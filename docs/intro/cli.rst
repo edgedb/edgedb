@@ -73,7 +73,10 @@ to see a breakdown of all the commands and options.
   SUBCOMMANDS:
     <list of all major commands>
 
-The majority of CLI commands perform some action against a *particular* EdgeDB instance. As such, there are a standard set of flags that are used to specify *which instance* should be the target of the command, plus additional information like TLS certificates. The following command documents these flags.
+The majority of CLI commands perform some action against a *particular* EdgeDB
+instance. As such, there are a standard set of flags that are used to specify
+*which instance* should be the target of the command, plus additional
+information like TLS certificates. The following command documents these flags.
 
 .. code-block:: bash
 
@@ -82,7 +85,8 @@ The majority of CLI commands perform some action against a *particular* EdgeDB i
         Local instance name created with edgedb instance create to connect to
         (overrides host and port)
   --dsn <dsn>
-        DSN for EdgeDB to connect to (overrides all other options except password)
+        DSN for EdgeDB to connect to (overrides all other options except
+        password)
   --credentials-file <credentials_file>
         Path to JSON file to read credentials from
   -H, --host <host>

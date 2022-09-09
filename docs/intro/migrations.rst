@@ -201,7 +201,9 @@ often useful:
 
         fill_expr> assert_exists(.title)
 
-      If you provide a ``fill_expr`` like the one above, you must separately ensure that all movies have a title before executing the migration; otherwise it will fail.
+      If you provide a ``fill_expr`` like the one above, you must separately
+      ensure that all movies have a title before executing the migration;
+      otherwise it will fail.
 
   * - ``assert_single``
     - This tells EdgeDB to assume the input has *at most* one element. This

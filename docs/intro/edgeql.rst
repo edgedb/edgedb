@@ -26,30 +26,51 @@ execute them directly from the browser.
 Scalar literals
 ^^^^^^^^^^^^^^^
 
+EdgeDB has a rich primitive typesystem consisting of the following data types.
+
+EdgeDB implements rigorous typesystem containing the following primitive types.
+
+.. list-table::
+
+  * - Strings
+    - ``str``
+  * - Booleans
+    - ``bool``
+  * - Numbers
+    - ``int32`` ``int64`` ``float32`` ``float64`` ``bigint`` ``decimal``
+  * - UUID
+    - ``uuid``
+  * - JSON
+    - ``json``
+  * - Dates and times
+    - ``datetime`` ``cal::local_datetime`` ``cal::local_date``
+      ``cal::local_time``
+  * - Durations
+    - ``duration`` ``cal::relative_duration`` ``cal::date_duration``
+  * - Binary data
+    - ``bytes``
+
+Primitive literals can be declarated using familiar syntax.
+
 .. tabs::
 
   .. code-tab:: edgeql-repl
 
-    db> select "i ❤️ edgedb";
+    db> select "i ❤️ edgedb"; # str
     {'i ❤️ edgedb'}
-    db> select false;
+    db> select false; # bool
     {false}
-    db> select 3.14;
+    db> select 42; # int64
+    {42}
+    db> select 3.14; # float64
     {3.14}
-    db> select 12345678n;
+    db> select 12345678n; # bigint
     {12345678n}
-    db> select 42e+100n;
-    {42e100n}
-    db> select <uuid>'a5ea6360-75bd-4c20-b69c-8f317b0d2857';
-    {a5ea6360-75bd-4c20-b69c-8f317b0d2857}
-    db> select <datetime>'1999-03-31T15:17:00Z';
-    {<datetime>'1999-03-31T15:17:00Z'}
-    db> select <duration>'5 hours 4 minutes 3 seconds';
-    {<duration>'5:04:03'}
-    db> select <cal::relative_duration>'2 years 18 days';
-    {<cal::relative_duration>'P2Y18D'}
-    db> select b'bina\\x01ry';
+    db> select 15.0e+100n;  # decimal
+    {15.0e+100n}
+    db> select b'bina\\x01ry'; # bytes
     {b'bina\\x01ry'}
+
 
   .. code-tab:: typescript
 
@@ -65,6 +86,28 @@ Scalar literals
     // bigint
     e.decimal("1234.4567")
     // n/a (not supported by JS clients)
+    e.bytes(Buffer.from("bina\\x01ry"))
+    // Buffer
+
+Certain literal types can only be declared by *casting* an appropriately
+structured string.
+
+.. tabs::
+
+  .. code-tab:: edgeql-repl
+
+    db> select <uuid>'a5ea6360-75bd-4c20-b69c-8f317b0d2857';
+    {a5ea6360-75bd-4c20-b69c-8f317b0d2857}
+    db> select <datetime>'1999-03-31T15:17:00Z';
+    {<datetime>'1999-03-31T15:17:00Z'}
+    db> select <duration>'5 hours 4 minutes 3 seconds';
+    {<duration>'5:04:03'}
+    db> select <cal::relative_duration>'2 years 18 days';
+    {<cal::relative_duration>'P2Y18D'}
+
+
+  .. code-tab:: typescript
+
     e.uuid("a5ea6360-75bd-4c20-b69c-8f317b0d2857")
     // string
     e.datetime("1999-03-31T15:17:00Z")
@@ -73,10 +116,9 @@ Scalar literals
     // edgedb.Duration (custom class)
     e.cal.relative_duration("2 years 18 days")
     // edgedb.RelativeDuration (custom class)
-    e.bytes(Buffer.from("bina\\x01ry"))
-    // Buffer
 
-EdgeDB supports collection types like arrays, tuples, and a ``json`` type.
+Primitive data can be composed into arrays and tuples, which can themselves be
+nested.
 
 .. tabs::
 
@@ -101,6 +143,38 @@ EdgeDB supports collection types like arrays, tuples, and a ``json`` type.
     // {fruit: string; quantity: number; fresh: boolean}
     e.json(["this", "is", "an", "array"]);
     // unknown
+
+
+EdgeDB also supports a special ``json`` type for representing unstructured
+data. Primitive data structures can be converted to json using a type cast
+(``<json>``). Alternatively, a properly JSON-encoded string can be converted
+to ``json`` with the built-in ``to_json`` function. Indexing a ``json`` value
+returns another ``json`` value.
+
+.. code-tabs::
+
+  .. code-tab:: edgeql-repl
+
+    edgedb> select <json>5;
+    {"5"}
+    edgedb> select <json>[1,2,3];
+    {"[1, 2, 3]"}
+    edgedb> select to_json('[{ "name": "Peter Parker" }]');
+    {"[{\"name\": \"Peter Parker\"}]"}
+    edgedb> select to_json('[{ "name": "Peter Parker" }]')[0]['name'];
+    {"\"Peter Parker\""}
+
+  .. code-tab:: typescript
+
+    /*
+      The result of an query returning `json` is represented
+      with `unknown` in TypeScript.
+    */
+    e.json(5);  // => unknown
+    e.json([1, 2, 3]);  // => unknown
+    e.to_json('[{ "name": "Peter Parker" }]');  // => unknown
+    e.to_json('[{ "name": "Peter Parker" }]')[0]["name"];  // => unknown
+
 
 Refer to :ref:`Docs > EdgeQL > Literals <ref_eql_literals>` for complete docs.
 
@@ -201,8 +275,8 @@ developer-friendly syntax like curly braces and the ``:=`` operator.
 
 See :ref:`Docs > EdgeQL > Insert <ref_eql_insert>`.
 
-Nested insert
-^^^^^^^^^^^^^
+Nested inserts
+^^^^^^^^^^^^^^
 
 One of EdgeQL's greatest features is that it's easy to compose. Nested inserts
 are easily achieved with subqueries.
@@ -323,13 +397,51 @@ The ``select`` statement can be augmented with ``filter``, ``order by``,
     const result = await query.run(client);
     // {id: string; title: number}[]
 
+Note that you reference properties of the object being ``select``ed by
+prepending the property name with a period: ``.release_year``. This is known
+as *leading dot notation*.
+
+Every new set of curly braces introduces a new scope. You can add ``filter``,
+``limit``, and ``offset`` clauses to nested shapes.
+
+.. tabs::
+
+  .. code-tab:: edgeql
+
+    select Movie {
+      title,
+      actors: {
+        name
+      } filter .name ilike 'chris%'
+    }
+    filter .title ilike '%avengers%';
+
+  .. code-tab:: typescript
+
+    e.select(e.Movie, movie => ({
+      title: true,
+      characters: c => ({
+        name: true,
+        filter: e.op(c.name, "ilike", "chris%"),
+      }),
+      filter: e.op(movie.title, "ilike", "%avengers%"),
+    }));
+    // => { characters: { name: string; }[]; title: string; }[]
+
+    const result = await query.run(client);
+    // {id: string; title: number}[]
+
+
+
 See :ref:`Filtering <ref_eql_select_filter>`, :ref:`Ordering
 <ref_eql_select_order>`, and :ref:`Pagination <ref_eql_select_pagination>`.
 
 Query composition
 ^^^^^^^^^^^^^^^^^
 
-We've seen how to ``insert`` and ``select``. How do we do both in one query? Answer: query composition. EdgeQL's syntax is designed to be *composable*, like any good programming language.
+We've seen how to ``insert`` and ``select``. How do we do both in one query?
+Answer: query composition. EdgeQL's syntax is designed to be *composable*,
+like any good programming language.
 
 .. tabs::
 
@@ -372,6 +484,8 @@ queries, like a script.
   .. code-tab:: typescript
 
     /*
+      Same as above.
+
       In the query builder, explicit ``with`` blocks aren't necessary!
       Just assign your EdgeQL subqueries to variables and compose them as you
       like. The query builder automatically convert your top-level query to an
@@ -513,6 +627,15 @@ See :ref:`Docs > EdgeQL > Delete <ref_eql_delete>`.
 Query parameters
 ^^^^^^^^^^^^^^^^
 
+You can reference query parameters in your queries with ``$<name>`` notation.
+Since EdgeQL is a strongly typed language, all query parameters must be
+prepending with a *type cast* to indicate the expected type.
+
+.. note::
+
+  Scalars like ``str``, ``int64``, and ``json`` are
+  supported. Tuples, arrays, and object types are not.
+
 .. tabs::
 
   .. code-tab:: edgeql
@@ -537,8 +660,8 @@ Query parameters
     });
     // {id: string}
 
-Client libraries provide a dedicated API to provide parameters when executing
-a query.
+All client libraries provide a dedicated API for specifying parameters when
+executing a query.
 
 .. tabs::
 
