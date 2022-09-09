@@ -10,6 +10,12 @@ In this guide we show how to deploy EdgeDB using a `Fly.io <https://fly.io>`_
 PostgreSQL cluster as the backend. The deployment consists of two apps: one
 running Postgres and the other running EdgeDB.
 
+.. note::
+
+    At the moment, it isn't possible to expose Fly-hosted EdgeDB instances to
+    the public internet, only internally to other Fly projects. As such your
+    application must also be hosted on Fly.
+
 Prerequisites
 =============
 

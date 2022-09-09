@@ -182,7 +182,17 @@ That's it! You can now start using the EdgeDB instance located at
 ``edgedb://$IP``.
 
 
+Get your instance's DSN
+=======================
+
+Let's construct your instance's DSN (also known as a "connection string").
+
+.. code-block:: bash
+
+   $ echo edgedb://$IP
+
 .. _ref_guide_deployment_digitalocean_link:
+
 
 Create a local link to the new EdgeDB instance
 ==============================================
