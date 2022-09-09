@@ -386,12 +386,12 @@ def derive_view_name(
 
 
 def get_union_type(
-    types: Iterable[s_types.Type],
+    types: Iterable[s_types.TypeT],
     *,
     opaque: bool = False,
     preserve_derived: bool = False,
     ctx: context.ContextLevel,
-) -> s_types.Type:
+) -> s_types.TypeT:
 
     ctx.env.schema, union, created = s_utils.ensure_union_type(
         ctx.env.schema, types,
@@ -408,14 +408,14 @@ def get_union_type(
     ):
         ctx.env.add_schema_ref(union, expr=None)
 
-    return union
+    return cast(s_types.TypeT, union)
 
 
 def get_intersection_type(
-    types: Iterable[s_types.Type],
+    types: Iterable[s_types.TypeT],
     *,
     ctx: context.ContextLevel,
-) -> s_types.Type:
+) -> s_types.TypeT:
 
     ctx.env.schema, intersection, created = s_utils.ensure_intersection_type(
         ctx.env.schema, types, transient=True)
@@ -431,7 +431,7 @@ def get_intersection_type(
     ):
         ctx.env.add_schema_ref(intersection, expr=None)
 
-    return intersection
+    return cast(s_types.TypeT, intersection)
 
 
 def get_material_type(
@@ -445,10 +445,10 @@ def get_material_type(
 
 
 def concretify(
-    t: s_types.Type,
+    t: s_types.TypeT,
     *,
     ctx: context.ContextLevel,
-) -> s_types.Type:
+) -> s_types.TypeT:
     """Produce a version of t with all views removed.
 
     This procedes recursively through unions and intersections,
