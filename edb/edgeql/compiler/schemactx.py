@@ -444,6 +444,27 @@ def get_material_type(
     return mtype
 
 
+def concretify(
+    t: s_types.Type,
+    *,
+    ctx: context.ContextLevel,
+) -> s_types.Type:
+    """Produce a version of t with all views removed.
+
+    This procedes recursively through unions and intersections,
+    which can result in major simplifications with intersection types
+    in particular.
+    """
+    t = get_material_type(t, ctx=ctx)
+    if els := t.get_union_of(ctx.env.schema):
+        ts = [concretify(e, ctx=ctx) for e in els.objects(ctx.env.schema)]
+        return get_union_type(ts , ctx=ctx)
+    if els := t.get_intersection_of(ctx.env.schema):
+        ts = [concretify(e, ctx=ctx) for e in els.objects(ctx.env.schema)]
+        return get_intersection_type(ts , ctx=ctx)
+    return t
+
+
 class TypeIntersectionResult(NamedTuple):
 
     stype: s_types.Type

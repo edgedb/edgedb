@@ -598,6 +598,14 @@ def compile_UpdateQuery(
                 f'free objects cannot be updated',
                 context=expr.subject.context)
 
+        stmt._material_type = typeutils.type_to_typeref(
+            ctx.env.schema,
+            schemactx.concretify(subj_type, ctx=ctx),
+            include_descendants=True,
+            include_ancestors=True,
+            cache=ctx.env.type_ref_cache,
+        )
+
         ictx.partial_path_prefix = subject
 
         clauses.compile_where_clause(
@@ -723,10 +731,19 @@ def compile_DeleteQuery(
                 f'free objects cannot be deleted',
                 context=expr.subject.context)
 
+        stmt._material_type = typeutils.type_to_typeref(
+            ctx.env.schema,
+            schemactx.concretify(subj_type, ctx=ctx),
+            include_descendants=True,
+            include_ancestors=True,
+            cache=ctx.env.type_ref_cache,
+        )
+
         with ictx.new() as bodyctx:
             bodyctx.implicit_id_in_shapes = False
             bodyctx.implicit_tid_in_shapes = False
             bodyctx.implicit_tname_in_shapes = False
+
             stmt.subject = compile_query_subject(
                 subject,
                 shape=None,
