@@ -64,6 +64,10 @@ information about the current project.
   │ Project root  │ /path/to/project                         │
   └───────────────┴──────────────────────────────────────────┘
 
+
+Connection
+^^^^^^^^^^
+
 As long as you are inside the project directory, all CLI commands will be
 executed against the project-linked instance. For instance, you can simply run
 ``edgedb`` to open a REPL.
@@ -94,6 +98,51 @@ with the ``-I`` flag.
 
 Similarly, client libraries will auto-connect to the project's
 linked instance without additional configuration.
+
+Using remote instances
+^^^^^^^^^^^^^^^^^^^^^^
+
+You may want to initialize a project that points to a remote EdgeDB instance.
+This is totally a valid case and EdgeDB fully supports it! Before running
+``edgedb project init``, you just need to create an alias for the remote
+instance using ``edgedb instance link``, like so:
+
+.. lint-off
+
+.. code-block:: bash
+
+  $ edgedb instance link
+  Specify the host of the server [default: localhost]:
+  > 192.168.4.2
+  Specify the port of the server [default: 5656]:
+  > 10818
+  Specify the database user [default: edgedb]:
+  > edgedb
+  Specify the database name [default: edgedb]:
+  > edgedb
+  Unknown server certificate: SHA1:c38a7a90429b033dfaf7a81e08112a9d58d97286.
+  Trust? [y/N]
+  > y
+  Password for 'edgedb':
+  Specify a new instance name for the remote server [default: abcd]:
+  > staging_db
+  Successfully linked to remote instance. To connect run:
+    edgedb -I staging_db
+
+.. lint-on
+
+After receving the necessary connection information, this command links the
+remote instance to a local alias ``"staging_db"``. You can use this as
+instance name in CLI commands.
+
+.. code-block::
+
+  $ edgedb -I staging_db
+  edgedb>
+
+To initialize a project that uses the remote instance, provide this alias when
+prompted for an instance name during the ``edgedb project init`` workflow.
+
 
 Unlinking
 ^^^^^^^^^
