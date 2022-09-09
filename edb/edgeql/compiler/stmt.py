@@ -610,6 +610,14 @@ def compile_UpdateQuery(
             bodyctx.implicit_tname_in_shapes = False
             bodyctx.implicit_limit = 0
 
+            stmt._material_type = typeutils.type_to_typeref(
+                ctx.env.schema,
+                schemactx.concretify(subj_type, ctx=ctx),
+                include_descendants=True,
+                include_ancestors=True,
+                cache=ctx.env.type_ref_cache,
+            )
+
             stmt.subject = compile_query_subject(
                 subject,
                 shape=expr.shape,
@@ -727,6 +735,14 @@ def compile_DeleteQuery(
             bodyctx.implicit_id_in_shapes = False
             bodyctx.implicit_tid_in_shapes = False
             bodyctx.implicit_tname_in_shapes = False
+            stmt._material_type = typeutils.type_to_typeref(
+                ctx.env.schema,
+                schemactx.concretify(subj_type, ctx=ctx),
+                include_descendants=True,
+                include_ancestors=True,
+                cache=ctx.env.type_ref_cache,
+            )
+
             stmt.subject = compile_query_subject(
                 subject,
                 shape=None,
