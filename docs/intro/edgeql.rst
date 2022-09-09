@@ -76,7 +76,6 @@ Scalar literals
     e.bytes(Buffer.from("bina\\x01ry"))
     // Buffer
 
-
 EdgeDB supports collection types like arrays, tuples, and a ``json`` type.
 
 .. tabs::
@@ -154,7 +153,6 @@ Similarly, it provides a comprehensive set of built-in operators.
     db> select <duration>'5 minutes' + <duration>'2 hours';
     {<duration>'2:05:00'}
 
-
   .. code-tab:: typescript
 
     e.op("not", e.bool(true));
@@ -177,9 +175,12 @@ all built-in types, including the functions and operators that apply to them.
 Insert an object
 ^^^^^^^^^^^^^^^^
 
+Objects are created using ``insert``. The ``insert`` statement relies on
+developer-friendly syntax like curly braces and the ``:=`` operator.
+
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
     insert Movie {
       title := 'Doctor Strange 2',
@@ -218,7 +219,6 @@ are easily achieved with subqueries.
       })
     };
 
-
   .. code-tab:: typescript
 
     const query = e.insert(e.Movie, {
@@ -231,7 +231,6 @@ are easily achieved with subqueries.
     // by default INSERT only returns
     // the id of the new object
 
-
 Select objects
 ^^^^^^^^^^^^^^
 
@@ -240,7 +239,7 @@ type.
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
     select Movie {
       id,
@@ -266,16 +265,15 @@ Fetch linked objects with a nested shape.
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
-    db> select Movie {
-    ...   id,
-    ...   title,
-    ...   actors: {
-    ...     name
-    ...   }
-    ... };
-
+    select Movie {
+      id,
+      title,
+      actors: {
+        name
+      }
+    };
 
   .. code-tab:: typescript
 
@@ -300,28 +298,16 @@ The ``select`` statement can be augmented with ``filter``, ``order by``,
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
-    db> select Movie {
-    ...   id,
-    ...   title
-    ... }
-    ... filter .release_year > 2017
-    ... order by .title
-    ... offset 10
-    ... limit 10;
-    {
-      default::Movie {
-        id: 916425c8-0979-11ed-8b9a-e7c13d25b2ce,
-        title: 'Shang Chi and the Legend of the Ten Rings',
-      },
-      default::Movie {
-        id: 91606abe-0979-11ed-8b9a-3f9b41f42697,
-        title: 'Spider-Man: Far From Home',
-      },
-      ...
+    select Movie {
+      id,
+      title
     }
-
+    filter .release_year > 2017
+    order by .title
+    offset 10
+    limit 10;
 
   .. code-tab:: typescript
 
@@ -340,6 +326,58 @@ The ``select`` statement can be augmented with ``filter``, ``order by``,
 See :ref:`Filtering <ref_eql_select_filter>`, :ref:`Ordering
 <ref_eql_select_order>`, and :ref:`Pagination <ref_eql_select_pagination>`.
 
+Query composition
+^^^^^^^^^^^^^^^^^
+
+We've seen how to ``insert`` and ``select``. How do we do both in one query? Answer: query composition. EdgeQL's syntax is designed to be *composable*, like any good programming language.
+
+.. tabs::
+
+  .. code-tab:: edgeql
+
+    select (
+      insert Movie { title := 'The Marvels' }
+    ) {
+      id,
+      title
+    };
+
+  .. code-tab:: typescript
+
+    const newMovie = e.insert({
+      title := "The Marvels"
+    });
+    const query = e.select(newMovie, () => ({
+      id: true,
+      title: true
+    }));
+
+    const result = await query.run(client);
+    // {id: string; title: string}
+
+We can clean up this query by pulling out the ``insert`` statement into a
+``with`` block. A ``with`` block is useful for composing complex multi-step
+queries, like a script.
+
+.. tabs::
+
+  .. code-tab:: edgeql
+
+    with new_movie := (insert Movie { title := 'The Marvels' })
+    select new_movie {
+      id,
+      title
+    };
+
+  .. code-tab:: typescript
+
+    /*
+      In the query builder, explicit ``with`` blocks aren't necessary!
+      Just assign your EdgeQL subqueries to variables and compose them as you
+      like. The query builder automatically convert your top-level query to an
+      EdgeQL expression with proper ``with`` blocks.
+    */
+
 Computed properties
 ^^^^^^^^^^^^^^^^^^^
 
@@ -347,26 +385,13 @@ Selection shapes can contain computed properties.
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
-    db> select Movie {
-    ...   title,
-    ...   title_upper := str_upper(.title),
-    ...   cast_size := count(.actors)
-    ... };
-    {
-      default::Movie {
-        title: 'Guardians of the Galaxy',
-        title_upper: 'GUARDIANS OF THE GALAXY',
-        cast_size: 8,
-      },
-      default::Movie {
-        title: 'Avengers: Endgame',
-        title_upper: 'AVENGERS: ENDGAME',
-        cast_size: 30,
-      },
-      ...
-    }
+    select Movie {
+      title,
+      title_upper := str_upper(.title),
+      cast_size := count(.actors)
+    };
 
   .. code-tab:: typescript
 
@@ -382,27 +407,14 @@ known as a *backlink* and it has special syntax.
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
-    db> select Person {
-    ...   name,
-    ...   acted_in := .<actors[is Content] {
-    ...     title
-    ...   }
-    ... };
-    {
-      default::Person {
-        name: 'Dave Bautista',
-        acted_in: {
-          default::Movie {title: 'Guardians of the Galaxy'},
-          default::Movie {title: 'Guardians of the Galaxy Vol. 2'},
-          default::Movie {title: 'Avengers: Infinity War'},
-          default::Movie {title: 'Avengers: Endgame'},
-        },
-      },
-      ...
-    }
-
+    select Person {
+      name,
+      acted_in := .<actors[is Content] {
+        title
+      }
+    };
 
   .. code-tab:: typescript
 
@@ -413,7 +425,6 @@ known as a *backlink* and it has special syntax.
       })),
     }));
     // {name: string; acted_in: {title: string}[];}[]
-
 
 See :ref:`Docs > EdgeQL > Select > Computed <ref_eql_select>` and
 :ref:`Docs > EdgeQL > Select > Backlinks <ref_eql_select>`.
@@ -426,15 +437,13 @@ The ``update`` statement accepts a ``filter`` clause upfront, followed by a
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
-    db> update Movie
-    ... filter .title = "Doctor Strange 2"
-    ... set {
-    ...   title := "Doctor Strange in the Multiverse of Madness"
-    ... };
-    {default::Movie {id: 4fb990b6-0d54-11ed-a86c-9b90e88c991b}}
-
+    update Movie
+    filter .title = "Doctor Strange 2"
+    set {
+      title := "Doctor Strange in the Multiverse of Madness"
+    };
 
   .. code-tab:: typescript
 
@@ -453,15 +462,13 @@ subtracted from with ``-=``, or overridden with ``:=``.
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
-    db> update Movie
-    ... filter .title = "Doctor Strange 2"
-    ... set {
-    ...   actors += (select Person filter .name = "Rachel McAdams")
-    ... };
-    {default::Movie {id: 4fb990b6-0d54-11ed-a86c-9b90e88c991b}}
-
+    update Movie
+    filter .title = "Doctor Strange 2"
+    set {
+      actors += (select Person filter .name = "Rachel McAdams")
+    };
 
   .. code-tab:: typescript
 
@@ -486,18 +493,11 @@ The ``delete`` statement can contain ``filter``, ``order by``, ``offset``, and
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
-    db> delete Movie
-    ... filter .ilike "the avengers%"
-    ... limit 3;
-    {
-      default::Movie {id: 3abe2b6e-0d2b-11ed-9ead-3745c7dfd553},
-      default::Movie {id: 911cff40-0979-11ed-8b9a-0789a3fd4a02},
-      default::Movie {id: 91179c12-0979-11ed-8b9a-3b5c92e7e5a5},
-      default::Movie {id: 4fb990b6-0d54-11ed-a86c-9b90e88c991b}
-    }
-
+    delete Movie
+    filter .ilike "the avengers%"
+    limit 3;
 
   .. code-tab:: typescript
 
@@ -510,21 +510,17 @@ The ``delete`` statement can contain ``filter``, ``order by``, ``offset``, and
 
 See :ref:`Docs > EdgeQL > Delete <ref_eql_delete>`.
 
-
 Query parameters
 ^^^^^^^^^^^^^^^^
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
-    db> insert Movie {
-    ...   title := <str>$title,
-    ...   release_year := <int64>$release_year
-    ... };
-    Parameter <str>$title: Thor: Love and Thunder
-    Parameter <int64>$release_year: 2022
-    {default::Movie {id: 3270a2ec-0d5e-11ed-918b-eb0282058498}}
+    insert Movie {
+      title := <str>$title,
+      release_year := <int64>$release_year
+    };
 
   .. code-tab:: typescript
 
@@ -567,7 +563,6 @@ a query.
         result = await client.query("select <str>$param", param="Play it, Sam")
         # => "Play it, Sam"
 
-
   .. code-tab:: go
 
     package main
@@ -607,20 +602,18 @@ useful, for instance, when performing nested mutations.
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
-    db> with
-    ...   dr_strange := (select Movie filter .title = "Doctor Strange"),
-    ...   benedicts := (select Person filter .name in {
-    ...     'Benedict Cumberbatch',
-    ...     'Benedict Wong'
-    ...   })
-    ... update dr_strange
-    ... set {
-    ...   actors += benedicts
-    ... };
-    {default::Movie {id: 913836ac-0979-11ed-8b9a-ef455e591c52}}
-
+    with
+      dr_strange := (select Movie filter .title = "Doctor Strange"),
+      benedicts := (select Person filter .name in {
+        'Benedict Cumberbatch',
+        'Benedict Wong'
+      })
+    update dr_strange
+    set {
+      actors += benedicts
+    };
 
   .. code-tab:: typescript
 
@@ -642,27 +635,19 @@ useful, for instance, when performing nested mutations.
       actors: { "+=": actors }
     }));
 
-
 We can also use subqueries to fetch properties of an object we just inserted.
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
-    db>  with new_movie := (insert Movie {
-    ...    title := "Avengers: The Kang Dynasty",
-    ...    release_year := 2025
-    ...  })
-    ...  select new_movie {
-    ...   title, release_year
-    ... };
-    {
-      default::Movie {
-        title: 'Avengers: The Kang Dynasty',
-        release_year: 2025,
-      },
-    }
-
+     with new_movie := (insert Movie {
+       title := "Avengers: The Kang Dynasty",
+       release_year := 2025
+     })
+     select new_movie {
+      title, release_year
+    };
 
   .. code-tab:: typescript
 
@@ -709,26 +694,13 @@ properties from known subtypes.
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
-    db> select Content {
-    ...   title,
-    ...   [is TVShow].num_seasons,
-    ...   [is Movie].release_year
-    ... };
-    {
-      default::TVShow {
-        title: 'Wandavision',
-        num_seasons: 1,
-        release_year: {}
-      },
-      default::Movie {
-        title: 'Iron Man',
-        num_seasons: {},
-        release_year: 2008
-      },
-      ...
-    }
+    select Content {
+      title,
+      [is TVShow].num_seasons,
+      [is Movie].release_year
+    };
 
   .. code-tab:: typescript
 
@@ -743,10 +715,8 @@ properties from known subtypes.
       num_seasons: number | null;
     }[] */
 
-
 See :ref:`Docs > EdgeQL > Select > Polymorphic queries
 <ref_eql_select_polymorphic>`.
-
 
 Grouping objects
 ^^^^^^^^^^^^^^^^
@@ -756,21 +726,10 @@ groupings of objects.
 
 .. tabs::
 
-  .. code-tab:: edgeql-repl
+  .. code-tab:: edgeql
 
-    db> group Movie { title, actors: { name }}
-    ... by .release_year;
-    {
-      {
-        key: {release_year: 2008},
-        grouping: {'release_year'},
-        elements: {
-          default::Movie { title: 'Iron Man' },
-          default::Movie { title: 'The Incredible Hulk' },
-        }
-      },
-      ...
-    }
+    group Movie { title, actors: { name }}
+    by .release_year;
 
   .. code-tab:: typescript
 
@@ -786,6 +745,5 @@ groupings of objects.
       key: { release_year: number | null };
       elements: { title: string; }[];
     }[] */
-
 
 See :ref:`Docs > EdgeQL > Group <ref_eql_group>`.
