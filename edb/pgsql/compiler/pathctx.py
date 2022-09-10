@@ -1052,6 +1052,14 @@ def _get_rel_path_output(
     return result
 
 
+def has_type_rewrite(
+        typeref: irast.TypeRef, *, env: context.Environment) -> bool:
+    return any(
+        (typeref.real_material_type.id, b) in env.type_rewrites
+        for b in (True, False)
+    )
+
+
 def find_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, ref: pgast.BaseExpr, *,
         env: context.Environment) -> Optional[pgast.OutputVar]:
@@ -1102,21 +1110,20 @@ def _get_path_output(
     ref: pgast.BaseExpr
     alias = None
     rptr = path_id.rptr()
-    if rptr is not None and irtyputils.is_id_ptrref(rptr) and not (
-        (src_path_id := path_id.src_path())
-        and (src_rptr := src_path_id.rptr())
+    if rptr is not None and irtyputils.is_id_ptrref(rptr) and (
+        src_path_id := path_id.src_path()
+    ) and not (
+        (src_rptr := src_path_id.rptr())
         and (
             src_rptr.real_material_ptr.out_cardinality.is_multi()
             and not irtyputils.is_free_object(src_path_id.target)
         )
-    ):
+    ) and not has_type_rewrite(src_path_id.target, env=env):
         # A value reference to Object.id is the same as a value
         # reference to the Object itself. (Though we want to only
         # apply this in the cases that process_set_as_path does this
         # optimization, which means not for multi props. We also always
         # allow it for free objects.)
-        src_path_id = path_id.src_path()
-        assert src_path_id is not None
         id_output = maybe_get_path_output(rel, src_path_id,
                                           aspect='value',
                                           allow_nullable=allow_nullable,

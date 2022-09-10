@@ -1040,7 +1040,8 @@ def process_set_as_path(
             and isinstance(source_rptr.ptrref, irast.PointerRef)
             and not source_rptr.is_inbound
             and not irtyputils.is_computable_ptrref(source_rptr.ptrref)
-            and not irutils.is_type_intersection_reference(ir_set)):
+            and not irutils.is_type_intersection_reference(ir_set)
+            and not pathctx.has_type_rewrite(ir_source.typeref, env=ctx.env)):
 
         src_src_is_visible = ctx.scope_tree.is_visible(
             source_rptr.source.path_id)
