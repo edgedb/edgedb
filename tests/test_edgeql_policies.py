@@ -251,6 +251,13 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.CardinalityViolationError,
+                r"is hidden by access policy"):
+            await self.con.query('''
+                select Ptr { z := .tgt.id }
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.CardinalityViolationError,
                 r"required link 'tgt' of object type 'default::Ptr' is "
                 r"hidden by access policy \(while evaluating computed "
                 r"property 'tb' of object type 'default::Ptr'\)"):
