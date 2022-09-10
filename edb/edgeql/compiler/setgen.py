@@ -865,7 +865,7 @@ def is_injected_computable_ptr(
 ) -> bool:
     return (
         ctx.env.options.apply_query_rewrites
-        and ptrcls not in ctx.disable_shadowing
+        and ptrcls not in ctx.active_computeds
         and (
             bool(ptrcls.get_schema_reflection_default(ctx.env.schema))
             or needs_rewrite_existence_assertion(ptrcls, direction, ctx=ctx)
@@ -1322,8 +1322,19 @@ def computable_ptr_set(
                 # TODO: do something less bad
                 arg = qlast.SelectQuery(
                     result=path, where=qlast.BooleanConstant(value='true'))
+                vname = ptrcls.get_verbosename(
+                    ctx.env.schema, with_parent=True)
+                msg = f'required {vname} is hidden by access policy'
+                if ctx.active_computeds:
+                    cur = next(reversed(ctx.active_computeds))
+                    vname = cur.get_verbosename(
+                        ctx.env.schema, with_parent=True)
+                    msg += f' (while evaluating computed {vname})'
+
                 schema_qlexpr = qlast.FunctionCall(
-                    func=('__std__', 'assert_exists'), args=[arg]
+                    func=('__std__', 'assert_exists'),
+                    args=[arg],
+                    kwargs={'message': qlast.StringConstant(value=msg)},
                 )
 
             # Is this is a view, we want to shadow the underlying
@@ -1397,13 +1408,16 @@ def computable_ptr_set(
     result_stype = ptrcls.get_target(ctx.env.schema)
     base_object = ctx.env.schema.get('std::BaseObject', type=s_types.Type)
     with newctx() as subctx:
-        subctx.disable_shadowing.add(ptrcls)
-        if ptrcls_to_shadow:
-            subctx.disable_shadowing.add(ptrcls_to_shadow)
-        if result_stype != base_object:
-            subctx.view_scls = result_stype
         assert isinstance(source_scls, s_sources.Source)
         assert isinstance(ptrcls, s_pointers.Pointer)
+
+        subctx.active_computeds = subctx.active_computeds.copy()
+        if ptrcls_to_shadow:
+            assert isinstance(ptrcls_to_shadow, s_pointers.Pointer)
+            subctx.active_computeds.add(ptrcls_to_shadow)
+        subctx.active_computeds.add(ptrcls)
+        if result_stype != base_object:
+            subctx.view_scls = result_stype
         subctx.view_rptr = context.ViewRPtr(
             source=source_scls, ptrcls=ptrcls)
         subctx.anchors[qlast.Source().name] = source_set

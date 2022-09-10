@@ -225,6 +225,7 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             };
             CREATE TYPE Ptr {
                 CREATE REQUIRED LINK tgt -> Tgt;
+                CREATE PROPERTY tb := .tgt.b;
             };
         ''')
         await self.con.query('''
@@ -236,28 +237,37 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.CardinalityViolationError,
-                r"returned an empty set"):
+                r"is hidden by access policy"):
             await self.con.query('''
                 select Ptr { tgt }
             ''')
 
         async with self.assertRaisesRegexTx(
                 edgedb.CardinalityViolationError,
-                r"returned an empty set"):
+                r"is hidden by access policy"):
             await self.con.query('''
                 select Ptr { z := .tgt.b }
             ''')
 
         async with self.assertRaisesRegexTx(
                 edgedb.CardinalityViolationError,
-                r"returned an empty set"):
+                r"required link 'tgt' of object type 'default::Ptr' is "
+                r"hidden by access policy \(while evaluating computed "
+                r"property 'tb' of object type 'default::Ptr'\)"):
+            await self.con.query('''
+                select Ptr { tb }
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.CardinalityViolationError,
+                r"is hidden by access policy"):
             await self.con.query('''
                 select Ptr.tgt
             ''')
 
         async with self.assertRaisesRegexTx(
                 edgedb.CardinalityViolationError,
-                r"returned an empty set"):
+                r"is hidden by access policy"):
             await self.con.query('''
                 select Ptr.tgt.b
             ''')
@@ -305,7 +315,7 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.CardinalityViolationError,
-                r"returned an empty set"):
+                r"is hidden by access policy"):
             await self.con.query('''
                 select Ptr { tgt }
             ''')
