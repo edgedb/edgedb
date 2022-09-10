@@ -92,7 +92,7 @@ complex structures as parameters, use EdgeDB's built-in :ref:`JSON
 .. code-block:: edgeql-repl
 
   db> with data := <json>$data
-  ... insert User {
+  ... insert Dog {
   ...   name := <str>data['name'],
   ...   age := <int64>data['age'],
   ... };
