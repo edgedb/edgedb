@@ -66,7 +66,7 @@ class OrderedSet(MutableSet[K]):
         return iter(self.map)
 
     def __reversed__(self) -> Iterator[K]:
-        return reversed(list(self.map))
+        return reversed(self.map.keys())
 
     def __repr__(self) -> str:
         if not self:
