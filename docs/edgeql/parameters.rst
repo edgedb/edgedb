@@ -94,7 +94,7 @@ complex structures as parameters, use EdgeDB's built-in :ref:`JSON
   db> with data := <json>$data
   ... insert Dog {
   ...   name := <str>data['name'],
-  ...   age := <int64>data['age'],
+  ...   legs := <int64>data['legs'],
   ... };
   Parameter <json>$data: {"name":"Fido", "legs": 4}
   {default::Dog {id: 8d286cfe-3c0a-11ec-aa68-3f3076ebd97f}}
