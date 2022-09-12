@@ -626,9 +626,15 @@ class Compiler:
         )
 
         if ir.cardinality.is_single():
-            result_cardinality = enums.Cardinality.AT_MOST_ONE
+            if ir.cardinality.can_be_zero():
+                result_cardinality = enums.Cardinality.AT_MOST_ONE
+            else:
+                result_cardinality = enums.Cardinality.ONE
         else:
-            result_cardinality = enums.Cardinality.MANY
+            if ir.cardinality.can_be_zero():
+                result_cardinality = enums.Cardinality.MANY
+            else:
+                result_cardinality = enums.Cardinality.AT_LEAST_ONE
             if ctx.expected_cardinality_one:
                 raise errors.ResultCardinalityMismatchError(
                     f'the query has cardinality {result_cardinality.name} '
