@@ -46,13 +46,13 @@ class Cardinality(enum.Enum):
 
     @classmethod
     def from_ir_value(cls, card: ir.Cardinality) -> Cardinality:
-        if card == ir.Cardinality.AT_MOST_ONE:
+        if card is ir.Cardinality.AT_MOST_ONE:
             return Cardinality.AT_MOST_ONE
-        elif card == ir.Cardinality.ONE:
+        elif card is ir.Cardinality.ONE:
             return Cardinality.ONE
-        elif card == ir.Cardinality.MANY:
+        elif card is ir.Cardinality.MANY:
             return Cardinality.MANY
-        elif card == ir.Cardinality.AT_LEAST_ONE:
+        elif card is ir.Cardinality.AT_LEAST_ONE:
             return Cardinality.AT_LEAST_ONE
         else:
             raise ValueError(
