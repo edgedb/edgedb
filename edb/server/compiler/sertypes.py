@@ -105,18 +105,9 @@ def _decode_int64(data: bytes) -> int:
 
 def cardinality_from_ptr(ptr, schema) -> enums.Cardinality:
     required = ptr.get_required(schema)
-    is_multi = ptr.get_cardinality(schema).is_multi()
-
-    if not required and not is_multi:
-        return enums.Cardinality.AT_MOST_ONE
-    if required and not is_multi:
-        return enums.Cardinality.ONE
-    if not required and is_multi:
-        return enums.Cardinality.MANY
-    if required and is_multi:
-        return enums.Cardinality.AT_LEAST_ONE
-
-    raise RuntimeError("unreachable")
+    schema_card = ptr.get_cardinality(schema)
+    ir_card = qltypes.Cardinality.from_schema_value(required, schema_card)
+    return enums.Cardinality.from_ir_value(ir_card)
 
 
 class TypeSerializer:
@@ -823,16 +814,7 @@ class StateSerializerFactory:
             s_type = g.get_target(schema)
             if s_type.is_array():
                 array_type_ids[name] = s_type.get_element_type(schema).id
-            if g.get_cardinality(schema) == qltypes.SchemaCardinality.One:
-                if g.get_required(schema):
-                    cardinality = enums.Cardinality.ONE
-                else:
-                    cardinality = enums.Cardinality.AT_MOST_ONE
-            else:
-                if g.get_required(schema):
-                    cardinality = enums.Cardinality.AT_LEAST_ONE
-                else:
-                    cardinality = enums.Cardinality.MANY
+            cardinality = cardinality_from_ptr(g, schema)
             globals_shape.append((name, s_type, cardinality))
 
         builder = builder.derive(schema)

@@ -625,14 +625,11 @@ class Compiler:
             options=self._get_compile_options(ctx),
         )
 
-        if ir.cardinality.is_single():
-            result_cardinality = enums.Cardinality.AT_MOST_ONE
-        else:
-            result_cardinality = enums.Cardinality.MANY
-            if ctx.expected_cardinality_one:
-                raise errors.ResultCardinalityMismatchError(
-                    f'the query has cardinality {result_cardinality.name} '
-                    f'which does not match the expected cardinality ONE')
+        if ir.cardinality.is_multi() and ctx.expected_cardinality_one:
+            raise errors.ResultCardinalityMismatchError(
+                f'the query has cardinality {ir.cardinality.name} '
+                f'which does not match the expected cardinality ONE')
+        result_cardinality = enums.Cardinality.from_ir_value(ir.cardinality)
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
             ir,
