@@ -22,6 +22,8 @@ from typing import *
 
 import enum
 
+from edb.edgeql import qltypes as ir
+
 
 class Cardinality(enum.Enum):
     # Cardinality isn't applicable for the query:
@@ -41,3 +43,18 @@ class Cardinality(enum.Enum):
 
     # Cardinality is >= 1
     AT_LEAST_ONE = 0x4d
+
+    @classmethod
+    def from_ir_value(cls, card: ir.Cardinality) -> Cardinality:
+        if card == ir.Cardinality.AT_MOST_ONE:
+            return Cardinality.AT_MOST_ONE
+        elif card == ir.Cardinality.ONE:
+            return Cardinality.ONE
+        elif card == ir.Cardinality.MANY:
+            return Cardinality.MANY
+        elif card == ir.Cardinality.AT_LEAST_ONE:
+            return Cardinality.AT_LEAST_ONE
+        else:
+            raise ValueError(
+                f"Cardinality.from_ir_value() got an invalid input: {card}"
+            )
