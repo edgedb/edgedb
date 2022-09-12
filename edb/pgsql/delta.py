@@ -1407,7 +1407,8 @@ class AlterFunction(FunctionCommand, adapts=s_funcs.AlterFunction):
 
         if (
             self.get_attribute_value('volatility') is not None or
-            self.get_attribute_value('nativecode') is not None
+            self.get_attribute_value('nativecode') is not None or
+            self.get_attribute_value('code') is not None
         ):
             self.pgops.update(
                 self.make_op(self.scls, schema, context, or_replace=True))

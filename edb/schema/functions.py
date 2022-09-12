@@ -2119,7 +2119,6 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
 
         if astnode.code is not None:
             if (
-                astnode.code.language is not qlast.Language.EdgeQL or
                 astnode.code.from_function is not None or
                 astnode.code.from_expr
             ):
@@ -2132,8 +2131,16 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
             nativecode_expr: Optional[qlast.Expr] = None
             if astnode.nativecode is not None:
                 nativecode_expr = astnode.nativecode
-            elif astnode.code.code is not None:
+            elif (
+                astnode.code.language is qlast.Language.EdgeQL
+                and astnode.code.code is not None
+            ):
                 nativecode_expr = qlparser.parse(astnode.code.code)
+            else:
+                cmd.set_attribute_value(
+                    'code',
+                    astnode.code.code,
+                )
 
             if nativecode_expr is not None:
                 nativecode = s_expr.Expression.from_ast(

@@ -23,5 +23,5 @@ from __future__ import annotations
 from typing import *
 
 
-PATCHES = [
+PATCHES: list[tuple[str, str]] = [
 ]
