@@ -161,7 +161,7 @@ for production), or rely on ``edgedb project`` (recommended for development).
    .. code-block:: bash
 
       $ edgedb --instance my_instance
-      EdgeDB 1.x
+      EdgeDB 2.x
       Type \help for help, \quit to quit.
       edgedb>
 
@@ -185,7 +185,7 @@ for production), or rely on ``edgedb project`` (recommended for development).
    .. code-block:: bash
 
       $ edgedb # no flags needed
-      EdgeDB 1.x
+      EdgeDB 2.x
       Type \help for help, \quit to quit.
       edgedb>
 

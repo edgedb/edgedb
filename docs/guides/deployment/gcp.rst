@@ -229,7 +229,7 @@ To test it, try opening a REPL:
 .. code-block:: bash
 
     $ edgedb --dsn $EDGEDB_DSN --tls-security insecure
-    \EdgeDB 1.x (repl 1.x)
+    EdgeDB 2.x (repl 2.x)
     Type \help for help, \quit to quit.
     edgedb> select "hello world!";
 

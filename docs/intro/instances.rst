@@ -18,7 +18,7 @@ already.) Alternatively you can specify a specific version with
 
 .. code-block:: bash
 
-  $ edgedb instance create my_instance --version 2.0
+  $ edgedb instance create my_instance --version 2.1
   $ edgedb instance create my_instance --version nightly
 
 We can execute a query against our new instance with ``edgedb query``. Specify

@@ -75,7 +75,7 @@ executed against the project-linked instance. For instance, you can simply run
 .. code-block:: bash
 
   $ edgedb
-  EdgeDB 2.0+88c1706 (repl 2.0.4+a7fc49b)
+  EdgeDB 2.x+88c1706 (repl 2.x+a7fc49b)
   Type \help for help, \quit to quit.
   edgedb> select "Hello world!";
 
@@ -92,7 +92,7 @@ with the ``-I`` flag.
   Hint: Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments
   to specify connection parameters. See `--help` for details
   $ edgedb -I my_instance
-  EdgeDB 2.0+88c1706 (repl 2.0.4+a7fc49b)
+  EdgeDB 2.x+88c1706 (repl 2.x+a7fc49b)
   Type \help for help, \quit to quit.
   edgedb>
 

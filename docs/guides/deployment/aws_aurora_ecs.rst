@@ -23,10 +23,10 @@ Prerequisites
 Quick Install with CloudFormation
 =================================
 
-We maintain a CloudFormation `template <cf-template_>`_ for easy automated
+We maintain a `CloudFormation template <cf-template_>`_ for easy automated
 deployment of EdgeDB in your AWS account.  The template deploys EdgeDB
 to a new ECS service and connects it to a newly provisioned Aurora PostgreSQL
-cluster. The created instance has a public IP address, has TLS configured, and
+cluster. The created instance has a public IP address with TLS configured and
 is protected by a password you provide.
 
 CloudFormation Web Portal

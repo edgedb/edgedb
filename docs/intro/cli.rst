@@ -28,16 +28,17 @@ To get started with EdgeDB, the first step is install the ``edgedb`` CLI.
 
 Follow the prompts on screen to complete the installation. The script will
 download the ``edgedb`` command built for your OS and add a path to it to your
-shell environment. To test the installation, run ``edgedb --version`` from the
-command line.
+shell environment. Then test the installation:
 
 .. code-block:: bash
 
     $ edgedb --version
-    EdgeDB CLI 1.x+abcdefg
+    EdgeDB CLI 2.x+abcdefg
 
-If you encounter a ``command not found`` error, you may need to open a new
-terminal window before the ``edgedb`` command is available.
+.. note::
+
+  If you encounter a ``command not found`` error, you may need to open a fresh
+  shell window.
 
 .. note::
 
@@ -126,3 +127,12 @@ the ``--help`` flag.
       link              Link a remote instance
       list              Show all instances
       ...
+
+Upgrade the CLI
+---------------
+
+To upgrade to the latest version:
+
+.. code-block:: bash
+
+  $ edgedb cli upgrade

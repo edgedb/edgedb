@@ -60,6 +60,8 @@ Use these variables to change the password for the default role ``edgedb``.
          "alter role edgedb set password := '${PASSWORD}'"
    OK: ALTER ROLE
 
+.. _ref_guide_deployment_digitalocean_link:
+
 Construct the DSN
 -----------------
 
@@ -71,7 +73,7 @@ shell logs.
 
    $ echo edgedb://edgedb:$PASSWORD@$IP > dsn.txt
 
-Copy the value from ``dsn.txt``. Tun the following command to open a REPL
+Copy the value from ``dsn.txt``. Run the following command to open a REPL
 to the new instance.
 
 ..  code-block:: bash
@@ -196,60 +198,17 @@ Set the security policy to strict.
 
    $ ssh root@$IP "systemctl restart edgedb.service"
 
-That's it! You can now start using the EdgeDB instance located at
-``edgedb://$IP``.
 
-.. _ref_guide_deployment_digitalocean_link:
+.. note::
 
-Get your instance's DSN
-=======================
+   To upgrade an existing EdgeDB droplet to the latest point release, ``ssh``
+   into your droplet and run the following.
 
-Let's construct your instance's DSN (also known as a "connection string").
-We'll write the value to a file called ``dsn.txt`` so it doesn't get stored in
-shell logs.
+   .. code-block:: bash
 
-.. code-block:: bash
+      $ apt-get update && apt-get install --only-upgrade edgedb-server-2
+      $ systemctl restart edgedb
 
-   $ echo edgedb://edgedb:$PASSWORD@$IP > dsn.txt
-
-Copy the value from ``dsn.txt``. Tun the following command to open a REPL
-to the new instance.
-
-..  code-block:: bash
-
-   $ edgedb --dsn <dsn> --tls-security insecure
-   edgedb>
-
-Success! You're now connected to your remote instance.
-
-It's often useful to assign an alias to the remote instance using ``edgedb
-instance link``.
-
-.. code-block:: bash
-
-   $ edgedb instance link --dsn <dsn> --trust-tls-cert my_instance
-   Authenticating to edgedb://edgedb@1.2.3.4:5656/edgedb
-   Trusting unknown server certificate:
-   SHA1:1880da9527be464e2cad3bdb20dfc430a6af5727
-   Successfully linked to remote instance. To connect run:
-     edgedb -I my_instance
-
-You can now use the EdgeDB instance deployed on DigitalOcean as
-``my_instance``, for example:
-
-.. code-block:: bash
-
-   $ edgedb -I my_instance
-   edgedb>
-
-
-Upgrading EdgeDB
-================
-
-To upgrade an existing EdgeDB droplet to the latest point release, ssh into
-your droplet and run the following.
-
-.. code-block:: bash
-
-   $ apt-get update && apt-get install --only-upgrade edgedb-server-2
-   $ systemctl restart edgedb
+That's it! Refer to the :ref:`Construct the DSN
+<ref_guide_deployment_digitalocean_link>` section above to connect to your
+instance.

@@ -128,9 +128,9 @@ instance is now using the latest schema.
 Data migrations
 ---------------
 
-Depending on the schema changes, you may be prompted to provide an EdgeQL
-expression to map the contents of your database to the new schema. To see this
-happen, let's make the ``title`` property ``required``.
+Depending on how the schema was changed, you may be prompted to provide an
+EdgeQL expression to map the contents of your database to the new schema. To
+see this happen, let's make the ``title`` property ``required``.
 
 .. code-block:: sdl-diff
 

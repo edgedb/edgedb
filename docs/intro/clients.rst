@@ -133,7 +133,8 @@ database and provide a set of methods for executing queries.
   Note that we aren't passing connection information (say, a connection
   URL) when creating a client. The client libraries can detect that
   they are inside a project directory and connect to the project-linked
-  instance automatically. (More on this later.)
+  instance automatically. For details on configuring connections, refer
+  to the :ref:`Connection <ref_intro_clients_connection>` section below.
 
 .. tabs::
 
@@ -248,9 +249,10 @@ Finally, execute the file.
     $ dotnet run
 
 You should see a random number get printed to the console. This number was
-generated inside your EdgeDB instance using the built-in ``random()``
-function.
+generated inside your EdgeDB instance using EdgeQL's built-in
+:eql:func:`random` function.
 
+.. _ref_intro_clients_connection:
 
 Connection
 ----------

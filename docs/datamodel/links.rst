@@ -133,10 +133,10 @@ may own many shirts, and a shirt is (usually) owned by just one person.
     link owner -> Person;
   }
 
-Since links are ``single`` by default, each shirt only corresponds to
-one person. In the absence of any exclusivity constraints, multiple shirts can
-link to the same person. Thus, we have a one-to-many relationship between
-``Person`` and ``Shirt``.
+Since links are ``single`` by default, each ``Shirt`` only corresponds to
+one ``Person``. In the absence of any exclusivity constraints, multiple shirts
+can link to the same ``Person``. Thus, we have a one-to-many relationship
+between ``Person`` and ``Shirt``.
 
 When fetching a ``Person``, it's possible to deeply fetch their collection of
 ``Shirts`` by traversing the ``Shirt.owner`` link *in reverse*. This is known
@@ -213,7 +213,7 @@ Many-to-many
 
 A *many-to-many* relation is the least constrained kind of relationship. There
 is no exclusivity or cardinality constraints in either direction. As an example
-consider a simple app where ``Users`` can "like" their favorite ``Movies``.
+consider a simple app where a ``User`` can "like" their favorite ``Movies``.
 
 .. code-block:: sdl
 

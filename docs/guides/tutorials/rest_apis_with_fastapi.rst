@@ -91,7 +91,7 @@ similar to this:
 
 ::
 
-    EdgeDB 1.x (repl 1.x)
+    EdgeDB 2.x (repl 2.x)
     Type \help for help, \quit to quit.
     edgedb>
 
