@@ -444,7 +444,8 @@ async def init_cluster(
         )
         destroy = False
 
-    if await cluster.get_status() == 'not-initialized':
+    pg_cluster = await cluster._get_pg_cluster()
+    if await pg_cluster.get_status() == 'not-initialized':
         await cluster.init(server_settings=init_settings)
 
     await cluster.start(port=0)
