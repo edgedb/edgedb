@@ -3252,11 +3252,12 @@ class TestInsert(tb.QueryTestCase):
                 }
             };
         ''')
+
         q = '''
             INSERT Y {
               l := (INSERT X { n := <str>$n } UNLESS CONFLICT ON (.n) ELSE (X))
             }
-            UNLESS CONFLICT ON (Y.l);
+            UNLESS CONFLICT ON (.l);
         '''
         await self.assert_query_result(
             q, [{}], variables={'n': "1"},

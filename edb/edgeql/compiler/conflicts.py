@@ -450,7 +450,7 @@ def compile_insert_unless_conflict_on(
 ) -> irast.OnConflictClause:
 
     with ctx.new() as constraint_ctx:
-        constraint_ctx.partial_path_prefix = stmt.subject
+        constraint_ctx.partial_path_prefix = setgen.class_set(typ, ctx=ctx)
 
         # We compile the name here so we can analyze it, but we don't do
         # anything else with it.
