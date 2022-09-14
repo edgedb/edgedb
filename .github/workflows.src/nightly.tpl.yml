@@ -106,7 +106,7 @@ jobs:
     - uses: actions/download-artifact@v2
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        path: artifacts/<< plat_id >>
 
     - name: Test
       uses: edgedb/edgedb-pkg/integration/linux/test/<< plat_id >>@master
@@ -114,6 +114,7 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: << 0 if tgt.runs_on and 'self-hosted' in tgt.runs_on else 1 >>
@@ -163,6 +164,7 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-<< tgt.name >>:
