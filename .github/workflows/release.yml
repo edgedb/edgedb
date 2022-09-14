@@ -619,6 +619,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -640,6 +641,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -661,6 +663,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -682,6 +685,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -703,6 +707,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -724,6 +729,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -745,6 +751,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -766,6 +773,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -787,6 +795,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -808,6 +817,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -829,6 +839,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -850,6 +861,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -871,6 +883,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -892,6 +905,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -913,6 +927,7 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -934,6 +949,7 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -955,6 +971,7 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -976,6 +993,7 @@ jobs:
       env:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -997,6 +1015,7 @@ jobs:
       env:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
+        PKG_PLATFORM_LIBC: ""
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -1011,13 +1030,14 @@ jobs:
     - uses: actions/download-artifact@v2
       with:
         name: builds-linuxmusl-x86_64
-        path: artifacts/linux-x86_64
+        path: artifacts/linuxmusl-x86_64
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/linux-x86_64@master
+      uses: edgedb/edgedb-pkg/integration/linux/test/linuxmusl-x86_64@master
       env:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
+        PKG_PLATFORM_LIBC: "musl"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -1032,13 +1052,14 @@ jobs:
     - uses: actions/download-artifact@v2
       with:
         name: builds-linuxmusl-aarch64
-        path: artifacts/linux-aarch64
+        path: artifacts/linuxmusl-aarch64
 
     - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/linux-aarch64@master
+      uses: edgedb/edgedb-pkg/integration/linux/test/linuxmusl-aarch64@master
       env:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
+        PKG_PLATFORM_LIBC: "musl"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 0
@@ -1110,6 +1131,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-debian-stretch-x86_64:
@@ -1154,6 +1176,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-debian-stretch-aarch64:
@@ -1198,6 +1221,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-debian-buster-x86_64:
@@ -1242,6 +1266,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-debian-buster-aarch64:
@@ -1286,6 +1311,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-debian-bullseye-x86_64:
@@ -1330,6 +1356,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-debian-bullseye-aarch64:
@@ -1374,6 +1401,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-ubuntu-xenial-x86_64:
@@ -1418,6 +1446,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-ubuntu-xenial-aarch64:
@@ -1462,6 +1491,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-ubuntu-bionic-x86_64:
@@ -1506,6 +1536,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-ubuntu-bionic-aarch64:
@@ -1550,6 +1581,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-ubuntu-focal-x86_64:
@@ -1594,6 +1626,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-ubuntu-focal-aarch64:
@@ -1638,6 +1671,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-ubuntu-jammy-x86_64:
@@ -1682,6 +1716,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-ubuntu-jammy-aarch64:
@@ -1726,6 +1761,7 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-centos-7-x86_64:
@@ -1770,6 +1806,7 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-centos-8-x86_64:
@@ -1814,6 +1851,7 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-centos-8-aarch64:
@@ -1858,6 +1896,7 @@ jobs:
       env:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-linux-x86_64:
@@ -1902,6 +1941,7 @@ jobs:
       env:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
+        PKG_PLATFORM_LIBC: ""
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-linux-aarch64:
@@ -1939,13 +1979,14 @@ jobs:
     - uses: actions/download-artifact@v2
       with:
         name: builds-linuxmusl-x86_64
-        path: artifacts/linux-x86_64
+        path: artifacts/linuxmusl-x86_64
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
+        PKG_PLATFORM_LIBC: "musl"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-linuxmusl-x86_64:
@@ -1956,16 +1997,16 @@ jobs:
     - uses: actions/download-artifact@v2
       with:
         name: builds-linuxmusl-x86_64
-        path: artifacts/linux-x86_64
+        path: artifacts/linuxmusl-x86_64
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: linux-x86_64
+        target: linuxmusl-x86_64
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
       env:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
@@ -1983,13 +2024,14 @@ jobs:
     - uses: actions/download-artifact@v2
       with:
         name: builds-linuxmusl-aarch64
-        path: artifacts/linux-aarch64
+        path: artifacts/linuxmusl-aarch64
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
+        PKG_PLATFORM_LIBC: "musl"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-linuxmusl-aarch64:
@@ -2000,16 +2042,16 @@ jobs:
     - uses: actions/download-artifact@v2
       with:
         name: builds-linuxmusl-aarch64
-        path: artifacts/linux-aarch64
+        path: artifacts/linuxmusl-aarch64
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: linux-aarch64
+        target: linuxmusl-aarch64
 
     - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@master
       env:
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"

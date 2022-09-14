@@ -48,7 +48,7 @@ jobs:
         path: artifacts/<< plat_id >>
 <% endfor %>
 <% for tgt in targets.macos %>
-<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
     needs: prep
@@ -92,7 +92,7 @@ jobs:
         path: artifacts/<< plat_id >>
 <% endfor %>
 <% for tgt in targets.linux %>
-<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   test-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
@@ -108,13 +108,14 @@ jobs:
       env:
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: << 0 if tgt.runs_on and 'self-hosted' in tgt.runs_on else 1 >>
 
 <% endfor %>
 <% for tgt in targets.macos %>
-<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   test-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
@@ -139,7 +140,7 @@ jobs:
         edgedb-pkg/integration/macos/test.sh
 <% endfor %>
 <% for tgt in targets.linux %>
-<% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   publish-<< tgt.name >>:
     needs: [test-<< tgt.name >>]
     runs-on: ubuntu-latest
@@ -155,6 +156,7 @@ jobs:
       env:
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
   check-published-<< tgt.name >>:
