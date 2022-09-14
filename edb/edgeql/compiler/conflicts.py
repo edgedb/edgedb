@@ -120,7 +120,13 @@ def _compile_conflict_select(
         ptrs_in_shape.add(name)
         if name in needed_ptrs and name not in ptr_anchors:
             assert elem.expr
-            if inference.infer_volatility(elem.expr, ctx.env).is_volatile():
+            # We don't properly support hoisting volatile properties out of
+            # UNLESS CONFLICT, so disallow it. We *do* support handling DML
+            # there, since that gets hoisted into CTEs via its own mechanism.
+            # See issue #1699.
+            if inference.infer_volatility(
+                elem.expr, ctx.env, exclude_dml=True
+            ).is_volatile():
                 if for_inheritance:
                     error = (
                         'INSERT does not support volatile properties with '
@@ -444,7 +450,7 @@ def compile_insert_unless_conflict_on(
 ) -> irast.OnConflictClause:
 
     with ctx.new() as constraint_ctx:
-        constraint_ctx.partial_path_prefix = stmt.subject
+        constraint_ctx.partial_path_prefix = setgen.class_set(typ, ctx=ctx)
 
         # We compile the name here so we can analyze it, but we don't do
         # anything else with it.

@@ -967,7 +967,7 @@ def _normalize_view_ptr_expr(
         x.is_binding == irast.BindingKind.With
         and x.expr
         and inference.infer_volatility(
-            x.expr, ctx.env, for_materialization=True).is_volatile()
+            x.expr, ctx.env, exclude_dml=True).is_volatile()
 
         for reason in materialized
         if isinstance(reason, irast.MaterializeVisible)
