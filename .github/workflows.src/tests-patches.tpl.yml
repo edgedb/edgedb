@@ -1,0 +1,105 @@
+<% from "tests.inc.yml" import build, calc_cache_key, restore_cache, setup_terraform -%>
+
+name: Tests of patching old EdgeDB Versions
+
+on:
+  workflow_dispatch:
+    inputs: {}
+  push:
+    branches:
+      - patch-test*
+      - stable/*
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    <%- call build() -%>
+    - name: Compute cache keys
+      run: |
+        << calc_cache_key()|indent >>
+    <%- endcall %>
+
+  compute-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - id: set-matrix
+      name: Compute versions to run on
+      shell: python
+      run: |
+        import json
+        import os
+        import re
+        from urllib import request
+
+        u = 'https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-gnu.json'
+        data = json.loads(request.urlopen(u).read())
+
+        branch = os.getenv('GITHUB_REF_NAME')
+        version = int(re.findall(r'\d+', branch)[0])
+
+        versions = []
+        for obj in data['packages']:
+            if (
+                obj['version_details']['major'] == version
+                and not obj['version_details']['prerelease']
+            ):
+                versions.append(obj['version'])
+
+        matrix = {"edgedb-version": versions, "make-dbs": [True, False]}
+
+        print(f'::set-output name=matrix::{json.dumps(matrix)}')
+
+  test:
+    runs-on: ubuntu-latest
+    needs: [build, compute-versions]
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJSON(needs.compute-versions.outputs.matrix)}}
+
+    steps:
+    <<- restore_cache() >>
+
+    # Run the test
+
+    - name: Download an earlier database version and set up a instance
+      env:
+        EDGEDB_VERSION: ${{ matrix.edgedb-version }}
+      run: |
+        wget -q "https://packages.edgedb.com/archive/x86_64-unknown-linux-gnu/edgedb-server-$EDGEDB_VERSION.tar.gz"
+        tar xzf edgedb-server-$EDGEDB_VERSION.tar.gz
+        edgedb-server-$EDGEDB_VERSION/bin/edgedb-server -D test-dir --bootstrap-only --testmode
+
+    - name: Create databases on the older version
+      env:
+        EDGEDB_VERSION: ${{ matrix.edgedb-version }}
+      if: ${{ matrix.make-dbs }}
+      shell: python
+      run: |
+        import edgedb
+        import os
+        import subprocess
+
+        version = os.getenv('EDGEDB_VERSION')
+        cmd = [
+            f'edgedb-server-{version}/bin/edgedb-server', '-D' 'test-dir',
+            '--testmode', '--security', 'insecure_dev_mode', '--port', '10000',
+        ]
+        proc = subprocess.Popen(cmd)
+
+        db = edgedb.create_client(
+            host='localhost', port=10000, tls_security='insecure'
+        )
+        for name in ['json', 'functions', 'expressions', 'casts']:
+            db.execute(f'create database {name};')
+
+        proc.terminate()
+        proc.wait()
+
+    - name: Run tests with instance created on an older version
+      run: |
+        # Should we run *all* the tests?
+        edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py

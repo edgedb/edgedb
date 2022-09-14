@@ -1370,6 +1370,9 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
         await admin_conn.execute(
             f'CREATE DATABASE {qlquote.quote_ident(dbname)};'
         )
+    except edgedb.DuplicateDatabaseDefinitionError:
+        # Eh, that's fine
+        pass
     except Exception as ex:
         raise RuntimeError(
             f'exception during creation of {dbname!r} test DB: '
