@@ -3239,6 +3239,42 @@ class TestInsert(tb.QueryTestCase):
             );
         ''')
 
+    async def test_edgeql_insert_unless_conflict_25(self):
+        await self.con.execute('''
+            create type X {
+                create required property n -> str {
+                    create constraint exclusive;
+                }
+            };
+            create type Y {
+                create required link l -> X {
+                    create constraint exclusive;
+                }
+            };
+        ''')
+
+        q = '''
+            INSERT Y {
+              l := (INSERT X { n := <str>$n } UNLESS CONFLICT ON (.n) ELSE (X))
+            }
+            UNLESS CONFLICT ON (.l);
+        '''
+        await self.assert_query_result(
+            q, [{}], variables={'n': "1"},
+        )
+        await self.assert_query_result(
+            q, [], variables={'n': "1"},
+        )
+        await self.con.execute('''
+            insert X { n := "2" }
+        ''')
+        await self.assert_query_result(
+            q, [{}], variables={'n': "2"},
+        )
+        await self.assert_query_result(
+            q, [], variables={'n': "2"},
+        )
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             SELECT (
