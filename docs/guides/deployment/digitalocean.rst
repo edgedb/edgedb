@@ -95,8 +95,8 @@ instance link``.
    Successfully linked to remote instance. To connect run:
      edgedb -I my_instance
 
-You can now use the ``-I`` flag to execute CLI commands against your remote
-instance.
+You can now use the ``-I`` CLI flag to execute commands against your remote
+instance:
 
 .. code-block:: bash
 
