@@ -1651,8 +1651,7 @@ def should_materialize(
     skipped_bindings: AbstractSet[irast.PathId]=frozenset(),
     ctx: context.ContextLevel,
 ) -> Sequence[irast.MaterializeReason]:
-    volatility = inference.infer_volatility(
-        ir, ctx.env, for_materialization=True)
+    volatility = inference.infer_volatility(ir, ctx.env, exclude_dml=True)
     reasons: List[irast.MaterializeReason] = []
 
     if volatility.is_volatile():
