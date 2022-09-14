@@ -9,7 +9,7 @@ dependencies = [
     'httptools>=0.3.0',
     'immutables>=0.18',
     'parsing~=2.0',
-    'uvloop~=0.16.0',
+    'uvloop~=0.17.0',
 
     'click~=7.1',
     'cryptography~=35.0',
