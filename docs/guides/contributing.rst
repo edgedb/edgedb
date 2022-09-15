@@ -72,6 +72,16 @@ Python "venv" with all dependencies and commands installed into it.
    Python virtual environment.
 
    It will also install libraries used during development.
+   
+#. Build documentation
+
+   .. code-block:: bash
+      
+      $ make docs
+      
+   The ``edgedb`` repository will come with a ``Makefile`` containing build
+   requirements necessary for carrying out Sphinx builds. Once ran, a new
+   directory `docs/build` will be generated with the HTML converted result.
 
 #. Run tests:
 
