@@ -492,6 +492,8 @@ def prepare_patch(
     if kind == 'sql':
         return (patch, update), (), schema
 
+    assert kind == 'edgeql'
+
     # EdgeQL patches need to be compiled.
     current_block = dbops.PLTopBlock()
     std_plans = []
