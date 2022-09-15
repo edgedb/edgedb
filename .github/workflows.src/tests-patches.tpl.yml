@@ -1,4 +1,4 @@
-<% from "tests.inc.yml" import build, calc_cache_key, restore_cache, setup_terraform -%>
+<% from "tests.inc.yml" import build, calc_cache_key, restore_cache -%>
 
 name: Tests of patching old EdgeDB Versions
 
