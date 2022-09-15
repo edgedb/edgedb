@@ -14,13 +14,21 @@ valid. The can be defined on :ref:`properties <ref_datamodel_props>`,
 <ref_datamodel_object_types>`, and  :ref:`custom scalars
 <ref_datamodel_links>`.
 
+Below is a simple property constraint.
+
+.. code-block:: sdl
+
+  type User {
+    required property username -> str {
+      constraint exclusive;
+    }
+  }
+
 .. _ref_datamodel_constraints_builtin:
 
-Built-in constraints
---------------------
-
-For convenience, EdgeDB provides some pre-defined constraints. Click the name
-of a given constraint for the full documentation.
+This example uses a built-in constraint, ``exclusive``. Refer to the table
+below for a complete list; click the name of a given constraint for the full
+documentation.
 
 .. include:: ../stdlib/constraint_table.rst
 
@@ -43,14 +51,26 @@ the length of a string.
       # usernames must be unique
       constraint exclusive;
 
-      # as custom constraint
-      constraint expression on (len(__subject__) <= 25);
-
-      # with built-in
+      # max length (built-in)
       constraint max_len_value(25);
     };
   }
 
+Custom constraints
+^^^^^^^^^^^^^^^^^^
+
+The ``expression`` constraint is used to define custom constraint logic. Inside
+custom constraints, the keyword ``__subject__`` can used to reference the
+*value* being constrained.
+
+.. code-block:: sdl
+
+  type User {
+    required property username -> str {
+      # max length (as custom constraint)
+      constraint expression on (len(__subject__) <= 25);
+    };
+  }
 
 .. _ref_datamodel_constraints_objects:
 
@@ -77,12 +97,59 @@ constraint logic must reference multiple links or properties.
     );
   }
 
+Note that the constraint expression cannot contain arbitrary EdgeQL! Due to
+how constraints are implemented, you can only reference ``single`` (non-multi)
+properties and links defined on the object type.
+
+.. code-block:: sdl
+
+  # Not valid!
+  type User {
+    required property username -> str;
+    multi link friends -> User;
+
+    # ❌ constraints cannot contain paths with more than one hop
+    constraint expression on ('bob' in .friends.username);
+  }
+
+Computed constraints
+^^^^^^^^^^^^^^^^^^^^
+
+Constraints can be defined on computed properties.
+
+.. code-block:: sdl
+
+  type User {
+    required property username -> str;
+    required property clean_username := str_trim(str_lower(.username));
+
+    constraint exclusive on (.clean_username);
+  }
+
+
+Composite constraints
+^^^^^^^^^^^^^^^^^^^^^
+
+To define a composite constraint, create an ``exclusive`` constraint on a
+tuple of properties or links.
+
+.. code-block:: sdl
+
+  type User {
+    property username -> str;
+  }
+
+  type BlogPost {
+    property title -> str;
+    link author -> User;
+
+    constraint exclusive on ((.title, .author));
+  }
 
 .. _ref_datamodel_constraints_partial:
 
-
 Partial constraints #New
-------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 Constraints on object types can be made partial, so that they don't apply
 when some condition holds.

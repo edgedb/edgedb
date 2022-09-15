@@ -22,20 +22,24 @@ Let's start with a simple schema.
 
   type BlogPost {
     required property title -> str;
-    link author -> User;
+    required link author -> User;
   }
 
-When no access policies are defined, object-level security is not activated.
-Any properly authenticated query can select or modify any object in the
-database. Once a policy is added to a particular object type, object-level
-security is activated; all operations on that type (``select``, ``insert``,
-etc.) are *disallowed by default* except those specifically permitted by its
-access policies.
 
-Defining a policy
+When no access policies are defined, object-level security is not activated.
+Any properly authenticated client can select or modify any object in the
+database.
+
+⚠️ Once a policy is added to a particular object type, **all operations**
+(``select``, ``insert``, ``delete``, and ``update`` etc.) on any object of
+that type are now *disallowed by default* unless specifically allowed by an
+access policy!
+
+Defining a global
 ^^^^^^^^^^^^^^^^^
 
-Let's add a policy to our sample schema.
+To start, we'll add a *global variable* to our schema. We'll use this global
+to represent the identity of the user executing the query.
 
 .. code-block:: sdl-diff
 
@@ -47,17 +51,14 @@ Let's add a policy to our sample schema.
 
       type BlogPost {
         required property title -> str;
-        link author -> User;
-  +     access policy own_posts allow all using (
-  +       .author.id ?= global current_user
-  +     )
+        required link author -> User;
       }
 
-First: we've added a global variable called ``current_user``. Global
-variables are a mechanism for providing context to a query; you set their
-value when you first initialize your client. The exact API depends on which
-client library you're using; refer to the :ref:`Global Variables
-<ref_datamodel_globals>` page for complete documentation.
+Global variables are a generic mechanism for providing *context* to a query.
+Most commonly, they are used in the context of access policies.
+
+The value of these variables is attached to the *client* you use to execute
+queries. The exact API depends on which client library you're using:
 
 .. tabs::
 
@@ -83,7 +84,7 @@ client library you're using; refer to the :ref:`Global Variables
         select global current_user;
     """)
 
-  .. code-tab:: golang
+  .. code-tab:: go
 
     package main
 
@@ -120,17 +121,32 @@ client library you're using; refer to the :ref:`Global Variables
     }
 
 
+Defining a policy
+^^^^^^^^^^^^^^^^^
 
-Now let's break down the access policy syntax piece-by-piece.
+Let's add a policy to our sample schema.
 
-.. code-block::
+.. code-block:: sdl-diff
 
-  access policy own_posts
-    allow all
-    using (.author.id ?= global current_user)
+      global current_user -> uuid;
 
-This policy grants full read-write access (``all``) to the ``author`` of each
-``BlogPost``. It also implicitly *denies* access to everyone else.
+      type User {
+        required property email -> str { constraint exclusive; };
+      }
+
+      type BlogPost {
+        required property title -> str;
+        required link author -> User;
+
+  +     access policy author_has_full_access
+  +       allow all
+  +       using (global current_user ?= .author.id);
+      }
+
+
+Let's break down the access policy syntax piece-by-piece. This policy grants
+full read-write access (``all``) to the ``author`` of each ``BlogPost``. No
+one else will be able to edit, delete, or view this post.
 
 .. note::
 
@@ -146,7 +162,6 @@ This policy grants full read-write access (``all``) to the ``author`` of each
   ``update read``, ``update write``.
 - ``using (<expr>)``: A boolean expression. Think of this as a ``filter``
   expression that defined the set of objects to which the policy applies.
-
 
 Let's do some experiments.
 
@@ -252,51 +267,138 @@ algorithm for resolving these policies.
 Examples
 ^^^^^^^^
 
+Blog posts are publicly visible if ``published`` but only writable by the
+author.
+
+.. code-block:: sdl-diff
+
+    global current_user -> uuid;
+
+    type User {
+      required property email -> str { constraint exclusive; };
+    }
+
+    type BlogPost {
+      required property title -> str;
+      required link author -> User;
+  +   required property published -> bool { default := false }
+
+      access policy author_has_full_access
+        allow all
+        using (global current_user ?= .author.id);
+  +   access policy visible_if_published
+  +     allow select
+  +     using (.published);
+    }
+
 Blog posts are visible to friends but only modifiable by the author.
 
-.. code-block:: sdl
+.. code-block:: sdl-diff
 
-  global current_user -> uuid;
+    global current_user -> uuid;
 
-  type User {
-    required property email -> str { constraint exclusive; };
-    multi link friends -> User;
-  }
+    type User {
+      required property email -> str { constraint exclusive; };
+  +   multi link friends -> User;
+    }
 
-  type BlogPost {
-    required property title -> str;
-    link author -> User;
-    access policy self_and_friends_can_read allow select using (
-      global current_user ?= {.author.id, .author.friends.id}
-    );
-    access policy self_can_modify allow update, insert, delete using (
-      global current_user ?= .author.id
-    );
-  }
+    type BlogPost {
+      required property title -> str;
+      required link author -> User;
+
+      access policy author_has_full_access
+        allow all
+        using (global current_user ?= .author.id);
+  +   access policy friends_can_read
+  +     allow select
+  +     using ((global current_user in .author.friends.id) ?? false);
+    }
 
 Blog posts are publicly visible except to users that have been ``blocked`` by
 the author.
 
-.. code-block:: sdl
+.. code-block:: sdl-diff
 
-  type User {
-    required property email -> str { constraint exclusive; };
-    multi link friends -> User;
-    multi link blocked -> User;
-  }
+    type User {
+      required property email -> str { constraint exclusive; };
+  +   multi link blocked -> User;
+    }
 
-  type BlogPost {
-    required property title -> str;
-    link author -> User;
+    type BlogPost {
+      required property title -> str;
+      required link author -> User;
 
-    access policy author_can_modify allow all using (
-      global current_user ?= .author.id
-    );
-    access policy anyone_can_read allow select using (true);
-    access policy exclude_blocked deny select using (
-      global current_user ?= .author.blocked.id
-    );
-  }
+      access policy author_has_full_access
+        allow all
+        using (global current_user ?= .author.id);
+  +   access policy anyone_can_read
+  +     allow select;
+  +   access policy exclude_blocked
+  +     deny select
+  +     using ((global current_user in .author.blocked.id) ?? false);
+    }
+
+
+"Disappearing" posts that become invisible after 24 hours.
+
+Blog posts are publicly visible except to users that have been ``blocked`` by
+the author.
+
+.. code-block:: sdl-diff
+
+    type User {
+      required property email -> str { constraint exclusive; };
+    }
+
+    type BlogPost {
+      required property title -> str;
+      required link author -> User;
+  +   required property created_at -> datetime {
+  +     default := datetime_of_statement() # non-volatile
+  +   }
+
+      access policy author_has_full_access
+        allow all
+        using (global current_user ?= .author.id);
+  +   access policy hide_after_24hrs
+  +     allow select
+  +     using (datetime_of_statement() - .created_at < <duration>'24 hours');
+    }
+
+Super constraints
+*****************
+
+Access policies support arbitrary EdgeQL and can be used to define "super
+constraints". Policies on ``insert`` and ``update write`` can
+be thought of as post-write "validity checks"; if the check fails, the write
+will be rolled back.
+
+.. note::
+
+  Due to an underlying Postgres limitation, :ref:`constraints on object types
+  <ref_datamodel_constraints_objects>` can only reference properties, not
+  links.
+
+Here's a policy that limits the number of blog posts a ``User`` can post.
+
+.. code-block:: sdl-diff
+
+    type User {
+      required property email -> str { constraint exclusive; };
+  +   multi link posts := .<author[is BlogPost]
+    }
+
+    type BlogPost {
+      required property title -> str;
+      required link author -> User;
+
+      access policy author_has_full_access
+        allow all
+        using (global current_user ?= .author.id);
+  +   access policy max_posts_limit
+  +     deny insert
+  +     using (count(.author.posts) > 500);
+    }
 
 .. list-table::
   :class: seealso

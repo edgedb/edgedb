@@ -418,7 +418,7 @@ cdef class DatabaseConnectionView:
         else:
             self._globals = new_globals
 
-    cdef get_database_config(self):
+    cpdef get_database_config(self):
         if self._in_tx:
             return self._in_tx_db_config
         else:
@@ -461,7 +461,7 @@ cdef class DatabaseConnectionView:
     cdef get_system_config(self):
         return self._db._index.get_sys_config()
 
-    cdef get_compilation_system_config(self):
+    cpdef get_compilation_system_config(self):
         return self._db._index.get_compilation_system_config()
 
     cdef set_modaliases(self, new_aliases):

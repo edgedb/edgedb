@@ -44,7 +44,7 @@ from edb.common import verutils
 
 
 # Increment this whenever the database layout or stdlib changes.
-EDGEDB_CATALOG_VERSION = 2022_08_02_00_00
+EDGEDB_CATALOG_VERSION = 2022_08_05_00_00
 EDGEDB_MAJOR_VERSION = 3
 
 
@@ -392,7 +392,7 @@ def get_version_metadata() -> VersionMetadata:
 
 def _decode_build_target(val: str) -> str:
     return (
-        base64.b32decode(val + "=" * (-len(val) % 4), casefold=True).decode()
+        base64.b32decode(val + "=" * (-len(val) % 8), casefold=True).decode()
     )
 
 

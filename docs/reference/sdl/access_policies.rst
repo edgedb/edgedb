@@ -50,12 +50,11 @@ commands <ref_eql_ddl_access_policies>`.
 .. sdl:synopsis::
 
     # Access policy used inside a type declaration:
-    access policy <name> "{"
+    access policy <name>
       [ when (<condition>) ]
       { allow | deny } <action> [, <action> ... ]
       [ using (<expr>) ]
-      [ <annotation-declarations> ]
-    "}"
+      [ <annotation-declarations> ] ;
 
     # where <action> is one of
     all
@@ -69,7 +68,7 @@ Description
 
 Access policies are used to implement object-level security and as such they
 are defined on object types. In practice the access policies often work
-together with :ref:`global varaibles <ref_eql_ddl_globals>`.
+together with :ref:`global variables <ref_eql_ddl_globals>`.
 
 Access policies are an opt-in feature, so once at least one access policy is
 defined for a given type, all access not explicitly allowed by that policy

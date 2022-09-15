@@ -1455,7 +1455,7 @@ class _EdgeDBServer:
         *,
         bind_addrs: Tuple[str, ...] = ('localhost',),
         bootstrap_command: Optional[str],
-        auto_shutdown: bool,
+        auto_shutdown_after: Optional[int],
         adjacent_to: Optional[tconn.Connection],
         max_allowed_connections: Optional[int],
         compiler_pool_size: int,
@@ -1481,7 +1481,7 @@ class _EdgeDBServer:
         env: Optional[Dict[str, str]] = None,
     ) -> None:
         self.bind_addrs = bind_addrs
-        self.auto_shutdown = auto_shutdown
+        self.auto_shutdown_after = auto_shutdown_after
         self.bootstrap_command = bootstrap_command
         self.adjacent_to = adjacent_to
         self.max_allowed_connections = max_allowed_connections
@@ -1531,7 +1531,7 @@ class _EdgeDBServer:
             return
 
         if self.proc.returncode is None:
-            if self.auto_shutdown and exc is None:
+            if self.auto_shutdown_after is not None and exc is None:
                 try:
                     await asyncio.wait_for(self.proc.wait(), timeout=60 * 5)
                 except TimeoutError:
@@ -1616,8 +1616,8 @@ class _EdgeDBServer:
         if bootstrap_command:
             cmd += ['--bootstrap-command', bootstrap_command]
 
-        if self.auto_shutdown:
-            cmd += ['--auto-shutdown-after', '0']
+        if self.auto_shutdown_after is not None:
+            cmd += ['--auto-shutdown-after', str(self.auto_shutdown_after)]
 
         if self.runstate_dir:
             cmd += ['--runstate-dir', self.runstate_dir]
@@ -1723,9 +1723,8 @@ class _EdgeDBServer:
                     self.http_endpoint_security
                     is edgedb_args.ServerEndpointSecurityMode.Optional
                 )
-                and
-                self.data is not None
-                and not self.auto_shutdown
+                and self.data is not None
+                and self.auto_shutdown_after is None
             ):
                 # It's a good idea to test most of the ad-hoc test clusters
                 # for any errors in background tasks, as such tests usually
@@ -1746,7 +1745,7 @@ class _EdgeDBServer:
 def start_edgedb_server(
     *,
     bind_addrs: tuple[str, ...] = ('localhost',),
-    auto_shutdown: bool=False,
+    auto_shutdown_after: Optional[int]=None,
     bootstrap_command: Optional[str]=None,
     max_allowed_connections: Optional[int]=10,
     compiler_pool_size: int=2,
@@ -1794,7 +1793,7 @@ def start_edgedb_server(
 
     return _EdgeDBServer(
         bind_addrs=bind_addrs,
-        auto_shutdown=auto_shutdown,
+        auto_shutdown_after=auto_shutdown_after,
         bootstrap_command=bootstrap_command,
         max_allowed_connections=max_allowed_connections,
         adjacent_to=adjacent_to,

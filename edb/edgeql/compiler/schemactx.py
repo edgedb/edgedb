@@ -119,7 +119,7 @@ def _get_type_variant(
 ) -> Optional[s_obj.Object]:
     type_variant = ctx.aliased_views.get(name)
     if type_variant is not None:
-        ctx.must_use_views[type_variant] = None
+        ctx.env.must_use_views[type_variant] = None
         return type_variant
     else:
         return None
@@ -256,7 +256,7 @@ def derive_view(
             and not (
                 stype.generic(ctx.env.schema)
                 and (view_ir := ctx.view_sets.get(stype))
-                and (scope_info := ctx.path_scope_map.get(view_ir))
+                and (scope_info := ctx.env.path_scope_map.get(view_ir))
                 and scope_info.binding_kind
             )
             and isinstance(derived, s_objtypes.ObjectType)
@@ -270,9 +270,9 @@ def derive_view(
                 # computable expressions for pointers are carried over.
                 src_ptr = scls_pointers.get(ctx.env.schema, pn)
                 computable_data = (
-                    ctx.source_map.get(src_ptr) if src_ptr else None)
+                    ctx.env.source_map.get(src_ptr) if src_ptr else None)
                 if computable_data is not None:
-                    ctx.source_map[ptr] = computable_data
+                    ctx.env.source_map[ptr] = computable_data
 
                 if src_ptr in ctx.env.pointer_specified_info:
                     ctx.env.pointer_derivation_map[src_ptr].append(ptr)
@@ -348,9 +348,9 @@ def derive_ptr(
                 # mypy somehow loses the type argument in the
                 # "pointers" ObjectIndex.
                 assert isinstance(src_ptr, s_pointers.Pointer)
-                computable_data = ctx.source_map.get(src_ptr)
+                computable_data = ctx.env.source_map.get(src_ptr)
                 if computable_data is not None:
-                    ctx.source_map[ptr] = computable_data
+                    ctx.env.source_map[ptr] = computable_data
 
     if preserve_shape and ptr in ctx.env.view_shapes:
         preserve_view_shape(ptr, derived, ctx=ctx)
@@ -385,12 +385,12 @@ def derive_view_name(
 
 
 def get_union_type(
-    types: Iterable[s_types.Type],
+    types: Iterable[s_types.TypeT],
     *,
     opaque: bool = False,
     preserve_derived: bool = False,
     ctx: context.ContextLevel,
-) -> s_types.Type:
+) -> s_types.TypeT:
 
     ctx.env.schema, union, created = s_utils.ensure_union_type(
         ctx.env.schema, types,
@@ -407,14 +407,14 @@ def get_union_type(
     ):
         ctx.env.add_schema_ref(union, expr=None)
 
-    return union
+    return cast(s_types.TypeT, union)
 
 
 def get_intersection_type(
-    types: Iterable[s_types.Type],
+    types: Iterable[s_types.TypeT],
     *,
     ctx: context.ContextLevel,
-) -> s_types.Type:
+) -> s_types.TypeT:
 
     ctx.env.schema, intersection, created = s_utils.ensure_intersection_type(
         ctx.env.schema, types, transient=True)
@@ -430,7 +430,7 @@ def get_intersection_type(
     ):
         ctx.env.add_schema_ref(intersection, expr=None)
 
-    return intersection
+    return cast(s_types.TypeT, intersection)
 
 
 def get_material_type(
@@ -441,6 +441,27 @@ def get_material_type(
 
     ctx.env.schema, mtype = t.material_type(ctx.env.schema)
     return mtype
+
+
+def concretify(
+    t: s_types.TypeT,
+    *,
+    ctx: context.ContextLevel,
+) -> s_types.TypeT:
+    """Produce a version of t with all views removed.
+
+    This procedes recursively through unions and intersections,
+    which can result in major simplifications with intersection types
+    in particular.
+    """
+    t = get_material_type(t, ctx=ctx)
+    if els := t.get_union_of(ctx.env.schema):
+        ts = [concretify(e, ctx=ctx) for e in els.objects(ctx.env.schema)]
+        return get_union_type(ts , ctx=ctx)
+    if els := t.get_intersection_of(ctx.env.schema):
+        ts = [concretify(e, ctx=ctx) for e in els.objects(ctx.env.schema)]
+        return get_intersection_type(ts , ctx=ctx)
+    return t
 
 
 class TypeIntersectionResult(NamedTuple):

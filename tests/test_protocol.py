@@ -174,7 +174,7 @@ class TestProtocol(ProtocolTestCase):
         )
         await self.con.recv_match(
             protocol.CommandDataDescription,
-            result_cardinality=compiler.Cardinality.AT_MOST_ONE,
+            result_cardinality=compiler.Cardinality.ONE,
         )
 
         # Test that Flush has completed successfully -- the
@@ -393,6 +393,56 @@ class TestProtocol(ProtocolTestCase):
         await self.con.recv_match(protocol.ReadyForCommand)
 
         self.assertNotEqual(cdd1.output_typedesc_id, cdd2.output_typedesc_id)
+
+    async def _parse(self, query):
+        await self.con.send(
+            protocol.Parse(
+                annotations=[],
+                allowed_capabilities=protocol.Capability.ALL,
+                compilation_flags=protocol.CompilationFlag(0),
+                implicit_limit=0,
+                output_format=protocol.OutputFormat.BINARY,
+                expected_cardinality=compiler.Cardinality.MANY,
+                command_text=query,
+                state_typedesc_id=b'\0' * 16,
+                state_data=b'',
+            ),
+            protocol.Flush()
+        )
+
+    async def test_proto_parse_cardinality(self):
+        await self.con.connect()
+
+        await self._parse("SELECT 42")
+        await self.con.recv_match(
+            protocol.CommandDataDescription,
+            result_cardinality=compiler.Cardinality.ONE,
+        )
+
+        await self._parse("SELECT {1,2,3}")
+        await self.con.recv_match(
+            protocol.CommandDataDescription,
+            result_cardinality=compiler.Cardinality.AT_LEAST_ONE,
+        )
+
+        await self._execute('CREATE TYPE ParseCardTest')
+        await self.con.recv_match(
+            protocol.CommandComplete,
+            status='CREATE TYPE'
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        await self._parse("SELECT ParseCardTest")
+        await self.con.recv_match(
+            protocol.CommandDataDescription,
+            result_cardinality=compiler.Cardinality.MANY,
+        )
+
+        await self._parse("SELECT ParseCardTest LIMIT 1")
+        await self.con.recv_match(
+            protocol.CommandDataDescription,
+            result_cardinality=compiler.Cardinality.AT_MOST_ONE,
+        )
 
 
 class TestServerCancellation(tb.TestCase):

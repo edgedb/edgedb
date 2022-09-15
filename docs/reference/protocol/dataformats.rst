@@ -537,6 +537,37 @@ For example, the ``cal::relative_duration`` value
     0x00 0x00 0x00 0x1f
 
 
+.. _ref_protocol_fmt_date_duration:
+
+cal::date_duration
+======================
+
+The :eql:type:`cal::date_duration` values are represented as the following
+structure:
+
+.. code-block:: c
+
+    struct DateDuration {
+        int64   reserved;
+        int32   days;
+        int32   months;
+    };
+
+For example, the ``cal::date_duration`` value ``'1 years 2 days'`` is encoded
+as:
+
+.. code-block:: c
+
+    // reserved
+    0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00
+
+    // days
+    0x00 0x00 0x00 0x02
+
+    // months
+    0x00 0x00 0x00 0x0c
+
+
 .. _ref_protocol_fmt_json:
 
 std::json

@@ -34,5 +34,6 @@ Client Libraries
     python/index
     go/index
     rust/index
+    dart/index
     http/index
 

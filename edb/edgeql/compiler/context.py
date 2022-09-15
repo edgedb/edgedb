@@ -29,6 +29,7 @@ import uuid
 import weakref
 
 from edb.common import compiler
+from edb.common import ordered
 from edb.common import parsing
 
 from edb.edgeql import ast as qlast
@@ -132,7 +133,7 @@ class Environment:
     path_scope: irast.ScopeTreeNode
     """Overrall expression path scope tree."""
 
-    schema_view_cache: Dict[s_types.Type, s_types.Type]
+    schema_view_cache: Dict[s_types.Type, tuple[s_types.Type, irast.Set]]
     """Type cache used by schema-level views."""
 
     query_parameters: Dict[str, irast.Param]
@@ -185,6 +186,16 @@ class Environment:
 
     view_shapes_metadata: Dict[s_types.Type, irast.ViewShapeMetadata]
 
+    must_use_views: Dict[
+        s_types.Type,
+        Optional[Tuple[s_name.Name, Optional[parsing.ParserContext]]],
+    ]
+    """A set of views that *must* be used in an expression.
+
+    Once a view is used, we set it to None rather than removing it so
+    that we can avoid adding it again if it is defined inside a
+    computable."""
+
     schema_refs: Set[s_obj.Object]
     """A set of all schema objects referenced by an expression."""
 
@@ -233,6 +244,33 @@ class Environment:
 
     Used to make sure the types are consistent."""
 
+    source_map: Dict[s_pointers.PointerLike, irast.ComputableInfo]
+    """A mapping of computable pointers to QL source AST and context."""
+
+    type_rewrites: Dict[
+        Tuple[s_types.Type, bool], irast.Set | None | Literal[True]]
+    """Access policy rewrites for schema-level types.
+
+    None indicates no rewrite, True indicates a compound type
+    that had rewrites in its components.
+    """
+
+    expr_view_cache: Dict[Tuple[qlast.Base, s_name.Name], irast.Set]
+    """Type cache used by expression-level views."""
+
+    shape_type_cache: Dict[
+        Tuple[
+            s_objtypes.ObjectType,
+            s_types.ExprType,
+            Tuple[qlast.ShapeElement, ...],
+        ],
+        s_objtypes.ObjectType,
+    ]
+    """Type cache for shape expressions."""
+
+    path_scope_map: Dict[irast.Set, ScopeInfo]
+    """A dictionary of scope info that are appropriate for a given view."""
+
     def __init__(
         self,
         *,
@@ -261,6 +299,7 @@ class Environment:
         self.view_shapes = collections.defaultdict(list)
         self.view_shapes_metadata = collections.defaultdict(
             irast.ViewShapeMetadata)
+        self.must_use_views = {}
         self.schema_refs = set()
         self.schema_ref_exprs = {} if options.track_schema_ref_exprs else None
         self.created_schema_objects = set()
@@ -276,6 +315,11 @@ class Environment:
         self.compiled_stmts = {}
         self.alias_result_view_name = alias_result_view_name
         self.script_params = {}
+        self.source_map = {}
+        self.type_rewrites = {}
+        self.shape_type_cache = {}
+        self.expr_view_cache = {}
+        self.path_scope_map = {}
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
@@ -389,51 +433,17 @@ class ContextLevel(compiler.ContextLevel):
     func: Optional[s_func.Function]
     """Schema function object required when compiling functions bodies."""
 
-    source_map: Dict[s_pointers.PointerLike, irast.ComputableInfo]
-    """A mapping of computable pointers to QL source AST and context."""
-
     view_nodes: Dict[s_name.Name, s_types.Type]
     """A dictionary of newly derived Node classes representing views."""
 
     view_sets: Dict[s_types.Type, irast.Set]
     """A dictionary of IR expressions for views declared in the query."""
 
-    type_rewrites: Dict[
-        Tuple[s_types.Type, bool], irast.Set | None | Literal[True]]
-    """Access policy rewrites for schema-level types.
-
-    None indicates no rewrite, True indicates a compound type
-    that had rewrites in its components.
-    """
-
     suppress_rewrites: FrozenSet[s_types.Type]
     """Types to suppress using rewrites on"""
 
     aliased_views: ChainMap[s_name.Name, s_types.Type]
     """A dictionary of views aliased in a statement body."""
-
-    must_use_views: Dict[
-        s_types.Type,
-        Optional[Tuple[s_name.Name, Optional[parsing.ParserContext]]],
-    ]
-    """A set of views that *must* be used in an expression.
-
-    Once a view is used, we set it to None rather than removing it so
-    that we can avoid adding it again if it is defined inside a
-    computable."""
-
-    expr_view_cache: Dict[Tuple[qlast.Base, s_name.Name], irast.Set]
-    """Type cache used by expression-level views."""
-
-    shape_type_cache: Dict[
-        Tuple[
-            s_objtypes.ObjectType,
-            s_types.ExprType,
-            Tuple[qlast.ShapeElement, ...],
-        ],
-        s_objtypes.ObjectType,
-    ]
-    """Type cache for shape expressions."""
 
     class_view_overrides: Dict[uuid.UUID, s_types.Type]
     """Object mapping used by implicit view override in SELECT."""
@@ -481,9 +491,6 @@ class ContextLevel(compiler.ContextLevel):
 
     path_scope: irast.ScopeTreeNode
     """Path scope tree, with per-lexical-scope levels."""
-
-    path_scope_map: Dict[irast.Set, ScopeInfo]
-    """A dictionary of scope info that are appropriate for a given view."""
 
     iterator_ctx: Optional[ContextLevel]
     """The context of the statement where all iterators should be placed."""
@@ -540,9 +547,8 @@ class ContextLevel(compiler.ContextLevel):
     in_conditional: Optional[parsing.ParserContext]
     """Whether currently in a conditional branch."""
 
-    disable_shadowing: Set[Union[s_obj.Object, s_pointers.PseudoPointer]]
-    """A set of schema objects for which the shadowing rewrite should be
-       disabled."""
+    active_computeds: ordered.OrderedSet[s_pointers.Pointer]
+    """A ordered set of currently compiling computeds"""
 
     def __init__(
         self,
@@ -562,15 +568,10 @@ class ContextLevel(compiler.ContextLevel):
             self.anchors = {}
             self.modaliases = {}
 
-            self.source_map = {}
             self.view_nodes = {}
             self.view_sets = {}
-            self.type_rewrites = {}
             self.suppress_rewrites = frozenset()
             self.aliased_views = collections.ChainMap()
-            self.must_use_views = {}
-            self.expr_view_cache = {}
-            self.shape_type_cache = {}
             self.class_view_overrides = {}
 
             self.toplevel_stmt = None
@@ -582,7 +583,6 @@ class ContextLevel(compiler.ContextLevel):
             self.inserting_paths = {}
             self.view_map = collections.ChainMap()
             self.path_scope = env.path_scope
-            self.path_scope_map = {}
             self.iterator_path_ids = frozenset()
             self.scope_id_ctr = compiler.SimpleCounter()
             self.view_scls = None
@@ -602,7 +602,7 @@ class ContextLevel(compiler.ContextLevel):
             self.defining_view = None
             self.compiling_update_shape = False
             self.in_conditional = None
-            self.disable_shadowing = set()
+            self.active_computeds = ordered.OrderedSet()
             self.recompiling_schema_alias = False
 
         else:
@@ -610,14 +610,9 @@ class ContextLevel(compiler.ContextLevel):
             self.derived_target_module = prevlevel.derived_target_module
             self.aliases = prevlevel.aliases
 
-            self.source_map = prevlevel.source_map
             self.view_nodes = prevlevel.view_nodes
             self.view_sets = prevlevel.view_sets
-            self.type_rewrites = prevlevel.type_rewrites
             self.suppress_rewrites = prevlevel.suppress_rewrites
-            self.must_use_views = prevlevel.must_use_views
-            self.expr_view_cache = prevlevel.expr_view_cache
-            self.shape_type_cache = prevlevel.shape_type_cache
 
             self.iterator_path_ids = prevlevel.iterator_path_ids
             self.path_id_namespace = prevlevel.path_id_namespace
@@ -630,7 +625,6 @@ class ContextLevel(compiler.ContextLevel):
             if prevlevel.path_scope is None:
                 prevlevel.path_scope = self.env.path_scope
             self.path_scope = prevlevel.path_scope
-            self.path_scope_map = prevlevel.path_scope_map
             self.scope_id_ctr = prevlevel.scope_id_ctr
             self.view_scls = prevlevel.view_scls
             self.expr_exposed = prevlevel.expr_exposed
@@ -647,7 +641,7 @@ class ContextLevel(compiler.ContextLevel):
             self.defining_view = prevlevel.defining_view
             self.compiling_update_shape = prevlevel.compiling_update_shape
             self.in_conditional = prevlevel.in_conditional
-            self.disable_shadowing = prevlevel.disable_shadowing
+            self.active_computeds = prevlevel.active_computeds
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
 
             if mode == ContextSwitchMode.SUBQUERY:
@@ -695,7 +689,6 @@ class ContextLevel(compiler.ContextLevel):
 
                 self.view_rptr = None
                 self.toplevel_result_view_name = None
-                self.disable_shadowing = prevlevel.disable_shadowing.copy()
             else:
                 self.anchors = prevlevel.anchors
                 self.modaliases = prevlevel.modaliases

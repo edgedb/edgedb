@@ -85,6 +85,19 @@ Query planning
 Client connections
 ------------------
 
+:eql:synopsis:`allow_user_specified_id -> bool`
+  Makes it possible to set the ``.id`` property when inserting new objects.
+
+  Enabling this feature introduces some security vulnerabilities:
+
+  1. An unprivileged user can discover ids that already exist in the database
+     by trying to insert new values and noting when there is a constraint
+     violation on ``.id`` even if the user doesn't have access to the relevant
+     table.
+
+  2. It allows re-using object ids for a different object type, which the
+     application might not expect.
+
 :eql:synopsis:`session_idle_timeout -> std::duration`
   Sets the timeout for how long client connections can stay inactive
   before being forcefully closed by the server.

@@ -624,9 +624,10 @@ _server_options = [
         help='shutdown the server after the last ' +
              'connection is closed'),
     click.option(
-        '--auto-shutdown-after', type=float, default=-1.0,
-        help='shutdown the server after the last connection has been closed '
-             'for N seconds. N < 0 is treated as infinite.'),
+        '--auto-shutdown-after', type=float, default=-1.0, metavar='N',
+        help='shutdown the server if no client connections were made in the '
+             'last N seconds, if N = 0, shut down after the last client has '
+             'disconnected, N < 0 (default) means no auto shutdown'),
     click.option(
         '--tls-cert-file',
         type=PathPath(),
@@ -780,6 +781,7 @@ _server_options = [
         help='Show the version and exit.'),
     click.option(
         '--admin-ui',
+        envvar="EDGEDB_SERVER_ADMIN_UI",
         type=click.Choice(
             ['default', 'enabled', 'disabled'],
             case_sensitive=True,

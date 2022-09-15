@@ -225,6 +225,7 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             };
             CREATE TYPE Ptr {
                 CREATE REQUIRED LINK tgt -> Tgt;
+                CREATE PROPERTY tb := .tgt.b;
             };
         ''')
         await self.con.query('''
@@ -236,28 +237,44 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.CardinalityViolationError,
-                r"returned an empty set"):
+                r"is hidden by access policy"):
             await self.con.query('''
                 select Ptr { tgt }
             ''')
 
         async with self.assertRaisesRegexTx(
                 edgedb.CardinalityViolationError,
-                r"returned an empty set"):
+                r"is hidden by access policy"):
             await self.con.query('''
                 select Ptr { z := .tgt.b }
             ''')
 
         async with self.assertRaisesRegexTx(
                 edgedb.CardinalityViolationError,
-                r"returned an empty set"):
+                r"is hidden by access policy"):
+            await self.con.query('''
+                select Ptr { z := .tgt.id }
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.CardinalityViolationError,
+                r"required link 'tgt' of object type 'default::Ptr' is "
+                r"hidden by access policy \(while evaluating computed "
+                r"property 'tb' of object type 'default::Ptr'\)"):
+            await self.con.query('''
+                select Ptr { tb }
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.CardinalityViolationError,
+                r"is hidden by access policy"):
             await self.con.query('''
                 select Ptr.tgt
             ''')
 
         async with self.assertRaisesRegexTx(
                 edgedb.CardinalityViolationError,
-                r"returned an empty set"):
+                r"is hidden by access policy"):
             await self.con.query('''
                 select Ptr.tgt.b
             ''')
@@ -305,7 +322,7 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.CardinalityViolationError,
-                r"returned an empty set"):
+                r"is hidden by access policy"):
             await self.con.query('''
                 select Ptr { tgt }
             ''')
@@ -733,3 +750,52 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                     create access policy z allow all using (exists C);
                 };
             ''')
+
+    async def test_edgeql_policies_missing_prop_01(self):
+        await self.con.execute('''
+            CREATE TYPE A {
+                CREATE PROPERTY ts -> datetime;
+                CREATE ACCESS POLICY soft_delete
+                    ALLOW SELECT, UPDATE READ, INSERT
+                    USING (NOT (EXISTS (.ts)));
+                CREATE ACCESS POLICY update_write
+                    ALLOW UPDATE WRITE;
+            }
+        ''')
+
+        await self.con.execute('''
+            insert A;
+        ''')
+
+    async def test_edgeql_policies_missing_prop_02(self):
+        await self.con.execute('''
+            CREATE TYPE A {
+                CREATE MULTI PROPERTY ts -> datetime;
+                CREATE ACCESS POLICY soft_delete
+                    ALLOW SELECT, UPDATE READ, INSERT
+                    USING (NOT (EXISTS (.ts)));
+                CREATE ACCESS POLICY update_write
+                    ALLOW UPDATE WRITE;
+            }
+        ''')
+
+        await self.con.execute('''
+            insert A;
+        ''')
+
+    async def test_edgeql_policies_delete_union_01(self):
+        await self.con.execute('''
+            create type T {
+                create access policy insert_select
+                    allow insert, select;
+            };
+            create type S;
+            insert T;
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                delete {T, S};
+            ''',
+            []
+        )

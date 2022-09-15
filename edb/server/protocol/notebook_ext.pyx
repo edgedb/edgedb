@@ -138,21 +138,6 @@ async def heartbeat_check(db, server):
         server.release_pgcon(db.name, pgcon)
 
 
-async def compile(db, server, list queries):
-    compiler_pool = server.get_compiler_pool()
-    return await compiler_pool.compile_notebook(
-        db.name,
-        db.user_schema,
-        server.get_global_schema(),
-        db.reflection_cache,
-        db.db_config,
-        server.get_compilation_system_config(),
-        queries,
-        CURRENT_PROTOCOL,
-        50,  # implicit limit
-    )
-
-
 cdef class NotebookConnection(frontend.FrontendConnection):
     def __cinit__(self):
         self.buf = WriteBuffer.new()
@@ -168,18 +153,25 @@ cdef class NotebookConnection(frontend.FrontendConnection):
 
 
 async def execute(db, server, queries: list):
-    dbver = db.dbver
-    units = await compile(db, server, queries)
-    result = []
-
     dbv = await server.new_dbview(
         dbname=db.name,
         query_cache=False,
         protocol_version=edbdef.CURRENT_PROTOCOL,
     )
-
+    compiler_pool = server.get_compiler_pool()
+    units = await compiler_pool.compile_notebook(
+        dbv.dbname,
+        dbv.get_user_schema(),
+        dbv.get_global_schema(),
+        dbv.reflection_cache,
+        dbv.get_database_config(),
+        dbv.get_compilation_system_config(),
+        queries,
+        CURRENT_PROTOCOL,
+        50,  # implicit limit
+    )
+    result = []
     bind_data = None
-
     pgcon = await server.acquire_pgcon(db.name)
     try:
         await pgcon.sql_execute(b'START TRANSACTION;')
@@ -217,7 +209,7 @@ async def execute(db, server, queries: list):
                         bind_data=bind_data,
                         use_prep_stmt=False,
                         state=None,
-                        dbver=dbver,
+                        dbver=dbv.dbver,
                     )
                 except Exception as ex:
                     if debug.flags.server:

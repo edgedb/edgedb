@@ -24,6 +24,7 @@ from typing import *
 
 import asyncio
 import collections
+import contextlib
 import ipaddress
 import json
 import logging
@@ -338,14 +339,13 @@ class Server(ha_base.ClusterProtocol):
         self._report_connections(event="closed")
         metrics.current_client_connections.dec()
 
-        if not self._binary_conns and self._auto_shutdown_after >= 0:
-
-            def shutdown():
-                self._accepting_connections = False
-                self._stop_evt.set()
-
+        if (
+            not self._binary_conns
+            and self._auto_shutdown_after >= 0
+            and self._auto_shutdown_handler is None
+        ):
             self._auto_shutdown_handler = self.__loop.call_later(
-                self._auto_shutdown_after, shutdown)
+                self._auto_shutdown_after, self.request_auto_shutdown)
 
     def _report_connections(self, *, event: str) -> None:
         log_metrics.info(
@@ -581,12 +581,9 @@ class Server(ha_base.ClusterProtocol):
             raise
 
     async def load_sys_config(self):
-        syscon = await self._acquire_sys_pgcon()
-        try:
+        async with self._use_sys_pgcon() as syscon:
             query = self.get_sys_query('sysconfig')
             sys_config_json = await syscon.sql_fetch_val(query)
-        finally:
-            self._release_sys_pgcon()
 
         return config.from_json(config.get_settings(), sys_config_json)
 
@@ -628,11 +625,8 @@ class Server(ha_base.ClusterProtocol):
         if conn is not None:
             json_data = await conn.sql_fetch_val(intro_query)
         else:
-            syscon = await self._acquire_sys_pgcon()
-            try:
+            async with self._use_sys_pgcon() as syscon:
                 json_data = await syscon.sql_fetch_val(intro_query)
-            finally:
-                self._release_sys_pgcon()
 
         return s_refl.parse_into(
             base_schema=self._std_schema,
@@ -796,13 +790,10 @@ class Server(ha_base.ClusterProtocol):
             self.release_pgcon(dbname, conn)
 
     async def _introspect_dbs(self):
-        syscon = await self._acquire_sys_pgcon()
-        try:
+        async with self._use_sys_pgcon() as syscon:
             dbs_query = self.get_sys_query('listdbs')
             json_data = await syscon.sql_fetch_val(dbs_query)
             dbnames = json.loads(json_data)
-        finally:
-            self._release_sys_pgcon()
 
         async with taskgroup.TaskGroup(name='introspect DB extensions') as g:
             for dbname in dbnames:
@@ -826,8 +817,7 @@ class Server(ha_base.ClusterProtocol):
         self._roles = immutables.Map(roles)
 
     async def _load_instance_data(self):
-        syscon = await self._acquire_sys_pgcon()
-        try:
+        async with self._use_sys_pgcon() as syscon:
             result = await syscon.sql_fetch_val(b'''\
                 SELECT json::json FROM edgedbinstdata.instdata
                 WHERE key = 'instancedata';
@@ -886,9 +876,6 @@ class Server(ha_base.ClusterProtocol):
                 SELECT bin FROM edgedbinstdata.instdata
                 WHERE key = 'report_configs_typedesc';
             ''')
-
-        finally:
-            self._release_sys_pgcon()
 
     def get_roles(self):
         return self._roles
@@ -1128,9 +1115,16 @@ class Server(ha_base.ClusterProtocol):
     def _release_sys_pgcon(self):
         self._sys_pgcon_waiter.release()
 
-    async def _cancel_pgcon_operation(self, pgcon) -> bool:
-        syscon = await self._acquire_sys_pgcon()
+    @contextlib.asynccontextmanager
+    async def _use_sys_pgcon(self):
+        conn = await self._acquire_sys_pgcon()
         try:
+            yield conn
+        finally:
+            self._release_sys_pgcon()
+
+    async def _cancel_pgcon_operation(self, pgcon) -> bool:
+        async with self._use_sys_pgcon() as syscon:
             if pgcon.idle:
                 # pgcon could have received the query results while we
                 # were acquiring a system connection to cancel it.
@@ -1153,8 +1147,6 @@ class Server(ha_base.ClusterProtocol):
                 pgcon.finish_pg_cancellation()
 
             return result == b'\x01'
-        finally:
-            self._release_sys_pgcon()
 
     async def _cancel_and_discard_pgcon(self, pgcon, dbname) -> None:
         try:
@@ -1698,6 +1690,21 @@ class Server(ha_base.ClusterProtocol):
                 "jwe_keys_newly_generated": self._jwe_keys_newly_generated,
             }
             status_sink(f'READY={json.dumps(status)}')
+
+        if self._auto_shutdown_after > 0:
+            self._auto_shutdown_handler = self.__loop.call_later(
+                self._auto_shutdown_after, self.request_auto_shutdown)
+
+    def request_auto_shutdown(self):
+        if self._auto_shutdown_after == 0:
+            logger.info("shutting down server: all clients disconnected")
+        else:
+            logger.info(
+                f"shutting down server: no clients connected in last"
+                f" {self._auto_shutdown_after} seconds"
+            )
+        self._accepting_connections = False
+        self._stop_evt.set()
 
     async def stop(self):
         try:

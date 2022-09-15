@@ -364,10 +364,9 @@ def infer_volatility(
     ir: irast.Base,
     env: context.Environment,
     *,
-    for_materialization: bool=False,
+    exclude_dml: bool=False,
 ) -> qltypes.Volatility:
-    result = _normalize_volatility(_infer_volatility(ir, env))[
-        for_materialization]
+    result = _normalize_volatility(_infer_volatility(ir, env))[exclude_dml]
 
     if result not in {VOLATILE, STABLE, IMMUTABLE}:
         raise errors.QueryError(

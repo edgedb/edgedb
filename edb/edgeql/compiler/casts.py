@@ -164,10 +164,10 @@ def compile_cast(
             ctx.env.schema, json_array_typ = s_types.Array.from_subtypes(
                 ctx.env.schema, [json_t])
             json_array_ir = compile_cast(
-                ir_expr, json_array_typ, srcctx=srcctx, ctx=ctx)
-            return compile_cast(
-                json_array_ir, new_stype, cardinality_mod=cardinality_mod,
+                ir_expr, json_array_typ, cardinality_mod=cardinality_mod,
                 srcctx=srcctx, ctx=ctx)
+            return compile_cast(
+                json_array_ir, new_stype, srcctx=srcctx, ctx=ctx)
         elif (orig_stype.issubclass(ctx.env.schema, json_t)
               and isinstance(new_stype, s_types.Tuple)):
             return _cast_json_to_tuple(

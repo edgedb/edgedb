@@ -101,7 +101,9 @@ def compile_FunctionCall(
         ctx=ctx)
     args, kwargs = compile_func_call_args(
         expr, funcname, typemods, ctx=ctx)
-    matched = polyres.find_callable(funcs, args=args, kwargs=kwargs, ctx=ctx)
+    with errors.ensure_context(expr.context):
+        matched = polyres.find_callable(
+            funcs, args=args, kwargs=kwargs, ctx=ctx)
     if not matched:
         alts = [f.get_signature_as_str(env.schema) for f in funcs]
         sig: List[str] = []
@@ -317,7 +319,7 @@ def compile_operator(
     args = []
 
     for ai, qlarg in enumerate(qlargs):
-        arg_ir = compile_arg(
+        arg_ir = polyres.compile_arg(
             qlarg,
             typemods[ai],
             in_conditional=bool(conditional_args and ai in conditional_args),
@@ -666,42 +668,6 @@ def validate_recursive_operator(
     return matched
 
 
-def compile_arg(
-        arg_ql: qlast.Expr, typemod: ft.TypeModifier, *,
-        in_conditional: bool=False,
-        ctx: context.ContextLevel) -> irast.Set:
-    fenced = typemod is ft.TypeModifier.SetOfType
-    optional = typemod is ft.TypeModifier.OptionalType
-
-    # Create a a branch for OPTIONAL ones. The OPTIONAL branch is to
-    # have a place to mark as optional in the scope tree.
-    # For fenced arguments we instead wrap it in a SELECT below.
-    new = ctx.newscope(fenced=False) if optional else ctx.new()
-    with new as argctx:
-        if in_conditional:
-            argctx.in_conditional = arg_ql.context
-
-        if optional:
-            argctx.path_scope.mark_as_optional()
-
-        if fenced:
-            arg_ql = qlast.SelectQuery(
-                result=arg_ql, context=arg_ql.context,
-                implicit=True, rptr_passthrough=True)
-
-        argctx.inhibit_implicit_limit = True
-
-        arg_ir = dispatch.compile(arg_ql, ctx=argctx)
-
-        if optional:
-            pathctx.register_set_in_scope(arg_ir, optional=True, ctx=ctx)
-
-            if arg_ir.path_scope_id is None:
-                pathctx.assign_set_scope(arg_ir, argctx.path_scope, ctx=argctx)
-
-        return arg_ir
-
-
 def compile_func_call_args(
     expr: qlast.FunctionCall,
     funcname: sn.Name,
@@ -716,7 +682,7 @@ def compile_func_call_args(
     kwargs = {}
 
     for ai, arg in enumerate(expr.args):
-        arg_ir = compile_arg(arg, typemods[ai], ctx=ctx)
+        arg_ir = polyres.compile_arg(arg, typemods[ai], ctx=ctx)
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
             raise errors.QueryError(
@@ -727,7 +693,7 @@ def compile_func_call_args(
         args.append((arg_type, arg_ir))
 
     for aname, arg in expr.kwargs.items():
-        arg_ir = compile_arg(arg, typemods[aname], ctx=ctx)
+        arg_ir = polyres.compile_arg(arg, typemods[aname], ctx=ctx)
 
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:

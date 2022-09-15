@@ -210,6 +210,50 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_update_simple_05(self):
+        orig1, orig2, orig3 = self.original
+
+        await self.assert_query_result(
+            r"""
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    name := 'update-test1-updated',
+                    status := assert_single((
+                        SELECT
+                          Status
+                        FILTER
+                          .name = 'Closed' or .name = 'Foo'
+                    ))
+                };
+            """,
+            [{}]
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT UpdateTest {
+                    id,
+                    name,
+                    comment,
+                    status: {
+                        name
+                    }
+                } ORDER BY .name;
+            """,
+            [
+                {
+                    'id': orig1['id'],
+                    'name': 'update-test1-updated',
+                    'status': {
+                        'name': 'Closed'
+                    }
+                },
+                orig2,
+                orig3,
+            ]
+        )
+
     async def test_edgeql_update_returning_01(self):
         orig1, orig2, orig3 = self.original
 
@@ -3570,4 +3614,60 @@ class TestUpdate(tb.QueryTestCase):
                     ]
                 }
             ]
+        )
+
+    async def test_edgeql_update_inject_intersection_01(self):
+        await self.con.execute(r"""
+            CREATE ABSTRACT TYPE default::I;
+            CREATE TYPE default::S EXTENDING default::I {
+                CREATE REQUIRED PROPERTY Depth -> std::float64;
+            };
+            CREATE TYPE default::P {
+                CREATE REQUIRED MULTI LINK Items -> default::I;
+                CREATE PROPERTY name -> std::str;
+            };
+        """)
+
+        await self.con._fetchall(
+            r"""
+                with
+                    obj1 := (select P FILTER .name = 'foo'),
+                    obj3 := (select obj1.Items limit 1)[is S]
+                UPDATE obj3
+                SET {
+                    Depth := 11.3781298010066
+                };
+            """,
+            __typenames__=True
+        )
+
+        await self.con._fetchall(
+            r"""
+                with
+                    obj1 := (select P FILTER .name = 'foo'),
+                    obj3 := (select obj1.Items limit 1)[is S]
+                DELETE obj3
+            """,
+            __typenames__=True
+        )
+
+    async def test_edgeql_update_inject_intersection_02(self):
+        await self.con.execute(r"""
+            create alias UpdateTestCommented :=
+               (select UpdateTest filter exists .comment);
+        """)
+
+        await self.assert_query_result(
+            r"""
+                update UpdateTestCommented[is UpdateTestSubType]
+                set { str_tags += 'lol' };
+            """,
+            [],
+        )
+
+        await self.assert_query_result(
+            r"""
+                delete UpdateTestCommented[is UpdateTestSubType]
+            """,
+            [],
         )

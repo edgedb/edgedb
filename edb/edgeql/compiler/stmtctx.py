@@ -92,7 +92,7 @@ def init_context(
     for orig, remapped in options.type_remaps.items():
         rset = compile_anchor('__', remapped, ctx=ctx)
         ctx.view_sets[orig] = rset
-        ctx.path_scope_map[rset] = context.ScopeInfo(
+        ctx.env.path_scope_map[rset] = context.ScopeInfo(
             path_scope=ctx.path_scope, binding_kind=None
         )
 
@@ -166,7 +166,7 @@ def fini_expression(
     ctx.path_scope.validate_unique_ids()
 
     # Infer cardinalities of type rewrites
-    for rw in ctx.type_rewrites.values():
+    for rw in ctx.env.type_rewrites.values():
         if isinstance(rw, irast.Set):
             inference.infer_cardinality(
                 rw, scope_tree=ctx.path_scope, ctx=inf_ctx)
@@ -243,7 +243,7 @@ def fini_expression(
                 hint='Consider using an explicit type cast.',
                 context=ctx.env.type_origins.get(anytype))
 
-    must_use_views = [val for val in ctx.must_use_views.values() if val]
+    must_use_views = [val for val in ctx.env.must_use_views.values() if val]
     if must_use_views:
         alias, srcctx = must_use_views[0]
         raise errors.QueryError(
@@ -257,7 +257,7 @@ def fini_expression(
     group.infer_group_aggregates(ir, ctx=ctx)
 
     assert isinstance(ir, irast.Set)
-    source_map = {k: v for k, v in ctx.source_map.items()
+    source_map = {k: v for k, v in ctx.env.source_map.items()
                   if isinstance(k, s_pointers.Pointer)}
     params = list(ctx.env.query_parameters.values())
     if params and params[0].name.isdecimal():
@@ -290,7 +290,7 @@ def fini_expression(
         ),
         type_rewrites={
             (typ.id, not skip_subtypes): s
-            for (typ, skip_subtypes), s in ctx.type_rewrites.items()
+            for (typ, skip_subtypes), s in ctx.env.type_rewrites.items()
             if isinstance(s, irast.Set)},
         dml_exprs=ctx.env.dml_exprs,
         singletons=ctx.env.singletons,
@@ -304,7 +304,7 @@ def _fixup_materialized_sets(
     # Make sure that all materialized sets have their views compiled
     flt = lambda n: isinstance(n, irast.Stmt)
     children: List[irast.Stmt] = ast_visitor.find_children(ir, flt)
-    for nobe in ctx.source_map.values():
+    for nobe in ctx.env.source_map.values():
         if nobe.irexpr:
             children += ast_visitor.find_children(nobe.irexpr, flt)
 
@@ -483,7 +483,7 @@ def compile_anchor(
     if isinstance(anchor, s_types.Type):
         # Anchors should not receive type rewrites; we are already
         # evaluating in their context.
-        ctx.type_rewrites[anchor, False] = None
+        ctx.env.type_rewrites[anchor, False] = None
         step = setgen.class_set(anchor, ctx=ctx)
 
     elif (isinstance(anchor, s_pointers.Pointer) and
@@ -491,7 +491,7 @@ def compile_anchor(
         src = anchor.get_source(ctx.env.schema)
         if src is not None:
             assert isinstance(src, s_objtypes.ObjectType)
-            ctx.type_rewrites[src, False] = None
+            ctx.env.type_rewrites[src, False] = None
             path = setgen.extend_path(
                 setgen.class_set(src, ctx=ctx),
                 anchor,
@@ -502,7 +502,7 @@ def compile_anchor(
             ptrcls = schemactx.derive_dummy_ptr(anchor, ctx=ctx)
             src = ptrcls.get_source(ctx.env.schema)
             assert isinstance(src, s_types.Type)
-            ctx.type_rewrites[src, False] = None
+            ctx.env.type_rewrites[src, False] = None
             path = setgen.extend_path(
                 setgen.class_set(src, ctx=ctx),
                 ptrcls,
@@ -600,7 +600,7 @@ def declare_view(
             subctx.path_id_namespace = path_id_namespace
 
         if not fully_detached:
-            cached_view_set = ctx.expr_view_cache.get((expr, alias))
+            cached_view_set = ctx.env.expr_view_cache.get((expr, alias))
             # Detach the view namespace and record the prefix
             # in the parent statement's fence node.
             view_path_id_ns = ctx.aliases.get('ns')
@@ -637,7 +637,7 @@ def declare_view(
         view_set = dispatch.compile(astutils.ensure_qlstmt(expr), ctx=subctx)
         assert isinstance(view_set, irast.Set)
 
-        ctx.path_scope_map[view_set] = context.ScopeInfo(
+        ctx.env.path_scope_map[view_set] = context.ScopeInfo(
             path_scope=subctx.path_scope,
             pinned_path_id_ns=pinned_pid_ns,
             binding_kind=binding_kind,
@@ -653,21 +653,24 @@ def declare_view(
 
         view_type = setgen.get_set_type(view_set, ctx=ctx)
         ctx.aliased_views[alias] = view_type
-        ctx.expr_view_cache[expr, alias] = view_set
+        ctx.env.expr_view_cache[expr, alias] = view_set
 
-        if must_be_used and view_type not in ctx.must_use_views:
-            ctx.must_use_views[view_type] = (alias, expr.context)
+        if must_be_used and view_type not in ctx.env.must_use_views:
+            ctx.env.must_use_views[view_type] = (alias, expr.context)
 
     return view_set
 
 
-def declare_view_from_schema(
+def _declare_view_from_schema(
         viewcls: s_types.Type, *,
-        ctx: context.ContextLevel) -> s_types.Type:
-    vc = ctx.env.schema_view_cache.get(viewcls)
-    if vc is not None:
-        return vc
+        ctx: context.ContextLevel) -> tuple[s_types.Type, irast.Set]:
+    e = ctx.env.schema_view_cache.get(viewcls)
+    if e is not None:
+        return e
 
+    # N.B: This takes a context, which we need to use to create a
+    # subcontext to compile in, but it should avoid depending on the
+    # context, because of the cache.
     with ctx.detached() as subctx:
         subctx.expr_exposed = context.Exposure.UNEXPOSED
         view_expr = viewcls.get_expr(ctx.env.schema)
@@ -679,16 +682,25 @@ def declare_view_from_schema(
                                 binding_kind=irast.BindingKind.With,
                                 fully_detached=True, ctx=subctx)
         # The view path id _itself_ should not be in the nested namespace.
-        view_set.path_id = view_set.path_id.replace_namespace(
-            ctx.path_id_namespace)
+        view_set.path_id = view_set.path_id.replace_namespace(frozenset())
 
         vc = subctx.aliased_views[viewcls_name]
         assert vc is not None
-        ctx.env.schema_view_cache[viewcls] = vc
-        ctx.source_map.update(subctx.source_map)
-        ctx.aliased_views[viewcls_name] = subctx.aliased_views[viewcls_name]
-        ctx.view_nodes[vc.get_name(ctx.env.schema)] = vc
-        ctx.view_sets[vc] = subctx.view_sets[vc]
+        ctx.env.schema_view_cache[viewcls] = vc, view_set
+
+    return vc, view_set
+
+
+def declare_view_from_schema(
+        viewcls: s_types.Type, *,
+        ctx: context.ContextLevel) -> s_types.Type:
+    vc, view_set = _declare_view_from_schema(viewcls, ctx=ctx)
+
+    viewcls_name = viewcls.get_name(ctx.env.schema)
+
+    ctx.aliased_views[viewcls_name] = vc
+    ctx.view_nodes[vc.get_name(ctx.env.schema)] = vc
+    ctx.view_sets[vc] = view_set
 
     return vc
 

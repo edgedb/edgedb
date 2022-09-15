@@ -105,9 +105,7 @@ def init_dml_stmt(
         range_cte = None
         range_rvar = None
 
-    top_typeref = ir_stmt.subject.typeref
-    if top_typeref.material_type:
-        top_typeref = top_typeref.material_type
+    top_typeref = ir_stmt.material_type
 
     typerefs = [top_typeref]
 
@@ -627,7 +625,10 @@ def process_insert_body(
             return None
         if not (rptr := path_id.rptr()):
             return None
-        return ptr_map.get(rptr.real_material_ptr)
+        if ret := ptr_map.get(rptr.real_material_ptr):
+            return ret
+        # Properties that aren't specified are {}
+        return pgast.NullConstant()
 
     fallback_rvar = pgast.DynamicRangeVar(dynamic_get_path=dynamic_get_path)
     pathctx.put_path_source_rvar(
@@ -1259,6 +1260,9 @@ def process_update_body(
         subctx.enclosing_cte_iterator = iterator
 
         for shape_el, shape_op in ir_stmt.subject.shape:
+            if shape_op == qlast.ShapeOp.MATERIALIZE:
+                continue
+
             assert shape_el.rptr is not None
             ptrref = shape_el.rptr.ptrref
             actual_ptrref = irtyputils.find_actual_ptrref(typeref, ptrref)
@@ -1522,7 +1526,7 @@ def check_update_type(
     """
 
     base_ptrref = irtyputils.find_actual_ptrref(
-        ir_stmt.subject.typeref, shape_ptrref)
+        ir_stmt.material_type, shape_ptrref)
     # We skip the check if either the base type matches exactly
     # or the shape type matches exactly. FIXME: *Really* we want to do
     # a subtype check, here, though, since this could do a needless
