@@ -290,7 +290,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         # here.
 
         outcome = self._outcome
-        if outcome is not None and outcome.errors:
+        if outcome is not None and getattr(outcome, "errors", []):
             # We don't use `test._outcome` to render errors in
             # our renderers.
             outcome.errors = []

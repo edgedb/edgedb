@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import signal as mod_signal
 import typing
 import warnings
 
@@ -33,6 +34,12 @@ def _release_waiter(waiter, *args):
 class SignalError(Exception):
     def __init__(self, signo):
         self.signo = signo
+
+    def __str__(self):
+        if isinstance(self.signo, mod_signal.Signals):
+            return self.signo._name_
+        else:
+            return str(self.signo)
 
 
 class QueueWaiter(asyncio.Queue):
