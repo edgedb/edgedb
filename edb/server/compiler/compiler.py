@@ -629,7 +629,7 @@ class Compiler:
             raise errors.ResultCardinalityMismatchError(
                 f'the query has cardinality {ir.cardinality.name} '
                 f'which does not match the expected cardinality ONE')
-        result_cardinality = enums.Cardinality.from_ir_value(ir.cardinality)
+        result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
             ir,

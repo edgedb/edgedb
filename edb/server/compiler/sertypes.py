@@ -107,7 +107,7 @@ def cardinality_from_ptr(ptr, schema) -> enums.Cardinality:
     required = ptr.get_required(schema)
     schema_card = ptr.get_cardinality(schema)
     ir_card = qltypes.Cardinality.from_schema_value(required, schema_card)
-    return enums.Cardinality.from_ir_value(ir_card)
+    return enums.cardinality_from_ir_value(ir_card)
 
 
 class TypeSerializer:
