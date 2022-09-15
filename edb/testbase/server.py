@@ -444,7 +444,8 @@ async def init_cluster(
         )
         destroy = False
 
-    if await cluster.get_status() == 'not-initialized':
+    pg_cluster = await cluster._get_pg_cluster()
+    if await pg_cluster.get_status() == 'not-initialized':
         await cluster.init(server_settings=init_settings)
 
     await cluster.start(port=0)
@@ -1369,6 +1370,9 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
         await admin_conn.execute(
             f'CREATE DATABASE {qlquote.quote_ident(dbname)};'
         )
+    except edgedb.DuplicateDatabaseDefinitionError:
+        # Eh, that's fine
+        pass
     except Exception as ex:
         raise RuntimeError(
             f'exception during creation of {dbname!r} test DB: '

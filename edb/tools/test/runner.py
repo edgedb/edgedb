@@ -795,7 +795,8 @@ class ParallelTextTestRunner:
 
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
-                 failfast=False, shuffle=False, backend_dsn=None):
+                 failfast=False, shuffle=False, backend_dsn=None,
+                 data_dir=None):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
@@ -804,6 +805,7 @@ class ParallelTextTestRunner:
         self.shuffle = shuffle
         self.output_format = output_format
         self.backend_dsn = backend_dsn
+        self.data_dir = data_dir
 
     def run(self, test, selected_shard, total_shards, running_times_log_file):
         session_start = time.monotonic()
@@ -892,6 +894,7 @@ class ParallelTextTestRunner:
                     cluster = await tb.init_cluster(
                         backend_dsn=self.backend_dsn,
                         cleanup_atexit=False,
+                        data_dir=self.data_dir,
                     )
 
                     if self.verbosity > 1:

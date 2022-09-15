@@ -65,6 +65,8 @@ from edb.server import metrics
 from edb.server import pgcon
 from edb.server.pgcon import errors as pgcon_errors
 
+from edb.pgsql import patches as pg_patches
+
 from . import dbview
 
 if TYPE_CHECKING:
@@ -399,6 +401,7 @@ class Server(ha_base.ClusterProtocol):
             self._sys_pgcon_reconnect_evt = asyncio.Event()
 
             await self._load_instance_data()
+            await self._maybe_patch()
 
             global_schema = await self.introspect_global_schema()
             sys_config = await self.load_sys_config()
@@ -789,11 +792,14 @@ class Server(ha_base.ClusterProtocol):
         finally:
             self.release_pgcon(dbname, conn)
 
+    async def get_dbnames(self, syscon):
+        dbs_query = self.get_sys_query('listdbs')
+        json_data = await syscon.sql_fetch_val(dbs_query)
+        return json.loads(json_data)
+
     async def _introspect_dbs(self):
         async with self._use_sys_pgcon() as syscon:
-            dbs_query = self.get_sys_query('listdbs')
-            json_data = await syscon.sql_fetch_val(dbs_query)
-            dbnames = json.loads(json_data)
+            dbnames = await self.get_dbnames(syscon)
 
         async with taskgroup.TaskGroup(name='introspect DB extensions') as g:
             for dbname in dbnames:
@@ -801,6 +807,91 @@ class Server(ha_base.ClusterProtocol):
                 # between us building the list of databases and loading
                 # information about them.
                 g.create_task(self._early_introspect_db(dbname))
+
+    async def get_patch_count(self, conn):
+        """Apply any un-applied patches to the database."""
+        num_patches = await conn.sql_fetch_val(
+            b'''
+                SELECT json::json from edgedbinstdata.instdata
+                WHERE key = 'num_patches';
+            ''',
+        )
+        num_patches = json.loads(num_patches) if num_patches else 0
+        return num_patches
+
+    async def _prepare_patches(self, conn):
+        """Prepare all the patches"""
+        num_patches = await self.get_patch_count(conn)
+        schema = self._std_schema
+
+        patches = {}
+        patch_list = list(enumerate(pg_patches.PATCHES))
+        for num, (kind, patch) in patch_list[num_patches:]:
+            from . import bootstrap
+            sql, syssql, schema = bootstrap.prepare_patch(
+                num, kind, patch, schema, self._refl_schema,
+                self._schema_class_layout, self.get_backend_runtime_params())
+
+            patches[num] = (sql, syssql, schema)
+
+        return patches
+
+    async def _maybe_apply_patches(self, dbname, conn, patches, sys=False):
+        """Apply any un-applied patches to the database."""
+        num_patches = await self.get_patch_count(conn)
+        for num, (sql, syssql, _) in patches.items():
+            if num_patches <= num:
+                if sys:
+                    sql += syssql
+                logger.info("applying patch %d to database '%s'", num, dbname)
+                sql = tuple(x.encode('utf-8') for x in sql)
+                await conn.sql_fetch(sql)
+
+    async def _maybe_patch_db(self, dbname, patches):
+        logger.info("applying patches to database '%s'", dbname)
+
+        conn = await self.acquire_pgcon(dbname)
+
+        try:
+            if dbname != defines.EDGEDB_SYSTEM_DB:
+                await self._maybe_apply_patches(dbname, conn, patches)
+        finally:
+            self.release_pgcon(dbname, conn)
+
+    async def _maybe_patch(self):
+        """Apply patches to all the databases"""
+
+        async with self._use_sys_pgcon() as syscon:
+            patches = await self._prepare_patches(syscon)
+            if not patches:
+                return
+
+            dbnames = await self.get_dbnames(syscon)
+
+        async with taskgroup.TaskGroup(name='apply patches') as g:
+            # Patch all the databases
+            for dbname in dbnames:
+                if dbname != defines.EDGEDB_SYSTEM_DB:
+                    g.create_task(self._maybe_patch_db(dbname, patches))
+
+            # Patch the template db, so that any newly created databases
+            # will have the patches.
+            g.create_task(self._maybe_patch_db(
+                defines.EDGEDB_TEMPLATE_DB, patches))
+
+        await self._ensure_database_not_connected(defines.EDGEDB_TEMPLATE_DB)
+
+        # Patch the system db last. The system db needs to go last so
+        # that it only gets updated if all of the other databases have
+        # been succesfully patched. This is important, since we don't check
+        # other databases for patches unless the system db is patched.
+        #
+        # Driving everything from the system db like this lets us
+        # always use the correct schema when compiling patches.
+        async with self._use_sys_pgcon() as syscon:
+            await self._maybe_apply_patches(
+                defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
+        self._std_schema = patches[max(patches)][-1]
 
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()
@@ -999,9 +1090,7 @@ class Server(ha_base.ClusterProtocol):
         await self._ensure_database_not_connected(dbname)
 
     async def _ensure_database_not_connected(self, dbname: str):
-        assert self._dbindex is not None
-
-        if self._dbindex.count_connections(dbname):
+        if self._dbindex and self._dbindex.count_connections(dbname):
             # If there are open EdgeDB connections to the `dbname` DB
             # just raise the error Postgres would have raised itself.
             raise errors.ExecutionError(

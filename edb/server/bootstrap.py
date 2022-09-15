@@ -62,6 +62,7 @@ from edb.pgsql import dbops
 from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
 from edb.pgsql import params
+from edb.pgsql import patches
 from edb.pgsql.common import quote_ident as qi
 from edb.pgsql.common import quote_literal as ql
 
@@ -407,7 +408,7 @@ async def _store_static_json_cache(
     await _execute(ctx.conn, text)
 
 
-def _process_delta(ctx, delta, schema):
+def _process_delta_params(delta, schema, params):
     """Adapt and process the delta command."""
 
     if debug.flags.delta_plan:
@@ -424,7 +425,7 @@ def _process_delta(ctx, delta, schema):
     delta = delta_cmds.CommandMeta.adapt(delta)
     context = sd.CommandContext(
         stdmode=True,
-        backend_runtime_params=ctx.cluster.get_runtime_params(),
+        backend_runtime_params=params,
     )
     schema = sd.apply(delta, schema=schema, context=context)
 
@@ -433,6 +434,13 @@ def _process_delta(ctx, delta, schema):
         debug.dump(delta, schema=schema)
 
     return schema, delta
+
+
+def _process_delta(ctx, delta, schema):
+    """Adapt and process the delta command."""
+    return _process_delta_params(
+        delta, schema, ctx.cluster.get_runtime_params()
+    )
 
 
 def compile_bootstrap_script(
@@ -464,6 +472,81 @@ def compile_single_query(
     units = compiler._compile(ctx=compilerctx, source=ql_source).units
     assert len(units) == 1 and len(units[0].sql) == 1
     return units[0].sql[0].decode()
+
+
+def prepare_patch(
+    num, kind, patch, schema, reflschema, schema_class_layout,
+    backend_params
+):
+    val = f'{pg_common.quote_literal(json.dumps(num + 1))}::jsonb'
+    # TODO: This is an INSERT because 2.0 shipped without num_patches.
+    # We can just make this an UPDATE for 3.0
+    update = f"""\
+        INSERT INTO edgedbinstdata.instdata (key, json)
+        VALUES('num_patches', {val})
+        ON CONFLICT (key)
+        DO UPDATE SET json = {val};
+    """
+
+    # Pure SQL patches are simple
+    if kind == 'sql':
+        return (patch, update), (), schema
+
+    assert kind == 'edgeql'
+
+    # EdgeQL patches need to be compiled.
+    current_block = dbops.PLTopBlock()
+    std_plans = []
+
+    for ddl_cmd in edgeql.parse_block(patch):
+        delta_command = s_ddl.delta_from_ddl(
+            ddl_cmd, modaliases={}, schema=schema, stdmode=True)
+
+        # Apply and adapt delta, build native delta plan, which
+        # will also update the schema.
+        schema, plan = _process_delta_params(
+            delta_command, schema, backend_params)
+        assert not plan.new_types
+        std_plans.append(delta_command)
+        plan.generate(current_block)
+
+        subblock = current_block.add_block()
+
+        compiler = edbcompiler.new_compiler(
+            std_schema=schema,
+            reflection_schema=reflschema,
+            schema_class_layout=schema_class_layout
+        )
+
+        compilerctx = edbcompiler.new_compiler_context(
+            user_schema=reflschema,
+            global_schema=schema,
+            bootstrap_mode=True,
+        )
+
+        for std_plan in std_plans:
+            compiler._compile_schema_storage_in_delta(
+                ctx=compilerctx,
+                delta=std_plan,
+                block=subblock,
+            )
+
+        patch = current_block.to_string()
+
+    if debug.flags.delta_execute:
+        debug.header('Patch Script')
+        debug.dump_code(patch, lexer='sql')
+
+    # Just for the system database, we need to update the cached pickle
+    # of the stdschema.
+    schema_data = pickle.dumps(schema, protocol=pickle.HIGHEST_PROTOCOL)
+    schema_update = f'''
+        UPDATE edgedbinstdata.instdata
+        SET bin = {pg_common.quote_bytea_literal(schema_data)}::bytea
+        WHERE key = 'stdschema'
+    '''
+
+    return (patch, update), (schema_update,), schema
 
 
 class StdlibBits(NamedTuple):
@@ -1218,6 +1301,12 @@ async def _populate_misc_instance_data(
         ctx,
         'instancedata',
         json.dumps(json_instance_data),
+    )
+
+    await _store_static_json_cache(
+        ctx,
+        'num_patches',
+        json.dumps(len(patches.PATCHES)),
     )
 
     backend_params = ctx.cluster.get_runtime_params()

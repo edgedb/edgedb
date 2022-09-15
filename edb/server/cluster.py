@@ -218,7 +218,11 @@ class BaseCluster:
         if status_w is not None:
             status_w.close()
 
-        await self._wait_for_server(timeout=wait, status_sock=status_r)
+        try:
+            await self._wait_for_server(timeout=wait, status_sock=status_r)
+        except Exception:
+            self.stop()
+            raise
 
     def stop(self, wait: int = 60) -> None:
         if (self._daemon_process is not None and
@@ -321,7 +325,7 @@ class BaseCluster:
             [
                 "edgedb",
                 "--host",
-                str(self._runstate_dir),
+                str(os.path.abspath(self._runstate_dir)),
                 "--port",
                 str(self._effective_port),
                 "--admin",
