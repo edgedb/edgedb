@@ -23,7 +23,8 @@ from typing import *
 import enum
 
 from edb.common import enum as strenum
-from edb.protocol.enums import * # NoQA
+from edb.edgeql import qltypes as ir
+from edb.protocol.enums import Cardinality
 
 
 if TYPE_CHECKING:
@@ -76,3 +77,18 @@ class OutputFormat(strenum.StrEnum):
 class InputFormat(strenum.StrEnum):
     BINARY = 'BINARY'
     JSON = 'JSON'
+
+
+def cardinality_from_ir_value(card: ir.Cardinality) -> Cardinality:
+    if card is ir.Cardinality.AT_MOST_ONE:
+        return Cardinality.AT_MOST_ONE
+    elif card is ir.Cardinality.ONE:
+        return Cardinality.ONE
+    elif card is ir.Cardinality.MANY:
+        return Cardinality.MANY
+    elif card is ir.Cardinality.AT_LEAST_ONE:
+        return Cardinality.AT_LEAST_ONE
+    else:
+        raise ValueError(
+            f"Cardinality.from_ir_value() got an invalid input: {card}"
+        )
