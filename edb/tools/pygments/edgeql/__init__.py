@@ -74,7 +74,7 @@ class EdgeQLLexer(RegexLexer):
             (r'#.*?\n', token.Comment.Singleline),
         ],
         'keywords': [
-            (r'\b(?i)(?<![:\.<>@])(__source__|__subject__)\b',
+            (r'(?i)\b(?<![:\.<>@])(__source__|__subject__)\b',
              token.Name.Builtin.Pseudo),
 
             (r'\b(__type__)\b', token.Name.Builtin.Pseudo),

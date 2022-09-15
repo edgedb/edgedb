@@ -39,13 +39,14 @@ class ProcTest(server.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.stdin = asyncio.StreamReader()
-        cls.loop.run_until_complete(
-            cls.loop.connect_read_pipe(
+
+        async def _setup():
+            cls.stdin = asyncio.StreamReader()
+            await cls.loop.connect_read_pipe(
                 lambda: asyncio.StreamReaderProtocol(cls.stdin),
                 sys.stdin.buffer,
             )
-        )
+        cls.loop.run_until_complete(_setup())
 
     exec(sys.argv[2], globals(), locals())
 
