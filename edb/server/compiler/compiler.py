@@ -1242,16 +1242,22 @@ class Compiler:
                     else:
                         proposed_desc = None
 
+                complete = False
+                if proposed_desc is None:
+                    diff = s_ddl.delta_schemas(schema, mstate.target_schema)
+                    complete = not bool(diff.get_subcommands())
+                    if debug.flags.delta_plan:
+                        debug.header(
+                            'DESCRIBE CURRENT MIGRATION AS JSON mismatch')
+                        debug.dump(diff)
+
                 desc = json.dumps({
                     'parent': (
                         str(mstate.parent_migration.get_name(schema))
                         if mstate.parent_migration is not None
                         else 'initial'
                     ),
-                    'complete': (
-                        proposed_desc is None
-                        and s_ddl.schemas_are_equal(
-                            schema, mstate.target_schema)),
+                    'complete': complete,
                     'confirmed': confirmed,
                     'proposed': proposed_desc,
                 }).encode('unicode_escape').decode('utf-8')
