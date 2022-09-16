@@ -113,7 +113,7 @@ class SignalController:
         if cancel_on is None:
             cancel_on = self._signals
 
-        cancelled_by = []
+        cancelled_by = None
         outer_cancelled_at_last = False
 
         # The design here: we'll wait on a separate Future "waiter" for clean
@@ -122,7 +122,7 @@ class SignalController:
         #   2. A signal is captured
         #   3. The "waiter" is cancelled by outer code.
         # For 2, we'll cancel the given "fut" and record the signal in
-        # cancelled_by to raise as an ExceptionGroup in the next step; for 3,
+        # cancelled_by as a __context__ chain to raise in the next step; for 3,
         # we cancel the given "fut" and propagate the CancelledError later.
         #
         # The complexity of this design is: because our cancellation might be
@@ -132,7 +132,7 @@ class SignalController:
         # are exhaustively executed until the "fut" is done, meanwhile the
         # signals may keep hitting the "fut" code blocks, and "wait_for" is
         # ready to handle them properly, and return all the SignalError objects
-        # in an ExceptionGroup preserving the order as they happen.
+        # in a __context__ chain preserving the order as they happen.
         while not fut.done():
             waiter = self._loop.create_future()
             cb = functools.partial(_release_waiter, waiter)
@@ -154,7 +154,9 @@ class SignalController:
                     if not fut.done():
                         assert signal is not None
                         fut.cancel()
-                        cancelled_by.append(SignalError(signal))
+                        err = SignalError(signal)
+                        err.__context__ = cancelled_by
+                        cancelled_by = err
                         outer_cancelled_at_last = False
 
                 # Event 1: "fut" is done - exit the loop naturally.
@@ -180,34 +182,34 @@ class SignalController:
         except asyncio.CancelledError as ex:
             # 2. "fut" is cancelled - this usually means we caught a signal,
             #    but it could also be other reasons, see below.
-            if cancelled_by:
-                # Event 2 happened at least once, prepare an ExceptionGroup.
-                eg = ExceptionGroup("signal", cancelled_by)
+            if cancelled_by is not None:
+                # Event 2 happened at least once
                 if outer_cancelled_at_last:
                     # If event 3 is the last event, the outer code is probably
                     # expecting a CancelledError, e.g. asyncio.wait_for().
                     # Therefore, we just raise it with signal errors attached.
-                    raise ex from eg
+                    ex.__context__ = cancelled_by
+                    rv = ex
                 else:
                     # If event 2 is the last event, simply raise the grouped
                     # signal errors, attaching the CancelledError to reveal
                     # where the signals hit the user code.
-                    raise eg from ex
+                    cancelled_by.__cause__ = ex
+                    rv = cancelled_by
             else:
                 # Neither event 2 nor 3 happened, the user code cancelled
                 # itself, simply propagate the same error.
                 raise
 
         except Exception as e:
-            # 3. For any other errors, we'll merge it with recorded signal
-            #    errors and raise as an ExceptionGroup, if event 2 happened.
-            if cancelled_by:
-                eg = ExceptionGroup("signal", [e, *cancelled_by])
-                # Not raising here - `eg` already contains `e`, we don't need
-                # to raise eg from e to include e again.
+            # 3. For any other errors, we just raise it with the signal errors
+            #    attached as __context__ if event 2 happened.
+            if cancelled_by is not None:
+                e.__context__ = cancelled_by
+                rv = e
             else:
                 raise
-        raise eg
+        raise rv
 
     async def wait_for_signals(self):
         waiter = QueueWaiter()

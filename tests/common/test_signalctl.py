@@ -42,6 +42,7 @@ async def spawn(test_prog, global_prog=""):
         + textwrap.dedent(
             """\
             import signal
+            from edb.common import signalctl
             """
         ),
         textwrap.dedent(test_prog),
@@ -93,7 +94,7 @@ class TestSignalctl(tb.TestCase):
                 await asyncio.sleep(1)
 
             with signalctl.SignalController(signal.SIGTERM) as sc:
-                with self.assertRaisesSignals(signal.SIGTERM):
+                with self.assertRaisesRegex(signalctl.SignalError, "SIGTERM"):
                     await sc.wait_for(task(), cancel_on={signal.SIGTERM})
 
             self.notify_parent(2)
@@ -117,7 +118,7 @@ class TestSignalctl(tb.TestCase):
                 await asyncio.sleep(1)
 
             with signalctl.SignalController(signal.SIGINT) as sc:
-                with self.assertRaisesSignals(signal.SIGINT):
+                with self.assertRaisesRegex(signalctl.SignalError, "SIGINT"):
                     await sc.wait_for(task(), cancel_on={signal.SIGINT})
 
             self.notify_parent(2)
@@ -147,7 +148,7 @@ class TestSignalctl(tb.TestCase):
             with signalctl.SignalController(
                 signal.SIGTERM, signal.SIGINT
             ) as sc:
-                with self.assertRaisesSignals(signal.SIGTERM):
+                with self.assertRaisesRegex(signalctl.SignalError, "SIGTERM"):
                     await sc.wait_for(task(), cancel_on={signal.SIGTERM})
 
             self.notify_parent(2)
@@ -181,7 +182,7 @@ class TestSignalctl(tb.TestCase):
             with signalctl.SignalController(
                 signal.SIGTERM, signal.SIGINT
             ) as sc:
-                with self.assertRaisesSignals(signal.SIGINT):
+                with self.assertRaisesRegex(signalctl.SignalError, "SIGINT"):
                     await sc.wait_for(task(), cancel_on={signal.SIGINT})
 
             self.notify_parent(2)
@@ -212,7 +213,7 @@ class TestSignalctl(tb.TestCase):
                         sc.wait_for(self.wait_for_parent(1)), 0.1
                     )
 
-                with self.assertRaisesSignals(signal.SIGTERM):
+                with self.assertRaisesRegex(signalctl.SignalError, "SIGTERM"):
                     await sc.wait_for(task(), cancel_on={signal.SIGTERM})
 
             self.notify_parent(4)
@@ -358,7 +359,7 @@ class TestSignalctl(tb.TestCase):
                     tg.create_task(_subtask2())
 
             with signalctl.SignalController(signal.SIGTERM) as sc:
-                with self.assertRaisesSignals(signal.SIGTERM):
+                with self.assertRaisesRegex(signalctl.SignalError, "SIGTERM"):
                     await sc.wait_for(_task())
         """
 
@@ -382,7 +383,7 @@ class TestSignalctl(tb.TestCase):
                     self.notify_parent(3)
 
             with signalctl.SignalController(signal.SIGTERM) as sc:
-                with self.assertRaisesSignals(signal.SIGTERM):
+                with self.assertRaisesRegex(signalctl.SignalError, "SIGTERM"):
                     await sc.wait_for(task())
             self.notify_parent(4)
         """
@@ -411,10 +412,12 @@ class TestSignalctl(tb.TestCase):
             with signalctl.SignalController(
                 signal.SIGTERM, signal.SIGINT, signal.SIGUSR1
             ) as sc:
-                with self.assertRaisesSignals(
-                    signal.SIGTERM, signal.SIGINT, signal.SIGUSR1
-                ):
+                with self.assertRaises(signalctl.SignalError) as ctx:
                     await sc.wait_for(task())
+            ex = ctx.exception
+            self.assertEqual(ex.signo, signal.SIGUSR1)
+            self.assertEqual(ex.__context__.signo, signal.SIGINT)
+            self.assertEqual(ex.__context__.__context__.signo, signal.SIGTERM)
             self.notify_parent(7)
         """
 
@@ -451,12 +454,10 @@ class TestSignalctl(tb.TestCase):
                     await fut
                     await asyncio.wait_for(task, 0.1)
             ex = ctx.exception
-            while not isinstance(ex, ExceptionGroup):
-                ex = getattr(ex, '__cause__', ex.__context__)
-            self.assertEqual(
-                [e.signo for e in ex.exceptions],
-                [signal.SIGTERM, signal.SIGINT],
-            )
+            while not isinstance(ex, signalctl.SignalError):
+                ex = ex.__context__
+            self.assertEqual(ex.signo, signal.SIGINT)
+            self.assertEqual(ex.__context__.signo, signal.SIGTERM)
             self.notify_parent(5)
         """
 
@@ -486,12 +487,13 @@ class TestSignalctl(tb.TestCase):
             with signalctl.SignalController(
                 signal.SIGTERM, signal.SIGINT
             ) as sc:
-                with self.assertRaisesSignals(
-                    signal.SIGTERM, signal.SIGINT
-                ) as ctx:
+                with self.assertRaises(signalctl.SignalError) as ctx:
                     task = self.loop.create_task(sc.wait_for(_task()))
                     await fut
                     await asyncio.wait_for(task, 0.1)
+            ex = ctx.exception
+            self.assertEqual(ex.signo, signal.SIGINT)
+            self.assertEqual(ex.__context__.signo, signal.SIGTERM)
             self.notify_parent(5)
         """
 
