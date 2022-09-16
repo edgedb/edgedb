@@ -30,7 +30,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.10.0'
+        python-version: '3.11.0-rc.2'
 
     # Build virtualenv
 
@@ -329,7 +329,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.10.0'
+        python-version: '3.11.0-rc.2'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1.2
@@ -402,7 +402,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.10.0'
+        python-version: '3.11.0-rc.2'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1.2
@@ -537,7 +537,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.10.0'
+        python-version: '3.11.0-rc.2'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1.2
@@ -660,7 +660,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.10.0'
+          python-version: '3.11.0-rc.2'
 
       - name: Install Python deps
         run: |
