@@ -188,7 +188,7 @@ relative to EdgeQL.
 There are also some additional limitations
 
 - Variables can only correspond to *scalar types*; you can't use
-  GraphQL ``input`` types. Under the hood, query varaiables are mapped onto
+  GraphQL ``input`` types. Under the hood, query variables are mapped onto
   EdgeQL parameters, which only support scalar types.
 
   As a consequence of this, you must declare top-level variables for each
