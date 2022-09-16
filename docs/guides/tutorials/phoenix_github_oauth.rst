@@ -4,7 +4,7 @@
 Phoenix
 =======
 
-:edb-alt-title: Building a GitHub OAuth applicaiton
+:edb-alt-title: Building a GitHub OAuth application
 
 There is a community-supported `Elixir driver
 <https://hex.pm/packages/edgedb>`_ for EdgeDB. In this tutorial, we'll look at
