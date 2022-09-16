@@ -115,8 +115,7 @@ Writing Documentation
 =====================
 
 The ``edgedb`` repository contains all of its documentation in the ``docs/``
-directory. EdgeDB uses reStructuredText instead of Mkdocs, with Sphinx to
-build and generate from source.
+directory. EdgeDB uses reStructuredText (``.rst``) instead of Markdown.
 
 Use the ``$ make docs`` command to build and generate HTML files from the
 documentation. The repository contains a ``Makefile`` for all of Sphinx's
