@@ -12,8 +12,35 @@ CLI command.
   $ edgedb migration create -I my_instance
 
 That's one of the reasons we introduced the concept of an *EdgeDB
-project*. A project is a directory on your file system that is associated with
-an EdgeDB intance.
+project*. A project is a directory on your file system that is associated
+("linked") with an EdgeDB instance.
+
+.. note::
+
+  Projects are intended to make *local development* easier! They only exist on
+  your local machine and are managed with the CLI. When deploying EdgeDB for
+  production, you will typically pass connection information to the client
+  library using environment variables.
+
+When you're inside a project, all CLI commands will be applied against the
+*linked instance* by default (no CLI flags required).
+
+.. code-block:: bash
+
+  $ edgedb migration create
+
+The same is true for all EdgeDB client libraries (discussed in more depth in
+the :ref:`Clients <ref_intro_clients>` section). If the following file lives
+inside an EdgeDB project directory, ``createClient`` will discover the project
+and connect to its linked instance with no additional configuration.
+
+.. code-block:: typescript
+
+    // clientTest.js
+    import {createClient} from 'edgedb';
+
+    const client = createClient();
+    await client.query("select 5");
 
 Initializing
 ^^^^^^^^^^^^

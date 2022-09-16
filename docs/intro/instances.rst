@@ -29,30 +29,6 @@ which instance to connect to by passing an instance name into the ``-I`` flag.
   $ edgedb query "select 3.14" -I my_instance
   3.14
 
-Upgrading
-^^^^^^^^^
-Instances can be upgraded to the latest stable version, the latest nightly, or
-to a particular version.
-
-.. code-block:: bash
-
-  $ edgedb instance upgrade -I my_instance --to-latest
-  $ edgedb instance upgrade -I my_instance --to-nightly
-  $ edgedb instance upgrade -I my_instance --to-version 2.0
-
-
-Managing instances
-^^^^^^^^^^^^^^^^^^
-Instances can be stopped, started, restarted, and destroyed.
-
-.. code-block:: bash
-
-  $ edgedb instance stop -I my_instance
-  $ edgedb instance start -I my_instance
-  $ edgedb instance restart -I my_instance
-  $ edgedb instance destroy -I my_instance
-
-
 Creating databases
 ^^^^^^^^^^^^^^^^^^
 A single EdgeDB *instance* can contain multiple *databases*. Upon creation, an
@@ -73,6 +49,17 @@ We can now execute queries against this new database by specifying it with the
   $ edgedb query "select 3.14" -I my_instance -d newdb
   3.14
 
+Managing instances
+^^^^^^^^^^^^^^^^^^
+Instances can be stopped, started, restarted, and destroyed.
+
+.. code-block:: bash
+
+  $ edgedb instance stop -I my_instance
+  $ edgedb instance start -I my_instance
+  $ edgedb instance restart -I my_instance
+  $ edgedb instance destroy -I my_instance
+
 
 Listing instances
 ^^^^^^^^^^^^^^^^^
@@ -89,3 +76,16 @@ To list all instances on your machine:
   │ local  │ my_instance_2    │ 10701    │ 2.x+8421216    │ active   │
   │ local  │ my_instance_3    │ 10702    │ 2.x+8421216    │ active   │
   └────────┴──────────────────┴──────────┴────────────────┴──────────┘
+
+Further reference
+^^^^^^^^^^^^^^^^^
+
+For complete documentation on managing instances with the CLI (upgrading,
+viewing logs, etc.), refer to the :ref:`edgedb instance
+<ref_cli_edgedb_instance>` reference or view the helptext in your shell:
+
+.. code-block:: bash
+
+  $ edgedb instance --help
+
+

@@ -43,7 +43,6 @@ languages.
 - `.NET <https://github.com/quinchs/edgedb-dotnet>`_
 - `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
 
-
 Usage
 -----
 
@@ -216,7 +215,6 @@ database and provide a set of methods for executing queries.
     using EdgeDB;
 
     var client = new EdgeDBClient();
-
     var result = await client.QuerySingleAsync<double>("select random();");
     Console.WriteLine(result);
 

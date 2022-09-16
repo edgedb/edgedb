@@ -283,32 +283,48 @@ Inheritance
 
 EdgeDB schemas support :ref:`inheritance <ref_datamodel_objects_inheritance>`;
 types (usually object types) can extend one or more other types. For instance
-you may declare an abstract object type ``Animal`` that is extended by ``Dog``
-and ``Cat``. A set of type ``Animal`` may contain both ``Cat`` and ``Dog``
+you may declare an abstract object type ``Media`` that is extended by ``Movie``
+and ``TVShow``.
+
+.. code-block:: sdl
+
+  type Media {
+    required property title -> str;
+  }
+
+  type Movie {
+    property release_year -> int64;
+  }
+
+  type TVShow {
+    property num_seasons -> int64;
+  }
+
+A set of type ``Media`` may contain both ``Movie`` and ``TVShow``
 objects.
 
 .. code-block:: edgeql-repl
 
-  db> select Animal;
+  db> select Media;
   {
-    default::Dog {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
-    default::Dog {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
-    default::Cat {id: b0e0dd0c-35e8-11ec-acc3-abf1752973be},
+    default::Movie {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
+    default::Movie {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
+    default::TVShow {id: b0e0dd0c-35e8-11ec-acc3-abf1752973be},
   }
 
-We can use the *type intersection* operator to restrict the elements of a set
-by subtype.
+We can use the *type intersection* operator ``[is <type>]`` to restrict the
+elements of a set by subtype.
 
 .. code-block:: edgeql-repl
 
-  db> select Animal[is Dog];
+  db> select Media[is Movie];
   {
-    default::Dog {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
-    default::Dog {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
+    default::Movie {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
+    default::Movie {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
   }
-  db> select Animal[is Cat];
+  db> select Media[is TVShow];
   {
-    default::Cat {id: b0e0dd0c-35e8-11ec-acc3-abf1752973be}
+    default::TVShow {id: b0e0dd0c-35e8-11ec-acc3-abf1752973be}
   }
 
 Type filters are commonly used in conjunction with :ref:`backlinks
