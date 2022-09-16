@@ -38,7 +38,7 @@ Constraints
 
   type Movie {
     required property title -> str {
-      constraint unique;
+      constraint exclusive;
       constraint min_len_value(8);
       constraint regexp(r'^[A-Za-z0-9 ]+$');
     }
