@@ -17,6 +17,7 @@
 #
 
 import asyncio
+import contextlib
 import sys
 import unittest
 
@@ -24,6 +25,8 @@ from edb.common import devmode
 from . import server
 
 exec(sys.argv[1], globals(), locals())
+
+from edb.common import signalctl
 
 
 class ProcTest(server.TestCase):
@@ -35,6 +38,15 @@ class ProcTest(server.TestCase):
             (await self.stdin.readline()).strip(),
             str(mark).encode(),
         )
+
+    @contextlib.contextmanager
+    def assertRaisesSignals(self, *signals):
+        try:
+            yield
+        except* signalctl.SignalError as eg:
+            self.assertEqual([e.signo for e in eg.exceptions], list(signals))
+        else:
+            self.fail("signalctl.SignalError not raised")
 
     @classmethod
     def setUpClass(cls):

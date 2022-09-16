@@ -259,8 +259,9 @@ async def _run_server(
 
             try:
                 await sc.wait_for(ss.serve_forever())
-            except signalctl.SignalError as e:
-                logger.info('Received signal: %s.', e.signo)
+            except* signalctl.SignalError as eg:
+                for e in eg.exceptions:
+                    logger.info('Received signal: %s.', e.signo)
         finally:
             service_manager.sd_notify('STOPPING=1')
             logger.info('Shutting down.')
