@@ -376,68 +376,6 @@ def delta_schemas(
     return result
 
 
-def schemas_are_equal(
-    schema_a: s_schema.Schema,
-    schema_b: s_schema.Schema,
-    *,
-    included_modules: Optional[Iterable[sn.Name]]=None,
-    excluded_modules: Optional[Iterable[sn.Name]]=None,
-    included_items: Optional[Iterable[sn.Name]]=None,
-    excluded_items: Optional[Iterable[sn.Name]]=None,
-    schema_a_filters: Iterable[
-        Callable[[s_schema.Schema, so.Object], bool]
-    ] = (),
-    schema_b_filters: Iterable[
-        Callable[[s_schema.Schema, so.Object], bool]
-    ] = (),
-) -> bool:
-    """Test if *schema_a* and *schema_b* are equal.
-
-    Return ``True`` if *schema_a* and *schema_b* are equal
-    (with respect to the specified filters).
-
-    Args:
-        included_modules:
-            Optional list of modules to include in the delta.
-
-        excluded_modules:
-            Optional list of modules to exlude from the delta.
-            Takes precedence over *included_modules*.
-            NOTE: standard library modules are always excluded,
-            unless *include_std_diff* is ``True``.
-
-        included_items:
-            Optional list of names of objects to include in the delta.
-
-        excluded_items:
-            Optional list of names of objects to exclude from the delta.
-            Takes precedence over *included_items*.
-
-        schema_a_filters:
-            Optional list of additional filters to place on *schema_a*.
-
-        schema_b_filters:
-            Optional list of additional filters to place on *schema_b*.
-
-        include_module_diff:
-            Whether to include create/drop module operations
-            in the delta diff.
-    """
-    diff = delta_schemas(
-        schema_a,
-        schema_b,
-        included_modules=included_modules,
-        excluded_modules=excluded_modules,
-        included_items=included_items,
-        excluded_items=excluded_items,
-        schema_a_filters=schema_a_filters,
-        schema_b_filters=schema_b_filters,
-        linearize_delta=False,
-    )
-
-    return not bool(diff.get_subcommands())
-
-
 def cmd_from_ddl(
     stmt: qlast.DDLCommand,
     *,
