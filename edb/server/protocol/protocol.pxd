@@ -65,7 +65,8 @@ cdef class HttpProtocol:
 
         HttpRequest current_request
 
-    cdef _not_found(self, HttpRequest request, HttpResponse response)
+    cdef _not_found(self, HttpRequest request, HttpResponse response,
+                    str message = ?)
     cdef _bad_request(self, HttpRequest request, HttpResponse response,
                       str message)
     cdef _return_binary_error(self, binary.EdgeConnection proto)
