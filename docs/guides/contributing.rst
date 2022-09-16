@@ -111,6 +111,19 @@ To pattern-match a test by its name:
 See ``$ edb test --help`` for more options.
 
 
+Writing Documentation
+=====================
+
+The ``edgedb`` repository contains all of its documentation in the ``docs/``
+directory. EdgeDB uses `reStructuredText with Sphinx <rst_>`_.
+
+Use the ``$ make docs`` command to build and generate HTML files from the
+documentation. The repository contains a ``Makefile`` for all of Sphinx's
+necessary build options.
+
+Upon success, HTML generated documentation will be a new directory path
+as ``docs/build``.
+
 Dev Server
 ==========
 
@@ -126,6 +139,6 @@ Test Databases
 Use the ``$ edb inittestdb`` command to create and populate databases
 that are used by unit tests.
 
-
+.. _rst: https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html
 .. _edgedbpy: https://github.com/edgedb/edgedb-python
 .. _edgedb: https://github.com/edgedb/edgedb
