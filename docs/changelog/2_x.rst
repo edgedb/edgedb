@@ -485,6 +485,89 @@ Protocol overhaul
 * Fix json -> array<json> cast of '[]'
   (:eql:gh:`#4217`)
 
+2.2
+===
+* Support UNLESS CONFLICT ON for pointers with DML in them
+  (:eql:gh:`#4357`)
+
+* Fix cardinality in CommandDataDescription
+  (:eql:gh:`#4347`)
+
+* Prevent access rule hidden ids from leaking when accessed directly
+  (:eql:gh:`#4339`)
+
+* Better messages for required links hidden by policies
+  (:eql:gh:`#4338`)
+
+* Fix access policies on DELETE of a UNION type
+  (:eql:gh:`#4337`)
+
+* Strip out all views from DML subjects when computing what tables to use
+  (:eql:gh:`#4336`, :eql:gh:`#4333`)
+
+* Fix interaction between access policies and omitted fields in insert
+  (:eql:gh:`#4332`, :eql:gh:`#4219`)
+
+* Fix a tracer issue with reverse links and IS
+  (:eql:gh:`#4331`)
+
+* Don't include union types in link triggers
+  (:eql:gh:`#4329`, :eql:gh:`#4320`)
+
+  If you encounter this issue, after upgrading to a version with this
+  patch, it can be fixed by doing a dump/restore or by adding a new link
+  to the affected type.
+
+* Require ON for constraints on objects
+  (:eql:gh:`#4324`, :eql:gh:`#4268`)
+
+* Fix interaction between DETACHED and aliases/globals
+  (:eql:gh:`#4321`, :eql:gh:`#4258`)
+
+* Disable access policy rewrite when compiling constraints
+  (:eql:gh:`#4248`, :eql:gh:`#4245`)
+
+* Expose ``--admin-ui`` as an environment variable and document it
+  (:eql:gh:`#4255`)
+
+* Prevent ``HttpProtocol.close`` from crashing on closed client connection
+  (:eql:gh:`#4238`)
+
+* Fix permitted JSON null in nested array cast
+  (:eql:gh:`#4221`)
+
+* Fix ``range_unpack`` boundary bug.
+
+  The ``range_unpack`` function was incorrectly excluding values close to
+  boundary, especially when the boundary was not itself inclusive.
+  (:eql:gh:`#4282`)
+
+* UI: Allow selection of read-only properties in data editor
+  (:eql:gh:`edgedb/edgedb-ui/#65`)
+
+* UI: Hide subtype columns in data editor by default;
+  add a toggle to show them.
+  (:eql:gh:`edgedb/edgedb-ui/#43`)
+
+* UI: Add "create example database" to the database selection
+  screen.
+  (:eql:gh:`edgedb/edgedb-ui/#61`)
+
+* UI: Fix navigation from being reset on switching
+  the UI panes.
+  (:eql:gh:`edgedb/edgedb-ui/#61`)
+
+* UI: Fix rendering of range types.
+  (:eql:gh:`edgedb/edgedb-ui/#61`)
+
+* UI: Fix the data editor UI to render types that have
+  some properties or links masked by an access policy.
+  (:eql:gh:`edgedb/edgedb-ui/#61`)
+
+* UI: Implement login page for remote instances.
+  (:eql:gh:`edgedb/edgedb-ui/#40`)
+
+
 .. lint-off
 
 .. _group:
