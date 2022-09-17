@@ -1319,7 +1319,7 @@ class Array(
         if subtype is None:
             return schema, None
 
-        return type(self).from_subtypes(schema, [subtype])
+        return Array.from_subtypes(schema, [subtype])
 
     def _resolve_polymorphic(
         self,
