@@ -1941,6 +1941,7 @@ class AlterPointer(
                 # If the expression was explicitly set to None,
                 # that means that `RESET EXPRESSION` was executed
                 # and this is no longer a computable.
+
                 self.set_attribute_value('computable', False)
                 computed_fields = pointer.get_computed_fields(schema)
                 if (
