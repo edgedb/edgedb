@@ -5223,6 +5223,13 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_type_23(self):
+        """
+        CREATE TYPE `123` {
+            CREATE PROPERTY `456` -> str;
+        };
+        """
+
     def test_edgeql_syntax_set_command_01(self):
         """
         SET MODULE default;
