@@ -1990,12 +1990,19 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                     schema, context, cmdtype=AlterObject)
                 delta_create, cmd_create, _ = ref.init_delta_branch(
                     schema, context, cmdtype=AlterObject)
+
                 # Mark it metadata_only so that if it actually gets
                 # applied, only the metadata is changed but not
                 # the real underlying schema.
                 if metadata_only:
                     cmd_drop.metadata_only = True
                     cmd_create.metadata_only = True
+
+                    # Treat the drop as canonical, since we only need
+                    # to eliminate the reference, not get to a fully
+                    # consistent state, and the canonicalization can
+                    # mess up "associated" attributes.
+                    cmd_drop.canonical = True
 
                 try:
                     # Compute a dummy value
