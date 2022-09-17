@@ -11078,6 +11078,31 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             alias Foo := 20;
         """)
 
+    async def test_edgeql_migration_drop_required_01(self):
+        await self.migrate(r"""
+            abstract type AbstractLinkTarget {
+                multi link linkSources := .<abstractTarget[is LinkSource];
+            }
+
+            type ImplementationType extending AbstractLinkTarget {}
+
+            type LinkSource {
+                required link abstractTarget -> AbstractLinkTarget;
+            }
+        """)
+
+        await self.migrate(r"""
+            abstract type AbstractLinkTarget {
+                multi link linkSources := .<abstractTarget[is LinkSource];
+            }
+
+            type ImplementationType extending AbstractLinkTarget {}
+
+            type LinkSource {
+                link abstractTarget -> AbstractLinkTarget;
+            }
+        """)
+
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False
