@@ -1,8 +1,8 @@
 .. _ref_guide_using_projects:
 
-==============
-Using projects
-==============
+================
+Create a project
+================
 
 Projects are the most convenient way to develop applications with EdgeDB. This
 is the recommended approach.
@@ -16,10 +16,6 @@ run ``edgedb project init``. You'll see something like this:
   No `edgedb.toml` found in this repo or above.
   Do you want to initialize a new project? [Y/n]
   > Y
-  How would you like to run EdgeDB for this project?
-  1. Local (native package)
-  2. Docker
-  > 1
   Checking EdgeDB versions...
   Specify the version of EdgeDB to use with this project [1-rc3]:
   > # left blank for default
@@ -128,8 +124,6 @@ This will create ``edgedb.toml`` and link your project directory to the
 instance. And you're done! Try running some commands without connection flags.
 Feels good, right?
 
-
-
 How does this make projects more portable?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -164,14 +158,9 @@ project init`` inside project again to create or select a new instance.
   Specify the name of EdgeDB instance to use with this project
   [default: my_project]:
   > my_project
-  How would you like to run EdgeDB for this project?
-  1. Local (native package)
-  1. Docker
-  Type a number to select an option:
-  > 1
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 1.0-rc.4]:
-  > 1.0-rc.4
+  Specify the version of EdgeDB to use with this project [default: 2.x]:
+  > 2.x
 
 
 How do I use ``edgedb project`` with a non-local instance?

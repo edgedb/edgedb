@@ -92,14 +92,15 @@ complex structures as parameters, use EdgeDB's built-in :ref:`JSON
 .. code-block:: edgeql-repl
 
   db> with data := <json>$data
-  ... insert User {
-  ...   name := <str>data['name'],
-  ...   age := <int64>data['age'],
+  ... insert Movie {
+  ...   title := <str>data['title'],
+  ...   release_year := <int64>data['release_year'],
   ... };
-  Parameter <json>$data: {"name":"Fido", "legs": 4}
-  {default::Dog {id: 8d286cfe-3c0a-11ec-aa68-3f3076ebd97f}}
+  Parameter <json>$data: {"title": "The Marvels", "release_year": 2023}
+  {default::Movie {id: 8d286cfe-3c0a-11ec-aa68-3f3076ebd97f}}
 
-To pass a set as an argument use an array and unpack it.
+Arrays can be "unpacked" into sets and assigned to ``multi`` links or
+properties.
 
 .. code-block:: edgeql
 

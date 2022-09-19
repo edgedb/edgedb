@@ -10,7 +10,6 @@ Schema
     :maxdepth: 3
     :hidden:
 
-    primer
     primitives
     objects
     properties
@@ -79,7 +78,7 @@ to *create* and *apply* migrations.
   Applied dbschema/migrations/00001.esdl.
 
 For a full guide on migrations, refer to the :ref:`Creating and applying
-migrations <ref_guide_migrations>` guide.
+migrations <ref_intro_migrations>` guide.
 
 .. important::
 

@@ -35,4 +35,5 @@ Client Libraries
     go/index
     rust/index
     http/index
+    graphql/index
 

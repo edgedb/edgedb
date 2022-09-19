@@ -159,8 +159,8 @@ project for this application.
   > github_oauth
 
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 1.x]:
-  > 1.x
+  Specify the version of EdgeDB to use with this project [default: 2.x]:
+  > 2.x
 
   Do you want to start instance automatically on login? [y/n]
   > y

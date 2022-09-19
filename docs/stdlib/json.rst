@@ -367,7 +367,7 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
 
     Return an updated JSON target with a new value.
 
-    .. warning::
+    .. note::
 
       This function is only available in EdgeDB 2.0 or later.
 

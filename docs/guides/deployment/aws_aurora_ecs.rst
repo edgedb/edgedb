@@ -23,44 +23,71 @@ Prerequisites
 Quick Install with CloudFormation
 =================================
 
-We maintain a CloudFormation `template <cf-template_>`_ for easy automated
+We maintain a `CloudFormation template <cf-template_>`_ for easy automated
 deployment of EdgeDB in your AWS account.  The template deploys EdgeDB
 to a new ECS service and connects it to a newly provisioned Aurora PostgreSQL
-cluster.  The EdgeDB instance created by the template is exposed to the
-Internet and is protected by TLS and a password you provide.
+cluster. The created instance has a public IP address with TLS configured and
+is protected by a password you provide.
 
 CloudFormation Web Portal
 -------------------------
 
 Click `here <cf-deploy_>`_ to start the deployment process using CloudFormation
-portal and follow the prompts.
+portal and follow the prompts. You'll be prompted to provide a value for the
+following parameters:
 
-Once the deployment is complete you can find the host name that you will use to
-connect to your new EdgeDB instance in the `AWS console <aws_console_>`_. Be
-sure that you have the correct region selected (top right corner of the
-screen).  Then highlight a network interface. You can use either the public IP
-or the public DNS to connect to your new EdgeDB instance.
+- ``DockerImage``: defaults to the latest version (``edgedb/edgedb``), or you
+  can specify a particular tag from the ones published to `Docker Hub
+  <https://hub.docker.com/r/edgedb/edgedb/tags>`_.
+- ``InstanceName``: ⚠️ Due to limitations with AWS, this must be 22 characters
+  or less!
+- ``SuperUserPassword``: this will used as the password for the new EdgeDB
+  instance. Keep track of the value you provide.
 
-To access the EdgeDB instance you've just provisioned from your local machine
-run ``edgedb instance link``:
+Once the deployment is complete, follow these steps to find the host name that
+has been assigned to your EdgeDB instance:
+
+.. lint-off
+
+1. Open the AWS Console and navigate to CloudFormation > Stacks. Click on the
+   newly created Stack.
+2. Wait for the status to read ``CREATE_COMPLETE``—it can take 15 minutes or
+   more.
+3. Once deployment is complete, click the ``Outputs`` tab. The value of
+   ``PublicHostname`` is the hostname at which your EdgeDB instance is
+   publicly available.
+4. Copy the hostname and run the following command to open a REPL to your
+   instance.
+
+   .. code-block:: bash
+
+     $ edgedb --dsn edgedb://edgedb:<password>@<hostname> --tls-security insecure
+     EdgeDB 2.x
+     Type \help for help, \quit to quit.
+     edgedb>
+
+.. lint-on
+
+It's often convenient to create an alias for the remote instance using
+``edgedb instance link``.
 
 .. code-block:: bash
 
    $ edgedb instance link \
         --trust-tls-cert \
-        --host <ip-or-dns> \
-        --port 5656 \
-        --user edgedb \
-        --database edgedb \
-        aws
+        --dsn edgedb://edgedb:<password>@<hostname>
+        aws_instance
 
-Don't forget to replace ``<ip-or-dns>`` with the value from the AWS console.
-You can now use the EdgeDB instance deployed on AWS as ``aws``, for example:
+This aliases the remote instance to ``aws_instance`` (this can be
+anything). You can now use the ``-I aws_instance`` flag to run CLI commands
+against this instance, as with local instances.
 
 .. code-block:: bash
 
-   $ edgedb -I aws
-   edgedb>
+  $ edgedb -I aws_instance
+  EdgeDB 2.x
+  Type \help for help, \quit to quit.
+  edgedb>
 
 CloudFormation CLI
 ------------------

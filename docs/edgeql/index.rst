@@ -10,7 +10,6 @@ EdgeQL
     :maxdepth: 3
     :hidden:
 
-    primer
     literals
     sets
     paths

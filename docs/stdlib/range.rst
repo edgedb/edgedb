@@ -6,7 +6,7 @@ Ranges #New
 
 :edb-alt-title: Range Functions and Operators
 
-.. warning::
+.. note::
 
   This type is only available in EdgeDB 2.0 or later.
 

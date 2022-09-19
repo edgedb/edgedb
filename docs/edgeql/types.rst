@@ -5,11 +5,9 @@
 Types
 =====
 
-
 The foundation of EdgeQL is EdgeDB's rigorous typesystem. There is a set of
 EdgeQL operators and functions for changing, introspecting, and filtering by
 types.
-
 
 .. _ref_eql_types_names:
 
@@ -72,7 +70,12 @@ Type casts are useful for declaring literals for types like ``datetime``,
 There are limits to what values can be cast to a certain type. In some cases
 two types are entirely incompatible, like ``bool`` and ``int64``; in other
 cases, the source data must be in a particular format, like casting ``str`` to
-``datetime``.
+``datetime``. For a comprehensive table of castability, see :ref:`Standard
+Library > Casts <ref_eql_casts_table>`.
+
+Type casts can only be used on primitive expressions, not object type
+expressions. Every object stored in the database is strongly and immutably
+typed; you can't simply convert an object to an object of a different type.
 
 .. code-block:: edgeql-repl
 
@@ -83,30 +86,23 @@ cases, the source data must be in a particular format, like casting ``str`` to
   db> select <int16>100000000000000n;
   NumericOutOfRangeError: std::int16 out of range
 
-For a comprehensive table of castability, see :ref:`Standard Library > Casts
-<ref_eql_casts_table>`.
-
-
 .. _ref_eql_types_intersection:
 
 Type intersections
 ------------------
 
-Type casts can only be used on primitive expressions, not object type
-expressions. Every object stored in the database is strongly and immutably
-typed; you can't simply convert an object to an object of a different type.
-
 All elements of a given set have the same type; however, in the context of
-*sets of objects*, this may be misleading. A set of ``Animal`` objects may
-contain instances of multiple subtypes, like ``Cat`` and ``Dog``.
+*sets of objects*, this type might be ``abstract`` and contain elements of
+multiple concrete subtypes. For instance, a set of ``Media`` objects may
+contain both ``Movie`` and ``TVShow`` objects.
 
 .. code-block:: edgeql-repl
 
-  db> select Animal;
+  db> select Media;
   {
-    default::Dog {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
-    default::Dog {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
-    default::Cat {id: b0e0dd0c-35e8-11ec-acc3-abf1752973be},
+    default::Movie {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
+    default::Movie {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
+    default::TVShow {id: b0e0dd0c-35e8-11ec-acc3-abf1752973be},
   }
 
 We can use the *type intersection* operator to restrict the elements of a set
@@ -114,15 +110,15 @@ by subtype.
 
 .. code-block:: edgeql-repl
 
-  db> select Animal[is Dog];
+  db> select Media[is Movie];
   {
-    default::Dog {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
-    default::Dog {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
+    default::Movie {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
+    default::Movie {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
   }
 
-Logically, this computes the intersection of the ``Animal`` and ``Dog`` sets;
-since only ``Dog`` objects occur in both sets, this can be conceptualized as a
-"filter" that removes all elements that aren't of type ``Dog``.
+Logically, this computes the intersection of the ``Media`` and ``Movie`` sets;
+since only ``Movie`` objects occur in both sets, this can be conceptualized as
+a "filter" that removes all elements that aren't of type ``Movie``.
 
 .. Type unions
 .. -----------
@@ -134,7 +130,7 @@ since only ``Dog`` objects occur in both sets, this can be conceptualized as a
 
 ..   db> select 5 is int32 | int64;
 ..   {true}
-..   db> select Animal is Dog | Cat;
+..   db> select Media is Movie | TVShow;
 ..   {true, true, true}
 
 
@@ -150,9 +146,8 @@ The ``[is foo]`` "type intersection" syntax should not be confused with the
   {true}
   db> select {3.14, 2.718} is not int64;
   {true, true}
-  db> select Animal is Dog;
+  db> select Media is Movie;
   {true, true, false}
-
 
 
 The ``typeof`` operator

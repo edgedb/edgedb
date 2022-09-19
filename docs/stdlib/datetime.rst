@@ -473,7 +473,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     A type representing a span of time in days.
 
-    .. warning::
+    .. note::
 
       This type is only available in EdgeDB 2.0 or later.
 
@@ -829,7 +829,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     Extract a specific element of input duration by name.
 
-    .. warning::
+    .. note::
 
       Only available in EdgeDB 2.0 or later.
 
@@ -1316,7 +1316,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     Convert 30-day chunks into months.
 
-    .. warning::
+    .. note::
 
       Only available in EdgeDB 2.0 or later.
 
