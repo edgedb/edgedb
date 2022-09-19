@@ -64,13 +64,13 @@ def any_ident_to_str(ident: str) -> str:
         return ident_to_str(ident)
 
 
-def ident_to_str(ident: str) -> str:
-    return edgeql_quote.quote_ident(ident)
+def ident_to_str(ident: str, allow_num: bool=False) -> str:
+    return edgeql_quote.quote_ident(ident, allow_num=allow_num)
 
 
 def param_to_str(ident: str) -> str:
     return '$' + edgeql_quote.quote_ident(
-        ident, allow_reserved=True)
+        ident, allow_reserved=True, allow_num=True)
 
 
 def module_to_str(module: str) -> str:
@@ -553,7 +553,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         elif node.direction and node.direction != '>':
             self.write(node.direction)
 
-        self.visit(node.ptr)
+        self.write(ident_to_str(node.ptr.name, allow_num=True))
 
     def visit_TypeIntersection(self, node: qlast.TypeIntersection) -> None:
         self._write_keywords('[IS ')

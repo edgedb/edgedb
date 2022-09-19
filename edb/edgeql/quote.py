@@ -26,6 +26,10 @@ from .parser.grammar import keywords
 
 _re_ident = re.compile(r'''(?x)
     [^\W\d]\w*  # alphanumeric identifier
+''')
+
+_re_ident_or_num = re.compile(r'''(?x)
+    [^\W\d]\w*  # alphanumeric identifier
     |
     ([1-9]\d* | 0)  # purely integer identifier
 ''')
@@ -59,13 +63,14 @@ def dollar_quote_literal(text: str) -> str:
     return quote + text + quote
 
 
-def needs_quoting(string: str, allow_reserved: bool) -> bool:
+def needs_quoting(string: str, allow_reserved: bool, allow_num: bool) -> bool:
     if not string or string.startswith('@') or '::' in string:
         # some strings are illegal as identifiers and as such don't
         # require quoting
         return False
 
-    isalnum = _re_ident.fullmatch(string)
+    r = _re_ident_or_num if allow_num else _re_ident
+    isalnum = r.fullmatch(string)
 
     string = string.lower()
 
@@ -85,8 +90,10 @@ def _quote_ident(string: str) -> str:
 
 
 def quote_ident(string: str, *,
-                force: bool = False, allow_reserved: bool = False) -> str:
-    if force or needs_quoting(string, allow_reserved):
+                force: bool = False,
+                allow_reserved: bool = False,
+                allow_num: bool = False) -> str:
+    if force or needs_quoting(string, allow_reserved, allow_num):
         return _quote_ident(string)
     else:
         return string
