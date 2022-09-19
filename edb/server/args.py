@@ -476,12 +476,14 @@ def _validate_default_auth_method(
 _server_options = [
     click.option(
         '-D', '--data-dir', type=PathPath(),
+        envvar="EDGEDB_SERVER_DATADIR",
         help='database cluster directory'),
     click.option(
         '--postgres-dsn', type=str, hidden=True,
         help='[DEPRECATED] DSN of a remote Postgres cluster, if using one'),
     click.option(
         '--backend-dsn', type=str,
+        envvar="EDGEDB_SERVER_BACKEND_DSN",
         help='DSN of a remote backend cluster, if using one. '
              'Also supports HA clusters, for example: stolon+consul+http://'
              'localhost:8500/test_cluster'),
@@ -534,7 +536,9 @@ _server_options = [
         envvar="EDGEDB_SERVER_BOOTSTRAP_ONLY",
         help='bootstrap the database cluster and exit'),
     click.option(
-        '--default-database', type=str, hidden=True,
+        '--default-database', type=str,
+        envvar="EDGEDB_SERVER_DATABASE",
+        hidden=True,
         help='[DEPRECATED] the name of the default database to create'),
     click.option(
         '--default-database-user', type=str, hidden=True,
@@ -563,11 +567,15 @@ _server_options = [
         help='enable or disable the test mode',
         default=False),
     click.option(
-        '-I', '--bind-address', type=str, multiple=True,
+        '-I', '--bind-address', type=str,
+        envvar="EDGEDB_SERVER_BIND_ADDRESS",
+        multiple=True,
         help='IP addresses to listen on, specify multiple times for more than '
              'one address to listen on'),
     click.option(
-        '-P', '--port', type=PortType(), default=None,
+        '-P', '--port', type=PortType(),
+        envvar="EDGEDB_SERVER_PORT",
+        default=None,
         help='port to listen on'),
     click.option(
         '-b', '--background', is_flag=True, help='daemonize'),
@@ -579,7 +587,9 @@ _server_options = [
     click.option(
         '--daemon-group', type=int),
     click.option(
-        '--runstate-dir', type=PathPath(), default=None,
+        '--runstate-dir', type=PathPath(),
+        envvar="EDGEDB_SERVER_RUNSTATE_DIR",
+        default=None,
         help=f'directory where UNIX sockets and other temporary '
              f'runtime files will be placed ({_get_runstate_dir_default()} '
              f'by default)'),
@@ -681,7 +691,9 @@ _server_options = [
              'and "generate_self_signed" when the --security option is set to '
              '"insecure_dev_mode"'),
     click.option(
-        '--generate-self-signed-cert', type=bool, default=False, is_flag=True,
+        '--generate-self-signed-cert',
+        type=bool,
+        default=False, is_flag=True,
         help='DEPRECATED.\n\n'
              'Use --tls-cert-mode=generate_self_signed instead.'),
     click.option(
