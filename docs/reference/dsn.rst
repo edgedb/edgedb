@@ -28,17 +28,15 @@ Query parameters
 ----------------
 
 DSNs also support query parameters (``?host=myhost.com``) to support advanced
-use cases. These query parameters fall into three categories: "plain"
-parameters (where the parameter contains the value itself), file parameters
-(where the param points to a local file containing the actual value), and
-environment parameters (where the param is a reference to an environment
-variable containing the value).
+use cases. The value for a given parameter can be specified in three ways:
+directly (e.g. ``?host=example.com``), by specifying an environment variable
+containing the value (``?host_env=HOST_VAR``), or by specifying a file
+containing the value (``?host_file=./hostname.txt``).
 
 .. note::
 
   For a breakdown of these configuration options, see :ref:`Reference >
   Connection Parameters <ref_reference_connection_granular>`.
-
 
 .. list-table::
 
@@ -60,9 +58,9 @@ variable containing the value).
   * - ``password``
     - ``password_file``
     - ``password_env``
-  * - ``tls_cert_file``
-    - ``tls_cert_file_file``
-    - ``tls_cert_file_env``
+  * - ``tls_ca_file``
+    - ``tls_ca_file_file``
+    - ``tls_ca_file_env``
   * - ``tls_security``
     - ``tls_security_file``
     - ``tls_security_env``

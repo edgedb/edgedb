@@ -15,6 +15,7 @@ Reference
     sdl/index
     ddl/index
     connection
+    projects
     dsn
     observability
     dump_format

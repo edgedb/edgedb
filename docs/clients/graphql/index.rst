@@ -64,9 +64,9 @@ instance list``.
   ┌────────┬──────────────┬──────────┬───────────────┬─────────────┐
   │ Kind   │ Name         │ Port     │ Version       │ Status      │
   ├────────┼──────────────┼──────────┼───────────────┼─────────────┤
-  │ local  │ inst1        │ 10700    │ 1.x           │ running     │
-  │ local  │ inst2        │ 10702    │ 1.x           │ running     │
-  │ local  │ inst3        │ 10703    │ 1.x           │ running     │
+  │ local  │ inst1        │ 10700    │ 2.x           │ running     │
+  │ local  │ inst2        │ 10702    │ 2.x           │ running     │
+  │ local  │ inst3        │ 10703    │ 2.x           │ running     │
   └────────┴──────────────┴──────────┴───────────────┴─────────────┘
 
 To execute a GraphQL query against the instance named ``inst2``, we would send

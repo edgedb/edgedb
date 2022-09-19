@@ -52,7 +52,10 @@
       - Time type
 
     * - :eql:type:`cal::relative_duration`
-      - Relative time span
+      - Relative time span (in months, days, and seconds)
+
+    * - :eql:type:`cal::date_duration`
+      - Relative time span (in months and days only)
 
     * - :eql:type:`sequence`
       - Auto-incrementing sequence of ``int64``

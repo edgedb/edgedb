@@ -13,11 +13,10 @@ Welcome to the EdgeDB |version| documentation.
     :maxdepth: 5
     :includehidden:
 
-    intro
-    guides/index
+    intro/index
     datamodel/index
     edgeql/index
-    graphql/index
+    guides/index
     stdlib/index
     clients/index
     cli/index

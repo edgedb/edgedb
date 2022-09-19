@@ -149,27 +149,21 @@ directory. You'll be presented with a series of prompts.
 
   $ edgedb project init
   No `edgedb.toml` found in `~/nextjs-blog` or above
-
   Do you want to initialize a new project? [Y/n]
   > Y
-
   Specify the name of EdgeDB instance to use with this project [default:
   nextjs-blog]:
   > nextjs-blog
-
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 1.x]:
-  > 1.x
-
-  Do you want to start instance automatically on login? [y/n]
-  > y
+  Specify the version of EdgeDB to use with this project [default: 2.x]:
+  >
   ┌─────────────────────┬──────────────────────────────────────────────┐
   │ Project directory   │ ~/nextjs-blog                                │
   │ Project config      │ ~/nextjs-blog/edgedb.toml                    │
   │ Schema dir (empty)  │ ~/nextjs-blog/dbschema                       │
   │ Installation method │ portable package                             │
   │ Start configuration │ manual                                       │
-  │ Version             │ 1.x                                          │
+  │ Version             │ 2.x                                          │
   │ Instance name       │ nextjs-blog                                  │
   └─────────────────────┴──────────────────────────────────────────────┘
   Initializing EdgeDB instance...
@@ -187,7 +181,7 @@ To test this, run the ``edgedb`` command to open a REPL to the linked instance.
 .. code-block:: bash
 
   $ edgedb
-  EdgeDB 1.x (repl 1.x)
+  EdgeDB 2.x (repl 2.x)
   Type \help for help, \quit to quit.
   edgedb> select 2 + 2;
   {4}
@@ -254,7 +248,7 @@ the REPL.
 .. code-block:: bash
 
   $ edgedb
-  EdgeDB 1.x (repl 1.x)
+  EdgeDB 2.x (repl 2.x)
   Type \help for help, \quit to quit.
   edgedb>
 
@@ -591,7 +585,7 @@ Once you've applied the migrations, consider creating some sample data in your
 .. code-block:: bash
 
   $ edgedb --dsn <your-instance-dsn> --tls-security insecure
-  EdgeDB 1.x (repl 1.x)
+  EdgeDB 2.x (repl 2.x)
   Type \help for help, \quit to quit.
   edgedb> insert BlogPost { title := "Test post" };
   {default::BlogPost {id: c00f2c9a-cbf5-11ec-8ecb-4f8e702e5789}}

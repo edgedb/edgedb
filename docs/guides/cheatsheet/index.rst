@@ -50,6 +50,7 @@ CLI/Admin:
     insert
     update
     delete
+    link_properties
     boolean
     objects
     functions

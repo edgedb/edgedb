@@ -36,4 +36,5 @@ Client Libraries
     dart/index
     dotnet/index
     http/index
+    graphql/index
 
