@@ -10266,6 +10266,18 @@ type default::Foo {
                 insert Foo { foo := "x" }; insert Bar { foo := "x" };
             """)
 
+    async def test_edgeql_ddl_constraint_alter_09(self):
+        await self.con.execute(r"""
+            CREATE ABSTRACT TYPE default::T;
+            CREATE ABSTRACT TYPE default::Sub1 EXTENDING default::T;
+            CREATE TYPE default::Sub2 EXTENDING default::Sub1, default::T;
+            ALTER TYPE default::T {
+                CREATE PROPERTY foo -> std::str {
+                    CREATE CONSTRAINT std::exclusive;
+                };
+            };
+        """)
+
     async def test_edgeql_ddl_drop_inherited_link(self):
         await self.con.execute(r"""
             CREATE TYPE Target;
