@@ -244,7 +244,8 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        cmd: sd.Command,
+        cmd: sd.Command | Callable[
+            [s_schema.Schema, sd.CommandContext], MetaCommand],
         ctxcls: Type[sd.CommandContextToken[sd.Command]],
     ) -> None:
         ctx = context.get_topmost_ancestor(ctxcls)
@@ -2140,10 +2141,16 @@ class AlterConstraint(
                 and isinstance(
                     subject, (s_objtypes.ObjectType, s_pointers.Pointer))
                 and not context.is_creating(subject)
+                and not context.is_deleting(subject)
             ):
                 op = self.enforce_constraint(
                     constraint, schema, context, self.source_context)
-                self.pgops.add(op)
+                self.schedule_post_inhview_update_command(
+                    schema,
+                    context,
+                    (lambda nschema, ncontext:
+                     op if nschema.has_object(subject.id) else None),
+                    s_sources.SourceCommandContext)
 
             self.pgops.add(self.fixup_base_constraint_triggers(
                 constraint, orig_schema, schema, context, self.source_context,
@@ -3077,7 +3084,12 @@ class CompositeMetaCommand(MetaCommand):
                     self.alter_inhview(
                         schema, context, s, alter_ancestors=False)
 
-        self.pgops.update(self.post_inhview_update_commands)
+        for post_cmd in self.post_inhview_update_commands:
+            if callable(post_cmd):
+                if op := post_cmd(schema, context):
+                    self.pgops.add(op)
+            else:
+                self.pgops.add(post_cmd)
 
 
 class IndexCommand(MetaCommand):
