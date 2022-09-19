@@ -335,9 +335,6 @@ class CommandGroup(Command):
     def __iter__(self):
         return iter(self.commands)
 
-    def __call__(self, typ):
-        return filter(lambda i: isinstance(i, typ), self.commands)
-
     def __len__(self):
         return len(self.commands)
 
