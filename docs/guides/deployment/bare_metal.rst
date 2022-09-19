@@ -139,7 +139,8 @@ Link the instance with the CLI
 ==============================
 
 The following is an example of linking a bare metal instance that is running on
-``localhost``. This command assigns the
+``localhost``. This command assigns a name to the instance, to make it more
+convenient to refer to when running CLI commands.
 
 .. code-block:: bash
 
@@ -151,7 +152,7 @@ The following is an example of linking a bare metal instance that is running on
       --trust-tls-cert \
       bare_metal_instance
 
-This allows connecting to the instance with it's name.
+This allows connecting to the instance with its name.
 
 .. code-block:: bash
 
