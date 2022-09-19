@@ -8,6 +8,9 @@ variables documented on this page are supported when using the
 ``edgedb-server`` tool and the official :ref:`Docker image
 <ref_guide_deployment_docker>`.
 
+
+.. _ref_reference_envvar_variants:
+
 Variants
 --------
 Some environment variables (noted below) support ``*_FILE`` and ``*_ENV``
@@ -24,15 +27,39 @@ variants.
 Supported variables
 -------------------
 
-.. Initialization
-.. --------------
+EDGEDB_SERVER_BOOTSTRAP_COMMAND
+...............................
 
-.. When an EdgeDB container starts on the specified data directory or remote
-.. Postgres cluster for the first time, initial instance setup is performed.
-.. This is called the *bootstrap phase*.
+Specifies one or more EdgeQL statements to run at bootstrap. If specified,
+overrides ``EDGEDB_SERVER_PASSWORD``, ``EDGEDB_SERVER_PASSWORD_HASH``,
+``EDGEDB_SERVER_USER`` and ``EDGEDB_SERVER_DATABASE``. Useful to fine-tune
+initial user and database creation, and other initial setup. If neither the
+``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` variable or the
+``EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE`` are explicitly specified, the container
+will look for the presence of ``/edgedb-bootstrap.edgeql`` in the container
+(which can be placed in a derived image).
 
-.. The following environment variables affect the bootstrap only and have no
-.. effect on subsequent container runs.
+The ``*_FILE`` and ``*_ENV`` variants are also supported.
+
+
+EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE
+...................................
+
+Run the script when initializing the database. The script is run by default
+user within default database.
+
+
+EDGEDB_SERVER_DEFAULT_AUTH_METHOD
+.................................
+
+Optionally specifies the authentication method used by the server instance.
+Supported values are ``SCRAM`` (the default) and ``Trust``.  When set to
+``Trust``, the database will allow complete unauthenticated access for all who
+have access to the database port.  In this case the ``EDGEDB_SERVER_PASSWORD``
+(or equivalent) setting is not required.
+
+Use at your own risk and only for development and testing.
+
 
 EDGEDB_SERVER_TLS_CERT_MODE
 ...........................
@@ -54,7 +81,6 @@ The default is ``generate_self_signed`` when
 
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
-
 EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT
 .......................................
 
@@ -74,26 +100,13 @@ should likely provide your own certificate and key file with the variables
 below.
 
 
-EDGEDB_SERVER_TLS_CERT EDGEDB_SERVER_TLS_KEY
+EDGEDB_SERVER_TLS_CERT/EDGEDB_SERVER_TLS_KEY
 ............................................
 
 The TLS certificate and private key, exclusive with
 ``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``.
 
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
-
-
-EDGEDB_SERVER_DEFAULT_AUTH_METHOD
-.................................
-
-Optionally specifies the authentication method used by the server instance.
-Supported values are ``SCRAM`` (the default) and ``Trust``.  When set to
-``Trust``, the database will allow complete unauthenticated access for all who
-have access to the database port.  In this case the ``EDGEDB_SERVER_PASSWORD``
-(or equivalent) setting is not required.
-
-Use at your own risk and only for development and testing.
-
 
 EDGEDB_SERVER_SECURITY
 ......................
@@ -105,37 +118,6 @@ Finally, if this option is set, the server will accept plaintext HTTP
 connections.
 
 Use at your own risk and only for development and testing.
-
-
-EDGEDB_SERVER_BOOTSTRAP_COMMAND
-...............................
-
-Specifies one or more EdgeQL statements to run at bootstrap. If specified,
-overrides ``EDGEDB_SERVER_PASSWORD``, ``EDGEDB_SERVER_PASSWORD_HASH``,
-``EDGEDB_SERVER_USER`` and ``EDGEDB_SERVER_DATABASE``. Useful to fine-tune
-initial user and database creation, and other initial setup. If neither the
-``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` variable or the
-``EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE`` are explicitly specified, the container
-will look for the presence of ``/edgedb-bootstrap.edgeql`` in the container
-(which can be placed in a derived image).
-
-The ``*_FILE`` and ``*_ENV`` variants are also supported.
-
-
-EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE
-...................................
-Run the script when initializing the database. The script is run by default
-user within default database.
-
-
-.. Runtime Options
-.. ---------------
-
-.. The variables in this section affect the runtime behavior
-.. :ref:`ref_guides_deployment_docker_initial_setup`
-.. section above, the configuration documented below applies to all container
-.. invocations. It can be specified either as environment variables or
-.. command-line arguments.
 
 
 EDGEDB_SERVER_PORT
@@ -201,7 +183,7 @@ Maps directly to the ``edgedb-server`` flag ``--runstate-dir``.
 EDGEDB_SERVER_ADMIN_UI
 ......................
 
-Set to ``enabled`` to enable the Web-based admininstrative UI for the instance.
+Set to ``enabled`` to enable the web-based admininstrative UI for the instance.
 
 EDGEDB_SERVER_EXTRA_ARGS
 ........................
