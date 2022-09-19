@@ -6875,6 +6875,14 @@ aa \
             [],
         )
 
+        await self.assert_query_result(
+            r"""
+                with test := ['']
+                select test if false else <array<str>>[];
+            """,
+            [[]],
+        )
+
     async def test_edgeql_expr_setop_01(self):
         await self.assert_query_result(
             r"""SELECT EXISTS <str>{};""",
