@@ -160,7 +160,11 @@ effect on subsequent container runs.
 EDGEDB_SERVER_PASSWORD
 ......................
 
-Determines the password used for the default superuser account.
+The password for the default superuser account will be set to this value. If
+no value is provided a password will not be set, unless set via
+``EDGEDB_SERVER_BOOTSTRAP_COMMAND``. (If a value for
+``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is provided, this variable will be
+ignored.)
 
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
@@ -170,6 +174,8 @@ EDGEDB_SERVER_PASSWORD_HASH
 
 A variant of ``EDGEDB_SERVER_PASSWORD``, where the specified value is a hashed
 password verifier instead of plain text.
+
+If ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is set, this variable will be ignored.
 
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 

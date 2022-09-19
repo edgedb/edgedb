@@ -30,11 +30,8 @@ Supported variables
 EDGEDB_SERVER_BOOTSTRAP_COMMAND
 ...............................
 
-Specifies one or more EdgeQL statements to run at bootstrap. If specified,
-overrides ``EDGEDB_SERVER_PASSWORD``, ``EDGEDB_SERVER_PASSWORD_HASH``,
-``EDGEDB_SERVER_USER`` and ``EDGEDB_SERVER_DATABASE``. Useful to fine-tune
-initial user and database creation, and other initial setup. If neither the
-``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` variable or the
+Useful to fine-tune initial user and database creation, and other initial
+setup. If neither the ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` variable or the
 ``EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE`` are explicitly specified, the container
 will look for the presence of ``/edgedb-bootstrap.edgeql`` in the container
 (which can be placed in a derived image).
@@ -53,10 +50,12 @@ EDGEDB_SERVER_DEFAULT_AUTH_METHOD
 .................................
 
 Optionally specifies the authentication method used by the server instance.
-Supported values are ``SCRAM`` (the default) and ``Trust``.  When set to
-``Trust``, the database will allow complete unauthenticated access for all who
-have access to the database port.  In this case the ``EDGEDB_SERVER_PASSWORD``
-(or equivalent) setting is not required.
+Supported values are ``SCRAM`` (the default) and ``Trust``. When set to
+``Trust``, the database will allow complete unauthenticated access
+for all who have access to the database port.
+
+This is often useful when setting an admin password on an instance that lacks
+one.
 
 Use at your own risk and only for development and testing.
 
@@ -184,8 +183,3 @@ EDGEDB_SERVER_ADMIN_UI
 ......................
 
 Set to ``enabled`` to enable the web-based admininstrative UI for the instance.
-
-EDGEDB_SERVER_EXTRA_ARGS
-........................
-
-Extra arguments to be passed to EdgeDB server.
