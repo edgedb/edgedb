@@ -493,8 +493,6 @@ class TestSignalctl(tb.TestCase):
                     await asyncio.wait_for(task, 0.1)
             ex = ctx.exception
             self.assertEqual(ex.signo, signal.SIGINT)
-            while not isinstance(ex, asyncio.CancelledError):
-                ex = ex.__context__
             self.assertEqual(ex.__context__.signo, signal.SIGTERM)
             self.notify_parent(5)
         """

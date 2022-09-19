@@ -222,7 +222,7 @@ def hash_dirs(
     for path in sorted(paths):
         with open(path, 'rb') as f:
             h.update(f.read())
-
+    h.update(str(sys.version_info[:2]).encode())
     return h.digest()
 
 
