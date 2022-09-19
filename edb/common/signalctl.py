@@ -113,20 +113,26 @@ class SignalController:
         if cancel_on is None:
             cancel_on = self._signals
 
+        cancelled_by = None
+        outer_cancelled_at_last = False
+
         # The design here: we'll wait on a separate Future "waiter" for clean
-        # cancellation. The waiter might be waken up by 3 different events:
+        # cancellation. The waiter might be woken up by 3 different events:
         #   1. The given "fut" is done
         #   2. A signal is captured
         #   3. The "waiter" is cancelled by outer code.
-        # For 2 and 3, we'll interrupt the given "fut" by a cancellation
-        # carrying the reason as its message. Because our cancellation might be
+        # For 2, we'll cancel the given "fut" and record the signal in
+        # cancelled_by as a __context__ chain to raise in the next step; for 3,
+        # we cancel the given "fut" and propagate the CancelledError later.
+        #
+        # The complexity of this design is: because our cancellation might be
         # intercepted in the "fut" code - e.g. a finally block or except block
         # that traps (and hopefully re-raises) the CancelledError or
         # BaseException, we need a loop here to ensure all the nested blocks
         # are exhaustively executed until the "fut" is done, meanwhile the
         # signals may keep hitting the "fut" code blocks, and "wait_for" is
-        # ready to handle them properly, and chain the SignalError objects
-        # with the __context__ or __cause__ attribute as they happen.
+        # ready to handle them properly, and return all the SignalError objects
+        # in a __context__ chain preserving the order as they happen.
         while not fut.done():
             waiter = self._loop.create_future()
             cb = functools.partial(_release_waiter, waiter)
@@ -137,16 +143,21 @@ class SignalController:
             try:
                 try:
                     signal = await waiter
-                except asyncio.CancelledError as e:
+                except asyncio.CancelledError:
                     # Event 3: cancelled by outer code.
                     if not fut.done():
-                        fut.cancel(msg=e)
+                        fut.cancel()
+                        outer_cancelled_at_last = True
                 else:
                     # Event 2: "fut" is still running, which means that
                     # "waiter" was woken up by a signal.
                     if not fut.done():
                         assert signal is not None
-                        fut.cancel(msg=SignalError(signal))
+                        fut.cancel()
+                        err = SignalError(signal)
+                        err.__context__ = cancelled_by
+                        cancelled_by = err
+                        outer_cancelled_at_last = False
 
                 # Event 1: "fut" is done - exit the loop naturally.
 
@@ -162,47 +173,44 @@ class SignalController:
         # Now that the "fut" is done, let's check its result. It may end up in
         # 3 different scenarios, listed below inline:
         try:
-            # 1. "fut" finished happily without interruption of signal or
-            #    cancellation (event 1), just return or raise as it is.
+            # 1. "fut" finished happily without raising errors (event 1), just
+            #    return the result. Even if we've previously recorded signals
+            #    (event 2) or cancellations (event 3), it's now handled by the
+            #    user, and we shall simply dispose the recorded cancelled_by.
             return fut.result()
-        except asyncio.CancelledError as e:
-            # For all other cases, it is expected to begin with a cancellation.
-            # We need to look into the chain of exceptions for a sign of event
-            # 2 or 3, so that we could recover the proper error objects later.
-            ex = e
-            while ex is not None:
-                if ex.args and isinstance(
-                    ex.args[0], (asyncio.CancelledError, SignalError)
-                ):
-                    break
-                ex = ex.__context__
+
+        except asyncio.CancelledError as ex:
+            # 2. "fut" is cancelled - this usually means we caught a signal,
+            #    but it could also be other reasons, see below.
+            if cancelled_by is not None:
+                # Event 2 happened at least once
+                if outer_cancelled_at_last:
+                    # If event 3 is the last event, the outer code is probably
+                    # expecting a CancelledError, e.g. asyncio.wait_for().
+                    # Therefore, we just raise it with signal errors attached.
+                    ex.__context__ = cancelled_by
+                    raise
+                else:
+                    # If event 2 is the last event, simply raise the grouped
+                    # signal errors, attaching the CancelledError to reveal
+                    # where the signals hit the user code. We cannot raise
+                    # directly here because cancelled_by.__context__ may have
+                    # previously-captured signal errors.
+                    cancelled_by.__cause__ = ex
             else:
-                # 2. We didn't find any clue, this likely means the chain was
-                #    lost or broken in the Task code, let's just re-raise.
+                # Neither event 2 nor 3 happened, the user code cancelled
+                # itself, simply propagate the same error.
                 raise
 
-        # 3. The first CancelledError that carries event 2 or 3 is found, let's
-        #    construct the proper error chain here based on the carriers.
-        current = rv = ex.args[0].with_traceback(ex.__traceback__)
-        ctx = ex.__context__
-        while ctx is not None:
-            if ctx.args and isinstance(ctx.args[0], asyncio.CancelledError):
-                # Event 3: keep the traceback of the original cancellation
-                current.__context__ = ctx.args[0]
-            elif ctx.args and isinstance(ctx.args[0], SignalError):
-                # Event 2: as SignalError was never directly raised by now,
-                # it doesn't have a traceback yet. We're just borrowing the
-                # traceback from its carrier CancelledError which reveals the
-                # actual line of code where the signal was caught.
-                current.__context__ = ctx.args[0].with_traceback(
-                    ctx.__traceback__
-                )
-            else:
-                # Preserve whatever else is in the chain.
-                current.__context__ = ctx
-            current = current.__context__
-            ctx = ctx.__context__
-        raise rv
+        except Exception as e:
+            # 3. For any other errors, we just raise it with the signal errors
+            #    attached as __context__ if event 2 happened.
+            if cancelled_by is not None:
+                e.__context__ = cancelled_by
+            raise
+
+        assert cancelled_by is not None
+        raise cancelled_by
 
     async def wait_for_signals(self):
         waiter = QueueWaiter()
