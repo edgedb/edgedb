@@ -4222,7 +4222,7 @@ class FTSParseQueryFunction(dbops.Function):
 
             END IF;
 
-            RETURN fts_parse_query(rest, language, must, should, cur_op);
+            RETURN edgedb.fts_parse_query(rest, language, must, should, cur_op);
         END IF;
 
         FOREACH el IN ARRAY should
