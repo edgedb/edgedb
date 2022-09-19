@@ -189,13 +189,14 @@ class SignalController:
                     # expecting a CancelledError, e.g. asyncio.wait_for().
                     # Therefore, we just raise it with signal errors attached.
                     ex.__context__ = cancelled_by
-                    rv = ex
+                    raise
                 else:
                     # If event 2 is the last event, simply raise the grouped
                     # signal errors, attaching the CancelledError to reveal
-                    # where the signals hit the user code.
+                    # where the signals hit the user code. We cannot raise
+                    # directly here because cancelled_by.__context__ may have
+                    # previously-captured signal errors.
                     cancelled_by.__cause__ = ex
-                    rv = cancelled_by
             else:
                 # Neither event 2 nor 3 happened, the user code cancelled
                 # itself, simply propagate the same error.
@@ -206,10 +207,10 @@ class SignalController:
             #    attached as __context__ if event 2 happened.
             if cancelled_by is not None:
                 e.__context__ = cancelled_by
-                rv = e
-            else:
-                raise
-        raise rv
+            raise
+
+        assert cancelled_by is not None
+        raise cancelled_by
 
     async def wait_for_signals(self):
         waiter = QueueWaiter()
