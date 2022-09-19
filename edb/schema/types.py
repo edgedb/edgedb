@@ -1301,10 +1301,10 @@ class Array(
             other.get_element_type(schema), schema)
 
     def find_common_implicitly_castable_type(
-        self: Array_T,
+        self,
         other: Type,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[s_schema.Schema, Optional[Array_T]]:
+    ) -> typing.Tuple[s_schema.Schema, Optional[Array]]:
 
         if not isinstance(other, Array):
             return schema, None
@@ -1319,7 +1319,7 @@ class Array(
         if subtype is None:
             return schema, None
 
-        return type(self).from_subtypes(schema, [subtype])
+        return Array.from_subtypes(schema, [subtype])
 
     def _resolve_polymorphic(
         self,
