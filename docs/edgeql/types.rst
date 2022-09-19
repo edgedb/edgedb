@@ -146,7 +146,7 @@ The ``[is foo]`` "type intersection" syntax should not be confused with the
   {true}
   db> select {3.14, 2.718} is not int64;
   {true, true}
-  db> select Media is Movir;
+  db> select Media is Movie;
   {true, true, false}
 
 
