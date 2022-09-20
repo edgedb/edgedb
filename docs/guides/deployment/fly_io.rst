@@ -28,11 +28,6 @@ Prerequisites
 Provision a Fly.io app for EdgeDB
 =================================
 
-.. note::
-
-    If you are trying to work with deployed instances,
-    you will need to `modify your configuration <#proxying-connections>`_.
-
 Every Fly.io app must have a globally unique name, including service VMs like
 Postgres and EdgeDB. Pick a name and assign it to a local environment variable
 called ``EDB_APP``. In the command below, replace ``myorg-edgedb`` with a name
