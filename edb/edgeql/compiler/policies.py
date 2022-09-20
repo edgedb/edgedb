@@ -269,7 +269,7 @@ def try_type_rewrite(
                 filtered_stmt = irast.SelectStmt(result=base_set)
                 subctx.anchors[qlast.Subject().name] = base_set
                 subctx.partial_path_prefix = base_set
-                subctx.path_scope = subctx.env.path_scope.root
+                subctx.path_scope = subctx.env.path_scope.root.attach_fence()
 
                 clauses.compile_where_clause(
                     filtered_stmt,
@@ -277,7 +277,7 @@ def try_type_rewrite(
                         stype, mode=qltypes.AccessKind.Select, ctx=subctx),
                     ctx=subctx)
 
-                filtered_set = setgen.ensure_set(filtered_stmt, ctx=subctx)
+                filtered_set = setgen.scoped_set(filtered_stmt, ctx=subctx)
 
             sets.append(filtered_set)
 
@@ -328,7 +328,7 @@ def compile_dml_policy(
     if not pols:
         return None
 
-    with ctx.detached() as subctx:
+    with ctx.detached() as _, ctx.newscope(fenced=True) as subctx:
         # TODO: can we make sure to always avoid generating needless
         # select filters
         skip_subtypes = (stype, False) not in ctx.env.type_rewrites
@@ -343,5 +343,7 @@ def compile_dml_policy(
         assert condition
 
         return irast.PolicyExpr(
-            expr=dispatch.compile(condition, ctx=subctx)
+            expr=setgen.scoped_set(
+                dispatch.compile(condition, ctx=subctx), ctx=subctx
+            ),
         )
