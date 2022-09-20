@@ -279,15 +279,13 @@ A ``fly.toml`` file will be created upon result. Let's make sure our
             timeout = "2s"
 
 In the same directory, we'll now `deploy our app <#start-edgedb>`_.
+This makes the EdgeDB port available to the outside world. You can now
+access the instance from any host via the following public DSN:
+``edgedb://edgedb:$PASSWORD@$EDB_APP.fly.dev``.
 
-Keep in mind that your public DSN should point to the port used in
-``[[services.ports]]``. This will look like
-``edgedb://edgedb:$PASSWORD@$EDB_APP.fly.dev:5656`` in our example.
-
-Finally, you will need to expose the TLS certificate so it may be used
-on other services. For platforms such as Netlify, you may specify this as
-a ``EDGEDB_TLS_CA`` secret. We can securely access our certificate through
-SSH:
+To secure communication between the server and the client, you will also
+need to set the ``EDGEDB_TLS_CA`` environment secret in your application.
+You can securely obtain the certificate content by running:
 
 .. code-block:: bash
 
