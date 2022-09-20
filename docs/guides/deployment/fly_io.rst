@@ -28,6 +28,11 @@ Prerequisites
 Provision a Fly.io app for EdgeDB
 =================================
 
+.. note::
+
+    If you are trying to work with deployed instances,
+    you will need to `modify your configuration <#proxying-connections>`_.
+
 Every Fly.io app must have a globally unique name, including service VMs like
 Postgres and EdgeDB. Pick a name and assign it to a local environment variable
 called ``EDB_APP``. In the command below, replace ``myorg-edgedb`` with a name
@@ -88,6 +93,59 @@ default Fly.io VM side provides:
           CPU Cores: 1
              Memory: 1 GB
 
+Proxying connections
+====================
+
+For already deployed instances, you will need to modify the config of your
+Fly.io app to work with EdgeDB on a different port.
+
+Let's save a new config in an empty directory with the ``EDB_APP`` local
+environment variable we made:
+
+.. code-block:: bash
+
+    $ flyctl config save -a $EDB_APP
+
+A ``fly.toml`` file will be created upon result. Let's make sure our
+``[[services]]`` section looks something like this:
+
+.. code-block:: toml
+
+    [[services]]
+        http_checks = []
+        internal_port = 8080
+        processes = ["app"]
+        protocol = "tcp"
+        script_checks = []
+        [services.concurrency]
+            hard_limit = 25
+            soft_limit = 20
+            type = "connections"
+
+        [[services.ports]]
+            port = 5656
+
+        [[services.tcp_checks]]
+            grace_period = "1s"
+            interval = "15s"
+            restart_limit = 0
+            timeout = "2s"
+
+In the same directory, we'll now `deploy our app <#start-edgedb>`_.
+
+Keep in mind that your public DSN should point to the port used in
+``[[services.ports]]``. This will look like
+``edgedb://edgedb:$PASSWORD@$EDB_APP.fly.dev:5656`` in our example.
+
+Finally, you will need to expose the TLS certificate so it may be used
+on other services. For platforms such as Netlify, you may specify this as
+a ``EDGEDB_TLS_CA`` secret. We can securely access our certificate through
+SSH:
+
+.. code-block:: bash
+
+    $ flyctl ssh console -a $EDB_APP \
+        -C "edgedb-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_CERT"
 
 Create a PostgreSQL cluster
 ===========================
