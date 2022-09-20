@@ -372,6 +372,21 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
             []
         )
 
+    async def test_edgeql_globals_12(self):
+        await self.con.execute('''
+            create global Ug := User
+        ''')
+
+        await self.assert_query_result(
+            r'''select count((global Ug).deck)''',
+            [9]
+        )
+
+        await self.assert_query_result(
+            r'''select count(((global Ug).id, (global Ug).name))''',
+            [16]
+        )
+
     async def test_edgeql_globals_state_cardinality(self):
         await self.con.execute('''
             set global cur_user := {};
