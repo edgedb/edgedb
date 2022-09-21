@@ -1094,6 +1094,20 @@ def _infer_matset_cardinality(
         )
 
 
+def _infer_policy_cardinality(
+    ir: irast.MutatingStmt,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> None:
+    pctx = ctx._replace(singletons=ctx.singletons | {ir.result.path_id})
+    for pol in [
+        *ir.read_policy_exprs.values(), *ir.write_policy_exprs.values()
+    ]:
+        pol.cardinality = infer_cardinality(
+            pol.expr, scope_tree=scope_tree, ctx=pctx)
+
+
 def _infer_stmt_cardinality(
     ir: irast.FilteredStmt,
     *,
@@ -1121,12 +1135,7 @@ def _infer_stmt_cardinality(
         ir.materialized_sets, scope_tree=scope_tree, ctx=ctx)
 
     if isinstance(ir, irast.MutatingStmt):
-        pctx = ctx._replace(singletons=ctx.singletons | {ir.result.path_id})
-        for pol in [
-            *ir.read_policy_exprs.values(), *ir.write_policy_exprs.values()
-        ]:
-            pol.cardinality = infer_cardinality(
-                pol.expr, scope_tree=scope_tree, ctx=pctx)
+        _infer_policy_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
 
     return result_card
 
@@ -1213,6 +1222,8 @@ def __infer_insert_stmt(
 
     _infer_matset_cardinality(
         ir.materialized_sets, scope_tree=scope_tree, ctx=ctx)
+
+    _infer_policy_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
 
     # INSERT without a FOR is always a singleton.
     if not ir.on_conflict:
