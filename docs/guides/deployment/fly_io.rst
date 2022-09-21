@@ -88,7 +88,6 @@ default Fly.io VM side provides:
           CPU Cores: 1
              Memory: 1 GB
 
-
 Create a PostgreSQL cluster
 ===========================
 
@@ -241,6 +240,56 @@ You can also set these values as environment variables inside your
 ``fly.toml`` file, but using Fly's built-in `secrets
 <https://fly.io/docs/reference/secrets/>`_ functionality is recommended.
 
+From external application
+-------------------------
+
+If you need to access EdgeDB from outside the Fly.io network, you'll need to
+configure the Fly.io proxy to let external connections in.
+
+First, save the EdgeDB app config in an **empty directory**:
+
+.. code-block:: bash
+
+    $ flyctl config save -a $EDB_APP
+
+A ``fly.toml`` file will be created upon result. Let's make sure our
+``[[services]]`` section looks something like this:
+
+.. code-block:: toml
+
+    [[services]]
+        http_checks = []
+        internal_port = 8080
+        processes = ["app"]
+        protocol = "tcp"
+        script_checks = []
+        [services.concurrency]
+            hard_limit = 25
+            soft_limit = 20
+            type = "connections"
+
+        [[services.ports]]
+            port = 5656
+
+        [[services.tcp_checks]]
+            grace_period = "1s"
+            interval = "15s"
+            restart_limit = 0
+            timeout = "2s"
+
+In the same directory, `redeploy the EdgeDB app <#start-edgedb>`_.
+This makes the EdgeDB port available to the outside world. You can now
+access the instance from any host via the following public DSN:
+``edgedb://edgedb:$PASSWORD@$EDB_APP.fly.dev``.
+
+To secure communication between the server and the client, you will also
+need to set the ``EDGEDB_TLS_CA`` environment secret in your application.
+You can securely obtain the certificate content by running:
+
+.. code-block:: bash
+
+    $ flyctl ssh console -a $EDB_APP \
+        -C "edgedb-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_CERT"
 
 From your local machine
 -----------------------
