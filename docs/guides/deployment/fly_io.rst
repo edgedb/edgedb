@@ -243,11 +243,10 @@ You can also set these values as environment variables inside your
 From external application
 -------------------------
 
-For already deployed instances, you will need to modify the config of your
-Fly.io app to work with EdgeDB on a different port.
+If you need to access EdgeDB from outside the Fly.io network, you'll need to
+configure the Fly.io proxy to let external connections in.
 
-Let's save a new config in an empty directory with the ``EDB_APP`` local
-environment variable we made:
+First, save the EdgeDB app config in an **empty directory**:
 
 .. code-block:: bash
 
@@ -278,7 +277,7 @@ A ``fly.toml`` file will be created upon result. Let's make sure our
             restart_limit = 0
             timeout = "2s"
 
-In the same directory, we'll now `deploy our app <#start-edgedb>`_.
+In the same directory, `redeploy the EdgeDB app <#start-edgedb>`_.
 This makes the EdgeDB port available to the outside world. You can now
 access the instance from any host via the following public DSN:
 ``edgedb://edgedb:$PASSWORD@$EDB_APP.fly.dev``.
