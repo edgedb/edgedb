@@ -5247,6 +5247,20 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             edgedb.Set(('"hell"',))
         )
 
+        await self.assert_query_result(
+            r"""
+            select (<array<str>>[])[0:];
+            """,
+            [[]]
+        )
+
+        await self.assert_query_result(
+            r"""
+            select to_json('[]')[0:];
+            """,
+            [[]]
+        )
+
 
 
     async def test_edgeql_select_tuple_01(self):

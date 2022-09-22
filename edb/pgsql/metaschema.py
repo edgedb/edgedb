@@ -1948,8 +1948,8 @@ class ArraySliceFunction(dbops.Function):
     """Get an array slice."""
     text = '''
         SELECT
-            val[edgedb._normalize_array_index(start, array_upper(val, 1)):
-                edgedb._normalize_array_index(stop, array_upper(val, 1)) - 1]
+            val[edgedb._normalize_array_index(start, cardinality(val)):
+                edgedb._normalize_array_index(stop, cardinality(val)) - 1]
     '''
 
     def __init__(self) -> None:
@@ -2269,7 +2269,7 @@ class JSONSliceFunction(dbops.Function):
             WHEN jsonb_typeof(val) = 'array' THEN (
                 to_jsonb(edgedb._slice(
                     (
-                        SELECT array_agg(value)
+                        SELECT coalesce(array_agg(value), '{}'::jsonb[])
                         FROM jsonb_array_elements(val)
                     ),
                     start, stop
