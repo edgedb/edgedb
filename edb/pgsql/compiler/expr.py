@@ -286,9 +286,11 @@ def compile_SliceIndirection(
     with ctx.new() as subctx:
 
         # Postgres arrays use 32bit indexes, so EdgeDB inherits this limitation
-        def compile_and_cast_int(expr):
-            expr = dispatch.compile(expr, ctx=subctx)
-            return pgast.TypeCast(arg=expr, type_name=pgast.TypeName(name=("integer",)))
+        def compile_and_cast_int(expr: irast.Base) -> pgast.BaseExpr:
+            pg_expr = dispatch.compile(expr, ctx=subctx)
+            return pgast.TypeCast(
+                arg=pg_expr, type_name=pgast.TypeName(name=("integer",))
+            )
 
         subctx.expr_exposed = False
         subj = dispatch.compile(expr.expr, ctx=subctx)
@@ -299,14 +301,15 @@ def compile_SliceIndirection(
             start = compile_and_cast_int(expr.start)
 
         if expr.stop is None:
-            # Max index in EdgeQL is 2^32-2 i.e. 2147483646
-            # because during conversion to Postgres index, we 
-            # add 1 to the stop and then subtract one.
-            stop: pgast.BaseExpr = pgast.LiteralExpr(expr="2147483646")
+            # Max index in EdgeQL is 2^32-2 because during conversion
+            # to Postgres index, we add 1 to the stop and then subtract one.
+            stop: pgast.BaseExpr = pgast.LiteralExpr(expr=str(2**31-2))
         else:
             stop = compile_and_cast_int(expr.stop)
 
-    result = pgast.FuncCall(name=("edgedb", "_slice"), args=[subj, start, stop])
+    result = pgast.FuncCall(
+        name=("edgedb", "_slice"), args=[subj, start, stop]
+    )
     return result
 
 

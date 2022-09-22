@@ -5203,6 +5203,22 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             variables=(None,),
         )
 
+        await self.assert_query_result(
+            r"""
+            select [1,2,3][<optional int64>$0:2];
+            """,
+            [],
+            variables=(None,),
+        )
+
+        await self.assert_query_result(
+            r"""
+            select [1,2,3][<optional int64>$0:<optional int64>$1];
+            """,
+            [],
+            variables=(None, None,),
+        )
+
         self.assertEqual(
             await self.con.query(
                 r"""
@@ -5260,8 +5276,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             """,
             [[]]
         )
-
-
 
     async def test_edgeql_select_tuple_01(self):
         await self.assert_query_result(

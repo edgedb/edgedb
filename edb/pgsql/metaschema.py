@@ -1946,18 +1946,23 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
 
 class ArraySliceFunction(dbops.Function):
     """Get an array slice."""
-    text = '''
+
+    text = """
         SELECT
             val[edgedb._normalize_array_index(start, cardinality(val)):
                 edgedb._normalize_array_index(stop, cardinality(val)) - 1]
-    '''
+    """
 
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', '_slice'),
-            args=[('val', ('anyarray',)), ('start', ('int',)), ('stop', ('int',))],
-            returns=('anyarray',),
-            volatility='immutable',
+            name=("edgedb", "_slice"),
+            args=[
+                ("val", ("anyarray",)),
+                ("start", ("int",)),
+                ("stop", ("int",)),
+            ],
+            returns=("anyarray",),
+            volatility="immutable",
             text=self.text,
         )
 
@@ -2027,22 +2032,28 @@ class BytesIndexWithBoundsFunction(dbops.Function):
 
 class SubstrProxyFunction(dbops.Function):
     """Same as substr, but interpret negative length as 0 instead."""
-    text = r'''
+
+    text = r"""
         SELECT
             CASE
                 WHEN length < 0 THEN ''
                 ELSE substr(val, start::int, length)
             END
-    '''
+    """
 
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', '_substr'),
-            args=[('val', ('anyelement',)), ('start', ('int',)), ('length', ('int',))],
-            returns=('anyelement',),
-            volatility='immutable',
+            name=("edgedb", "_substr"),
+            args=[
+                ("val", ("anyelement",)),
+                ("start", ("int",)),
+                ("length", ("int",)),
+            ],
+            returns=("anyelement",),
+            volatility="immutable",
             strict=True,
-            text=self.text)
+            text=self.text,
+        )
 
 
 class LengthStringProxyFunction(dbops.Function):
@@ -2079,7 +2090,8 @@ class LengthBytesProxyFunction(dbops.Function):
 
 class StringSliceImplFunction(dbops.Function):
     """Get a string slice."""
-    text = r'''
+
+    text = r"""
         SELECT
             edgedb._substr(
                 val,
@@ -2090,17 +2102,20 @@ class StringSliceImplFunction(dbops.Function):
                 edgedb._normalize_array_index(
                     start, edgedb._length(val))
             )
-    '''
+    """
 
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', '_str_slice'),
+            name=("edgedb", "_str_slice"),
             args=[
-                ('val', ('anyelement',)), ('start', ('int',)), ('stop', ('int',))
+                ("val", ("anyelement",)),
+                ("start", ("int",)),
+                ("stop", ("int",)),
             ],
-            returns=('anyelement',),
-            volatility='immutable',
-            text=self.text)
+            returns=("anyelement",),
+            volatility="immutable",
+            text=self.text,
+        )
 
 
 class StringSliceFunction(dbops.Function):
@@ -2262,7 +2277,8 @@ class JSONIndexByIntFunction(dbops.Function):
 
 class JSONSliceFunction(dbops.Function):
     """Get a JSON array slice."""
-    text = r'''
+
+    text = r"""
         SELECT
             CASE
             WHEN val IS NULL THEN NULL
@@ -2292,16 +2308,21 @@ class JSONSliceFunction(dbops.Function):
                     )
                 )
             END
-    '''
+    """
 
     def __init__(self) -> None:
         super().__init__(
-            name=('edgedb', '_slice'),
-            args=[('val', ('jsonb',)), ('start', ('int',)), ('stop', ('int',))],
-            returns=('jsonb',),
+            name=("edgedb", "_slice"),
+            args=[
+                ("val", ("jsonb",)),
+                ("start", ("int",)),
+                ("stop", ("int",)),
+            ],
+            returns=("jsonb",),
             # Same volatility as to_jsonb (stable)
-            volatility='stable',
-            text=self.text)
+            volatility="stable",
+            text=self.text,
+        )
 
 
 # We need custom casting functions for various datetime scalars in
