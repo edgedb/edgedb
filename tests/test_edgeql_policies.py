@@ -799,3 +799,49 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             ''',
             []
         )
+
+    async def test_edgeql_policies_multi_object_01(self):
+        await self.con.execute('''
+            create global bypassAccessPolicies -> bool;
+            create type User2 {
+                create access policy bypass_access_policies
+                    allow all using (
+                      (global bypassAccessPolicies ?? false));
+                create required property username -> str {
+                    create constraint exclusive;
+                };
+            };
+            create global sessionToken -> str;
+            create type Session {
+                create required property token -> str;
+                create required link user -> User2;
+            };
+            create global session := (select
+                Session filter
+                    (.token ?= global sessionToken)
+            limit
+                1
+            );
+            alter type User2 {
+                create access policy admin_has_full_access
+                    allow all using (
+                      ((global session).user.username ?= 'admin'));
+            };
+        ''')
+
+        await self.con.execute('''
+            set global bypassAccessPolicies := true;
+        ''')
+        await self.con.execute('''
+            insert User2 { username := "admin" }
+        ''')
+        await self.con.execute('''
+            insert User2 { username := "admin" } unless conflict
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select User2 { username }
+            ''',
+            [{'username': 'admin'}]
+        )
