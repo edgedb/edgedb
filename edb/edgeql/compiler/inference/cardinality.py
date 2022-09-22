@@ -1094,7 +1094,7 @@ def _infer_matset_cardinality(
         )
 
 
-def _infer_policy_cardinality(
+def _infer_dml_check_cardinality(
     ir: irast.MutatingStmt,
     *,
     scope_tree: irast.ScopeTreeNode,
@@ -1106,6 +1106,13 @@ def _infer_policy_cardinality(
     ]:
         pol.cardinality = infer_cardinality(
             pol.expr, scope_tree=scope_tree, ctx=pctx)
+
+    if ir.conflict_checks:
+        for on_conflict in ir.conflict_checks:
+            _infer_on_conflict_cardinality(
+                on_conflict, type_has_rewrites=False,
+                scope_tree=scope_tree, ctx=ctx,
+            )
 
 
 def _infer_stmt_cardinality(
@@ -1135,7 +1142,7 @@ def _infer_stmt_cardinality(
         ir.materialized_sets, scope_tree=scope_tree, ctx=ctx)
 
     if isinstance(ir, irast.MutatingStmt):
-        _infer_policy_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
+        _infer_dml_check_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
 
     return result_card
 
@@ -1153,6 +1160,29 @@ def _infer_singleton_only(
             'possibly more than one element returned by an expression '
             'where only singletons are allowed',
             context=part.context)
+    return card
+
+
+def _infer_on_conflict_cardinality(
+    on_conflict: irast.OnConflictClause,
+    *,
+    type_has_rewrites: bool,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    # Note: If we start supporting ELSE without ON, we'll need to
+    # factor the cardinality of this into the else_card below
+    infer_cardinality(
+        on_conflict.select_ir, scope_tree=scope_tree, ctx=ctx)
+
+    card = AT_MOST_ONE
+    if on_conflict.else_ir:
+        else_card = infer_cardinality(
+            on_conflict.else_ir, scope_tree=scope_tree, ctx=ctx)
+        card = max_cardinality((card, else_card))
+        if type_has_rewrites:
+            card = _bounds_to_card(CB_ZERO, _card_to_bounds(card).upper)
+
     return card
 
 
@@ -1223,27 +1253,17 @@ def __infer_insert_stmt(
     _infer_matset_cardinality(
         ir.materialized_sets, scope_tree=scope_tree, ctx=ctx)
 
-    _infer_policy_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
+    _infer_dml_check_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
 
     # INSERT without a FOR is always a singleton.
     if not ir.on_conflict:
         return ONE
     # ... except if UNLESS CONFLICT is used
     else:
-        # Note: If we start supporting ELSE without ON, we'll need to
-        # factor the cardinality of this into the else_card below
-        infer_cardinality(
-            ir.on_conflict.select_ir, scope_tree=scope_tree, ctx=ctx)
-
-        card = AT_MOST_ONE
-        if ir.on_conflict.else_ir:
-            else_card = infer_cardinality(
-                ir.on_conflict.else_ir, scope_tree=scope_tree, ctx=ctx)
-            card = max_cardinality((card, else_card))
-            if ir.write_policy_exprs:
-                card = _bounds_to_card(CB_ZERO, _card_to_bounds(card).upper)
-
-        return card
+        return _infer_on_conflict_cardinality(
+            ir.on_conflict, type_has_rewrites=bool(ir.write_policy_exprs),
+            scope_tree=scope_tree, ctx=ctx,
+        )
 
 
 @_infer_cardinality.register

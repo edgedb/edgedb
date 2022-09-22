@@ -231,6 +231,7 @@ def compile_filter_clause(
     with ctx.new() as ctx1:
         ctx1.expr_exposed = False
 
+        assert cardinality != qltypes.Cardinality.UNKNOWN
         if cardinality.is_single():
             where_clause = dispatch.compile(ir_set, ctx=ctx)
         else:

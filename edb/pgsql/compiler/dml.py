@@ -295,7 +295,6 @@ def gen_dml_cte(
                 pathctx.put_path_source_rvar(
                     sctx.rel, target_path_id, relation, env=ctx.env)
 
-                assert pol_expr.cardinality != qltypes.Cardinality.UNKNOWN
                 val = clauses.compile_filter_clause(
                     pol_expr.expr, pol_expr.cardinality, ctx=sctx)
             sctx.rel.target_list.append(pgast.ResTarget(val=val))
@@ -841,7 +840,6 @@ def compile_policy_check(
         dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
         relctx.include_rvar(ictx.rel, dml_rvar, path_id=subject_id, ctx=ictx)
 
-        assert policy_expr.cardinality != qltypes.Cardinality.UNKNOWN
         cond_ref = clauses.compile_filter_clause(
             policy_expr.expr, policy_expr.cardinality, ctx=ictx)
 
