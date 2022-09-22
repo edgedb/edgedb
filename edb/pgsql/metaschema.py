@@ -117,6 +117,10 @@ class DMLDummyTable(dbops.Table):
             ),
         )
 
+    SETUP_QUERY = '''
+        INSERT INTO edgedb._dml_dummy VALUES (0, false)
+    '''
+
 
 class ExpressionType(dbops.CompositeType):
     def __init__(self) -> None:
@@ -4017,6 +4021,7 @@ async def bootstrap(
         dbops.CreateView(NormalizedPgSettingsView()),
         dbops.CreateTable(DBConfigTable()),
         dbops.CreateTable(DMLDummyTable()),
+        dbops.Query(DMLDummyTable.SETUP_QUERY),
         dbops.CreateFunction(IntervalToMillisecondsFunction()),
         dbops.CreateFunction(SafeIntervalCastFunction()),
         dbops.CreateFunction(QuoteIdentFunction()),
