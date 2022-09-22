@@ -1948,26 +1948,14 @@ class ArraySliceFunction(dbops.Function):
     """Get an array slice."""
     text = '''
         SELECT
-            CASE
-                WHEN start IS NULL THEN
-                    val[:edgedb._normalize_array_index(
-                            stop, array_upper(val, 1)) - 1]
-                WHEN stop IS NULL THEN
-                    val[edgedb._normalize_array_index(
-                            start, array_upper(val, 1)):]
-                ELSE
-                    val[edgedb._normalize_array_index(
-                            start, array_upper(val, 1)):
-                        edgedb._normalize_array_index(
-                            stop, array_upper(val, 1)) - 1]
-            END
+            val[edgedb._normalize_array_index(start, array_upper(val, 1)):
+                edgedb._normalize_array_index(stop, array_upper(val, 1)) - 1]
     '''
 
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_slice'),
-            args=[('val', ('anyarray',)), ('start', ('bigint',)),
-                  ('stop', ('bigint',))],
+            args=[('val', ('anyarray',)), ('start', ('int',)), ('stop', ('int',))],
             returns=('anyarray',),
             volatility='immutable',
             text=self.text,
@@ -2050,8 +2038,7 @@ class SubstrProxyFunction(dbops.Function):
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_substr'),
-            args=[('val', ('anyelement',)), ('start', ('bigint',)),
-                  ('length', ('int',))],
+            args=[('val', ('anyelement',)), ('start', ('int',)), ('length', ('int',))],
             returns=('anyelement',),
             volatility='immutable',
             strict=True,
@@ -2094,39 +2081,22 @@ class StringSliceImplFunction(dbops.Function):
     """Get a string slice."""
     text = r'''
         SELECT
-            CASE
-                WHEN start IS NULL THEN
-                    edgedb._substr(
-                        val,
-                        1,
-                        edgedb._normalize_array_index(
-                            stop, edgedb._length(val)) - 1
-                    )
-                WHEN stop IS NULL THEN
-                    substr(
-                        val,
-                        edgedb._normalize_array_index(
-                            start, edgedb._length(val))
-                    )
-                ELSE
-                    edgedb._substr(
-                        val,
-                        edgedb._normalize_array_index(
-                            start, edgedb._length(val)),
-                        edgedb._normalize_array_index(
-                            stop, edgedb._length(val)) -
-                        edgedb._normalize_array_index(
-                            start, edgedb._length(val))
-                    )
-            END
+            edgedb._substr(
+                val,
+                edgedb._normalize_array_index(
+                    start, edgedb._length(val)),
+                edgedb._normalize_array_index(
+                    stop, edgedb._length(val)) -
+                edgedb._normalize_array_index(
+                    start, edgedb._length(val))
+            )
     '''
 
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_str_slice'),
             args=[
-                ('val', ('anyelement',)),
-                ('start', ('bigint',)), ('stop', ('bigint',))
+                ('val', ('anyelement',)), ('start', ('int',)), ('stop', ('int',))
             ],
             returns=('anyelement',),
             volatility='immutable',
@@ -2143,8 +2113,7 @@ class StringSliceFunction(dbops.Function):
         super().__init__(
             name=('edgedb', '_slice'),
             args=[
-                ('val', ('text',)),
-                ('start', ('bigint',)), ('stop', ('bigint',))
+                ('val', ('text',)), ('start', ('int',)), ('stop', ('int',))
             ],
             returns=('text',),
             volatility='immutable',
@@ -2161,8 +2130,7 @@ class BytesSliceFunction(dbops.Function):
         super().__init__(
             name=('edgedb', '_slice'),
             args=[
-                ('val', ('bytea',)),
-                ('start', ('bigint',)), ('stop', ('bigint',))
+                ('val', ('bytea',)), ('start', ('int',)), ('stop', ('int',))
             ],
             returns=('bytea',),
             volatility='immutable',
@@ -2296,9 +2264,10 @@ class JSONSliceFunction(dbops.Function):
     """Get a JSON array slice."""
     text = r'''
         SELECT
-            CASE jsonb_typeof(val)
-            WHEN 'array' THEN (
-                to_jsonb(_slice(
+            CASE
+            WHEN val IS NULL THEN NULL
+            WHEN jsonb_typeof(val) = 'array' THEN (
+                to_jsonb(edgedb._slice(
                     (
                         SELECT array_agg(value)
                         FROM jsonb_array_elements(val)
@@ -2306,8 +2275,8 @@ class JSONSliceFunction(dbops.Function):
                     start, stop
                 ))
             )
-            WHEN 'string' THEN (
-                to_jsonb(_slice(val#>>'{}', start, stop))
+            WHEN jsonb_typeof(val) = 'string' THEN (
+                to_jsonb(edgedb._slice(val#>>'{}', start, stop))
             )
             ELSE
                 edgedb.raise(
@@ -2328,8 +2297,7 @@ class JSONSliceFunction(dbops.Function):
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_slice'),
-            args=[('val', ('jsonb',)), ('start', ('bigint',)),
-                  ('stop', ('bigint',))],
+            args=[('val', ('jsonb',)), ('start', ('int',)), ('stop', ('int',))],
             returns=('jsonb',),
             # Same volatility as to_jsonb (stable)
             volatility='stable',
