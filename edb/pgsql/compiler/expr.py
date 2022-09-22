@@ -276,29 +276,40 @@ def compile_IndexIndirection(
 
 @dispatch.compile.register(irast.SliceIndirection)
 def compile_SliceIndirection(
-        expr: irast.SliceIndirection, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    expr: irast.SliceIndirection, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
+
     # Handle Expr[Index], where Expr may be std::str, array<T> or
     # std::json. For strings we translate this into substr calls.
     # Arrays use the native slice syntax. JSON is handled by a
     # combination of unnesting aggregation and array slicing.
     with ctx.new() as subctx:
+
+        # Postgres arrays use 32bit indexes, so EdgeDB inherits this limitation
+        def compile_and_cast_int(expr: irast.Base) -> pgast.BaseExpr:
+            pg_expr = dispatch.compile(expr, ctx=subctx)
+            return pgast.TypeCast(
+                arg=pg_expr, type_name=pgast.TypeName(name=("integer",))
+            )
+
         subctx.expr_exposed = False
         subj = dispatch.compile(expr.expr, ctx=subctx)
+
         if expr.start is None:
-            start: pgast.BaseExpr = pgast.NullConstant()
+            start: pgast.BaseExpr = pgast.LiteralExpr(expr="0")
         else:
-            start = dispatch.compile(expr.start, ctx=subctx)
+            start = compile_and_cast_int(expr.start)
+
         if expr.stop is None:
-            stop: pgast.BaseExpr = pgast.NullConstant()
+            # Max index in EdgeQL is 2^32-2 because during conversion
+            # to Postgres index, we add 1 to the stop and then subtract one.
+            stop: pgast.BaseExpr = pgast.LiteralExpr(expr=str(2**31 - 2))
         else:
-            stop = dispatch.compile(expr.stop, ctx=subctx)
+            stop = compile_and_cast_int(expr.stop)
 
     result = pgast.FuncCall(
-        name=('edgedb', '_slice'),
-        args=[subj, start, stop]
+        name=("edgedb", "_slice"), args=[subj, start, stop]
     )
-
     return result
 
 

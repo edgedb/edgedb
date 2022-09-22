@@ -248,4 +248,148 @@ std::range_unpack(
     ('sql', '''
         INSERT INTO edgedb._dml_dummy VALUES (0, false)
     '''),
+
+    ('sql', '''
+DROP FUNCTION edgedb._slice(anyarray, bigint, bigint);
+    '''),
+    ('sql', '''
+CREATE FUNCTION edgedb._slice(val anyarray, start integer, stop integer)
+ RETURNS anyarray
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+SELECT
+    val[edgedb._normalize_array_index(start, cardinality(val)):
+        edgedb._normalize_array_index(stop, cardinality(val)) - 1]
+$function$
+    '''),
+
+    ('sql', '''
+CREATE OR REPLACE FUNCTION edgedb._str_slice(
+    val anyelement, start integer, stop integer
+)
+ RETURNS anyelement
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+SELECT
+    edgedb._substr(
+        val,
+        edgedb._normalize_array_index(
+            start, edgedb._length(val)),
+        edgedb._normalize_array_index(
+            stop, edgedb._length(val)) -
+        edgedb._normalize_array_index(
+            start, edgedb._length(val))
+    )
+$function$
+    '''),
+
+    ('sql', '''
+DROP FUNCTION edgedb._substr(anyelement, bigint, int)
+    '''),
+    ('sql', '''
+CREATE FUNCTION edgedb._substr(val anyelement, start integer, length integer)
+ RETURNS anyelement
+ LANGUAGE sql
+ IMMUTABLE STRICT
+AS $function$
+SELECT
+    CASE
+        WHEN length < 0 THEN ''
+        ELSE substr(val, start::int, length)
+    END
+$function$
+    '''),
+
+    ('sql', '''
+DROP FUNCTION edgedb._str_slice(anyelement, bigint, bigint)
+    '''),
+    ('sql', '''
+CREATE FUNCTION edgedb._str_slice(val anyelement, start integer, stop integer)
+ RETURNS anyelement
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+SELECT
+    edgedb._substr(
+        val,
+        edgedb._normalize_array_index(
+            start, edgedb._length(val)),
+        edgedb._normalize_array_index(
+            stop, edgedb._length(val)) -
+        edgedb._normalize_array_index(
+            start, edgedb._length(val))
+    )
+$function$
+    '''),
+
+    ('sql', '''
+DROP FUNCTION edgedb._slice(text, bigint, bigint)
+    '''),
+    ('sql', '''
+CREATE FUNCTION edgedb._slice(val text, start integer, stop integer)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+SELECT edgedb._str_slice(val, start, stop)
+$function$
+    '''),
+
+    ('sql', '''
+DROP FUNCTION edgedb._slice(bytea, bigint, bigint)
+    '''),
+    ('sql', '''
+CREATE FUNCTION edgedb._slice(val bytea, start integer, stop integer)
+ RETURNS bytea
+ LANGUAGE sql
+ IMMUTABLE
+AS $function$
+SELECT edgedb._str_slice(val, start, stop)
+$function$
+    '''),
+
+    ('sql', '''
+DROP FUNCTION edgedb._slice(jsonb, bigint, bigint)
+    '''),
+    ('sql', '''
+CREATE OR REPLACE FUNCTION edgedb._slice(
+    val jsonb, start integer, stop integer
+)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+AS $function$
+SELECT
+    CASE
+    WHEN val IS NULL THEN NULL
+    WHEN jsonb_typeof(val) = 'array' THEN (
+        to_jsonb(edgedb._slice(
+            (
+                SELECT coalesce(array_agg(value), '{}'::jsonb[])
+                FROM jsonb_array_elements(val)
+            ),
+            start, stop
+        ))
+    )
+    WHEN jsonb_typeof(val) = 'string' THEN (
+        to_jsonb(edgedb._slice(val#>>'{}', start, stop))
+    )
+    ELSE
+        edgedb.raise(
+            NULL::jsonb,
+            'wrong_object_type',
+            msg => (
+                'cannot slice JSON '
+                || coalesce(jsonb_typeof(val), 'UNKNOWN')
+            ),
+            detail => (
+                '{"hint":"Slicing is only available for JSON arrays'
+                || ' and strings."}'
+            )
+        )
+    END
+$function$
+    '''),
 ]
