@@ -601,6 +601,7 @@ class Compiler:
                 ctx, 'apply_access_policies'),
             allow_user_specified_id=self.get_config_val(
                 ctx, 'allow_user_specified_id') or ctx.schema_reflection_mode,
+            unsafe_user_specified_id=ctx.schema_reflection_mode,
             testmode=self.get_config_val(ctx, '__internal_testmode'),
             devmode=self._is_dev_instance(),
         )

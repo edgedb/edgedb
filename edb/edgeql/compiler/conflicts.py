@@ -666,7 +666,10 @@ def compile_inheritance_conflict_checks(
     *, ctx: context.ContextLevel,
 ) -> Optional[List[irast.OnConflictClause]]:
 
-    has_id_write = _has_explicit_id_write(stmt)
+    has_id_write = (
+        _has_explicit_id_write(stmt)
+        and not ctx.env.options.unsafe_user_specified_id
+    )
 
     if not ctx.env.dml_stmts and not has_id_write:
         return None
