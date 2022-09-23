@@ -1353,6 +1353,17 @@ class FlatSchema(Schema):
     ) -> NoReturn:
         refname = str(name)
 
+        # some hacky heuristics
+        may_be_field = (
+            label == 'object type or alias' and
+            refname.islower() and
+            '::' not in refname
+        )
+
+        hint: Optional[str] = None
+        if may_be_field:
+            hint = f'did you mean entity field `.{refname}`?'
+
         if label is None:
             if type is not None:
                 label = type.get_schema_class_displayname()
@@ -1378,6 +1389,7 @@ class FlatSchema(Schema):
         raise errors.InvalidReferenceError(
             f'{label} {refname!r} does not exist',
             context=sourcectx,
+            details=hint,
         )
 
     def has_object(self, object_id: uuid.UUID) -> bool:
