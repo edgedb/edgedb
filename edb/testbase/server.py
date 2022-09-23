@@ -54,6 +54,7 @@ from edb.server import main as edgedb_main
 from edb.common import assert_data_shape
 from edb.common import devmode
 from edb.common import debug
+from edb.common import retryloop
 from edb.common import taskgroup
 
 from edb.protocol import protocol as test_protocol
@@ -243,8 +244,8 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                     await edgedb.connect(...)
 
         """
-        return _TryFewTimes(
-            delay=delay,
+        return retryloop.RetryLoop(
+            backoff=retryloop.const_backoff(delay),
             timeout=timeout,
             ignore=ignore,
         )
@@ -266,8 +267,8 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
                     await edgedb.connect(...)
 
         """
-        return _TryFewTimes(
-            delay=delay,
+        return retryloop.RetryLoop(
+            backoff=retryloop.const_backoff(delay),
             timeout=timeout,
             wait_for=wait_for,
         )
@@ -302,94 +303,6 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             '_cleanups': [],
             '_type_equality_funcs': self._type_equality_funcs,
         }
-
-
-class _TryFewTimes:
-
-    def __init__(
-        self,
-        *,
-        delay: float,
-        timeout: float,
-        ignore: Optional[Union[Type[Exception],
-                               Tuple[Type[Exception]]]] = None,
-        wait_for: Optional[Union[Type[Exception],
-                                 Tuple[Type[Exception]]]]=None,
-    ) -> None:
-        self._delay = delay
-        self._timeout = timeout
-        self._ignore = ignore
-        self._wait_for = wait_for
-        self._started_at = 0
-        self._stop_request = False
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self._stop_request:
-            raise StopAsyncIteration
-
-        if self._started_at == 0:
-            # First run
-            self._started_at = time.monotonic()
-        else:
-            # Second or greater run -- delay before yielding
-            await asyncio.sleep(self._delay)
-
-        return _TryRunner(self)
-
-
-class _TryRunner:
-
-    def __init__(self, controller: _TryFewTimes):
-        self._controller = controller
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, et, e, tb):
-        elapsed = time.monotonic() - self._controller._started_at
-
-        if self._controller._ignore is not None:
-            # Mode 1: Try until we don't get errors matching `ignore`
-
-            if et is None:
-                self._controller._stop_request = True
-                return
-
-            if not isinstance(e, self._controller._ignore):
-                # Propagate, it's not the error we expected.
-                return
-
-            if elapsed > self._controller._timeout:
-                # Propagate -- we've run it enough times.
-                return
-
-            # Ignore the exception until next run.
-            return True
-
-        else:
-            # Mode 2: Try until we fail with an error matching `wait_for`
-
-            assert self._controller._wait_for is not None
-
-            if et is not None:
-                if isinstance(e, self._controller._wait_for):
-                    # We're done, we've got what we waited for.
-                    self._controller._stop_request = True
-                    return True
-                else:
-                    # Propagate, it's not the error we expected.
-                    return
-
-            if elapsed > self._controller._timeout:
-                raise AssertionError(
-                    f'exception matching {self._controller._wait_for!r} '
-                    f'has not happen in {self._controller._timeout} seconds')
-
-            # Ignore the exception until next run.
-            return True
 
 
 _default_cluster = None
