@@ -53,7 +53,9 @@ jobs:
       uses: syphar/restore-virtualenv@v1.2
       id: venv-cache
       with:
-        requirement_files: setup.py
+        requirement_files: |
+          setup.py
+          pyproject.toml
         custom_cache_key_element: v2
 
     - name: Stop if we cannot retrieve the cache
