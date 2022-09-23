@@ -151,6 +151,7 @@ module = [
     "edb.common.compiler",
     "edb.common.ordered",
     "edb.common.parametric",
+    "edb.common.retryloop",
     "edb.common.struct",
     "edb.common.topological",
     "edb.common.uuidgen",
