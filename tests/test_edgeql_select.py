@@ -5271,10 +5271,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            r"""
-            select to_json('[]')[0:];
-            """,
-            [[]]
+            r'''select to_json('[]')[0:];''',
+            # JSON:
+            [[]],
+            # Binary:
+            ['[]'],
         )
 
     async def test_edgeql_select_tuple_01(self):
