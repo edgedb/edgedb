@@ -1327,7 +1327,7 @@ def __infer_slice(
 ) -> qltypes.Cardinality:
     # slice indirection cardinality depends on the cardinality of
     # the base expression and the slice index expressions
-    args = [ir.expr]
+    args: List[irast.Base] = [ir.expr]
     if ir.start is not None:
         args.append(ir.start)
     if ir.stop is not None:

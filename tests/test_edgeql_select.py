@@ -5216,7 +5216,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             select [1,2,3][<optional int64>$0:<optional int64>$1];
             """,
             [],
-            variables=(None, None,),
+            variables=(
+                None,
+                None,
+            ),
         )
 
         self.assertEqual(
@@ -5225,7 +5228,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 select to_json('[true, 3, 4, null]')[1:];
                 """
             ),
-            edgedb.Set(('[3, 4, null]',))
+            edgedb.Set(('[3, 4, null]',)),
         )
 
         self.assertEqual(
@@ -5234,7 +5237,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 select to_json('[true, 3, 4, null]')[:2];
                 """
             ),
-            edgedb.Set(('[true, 3]',))
+            edgedb.Set(('[true, 3]',)),
         )
 
         await self.assert_query_result(
@@ -5251,7 +5254,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 select to_json('"hello world"')[2:];
                 """
             ),
-            edgedb.Set(('"llo world"',))
+            edgedb.Set(('"llo world"',)),
         )
 
         self.assertEqual(
@@ -5260,14 +5263,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 select to_json('"hello world"')[:4];
                 """
             ),
-            edgedb.Set(('"hell"',))
+            edgedb.Set(('"hell"',)),
         )
 
         await self.assert_query_result(
             r"""
             select (<array<str>>[])[0:];
             """,
-            [[]]
+            [[]],
         )
 
         await self.assert_query_result(
@@ -5276,6 +5279,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [[]],
             # Binary:
             ['[]'],
+        )
+
+        await self.assert_query_result(
+            r'''select [(1,'foo'), (2,'bar'), (3,'baz')][1:];''',
+            [[(2, 'bar'), (3, 'baz')]],
+        )
+
+        await self.assert_query_result(
+            r'''select [(1,'foo'), (2,'bar'), (3,'baz')][:2];''',
+            [[(1, 'foo'), (2, 'bar')]],
+        )
+
+        await self.assert_query_result(
+            r'''select [(1,'foo'), (2,'bar'), (3,'baz')][1:2];''',
+            [[(2, 'bar')]],
         )
 
     async def test_edgeql_select_tuple_01(self):
