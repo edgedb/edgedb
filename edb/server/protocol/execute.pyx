@@ -365,6 +365,14 @@ def signal_side_effects(dbv, side_effects):
             interruptable=False,
         )
 
+    if side_effects & dbview.SideEffects.DatabaseChanges:
+        server.create_task(
+            server._signal_sysevent(
+                'database-changes',
+            ),
+            interruptable=False,
+        )
+
     if side_effects & dbview.SideEffects.InstanceConfigChanges:
         server.create_task(
             server._signal_sysevent(

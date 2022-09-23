@@ -1277,6 +1277,33 @@ class Server(ha_base.ClusterProtocol):
 
         self.create_task(task(), interruptable=True)
 
+    def _on_remote_database_changes(self):
+        if not self._accept_new_tasks:
+            return
+
+        # Triggered by a postgres notification event 'database-changes'
+        # on the __edgedb_sysevent__ channel
+        async def task():
+            async with self._use_sys_pgcon() as syscon:
+                dbnames = set(await self.get_dbnames(syscon))
+
+            tg = taskgroup.TaskGroup(name='new database introspection')
+            async with tg as g:
+                for dbname in dbnames:
+                    if not self._dbindex.has_db(dbname):
+                        g.create_task(self._early_introspect_db(dbname))
+
+            for dbname in self._dbindex.iter_dbs():
+                if dbname not in dbnames:
+                    self._on_after_drop_db(dbname)
+
+        self.create_task(task(), interruptable=True)
+
+    def _on_remote_database_deletion(self, dbname):
+        if not self._accept_new_tasks:
+            return
+        self._on_after_drop_db(dbname)
+
     def _on_remote_database_config_change(self, dbname):
         if not self._accept_new_tasks:
             return
