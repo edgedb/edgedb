@@ -309,7 +309,7 @@ def __infer_slice(
 ) -> InferredVolatility:
     # slice indirection volatility depends on the volatility of
     # the base expression and the slice index expressions
-    args = [ir.expr]
+    args: List[irast.Base] = [ir.expr]
     if ir.start is not None:
         args.append(ir.start)
     if ir.stop is not None:
