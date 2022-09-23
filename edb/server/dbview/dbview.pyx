@@ -819,6 +819,10 @@ cdef class DatabaseConnectionView:
             if query_unit.database_config:
                 self.update_database_config()
                 side_effects |= SideEffects.DatabaseConfigChanges
+            if query_unit.create_db:
+                side_effects |= SideEffects.DatabaseChanges
+            if query_unit.drop_db:
+                side_effects |= SideEffects.DatabaseChanges
             if query_unit.global_schema is not None:
                 side_effects |= SideEffects.GlobalSchemaChanges
                 self._db._index.update_global_schema(
