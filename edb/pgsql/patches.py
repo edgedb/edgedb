@@ -245,4 +245,7 @@ std::range_unpack(
     $$;
 };
     '''),
+    ('sql', '''
+        INSERT INTO edgedb._dml_dummy VALUES (0, false)
+    '''),
 ]
