@@ -466,11 +466,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         logger.debug('received connection request by %s to database %s',
                      user, database)
 
-        if database == edbdef.EDGEDB_TEMPLATE_DB:
-            # Prevent connections to the template database.
+        if not self.server.is_database_connectable(database):
             raise errors.AccessError(
-                f'database {database!r} does not '
-                f'accept connections'
+                f'database {database!r} does not accept connections'
             )
 
         await self._start_connection(database)
