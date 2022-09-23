@@ -303,7 +303,7 @@ def compile_SliceIndirection(
         if expr.stop is None:
             # Max index in EdgeQL is 2^32-2 because during conversion
             # to Postgres index, we add 1 to the stop and then subtract one.
-            stop: pgast.BaseExpr = pgast.LiteralExpr(expr=str(2**31-2))
+            stop: pgast.BaseExpr = pgast.LiteralExpr(expr=str(2**31 - 2))
         else:
             stop = compile_and_cast_int(expr.stop)
 
