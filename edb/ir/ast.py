@@ -853,7 +853,7 @@ class IndexIndirection(ImmutableExpr):
 
 class SliceIndirection(ImmutableExpr):
 
-    expr: Base
+    expr: Set
     start: typing.Optional[Base]
     stop: typing.Optional[Base]
 
