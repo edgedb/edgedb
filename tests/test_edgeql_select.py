@@ -5296,6 +5296,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [[(2, 'bar')]],
         )
 
+        await self.assert_query_result(
+            r'''
+                select [(1,'foo'), (2,'bar'), (3,'baz')][<optional int32>$0:];
+            ''',
+            [],
+            variables=(None,),
+        )
+
     async def test_edgeql_select_tuple_01(self):
         await self.assert_query_result(
             r"""

@@ -730,12 +730,14 @@ class NamedFuncArg(ImmutableBaseExpr):
     val: BaseExpr
 
 
-class Index(ImmutableBase):
+# N.B: Index and Slice aren't *really* Exprs but we mark them as such
+# so that nullability inference gets done on them.
+class Index(ImmutableBaseExpr):
     """Array subscript."""
     idx: BaseExpr
 
 
-class Slice(ImmutableBase):
+class Slice(ImmutableBaseExpr):
     """Array slice bounds."""
     # Lower bound, if any
     lidx: typing.Optional[BaseExpr]
