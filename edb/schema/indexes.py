@@ -312,7 +312,7 @@ class IndexCommand(
                     anchors={qlast.Subject().name: subject},
                     path_prefix_anchor=qlast.Subject().name,
                     singletons=frozenset([subject]),
-                    apply_query_rewrites=not context.stdmode,
+                    apply_query_rewrites=False,
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
