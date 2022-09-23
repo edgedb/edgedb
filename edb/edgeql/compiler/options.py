@@ -49,6 +49,11 @@ class GlobalCompilerOptions:
     #: Whether to allow specifying 'id' explicitly in INSERT
     allow_user_specified_id: bool = False
 
+    #: Whether to skip actually doing the exclusivity check when
+    #: using a user-specified id. This is only used when compiling
+    #: our internal schema modification code, as an optimization.
+    unsafe_user_specified_id: bool = False
+
     #: Enables constant folding optimization (enabled by default).
     constant_folding: bool = True
 
