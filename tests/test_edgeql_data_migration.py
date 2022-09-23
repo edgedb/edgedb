@@ -10984,11 +10984,12 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         """)
 
-    async def test_edgeql_migration_access_policy_constraint(self):
-        # Make sure policies don't interfere with constraints.
+    async def test_edgeql_migration_access_policy_02(self):
+        # Make sure policies don't interfere with constraints or indexes
         await self.migrate(r"""
+            required global foo -> bool { default := true };
             abstract type Base {
-                access policy locked allow all using (false);
+                access policy locked allow all using (global foo);
             }
 
             type Tgt extending Base;
@@ -10997,6 +10998,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 required link tgt -> Tgt {
                     constraint exclusive;
                 }
+                index on (.tgt)
             }
         """)
 

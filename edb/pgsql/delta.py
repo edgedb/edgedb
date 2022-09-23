@@ -3110,7 +3110,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             anchors={ql_ast.Subject().name: subject},
             path_prefix_anchor=path_prefix_anchor,
             singletons=singletons,
-            apply_query_rewrites=not context.stdmode,
+            apply_query_rewrites=False,
         )
 
         index_expr = index.get_expr(schema)
