@@ -419,6 +419,13 @@ class Compiler:
         with cache.mutate() as cache_mm:
             for eql, args in meta_blocks:
                 eql_hash = hashlib.sha1(eql.encode()).hexdigest()
+                # Bugs prior to 2.3 caused us to generate SQL that
+                # performed extremely poorly as the database grew
+                # large. Invalidate those schema storage functions by
+                # adding a v2 to the name.
+                # (This is just for the 2.x branch, future versions will
+                # just have good queries compiled from the start.)
+                eql_hash += '_v2'
                 fname = ('edgedb', f'__rh_{eql_hash}')
 
                 if eql_hash in cache_mm:
