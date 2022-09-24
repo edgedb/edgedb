@@ -1194,6 +1194,12 @@ class Pool(BasePool[C]):
         while (conn := block.try_steal()) is not None:
             conns.append(conn)
 
+        # Forcibly drop the block, so that the cleared out block can't
+        # have a connection transferred to it because it appears
+        # starving.
+        assert not block.count_waiters()
+        self._blocks.pop(block.dbname)
+
         if conns:
             await asyncio.gather(
                 *(self._discard_conn(block, conn) for conn in conns),
