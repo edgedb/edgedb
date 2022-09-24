@@ -1200,6 +1200,11 @@ class Pool(BasePool[C]):
                 return_exceptions=True
             )
 
+        # Drop the block, so that the cleared out block can't have a
+        # connection transferred to it because it appears starving.
+        block.quota = 0
+        self._drop_block(block)
+
     async def prune_all_connections(self) -> None:
         # Brutally close all connections. This is used by HA failover.
         coros = []
