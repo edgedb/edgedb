@@ -392,7 +392,6 @@ class BasePool(typing.Generic[C]):
         self._successful_disconnects = 0
 
         self._conntime_avg = rolavg.RollingAverage(history_size=10)
-        self._tpl_count = 0
 
     @property
     def max_capacity(self) -> int:
@@ -511,10 +510,6 @@ class BasePool(typing.Generic[C]):
         logger.debug(
             "Establishing new connection to backend database: %s", block.dbname
         )
-        if block.dbname == '__edgedbtpl__':
-            self._tpl_count += 1
-            if self._tpl_count == 2:
-                raise Exception('how??')
         try:
             conn = await self._connect_cb(block.dbname)
         except Exception as e:
