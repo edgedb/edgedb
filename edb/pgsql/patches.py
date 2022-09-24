@@ -265,27 +265,6 @@ $function$
     '''),
 
     ('sql', '''
-CREATE OR REPLACE FUNCTION edgedb._str_slice(
-    val anyelement, start integer, stop integer
-)
- RETURNS anyelement
- LANGUAGE sql
- IMMUTABLE
-AS $function$
-SELECT
-    edgedb._substr(
-        val,
-        edgedb._normalize_array_index(
-            start, edgedb._length(val)),
-        edgedb._normalize_array_index(
-            stop, edgedb._length(val)) -
-        edgedb._normalize_array_index(
-            start, edgedb._length(val))
-    )
-$function$
-    '''),
-
-    ('sql', '''
 DROP FUNCTION edgedb._substr(anyelement, bigint, int)
     '''),
     ('sql', '''
