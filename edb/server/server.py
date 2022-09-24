@@ -883,18 +883,22 @@ class Server(ha_base.ClusterProtocol):
             g.create_task(self._maybe_patch_db(
                 defines.EDGEDB_TEMPLATE_DB, patches))
 
-        async with self._exclusive_database_access(defines.EDGEDB_TEMPLATE_DB):
-            # Patch the system db last. The system db needs to go last so
-            # that it only gets updated if all of the other databases have
-            # been succesfully patched. This is important, since we don't check
-            # other databases for patches unless the system db is patched.
-            #
-            # Driving everything from the system db like this lets us
-            # always use the correct schema when compiling patches.
-            async with self._use_sys_pgcon() as syscon:
-                await self._maybe_apply_patches(
-                    defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
-            self._std_schema = patches[max(patches)][-1]
+        await self._ensure_database_not_connected(
+            defines.EDGEDB_TEMPLATE_DB,
+            block_new_connections=False,
+        )
+
+        # Patch the system db last. The system db needs to go last so
+        # that it only gets updated if all of the other databases have
+        # been succesfully patched. This is important, since we don't check
+        # other databases for patches unless the system db is patched.
+        #
+        # Driving everything from the system db like this lets us
+        # always use the correct schema when compiling patches.
+        async with self._use_sys_pgcon() as syscon:
+            await self._maybe_apply_patches(
+                defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
+        self._std_schema = patches[max(patches)][-1]
 
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()
@@ -1092,15 +1096,20 @@ class Server(ha_base.ClusterProtocol):
 
         await self._ensure_database_not_connected(dbname)
 
-    async def _ensure_database_not_connected(self, dbname: str) -> None:
+    async def _ensure_database_not_connected(
+        self,
+        dbname: str,
+        *,
+        block_new_connections: bool = True,
+    ) -> None:
         if self._dbindex and self._dbindex.count_connections(dbname):
             # If there are open EdgeDB connections to the `dbname` DB
             # just raise the error Postgres would have raised itself.
             raise errors.ExecutionError(
                 f'database {dbname!r} is being accessed by other users')
         else:
-            # Block new connections to the database.
-            self._block_new_connections.add(dbname)
+            if block_new_connections:
+                self._block_new_connections.add(dbname)
 
             # Prune our inactive connections.
             await self._pg_pool.prune_inactive_connections(dbname)
@@ -1142,14 +1151,6 @@ class Server(ha_base.ClusterProtocol):
 
     def _allow_database_connections(self, dbname: str) -> None:
         self._block_new_connections.discard(dbname)
-
-    @contextlib.asynccontextmanager
-    async def _exclusive_database_access(self, dbname: str):
-        await self._ensure_database_not_connected(dbname)
-        try:
-            yield
-        finally:
-            self._allow_database_connections(dbname)
 
     def _on_after_drop_db(self, dbname: str):
         try:
