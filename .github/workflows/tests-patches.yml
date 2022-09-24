@@ -3,6 +3,9 @@ name: Tests of patching old EdgeDB Versions
 on:
   workflow_dispatch:
     inputs: {}
+  pull_request:
+    branches:
+      - stable/*
   push:
     branches:
       - patch-test*
