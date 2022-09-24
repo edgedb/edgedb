@@ -500,4 +500,4 @@ jobs:
     - name: Run tests with instance created on an older version
       run: |
         # Should we run *all* the tests?
-        edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py
+        EDGEDB_DEBUG_SERVER=1 edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py
