@@ -3,6 +3,9 @@ name: Tests of patching old EdgeDB Versions
 on:
   workflow_dispatch:
     inputs: {}
+  pull_request:
+    branches:
+      - stable/*
   push:
     branches:
       - patch-test*
@@ -320,7 +323,8 @@ jobs:
         u = 'https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-gnu.json'
         data = json.loads(request.urlopen(u).read())
 
-        branch = os.getenv('GITHUB_REF_NAME')
+        branch = os.getenv('GITHUB_BASE_REF') or os.getenv('GITHUB_REF_NAME')
+        print("BRANCH", branch)
         version = int(re.findall(r'\d+', branch)[0])
 
         versions = []
@@ -333,6 +337,7 @@ jobs:
 
         matrix = {"edgedb-version": versions, "make-dbs": [True, False]}
 
+        print("matrix:", matrix)
         print(f'::set-output name=matrix::{json.dumps(matrix)}')
 
   test:
