@@ -854,13 +854,9 @@ class Server(ha_base.ClusterProtocol):
     async def _maybe_patch_db(self, dbname, patches):
         logger.info("applying patches to database '%s'", dbname)
 
-        conn = await self.acquire_pgcon(dbname)
-
-        try:
-            if dbname != defines.EDGEDB_SYSTEM_DB:
+        if dbname != defines.EDGEDB_SYSTEM_DB:
+            async with self._direct_pgcon(dbname) as conn:
                 await self._maybe_apply_patches(dbname, conn, patches)
-        finally:
-            self.release_pgcon(dbname, conn)
 
     async def _maybe_patch(self):
         """Apply patches to all the databases"""
@@ -883,18 +879,19 @@ class Server(ha_base.ClusterProtocol):
             g.create_task(self._maybe_patch_db(
                 defines.EDGEDB_TEMPLATE_DB, patches))
 
-        async with self._exclusive_database_access(defines.EDGEDB_TEMPLATE_DB):
-            # Patch the system db last. The system db needs to go last so
-            # that it only gets updated if all of the other databases have
-            # been succesfully patched. This is important, since we don't check
-            # other databases for patches unless the system db is patched.
-            #
-            # Driving everything from the system db like this lets us
-            # always use the correct schema when compiling patches.
-            async with self._use_sys_pgcon() as syscon:
-                await self._maybe_apply_patches(
-                    defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
-            self._std_schema = patches[max(patches)][-1]
+        await self._ensure_database_not_connected(defines.EDGEDB_TEMPLATE_DB)
+
+        # Patch the system db last. The system db needs to go last so
+        # that it only gets updated if all of the other databases have
+        # been succesfully patched. This is important, since we don't check
+        # other databases for patches unless the system db is patched.
+        #
+        # Driving everything from the system db like this lets us
+        # always use the correct schema when compiling patches.
+        async with self._use_sys_pgcon() as syscon:
+            await self._maybe_apply_patches(
+                defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
+        self._std_schema = patches[max(patches)][-1]
 
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()
@@ -1099,7 +1096,6 @@ class Server(ha_base.ClusterProtocol):
             raise errors.ExecutionError(
                 f'database {dbname!r} is being accessed by other users')
         else:
-            # Block new connections to the database.
             self._block_new_connections.add(dbname)
 
             # Prune our inactive connections.
@@ -1142,14 +1138,6 @@ class Server(ha_base.ClusterProtocol):
 
     def _allow_database_connections(self, dbname: str) -> None:
         self._block_new_connections.discard(dbname)
-
-    @contextlib.asynccontextmanager
-    async def _exclusive_database_access(self, dbname: str):
-        await self._ensure_database_not_connected(dbname)
-        try:
-            yield
-        finally:
-            self._allow_database_connections(dbname)
 
     def _on_after_drop_db(self, dbname: str):
         try:
@@ -1264,6 +1252,19 @@ class Server(ha_base.ClusterProtocol):
             yield conn
         finally:
             self._release_sys_pgcon()
+
+    @contextlib.asynccontextmanager
+    async def _direct_pgcon(
+        self,
+        dbname: str,
+    ) -> AsyncGenerator[pgcon.PGConnection, None]:
+        conn = None
+        try:
+            conn = await self._pg_connect(dbname)
+            yield conn
+        finally:
+            if conn is not None:
+                await self._pg_disconnect(conn)
 
     async def _cancel_pgcon_operation(self, pgcon) -> bool:
         async with self._use_sys_pgcon() as syscon:
