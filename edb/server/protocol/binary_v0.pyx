@@ -188,10 +188,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         logger.debug('received connection request by %s to database %s',
                      user, database)
 
-        if (
-            database in edbdef.EDGEDB_SPECIAL_DBS
-            or not self.server.is_database_connectable(database)
-        ):
+        if database in edbdef.EDGEDB_SPECIAL_DBS:
             # Prevent connections to internal system databases,
             # which only purpose is to serve as a template for new
             # databases.
@@ -1248,11 +1245,6 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         if state is not orig_state:
                             # see the same comments in _legacy_execute()
                             conn.last_state = state
-                finally:
-                    if query_unit.create_db_template:
-                        await self.server._allow_database_connections(
-                            query_unit.create_db_template,
-                        )
         finally:
             self.maybe_release_pgcon(conn)
 
