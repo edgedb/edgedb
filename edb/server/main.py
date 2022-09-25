@@ -38,8 +38,6 @@ import click
 from jwcrypto import jwk
 import setproctitle
 import uvloop
-import watchdog.events
-import watchdog.observers
 
 from . import logsetup
 logsetup.early_setup()
@@ -69,26 +67,6 @@ else:
 
 logger = logging.getLogger('edb.server')
 _server_initialized = False
-
-
-class FileModifiedHandler(watchdog.events.FileSystemEventHandler):
-    def __init__(self, reload_certs: Callable[[], None]):
-        self._reload_certs = reload_certs
-
-    def on_modified(
-        self,
-        event: Union[
-            watchdog.events.DirModifiedEvent,
-            watchdog.events.FileModifiedEvent,
-        ]
-    ) -> None:
-        if isinstance(event, watchdog.events.DirModifiedEvent):
-            return
-
-        try:
-            self._reload_certs()
-        except Exception as e:
-            logger.error(e)
 
 
 def abort(msg, *args, exit_code=1) -> NoReturn:
@@ -252,15 +230,6 @@ async def _run_server(
 
         ss.init_tls(
             args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
-
-        def reload_tls():
-            ss.reload_tls(args.tls_cert_file, args.tls_key_file)
-
-        handler = FileModifiedHandler(reload_tls)
-        observer = watchdog.observers.Observer()
-        observer.schedule(handler, args.tls_cert_file)
-        observer.schedule(handler, args.tls_key_file)
-        observer.start()
 
         ss.init_jwcrypto(
             args.jws_key_file,
