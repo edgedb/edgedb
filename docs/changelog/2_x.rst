@@ -567,6 +567,48 @@ Protocol overhaul
 * UI: Implement login page for remote instances.
   (:eql:gh:`edgedb/edgedb-ui/#40`)
 
+2.3
+===
+
+* Clarify error message when UI is not enabled
+  (:eql:gh:`#4256`)
+
+* Fix an issue with inherited computeds
+  (:eql:gh:`#4371`)
+
+* Fix bug in diamond pattern constraint inheritance
+  (:eql:gh:`#4379`)
+
+* When finding common parent for arrays, never use expr alias arrays
+  (:eql:gh:`#4080`)
+
+* Properly quote numeric names when in codegen
+  (:eql:gh:`#4344`)
+
+* Fix computed global scoping behavior
+  (:eql:gh:`#4388`)
+
+* Fix DDL performance issues on databases with lots of data
+  (:eql:gh:`#4401`)
+
+* Fix potentially missed constraints on DML
+  (:eql:gh:`#4410`)
+
+* Fix slicing with an empty set
+  (:eql:gh:`#4404`)
+
+* Fix slicing array of tuples
+  (:eql:gh:`#4391`)
+
+* Don't apply access policies when compiling indexes
+  (:eql:gh:`#4420`)
+
+* Fix slicing of tuple arrays with null inputs
+  (:eql:gh:`#4421`)
+
+* Propagate database creation and deletion events to adjacent servers
+  (:eql:gh:`#4415`)
+
 
 .. lint-off
 
