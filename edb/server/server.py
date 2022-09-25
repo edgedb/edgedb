@@ -101,6 +101,7 @@ class Server(ha_base.ClusterProtocol):
     _global_intro_query: bytes
     _report_config_typedesc: bytes
     _report_config_data: bytes
+    _tls_certs_watch_handles: list[asyncio.Handle]
 
     _std_schema: s_schema.Schema
     _refl_schema: s_schema.Schema
@@ -273,6 +274,9 @@ class Server(ha_base.ClusterProtocol):
 
         # A set of databases that should not accept new connections.
         self._block_new_connections: set[str] = set()
+
+        self._tls_certs_watch_handles = []
+        self._tls_certs_reload_retry_handle = None
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -1710,6 +1714,9 @@ class Server(ha_base.ClusterProtocol):
     def reload_tls(self, tls_cert_file, tls_key_file):
         logger.info("loading TLS certificates")
         tls_password_needed = False
+        if self._tls_certs_reload_retry_handle is not None:
+            self._tls_certs_reload_retry_handle.cancel()
+            self._tls_certs_reload_retry_handle = None
 
         def _tls_private_key_password():
             nonlocal tls_password_needed
@@ -1772,6 +1779,41 @@ class Server(ha_base.ClusterProtocol):
 
         self._tls_cert_file = str(tls_cert_file)
         self._tls_cert_newly_generated = tls_cert_newly_generated
+
+        def reload_tls(_file_modified, _event, retry=0):
+            try:
+                self.reload_tls(tls_cert_file, tls_key_file)
+            except (StartupError, FileNotFoundError) as e:
+                if retry > defines._TLS_CERT_RELOAD_MAX_RETRIES:
+                    logger.critical(str(e))
+                    self.request_shutdown()
+                else:
+                    delay = defines._TLS_CERT_RELOAD_EXP_INTERVAL * 2 ** retry
+                    logger.warning("%s; retrying in %.1f seconds.", e, delay)
+                    self._tls_certs_reload_retry_handle = (
+                        self.__loop.call_later(
+                            delay,
+                            reload_tls,
+                            _file_modified,
+                            _event,
+                            retry + 1,
+                        )
+                    )
+            except Exception:
+                logger.critical(
+                    "error while reloading TLS certificate and/or key, "
+                    "shutting down.",
+                    exc_info=True,
+                )
+                self.request_shutdown()
+
+        self._tls_certs_watch_handles.append(
+            self.__loop._monitor_fs(str(tls_cert_file), reload_tls)
+        )
+        if tls_cert_file != tls_key_file:
+            self._tls_certs_watch_handles.append(
+                self.__loop._monitor_fs(str(tls_key_file), reload_tls)
+            )
 
     def init_jwcrypto(
         self,
@@ -1889,6 +1931,9 @@ class Server(ha_base.ClusterProtocol):
                 f"shutting down server: no clients connected in last"
                 f" {self._auto_shutdown_after} seconds"
             )
+        self.request_shutdown()
+
+    def request_shutdown(self):
         self._accepting_connections = False
         self._stop_evt.set()
 
@@ -1904,6 +1949,10 @@ class Server(ha_base.ClusterProtocol):
             self._cluster.stop_watching()
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
+
+            for handle in self._tls_certs_watch_handles:
+                handle.cancel()
+            self._tls_certs_watch_handles.clear()
 
             await self._stop_servers(self._servers.values())
             self._servers = {}
