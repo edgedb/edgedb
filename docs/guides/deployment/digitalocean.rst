@@ -88,7 +88,11 @@ instance link``.
 
 .. code-block:: bash
 
-   $ edgedb instance link --dsn <dsn> --trust-tls-cert my_instance
+   $ edgedb instance link \
+       --dsn <dsn> \
+       --trust-tls-cert \
+       --non-interactive \
+       my_instance
    Authenticating to edgedb://edgedb@1.2.3.4:5656/edgedb
    Trusting unknown server certificate:
    SHA1:1880da9527be464e2cad3bdb20dfc430a6af5727
