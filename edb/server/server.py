@@ -1791,7 +1791,7 @@ class Server(ha_base.ClusterProtocol):
                     self._stop_evt.set()
                 else:
                     delay = defines._TLS_CERT_RELOAD_EXP_INTERVAL * 2 ** retry
-                    logger.warning("%s; Retry in %.1f seconds.", e, delay)
+                    logger.warning("%s; retrying in %.1f seconds.", e, delay)
                     self._tls_certs_reload_retry_handle = (
                         self.__loop.call_later(
                             delay,
@@ -1803,7 +1803,7 @@ class Server(ha_base.ClusterProtocol):
                     )
             except Exception:
                 logger.critical(
-                    "Unexpected error occured during reload TLS certificates; "
+                    "error while reloading TLS certificate and/or key, "
                     "shutting down.",
                     exc_info=True,
                 )
