@@ -1659,10 +1659,7 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
         schema = s_schema.FlatSchema()
         schema = await _init_defaults(schema, compiler, tpl_ctx.conn)
 
-        if backend_params.has_create_database:
-            await conn.sql_execute(
-                b"ANALYZE",
-            )
+        await tpl_ctx.conn.sql_execute(b"ANALYZE")
 
     finally:
         if in_dev_mode:
