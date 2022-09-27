@@ -772,7 +772,7 @@ def find_item_suggestions(
     item_type: Optional[so.ObjectMeta] = None,
     collection: Optional[Iterable[so.Object]] = None,
     condition: Optional[Callable[[so.Object], bool]] = None,
-) -> Iterator[Tuple[so.Object, str]]:
+) -> Iterable[Tuple[so.Object, str]]:
     from . import functions as s_func
     from . import modules as s_mod
 
@@ -834,51 +834,39 @@ def find_item_suggestions(
 
 
 def find_fields_suggestions(
-    name: sn.Name,
     schema: s_schema.Schema,
     item_type: Optional[so.ObjectMeta],
     compiler_ctx: Optional[ContextLevel],
-) -> Iterator[Tuple[so.Object, str]]:
+) -> Iterable[Tuple[so.Object, str]]:
     from . import types as s_types
-    from . import properties as s_properties
-    from . import links as s_links
+    from . import objtypes as s_objtypes
     from edb.ir import typeutils
 
     if item_type is not s_types.QualifiedType:
-        return iter([])
+        return ()
 
     if compiler_ctx is None:
-        return iter([])
+        return ()
     ppp = compiler_ctx.partial_path_prefix
     if ppp is None or ppp.typeref is None:
-        return iter([])
+        return ()
 
     schema, object = typeutils.ir_typeref_to_type(schema, ppp.typeref)
 
-    # TODO: is it okay to use all referrers?
-    suggestions = schema.get_referrers(object)
+    if not isinstance(object, s_objtypes.ObjectType):
+        return ()
 
-    filters = []
-
-    # Only suggest properties or links
-    filters.append(
-        lambda s: isinstance(s, s_properties.Property)
-        or isinstance(s, s_links.Link)
-    )
-
-    # Never suggest object fragments.
-    filters.append(lambda s: not isinstance(s, so.ObjectFragment))
-
-    filtered = filter(lambda s: all(f(s) for f in filters), suggestions)
+    pointers_with_names = object.get_pointers(schema).items(schema)
+    pointers = (pointer for _, pointer in pointers_with_names)
 
     # Add names prefixed with .
-    return ((s, f".{s.get_displayname(schema)}") for s in filtered)
+    return ((s, f".{s.get_displayname(schema)}") for s in pointers)
 
 
 def pick_closest_suggestions(
     name: sn.Name,
     schema: s_schema.Schema,
-    suggestions: Iterator[Tuple[so.Object, str]],
+    suggestions: Iterable[Tuple[so.Object, str]],
     limit: int,
 ) -> List[Tuple[so.Object, str]]:
     local_name = name.name
@@ -930,7 +918,7 @@ def enrich_schema_lookup_error(
             collection=collection,
             condition=condition,
         ),
-        find_fields_suggestions(item_name, schema, item_type, compiler_ctx),
+        find_fields_suggestions(schema, item_type, compiler_ctx),
     )
 
     suggestions = pick_closest_suggestions(
