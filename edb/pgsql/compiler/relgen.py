@@ -147,6 +147,8 @@ def get_set_rvar(
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     """Return a PathRangeVar for a given IR Set.
 
+    Basically all of compilation comes through here for each set.
+
     @param ir_set: IR Set node.
     """
     path_id = ir_set.path_id
@@ -161,6 +163,9 @@ def get_set_rvar(
 
     with contextlib.ExitStack() as cstack:
 
+        # If there was a scope_stmt registered for our path, we compile
+        # as a subrel of that scope_stmt. Otherwise we use whatever the
+        # current rel was.
         if scope_stmt is not None:
             newctx = cstack.enter_context(ctx.new())
             newctx.rel = scope_stmt
@@ -199,11 +204,19 @@ def get_set_rvar(
                 ir_set=ir_set, stmt=stmt, ctx=subctx)
             subctx.pending_query = subctx.rel = stmt
 
+        # XXX: This is pretty dodgy, because it updates the path_scope
+        # *before* we call new_child() on it. Removing it only breaks two
+        # tests of lprops on backlinks.
+        if path_scope and path_scope.is_visible(path_id):
+            subctx.path_scope[path_id] = scope_stmt
+
+        # If this set has a scope in the scope tree associated with it,
+        # register paths in that scope to be compiled with this stmt
+        # as their scope_stmt.
         if path_scope:
-            if path_scope.is_visible(path_id):
-                subctx.path_scope[path_id] = scope_stmt
             relctx.update_scope(ir_set, stmt, ctx=subctx)
 
+        # Actually compile the set
         rvars = _get_set_rvar(ir_set, ctx=subctx)
 
         if optional_wrapping:
