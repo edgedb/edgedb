@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from . import schema as s_schema
     from . import types as s_types
     from edb.common import parsing
+    from edb.edgeql.compiler.context import ContextLevel
 
     T = TypeVar('T')
 
@@ -769,14 +770,12 @@ def find_item_suggestions(
     schema: s_schema.Schema,
     *,
     item_type: Optional[so.ObjectMeta] = None,
-    limit: int = 3,
     collection: Optional[Iterable[so.Object]] = None,
     condition: Optional[Callable[[so.Object], bool]] = None,
-) -> List[so.Object]:
+) -> Iterator[Tuple[so.Object, str]]:
     from . import functions as s_func
     from . import modules as s_mod
 
-    local_name = name.name
     orig_modname = name.module if isinstance(name, sn.QualName) else None
     modname = modaliases.get(orig_modname, orig_modname)
 
@@ -818,30 +817,93 @@ def find_item_suggestions(
     # Never suggest object fragments.
     filters.append(lambda s: not isinstance(s, so.ObjectFragment))
 
-    filtered_suggestions = filter(lambda s: all(f(s) for f in filters),
-                                  suggestions)
+    filtered = filter(lambda s: all(f(s) for f in filters), suggestions)
+
+    # Add display names
+    cur_module_name = modaliases.get(None)
+
+    def get_display_name(suggestion: so.Object) -> str:
+        if isinstance(suggestion, so.QualifiedObject):
+            mod = suggestion.get_name(schema).module
+            if mod == "std" or mod == cur_module_name:
+                return get_nq_name(schema, suggestion)
+
+        return str(suggestion.get_displayname(schema))
+
+    return ((s, get_display_name(s)) for s in filtered)
+
+
+def find_fields_suggestions(
+    name: sn.Name,
+    schema: s_schema.Schema,
+    item_type: Optional[so.ObjectMeta],
+    compiler_ctx: Optional[ContextLevel],
+) -> Iterator[Tuple[so.Object, str]]:
+    from . import types as s_types
+    from . import properties as s_properties
+    from . import links as s_links
+    from edb.ir import typeutils
+
+    if item_type is not s_types.QualifiedType:
+        return iter([])
+
+    if compiler_ctx is None:
+        return iter([])
+    ppp = compiler_ctx.partial_path_prefix
+    if ppp is None or ppp.typeref is None:
+        return iter([])
+
+    schema, object = typeutils.ir_typeref_to_type(schema, ppp.typeref)
+
+    # TODO: is it okay to use all referrers?
+    suggestions = schema.get_referrers(object)
+
+    filters = []
+
+    # Only suggest properties or links
+    filters.append(
+        lambda s: isinstance(s, s_properties.Property)
+        or isinstance(s, s_links.Link)
+    )
+
+    # Never suggest object fragments.
+    filters.append(lambda s: not isinstance(s, so.ObjectFragment))
+
+    filtered = filter(lambda s: all(f(s) for f in filters), suggestions)
+
+    # Add names prefixed with .
+    return ((s, f".{s.get_displayname(schema)}") for s in filtered)
+
+
+def pick_closest_suggestions(
+    name: sn.Name,
+    schema: s_schema.Schema,
+    suggestions: Iterator[Tuple[so.Object, str]],
+    limit: int,
+) -> List[Tuple[so.Object, str]]:
+    local_name = name.name
 
     # Compute Levenshtein distance for each suggestion.
-    with_distance: List[Tuple[so.Object, int]] = [
-        (s, levenshtein.distance(local_name, get_nq_name(schema, s)))
-        for s in filtered_suggestions
+    with_distance: List[Tuple[so.Object, str, int]] = [
+        (s, name, levenshtein.distance(local_name, get_nq_name(schema, s)))
+        for s, name in suggestions
     ]
 
     # Filter out suggestions that are too dissimilar.
     max_distance = 3
-    closest = list(filter(lambda s: s[1] < max_distance, with_distance))
+    closest = list(filter(lambda s: s[2] < max_distance, with_distance))
 
     # Sort by proximity, then by whether the suggestion is contains
     # the source string at the beginning, then by suggestion name.
     closest.sort(
         key=lambda s: (
-            s[1],
+            s[2],
             not get_nq_name(schema, s[0]).startswith(local_name),
-            s[0].get_displayname(schema)
+            s[1],
         )
     )
 
-    return [s[0] for s in closest[:limit]]
+    return [(s[0], s[1]) for s in closest[:limit]]
 
 
 def enrich_schema_lookup_error(
@@ -855,29 +917,28 @@ def enrich_schema_lookup_error(
     name_template: Optional[str] = None,
     collection: Optional[Iterable[so.Object]] = None,
     condition: Optional[Callable[[so.Object], bool]] = None,
-    context: Any = None,
+    context: Optional[parsing.ParserContext] = None,
+    compiler_ctx: Optional[ContextLevel] = None,
 ) -> None:
 
-    suggestions = find_item_suggestions(
-        item_name, modaliases, schema,
-        item_type=item_type, limit=suggestion_limit,
-        collection=collection, condition=condition)
+    all_suggestions = itertools.chain(
+        find_item_suggestions(
+            item_name,
+            modaliases,
+            schema,
+            item_type=item_type,
+            collection=collection,
+            condition=condition,
+        ),
+        find_fields_suggestions(item_name, schema, item_type, compiler_ctx),
+    )
+
+    suggestions = pick_closest_suggestions(
+        item_name, schema, all_suggestions, suggestion_limit
+    )
 
     if suggestions:
-        names: List[str] = []
-        cur_module_name = modaliases.get(None)
-
-        for suggestion in suggestions:
-            if (
-                isinstance(suggestion, so.QualifiedObject)
-                and (
-                    suggestion.get_name(schema).module == 'std'
-                    or suggestion.get_name(schema).module == cur_module_name
-                )
-            ):
-                names.append(get_nq_name(schema, suggestion))
-            else:
-                names.append(str(suggestion.get_displayname(schema)))
+        names = [name for _, name in suggestions]
 
         if name_template is not None:
             # Use a set() for names as there might be duplicates.

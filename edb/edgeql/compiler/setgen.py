@@ -764,6 +764,7 @@ def resolve_ptr(
             item_type=s_pointers.Pointer,
             collection=near_enpoint_pointers.objects(ctx.env.schema),
             schema=ctx.env.schema,
+            compiler_ctx=ctx,
         )
 
     raise err

@@ -97,6 +97,7 @@ def get_schema_object(
             item_type=item_type,
             condition=condition,
             context=srcctx,
+            compiler_ctx=ctx,
         )
         raise
 
