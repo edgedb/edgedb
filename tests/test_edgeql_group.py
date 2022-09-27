@@ -735,9 +735,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
 
         await self.assert_query_result(qry, res)
 
-    @test.xerror('''
-        Can't compile ref to visible binding ns~9@@(__derived__::g~2)
-    ''')
     async def test_edgeql_group_by_group_by_03a(self):
         await self._test_edgeql_group_by_group_by_03(
             '''
