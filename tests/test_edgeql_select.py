@@ -6032,6 +6032,39 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT User.nam;
             """)
 
+    async def test_edgeql_select_bad_reference_03(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"object type or alias 'default::number' does not exist",
+                _hint="did you mean '.number'?"):
+
+            await self.con.query("""
+                select Issue filter number = '4418';
+            """)
+
+    async def test_edgeql_select_bad_reference_04(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"object type or alias 'default::referrnce' does not exist",
+                _hint="did you mean '.references'?"):
+
+            await self.con.query("""
+                select Issue filter referrnce = '#4418';
+            """)
+
+    async def test_edgeql_select_bad_reference_05(self):
+
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "object type 'default::Issue' has no link or property 'referrnce'",
+            _hint="did you mean 'references'?",
+        ):
+            await self.con.query(
+                """
+            select Issue filter .referrnce = '#4418';
+            """
+            )
+
     async def test_edgeql_select_precedence_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'index indirection cannot.*int64.*'):

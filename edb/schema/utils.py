@@ -769,48 +769,49 @@ def find_item_suggestions(
     schema: s_schema.Schema,
     *,
     item_type: Optional[so.ObjectMeta] = None,
-    limit: int = 3,
-    collection: Optional[Iterable[so.Object]] = None,
     condition: Optional[Callable[[so.Object], bool]] = None,
-) -> List[so.Object]:
+) -> Iterable[Tuple[so.Object, str]]:
     from . import functions as s_func
+    from . import properties as s_prop
+    from . import links as s_link
     from . import modules as s_mod
 
-    local_name = name.name
     orig_modname = name.module if isinstance(name, sn.QualName) else None
     modname = modaliases.get(orig_modname, orig_modname)
 
     suggestions: List[so.Object] = []
 
-    if collection is not None:
-        suggestions.extend(collection)
-    else:
-        if modname:
-            module = schema.get_global(s_mod.Module, modname, None)
-            if module:
-                suggestions.extend(
-                    schema.get_objects(
-                        included_modules=[sn.UnqualName(modname)],
-                    ),
-                )
-
-        if not orig_modname:
+    if modname:
+        module = schema.get_global(s_mod.Module, modname, None)
+        if module:
             suggestions.extend(
                 schema.get_objects(
-                    included_modules=[sn.UnqualName('std')],
+                    included_modules=[sn.UnqualName(modname)],
                 ),
             )
 
+    if not orig_modname:
+        suggestions.extend(
+            schema.get_objects(
+                included_modules=[sn.UnqualName("std")],
+            ),
+        )
+
     filters = []
 
-    if item_type is not None:
-        it = item_type
-        filters.append(lambda s: isinstance(s, it))
+    # links and properties are suggested by find_fields_suggestions
+    filters.append(
+        lambda s: not isinstance(s, s_prop.Property)
+        and not isinstance(s, s_link.Link)
+    )
 
     if condition is not None:
         filters.append(condition)
 
-    if not item_type:
+    if item_type is not None:
+        it = item_type
+        filters.append(lambda s: isinstance(s, it))
+    else:
         # When schema class is not specified, only suggest generic objects.
         filters.append(lambda s: not sn.is_fullname(str(s.get_name(schema))))
         filters.append(lambda s: not isinstance(s, s_func.CallableObject))
@@ -818,30 +819,79 @@ def find_item_suggestions(
     # Never suggest object fragments.
     filters.append(lambda s: not isinstance(s, so.ObjectFragment))
 
-    filtered_suggestions = filter(lambda s: all(f(s) for f in filters),
-                                  suggestions)
+    filtered = filter(lambda s: all(f(s) for f in filters), suggestions)
+
+    # Add display names
+    cur_module_name = modaliases.get(None)
+
+    def get_display_name(suggestion: so.Object) -> str:
+        if isinstance(suggestion, so.QualifiedObject):
+            mod = suggestion.get_name(schema).module
+            if mod == "std" or mod == cur_module_name:
+                return get_nq_name(schema, suggestion)
+
+        return suggestion.get_displayname(schema)
+
+    return ((s, get_display_name(s)) for s in filtered)
+
+
+def find_pointer_suggestions(
+    schema: s_schema.Schema,
+    item_type: Optional[so.ObjectMeta],
+    parent: Optional[so.Object],
+) -> Iterable[Tuple[so.Object, str]]:
+    from . import pointers as s_pointers
+
+    """
+    Suggests pointers (properties or links) from parent object type.
+    If pointer type is not expected, use .name notation.
+    """
+    from . import sources as s_sources
+
+    if not isinstance(parent, s_sources.Source):
+        return ()
+
+    pointers_with_names = parent.get_pointers(schema).items(schema)
+    pointers = (pointer for _, pointer in pointers_with_names)
+
+    suggestions = ((s, s.get_displayname(schema)) for s in pointers)
+
+    if item_type is not s_pointers.Pointer:
+        # Prefix with .
+        suggestions = ((s, "." + n) for s, n in suggestions)
+
+    return suggestions
+
+
+def pick_closest_suggestions(
+    name: sn.Name,
+    schema: s_schema.Schema,
+    suggestions: Iterable[Tuple[so.Object, str]],
+    limit: int,
+) -> List[Tuple[so.Object, str]]:
+    local_name = name.name
 
     # Compute Levenshtein distance for each suggestion.
-    with_distance: List[Tuple[so.Object, int]] = [
-        (s, levenshtein.distance(local_name, get_nq_name(schema, s)))
-        for s in filtered_suggestions
+    with_distance: List[Tuple[so.Object, str, int]] = [
+        (s, name, levenshtein.distance(local_name, get_nq_name(schema, s)))
+        for s, name in suggestions
     ]
 
     # Filter out suggestions that are too dissimilar.
     max_distance = 3
-    closest = list(filter(lambda s: s[1] < max_distance, with_distance))
+    closest = list(filter(lambda s: s[2] < max_distance, with_distance))
 
     # Sort by proximity, then by whether the suggestion is contains
     # the source string at the beginning, then by suggestion name.
     closest.sort(
         key=lambda s: (
-            s[1],
+            s[2],
             not get_nq_name(schema, s[0]).startswith(local_name),
-            s[0].get_displayname(schema)
+            s[1],
         )
     )
 
-    return [s[0] for s in closest[:limit]]
+    return [(s[0], s[1]) for s in closest[:limit]]
 
 
 def enrich_schema_lookup_error(
@@ -852,39 +902,28 @@ def enrich_schema_lookup_error(
     *,
     item_type: Optional[so.ObjectMeta] = None,
     suggestion_limit: int = 3,
-    name_template: Optional[str] = None,
-    collection: Optional[Iterable[so.Object]] = None,
     condition: Optional[Callable[[so.Object], bool]] = None,
-    context: Any = None,
+    context: Optional[parsing.ParserContext] = None,
+    pointer_parent: Optional[so.Object] = None,
 ) -> None:
 
-    suggestions = find_item_suggestions(
-        item_name, modaliases, schema,
-        item_type=item_type, limit=suggestion_limit,
-        collection=collection, condition=condition)
+    all_suggestions = itertools.chain(
+        find_item_suggestions(
+            item_name,
+            modaliases,
+            schema,
+            item_type=item_type,
+            condition=condition,
+        ),
+        find_pointer_suggestions(schema, item_type, pointer_parent),
+    )
+
+    suggestions = pick_closest_suggestions(
+        item_name, schema, all_suggestions, suggestion_limit
+    )
 
     if suggestions:
-        names: List[str] = []
-        cur_module_name = modaliases.get(None)
-
-        for suggestion in suggestions:
-            if (
-                isinstance(suggestion, so.QualifiedObject)
-                and (
-                    suggestion.get_name(schema).module == 'std'
-                    or suggestion.get_name(schema).module == cur_module_name
-                )
-            ):
-                names.append(get_nq_name(schema, suggestion))
-            else:
-                names.append(str(suggestion.get_displayname(schema)))
-
-        if name_template is not None:
-            # Use a set() for names as there might be duplicates.
-            # E.g. "to_datetime" function has multiple variants, and
-            # we don't want to diplay "did you mean one of these:
-            # to_datetime, to_datetime, to_datetime?"
-            names = list({name_template.format(name=name) for name in names})
+        names = [name for _, name in suggestions]
 
         if len(names) > 1:
             hint = f'did you mean one of these: {", ".join(names)}?'

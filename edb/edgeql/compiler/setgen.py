@@ -756,13 +756,12 @@ def resolve_ptr(
     err = errors.InvalidReferenceError(msg, context=source_context)
 
     if direction is s_pointers.PointerDirection.Outbound:
-        near_enpoint_pointers = near_endpoint.get_pointers(ctx.env.schema)
         s_utils.enrich_schema_lookup_error(
             err,
             s_name.UnqualName(pointer_name),
             modaliases=ctx.modaliases,
             item_type=s_pointers.Pointer,
-            collection=near_enpoint_pointers.objects(ctx.env.schema),
+            pointer_parent=near_endpoint,
             schema=ctx.env.schema,
         )
 
