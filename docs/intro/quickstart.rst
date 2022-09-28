@@ -232,7 +232,7 @@ object types.
 
 .. _Migrate your schema:
 
-Before we procede, let's try making a small change to our schema: making the
+Before we proceed, let's try making a small change to our schema: making the
 ``title`` property of ``Movie`` required. First, update the schema file:
 
 .. code-block:: sdl-diff
