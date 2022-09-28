@@ -756,7 +756,6 @@ def resolve_ptr(
     err = errors.InvalidReferenceError(msg, context=source_context)
 
     if direction is s_pointers.PointerDirection.Outbound:
-        print("Pointer!")
         s_utils.enrich_schema_lookup_error(
             err,
             s_name.UnqualName(pointer_name),

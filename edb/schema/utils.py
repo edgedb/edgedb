@@ -805,14 +805,13 @@ def find_item_suggestions(
         and not isinstance(s, s_link.Link)
     )
 
-    if item_type is not None:
-        it = item_type
-        filters.append(lambda s: isinstance(s, it))
-
     if condition is not None:
         filters.append(condition)
 
-    if not item_type:
+    if item_type is not None:
+        it = item_type
+        filters.append(lambda s: isinstance(s, it))
+    else:
         # When schema class is not specified, only suggest generic objects.
         filters.append(lambda s: not sn.is_fullname(str(s.get_name(schema))))
         filters.append(lambda s: not isinstance(s, s_func.CallableObject))

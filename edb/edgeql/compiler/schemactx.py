@@ -90,7 +90,6 @@ def get_schema_object(
         )
 
     except errors.QueryError as e:
-        print(item_type)
         s_utils.enrich_schema_lookup_error(
             e,
             name,
