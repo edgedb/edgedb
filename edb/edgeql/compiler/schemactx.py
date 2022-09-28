@@ -27,6 +27,7 @@ from typing import *
 from edb import errors
 
 from edb.common import parsing
+from edb.ir import typeutils
 
 from edb.schema import links as s_links
 from edb.schema import name as sn
@@ -89,15 +90,16 @@ def get_schema_object(
         )
 
     except errors.QueryError as e:
+        print(item_type)
         s_utils.enrich_schema_lookup_error(
             e,
             name,
             modaliases=ctx.modaliases,
             schema=ctx.env.schema,
             item_type=item_type,
+            pointer_parent=_get_partial_path_prefix_type(ctx),
             condition=condition,
             context=srcctx,
-            compiler_ctx=ctx,
         )
         raise
 
@@ -112,6 +114,19 @@ def get_schema_object(
             context=srcctx)
     else:
         return stype
+
+
+def _get_partial_path_prefix_type(
+    ctx: context.ContextLevel,
+) -> Optional[s_types.Type]:
+    if ctx is None:
+        return None
+    ppp = ctx.partial_path_prefix
+    if ppp is None or ppp.typeref is None:
+        return None
+
+    _, type = typeutils.ir_typeref_to_type(ctx.env.schema, ppp.typeref)
+    return type
 
 
 def _get_type_variant(

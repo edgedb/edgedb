@@ -37,7 +37,6 @@ if TYPE_CHECKING:
     from . import schema as s_schema
     from . import types as s_types
     from edb.common import parsing
-    from edb.edgeql.compiler.context import ContextLevel
 
     T = TypeVar('T')
 
@@ -770,10 +769,11 @@ def find_item_suggestions(
     schema: s_schema.Schema,
     *,
     item_type: Optional[so.ObjectMeta] = None,
-    collection: Optional[Iterable[so.Object]] = None,
     condition: Optional[Callable[[so.Object], bool]] = None,
 ) -> Iterable[Tuple[so.Object, str]]:
     from . import functions as s_func
+    from . import properties as s_prop
+    from . import links as s_link
     from . import modules as s_mod
 
     orig_modname = name.module if isinstance(name, sn.QualName) else None
@@ -781,26 +781,29 @@ def find_item_suggestions(
 
     suggestions: List[so.Object] = []
 
-    if collection is not None:
-        suggestions.extend(collection)
-    else:
-        if modname:
-            module = schema.get_global(s_mod.Module, modname, None)
-            if module:
-                suggestions.extend(
-                    schema.get_objects(
-                        included_modules=[sn.UnqualName(modname)],
-                    ),
-                )
-
-        if not orig_modname:
+    if modname:
+        module = schema.get_global(s_mod.Module, modname, None)
+        if module:
             suggestions.extend(
                 schema.get_objects(
-                    included_modules=[sn.UnqualName('std')],
+                    included_modules=[sn.UnqualName(modname)],
                 ),
             )
 
+    if not orig_modname:
+        suggestions.extend(
+            schema.get_objects(
+                included_modules=[sn.UnqualName("std")],
+            ),
+        )
+
     filters = []
+
+    # links and properties are suggested by find_fields_suggestions
+    filters.append(
+        lambda s: not isinstance(s, s_prop.Property)
+        and not isinstance(s, s_link.Link)
+    )
 
     if item_type is not None:
         it = item_type
@@ -828,39 +831,37 @@ def find_item_suggestions(
             if mod == "std" or mod == cur_module_name:
                 return get_nq_name(schema, suggestion)
 
-        return str(suggestion.get_displayname(schema))
+        return suggestion.get_displayname(schema)
 
     return ((s, get_display_name(s)) for s in filtered)
 
 
-def find_fields_suggestions(
+def find_pointer_suggestions(
     schema: s_schema.Schema,
     item_type: Optional[so.ObjectMeta],
-    compiler_ctx: Optional[ContextLevel],
+    parent: Optional[so.Object],
 ) -> Iterable[Tuple[so.Object, str]]:
-    from . import types as s_types
-    from . import objtypes as s_objtypes
-    from edb.ir import typeutils
+    from . import pointers as s_pointers
 
-    if item_type is not s_types.QualifiedType:
+    """
+    Suggests pointers (properties or links) from parent object type.
+    If pointer type is not expected, use .name notation.
+    """
+    from . import sources as s_sources
+
+    if not isinstance(parent, s_sources.Source):
         return ()
 
-    if compiler_ctx is None:
-        return ()
-    ppp = compiler_ctx.partial_path_prefix
-    if ppp is None or ppp.typeref is None:
-        return ()
-
-    schema, object = typeutils.ir_typeref_to_type(schema, ppp.typeref)
-
-    if not isinstance(object, s_objtypes.ObjectType):
-        return ()
-
-    pointers_with_names = object.get_pointers(schema).items(schema)
+    pointers_with_names = parent.get_pointers(schema).items(schema)
     pointers = (pointer for _, pointer in pointers_with_names)
 
-    # Add names prefixed with .
-    return ((s, f".{s.get_displayname(schema)}") for s in pointers)
+    suggestions = ((s, s.get_displayname(schema)) for s in pointers)
+
+    if item_type is not s_pointers.Pointer:
+        # Prefix with .
+        suggestions = ((s, "." + n) for s, n in suggestions)
+
+    return suggestions
 
 
 def pick_closest_suggestions(
@@ -902,11 +903,9 @@ def enrich_schema_lookup_error(
     *,
     item_type: Optional[so.ObjectMeta] = None,
     suggestion_limit: int = 3,
-    name_template: Optional[str] = None,
-    collection: Optional[Iterable[so.Object]] = None,
     condition: Optional[Callable[[so.Object], bool]] = None,
     context: Optional[parsing.ParserContext] = None,
-    compiler_ctx: Optional[ContextLevel] = None,
+    pointer_parent: Optional[so.Object] = None,
 ) -> None:
 
     all_suggestions = itertools.chain(
@@ -915,10 +914,9 @@ def enrich_schema_lookup_error(
             modaliases,
             schema,
             item_type=item_type,
-            collection=collection,
             condition=condition,
         ),
-        find_fields_suggestions(schema, item_type, compiler_ctx),
+        find_pointer_suggestions(schema, item_type, pointer_parent),
     )
 
     suggestions = pick_closest_suggestions(
@@ -927,13 +925,6 @@ def enrich_schema_lookup_error(
 
     if suggestions:
         names = [name for _, name in suggestions]
-
-        if name_template is not None:
-            # Use a set() for names as there might be duplicates.
-            # E.g. "to_datetime" function has multiple variants, and
-            # we don't want to diplay "did you mean one of these:
-            # to_datetime, to_datetime, to_datetime?"
-            names = list({name_template.format(name=name) for name in names})
 
         if len(names) > 1:
             hint = f'did you mean one of these: {", ".join(names)}?'
