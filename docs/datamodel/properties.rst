@@ -152,8 +152,8 @@ Annotations
 -----------
 
 Properties can contain annotations, small human-readable notes. The built-in
-annotations are ``title``, ``description``, and ``deprecated``. You can declare
-:ref:`custom annotation types <ref_datamodel_inheritance_annotations>`.
+annotations are ``title``, ``description``, and ``deprecated``. You may also
+declare :ref:`custom annotation types <ref_datamodel_inheritance_annotations>`.
 
 .. code-block:: sdl
 
