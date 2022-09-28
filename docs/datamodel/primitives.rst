@@ -154,4 +154,5 @@ share the counter.
     property number -> ticket_number;
   }
 
-Reference the :ref:`Sequence reference <ref_std_sequence>` for details.
+For a full reference on sequences, see the the :ref:`Sequence docs
+<ref_std_sequence>`.
