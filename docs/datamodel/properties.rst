@@ -128,7 +128,7 @@ subset of EdgeDB's built-in constraints.
 
 You can constrain properties with arbitrary :ref:`EdgeQL <ref_edgeql>`
 expressions returning ``bool``. To reference to value of the property, use the
-special scoped keyword ``__subject__``.
+special scope keyword ``__subject__``.
 
 .. code-block:: sdl
 
