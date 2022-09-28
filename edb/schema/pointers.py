@@ -2850,7 +2850,7 @@ def get_or_create_union_pointer(
         transient=transient,
     )
 
-    if isinstance(result, s_sources.Source):
+    if isinstance(result, s_sources.Source) and not opaque:
         # cast below, because in this case the list of Pointer
         # is also a list of Source (links.Link)
         schema = s_sources.populate_pointer_set_for_source_union(
