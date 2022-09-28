@@ -769,6 +769,15 @@ def get_scope(
 def update_scope(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> None:
+    """Update the scope of an ir set to be a pg stmt.
+
+    If ir_set has a scope node associated with it, update path_scope
+    so that any paths bound in that scope will be compiled in the
+    context of stmt.
+
+    This, combined with maybe_get_scope_stmt, is the mechanism by
+    which the scope tree influences the shape of the output query.
+    """
 
     scope_tree = get_scope(ir_set, ctx=ctx)
     if scope_tree is None:
@@ -777,15 +786,16 @@ def update_scope(
     ctx.scope_tree = scope_tree
     ctx.path_scope = ctx.path_scope.new_child()
 
+    # Register paths in the current scope to be compiled as a subrel
+    # of stmt.
     for p in scope_tree.path_children:
         assert p.path_id is not None
         ctx.path_scope[p.path_id] = stmt
 
+    # Mark any paths under the scope tree as masked, so that they
+    # won't get picked up by pull_path_namespace.
     for child_path in scope_tree.get_all_paths():
-        parent_scope = scope_tree.parent
-        if (parent_scope is None or
-                not parent_scope.is_visible(child_path)):
-            pathctx.put_path_id_mask(stmt, child_path)
+        pathctx.put_path_id_mask(stmt, child_path)
 
 
 def maybe_get_scope_stmt(
