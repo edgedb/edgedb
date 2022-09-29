@@ -693,6 +693,23 @@ class DeleteLink(
     # NB: target type cleanup (e.g. target compound type) is done by
     #     the DeleteProperty handler for the @target property.
 
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._delete_begin(schema, context)
+        if not context.canonical:
+            # We need to do a propagate here, too, since there could
+            # be backrefs to this link that technically reference
+            # us but will be fine if it is deleted.
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=self.get_friendly_description(schema=schema),
+            )
+        return schema
+
     def _get_ast(
         self,
         schema: s_schema.Schema,

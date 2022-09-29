@@ -11105,6 +11105,33 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         """)
 
+    async def test_edgeql_migration_link_to_sub_with_ref_01(self):
+        # Test moving a link to a subtype while a ref exists to it
+        await self.migrate(r"""
+            type Athlete {
+                multi link schedules := Athlete.<owner[IS AthleteSchedule];
+            }
+
+            abstract type Schedule  {
+                required property name -> str;
+                required link owner -> Athlete;
+            }
+            type AthleteSchedule extending Schedule;
+        """)
+
+        await self.migrate(r"""
+            type Athlete {
+                multi link schedules := Athlete.<owner[IS AthleteSchedule];
+            }
+
+            abstract type Schedule  {
+                required property name -> str;
+            }
+            type AthleteSchedule extending Schedule {
+                required link owner -> Athlete;
+            }
+        """)
+
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False
