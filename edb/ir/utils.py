@@ -71,57 +71,12 @@ def is_const(ir: irast.Base) -> bool:
     return not ir_sets and not variables
 
 
-def is_coalesce_expr(ir: irast.Base) -> bool:
-    """Return True if the given *ir* expression is a coalesce expression."""
-    return (
-        isinstance(ir, irast.OperatorCall) and
-        ir.operator_kind is ft.OperatorKind.Infix and
-        str(ir.func_shortname) == 'std::??'
-    )
-
-
-def is_set_membership_expr(ir: irast.Base) -> bool:
-    """Return True if the given *ir* expression is a set membership test."""
-    return (
-        isinstance(ir, irast.OperatorCall) and
-        ir.operator_kind is ft.OperatorKind.Infix and
-        str(ir.func_shortname) in {'std::IN', 'std::NOT IN'}
-    )
-
-
-def is_distinct_expr(ir: irast.Base) -> bool:
-    """Return True if the given *ir* expression is a DISTINCT expression."""
-    return (
-        isinstance(ir, irast.OperatorCall) and
-        ir.operator_kind is ft.OperatorKind.Prefix and
-        str(ir.func_shortname) == 'std::DISTINCT'
-    )
-
-
 def is_union_expr(ir: irast.Base) -> bool:
     """Return True if the given *ir* expression is a UNION expression."""
     return (
         isinstance(ir, irast.OperatorCall) and
         ir.operator_kind is ft.OperatorKind.Infix and
         str(ir.func_shortname) == 'std::UNION'
-    )
-
-
-def is_exists_expr(ir: irast.Base) -> bool:
-    """Return True if the given *ir* expression is an EXISTS expression."""
-    return (
-        isinstance(ir, irast.OperatorCall) and
-        ir.operator_kind is ft.OperatorKind.Prefix and
-        str(ir.func_shortname) == 'std::EXISTS'
-    )
-
-
-def is_ifelse_expr(ir: irast.Base) -> bool:
-    """Return True if the given *ir* expression is an IF expression."""
-    return (
-        isinstance(ir, irast.OperatorCall) and
-        ir.operator_kind is ft.OperatorKind.Ternary and
-        str(ir.func_shortname) == 'std::IF'
     )
 
 
