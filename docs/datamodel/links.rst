@@ -149,7 +149,7 @@ One-to-many
 ^^^^^^^^^^^
 
 Conceptually, one-to-many and many-to-one relationships are identical; the
-"directionality" of a relation is just a matter of perspective. Here's the
+"directionality" of a relation is just a matter of perspective. Here, the
 same "shirt owner" relationship is represented with a ``multi link``.
 
 .. code-block:: sdl
@@ -203,7 +203,7 @@ represent assigned parking spaces.
 All links are ``single`` unless otherwise specified, so no ``Employee`` can
 have more than one ``assigned_space``. Moreover, the
 :eql:constraint:`exclusive` constraint guarantees that a given ``ParkingSpace``
-can't be assigned to multiple ``Employees`` at once. Together the ``single
+can't be assigned to multiple employees at once. Together the ``single
 link`` and exclusivity constraint constitute a *one-to-one* relationship.
 
 .. _ref_guide_many_to_many:
