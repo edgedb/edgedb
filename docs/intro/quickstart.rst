@@ -175,10 +175,10 @@ A few things to note here.
 - Our types don't contain an ``id`` property; EdgeDB automatically
   creates this property and assigned a unique UUID to every object inserted
   into the database.
-- The ``Movie`` type also includes two **links**: ``actors`` and ``director``.
-  In EdgeDB, links are used to represent relationships between object types.
-  They eliminate the need for foreign keys; later, you'll see just how easy it
-  is to write "deep" queries without JOINs.
+- The ``Movie`` type includes a **link** named ``actors``. In EdgeDB, links are
+  used to represent relationships between object types. They eliminate the need
+  for foreign keys; later, you'll see just how easy it is to write "deep"
+  queries without JOINs.
 - The object types are inside a ``module`` called ``default``. You can split
   up your schema into logical subunits called modules, though it's common to
   define the entire schema in a single module called ``default``.

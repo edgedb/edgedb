@@ -51,7 +51,7 @@ building your application.
   things they can contain: links, properties, indexes, access policies, and
   more.
 
-- **Schema** —
+- **EdgeQL** —
   A set of pages that break down EdgeDB's query language, EdgeQL. It starts
   with a rundown of how to declare :ref:`literal values <ref_eql_literals>`,
   then introduces some key EdgeQL concepts like sets, paths, and type casts.
@@ -74,23 +74,17 @@ building your application.
   (:eql:func:`str_replace`).
 
 - **Client Libraries**
-  The documentation for EdgeDB's set of official client libraries. Client
-  libraries let you write and execute queries using your favorite programming
-  language. All client libraries implement EdgeDB's binary protocol and
-  provide a standard interface for executing queries.
-
-- **CLI**
-  Complete reference for the ``edgedb`` command-line tool. The CLI is
-  self-documenting—add the ``--help`` flag after any command to print the
-  relevant documentation—so you shouldn't need to reference this section often.
-
-- **Client Libraries**
   The documentation for EdgeDB's set of official client libraries for
   JavaScript/TypeScript, Python, Go, and Rust. All client libraries implement
   EdgeDB's binary protocol and provide a standard interface for executing
   queries. If you're using another language, you can execute queries
   :ref:`over HTTP <ref_edgeql_http>`.  This section also includes
   documentation for EdgeDB's :ref:`GraphQL <ref_graphql_overview>` endpoint.
+
+- **CLI**
+  Complete reference for the ``edgedb`` command-line tool. The CLI is
+  self-documenting—add the ``--help`` flag after any command to print the
+  relevant documentation—so you shouldn't need to reference this section often.
 
 - **Reference**
   The *Reference* section contains a complete breakdown of EdgeDB's *syntax*
