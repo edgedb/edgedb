@@ -281,6 +281,32 @@ def _process_toplevel_query(
     return result_rvar
 
 
+class _SpecialCaseFunc(Protocol):
+    def __call__(
+        self, ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel
+    ) -> SetRVars:
+        pass
+
+
+class _FunctionSpecialCase(NamedTuple):
+    func: _SpecialCaseFunc
+    only_as_fallback: bool
+
+
+_SPECIAL_FUNCTIONS: dict[str, _FunctionSpecialCase] = {}
+
+
+def _special_case(name: str, only_as_fallback: bool = False) -> Callable[
+    [_SpecialCaseFunc], _SpecialCaseFunc
+]:
+    def func(f: _SpecialCaseFunc) -> _SpecialCaseFunc:
+        _SPECIAL_FUNCTIONS[name] = _FunctionSpecialCase(f, only_as_fallback)
+        return f
+
+    return func
+
+
 def _get_set_rvar(
     ir_set: irast.Set,
     *,
@@ -303,16 +329,10 @@ def _get_set_rvar(
 
         elif isinstance(expr, (irast.OperatorCall, irast.FunctionCall)):
             if (
-                (func := SPECIAL_FUNCTIONS.get(str(expr.func_shortname)))
+                (func := _SPECIAL_FUNCTIONS.get(str(expr.func_shortname)))
+                and (not func.only_as_fallback or expr.func_sql_expr)
             ):
-                rvars = func(ir_set, stmt, ctx=ctx)
-
-            elif (
-                expr.func_sql_expr
-                and (func := MAYBE_SPECIAL_FUNCTIONS.get(
-                    str(expr.func_shortname)))
-            ):
-                rvars = func(ir_set, stmt, ctx=ctx)
+                rvars = func.func(ir_set, stmt, ctx=ctx)
 
             elif isinstance(expr, irast.OperatorCall):
                 # Operator call
@@ -1339,6 +1359,8 @@ def process_set_as_subquery(
     return rvars
 
 
+@_special_case('std::IN')
+@_special_case('std::NOT IN')
 def process_set_as_membership_expr(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -1437,6 +1459,7 @@ def process_set_as_membership_expr(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+@_special_case('std::UNION')
 def process_set_as_setop(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -1482,6 +1505,7 @@ def process_set_as_setop(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+@_special_case('std::DISTINCT')
 def process_set_as_distinct(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -1512,6 +1536,7 @@ def process_set_as_distinct(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+@_special_case('std::IF')
 def process_set_as_ifelse(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -1619,6 +1644,7 @@ def process_set_as_ifelse(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+@_special_case('std::??')
 def process_set_as_coalesce(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -2095,6 +2121,7 @@ def process_set_as_expr(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+@_special_case('std::assert_single')
 def process_set_as_singleton_assertion(
     ir_set: irast.Set,
     stmt: pgast.SelectStmt,
@@ -2197,6 +2224,7 @@ def process_set_as_singleton_assertion(
     return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
 
 
+@_special_case('std::assert_exists')
 def process_set_as_existence_assertion(
     ir_set: irast.Set,
     stmt: pgast.SelectStmt,
@@ -2283,6 +2311,7 @@ def process_set_as_existence_assertion(
     return new_stmt_set_rvar(ir_set, stmt, aspects=('value',), ctx=ctx)
 
 
+@_special_case('std::assert_distinct')
 def process_set_as_multiplicity_assertion(
     ir_set: irast.Set,
     stmt: pgast.SelectStmt,
@@ -2512,6 +2541,7 @@ def process_set_as_simple_enumerate(
     return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
 
 
+@_special_case('std::enumerate')
 def process_set_as_enumerate(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -2543,6 +2573,8 @@ def process_set_as_enumerate(
     return rvars
 
 
+@_special_case('std::max', only_as_fallback=True)
+@_special_case('std::min', only_as_fallback=True)
 def process_set_as_std_min_max(
     ir_set: irast.Set,
     stmt: pgast.SelectStmt,
@@ -2603,6 +2635,7 @@ def process_set_as_std_min_max(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+@_special_case('std::range', only_as_fallback=True)
 def process_set_as_std_range(
     ir_set: irast.Set,
     stmt: pgast.SelectStmt,
@@ -3405,6 +3438,7 @@ def process_set_as_agg_expr(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+@_special_case('std::EXISTS')
 def process_set_as_exists_expr(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -3522,24 +3556,3 @@ def process_set_as_array_expr(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
-
-
-SPECIAL_FUNCTIONS = {
-    'std::IN': process_set_as_membership_expr,
-    'std::NOT IN': process_set_as_membership_expr,
-    'std::UNION': process_set_as_setop,
-    'std::DISTINCT': process_set_as_distinct,
-    'std::IF': process_set_as_ifelse,
-    'std::??': process_set_as_coalesce,
-    'std::EXISTS': process_set_as_exists_expr,
-    'std::assert_single': process_set_as_singleton_assertion,
-    'std::assert_exists': process_set_as_existence_assertion,
-    'std::assert_distinct': process_set_as_multiplicity_assertion,
-    'std::enumerate': process_set_as_enumerate,
-}
-
-MAYBE_SPECIAL_FUNCTIONS = {
-    'std::max': process_set_as_std_min_max,
-    'std::min': process_set_as_std_min_max,
-    'std::range': process_set_as_std_range,
-}
