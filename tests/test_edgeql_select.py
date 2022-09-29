@@ -5304,6 +5304,155 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             variables=(None,),
         )
 
+    async def test_edgeql_select_bigint_index_01(self):
+
+        big_pos = str(2**40)
+        big_neg = str(-(2**40))
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            rf"array index {big_pos} is out of bounds",
+        ):
+            await self.con.query(f"select [1, 2, 3][{big_pos}];")
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            rf"array index {big_neg} is out of bounds",
+        ):
+            await self.con.query(f"select [1, 2, 3][{big_neg}];")
+
+        await self.assert_query_result(
+            f"""select [1, 2, 3][0:{big_pos}];""",
+            [[1, 2, 3]],
+        )
+
+        await self.assert_query_result(
+            f"""select [1, 2, 3][0:{big_neg}];""",
+            [[]],
+        )
+
+        await self.assert_query_result(
+            f"""select [1, 2, 3][{big_neg}:{big_pos}];""",
+            [[1, 2, 3]],
+        )
+
+        await self.assert_query_result(
+            f"""select [1, 2, 3][{big_pos}:{big_neg}];""",
+            [[]],
+        )
+
+        await self.assert_query_result(
+            f"""select [1, 2, 3][{big_neg}:{big_neg}];""",
+            [[]],
+        )
+
+        await self.assert_query_result(
+            f"""select [1, 2, 3][{big_pos}:{big_pos}];""",
+            [[]],
+        )
+
+    async def test_edgeql_select_bigint_index_02(self):
+
+        big_pos = str(2**40)
+        big_neg = str(-(2**40))
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            rf"string index {big_pos} is out of bounds",
+        ):
+            await self.con.query(f'select "Hello world!"[{big_pos}];')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            rf"string index {big_neg} is out of bounds",
+        ):
+            await self.con.query(f'select "Hello world!"[{big_neg}];')
+
+        await self.assert_query_result(
+            f"""select "Hello world!"[6:{big_pos}];""",
+            ["world!"],
+        )
+
+        await self.assert_query_result(
+            f"""select "Hello world!"[6:{big_neg}];""",
+            [""],
+        )
+
+        await self.assert_query_result(
+            f"""select "Hello world!"[{big_neg}:{big_pos}];""",
+            ["Hello world!"],
+        )
+
+        await self.assert_query_result(
+            f"""select "Hello world!"[{big_pos}:{big_neg}];""",
+            [""],
+        )
+
+        await self.assert_query_result(
+            f"""select "Hello world!"[{big_neg}:{big_neg}];""",
+            [""],
+        )
+
+        await self.assert_query_result(
+            f"""select "Hello world!"[{big_pos}:{big_pos}];""",
+            [""],
+        )
+
+    async def test_edgeql_select_bigint_index_03(self):
+
+        big_pos = str(2**40)
+        big_neg = str(-(2**40))
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError, rf"JSON index {big_pos} is out of bounds"
+        ):
+            await self.con.query(f'select to_json("[1, 2, 3]")[{big_pos}];')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError, rf"JSON index {big_neg} is out of bounds"
+        ):
+            await self.con.query(f'select to_json("[1, 2, 3]")[{big_neg}];')
+
+        await self.assert_query_result(
+            f"""select to_json("[1, 2, 3]")[1:{big_pos}];""",
+            # JSON:
+            [[2, 3]],
+            # Binary:
+            ['[2, 3]'],
+        )
+
+        await self.assert_query_result(
+            f"""select to_json("[1, 2, 3]")[1:{big_neg}];""",
+            [[]],
+            ['[]'],
+        )
+
+        await self.assert_query_result(
+            f"""select to_json("[1, 2, 3]")[{big_neg}:{big_pos}];""",
+            # JSON:
+            [[1, 2, 3]],
+            # Binary:
+            ['[1, 2, 3]'],
+        )
+
+        await self.assert_query_result(
+            f"""select to_json("[1, 2, 3]")[{big_pos}:{big_neg}];""",
+            [[]],
+            ['[]'],
+        )
+
+        await self.assert_query_result(
+            f"""select to_json("[1, 2, 3]")[{big_neg}:{big_neg}];""",
+            [[]],
+            ['[]'],
+        )
+
+        await self.assert_query_result(
+            f"""select to_json("[1, 2, 3]")[{big_pos}:{big_pos}];""",
+            [[]],
+            ['[]'],
+        )
+
     async def test_edgeql_select_tuple_01(self):
         await self.assert_query_result(
             r"""
