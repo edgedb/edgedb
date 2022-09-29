@@ -179,15 +179,15 @@ def _process_view(
     is_mutation = exprtype.is_insert() or exprtype.is_update()
     is_defining_shape = ctx.expr_exposed or is_mutation
 
-    orig_ir_set = ir_set
     ir_set = setgen.ensure_set(ir_set, type_override=view_scls, ctx=ctx)
-    # Materialize based on the original base pointer.
-    # This seems like a hack.
-    if orig_ir_set.rptr and orig_ir_set.rptr.ptrref.base_ptr:
-        ctx.env.schema, root_old_ptrcls = typeutils.ptrcls_from_ptrref(
-            orig_ir_set.rptr.ptrref.base_ptr, schema=ctx.env.schema
+    # Maybe rematerialize the set. The old ir_set might have already
+    # been materialized, but the new version would be missing from the
+    # use_sets.
+    if ir_set.rptr:
+        ctx.env.schema, remat_ptrcls = typeutils.ptrcls_from_ptrref(
+            ir_set.rptr.ptrref, schema=ctx.env.schema
         )
-        setgen.maybe_materialize(root_old_ptrcls, ir_set, ctx=ctx)
+        setgen.maybe_materialize(remat_ptrcls, ir_set, ctx=ctx)
 
     if view_rptr is not None and view_rptr.ptrcls is None:
         target_scls = stype if is_mutation else view_scls
