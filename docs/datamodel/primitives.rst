@@ -116,8 +116,8 @@ Ranges #New
 
   Only available in EdgeDB 2.0 or later.
 
-Ranges represent some interval of values. The intervals can be bounded or
-unbounded on either end. They can also be empty, containing no values. Only
+Ranges represent some interval of values. The intervals can be bound or
+unbound on either end. They can also be empty, containing no values. Only
 some scalar types have corresponding range types:
 
 - ``range<int32>``
@@ -154,4 +154,5 @@ share the counter.
     property number -> ticket_number;
   }
 
-Reference the :ref:`Sequence reference <ref_std_sequence>` for details.
+For a full reference on sequences, see the :ref:`Sequence docs
+<ref_std_sequence>`.
