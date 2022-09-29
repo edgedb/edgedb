@@ -3971,6 +3971,10 @@ class GetCachedReflection(dbops.Function):
 
 class GetBaseScalarTypeMap(dbops.Function):
     """Return a map of base EdgeDB scalar type ids to Postgres type names."""
+    type_name_maps = {
+        **types.base_type_name_map,
+        **types.base_range_name_map,
+    }
 
     text = f'''
         VALUES
@@ -3982,17 +3986,7 @@ class GetBaseScalarTypeMap(dbops.Function):
                         else ql(f'pg_catalog.{v[0]}')
                     }
                 )"""
-            for k, v in types.base_type_name_map.items())},
-
-            {", ".join(
-                f"""(
-                    {ql(str(k))}::uuid,
-                    {
-                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
-                        else ql(f'pg_catalog.{v[0]}')
-                    }
-                )"""
-            for k, v in types.base_range_name_map.items())}
+            for k, v in type_name_maps.items())}
     '''
 
     def __init__(self) -> None:

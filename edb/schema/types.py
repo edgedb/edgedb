@@ -1093,9 +1093,6 @@ class CollectionTypeShell(TypeShell[CollectionTypeT_co]):
     ) -> typing.Tuple[TypeShell[Type], ...]:
         raise NotImplementedError
 
-    def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
-        raise NotImplementedError
-
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return any(
             st.is_polymorphic(schema) for st in self.get_subtypes(schema)
@@ -1158,24 +1155,6 @@ class Array(
     )
 
     @classmethod
-    def generate_id(
-        cls,
-        schema: s_schema.Schema,
-        data: Dict[str, Any],
-    ) -> uuid.UUID:
-        if (
-            data.get('alias_is_persistent')
-            or isinstance(data.get('name'), s_name.QualName)
-        ):
-            return super().generate_id(schema, data)
-        else:
-            return generate_array_type_id(
-                schema,
-                data['element_type'],
-                data['dimensions'],
-            )
-
-    @classmethod
     def generate_name(
         cls,
         element_name: s_name.Name,
@@ -1219,6 +1198,8 @@ class Array(
                 dimensions=dimensions,
                 **kwargs,
             )
+            # Compute material type so that we can retrieve it safely later
+            schema, _ = result.material_type(schema)
 
         return schema, result
 
@@ -1471,14 +1452,11 @@ class ArrayTypeShell(CollectionTypeShell[Array_T_co]):
     def get_displayname(self, schema: s_schema.Schema) -> str:
         return f'array<{self.subtype.get_displayname(schema)}>'
 
-    def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
-        return generate_array_type_id(schema, self.subtype, self.typemods[0])
-
     def resolve(self, schema: s_schema.Schema) -> Array_T_co:
         if isinstance(self.name, s_name.QualName):
             arr = schema.get(self.name, type=Array)
         else:
-            arr = schema.get_by_id(self.get_id(schema), type=Array)
+            arr = schema.get_global(Array, self.get_name(schema))
         return arr  # type: ignore
 
     def as_create_delta(
@@ -1495,7 +1473,6 @@ class ArrayTypeShell(CollectionTypeShell[Array_T_co]):
                 classname=self.get_name(schema),
                 if_not_exists=True,
             )
-            ca.set_attribute_value('id', self.get_id(schema))
         else:
             ca = CreateArrayExprAlias(
                 classname=view_name,
@@ -1562,21 +1539,6 @@ class Tuple(
     )
 
     @classmethod
-    def generate_id(
-        cls,
-        schema: s_schema.Schema,
-        data: Dict[str, Any],
-    ) -> uuid.UUID:
-        if isinstance(data['name'], s_name.QualName):
-            return super().generate_id(schema, data)
-        else:
-            return generate_tuple_type_id(
-                schema,
-                dict(data['element_types'].items(schema)),
-                data.get('named', False),
-            )
-
-    @classmethod
     def generate_name(
         cls,
         element_names: Mapping[str, s_name.Name],
@@ -1623,6 +1585,8 @@ class Tuple(
                 element_types=el_types,
                 **kwargs,
             )
+            # Compute material type so that we can retrieve it safely later
+            schema, _ = result.material_type(schema)
 
         return schema, result
 
@@ -2053,14 +2017,11 @@ class TupleTypeShell(CollectionTypeShell[Tuple_T_co]):
     def is_named(self) -> bool:
         return self.typemods is not None and self.typemods.get('named', False)
 
-    def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
-        return generate_tuple_type_id(schema, self.subtypes, self.is_named())
-
     def resolve(self, schema: s_schema.Schema) -> Tuple_T_co:
         if isinstance(self.name, s_name.QualName):
             tup = schema.get(self.name, type=Tuple)
         else:
-            tup = schema.get_by_id(self.get_id(schema), type=Tuple)
+            tup = schema.get_global(Tuple, self.get_name(schema))
         return tup  # type: ignore
 
     def as_create_delta(
@@ -2097,7 +2058,6 @@ class TupleTypeShell(CollectionTypeShell[Tuple_T_co]):
             self.is_named(),
         )
         ct = CreateTuple(classname=name, if_not_exists=True)
-        ct.set_attribute_value('id', self.get_id(schema))
         self._populate_create_delta(schema, ct)
         return ct
 
@@ -2149,23 +2109,6 @@ class Range(
         # We want a low compcoef so that range types are *never* altered.
         compcoef=0,
     )
-
-    @classmethod
-    def generate_id(
-        cls,
-        schema: s_schema.Schema,
-        data: Dict[str, Any],
-    ) -> uuid.UUID:
-        if (
-            data.get('alias_is_persistent')
-            or isinstance(data.get('name'), s_name.QualName)
-        ):
-            return super().generate_id(schema, data)
-        else:
-            return generate_range_type_id(
-                schema,
-                data['element_type'],
-            )
 
     @classmethod
     def generate_name(
@@ -2436,14 +2379,11 @@ class RangeTypeShell(CollectionTypeShell[Range_T_co]):
     def get_displayname(self, schema: s_schema.Schema) -> str:
         return f'range<{self.subtype.get_displayname(schema)}>'
 
-    def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
-        return generate_range_type_id(schema, self.subtype)
-
     def resolve(self, schema: s_schema.Schema) -> Range_T_co:
         if isinstance(self.name, s_name.QualName):
             rng = schema.get(self.name, type=Range)
         else:
-            rng = schema.get_by_id(self.get_id(schema), type=Range)
+            rng = schema.get_global(Range, self.get_name(schema))
         return rng  # type: ignore
 
     def as_create_delta(
@@ -2460,7 +2400,6 @@ class RangeTypeShell(CollectionTypeShell[Range_T_co]):
                 classname=self.get_name(schema),
                 if_not_exists=True,
             )
-            ca.set_attribute_value('id', self.get_id(schema))
         else:
             ca = CreateRangeExprAlias(
                 classname=view_name,
@@ -2495,47 +2434,6 @@ class RangeExprAlias(
     @classmethod
     def get_underlying_schema_class(cls) -> typing.Type[Collection]:
         return Range
-
-
-def generate_type_id(id_str: str) -> uuid.UUID:
-    return uuidgen.uuid5(TYPE_ID_NAMESPACE, id_str)
-
-
-def generate_tuple_type_id(
-    schema: s_schema.Schema,
-    element_types: Mapping[str, Union[Type, TypeShell[Type]]],
-    named: bool = False,
-    *quals: str,
-) -> uuid.UUID:
-    id_str = ','.join(
-        f'{n}:{st.get_id(schema)}' for n, st in element_types.items())
-    id_str = f'{"named" if named else ""}tuple-{id_str}'
-    if quals:
-        id_str = f'{id_str}_{"-".join(quals)}'
-    return generate_type_id(id_str)
-
-
-def generate_array_type_id(
-    schema: s_schema.Schema,
-    element_type: Union[Type, TypeShell[Type]],
-    dimensions: Sequence[int] = (),
-    *quals: str,
-) -> uuid.UUID:
-    id_basis = f'array-{element_type.get_id(schema)}-{dimensions}'
-    if quals:
-        id_basis = f'{id_basis}-{"-".join(quals)}'
-    return generate_type_id(id_basis)
-
-
-def generate_range_type_id(
-    schema: s_schema.Schema,
-    element_type: Union[Type, TypeShell[Type]],
-    *quals: str,
-) -> uuid.UUID:
-    id_basis = f'range-{element_type.get_id(schema)}'
-    if quals:
-        id_basis = f'{id_basis}-{"-".join(quals)}'
-    return generate_type_id(id_basis)
 
 
 def get_union_type_name(

@@ -62,6 +62,22 @@ TYPE_IDS = {
         UUID('00000000-0000-0000-0000-000000000111'),
     sn.name_from_string('cal::date_duration'):
         UUID('00000000-0000-0000-0000-000000000112'),
+    sn.name_from_string('range<std|int32>'):
+        UUID('00000000-0000-0000-0000-000000000120'),
+    sn.name_from_string('range<std|int64>'):
+        UUID('00000000-0000-0000-0000-000000000121'),
+    sn.name_from_string('range<std|float32>'):
+        UUID('00000000-0000-0000-0000-000000000122'),
+    sn.name_from_string('range<std|float64>'):
+        UUID('00000000-0000-0000-0000-000000000123'),
+    sn.name_from_string('range<std|decimal>'):
+        UUID('00000000-0000-0000-0000-000000000124'),
+    sn.name_from_string('range<std|datetime>'):
+        UUID('00000000-0000-0000-0000-000000000125'),
+    sn.name_from_string('range<cal|local_datetime>'):
+        UUID('00000000-0000-0000-0000-000000000126'),
+    sn.name_from_string('range<cal|local_date>'):
+        UUID('00000000-0000-0000-0000-000000000127'),
     sn.name_from_string('cfg::memory'):
         UUID('00000000-0000-0000-0000-000000000130'),
 }
