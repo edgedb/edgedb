@@ -2008,14 +2008,6 @@ class Compiler:
                 raise errors.InternalServerError(
                     f'QueryUnit {unit!r} is cacheable but has config/aliases')
 
-            multi_card = unit.cardinality in (
-                enums.Cardinality.MANY, enums.Cardinality.AT_LEAST_ONE,
-            )
-            if multi_card and ctx.expected_cardinality_one:
-                raise errors.ResultCardinalityMismatchError(
-                    f'the query has cardinality {unit.cardinality.name} '
-                    f'which does not match the expected cardinality ONE')
-
             if not na_cardinality and (
                     len(unit.sql) > 1 or
                     unit.tx_commit or
@@ -2030,6 +2022,14 @@ class Compiler:
                     not unit.sql_hash):
                 raise errors.InternalServerError(
                     f'unit has invalid "cardinality": {unit!r}')
+
+        multi_card = rv.cardinality in (
+            enums.Cardinality.MANY, enums.Cardinality.AT_LEAST_ONE,
+        )
+        if multi_card and ctx.expected_cardinality_one:
+            raise errors.ResultCardinalityMismatchError(
+                f'the query has cardinality {unit.cardinality.name} '
+                f'which does not match the expected cardinality ONE')
 
         return rv
 
