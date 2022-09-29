@@ -3085,6 +3085,29 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_53(self):
+        schema = r'''
+            scalar type ClipType extending enum<Test1, Test2>;
+            scalar type RecordingType extending enum<Test3, Test4>;
+
+            type LiveClass {
+              link _clips := .<_class[is Clip];
+              link _recordings := .<_class[is Recording];
+            }
+
+            type Clip {
+              required property _type -> ClipType;
+              link _class -> LiveClass;
+            }
+
+            type Recording {
+              required property _type -> RecordingType;
+              link _class -> LiveClass;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
