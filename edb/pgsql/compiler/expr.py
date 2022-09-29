@@ -286,24 +286,15 @@ def compile_SliceIndirection(
         subctx.expr_exposed = False
         subj = dispatch.compile(expr.expr, ctx=subctx)
 
-        # Postgres arrays use 32bit indexes, so EdgeDB inherits this limitation
-        def compile_and_cast_int(expr: irast.Base) -> pgast.BaseExpr:
-            pg_expr = dispatch.compile(expr, ctx=subctx)
-            return pgast.TypeCast(
-                arg=pg_expr, type_name=pgast.TypeName(name=("integer",))
-            )
-
         if expr.start is None:
             start: pgast.BaseExpr = pgast.LiteralExpr(expr="0")
         else:
-            start = compile_and_cast_int(expr.start)
+            start = dispatch.compile(expr.start, ctx=subctx)
 
         if expr.stop is None:
-            # Max index in EdgeQL is 2^32-2 because during conversion
-            # to Postgres index, we add 1 to the stop and then subtract one.
-            stop: pgast.BaseExpr = pgast.LiteralExpr(expr=str(2**31 - 2))
+            stop: pgast.BaseExpr = pgast.LiteralExpr(expr=str(2**31 - 1))
         else:
-            stop = compile_and_cast_int(expr.stop)
+            stop = dispatch.compile(expr.stop, ctx=subctx)
 
         typ = expr.expr.typeref
         inline_array_slicing = irtyputils.is_array(typ) and any(
@@ -326,22 +317,36 @@ def _inline_array_slicing(
         indirection=[
             pgast.Slice(
                 lidx=pgast.FuncCall(
-                    name=("edgedb", "_normalize_array_index"),
+                    name=("edgedb", "_int_bound"),
                     args=[
-                        start,
-                        pgast.FuncCall(name=("cardinality",), args=[subj]),
+                        pgast.FuncCall(
+                            name=("edgedb", "_normalize_array_index"),
+                            args=[
+                                start,
+                                pgast.FuncCall(
+                                    name=("cardinality",), args=[subj]
+                                ),
+                            ],
+                        )
                     ],
                 ),
-                ridx=astutils.new_binop(
-                    lexpr=pgast.FuncCall(
-                        name=("edgedb", "_normalize_array_index"),
-                        args=[
-                            stop,
-                            pgast.FuncCall(name=("cardinality",), args=[subj]),
-                        ],
-                    ),
-                    op="-",
-                    rexpr=pgast.LiteralExpr(expr="1"),
+                ridx=pgast.FuncCall(
+                    name=("edgedb", "_int_bound"),
+                    args=[
+                        astutils.new_binop(
+                            lexpr=pgast.FuncCall(
+                                name=("edgedb", "_normalize_array_index"),
+                                args=[
+                                    stop,
+                                    pgast.FuncCall(
+                                        name=("cardinality",), args=[subj]
+                                    ),
+                                ],
+                            ),
+                            op="-",
+                            rexpr=pgast.LiteralExpr(expr="1"),
+                        ),
+                    ],
                 ),
             )
         ],

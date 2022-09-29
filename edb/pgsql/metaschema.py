@@ -1904,31 +1904,79 @@ class ParseTriggerConditionFunction(dbops.Function):
 
 class NormalizeArrayIndexFunction(dbops.Function):
     """Convert an EdgeQL index to SQL index."""
+
     text = '''
-        SELECT (
+        SELECT
             CASE WHEN index < 0 THEN
-                length + index + 1
+                length::bigint + index + 1
             ELSE
                 index + 1
             END
-        )::int
     '''
 
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_normalize_array_index'),
             args=[('index', ('bigint',)), ('length', ('int',))],
-            returns=('int',),
+            returns=('bigint',),
             volatility='immutable',
+            strict=True,
+            text=self.text,
+        )
+
+
+class IntOrNullFunction(dbops.Function):
+    """
+    Convert bigint to int. If it does not fit, return NULL.
+    """
+
+    text = """
+        SELECT
+            CASE WHEN val <= 2147483647 AND val >= -2147483648 THEN
+                val
+            ELSE
+                NULL
+            END
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=("edgedb", "_int_or_null"),
+            args=[("val", ("bigint",))],
+            returns=("int",),
+            volatility="immutable",
+            strict=True,
+            text=self.text,
+        )
+
+
+class IntBoundFunction(dbops.Function):
+    """
+    Cast bigint to int. If it does not fit, return int's min or max value.
+    """
+
+    text = """
+        SELECT GREATEST(-2147483648, LEAST(2147483647, val))::integer
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=("edgedb", "_int_bound"),
+            args=[("val", ("bigint",))],
+            returns=("int",),
+            volatility="immutable",
             strict=True,
             text=self.text)
 
 
 class ArrayIndexWithBoundsFunction(dbops.Function):
     """Get an array element or raise an out-of-bounds exception."""
+
     text = '''
         SELECT edgedb.raise_on_null(
-            val[edgedb._normalize_array_index(index, array_upper(val, 1))],
+            val[edgedb._int_or_null(
+                edgedb._normalize_array_index(index, array_upper(val, 1))
+            )],
             'array_subscript_error',
             msg => 'array index ' || index::text || ' is out of bounds',
             detail => detail
@@ -1951,10 +1999,19 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
 class ArraySliceFunction(dbops.Function):
     """Get an array slice."""
 
+    # This function is also inlined in expr.py#_inline_array_slicing.
+
+    # Known bug: if array has 2G elements and both bounds are overflowing,
+    # this will return last element instead of an empty array.
     text = """
-        SELECT
-            val[edgedb._normalize_array_index(start, cardinality(val)):
-                edgedb._normalize_array_index(stop, cardinality(val)) - 1]
+        SELECT val[
+            edgedb._int_bound(
+                edgedb._normalize_array_index(start, cardinality(val))
+            ):
+            edgedb._int_bound(
+                edgedb._normalize_array_index(stop, cardinality(val)) - 1
+            )
+        ]
     """
 
     def __init__(self) -> None:
@@ -1962,8 +2019,8 @@ class ArraySliceFunction(dbops.Function):
             name=("edgedb", "_slice"),
             args=[
                 ("val", ("anyarray",)),
-                ("start", ("int",)),
-                ("stop", ("int",)),
+                ("start", ("bigint",)),
+                ("stop", ("bigint",)),
             ],
             returns=("anyarray",),
             volatility="immutable",
@@ -1973,17 +2030,23 @@ class ArraySliceFunction(dbops.Function):
 
 class StringIndexWithBoundsFunction(dbops.Function):
     """Get a string character or raise an out-of-bounds exception."""
+
     text = '''
         SELECT edgedb.raise_on_empty(
-            substr(
-                "val",
-                edgedb._normalize_array_index("index", char_length("val")),
-                1
-            ),
+            CASE WHEN pg_index IS NULL THEN
+                ''
+            ELSE
+                substr("val", pg_index, 1)
+            END,
             'invalid_parameter_value',
             "typename" || ' index ' || "index"::text || ' is out of bounds',
             "detail"
         )
+        FROM (
+            SELECT edgedb._int_or_null(
+                edgedb._normalize_array_index("index", char_length("val"))
+            ) as pg_index
+        ) t
     '''
 
     def __init__(self) -> None:
@@ -2005,17 +2068,23 @@ class StringIndexWithBoundsFunction(dbops.Function):
 
 class BytesIndexWithBoundsFunction(dbops.Function):
     """Get a bytes character or raise an out-of-bounds exception."""
+
     text = '''
         SELECT edgedb.raise_on_empty(
-            substr(
-                "val",
-                edgedb._normalize_array_index("index", length("val")),
-                1
-            ),
+            CASE WHEN pg_index IS NULL THEN
+                ''::bytea
+            ELSE
+                substr("val", pg_index, 1)
+            END,
             'invalid_parameter_value',
             'byte string index ' || "index"::text || ' is out of bounds',
             "detail"
         )
+        FROM (
+            SELECT edgedb._int_or_null(
+                edgedb._normalize_array_index("index", length("val"))
+            ) as pg_index
+        ) t
     '''
 
     def __init__(self) -> None:
@@ -2099,13 +2168,17 @@ class StringSliceImplFunction(dbops.Function):
         SELECT
             edgedb._substr(
                 val,
-                edgedb._normalize_array_index(
-                    start, edgedb._length(val)),
-                edgedb._normalize_array_index(
-                    stop, edgedb._length(val)) -
-                edgedb._normalize_array_index(
-                    start, edgedb._length(val))
+                pg_start,
+                pg_end - pg_start
             )
+        FROM (SELECT
+            GREATEST(0, edgedb._int_bound(edgedb._normalize_array_index(
+                start, edgedb._length(val)
+            ))) as pg_start,
+            GREATEST(0, edgedb._int_bound(edgedb._normalize_array_index(
+                stop, edgedb._length(val)
+            ))) as pg_end
+        ) t
     """
 
     def __init__(self) -> None:
@@ -2113,8 +2186,8 @@ class StringSliceImplFunction(dbops.Function):
             name=("edgedb", "_str_slice"),
             args=[
                 ("val", ("anyelement",)),
-                ("start", ("int",)),
-                ("stop", ("int",)),
+                ("start", ("bigint",)),
+                ("stop", ("bigint",)),
             ],
             returns=("anyelement",),
             volatility="immutable",
@@ -2132,7 +2205,9 @@ class StringSliceFunction(dbops.Function):
         super().__init__(
             name=('edgedb', '_slice'),
             args=[
-                ('val', ('text',)), ('start', ('int',)), ('stop', ('int',))
+                ('val', ('text',)),
+                ('start', ('bigint',)),
+                ('stop', ('bigint',)),
             ],
             returns=('text',),
             volatility='immutable',
@@ -2149,7 +2224,9 @@ class BytesSliceFunction(dbops.Function):
         super().__init__(
             name=('edgedb', '_slice'),
             args=[
-                ('val', ('bytea',)), ('start', ('int',)), ('stop', ('int',))
+                ('val', ('bytea',)),
+                ('start', ('bigint',)),
+                ('stop', ('bigint',)),
             ],
             returns=('bytea',),
             volatility='immutable',
@@ -2217,6 +2294,7 @@ class JSONIndexByTextFunction(dbops.Function):
 
 class JSONIndexByIntFunction(dbops.Function):
     """Get a JSON element by int index or raise an exception."""
+
     text = r'''
         SELECT
             CASE jsonb_typeof(val)
@@ -2233,7 +2311,7 @@ class JSONIndexByIntFunction(dbops.Function):
             )
             WHEN 'array' THEN (
                 edgedb.raise_on_null(
-                    val -> index::int,
+                    val -> edgedb._int_or_null(index),
                     'invalid_parameter_value',
                     msg => 'JSON index ' || index::text || ' is out of bounds',
                     detail => detail
@@ -2319,8 +2397,8 @@ class JSONSliceFunction(dbops.Function):
             name=("edgedb", "_slice"),
             args=[
                 ("val", ("jsonb",)),
-                ("start", ("int",)),
-                ("stop", ("int",)),
+                ("start", ("bigint",)),
+                ("stop", ("bigint",)),
             ],
             returns=("jsonb",),
             # Same volatility as to_jsonb (stable)
@@ -4064,6 +4142,8 @@ async def bootstrap(
         dbops.CreateFunction(GetTableDescendantsFunction()),
         dbops.CreateFunction(ParseTriggerConditionFunction()),
         dbops.CreateFunction(NormalizeArrayIndexFunction()),
+        dbops.CreateFunction(IntOrNullFunction()),
+        dbops.CreateFunction(IntBoundFunction()),
         dbops.CreateFunction(ArrayIndexWithBoundsFunction()),
         dbops.CreateFunction(ArraySliceFunction()),
         dbops.CreateFunction(StringIndexWithBoundsFunction()),
