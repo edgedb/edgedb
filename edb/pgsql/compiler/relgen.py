@@ -301,82 +301,22 @@ def _get_set_rvar(
             # go here.
             rvars = process_set_as_subquery(ir_set, stmt, ctx=ctx)
 
-        elif irutils.is_set_membership_expr(expr):
-            # A [NOT] IN B expression.
-            rvars = process_set_as_membership_expr(ir_set, stmt, ctx=ctx)
+        elif isinstance(expr, (irast.OperatorCall, irast.FunctionCall)):
+            if (
+                (func := SPECIAL_FUNCTIONS.get(str(expr.func_shortname)))
+            ):
+                rvars = func(ir_set, stmt, ctx=ctx)
 
-        elif irutils.is_union_expr(expr):
-            # Set operation: UNION
-            rvars = process_set_as_setop(ir_set, stmt, ctx=ctx)
+            elif (
+                expr.func_sql_expr
+                and (func := MAYBE_SPECIAL_FUNCTIONS.get(
+                    str(expr.func_shortname)))
+            ):
+                rvars = func(ir_set, stmt, ctx=ctx)
 
-        elif irutils.is_distinct_expr(expr):
-            # DISTINCT Expr
-            rvars = process_set_as_distinct(ir_set, stmt, ctx=ctx)
-
-        elif irutils.is_ifelse_expr(expr):
-            # Expr IF Cond ELSE Expr
-            rvars = process_set_as_ifelse(ir_set, stmt, ctx=ctx)
-
-        elif irutils.is_coalesce_expr(expr):
-            # Expr ?? Expr
-            rvars = process_set_as_coalesce(ir_set, stmt, ctx=ctx)
-
-        elif isinstance(expr, irast.Tuple):
-            # Named tuple
-            rvars = process_set_as_tuple(ir_set, stmt, ctx=ctx)
-
-        elif isinstance(expr, irast.FunctionCall):
-            fname = str(expr.func_shortname)
-
-            if fname == 'std::enumerate':
-                arg_set = expr.args[0].expr
-                arg_expr = arg_set.expr
-                arg_subj = irutils.unwrap_set(arg_set).expr
-                if (
-                    isinstance(arg_subj, irast.FunctionCall)
-                    and not arg_subj.func_sql_expr
-                    and not (
-                        isinstance(arg_expr, irast.SelectStmt)
-                        and (
-                            arg_expr.where
-                            or arg_expr.orderby
-                            or arg_expr.limit
-                            or arg_expr.offset
-                        )
-                    )
-                ):
-                    # Enumeration of a SET-returning function
-                    rvars = process_set_as_func_enumerate(
-                        ir_set, stmt, ctx=ctx)
-                else:
-                    rvars = process_set_as_enumerate(ir_set, stmt, ctx=ctx)
-
-            elif fname == 'std::assert_single':
-                # Cardinality assertion (upper bound)
-                rvars = process_set_as_singleton_assertion(
-                    ir_set, stmt, ctx=ctx)
-
-            elif fname == 'std::assert_exists':
-                # Cardinality assertion (lower bound)
-                rvars = process_set_as_existence_assertion(
-                    ir_set, stmt, ctx=ctx)
-
-            elif fname == 'std::assert_distinct':
-                # Multiplicity assertion
-                rvars = process_set_as_multiplicity_assertion(
-                    ir_set, stmt, ctx=ctx)
-
-            elif fname == 'std::min' and expr.func_sql_expr:
-                # Generic std::min
-                rvars = process_set_as_std_min_max(ir_set, stmt, ctx=ctx)
-
-            elif fname == 'std::max' and expr.func_sql_expr:
-                # Generic std::max
-                rvars = process_set_as_std_min_max(ir_set, stmt, ctx=ctx)
-
-            elif fname == 'std::range' and expr.func_sql_expr:
-                # Generic std::range() constructor
-                rvars = process_set_as_std_range(ir_set, stmt, ctx=ctx)
+            elif isinstance(expr, irast.OperatorCall):
+                # Operator call
+                rvars = process_set_as_oper_expr(ir_set, stmt, ctx=ctx)
 
             elif any(
                 pm is qltypes.TypeModifier.SetOfType
@@ -388,9 +328,9 @@ def _get_set_rvar(
                 # Regular function call.
                 rvars = process_set_as_func_expr(ir_set, stmt, ctx=ctx)
 
-        elif irutils.is_exists_expr(expr):
-            # EXISTS(), which is a special kind of an aggregate.
-            rvars = process_set_as_exists_expr(ir_set, stmt, ctx=ctx)
+        elif isinstance(expr, irast.Tuple):
+            # Named tuple
+            rvars = process_set_as_tuple(ir_set, stmt, ctx=ctx)
 
         elif isinstance(expr, irast.Array):
             # Array literal: "[" expr ... "]"
@@ -407,9 +347,6 @@ def _get_set_rvar(
         elif isinstance(expr, irast.ConstantSet):
             # {<const>[, <const> ...]}
             rvars = process_set_as_const_set(ir_set, stmt, ctx=ctx)
-
-        elif isinstance(expr, irast.OperatorCall):
-            rvars = process_set_as_oper_expr(ir_set, stmt, ctx=ctx)
 
         else:
             # All other expressions.
@@ -2499,7 +2436,7 @@ def process_set_as_multiplicity_assertion(
     return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
 
 
-def process_set_as_enumerate(
+def process_set_as_simple_enumerate(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
     expr = ir_set.expr
@@ -2573,6 +2510,37 @@ def process_set_as_enumerate(
                         aspects=aspects, ctx=ctx)
 
     return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
+
+
+def process_set_as_enumerate(
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+    assert isinstance(ir_set.expr, irast.FunctionCall)
+    expr = ir_set.expr
+
+    arg_set = expr.args[0].expr
+    arg_expr = arg_set.expr
+    arg_subj = irutils.unwrap_set(arg_set).expr
+    if (
+        isinstance(arg_subj, irast.FunctionCall)
+        and not arg_subj.func_sql_expr
+        and not (
+            isinstance(arg_expr, irast.SelectStmt)
+            and (
+                arg_expr.where
+                or arg_expr.orderby
+                or arg_expr.limit
+                or arg_expr.offset
+            )
+        )
+    ):
+        # Enumeration of a SET-returning function
+        rvars = process_set_as_func_enumerate(
+            ir_set, stmt, ctx=ctx)
+    else:
+        rvars = process_set_as_simple_enumerate(ir_set, stmt, ctx=ctx)
+
+    return rvars
 
 
 def process_set_as_std_min_max(
@@ -3554,3 +3522,24 @@ def process_set_as_array_expr(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
+SPECIAL_FUNCTIONS = {
+    'std::IN': process_set_as_membership_expr,
+    'std::NOT IN': process_set_as_membership_expr,
+    'std::UNION': process_set_as_setop,
+    'std::DISTINCT': process_set_as_distinct,
+    'std::IF': process_set_as_ifelse,
+    'std::??': process_set_as_coalesce,
+    'std::EXISTS': process_set_as_exists_expr,
+    'std::assert_single': process_set_as_singleton_assertion,
+    'std::assert_exists': process_set_as_existence_assertion,
+    'std::assert_distinct': process_set_as_multiplicity_assertion,
+    'std::enumerate': process_set_as_enumerate,
+}
+
+MAYBE_SPECIAL_FUNCTIONS = {
+    'std::max': process_set_as_std_min_max,
+    'std::min': process_set_as_std_min_max,
+    'std::range': process_set_as_std_range,
+}
