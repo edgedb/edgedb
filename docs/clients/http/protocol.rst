@@ -25,7 +25,7 @@ and JSON-encoded mapping. (``variables``)
 POST request
 ------------
 
-An HTTP ``POST`` request are recommended to be uses with ``application/json``
+An HTTP ``POST`` request are recommended to be used with ``application/json``
 for the ``Content-Type`` HTTP header when submitting the following JSON-encoded
 form with these necessary fields::
 
