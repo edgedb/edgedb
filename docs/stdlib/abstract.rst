@@ -4,8 +4,8 @@
 Abstract Types
 ==============
 
-These types are used in definitions of polymorphic (generic) functions
-that can be applied to a broad range of types.
+An abstract type is used when describing a polymorphic (generic) function
+applicable to a broad range of types.
 
 
 ----------
@@ -15,10 +15,10 @@ that can be applied to a broad range of types.
 
     :index: any anytype
 
-    Generic type.
+    Represents a generic type.
 
-    It is a placeholder used in cases where no specific type
-    requirements are needed, such as defining polymorphic parameters
+    This type is a placeholder used in cases where no specific type
+    requirements are necessary, such as defining polymorphic parameters
     in functions and operators.
 
 
@@ -29,7 +29,7 @@ that can be applied to a broad range of types.
 
     :index: any anytype scalar
 
-    Abstract base scalar type.
+    Represents an abstract base scalar type.
 
     All scalar types are derived from this type.
 
@@ -41,7 +41,7 @@ that can be applied to a broad range of types.
 
     :index: any anytype enum
 
-    Abstract base enumerated type.
+    Represents an abstract base enumerator type.
 
     All :eql:type:`enum` types are derived from this type.
 
@@ -53,12 +53,11 @@ that can be applied to a broad range of types.
 
     :index: any anytype anytuple
 
-    Generic tuple.
+    Represents a generic tuple.
 
-    Similarly to ``anytype`` it denotes a generic tuple without going
-    into details of what the components are.  Just as with
-    ``anytype``, this is useful when defining polymorphic parameters
-    in functions and operators.
+    Similarly to ``anytype``, this type denotes a generic tuple without
+    going into the details of what the components are. This is useful
+    when defining polymorphic parameters in functions and operators.
 
 
 Abstract Numeric Types
@@ -70,8 +69,8 @@ There are a number of abstract numeric types extending ``anyscalar``:
 
     :index: any anytype int
 
-    Abstract base scalar type for
-    :eql:type:`int16`, :eql:type:`int32`, and :eql:type:`int64`.
+    Represents an abstract base scalar type for
+    :eql:type:`int16`, :eql:type:`int32` and :eql:type:`int64`.
 
 
 ----------
@@ -81,7 +80,7 @@ There are a number of abstract numeric types extending ``anyscalar``:
 
     :index: any anytype float
 
-    Abstract base scalar type for
+    Represents an abstract base scalar type for
     :eql:type:`float32` and :eql:type:`float64`.
 
 
@@ -92,26 +91,26 @@ There are a number of abstract numeric types extending ``anyscalar``:
 
     :index: any anytype
 
-    Abstract base scalar type for
-    :eql:type:`anyint`, :eql:type:`anyfloat`, and :eql:type:`decimal`.
+    Represents an abstract base scalar type for
+    :eql:type:`anyint`, :eql:type:`anyfloat` and :eql:type:`decimal`.
 
 
 Abstract Range Types
 ====================
 
-There are some types that can be used to construct :ref:`ranges
-<ref_std_range>`. These scalar types are distinguished by the following
-abstract types:
+Like abstract types, you may also specify :ref:`ranges <ref_std_range>`.
+These scalar types are distinguished by the following:
 
 .. eql:type:: std::anypoint
 
     :index: any anypoint anyrange
 
-    Abstract base type for all valid ranges.
+    Represents an abstract base type for all valid ranges.
 
-    Abstract base scalar type for :eql:type:`int32`, :eql:type:`int64`,
+    This is also an abstract base scalar type for
+    :eql:type:`int32`, :eql:type:`int64`,
     :eql:type:`float32`, :eql:type:`float64`, :eql:type:`decimal`,
-    :eql:type:`datetime`, :eql:type:`cal::local_datetime`, and
+    :eql:type:`datetime`, :eql:type:`cal::local_datetime` and
     :eql:type:`cal::local_date`.
 
 
@@ -122,10 +121,10 @@ abstract types:
 
     :index: any anydiscrete anyrange
 
-    Abstract base type for all valid *discrete* ranges.
+    Represents an abstract base type for all valid *discrete* ranges.
 
-    Abstract base scalar type for :eql:type:`int32`, :eql:type:`int64`,
-    and :eql:type:`cal::local_date`.
+    This is also an abstract base scalar type for :eql:type:`int32`,
+    :eql:type:`int64` and :eql:type:`cal::local_date`.
 
 
 ----------
@@ -135,8 +134,8 @@ abstract types:
 
     :index: any anycontiguous anyrange
 
-    Abstract base type for all valid *contiguous* ranges.
+    Represents an abstract base type for all valid *contiguous* ranges.
 
-    Abstract base scalar type for :eql:type:`float32`, :eql:type:`float64`,
-    :eql:type:`decimal`, :eql:type:`datetime`, and
+    This is also an abstract base scalar type for :eql:type:`float32`,
+    :eql:type:`float64`, :eql:type:`decimal`, :eql:type:`datetime` and
     :eql:type:`cal::local_datetime`.
