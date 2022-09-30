@@ -4,28 +4,30 @@
 Protocol
 ========
 
-EdgeDB supports GET and POST methods for handling EdgeQL over HTTP protocol.
-Both methods use the following fields:
+EdgeDB supports ``GET`` and ``POST`` request methods for handling EdgeQL
+over an HTTP protocol. Both of these methods use the following fields:
 
-- ``query`` - contains the EdgeQL query string.
+- ``query`` - contains a string value for an EdgeQL query.
 - ``variables`` - contains a JSON object where keys and values
   correspond to the variable names and values. It is required if the
   EdgeQL query has variables, otherwise it is optional.
 
-The protocol supports the HTTP ``Keep-Alive`` header.
+An HTTP protocol may also support the HTTP ``Keep-Alive`` header as well.
+
 
 GET request
 -----------
 
-The HTTP GET request passes the fields as query parameters: ``query``
-string and JSON-encoded ``variables`` mapping.
+An HTTP ``GET`` request pass fields such as query-string parameters (``query``)
+and JSON-encoded mapping. (``variables``)
 
 
 POST request
 ------------
 
-The POST request should use ``application/json`` content type and
-submit the following JSON-encoded form with the necessary fields::
+An HTTP ``POST`` request are recommended to be uses with ``application/json``
+for the ``Content-Type`` HTTP header when submitting the following JSON-encoded
+form with these necessary fields::
 
     {
       "query": "...",
