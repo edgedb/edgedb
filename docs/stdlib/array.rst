@@ -24,16 +24,16 @@ Arrays
       - Comparison operators
 
     * - :eql:func:`len`
-      - Return number of elements in the array.
+      - Returns a number of elements in the array.
 
     * - :eql:func:`contains`
-      - Check if an element is in the array.
+      - Checks if an element is in the array.
 
     * - :eql:func:`find`
-      - Find the index of an element in the array.
+      - Finds the index of an element in the array.
 
     * - :eql:func:`array_join`
-      - Render an array to a string.
+      - Renders an array in string-form.
 
     * - :eql:func:`array_fill`
       - :eql:func-desc:`array_fill`
@@ -57,15 +57,15 @@ Arrays store expressions of the *same type* in an ordered list.
 Constructing arrays
 ^^^^^^^^^^^^^^^^^^^
 
-An array constructor is an expression that consists of a sequence of
+Array constructors are an expression that allow for a sequence of
 comma-separated expressions *of the same type* enclosed in square brackets.
-It produces an array value:
+This will produce an array of the following:
 
 .. eql:synopsis::
 
     "[" <expr> [, ...] "]"
 
-For example:
+You can then use these arrays in EdgeDB to access information.
 
 .. code-block:: edgeql-repl
 
@@ -77,9 +77,8 @@ For example:
 Empty arrays
 ^^^^^^^^^^^^
 
-An empty array can also be created, but it must be used together with
-a type cast, since EdgeDB cannot infer the type of an array that contains no
-elements.
+An empty array can also be created, but it must be used with
+a type cast as EdgeDB cannot infer the type of an array with no elements:
 
 .. code-block:: edgeql-repl
 
