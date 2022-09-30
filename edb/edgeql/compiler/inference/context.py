@@ -41,14 +41,14 @@ class MultiplicityInfo:
     #: a freshly created free object.
     fresh_free_object: bool = False
 
-    def is_one(self) -> bool:
-        return self.own.is_one()
+    def is_empty(self) -> bool:
+        return self.own.is_empty()
 
-    def is_many(self) -> bool:
-        return self.own.is_many()
+    def is_unique(self) -> bool:
+        return self.own.is_unique()
 
-    def is_zero(self) -> bool:
-        return self.own.is_zero()
+    def is_duplicate(self) -> bool:
+        return self.own.is_duplicate()
 
 
 class InfCtx(NamedTuple):
