@@ -486,6 +486,9 @@ def __infer_typecheckop(
     # Unless this is a singleton, multiplicity cannot be assumed to be UNIQUE
     card = cardinality.infer_cardinality(
         ir, scope_tree=scope_tree, ctx=ctx)
+
+    infer_multiplicity(ir.left, scope_tree=scope_tree, ctx=ctx)
+
     if card is not None and card.is_single():
         return UNIQUE
     else:
@@ -619,9 +622,7 @@ def __infer_insert_stmt(
             ir.on_conflict, scope_tree=scope_tree, ctx=ctx
         )
 
-    if ir.conflict_checks:
-        for clause in ir.conflict_checks:
-            _infer_on_conflict_clause(clause, scope_tree=scope_tree, ctx=ctx)
+    _infer_mutating_stmt(ir, scope_tree=scope_tree, ctx=ctx)
 
     return DISTINCT_UNION
 
@@ -641,9 +642,7 @@ def __infer_update_stmt(
     )
     result = _infer_stmt_multiplicity(ir, scope_tree=scope_tree, ctx=ctx)
 
-    if ir.conflict_checks:
-        for clause in ir.conflict_checks:
-            _infer_on_conflict_clause(clause, scope_tree=scope_tree, ctx=ctx)
+    _infer_mutating_stmt(ir, scope_tree=scope_tree, ctx=ctx)
 
     if result is EMPTY:
         return EMPTY
@@ -666,14 +665,29 @@ def __infer_delete_stmt(
     )
     result = _infer_stmt_multiplicity(ir, scope_tree=scope_tree, ctx=ctx)
 
-    if ir.conflict_checks:
-        for clause in ir.conflict_checks:
-            _infer_on_conflict_clause(clause, scope_tree=scope_tree, ctx=ctx)
+    _infer_mutating_stmt(ir, scope_tree=scope_tree, ctx=ctx)
 
     if result is EMPTY:
         return EMPTY
     else:
         return UNIQUE
+
+
+def _infer_mutating_stmt(
+    ir: irast.MutatingStmt,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> None:
+    if ir.conflict_checks:
+        for clause in ir.conflict_checks:
+            _infer_on_conflict_clause(clause, scope_tree=scope_tree, ctx=ctx)
+
+    for policy in ir.write_policy_exprs.values():
+        infer_multiplicity(policy.expr, scope_tree=scope_tree, ctx=ctx)
+
+    for policy in ir.read_policy_exprs.values():
+        infer_multiplicity(policy.expr, scope_tree=scope_tree, ctx=ctx)
 
 
 def _infer_on_conflict_clause(
