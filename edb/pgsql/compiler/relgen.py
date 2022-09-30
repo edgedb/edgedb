@@ -2338,7 +2338,7 @@ def process_set_as_multiplicity_assertion(
     ir_arg = expr.args[1]
     ir_arg_set = ir_arg.expr
 
-    if not ir_arg.multiplicity.is_many():
+    if not ir_arg.multiplicity.is_duplicate():
         # If the argument has been statically proven to be distinct,
         # elide the entire assertion.
         arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
