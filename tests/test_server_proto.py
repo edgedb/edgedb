@@ -3058,6 +3058,15 @@ class TestServerProtoDDL(tb.DDLTestCase):
         ''')
         self.assertEqual(result, ['"test1"', '"test2"'])
 
+    async def test_query_single_script(self):
+        # query single should work even if earlier parts of the script
+        # are multisets
+        result = await self.con.query_single('''
+            select {1, 2};
+            select 1;
+        ''')
+        self.assertEqual(result, 1)
+
 
 class TestServerProtoConcurrentDDL(tb.DDLTestCase):
 

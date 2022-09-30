@@ -625,10 +625,6 @@ class Compiler:
             options=self._get_compile_options(ctx),
         )
 
-        if ir.cardinality.is_multi() and ctx.expected_cardinality_one:
-            raise errors.ResultCardinalityMismatchError(
-                f'the query has cardinality {ir.cardinality.name} '
-                f'which does not match the expected cardinality ONE')
         result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
@@ -2026,6 +2022,14 @@ class Compiler:
                     not unit.sql_hash):
                 raise errors.InternalServerError(
                     f'unit has invalid "cardinality": {unit!r}')
+
+        multi_card = rv.cardinality in (
+            enums.Cardinality.MANY, enums.Cardinality.AT_LEAST_ONE,
+        )
+        if multi_card and ctx.expected_cardinality_one:
+            raise errors.ResultCardinalityMismatchError(
+                f'the query has cardinality {unit.cardinality.name} '
+                f'which does not match the expected cardinality ONE')
 
         return rv
 
