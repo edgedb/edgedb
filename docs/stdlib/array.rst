@@ -100,10 +100,10 @@ Reference
 
     :index: array
 
-    Represents a one-dimensional arary of an homogeneous ordered list.
+    Represents a one-dimensional array of an homogeneous ordered list.
 
-    Array indexing starts at zero. With the exception of other array types,
-    any type can be used as an array element type.
+    Array indexing will always start at zero. With the exception of other array
+    types, any type may be used as the given element contained within.
 
     Array types are implicitly created from :ref:`array
     constructors <ref_std_array_constructor>` as seen here:
@@ -126,9 +126,11 @@ Reference
 
 .. eql:operator:: arrayidx: array<anytype> [ int64 ] -> anytype
 
-    Array indexing.
+    Indexes an array of :eql:type:`anytype` containing :eql:type:`int64` into
+    a representable reference of the array element specified.
 
-    Example:
+    Below is an example of selecting an array with an index of zero and
+    one:
 
     .. code-block:: edgeql-repl
 
@@ -137,14 +139,15 @@ Reference
         db> select [(x := 1, y := 1), (x := 2, y := 3.3)][1];
         {(x := 2, y := 3.3)}
 
-    Negative indexing is supported:
+    This operator may also be used when trying to negatively index elements.
 
     .. code-block:: edgeql-repl
 
         db> select [1, 2, 3][-1];
         {3}
 
-    Referencing a non-existent array element will result in an error:
+    However, referencing an non-existent element of an array will result in
+    an error:
 
     .. code-block:: edgeql-repl
 
@@ -157,14 +160,17 @@ Reference
 
 .. eql:operator:: arrayslice: array<anytype> [ int64 : int64 ] -> anytype
 
-    Array slicing.
+    Slices an array of :eql:type:`anytype` containing a fixed range of
+    :eql:type:`int64` into a representable reference of the array's contents.
 
-    An omitted lower bound defaults to zero, and an omitted upper
-    bound defaults to the size of the array.
+    Omitting the lower bound an array will default the result to zero.
+    Doing so to the upper bound will also default to the current size of the
+    array.
 
-    The upper bound is non-inclusive.
+    The upper bound an array is non-inclusive.
 
-    Examples:
+    Below is an example of selecting indices of an array between slices and given
+    ranges:
 
     .. code-block:: edgeql-repl
 
@@ -177,8 +183,8 @@ Reference
         db> select [1, 2, 3][:-2];
         {[1]}
 
-    Referencing an array slice beyond the array boundaries will result in
-    an empty array (unlike a direct reference to a specific index):
+    Referencing an array slice beyond the array's boundaries will result in
+    an empty array, unlike a direct reference to a specific index:
 
     .. code-block:: edgeql-repl
 
