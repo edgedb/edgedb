@@ -100,27 +100,24 @@ Reference
 
     :index: array
 
-    Arrays represent a one-dimensional homogeneous ordered list.
+    Represents a one-dimensional arary of an homogeneous ordered list.
 
-    Array indexing starts at zero.
+    Array indexing starts at zero. With the exception of other array types,
+    any type can be used as an array element type.
 
-    With the exception of other array types, any type can be used as an
-    array element type.
-
-    An array type is created implicitly when an :ref:`array
-    constructor <ref_std_array_constructor>` is used:
+    Array types are implicitly created from :ref:`array
+    constructors <ref_std_array_constructor>` as seen here:
 
     .. code-block:: edgeql-repl
 
         db> select [1, 2];
         {[1, 2]}
 
-    The syntax of an array type declaration can be found in :ref:`this
+    The syntax of an array type's declaration can be found from :ref:`this
     section <ref_datamodel_arrays>`.
 
-    See also the list of standard
-    :ref:`array functions <ref_std_array>` and
-    generic functions such as :eql:func:`len`.
+    Please see also the list of standard :ref:`array functions <ref_std_array>`,
+    as well as generic functions such as :eql:func:`len`.
 
 
 
