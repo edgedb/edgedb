@@ -65,9 +65,10 @@ an :ref:`error code <ref_protocol_error_codes>`.
     protocol, keep in mind that all results are provided as the
     ``application/json`` content type. As such, JSON does not constrain nor'
     restrict the limit of significant digits, allowing potential error and/or
-    precision loss to occur. Some JSON decoders in languages may interpret these
-    values from 32-to-64 bit representation, resulting in less probability in
-    loss of accuracy. If this happens to be undesirable for your needs, please
-    consider casting these values into a ``str`` type and decoding it on your
-    client-side into an appropriate type suited for your needs.
+    precision loss to occur. Some JSON decoders in languages may interpret
+    these values from 32-to-64 bit representation, resulting in less
+    probability in loss of accuracy. If this happens to be undesirable for your
+    needs, please consider casting these values into a ``str`` type and
+    decoding it on your client-side into an appropriate type suited for your
+    needs.
 
