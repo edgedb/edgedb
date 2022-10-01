@@ -40,10 +40,9 @@ Booleans
 
 .. eql:type:: std::bool
 
-    A boolean type with possible values of ``true`` and ``false``.
+    A logical boolean type with as either ``true`` or ``false``.
 
-    EdgeQL has case-insensitive keywords and that includes the boolean
-    literals:
+    EdgeQL has case-insensitive keywords, including boolean literals:
 
     .. code-block:: edgeql-repl
 
@@ -52,10 +51,10 @@ Booleans
         db> select (False, false, FALSE);
         {(false, false, false)}
 
-    A boolean value may arise as a result of a :ref:`logical
+    A boolean value may arise as a result from :ref:`logical
     <ref_std_logical>` or :eql:op:`comparison <eq>`
-    operations as well as :eql:op:`in`
-    and :eql:op:`not in <in>`:
+    operations, as well as :eql:op:`in`
+    and :eql:op:`not in <in>` operators.
 
     .. code-block:: edgeql-repl
 
@@ -65,7 +64,7 @@ Booleans
         {false}
 
     It is also possible to :eql:op:`cast <cast>` between
-    :eql:type:`bool`, :eql:type:`str`, and :eql:type:`json`:
+    :eql:type:`bool`, :eql:type:`str` and :eql:type:`json`:
 
     .. code-block:: edgeql-repl
 
@@ -74,8 +73,8 @@ Booleans
         db> select <bool>'True';
         {true}
 
-    :ref:`Filter <ref_eql_statements_select_filter>` clauses must
-    always evaluate to a boolean:
+    A :ref:`filter <ref_eql_statements_select_filter>` clause must
+    always evaluate to a boolean.
 
     .. code-block:: edgeql
 
@@ -88,7 +87,7 @@ Booleans
 
 .. eql:operator:: or: bool or bool -> bool
 
-    Logical disjunction.
+    Logically sets apart a resulting boolean value from two others:
 
     .. code-block:: edgeql-repl
 
@@ -101,7 +100,8 @@ Booleans
 
 .. eql:operator:: and: bool and bool -> bool
 
-    Logical conjunction.
+    Performs a logical coexistence resulting in a boolean value from two
+    others:
 
     .. code-block:: edgeql-repl
 
@@ -114,7 +114,7 @@ Booleans
 
 .. eql:operator:: not: not bool -> bool
 
-    Logical negation.
+    Logically negates a given boolean value:
 
     .. code-block:: edgeql-repl
 
@@ -146,14 +146,13 @@ The truth tables are as follows:
 
 
 It is important to understand the difference between using
-``and``/``or`` vs :eql:func:`all`/:eql:func:`any`. This difference is
+``and``/``or`` and :eql:func:`all`/:eql:func:`any`. The difference is
 in how they handle ``{}``. Both ``and`` and ``or`` operators apply to
-the cross-product of their operands. Thus if any of the operands are
-``{}``, the result is also ``{}`` for ``and`` and ``or``.
+the cross-product of their operands. Thus, if any of the operands are
+``{}``, the result will be that.
 
-The :eql:func:`all` and :eql:func:`any` are generalized to apply to
-sets of values, including ``{}``. Thus they have the following truth
-table:
+The :eql:func:`all` and :eql:func:`any` functions are generalized to apply to
+sets of values, including ``{}``. They have the following truth table:
 
 +-------+-------+-----------------+-----------------+
 |   a   |   b   | ``all({a, b})`` | ``any({a, b})`` |
@@ -185,5 +184,5 @@ To understand the last line in the above truth table it's useful to
 remember that ``all({a, b}) = all(a) and all(b)`` and ``any({a, b}) =
 any(a) or any(b)``.
 
-For more customized handling of ``{}`` the :eql:op:`?? <coalesce>`
+For more customized handling of ``{}``, the :eql:op:`?? <coalesce>` operator
 should be used.
