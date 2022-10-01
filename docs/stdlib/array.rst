@@ -116,8 +116,9 @@ Reference
     The syntax of an array type's declaration can be found from :ref:`this
     section <ref_datamodel_arrays>`.
 
-    Please see also the list of standard :ref:`array functions <ref_std_array>`,
-    as well as generic functions such as :eql:func:`len`.
+    Please see also the list of standard :ref:`array
+    functions <ref_std_array>`, as well as generic functions such as
+    :eql:func:`len`.
 
 
 
@@ -161,7 +162,7 @@ Reference
 .. eql:operator:: arrayslice: array<anytype> [ int64 : int64 ] -> anytype
 
     Slices an array of :eql:type:`anytype` containing a fixed range of
-    :eql:type:`int64` into a representable reference of the array's contents.
+    :eql:type:`int64` into a representable reference of the array's elements.
 
     Omitting the lower bound an array will default the result to zero.
     Doing so to the upper bound will also default to the current size of the
@@ -199,7 +200,8 @@ Reference
 
 .. eql:operator:: arrayplus: array<anytype> ++ array<anytype> -> array<anytype>
 
-    Array concatenation.
+    Concatenates given arrays of :eql:type:`anytype` into a conjoined and
+    referenceable array of both's elements:
 
     .. code-block:: edgeql-repl
 
@@ -214,7 +216,7 @@ Reference
 
     :index: aggregate array set
 
-    Return an array made from all of the input set elements.
+    Returns an array made from all of the input set elements.
 
     The ordering of the input set will be preserved if specified.
 
@@ -237,14 +239,15 @@ Reference
 
     :index: array access get
 
-    Return the element of *array* at the specified *index*.
+    Returns the element of a given *array* at the specified *index*.
 
-    If *index* is out of array bounds, the *default* or ``{}`` (empty set)
-    is returned.
+    If the index is out of the array's bounds, the *default* or ``{}``
+    (empty set) will be returned.
 
-    This works the same as :eql:op:`array indexing operator <arrayidx>`
-    except that if the index is outside array boundaries an empty set
-    of the array element type is returned instead of raising an exception.
+    This works the same as :eql:op:`array indexing operator <arrayidx>`,
+    except that if the index is out of boundaries, an empty set of the array
+    element's type is returned instead of raising an exception. Below
+    exemplifies this:
 
     .. code-block:: edgeql-repl
 
@@ -263,11 +266,11 @@ Reference
 
     :index: set array unpack
 
-    Return array elements as a set.
+    Returns the elements of an array as a set.
 
     .. note::
 
-        The ordering of the returned set is not guaranteed.
+        The returned set is not guaranteed to be ordered.
 
     .. code-block:: edgeql-repl
 
@@ -282,9 +285,8 @@ Reference
 
     :index: join array_to_string implode
 
-    Render an array to a string.
-
-    Join a string array into a single string using a specified *delimiter*:
+    Returns the elements of an array joined together in string-form with,
+    a *delimiter* separating each element:
 
     .. code-block:: edgeql-repl
 
@@ -299,9 +301,8 @@ Reference
 
     :index: fill
 
-    Make a new array of specified size and filled with specified value.
-
-    Create anarray of size *n* where every element has the value *val*.
+    Returns a new array of a specified size *n* filled with the specified
+    value *val*:
 
     .. code-block:: edgeql-repl
 
@@ -319,9 +320,8 @@ Reference
                                      new: anytype) \
                   -> array<anytype>
 
-    Return an array where all occurrences of a particualr value are replaced.
-
-    Return an array where every *old* value is replaced with *new*.
+    Returns an array where all occurrences of value *old* are replaced with
+    *new*:
 
     .. code-block:: edgeql-repl
 
