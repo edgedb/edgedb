@@ -720,7 +720,7 @@ def __infer_group_stmt(
     infer_multiplicity(ir.group_binding, scope_tree=scope_tree, ctx=ctx)
     if ir.grouping_binding:
         infer_multiplicity(ir.grouping_binding, scope_tree=scope_tree, ctx=ctx)
-    
+
     for set in ir.group_aggregate_sets:
         if set:
             infer_multiplicity(set, scope_tree=scope_tree, ctx=ctx)
