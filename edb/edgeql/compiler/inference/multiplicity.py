@@ -717,6 +717,14 @@ def __infer_group_stmt(
         new_scope = inf_utils.get_set_scope(clause.expr, scope_tree, ctx=ctx)
         infer_multiplicity(clause.expr, scope_tree=new_scope, ctx=ctx)
 
+    infer_multiplicity(ir.group_binding, scope_tree=scope_tree, ctx=ctx)
+    if ir.grouping_binding:
+        infer_multiplicity(ir.grouping_binding, scope_tree=scope_tree, ctx=ctx)
+    
+    for set in ir.group_aggregate_sets:
+        if set:
+            infer_multiplicity(set, scope_tree=scope_tree, ctx=ctx)
+
     if result_mult.fresh_free_object:
         return result_mult
     else:
