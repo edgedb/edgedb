@@ -30,10 +30,10 @@ Bytes
       - Returns the number of bytes.
 
     * - :eql:func:`contains`
-      - Check if the byte sequence contains a subsequence.
+      - Checks if the byte sequence contains a subsequence.
 
     * - :eql:func:`find`
-      - Find the index of the first occurrence of a subsequence.
+      - Finds the index of the first occurrence in a subsequence.
 
     * - :eql:func:`bytes_get_bit`
       - :eql:func-desc:`bytes_get_bit`
@@ -46,7 +46,9 @@ Bytes
 
     A sequence of bytes representing raw data.
 
-    There's a special byte literal:
+    .. note::
+
+      Bytes also have a special byte literal.
 
     .. code-block:: edgeql-repl
 
@@ -55,16 +57,16 @@ Bytes
         db> select b'Hello,\x20world\x01';
         {b'Hello, world\x01'}
 
-    There are also some :ref:`generic <ref_std_generic>`
-    functions that can operate on bytes:
+    Additionally, some :ref:`generic <ref_std_generic>`
+    functions are able to act upon bytes:
 
     .. code-block:: edgeql-repl
 
         db> select contains(b'qwerty', b'42');
         {false}
 
-    It is possible to :eql:op:`cast <cast>` between :eql:type:`bytes` and
-    :eql:type:`json`. Bytes are represented as base64 encoded strings in json.:
+    It is possible to :eql:op:`cast <cast>` between bytes and :eql:type:`json`.
+    Bytes are represented as Base64-encoded strings in JSON.
 
     .. code-block:: edgeql-repl
 
@@ -78,9 +80,8 @@ Bytes
 
 .. eql:operator:: bytesidx: bytes [ int64 ] -> bytes
 
-    Bytes indexing.
-
-    Examples:
+    Indexes a set of bytes of :eql:type:`int64` into a representable reference
+    of the byte:
 
     .. code-block:: edgeql-repl
 
@@ -93,9 +94,8 @@ Bytes
 
 .. eql:operator:: bytesslice: bytes [ int64 : int64 ] -> bytes
 
-    Bytes slicing.
-
-    Examples:
+    Slices a set of bytes of :eql:type:`int64` containing a fixed range into
+    a representable reference of the byte:
 
     .. code-block:: edgeql-repl
 
@@ -110,7 +110,8 @@ Bytes
 
 .. eql:operator:: bytesplus: bytes ++ bytes -> bytes
 
-    Bytes concatenation.
+    Concatenates given bytesets of :eql:type:`bytes` into a conjoined and
+    representable byteset:
 
     .. code-block:: edgeql-repl
 
@@ -123,10 +124,10 @@ Bytes
 
 .. eql:function:: std::bytes_get_bit(bytes: bytes, nth: int64) -> int64
 
-    Get the *nth* bit of the *bytes* value.
+    Gets the *nth* bit of *bytes*' value.
 
     When looking for the *nth* bit, this function enumerates bits from
-    least to most significant in each byte.
+    least to most significant in each byte:
 
     .. code-block:: edgeql-repl
 
