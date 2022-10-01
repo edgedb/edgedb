@@ -169,8 +169,8 @@ Reference
 
     The upper bound an array is non-inclusive.
 
-    Below is an example of selecting indices of an array between slices and given
-    ranges:
+    Below is an example of selecting indices of an array between slices and
+    given ranges:
 
     .. code-block:: edgeql-repl
 
