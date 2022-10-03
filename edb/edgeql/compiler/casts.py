@@ -946,12 +946,10 @@ def _find_object_by_id(
             new_stype.get_name(ctx.env.schema)
         )
 
-        from edb.edgeql.ast import BinOp, StringConstant, Path
-
         select_id = qlast.SelectQuery(
-            result=qlast.DetachedExpr(expr=Path(steps=[object_name])),
-            where=BinOp(
-                left=Path(
+            result=qlast.DetachedExpr(expr=qlast.Path(steps=[object_name])),
+            where=qlast.BinOp(
+                left=qlast.Path(
                     steps=[
                         qlast.Ptr(
                             ptr=qlast.ObjectRef(name='id'), direction='>'
@@ -964,21 +962,21 @@ def _find_object_by_id(
             ),
         )
 
-        error_message = BinOp(
-            left=StringConstant(
+        error_message = qlast.BinOp(
+            left=qlast.StringConstant(
                 value=(
                     repr(new_stype.get_displayname(ctx.env.schema))
                     + ' with id \''
                 )
             ),
             op='++',
-            right=BinOp(
+            right=qlast.BinOp(
                 left=qlast.TypeCast(
                     expr=uuid_anchor,
                     type=qlast.TypeName(maintype=qlast.ObjectRef(name='str')),
                 ),
                 op='++',
-                right=StringConstant(value='\' does not exist'),
+                right=qlast.StringConstant(value='\' does not exist'),
             ),
         )
 
