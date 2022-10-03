@@ -2631,3 +2631,24 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 msg=f'{cast.from_type.name} to {cast.to_type.name}',
                 json_only=json_only,
             )
+
+    async def test_edgeql_casts_uuid_to_object(self):
+        persons = await self.con.query('select Person { id }')
+
+        res = await self.con.query('select <Person><uuid>$0', persons[0].id)
+        self.assertEqual(1, len(res))
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError, r'with this id does not exist'
+        ):
+            await self.con.query('select <Person><uuid>$0', '1' * 32)
+
+        await self.assert_query_result(
+            '''
+            select (<Person>{<uuid>$0, <uuid>$1}) { first_name }
+            order by .first_name;
+            ''',
+            [{'first_name': 'kelly'}, {'first_name': 'tom'}],
+            json_only=True,
+            variables=(persons[0].id, persons[1].id),
+        )

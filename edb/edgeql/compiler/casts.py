@@ -961,6 +961,17 @@ def _find_object_by_id(
                 right=uuid_anchor,
             ),
         )
-        ql = qlast.FunctionCall(func='assert_exists', args=[select_id])
+        ql = qlast.FunctionCall(
+            func='assert_exists',
+            args=[select_id],
+            kwargs={
+                'message': qlast.StringConstant(
+                    value=(
+                        repr(new_stype.get_displayname(ctx.env.schema))
+                        + ' with this id does not exist'
+                    )
+                )
+            },
+        )
 
         return dispatch.compile(ql, ctx=subctx)
