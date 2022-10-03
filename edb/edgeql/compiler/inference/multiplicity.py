@@ -102,17 +102,6 @@ def _infer_multiplicity(
 
 
 @_infer_multiplicity.register
-def __infer_statement(
-    ir: irast.Statement,
-    *,
-    scope_tree: irast.ScopeTreeNode,
-    ctx: inf_ctx.InfCtx,
-) -> inf_ctx.MultiplicityInfo:
-    return infer_multiplicity(
-        ir.expr, scope_tree=scope_tree, ctx=ctx)
-
-
-@_infer_multiplicity.register
 def __infer_config_insert(
     ir: irast.ConfigInsert,
     *,
@@ -328,6 +317,10 @@ def __infer_func_call(
         args_mult.append(arg_mult)
         arg.multiplicity = arg_mult.own
 
+    if ir.global_args:
+        for g_arg in ir.global_args:
+            _infer_set(g_arg, scope_tree=scope_tree, ctx=ctx)
+
     if card.is_single():
         return UNIQUE
     elif str(ir.func_shortname) == 'std::assert_distinct':
@@ -360,10 +353,13 @@ def __infer_oper_call(
     for arg in ir.args:
         cards.append(
             cardinality.infer_cardinality(
-                arg.expr, scope_tree=scope_tree, ctx=ctx))
-        mult.append(
-            infer_multiplicity(
-                arg.expr, scope_tree=scope_tree, ctx=ctx))
+                arg.expr, scope_tree=scope_tree, ctx=ctx
+            )
+        )
+
+        m = infer_multiplicity(arg.expr, scope_tree=scope_tree, ctx=ctx)
+        arg.multiplicity = m.own
+        mult.append(m)
 
     op_name = str(ir.func_shortname)
 
@@ -490,6 +486,9 @@ def __infer_typecheckop(
     # Unless this is a singleton, multiplicity cannot be assumed to be UNIQUE
     card = cardinality.infer_cardinality(
         ir, scope_tree=scope_tree, ctx=ctx)
+
+    infer_multiplicity(ir.left, scope_tree=scope_tree, ctx=ctx)
+
     if card is not None and card.is_single():
         return UNIQUE
     else:
@@ -619,9 +618,11 @@ def __infer_insert_stmt(
     )
 
     if ir.on_conflict:
-        for part in [ir.on_conflict.select_ir, ir.on_conflict.else_ir]:
-            if part:
-                infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
+        _infer_on_conflict_clause(
+            ir.on_conflict, scope_tree=scope_tree, ctx=ctx
+        )
+
+    _infer_mutating_stmt(ir, scope_tree=scope_tree, ctx=ctx)
 
     return DISTINCT_UNION
 
@@ -640,6 +641,9 @@ def __infer_update_stmt(
         ir.result, is_mutation=True, scope_tree=scope_tree, ctx=ctx,
     )
     result = _infer_stmt_multiplicity(ir, scope_tree=scope_tree, ctx=ctx)
+
+    _infer_mutating_stmt(ir, scope_tree=scope_tree, ctx=ctx)
+
     if result is EMPTY:
         return EMPTY
     else:
@@ -660,10 +664,41 @@ def __infer_delete_stmt(
         ir.result, is_mutation=True, scope_tree=scope_tree, ctx=ctx,
     )
     result = _infer_stmt_multiplicity(ir, scope_tree=scope_tree, ctx=ctx)
+
+    _infer_mutating_stmt(ir, scope_tree=scope_tree, ctx=ctx)
+
     if result is EMPTY:
         return EMPTY
     else:
         return UNIQUE
+
+
+def _infer_mutating_stmt(
+    ir: irast.MutatingStmt,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> None:
+    if ir.conflict_checks:
+        for clause in ir.conflict_checks:
+            _infer_on_conflict_clause(clause, scope_tree=scope_tree, ctx=ctx)
+
+    for policy in ir.write_policy_exprs.values():
+        infer_multiplicity(policy.expr, scope_tree=scope_tree, ctx=ctx)
+
+    for policy in ir.read_policy_exprs.values():
+        infer_multiplicity(policy.expr, scope_tree=scope_tree, ctx=ctx)
+
+
+def _infer_on_conflict_clause(
+    ir: irast.OnConflictClause,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> None:
+    for part in [ir.select_ir, ir.else_ir, ir.update_query_set]:
+        if part:
+            infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
 
 
 @_infer_multiplicity.register
@@ -682,6 +717,14 @@ def __infer_group_stmt(
         new_scope = inf_utils.get_set_scope(clause.expr, scope_tree, ctx=ctx)
         infer_multiplicity(clause.expr, scope_tree=new_scope, ctx=ctx)
 
+    infer_multiplicity(ir.group_binding, scope_tree=scope_tree, ctx=ctx)
+    if ir.grouping_binding:
+        infer_multiplicity(ir.grouping_binding, scope_tree=scope_tree, ctx=ctx)
+
+    for set in ir.group_aggregate_sets:
+        if set:
+            infer_multiplicity(set, scope_tree=scope_tree, ctx=ctx)
+
     if result_mult.fresh_free_object:
         return result_mult
     else:
@@ -699,6 +742,13 @@ def __infer_slice(
     # as the cardinality of this expression is at most one, otherwise
     # the results of index indirection can contain values with
     # multiplicity > 1.
+
+    infer_multiplicity(ir.expr, scope_tree=scope_tree, ctx=ctx)
+    if ir.start:
+        infer_multiplicity(ir.start, scope_tree=scope_tree, ctx=ctx)
+    if ir.stop:
+        infer_multiplicity(ir.stop, scope_tree=scope_tree, ctx=ctx)
+
     card = cardinality.infer_cardinality(
         ir, scope_tree=scope_tree, ctx=ctx)
     if card is not None and card.is_single():
@@ -720,6 +770,10 @@ def __infer_index(
     # multiplicity > 1.
     card = cardinality.infer_cardinality(
         ir, scope_tree=scope_tree, ctx=ctx)
+
+    infer_multiplicity(ir.expr, scope_tree=scope_tree, ctx=ctx)
+    infer_multiplicity(ir.index, scope_tree=scope_tree, ctx=ctx)
+
     if card is not None and card.is_single():
         return UNIQUE
     else:

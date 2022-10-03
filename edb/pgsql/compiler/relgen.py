@@ -3052,6 +3052,8 @@ def _compile_call_args(
             args.append(output.output_as_value(arg_ref, env=ctx.env))
 
     for ir_arg, typemod in zip(expr.args, expr.params_typemods):
+        assert ir_arg.multiplicity != qltypes.Multiplicity.UNKNOWN
+
         arg_ref = dispatch.compile(ir_arg.expr, ctx=ctx)
         args.append(output.output_as_value(arg_ref, env=ctx.env))
         _compile_arg_null_check(expr, ir_arg, arg_ref, typemod, ctx=ctx)
