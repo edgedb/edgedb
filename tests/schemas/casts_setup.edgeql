@@ -53,9 +53,9 @@ INSERT JSONTest {
 };
 
 INSERT Person {
-    first_name := 'tom',
+    name := 'tom',
 };
 
 INSERT Person {
-    first_name := 'kelly',
+    name := 'kelly',
 };

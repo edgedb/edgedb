@@ -78,5 +78,5 @@ type ScalarTest {
 }
 
 type Person {
-    property first_name -> str;
+    property name -> str;
 }
