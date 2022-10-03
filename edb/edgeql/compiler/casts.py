@@ -35,6 +35,7 @@ from edb.schema import casts as s_casts
 from edb.schema import functions as s_func
 from edb.schema import name as sn
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
@@ -91,6 +92,13 @@ def compile_cast(
             f'to {new_stype.get_displayname(ctx.env.schema)!r}, use '
             f'`...[IS {new_stype.get_displayname(ctx.env.schema)}]` instead',
             context=srcctx)
+
+    uuid_t = ctx.env.get_track_schema_type(sn.QualName('std', 'uuid'))
+    if (
+        orig_stype.issubclass(ctx.env.schema, uuid_t)
+        and new_stype.is_object_type()
+    ):
+        return _find_object_by_id(ir_expr, new_stype, ctx=ctx)
 
     json_t = ctx.env.get_track_schema_type(
         sn.QualName('std', 'json'))
@@ -919,3 +927,40 @@ def _cast_array_literal(
         )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
+
+
+def _find_object_by_id(
+    ir_expr: Union[irast.Set, irast.Expr],
+    new_stype: s_types.Type,
+    *,
+    ctx: context.ContextLevel,
+) -> irast.Set:
+    with ctx.new() as subctx:
+        subctx.anchors = subctx.anchors.copy()
+
+        uuid_anchor = subctx.create_anchor(
+            setgen.ensure_set(ir_expr, ctx=ctx), name='a'
+        )
+
+        object_name = s_utils.name_to_ast_ref(
+            new_stype.get_name(ctx.env.schema)
+        )
+
+        select_id = qlast.SelectQuery(
+            result=qlast.DetachedExpr(expr=qlast.Path(steps=[object_name])),
+            where=qlast.BinOp(
+                left=qlast.Path(
+                    steps=[
+                        qlast.Ptr(
+                            ptr=qlast.ObjectRef(name='id'), direction='>'
+                        )
+                    ],
+                    partial=True,
+                ),
+                op='=',
+                right=uuid_anchor,
+            ),
+        )
+        ql = qlast.FunctionCall(func='assert_exists', args=[select_id])
+
+        return dispatch.compile(ql, ctx=subctx)
