@@ -824,13 +824,13 @@ properties from known subtypes.
 
     const query = e.select(e.Content, (content) => ({
       title: true,
-      ...e.is(e.Movie, {release_year: true}),
       ...e.is(e.TVShow, {num_seasons: true}),
+      ...e.is(e.Movie, {release_year: true}),
     }));
     /* {
       title: string;
-      release_year: number | null;
       num_seasons: number | null;
+      release_year: number | null;
     }[] */
 
 See :ref:`Docs > EdgeQL > Select > Polymorphic queries
