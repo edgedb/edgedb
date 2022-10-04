@@ -874,7 +874,7 @@ groupings of objects.
     /* {
       grouping: string[];
       key: { release_year: number | null };
-      elements: { title: string, actors: {name: string}[];
+      elements: { title: string; actors: {name: string}[] }[];
     }[] */
 
 See :ref:`Docs > EdgeQL > Group <ref_eql_group>`.
