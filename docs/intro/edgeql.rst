@@ -741,7 +741,7 @@ useful, for instance, when performing nested mutations.
     }));
 
     // select actors
-    const actors = e.select(e.Person, person => ({
+    const benedicts = e.select(e.Person, person => ({
       filter: e.op(person.name, 'in', e.set(
         'Benedict Cumberbatch',
         'Benedict Wong'
@@ -750,7 +750,7 @@ useful, for instance, when performing nested mutations.
 
     // add actors to cast of drStrange
     const query = e.update(drStrange, ()=>({
-      actors: { "+=": actors }
+      actors: { "+=": benedicts }
     }));
 
 We can also use subqueries to fetch properties of an object we just inserted.
