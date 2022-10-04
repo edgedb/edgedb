@@ -678,7 +678,7 @@ executing a query.
 
     async def main():
 
-        result = await client.query("select <str>$param", param="Play it, Sam")
+        result = await client.query("select <str>$param", param="Play it, Sam.")
         # => "Play it, Sam"
 
   .. code-tab:: go
