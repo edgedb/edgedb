@@ -412,15 +412,15 @@ Every new set of curly braces introduces a new scope. You can add ``filter``,
 
   .. code-tab:: typescript
 
-    e.select(e.Movie, movie => ({
+    const query = e.select(e.Movie, movie => ({
       title: true,
-      characters: c => ({
+      actors: actor => ({
         name: true,
-        filter: e.op(c.name, "ilike", "chris%"),
+        filter: e.op(actor.name, "ilike", "chris%"),
       }),
       filter: e.op(movie.title, "ilike", "%avengers%"),
     }));
-    // => { characters: { name: string; }[]; title: string; }[]
+    // => { actors: { name: string; }[]; title: string; }[]
 
     const result = await query.run(client);
     // {id: string; title: number}[]
