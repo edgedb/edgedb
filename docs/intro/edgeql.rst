@@ -611,6 +611,7 @@ The ``delete`` statement can contain ``filter``, ``order by``, ``offset``, and
 
     const query = e.delete(e.Movie, (movie) => ({
       filter: e.op(movie.title, 'ilike', "the avengers%"),
+      limit: 3
     }));
 
     const result = await query.run(client);
