@@ -354,7 +354,7 @@ Fetch linked objects with a nested shape.
     }));
 
     const result = await query.run(client);
-    // {id: string; title: string, actors: {name: string}[]}[]
+    // {id: string; title: string; actors: {name: string}[]}[]
 
 See :ref:`Docs > EdgeQL > Select > Shapes <ref_eql_shapes>`.
 
@@ -503,11 +503,13 @@ Selection shapes can contain computed properties.
 
   .. code-tab:: typescript
 
-    e.select(e.Movie, movie => ({
+    const query = e.select(e.Movie, movie => ({
       title: true,
       title_upper: e.str_upper(movie.title),
       cast_size: e.count(movie.actors)
-    }))
+    }));
+
+    const result = await query.run(client);
     // {title: string; title_upper: string; cast_size: number}[]
 
 A common use for computed properties is to query a link in reverse; this is
@@ -526,13 +528,15 @@ known as a *backlink* and it has special syntax.
 
   .. code-tab:: typescript
 
-    e.select(e.Person, person => ({
+    const query = e.select(e.Person, person => ({
       name: true,
       acted_in: e.select(person["<actors[is Content]"], () => ({
         title: true,
       })),
     }));
-    // {name: string; acted_in: {title: string}[];}[]
+
+    const result = await query.run(client);
+    // {name: string; acted_in: {title: string}[]}[]
 
 See :ref:`Docs > EdgeQL > Select > Computed <ref_eql_select>` and
 :ref:`Docs > EdgeQL > Select > Backlinks <ref_eql_select>`.
@@ -580,7 +584,7 @@ subtracted from with ``-=``, or overridden with ``:=``.
 
   .. code-tab:: typescript
 
-    e.update(e.Movie, (movie) => ({
+    const query = e.update(e.Movie, (movie) => ({
       filter: e.op(movie.title, '=', 'Doctor Strange 2'),
       set: {
         actors: {
@@ -590,6 +594,9 @@ subtracted from with ``-=``, or overridden with ``:=``.
         }
       },
     }));
+
+    const result = await query.run(client);
+    // {id: string}
 
 See :ref:`Docs > EdgeQL > Update <ref_eql_update>`.
 
@@ -752,6 +759,9 @@ useful, for instance, when performing nested mutations.
     const query = e.update(drStrange, ()=>({
       actors: { "+=": benedicts }
     }));
+    
+    const result = await query.run(client);
+    // {id: string}
 
 We can also use subqueries to fetch properties of an object we just inserted.
 
