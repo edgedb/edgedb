@@ -283,7 +283,7 @@ are easily achieved with subqueries.
       title := 'Doctor Strange 2',
       release_year := 2022,
       director := (insert Person {
-        name := "Sam Raimi"
+        name := 'Sam Raimi'
       })
     };
 
