@@ -855,13 +855,16 @@ groupings of objects.
       const release_year = movie.release_year;
       return {
         title: true,
+        actors: {
+          name: true
+        },
         by: {release_year},
       };
     });
     /* {
       grouping: string[];
       key: { release_year: number | null };
-      elements: { title: string; }[];
+      elements: { title: string, actors: {name: string}[];
     }[] */
 
 See :ref:`Docs > EdgeQL > Group <ref_eql_group>`.
