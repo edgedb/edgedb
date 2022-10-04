@@ -231,7 +231,7 @@ Similarly, it provides a comprehensive set of built-in operators.
     // boolean
     e.op(e.int64(2), "+", e.int64(2));
     // number
-    e.op(e.str("Hello "), "++", e.str("World!"));
+    e.op(e.str("Hello"), "++", e.str(" world!"));
     // string
     e.op(e.str("😄"), "if", e.bool(true), "else", e.str("😢"));
     // string
