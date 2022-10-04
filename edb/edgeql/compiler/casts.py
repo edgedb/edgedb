@@ -21,6 +21,7 @@
 
 
 from __future__ import annotations
+import copy
 
 from typing import *
 
@@ -98,7 +99,7 @@ def compile_cast(
         orig_stype.issubclass(ctx.env.schema, uuid_t)
         and new_stype.is_object_type()
     ):
-        return _find_object_by_id(ir_expr, new_stype, ctx=ctx)
+        return _find_object_by_id(ir_expr, new_stype, cardinality_mod, ctx=ctx)
 
     json_t = ctx.env.get_track_schema_type(
         sn.QualName('std', 'json'))
@@ -932,6 +933,7 @@ def _cast_array_literal(
 def _find_object_by_id(
     ir_expr: Union[irast.Set, irast.Expr],
     new_stype: s_types.Type,
+    cardinality_mod: Optional[qlast.CardinalityModifier],
     *,
     ctx: context.ContextLevel,
 ) -> irast.Set:
@@ -980,10 +982,22 @@ def _find_object_by_id(
             ),
         )
 
-        ql = qlast.FunctionCall(
+        ql: qlast.Expr = qlast.FunctionCall(
             func='assert_exists',
             args=[select_id],
             kwargs={'message': error_message},
         )
+
+        if cardinality_mod == qlast.CardinalityModifier.Optional:
+            empty_set = qlast.TypeCast(
+                type=qlast.TypeName(maintype=copy.deepcopy(object_name)),
+                expr=qlast.Set(elements=[]),
+            )
+
+            ql = qlast.IfElse(
+                condition=qlast.UnaryOp(op='EXISTS', operand=uuid_anchor),
+                if_expr=ql,
+                else_expr=empty_set,
+            )
 
         return dispatch.compile(ql, ctx=subctx)

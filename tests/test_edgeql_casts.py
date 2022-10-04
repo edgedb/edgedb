@@ -2638,7 +2638,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         dummy_uuid = '1' * 32
 
         res = await self.con.query('select <Person><uuid>$0', persons[0].id)
-        self.assertEqual(1, len(res))
+        self.assertEqual(len(res), 1)
 
         async with self.assertRaisesRegexTx(
             edgedb.CardinalityViolationError, r'with id .* does not exist'
@@ -2664,3 +2664,37 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 order by .name;
                 ''', persons[0].id, dummy_uuid
             )
+
+        res = await self.con.query(
+            'select <Person><optional uuid>$0', persons[0].id
+        )
+        self.assertEqual(len(res), 1)
+
+        res = await self.con.query(
+            'select <optional Person><optional uuid>$0', None
+        )
+        self.assertEqual(len(res), 0)
+
+        res = await self.con.query('select <optional Person><optional uuid>{}')
+        self.assertEqual(len(res), 0)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError, r'empty set'
+        ):
+            await self.con.query('select <Person><optional uuid>$0', None)
+
+        res = await self.con.query('select <Person>$0', persons[0].id)
+        self.assertEqual(len(res), 1)
+
+        res = await self.con.query('select <optional Person>$0', None)
+        self.assertEqual(len(res), 0)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError, r'with id .* does not exist'
+        ):
+            await self.con.query('select <optional Person>$0', dummy_uuid)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError, r'with id .* does not exist'
+        ):
+            await self.con.query('select <Person>$0', dummy_uuid)

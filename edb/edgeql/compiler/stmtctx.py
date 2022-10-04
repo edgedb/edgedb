@@ -750,6 +750,22 @@ def preprocess_script(
         with ctx.new() as mctx:
             mctx.modaliases = modaliases
             target_stype = typegen.ql_typeexpr_to_type(cast.type, ctx=mctx)
+
+        # for ObjectType parameters, we inject intermediate cast to uuid,
+        # so parameter is uuid and then cast to ObjectType
+        if target_stype.is_object_type():
+            uuid_cast = qlast.TypeCast(
+                type=qlast.TypeName(maintype=qlast.ObjectRef(name='uuid')),
+                expr=cast.expr,
+                cardinality_mod=cast.cardinality_mod,
+            )
+            cast.expr = uuid_cast
+            cast = cast.expr
+
+            with ctx.new() as mctx:
+                mctx.modaliases = modaliases
+                target_stype = typegen.ql_typeexpr_to_type(cast.type, ctx=mctx)
+
         target_typeref = typegen.type_to_typeref(target_stype, env=ctx.env)
         required = cast.cardinality_mod != qlast.CardinalityModifier.Optional
         params[name] = irast.Param(
