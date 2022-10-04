@@ -21,7 +21,6 @@
 
 
 from __future__ import annotations
-import copy
 
 from typing import *
 
@@ -99,7 +98,7 @@ def compile_cast(
         orig_stype.issubclass(ctx.env.schema, uuid_t)
         and new_stype.is_object_type()
     ):
-        return _find_object_by_id(ir_expr, new_stype, cardinality_mod, ctx=ctx)
+        return _find_object_by_id(ir_expr, new_stype, ctx=ctx)
 
     json_t = ctx.env.get_track_schema_type(
         sn.QualName('std', 'json'))
@@ -933,16 +932,14 @@ def _cast_array_literal(
 def _find_object_by_id(
     ir_expr: Union[irast.Set, irast.Expr],
     new_stype: s_types.Type,
-    cardinality_mod: Optional[qlast.CardinalityModifier],
     *,
     ctx: context.ContextLevel,
 ) -> irast.Set:
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
 
-        uuid_anchor = subctx.create_anchor(
-            setgen.ensure_set(ir_expr, ctx=ctx), name='a'
-        )
+        ir_set = setgen.ensure_set(ir_expr, ctx=subctx)
+        uuid_anchor = subctx.create_anchor(ir_set, name='a')
 
         object_name = s_utils.name_to_ast_ref(
             new_stype.get_name(ctx.env.schema)
@@ -960,7 +957,7 @@ def _find_object_by_id(
                     partial=True,
                 ),
                 op='=',
-                right=uuid_anchor,
+                right=qlast.Path(steps=[qlast.ObjectRef(name='_id')]),
             ),
         )
 
@@ -974,7 +971,7 @@ def _find_object_by_id(
             op='++',
             right=qlast.BinOp(
                 left=qlast.TypeCast(
-                    expr=uuid_anchor,
+                    expr=qlast.Path(steps=[qlast.ObjectRef(name='_id')]),
                     type=qlast.TypeName(maintype=qlast.ObjectRef(name='str')),
                 ),
                 op='++',
@@ -982,22 +979,14 @@ def _find_object_by_id(
             ),
         )
 
-        ql: qlast.Expr = qlast.FunctionCall(
+        exists_ql = qlast.FunctionCall(
             func='assert_exists',
             args=[select_id],
             kwargs={'message': error_message},
         )
 
-        if cardinality_mod == qlast.CardinalityModifier.Optional:
-            empty_set = qlast.TypeCast(
-                type=qlast.TypeName(maintype=copy.deepcopy(object_name)),
-                expr=qlast.Set(elements=[]),
-            )
+        for_query = qlast.ForQuery(
+            iterator=uuid_anchor, iterator_alias='_id', result=exists_ql
+        )
 
-            ql = qlast.IfElse(
-                condition=qlast.UnaryOp(op='EXISTS', operand=uuid_anchor),
-                if_expr=ql,
-                else_expr=empty_set,
-            )
-
-        return dispatch.compile(ql, ctx=subctx)
+        return dispatch.compile(for_query, ctx=subctx)

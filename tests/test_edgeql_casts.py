@@ -2678,10 +2678,8 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         res = await self.con.query('select <optional Person><optional uuid>{}')
         self.assertEqual(len(res), 0)
 
-        async with self.assertRaisesRegexTx(
-            edgedb.CardinalityViolationError, r'empty set'
-        ):
-            await self.con.query('select <Person><optional uuid>$0', None)
+        res = await self.con.query('select <Person><optional uuid>$0', None)
+        self.assertEqual(len(res), 0)
 
         res = await self.con.query('select <Person>$0', persons[0].id)
         self.assertEqual(len(res), 1)
