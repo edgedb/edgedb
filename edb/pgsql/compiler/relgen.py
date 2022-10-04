@@ -3483,6 +3483,45 @@ def process_set_as_exists_expr(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+@_special_case('std::json_object_pack')
+def process_set_as_json_object_pack(
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+    assert isinstance(ir_set.expr, irast.FunctionCall)
+    func_call = ir_set.expr
+    pairs = func_call.args[0]
+
+    from edb.edgeql.compiler import setgen
+
+    stype = setgen.get_set_type(pairs.expr, ctx=ctx)
+
+    keys = setgen.tuple_indirection_set(
+        pairs.expr,
+        source=stype,
+        ptr_name='0',
+        ctx=ctx,
+    )
+    values = setgen.tuple_indirection_set(
+        pairs.expr,
+        source=stype,
+        ptr_name='1',
+        ctx=ctx,
+    )
+
+    set_expr = pgast.FuncCall(
+        name = ("json_object_pack",),
+        args = [
+            dispatch.compile(keys),
+            dispatch.compile(values),
+        ]
+    )
+
+    pathctx.put_path_value_var_if_not_exists(
+        stmt, ir_set.path_id, set_expr, env=ctx.env)
+
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
 def build_array_expr(
         ir_expr: irast.Base,
         elements: List[pgast.BaseExpr], *,

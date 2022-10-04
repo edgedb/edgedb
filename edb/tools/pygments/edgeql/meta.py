@@ -299,6 +299,7 @@ class EdgeQL:
         "json_array_unpack",
         "json_get",
         "json_object_unpack",
+        "json_object_pack",
         "json_typeof",
         "len",
         "lg",
