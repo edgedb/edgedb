@@ -5,3 +5,7 @@
 [submodule "edb/server/pgproto"]
 	path = edb/server/pgproto
 	url = https://github.com/MagicStack/py-pgproto.git
+[submodule "edb/pypg_query/libpg_query"]
+	path = edb/pypg_query/libpg_query
+	url = https://github.com/lfittl/libpg_query.git
+	branch = 13-latest

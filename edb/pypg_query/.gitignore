@@ -1,0 +1,5 @@
+*.so
+psqlparse/parser.c
+build/
+__pycache__/
+*.pyc
