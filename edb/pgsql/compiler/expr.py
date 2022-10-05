@@ -317,36 +317,32 @@ def _inline_array_slicing(
         indirection=[
             pgast.Slice(
                 lidx=pgast.FuncCall(
-                    name=("edgedb", "_int_bound"),
+                    name=("edgedb", "_normalize_array_index"),
                     args=[
                         pgast.FuncCall(
-                            name=("edgedb", "_normalize_array_index"),
-                            args=[
-                                start,
-                                pgast.FuncCall(
-                                    name=("cardinality",), args=[subj]
-                                ),
-                            ],
-                        )
-                    ],
-                ),
-                ridx=pgast.FuncCall(
-                    name=("edgedb", "_int_bound"),
-                    args=[
-                        astutils.new_binop(
-                            lexpr=pgast.FuncCall(
-                                name=("edgedb", "_normalize_array_index"),
-                                args=[
-                                    stop,
-                                    pgast.FuncCall(
-                                        name=("cardinality",), args=[subj]
-                                    ),
-                                ],
-                            ),
-                            op="-",
-                            rexpr=pgast.LiteralExpr(expr="1"),
+                            name=("edgedb", "_int_bound"),
+                            args=[start]
+                        ),
+                        pgast.FuncCall(
+                            name=("cardinality",), args=[subj]
                         ),
                     ],
+                ),
+                ridx=astutils.new_binop(
+                    lexpr=pgast.FuncCall(
+                        name=("edgedb", "_normalize_array_index"),
+                        args=[
+                            pgast.FuncCall(
+                                name=("edgedb", "_int_bound"),
+                                args=[stop],
+                            ),
+                            pgast.FuncCall(
+                                name=("cardinality",), args=[subj]
+                            ),
+                        ],
+                    ),
+                    op="-",
+                    rexpr=pgast.LiteralExpr(expr="1"),
                 ),
             )
         ],

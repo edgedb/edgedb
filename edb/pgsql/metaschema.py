@@ -1907,7 +1907,9 @@ class NormalizeArrayIndexFunction(dbops.Function):
 
     text = '''
         SELECT
-            CASE WHEN index < 0 THEN
+            CASE WHEN index > (2147483647-1) OR index < -2147483648 THEN
+                NULL
+            WHEN index < 0 THEN
                 length::bigint + index + 1
             ELSE
                 index + 1
@@ -1920,7 +1922,6 @@ class NormalizeArrayIndexFunction(dbops.Function):
             args=[('index', ('bigint',)), ('length', ('int',))],
             returns=('bigint',),
             volatility='immutable',
-            strict=True,
             text=self.text,
         )
 
@@ -1956,7 +1957,7 @@ class IntBoundFunction(dbops.Function):
     """
 
     text = """
-        SELECT GREATEST(-2147483648, LEAST(2147483647, val))::integer
+        SELECT GREATEST(-2147483648, LEAST(2147483647-1, val))::integer
     """
 
     def __init__(self) -> None:
@@ -1974,9 +1975,7 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
 
     text = '''
         SELECT edgedb.raise_on_null(
-            val[edgedb._int_or_null(
-                edgedb._normalize_array_index(index, array_upper(val, 1))
-            )],
+            val[edgedb._normalize_array_index(index, array_upper(val, 1))],
             'array_subscript_error',
             msg => 'array index ' || index::text || ' is out of bounds',
             detail => detail
@@ -1991,7 +1990,6 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
             returns=('anyelement',),
             # Same volatility as raise()
             volatility='stable',
-            strict=True,
             text=self.text,
         )
 
@@ -2005,12 +2003,11 @@ class ArraySliceFunction(dbops.Function):
     # this will return last element instead of an empty array.
     text = """
         SELECT val[
-            edgedb._int_bound(
-                edgedb._normalize_array_index(start, cardinality(val))
-            ):
-            edgedb._int_bound(
-                edgedb._normalize_array_index(stop, cardinality(val)) - 1
-            )
+            edgedb._normalize_array_index(
+                edgedb._int_bound(start), cardinality(val))
+            :
+            edgedb._normalize_array_index(
+                edgedb._int_bound(stop), cardinality(val)) - 1
         ]
     """
 
@@ -2043,8 +2040,8 @@ class StringIndexWithBoundsFunction(dbops.Function):
             "detail"
         )
         FROM (
-            SELECT edgedb._int_or_null(
-                edgedb._normalize_array_index("index", char_length("val"))
+            SELECT (
+                edgedb._normalize_array_index("index", char_length("val"))::int
             ) as pg_index
         ) t
     '''
@@ -2061,7 +2058,6 @@ class StringIndexWithBoundsFunction(dbops.Function):
             returns=('text',),
             # Same volatility as raise_on_empty
             volatility='stable',
-            strict=True,
             text=self.text,
         )
 
@@ -2081,8 +2077,8 @@ class BytesIndexWithBoundsFunction(dbops.Function):
             "detail"
         )
         FROM (
-            SELECT edgedb._int_or_null(
-                edgedb._normalize_array_index("index", length("val"))
+            SELECT (
+                edgedb._normalize_array_index("index", length("val"))::int
             ) as pg_index
         ) t
     '''
@@ -2098,7 +2094,6 @@ class BytesIndexWithBoundsFunction(dbops.Function):
             returns=('bytea',),
             # Same volatility as raise_on_empty
             volatility='stable',
-            strict=True,
             text=self.text,
         )
 
@@ -2172,12 +2167,12 @@ class StringSliceImplFunction(dbops.Function):
                 pg_end - pg_start
             )
         FROM (SELECT
-            GREATEST(0, edgedb._int_bound(edgedb._normalize_array_index(
-                start, edgedb._length(val)
-            ))) as pg_start,
-            GREATEST(0, edgedb._int_bound(edgedb._normalize_array_index(
-                stop, edgedb._length(val)
-            ))) as pg_end
+            GREATEST(0, edgedb._normalize_array_index(
+                edgedb._int_bound(start), edgedb._length(val)
+            ))::int as pg_start,
+            GREATEST(0, edgedb._normalize_array_index(
+                edgedb._int_bound(stop), edgedb._length(val)
+            ))::int as pg_end
         ) t
     """
 
