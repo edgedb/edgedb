@@ -1910,9 +1910,9 @@ class NormalizeArrayIndexFunction(dbops.Function):
             CASE WHEN index > (2147483647-1) OR index < -2147483648 THEN
                 NULL
             WHEN index < 0 THEN
-                length::bigint + index + 1
+                length + index::int + 1
             ELSE
-                index + 1
+                index::int + 1
             END
     '''
 
