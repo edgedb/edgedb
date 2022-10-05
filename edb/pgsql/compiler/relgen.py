@@ -3487,38 +3487,39 @@ def process_set_as_exists_expr(
 def process_set_as_json_object_pack(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
-    assert isinstance(ir_set.expr, irast.FunctionCall)
-    func_call = ir_set.expr
-    pairs = func_call.args[0]
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+    
+    with ctx.subrel() as subctx:
+        ir_arg = expr.args[0].expr
 
-    from edb.edgeql.compiler import setgen
+        # compile IR to pgast that may be a ref
+        arg_ref = dispatch.compile(ir_arg, ctx=subctx)
 
-    stype = setgen.get_set_type(pairs.expr, ctx=ctx)
+        # ensure that pgast ref is actually a value
+        arg_val = output.output_as_value(arg_ref, env=subctx.env)
 
-    keys = setgen.tuple_indirection_set(
-        pairs.expr,
-        source=stype,
-        ptr_name='0',
-        ctx=ctx,
-    )
-    values = setgen.tuple_indirection_set(
-        pairs.expr,
-        source=stype,
-        ptr_name='1',
-        ctx=ctx,
-    )
+        # get first and the second fields of the tuple
+        keys = astutils.tuple_getattr(arg_val, ir_arg.typeref, '0')
+        values = astutils.tuple_getattr(arg_val, ir_arg.typeref, '1')
 
-    set_expr = pgast.FuncCall(
-        name = ("json_object_pack",),
-        args = [
-            dispatch.compile(keys),
-            dispatch.compile(values),
-        ]
-    )
+        # construct the function call
+        set_expr = pgast.FuncCall(
+            name = ("json_object_pack",),
+            args = [keys, values]
+        )
 
-    pathctx.put_path_value_var_if_not_exists(
-        stmt, ir_set.path_id, set_expr, env=ctx.env)
+        # declare that the 'aspect=value' of ir_set (original set)
+        # can be found by in subctx.rel, by using set_expr
+        pathctx.put_path_value_var_if_not_exists(
+            subctx.rel, ir_set.path_id, set_expr, env=ctx.env)
 
+    # declare a new subquery
+    func_rvar = relctx.new_rel_rvar(ir_set, subctx.rel, ctx=ctx)
+    relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
+                        pull_namespace=False, ctx=ctx)
+
+    # return subquery as set_rvar
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
