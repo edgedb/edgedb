@@ -317,12 +317,9 @@ def _inline_array_slicing(
         indirection=[
             pgast.Slice(
                 lidx=pgast.FuncCall(
-                    name=("edgedb", "_normalize_array_index"),
+                    name=("edgedb", "_normalize_array_slice_index"),
                     args=[
-                        pgast.FuncCall(
-                            name=("edgedb", "_int_bound"),
-                            args=[start]
-                        ),
+                        start,
                         pgast.FuncCall(
                             name=("cardinality",), args=[subj]
                         ),
@@ -330,12 +327,9 @@ def _inline_array_slicing(
                 ),
                 ridx=astutils.new_binop(
                     lexpr=pgast.FuncCall(
-                        name=("edgedb", "_normalize_array_index"),
+                        name=("edgedb", "_normalize_array_slice_index"),
                         args=[
-                            pgast.FuncCall(
-                                name=("edgedb", "_int_bound"),
-                                args=[stop],
-                            ),
+                            stop,
                             pgast.FuncCall(
                                 name=("cardinality",), args=[subj]
                             ),

@@ -1920,7 +1920,32 @@ class NormalizeArrayIndexFunction(dbops.Function):
         super().__init__(
             name=('edgedb', '_normalize_array_index'),
             args=[('index', ('bigint',)), ('length', ('int',))],
-            returns=('bigint',),
+            returns=('int',),
+            volatility='immutable',
+            text=self.text,
+        )
+
+
+class NormalizeArraySliceIndexFunction(dbops.Function):
+    """Convert an EdgeQL index to SQL index (for slices)"""
+
+    text = '''
+        SELECT
+            GREATEST(0, LEAST(2147483647,
+                CASE WHEN index < 0 THEN
+                    length::bigint + index + 1
+                ELSE
+                    index + 1
+                END
+            ))
+        WHERE index IS NOT NULL
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_normalize_array_slice_index'),
+            args=[('index', ('bigint',)), ('length', ('int',))],
+            returns=('int',),
             volatility='immutable',
             text=self.text,
         )
@@ -1949,25 +1974,6 @@ class IntOrNullFunction(dbops.Function):
             strict=True,
             text=self.text,
         )
-
-
-class IntBoundFunction(dbops.Function):
-    """
-    Cast bigint to int. If it does not fit, return int's min or max value.
-    """
-
-    text = """
-        SELECT GREATEST(-2147483648, LEAST(2147483647-1, val))::integer
-    """
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=("edgedb", "_int_bound"),
-            args=[("val", ("bigint",))],
-            returns=("int",),
-            volatility="immutable",
-            strict=True,
-            text=self.text)
 
 
 class ArrayIndexWithBoundsFunction(dbops.Function):
@@ -2003,11 +2009,9 @@ class ArraySliceFunction(dbops.Function):
     # this will return last element instead of an empty array.
     text = """
         SELECT val[
-            edgedb._normalize_array_index(
-                edgedb._int_bound(start), cardinality(val))
+            edgedb._normalize_array_slice_index(start, cardinality(val))
             :
-            edgedb._normalize_array_index(
-                edgedb._int_bound(stop), cardinality(val)) - 1
+            edgedb._normalize_array_slice_index(stop, cardinality(val)) - 1
         ]
     """
 
@@ -2041,7 +2045,7 @@ class StringIndexWithBoundsFunction(dbops.Function):
         )
         FROM (
             SELECT (
-                edgedb._normalize_array_index("index", char_length("val"))::int
+                edgedb._normalize_array_index("index", char_length("val"))
             ) as pg_index
         ) t
     '''
@@ -2078,7 +2082,7 @@ class BytesIndexWithBoundsFunction(dbops.Function):
         )
         FROM (
             SELECT (
-                edgedb._normalize_array_index("index", length("val"))::int
+                edgedb._normalize_array_index("index", length("val"))
             ) as pg_index
         ) t
     '''
@@ -2167,12 +2171,12 @@ class StringSliceImplFunction(dbops.Function):
                 pg_end - pg_start
             )
         FROM (SELECT
-            GREATEST(0, edgedb._normalize_array_index(
-                edgedb._int_bound(start), edgedb._length(val)
-            ))::int as pg_start,
-            GREATEST(0, edgedb._normalize_array_index(
-                edgedb._int_bound(stop), edgedb._length(val)
-            ))::int as pg_end
+            edgedb._normalize_array_slice_index(
+                start, edgedb._length(val)
+            ) as pg_start,
+            edgedb._normalize_array_slice_index(
+                stop, edgedb._length(val)
+            ) as pg_end
         ) t
     """
 
@@ -4137,8 +4141,8 @@ async def bootstrap(
         dbops.CreateFunction(GetTableDescendantsFunction()),
         dbops.CreateFunction(ParseTriggerConditionFunction()),
         dbops.CreateFunction(NormalizeArrayIndexFunction()),
+        dbops.CreateFunction(NormalizeArraySliceIndexFunction()),
         dbops.CreateFunction(IntOrNullFunction()),
-        dbops.CreateFunction(IntBoundFunction()),
         dbops.CreateFunction(ArrayIndexWithBoundsFunction()),
         dbops.CreateFunction(ArraySliceFunction()),
         dbops.CreateFunction(StringIndexWithBoundsFunction()),
