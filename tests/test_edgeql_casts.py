@@ -2631,3 +2631,68 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 msg=f'{cast.from_type.name} to {cast.to_type.name}',
                 json_only=json_only,
             )
+
+    async def test_edgeql_casts_uuid_to_object(self):
+        persons = await self.con.query('select Person { id }')
+
+        dummy_uuid = '1' * 32
+
+        res = await self.con.query('select <Person><uuid>$0', persons[0].id)
+        self.assertEqual(len(res), 1)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError, r'with id .* does not exist'
+        ):
+            await self.con.query('select <Person><uuid>$0', dummy_uuid)
+
+        await self.assert_query_result(
+            '''
+            select (<Person>{<uuid>$0, <uuid>$1}) { name }
+            order by .name;
+            ''',
+            [{'name': 'kelly'}, {'name': 'tom'}],
+            json_only=True,
+            variables=(persons[0].id, persons[1].id),
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError, r'with id .* does not exist'
+        ):
+            await self.con.query(
+                '''
+                select (<Person>{<uuid>$0, <uuid>$1}) { name }
+                order by .name;
+                ''', persons[0].id, dummy_uuid
+            )
+
+        res = await self.con.query(
+            'select <Person><optional uuid>$0', persons[0].id
+        )
+        self.assertEqual(len(res), 1)
+
+        res = await self.con.query(
+            'select <optional Person><optional uuid>$0', None
+        )
+        self.assertEqual(len(res), 0)
+
+        res = await self.con.query('select <optional Person><optional uuid>{}')
+        self.assertEqual(len(res), 0)
+
+        res = await self.con.query('select <Person><optional uuid>$0', None)
+        self.assertEqual(len(res), 0)
+
+        res = await self.con.query('select <Person>$0', persons[0].id)
+        self.assertEqual(len(res), 1)
+
+        res = await self.con.query('select <optional Person>$0', None)
+        self.assertEqual(len(res), 0)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError, r'with id .* does not exist'
+        ):
+            await self.con.query('select <optional Person>$0', dummy_uuid)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError, r'with id .* does not exist'
+        ):
+            await self.con.query('select <Person>$0', dummy_uuid)
