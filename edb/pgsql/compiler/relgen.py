@@ -3489,7 +3489,7 @@ def process_set_as_json_object_pack(
         ctx: context.CompilerContextLevel) -> SetRVars:
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
-    
+
     with ctx.subrel() as subctx:
         ir_arg = expr.args[0].expr
 
@@ -3505,8 +3505,7 @@ def process_set_as_json_object_pack(
 
         # construct the function call
         set_expr = pgast.FuncCall(
-            name = ("json_object_pack",),
-            args = [keys, values]
+            name=("jsonb_object_agg",), args=[keys, values]
         )
 
         # declare that the 'aspect=value' of ir_set (original set)
