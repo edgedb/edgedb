@@ -100,6 +100,9 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: SQL query hierarchy
     rel_hierarchy: Dict[pgast.Query, pgast.Query]
 
+    #: CTEs representing decoded parameters
+    param_ctes: Dict[str, pgast.CommonTableExpr]
+
     #: CTEs representing schema types, when rewritten based on access policy
     type_ctes: Dict[RewriteKey, pgast.CommonTableExpr]
 
@@ -223,6 +226,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt = NO_STMT
             self.rel = NO_STMT
             self.rel_hierarchy = {}
+            self.param_ctes = {}
             self.type_ctes = {}
             self.pending_type_ctes = set()
             self.dml_stmts = {}
@@ -260,6 +264,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.stmt = prevlevel.stmt
             self.rel = prevlevel.rel
             self.rel_hierarchy = prevlevel.rel_hierarchy
+            self.param_ctes = prevlevel.param_ctes
             self.type_ctes = prevlevel.type_ctes
             self.pending_type_ctes = prevlevel.pending_type_ctes
             self.dml_stmts = prevlevel.dml_stmts

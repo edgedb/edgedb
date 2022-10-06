@@ -459,6 +459,9 @@ class Param:
     #: whether parameter is required
     required: bool
 
+    #: index in the "logical" arg map
+    logical_index: int
+
 
 class Query(ReturningQuery):
     """Generic superclass representing a query."""

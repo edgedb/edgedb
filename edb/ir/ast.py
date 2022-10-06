@@ -509,7 +509,7 @@ class Command(Base):
     __abstract_node__ = True
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class Param:
     """Query parameter with it's schema type and IR type"""
 
@@ -524,6 +524,83 @@ class Param:
 
     ir_type: TypeRef
     """IR type reference"""
+
+    sub_params: SubParams | None = None
+    """Sub-parameters containing tuple components.
+
+    If the param needs to be split into multiple real postgres params
+    in order to implement tuples, this collects those parameters and
+    the decoder expression.
+    """
+
+    @property
+    def is_sub_param(self) -> bool:
+        return (
+            self.name.startswith('__edb_decoded_') and self.name.endswith('__')
+        )
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class SubParams:
+    """Information about sub-parameters needed for tuple components.
+
+    If the param needs to be split into multiple real postgres params
+    in order to implement tuples, this collects those parameters and
+    the decoder expression.
+    """
+    trans_type: ParamTransType
+    decoder_edgeql: qlast.Expr
+    params: tuple[Param, ...]
+    decoder_ir: Set | None = None
+
+
+@dataclasses.dataclass(eq=False)
+class ParamTransType:
+    """Representation of how a tuple-containing parameter type is broken down.
+
+    The key thing here is that each node contains the index corresponding
+    to which sub-parameter that node in the argument type corresponds with.
+    See edgeql.compiler.tuple_args for details.
+
+    The reason we track this in a separate data structure (instead of just
+    having an dict from TypeRefs to indexes, say) is that TypeRefs will often
+    be shared among identical types, but we need to track different indexes
+    for different components of a type.
+    (For example, if we have an param type `tuple<str, str>`, this gets
+    decomposed into two `str` params, with indexes 0 and 1.
+    """
+    typeref: TypeRef
+    idx: int
+
+    def flatten(self) -> tuple[typing.Any, ...]:
+        """Flatten out the trans type into a tuple representation.
+
+        The idea here is to produce something that our inner loop in cython
+        can consume efficiently.
+        """
+        raise NotImplementedError
+
+
+@dataclasses.dataclass(eq=False)
+class ParamScalar(ParamTransType):
+    def flatten(self) -> tuple[typing.Any, ...]:
+        return (0, self.idx)
+
+
+@dataclasses.dataclass(eq=False)
+class ParamTuple(ParamTransType):
+    typs: tuple[ParamTransType, ...]
+
+    def flatten(self) -> tuple[typing.Any, ...]:
+        return (1, self.idx) + tuple(x.flatten() for x in self.typs)
+
+
+@dataclasses.dataclass(eq=False)
+class ParamArray(ParamTransType):
+    typ: ParamTransType
+
+    def flatten(self) -> tuple[typing.Any, ...]:
+        return (2, self.idx, self.typ.flatten())
 
 
 @dataclasses.dataclass(frozen=True)

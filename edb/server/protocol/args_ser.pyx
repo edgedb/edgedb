@@ -33,6 +33,7 @@ from edb.server.pgproto.pgproto cimport (
     frb_init,
     frb_read,
     frb_get_len,
+    frb_slice_from,
 )
 
 
@@ -61,7 +62,7 @@ cdef recode_bind_args_for_script(
         bind_data = WriteBuffer.new()
         bind_data.write_int32(0x00010001)
 
-        num_args = len(query_unit.in_type_args or ())
+        num_args = query_unit.in_type_args_real_count
         num_args += _count_globals(query_unit)
 
         if compiled.first_extra is not None:
@@ -138,7 +139,7 @@ cdef WriteBuffer recode_bind_args(
             f"invalid argument count, "
             f"expected: {decl_args}, got: {recv_args}")
 
-    num_args = recv_args
+    num_args = qug.in_type_args_real_count
     if compiled.first_extra is not None:
         assert recv_args == compiled.first_extra, \
             f"argument count mismatch {recv_args} != {compiled.first_extra}"
@@ -156,13 +157,25 @@ cdef WriteBuffer recode_bind_args(
 
             frb_read(&in_buf, 4)  # reserved
             in_len = hton.unpack_int32(frb_read(&in_buf, 4))
-            out_buf.write_int32(in_len)
-
             if in_len < 0:
                 # This means argument value is NULL
                 if param.required:
                     raise errors.QueryError(
                         f"parameter ${param.name} is required")
+
+            # If the param has encoded tuples, we need to decode them
+            # and reencode them as arrays of scalars.
+            if param.sub_params:
+                # HACK: Rewind the frb, since _decode_tuple_args needs the
+                # length present.
+                frb_read(&in_buf, -4)
+
+                tids, trans_typ = param.sub_params
+                _decode_tuple_args(
+                    dbv, &in_buf, out_buf, in_len, tids, trans_typ)
+                continue
+
+            out_buf.write_int32(in_len)
 
             if in_len > 0:
                 data = frb_read(&in_buf, in_len)
@@ -192,6 +205,139 @@ cdef WriteBuffer recode_bind_args(
         out_buf.write_int32(0x00010001)
 
     return out_buf
+
+
+cdef WriteBuffer _decode_tuple_args_core(
+    FRBuffer* in_buf,
+    out_bufs: tuple[WriteBuffer],
+    counts: list[int],
+    acounts: list[int],
+    trans_typ: tuple,
+    in_array: bool,
+):
+    # Recurse over the types and the input data, collecting the
+    # arguments into the various out_bufs. See
+    # edb.edgeql.compiler.tuple_args for more discussion.
+
+    cdef:
+        ssize_t in_len
+        WriteBuffer buf
+        ssize_t cnt
+        ssize_t idx
+        ssize_t num
+        ssize_t tag
+        FRBuffer sub_buf
+
+    tag = trans_typ[0]
+    idx = trans_typ[1]
+
+    in_len = hton.unpack_int32(frb_read(in_buf, 4))
+    buf = out_bufs[idx]
+
+    if in_len < 0:
+        raise errors.QueryError("invalid NULL inside type")
+
+    frb_slice_from(&sub_buf, in_buf, in_len)
+
+    if tag == 0:  # scalar
+        buf.write_int32(in_len)
+        data = frb_read(&sub_buf, in_len)
+        buf.write_cstr(data, in_len)
+        if in_array:
+            counts[idx] += 1
+
+    elif tag == 1:  # tuple
+        cnt = <uint32_t>hton.unpack_int32(frb_read(&sub_buf, 4))
+        num = len(trans_typ) - 2
+        if cnt != num:
+            raise errors.QueryError(
+                f"tuple length mismatch: {cnt} vs {num}")
+        for idx in range(num):
+            typ = trans_typ[idx + 2]
+            frb_read(&sub_buf, 4)
+            _decode_tuple_args_core(
+                &sub_buf, out_bufs, counts, acounts, typ, in_array)
+
+    elif tag == 2:  # array
+        frb_read(&sub_buf, 4)  # ndims
+        frb_read(&sub_buf, 4)  # flags
+        frb_read(&sub_buf, 4)  # reserved
+        cnt = <uint32_t>hton.unpack_int32(frb_read(&sub_buf, 4))
+        frb_read(&sub_buf, 4)  # bound
+
+        # For nested arrays, we need to produce an array containing
+        # the start/end indexes in the flattened array.
+        if in_array:
+            # If this is the first element, put in the 0
+            if acounts[idx] == -1:
+                counts[idx] += 1
+                acounts[idx] = 0
+                buf.write_int32(4)
+                buf.write_int32(0)
+            counts[idx] += 1
+            acounts[idx] += cnt
+            buf.write_int32(4)
+            buf.write_int32(acounts[idx])
+
+        styp = trans_typ[2]
+        for _ in range(cnt):
+            _decode_tuple_args_core(
+                &sub_buf, out_bufs, counts, acounts, styp, True)
+
+    if frb_get_len(&sub_buf):
+        raise RuntimeError('unexpected trailing data in buffer')
+
+
+cdef WriteBuffer _decode_tuple_args(
+    dbv: dbview.DatabaseConnectionView,
+    FRBuffer* in_buf,
+    out_buf: WriteBuffer,
+    in_len: ssize_t,
+    tids: list,
+    trans_typ: object,
+):
+    # PERF: Can we use real arrays, instead of python lists?
+    cdef:
+        const char *data
+        list buffers
+        list counts
+        list acounts
+        WriteBuffer buf
+
+    if in_len < 0:
+        # For a NULL argument, fill out *every* one of our args with NULL
+        for _ in tids:
+            out_buf.write_int32(in_len)
+        return
+
+    buffers = []
+    counts = []
+    acounts = []
+    for maybe_tid in tids:
+        buf = WriteBuffer.new()
+        counts.append(0 if maybe_tid else -1)
+        acounts.append(-1)
+        buffers.append(buf)
+
+    _decode_tuple_args_core(
+        in_buf, tuple(buffers), counts, acounts, trans_typ, False)
+
+    # zip all of the buffers we have collected into up
+    # PERF: or should we just index?
+    for maybe_tid, count, buf in zip(tids, counts, buffers):
+        if maybe_tid:
+            ndims = 1
+            out_buf.write_int32(12 + 8 * ndims + buf.len())
+            # ndimensions + flags
+            array_tid = dbv.resolve_backend_type_id(maybe_tid)
+            out_buf.write_int32(1)
+            out_buf.write_int32(0)
+            out_buf.write_int32(<int32_t>array_tid)
+
+            out_buf.write_int32(<int32_t>count)
+            out_buf.write_int32(1)
+
+        out_buf.write_buffer(buf)
 
 
 cdef _inject_globals(

@@ -238,6 +238,14 @@ def collapse_type_intersection_rptr(
     return ind_prefix, ptrs
 
 
+def type_from_typeref(
+    t: irast.TypeRef,
+    env: context.Environment,
+) -> s_types.Type:
+    env.schema, styp = irtyputils.ir_typeref_to_type(env.schema, t)
+    return styp
+
+
 def type_to_typeref(
     t: s_types.Type,
     env: context.Environment,

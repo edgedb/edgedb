@@ -23,6 +23,7 @@
 from __future__ import annotations
 from typing import *
 
+import collections
 import contextlib
 
 from edb import errors
@@ -3614,3 +3615,51 @@ def process_set_as_array_expr(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
+def process_encoded_param(
+        param: irast.Param, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+
+    assert param.sub_params
+    decoder = param.sub_params.decoder_ir
+    assert decoder
+
+    if (param_cte := ctx.param_ctes.get(param.name)) is None:
+        with ctx.newrel() as sctx:
+            sctx.pending_query = sctx.rel
+            sctx.volatility_ref = ()
+            sctx.type_rel_overlays = collections.defaultdict(
+                lambda: collections.defaultdict(list))
+            sctx.ptr_rel_overlays = collections.defaultdict(
+                lambda: collections.defaultdict(list))
+            arg_ref = dispatch.compile(decoder, ctx=sctx)
+
+            # Force it into a real tuple so we can just always grab it
+            # from a subquery below.
+            arg_val = output.output_as_value(arg_ref, env=sctx.env)
+            pathctx.put_path_value_var(
+                sctx.rel, decoder.path_id, arg_val, env=sctx.env, force=True)
+
+            param_cte = pgast.CommonTableExpr(
+                name=ctx.env.aliases.get('p'),
+                query=sctx.rel,
+                materialized=False,
+            )
+            ctx.param_ctes[param.name] = param_cte
+
+    with ctx.subrel() as sctx:
+        cte_rvar = pgast.RelRangeVar(
+            relation=param_cte,
+            typeref=decoder.typeref,
+            alias=pgast.Alias(aliasname=ctx.env.aliases.get('t'))
+        )
+        relctx.include_rvar(
+            sctx.rel, cte_rvar, decoder.path_id, pull_namespace=False,
+            aspects=('value',), ctx=sctx,
+        )
+        pathctx.get_path_value_output(sctx.rel, decoder.path_id, env=ctx.env)
+        if not param.required:
+            sctx.rel.nullable = True
+
+    return sctx.rel

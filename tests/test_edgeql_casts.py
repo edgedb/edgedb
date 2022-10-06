@@ -2538,32 +2538,228 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             await self.con.query(
                 "SELECT <custom_str_t>'123'")
 
-    async def test_edgeql_casts_prohibit_tuple_query_params_01(self):
-        async with self.assertRaisesRegexTx(
-            edgedb.QueryError,
-            r'cannot pass tuples as query parameters',
-        ):
-            await self.con.query(
-                r'''
-                SELECT Test {
-                    id,
-                    num := (<tuple<int64, float64, str, bytes>>$tup).0,
-                    st := (<tuple<int64, float64, str, bytes>>$tup).2,
-                };
-                ''',
-                tup=(0, 1.0, "str", b"bytes"),
-            )
+    async def test_edgeql_casts_tuple_params_01(self):
+        # insert tuples into a nested array
+        def nest(data):
+            return [(nest(x),) if isinstance(x, list) else x for x in data]
 
-    async def test_edgeql_casts_prohibit_tuple_query_params_02(self):
-        async with self.assertRaisesRegexTx(
-            edgedb.QueryError,
-            r'cannot pass collections with tuple elements'
-            r' as query parameters',
-        ):
-            await self.con.query(
-                r"SELECT <array<tuple<int64, str>>>$0;",
+        tests = {
+            # Basic tuples
+            'tuple<str, bool>': [('x', True), ('y', False)],
+            'optional tuple<str, bool>': [('x', True), None],
+
+            # Some pointlessly nested tuples
+            'tuple<tuple<str, bool>>': [(('x', True),)],
+            'tuple<tuple<str, bool>, int64>': [(('x', True), 1)],
+
+            # Basic array examples
+            'array<tuple<int64, str>>': [
+                [],
+                [(0, 'zero')],
                 [(0, 'zero'), (1, 'one')],
-            )
+            ],
+
+            'optional array<tuple<int64, str>>': [
+                None,
+                [],
+                [(0, 'zero')],
+                [(0, 'zero'), (1, 'one')],
+            ],
+
+            'array<tuple<str, array<int64>>>': [
+                [],
+                [('x', [])],
+                [('x', [1])],
+                [('x', []), ('y', []), ('z', [])],
+                [('x', [1]), ('y', []), ('z', [])],
+                [('x', []), ('y', [1]), ('z', [])],
+                [('x', []), ('y', []), ('z', [1])],
+                [('x', []), ('y', [1, 2]), ('z', [1, 2, 3])],
+            ],
+
+            # Arrays of pointlessly nested tuples
+            'array<tuple<tuple<str, bool>, int64>>': [
+                [],
+                [(('x', True), 1)],
+                [(('x', True), 1), (('z', False), 2)],
+            ],
+            'array<tuple<tuple<array<str>, bool>, int64>>': [
+                [],
+                [(([], True), 1)],
+                [((['x', 'y', 'z'], True), 1), ((['z'], False), 2)],
+            ],
+
+            # Using tuples to produce just a pure nested array
+            'array<tuple<array<int64>>>': [nest(x) for x in [
+                [],
+                [[], []],
+                [[], [], []],
+                [[1], [], []],
+                [[], [1], []],
+                [[], [], [1]],
+                [[1, 2, 3], [], [4, 5, 6]],
+                [[1], [2, 3], [4, 5, 6]],
+            ]],
+
+            'array<tuple<array<tuple<array<int64>>>>>': [nest(x) for x in [
+                [],
+                [[], []],
+                [[], [], []],
+                [[[], [], []], [[], []], [[]]],
+                [[[1]], [], []],
+                [[], [[1]], []],
+                [[], [], [[1]]],
+                [[[1, 2, 3], [], [4, 5, 6]]],
+                [[[1, 2, 3], []], [[4, 5, 6]]],
+                [[[1, 2], [3]], [], [[4, 5], [6]]],
+            ]],
+        }
+
+        for typ, vals in tests.items():
+            qry = f"SELECT <{typ}>$0"
+            for val in vals:
+                await self.assert_query_result(
+                    qry,
+                    [v for v in [val] if v is not None],
+                    variables=(val,),
+                    msg=f'type: {typ}, data: {val}',
+                )
+
+    async def test_edgeql_casts_tuple_params_02(self):
+        await self.assert_query_result(
+            '''
+            SELECT Test {
+                id,
+                num := (<tuple<int64, float64, str, bytes>>$tup).0,
+                st := (<tuple<int64, float64, str, bytes>>$tup).2,
+            };
+            ''',
+            [{'num': 0, 'st': "str"}],
+            variables={'tup': (0, 1.0, "str", b"bytes")},
+        )
+
+    async def test_edgeql_casts_tuple_params_03(self):
+        # try *doing* something with the input
+        await self.con.query(
+            r'''
+            create type Record {
+                 create required property name -> str;
+                 create multi property tags -> int64;
+            }
+            '''
+        )
+
+        data = [
+            [],
+            [('x', [])],
+            [('x', [1])],
+            [('x', []), ('y', []), ('z', [])],
+            [('x', [1]), ('y', []), ('z', [])],
+            [('x', []), ('y', [1]), ('z', [])],
+            [('x', []), ('y', []), ('z', [1])],
+            [('x', []), ('y', [1, 2]), ('z', [1, 2, 3])],
+        ]
+
+        qry = r'''
+        for row in array_unpack(<array<tuple<str, array<int64>>>>$0) union ((
+            insert Record { name := row.0, tags := array_unpack(row.1) }
+        ))
+        '''
+
+        for inp in data:
+            exp = tb.bag([
+                {'name': name, 'tags': tb.bag(tags)}
+                for name, tags in inp
+            ])
+
+            async with self._run_and_rollback():
+                await self.con.execute(qry, inp)
+
+                await self.assert_query_result(
+                    '''
+                    select Record { name, tags }
+                    ''',
+                    exp,
+                    msg=f'inp: {inp}',
+                )
+
+    async def test_edgeql_casts_tuple_params_04(self):
+        # Test doing a coalesce on an optional tuple input
+        await self.assert_query_result(
+            '''
+            select (<optional tuple<str, int64>>$0) ?? ('foo', 0)
+            ''',
+            [('foo', 0)],
+            variables=(None,),
+        )
+
+    async def test_edgeql_casts_tuple_params_05(self):
+        max_depth = 20
+
+        # Test deep nesting
+        t = 'int64'
+        v = 0
+        for _ in range(max_depth):
+            t = f'tuple<{t}>'
+            v = (v,)
+
+        await self.assert_query_result(
+            f'''
+            select <{t}>$0
+            ''',
+            [v],
+            variables=(v,),
+        )
+
+        # One more and it should fail
+        t = f'tuple<{t}>'
+        v = (v,)
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r'too deeply nested'):
+            await self.con.query(f"""
+                select <{t}>$0
+            """, v)
+
+    async def test_edgeql_casts_tuple_params_06(self):
+        # Test multiple tuple params mixed with other stuff
+        await self.assert_query_result(
+            '''
+            select
+                (<tuple<str, str>>$0).0 ++ <str>$1 ++ (<tuple<str, str>>$0).1
+            ''',
+            ['foo bar'],
+            variables=(('foo', 'bar'), ' ',),
+        )
+        await self.assert_query_result(
+            '''
+            select
+                (<tuple<str, str>>$0).0 ++ <str>$1 ++ (<tuple<str, str>>$0).1
+                ++ '!'
+            ''',
+            ['foo bar!'],
+            variables=(('foo', 'bar'), ' ',),
+        )
+        await self.assert_query_result(
+            '''
+            select
+                (<tuple<str, str>>$0).0 ++ <str>$1 ++ (<tuple<str, str>>$0).1
+                ++ (with z := (<tuple<str, str>>$2) select (z.0 ++ z.1))
+                ++ '!'
+            ''',
+            ['foo barxy!'],
+            variables=(('foo', 'bar'), ' ', ('x', 'y')),
+        )
+
+    async def test_edgeql_casts_tuple_params_07(self):
+        await self.assert_query_result(
+            '''
+            select <tuple<name: str, flag: bool>>$0
+            ''',
+            [{'name': 'a', 'flag': True}],
+            # The server supports named tuple input, but edgedb-python
+            # doesn't let you specify them nicely.
+            variables=(('a', True),)
+        )
 
     async def test_edgeql_cast_empty_set_to_array_01(self):
         await self.assert_query_result(

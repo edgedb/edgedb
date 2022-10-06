@@ -371,6 +371,7 @@ def fini_toplevel(
     # Type rewrites go first.
     if stmt.ctes is None:
         stmt.ctes = []
+    stmt.ctes[:0] = list(ctx.param_ctes.values())
     stmt.ctes[:0] = list(ctx.type_ctes.values())
 
     stmt.argnames = argmap = ctx.argmap
@@ -389,7 +390,7 @@ def fini_toplevel(
         targets = []
         for param in ctx.env.query_params:
             pgparam = argmap[param.name]
-            if pgparam.index in used:
+            if pgparam.index in used or param.sub_params:
                 continue
             targets.append(pgast.ResTarget(val=pgast.TypeCast(
                 arg=pgast.ParamRef(number=pgparam.index),
@@ -412,6 +413,8 @@ def populate_argmap(
     *,
     ctx: context.CompilerContextLevel,
 ) -> None:
+    physical_index = 1
+    logical_index = 1
     for map_extra in (False, True):
         for param in params:
             if ctx.env.use_named_params and not param.name.isdecimal():
@@ -420,16 +423,25 @@ def populate_argmap(
                 continue
 
             ctx.argmap[param.name] = pgast.Param(
-                index=len(ctx.argmap) + 1,
+                index=physical_index,
+                logical_index=logical_index,
                 required=param.required,
             )
+            if not param.sub_params:
+                physical_index += 1
+            if not param.is_sub_param:
+                logical_index += 1
     for param in globals:
         ctx.argmap[param.name] = pgast.Param(
-            index=len(ctx.argmap) + 1,
+            index=physical_index,
             required=param.required,
+            logical_index=-1,
         )
+        physical_index += 1
         if param.has_present_arg:
             ctx.argmap[param.name + "present__"] = pgast.Param(
-                index=len(ctx.argmap) + 1,
+                index=physical_index,
                 required=True,
+                logical_index=-1,
             )
+            physical_index += 1
