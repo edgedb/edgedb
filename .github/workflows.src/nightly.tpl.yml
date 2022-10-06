@@ -192,22 +192,9 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    <% if tgt.name == 'debian-buster' %>
-    - uses: actions/checkout@v2
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: dockerfile
-    - name: Publish Docker Image
-      uses: elgohr/Publish-Docker-Github-Action@3.04
-      with:
-        name: edgedb/edgedb
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-        tags: "nightly,nightly_${{ steps.describe.outputs.version-slot }}_cv${{ steps.describe.outputs.catalog-version }}"
-        workdir: dockerfile
-        buildargs: version=${{ steps.describe.outputs.version-slot }},subdist=nightly
-    <% endif %>
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 <% endfor %>
 <% for tgt in targets.macos %>
 <% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
@@ -240,4 +227,39 @@ jobs:
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
 <% endfor %>
+<% set docker_tgts = targets.linux | selectattr("docker_arch") | list %>
+<% if docker_tgts %>
+<% set pub_outputs = "needs.check-published-" + (docker_tgts|first)["name"] + ".outputs" %>
+  publish-docker:
+    needs:
+      <% for tgt in docker_tgts %>
+      - check-published-<< tgt.name >>
+      <% endfor %>
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: dockerfile
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Publish Docker Image
+      uses: elgohr/Publish-Docker-Github-Action@v4
+      with:
+        name: edgedb/edgedb
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        tags: "nightly,nightly_${{ << pub_outputs >>.version-slot }}_cv${{ << pub_outputs >>.catalog-version }}"
+        workdir: dockerfile
+        buildargs: version=${{ << pub_outputs >>.version-slot }},subdist=nightly
+        platforms: << docker_tgts|map(attribute="docker_arch")|join(",") >>
+<% endif %>
