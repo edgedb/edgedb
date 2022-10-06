@@ -2366,8 +2366,8 @@ def process_set_as_multiplicity_assertion(
     #       compliant sets.
     with ctx.subrel() as newctx:
         with newctx.subrel() as subctx:
-            dispatch.compile(ir_arg_set, ctx=subctx)
-            arg_ref = pathctx.get_path_output_and_fix_tuple(
+            dispatch.visit(ir_arg_set, ctx=subctx)
+            arg_ref = pathctx.get_path_output(
                 subctx.rel, ir_arg_set.path_id, aspect='value', env=subctx.env)
             arg_val = output.output_as_value(arg_ref, env=newctx.env)
             sub_rvar = relctx.new_rel_rvar(ir_arg_set, subctx.rel, ctx=subctx)
