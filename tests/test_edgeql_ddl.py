@@ -12289,6 +12289,17 @@ type default::Foo {
             type_refs=2,
         )
 
+    async def test_edgeql_ddl_rename_ref_function_05(self):
+        await self._simple_rename_ref_tests(
+            """
+            CREATE FUNCTION foo(x: array<Note>) -> str {
+                USING ('x')
+            }
+            """,
+            """DROP FUNCTION foo(x: array<default::Note>);""",
+            prop_refs=0,
+        )
+
     async def test_edgeql_ddl_rename_ref_default_01(self):
         await self._simple_rename_ref_tests(
             """

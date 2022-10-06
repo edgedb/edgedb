@@ -328,17 +328,23 @@ class Compiler:
             raise AssertionError('compiler is not initialized')
         return self._std_schema
 
+    def _get_delta_context_args(self, ctx: CompileContext):
+        """Get the args need from delta_from_ddl"""
+        return dict(
+            testmode=self.get_config_val(ctx, '__internal_testmode'),
+            allow_dml_in_functions=(
+                self.get_config_val(ctx, 'allow_dml_in_functions')),
+            schema_object_ids=ctx.schema_object_ids,
+            compat_ver=ctx.compat_ver,
+        )
+
     def _new_delta_context(self, ctx: CompileContext):
-        context = s_delta.CommandContext()
-        context.testmode = self.get_config_val(ctx, '__internal_testmode')
-        context.stdmode = ctx.bootstrap_mode
-        context.internal_schema_mode = ctx.internal_schema_mode
-        context.schema_object_ids = ctx.schema_object_ids
-        context.compat_ver = ctx.compat_ver
-        context.backend_runtime_params = self._backend_runtime_params
-        context.allow_dml_in_functions = (
-            self.get_config_val(ctx, 'allow_dml_in_functions'))
-        return context
+        return s_delta.CommandContext(
+            backend_runtime_params=self._backend_runtime_params,
+            stdmode=ctx.bootstrap_mode,
+            internal_schema_mode=ctx.internal_schema_mode,
+            **self._get_delta_context_args(ctx),
+        )
 
     def _process_delta(self, ctx: CompileContext, delta):
         """Adapt and process the delta command."""
@@ -846,11 +852,7 @@ class Compiler:
             stmt,
             schema=schema,
             modaliases=current_tx.get_modaliases(),
-            testmode=self.get_config_val(ctx, '__internal_testmode'),
-            allow_dml_in_functions=(
-                self.get_config_val(ctx, 'allow_dml_in_functions')),
-            schema_object_ids=ctx.schema_object_ids,
-            compat_ver=ctx.compat_ver,
+            **self._get_delta_context_args(ctx),
         )
 
         if debug.flags.delta_plan_input:
@@ -1097,7 +1099,23 @@ class Compiler:
             current_tx.update_migration_state(mstate)
 
             delta_context = self._new_delta_context(ctx)
-            schema = diff.apply(schema, delta_context)
+
+            # We want to make *certain* that the DDL we generate
+            # produces the correct schema when applied, so we reload
+            # the diff from the AST instead of just relying on the
+            # delta tree. We do this check because it is *very
+            # important* that we not emit DDL that moves the schema
+            # into the wrong state.
+            #
+            # The actual check for whether the schema matches is done
+            # by DESCRIBE CURRENT MIGRATION AS JSON, to populate the
+            # 'complete' flag.
+            for cmd in new_ddl:
+                reloaded_diff = s_ddl.delta_from_ddl(
+                    cmd, schema=schema, modaliases=current_tx.get_modaliases(),
+                    **self._get_delta_context_args(ctx),
+                )
+                schema = reloaded_diff.apply(schema, delta_context)
             current_tx.update_schema(schema)
 
             query = dbstate.MigrationControlQuery(

@@ -6678,6 +6678,14 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             ['^^SOME_NAME^^'],
         )
 
+    async def test_edgeql_migration_enum_and_var_function_01(self):
+        # Create an enum and a variadic function that references it
+        # in the same migration. Issue #4213.
+        await self.migrate(r"""
+            scalar type E extending enum<a, b, c>;
+            function f(variadic e: E) -> bool using (true);
+        """)
+
     async def test_edgeql_migration_eq_linkprops_01(self):
         await self.migrate(r"""
             type Child;
