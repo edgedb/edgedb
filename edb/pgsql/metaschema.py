@@ -1907,10 +1907,12 @@ class NormalizeArrayIndexFunction(dbops.Function):
 
     text = '''
         SELECT
-            CASE WHEN index < 0 THEN
-                length::bigint + index + 1
+            CASE WHEN index > (2147483647-1) OR index < -2147483648 THEN
+                NULL
+            WHEN index < 0 THEN
+                length + index::int + 1
             ELSE
-                index + 1
+                index::int + 1
             END
     '''
 
@@ -1918,9 +1920,33 @@ class NormalizeArrayIndexFunction(dbops.Function):
         super().__init__(
             name=('edgedb', '_normalize_array_index'),
             args=[('index', ('bigint',)), ('length', ('int',))],
-            returns=('bigint',),
+            returns=('int',),
             volatility='immutable',
-            strict=True,
+            text=self.text,
+        )
+
+
+class NormalizeArraySliceIndexFunction(dbops.Function):
+    """Convert an EdgeQL index to SQL index (for slices)"""
+
+    text = '''
+        SELECT
+            GREATEST(0, LEAST(2147483647,
+                CASE WHEN index < 0 THEN
+                    length::bigint + index + 1
+                ELSE
+                    index + 1
+                END
+            ))
+        WHERE index IS NOT NULL
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_normalize_array_slice_index'),
+            args=[('index', ('bigint',)), ('length', ('int',))],
+            returns=('int',),
+            volatility='immutable',
             text=self.text,
         )
 
@@ -1950,33 +1976,12 @@ class IntOrNullFunction(dbops.Function):
         )
 
 
-class IntBoundFunction(dbops.Function):
-    """
-    Cast bigint to int. If it does not fit, return int's min or max value.
-    """
-
-    text = """
-        SELECT GREATEST(-2147483648, LEAST(2147483647, val))::integer
-    """
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=("edgedb", "_int_bound"),
-            args=[("val", ("bigint",))],
-            returns=("int",),
-            volatility="immutable",
-            strict=True,
-            text=self.text)
-
-
 class ArrayIndexWithBoundsFunction(dbops.Function):
     """Get an array element or raise an out-of-bounds exception."""
 
     text = '''
         SELECT edgedb.raise_on_null(
-            val[edgedb._int_or_null(
-                edgedb._normalize_array_index(index, array_upper(val, 1))
-            )],
+            val[edgedb._normalize_array_index(index, array_upper(val, 1))],
             'array_subscript_error',
             msg => 'array index ' || index::text || ' is out of bounds',
             detail => detail
@@ -1991,7 +1996,6 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
             returns=('anyelement',),
             # Same volatility as raise()
             volatility='stable',
-            strict=True,
             text=self.text,
         )
 
@@ -2005,12 +2009,9 @@ class ArraySliceFunction(dbops.Function):
     # this will return last element instead of an empty array.
     text = """
         SELECT val[
-            edgedb._int_bound(
-                edgedb._normalize_array_index(start, cardinality(val))
-            ):
-            edgedb._int_bound(
-                edgedb._normalize_array_index(stop, cardinality(val)) - 1
-            )
+            edgedb._normalize_array_slice_index(start, cardinality(val))
+            :
+            edgedb._normalize_array_slice_index(stop, cardinality(val)) - 1
         ]
     """
 
@@ -2043,7 +2044,7 @@ class StringIndexWithBoundsFunction(dbops.Function):
             "detail"
         )
         FROM (
-            SELECT edgedb._int_or_null(
+            SELECT (
                 edgedb._normalize_array_index("index", char_length("val"))
             ) as pg_index
         ) t
@@ -2061,7 +2062,6 @@ class StringIndexWithBoundsFunction(dbops.Function):
             returns=('text',),
             # Same volatility as raise_on_empty
             volatility='stable',
-            strict=True,
             text=self.text,
         )
 
@@ -2081,7 +2081,7 @@ class BytesIndexWithBoundsFunction(dbops.Function):
             "detail"
         )
         FROM (
-            SELECT edgedb._int_or_null(
+            SELECT (
                 edgedb._normalize_array_index("index", length("val"))
             ) as pg_index
         ) t
@@ -2098,7 +2098,6 @@ class BytesIndexWithBoundsFunction(dbops.Function):
             returns=('bytea',),
             # Same volatility as raise_on_empty
             volatility='stable',
-            strict=True,
             text=self.text,
         )
 
@@ -2172,12 +2171,12 @@ class StringSliceImplFunction(dbops.Function):
                 pg_end - pg_start
             )
         FROM (SELECT
-            GREATEST(0, edgedb._int_bound(edgedb._normalize_array_index(
+            edgedb._normalize_array_slice_index(
                 start, edgedb._length(val)
-            ))) as pg_start,
-            GREATEST(0, edgedb._int_bound(edgedb._normalize_array_index(
+            ) as pg_start,
+            edgedb._normalize_array_slice_index(
                 stop, edgedb._length(val)
-            ))) as pg_end
+            ) as pg_end
         ) t
     """
 
@@ -4142,8 +4141,8 @@ async def bootstrap(
         dbops.CreateFunction(GetTableDescendantsFunction()),
         dbops.CreateFunction(ParseTriggerConditionFunction()),
         dbops.CreateFunction(NormalizeArrayIndexFunction()),
+        dbops.CreateFunction(NormalizeArraySliceIndexFunction()),
         dbops.CreateFunction(IntOrNullFunction()),
-        dbops.CreateFunction(IntBoundFunction()),
         dbops.CreateFunction(ArrayIndexWithBoundsFunction()),
         dbops.CreateFunction(ArraySliceFunction()),
         dbops.CreateFunction(StringIndexWithBoundsFunction()),
