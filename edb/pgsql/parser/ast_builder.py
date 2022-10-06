@@ -1,10 +1,6 @@
-import json
-from sys import argv
 from typing import *
 
 from edb.pgsql import ast as pgast
-
-from pypg_query import parse
 
 # Node = bool | str | int | float | List[Any] | dict[str, Any]
 Node = Any
@@ -202,12 +198,3 @@ def build_string_or_star(node: Node) -> pgast.Star | str:
         'A_Star': lambda n: pgast.Star()
     })
 
-
-ast_json = parse(bytes(argv[1], encoding='UTF8'))
-print(ast_json)
-ast = json.loads(ast_json, strict=False)
-
-queries = build_queries(ast)
-
-queries[0].dump()
-queries[0].dump_sql()

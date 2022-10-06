@@ -2,4 +2,4 @@
 psqlparse/parser.c
 build/
 __pycache__/
-*.pyc
+*.c

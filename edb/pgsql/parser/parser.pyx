@@ -15,7 +15,7 @@ cdef extern from "pg_query.h":
     void pg_query_free_parse_result(PgQueryParseResult result);
 
 
-def parse(query):
+def pg_parse(query) -> str:
     cdef PgQueryParseResult result
 
     result = pg_query_parse(query)
