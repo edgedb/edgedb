@@ -3490,33 +3490,35 @@ def process_set_as_json_object_pack(
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
 
-    with ctx.subrel() as subctx:
-        ir_arg = expr.args[0].expr
+    ir_arg = expr.args[0].expr
 
-        # compile IR to pgast that may be a ref
-        arg_ref = dispatch.compile(ir_arg, ctx=subctx)
+    # compile IR to pg AST (that may be a ref)
+    arg_ref = dispatch.compile(ir_arg, ctx=ctx)
 
-        # ensure that pgast ref is actually a value
-        arg_val = output.output_as_value(arg_ref, env=subctx.env)
+    # ensure that pgast ref is actually a value
+    arg_val = output.output_as_value(arg_ref, env=ctx.env)
 
-        # get first and the second fields of the tuple
-        keys = astutils.tuple_getattr(arg_val, ir_arg.typeref, '0')
-        values = astutils.tuple_getattr(arg_val, ir_arg.typeref, '1')
+    # get first and the second fields of the tuple
+    keys = astutils.tuple_getattr(arg_val, ir_arg.typeref, '0')
+    values = astutils.tuple_getattr(arg_val, ir_arg.typeref, '1')
 
-        # construct the function call
-        set_expr = pgast.FuncCall(
-            name=("jsonb_object_agg",), args=[keys, values]
-        )
+    # construct the function call
+    set_expr = pgast.FuncCall(
+        name=("coalesce",),
+        args=[
+            pgast.FuncCall(name=("jsonb_object_agg",), args=[keys, values]),
+            pgast.TypeCast(
+                arg=pgast.StringConstant(val="{}"),
+                type_name=pgast.TypeName(name=('jsonb',)),
+            ),
+        ],
+    )
 
-        # declare that the 'aspect=value' of ir_set (original set)
-        # can be found by in subctx.rel, by using set_expr
-        pathctx.put_path_value_var_if_not_exists(
-            subctx.rel, ir_set.path_id, set_expr, env=ctx.env)
-
-    # declare a new subquery
-    func_rvar = relctx.new_rel_rvar(ir_set, subctx.rel, ctx=ctx)
-    relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
-                        pull_namespace=False, ctx=ctx)
+    # declare that the 'aspect=value' of ir_set (original set)
+    # can be found by in ctx.rel, by using set_expr
+    pathctx.put_path_value_var_if_not_exists(
+        ctx.rel, ir_set.path_id, set_expr, env=ctx.env
+    )
 
     # return subquery as set_rvar
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
