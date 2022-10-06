@@ -1158,7 +1158,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-debian-stretch-aarch64:
@@ -1203,7 +1206,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-debian-buster-x86_64:
@@ -1248,7 +1254,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-debian-buster-aarch64:
@@ -1293,7 +1302,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-debian-bullseye-x86_64:
@@ -1338,7 +1350,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-debian-bullseye-aarch64:
@@ -1383,7 +1398,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-ubuntu-xenial-x86_64:
@@ -1428,7 +1446,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-ubuntu-xenial-aarch64:
@@ -1473,7 +1494,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-ubuntu-bionic-x86_64:
@@ -1518,7 +1542,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-ubuntu-bionic-aarch64:
@@ -1563,7 +1590,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-ubuntu-focal-x86_64:
@@ -1608,7 +1638,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-ubuntu-focal-aarch64:
@@ -1653,7 +1686,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-ubuntu-jammy-x86_64:
@@ -1698,7 +1734,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-ubuntu-jammy-aarch64:
@@ -1743,7 +1782,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-centos-7-x86_64:
@@ -1788,7 +1830,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-centos-8-x86_64:
@@ -1833,7 +1878,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-centos-8-aarch64:
@@ -1878,7 +1926,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-linux-x86_64:
@@ -1923,7 +1974,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-linux-aarch64:
@@ -1968,7 +2022,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-linuxmusl-x86_64:
@@ -2013,7 +2070,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
   publish-linuxmusl-aarch64:
@@ -2058,7 +2118,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
 
@@ -2120,4 +2183,77 @@ jobs:
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "aarch64"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+
+
+
+  publish-docker:
+    needs:
+      
+      - check-published-debian-buster-x86_64
+      
+      - check-published-debian-buster-aarch64
+      
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: dockerfile
+
+    - env:
+        VERSION_SLOT: "${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }}"
+        VERSION_CORE: "${{ needs.check-published-debian-buster-x86_64.outputs.version-core }}"
+      id: tags
+      run: |
+        set -e
+
+        url='https://registry.hub.docker.com/v2/repositories/edgedb/edgedb/tags?page_size=100'
+        repo_tags=$(
+          while [ -n "$url" ]; do
+            resp=$(curl -L -s "$url")
+            url=$(echo "$resp" | jq -r ".next")
+            if [ "$url" = "null" ] || [ -z "$url" ]; then
+              break
+            fi
+            echo "$resp" | jq -r '."results"[]["name"]'
+          done | grep "^[[:digit:]]\+.*"
+        )
+
+        tags=( "$VERSION_CORE" )
+
+        top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+              | grep "^${VERSION_SLOT}[\.-]" \
+              | sort --version-sort --reverse | head -n 1)
+        if [ "$top" == "$VERSION_CORE" ]; then
+          tags+=( "$VERSION_SLOT" )
+        fi
+
+        top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+              | sort --version-sort --reverse | head -n 1)
+        if [ "$top" == "$VERSION_CORE" ]; then
+          tags+=( "latest" )
+        fi
+
+        IFS=,
+        echo "::set-output name=tags::${tags[*]}"
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Publish Docker Image
+      uses: elgohr/Publish-Docker-Github-Action@v4
+      with:
+        name: edgedb/edgedb
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        tags: "${{ steps.tags.outputs.tags }}"
+        workdir: dockerfile
+        buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }}
+        platforms: linux/amd64,linux/arm64
 

@@ -183,22 +183,10 @@ jobs:
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
-    <% if tgt.name == 'debian-buster' %>
-    - uses: actions/checkout@v2
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: dockerfile
-    - name: Publish Docker Image
-      uses: elgohr/Publish-Docker-Github-Action@3.04
-      with:
-        name: edgedb/edgedb
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-        tags: ${{ steps.describe.outputs.version-slot }}
-        workdir: dockerfile
-        buildargs: version=${{ steps.describe.outputs.version-slot }}
-    <% endif %>
+    outputs:
+      version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
+      catalog-version: ${{ steps.describe.outputs.catalog-version }}
 <% endfor %>
 <% for tgt in targets.macos %>
 <% set plat_id = tgt.platform + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
@@ -231,3 +219,74 @@ jobs:
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 <% endfor %>
+<% set docker_tgts = targets.linux | selectattr("docker_arch") | list %>
+<% if docker_tgts %>
+<% set pub_outputs = "needs.check-published-" + (docker_tgts|first)["name"] + ".outputs" %>
+  publish-docker:
+    needs:
+      <% for tgt in docker_tgts %>
+      - check-published-<< tgt.name >>
+      <% endfor %>
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: dockerfile
+
+    - env:
+        VERSION_SLOT: "${{ << pub_outputs >>.version-slot }}"
+        VERSION_CORE: "${{ << pub_outputs >>.version-core }}"
+      id: tags
+      run: |
+        set -e
+
+        url='https://registry.hub.docker.com/v2/repositories/edgedb/edgedb/tags?page_size=100'
+        repo_tags=$(
+          while [ -n "$url" ]; do
+            resp=$(curl -L -s "$url")
+            url=$(echo "$resp" | jq -r ".next")
+            if [ "$url" = "null" ] || [ -z "$url" ]; then
+              break
+            fi
+            echo "$resp" | jq -r '."results"[]["name"]'
+          done | grep "^[[:digit:]]\+.*"
+        )
+
+        tags=( "$VERSION_CORE" )
+
+        top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+              | grep "^${VERSION_SLOT}[\.-]" \
+              | sort --version-sort --reverse | head -n 1)
+        if [ "$top" == "$VERSION_CORE" ]; then
+          tags+=( "$VERSION_SLOT" )
+        fi
+
+        top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+              | sort --version-sort --reverse | head -n 1)
+        if [ "$top" == "$VERSION_CORE" ]; then
+          tags+=( "latest" )
+        fi
+
+        IFS=,
+        echo "::set-output name=tags::${tags[*]}"
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Publish Docker Image
+      uses: elgohr/Publish-Docker-Github-Action@v4
+      with:
+        name: edgedb/edgedb
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        tags: "${{ steps.tags.outputs.tags }}"
+        workdir: dockerfile
+        buildargs: version=${{ << pub_outputs >>.version-slot }},exact_version=${{ << pub_outputs >>.version-core }}
+        platforms: << docker_tgts|map(attribute="docker_arch")|join(",") >>
+<% endif %>
