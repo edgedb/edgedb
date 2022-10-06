@@ -15,11 +15,13 @@ targets:
           platform_version: buster
           family: debian
           runs_on: [self-hosted, linux, x64]
+          docker_arch: linux/amd64
         - name: debian-buster-aarch64
           platform: debian
           platform_version: buster
           family: debian
           runs_on: [self-hosted, linux, arm64]
+          docker_arch: linux/arm64
         - name: debian-bullseye-x86_64
           platform: debian
           platform_version: bullseye
