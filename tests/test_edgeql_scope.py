@@ -1058,7 +1058,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
         # The deck shape ought to contain just the correlated element
         for row in res:
-            self.assertEqual(row[0].deck, [row[1]])
+            self.assertEqual(len(row[0].deck), 1)
+            self.assertEqual(row[0].deck[0].id, row[1].id)
 
     async def test_edgeql_scope_tuple_16(self):
         await self.assert_query_result(

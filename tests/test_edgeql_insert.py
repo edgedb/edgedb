@@ -2461,10 +2461,10 @@ class TestInsert(tb.QueryTestCase):
 
         res = await self.con.query(query2, "test2")
         res2 = await self.con.query(query2, "test2")
-        self.assertEqual(res, res2)
+        self.assertEqual([x.id for x in res], [x.id for x in res2])
 
         res3 = await self.con.query(query2, "test3")
-        self.assertNotEqual(res, res3)
+        self.assertNotEqual([x.id for x in res], [x.id for x in res3])
 
     async def test_edgeql_insert_unless_conflict_02(self):
         async with self.assertRaisesRegexTx(
@@ -2602,10 +2602,10 @@ class TestInsert(tb.QueryTestCase):
 
         res = await self.con.query(query2, "test2")
         res2 = await self.con.query(query2, "test2")
-        self.assertEqual(res, res2)
+        self.assertEqual([x.id for x in res], [x.id for x in res2])
 
         res3 = await self.con.query(query2, "test3")
-        self.assertNotEqual(res, res3)
+        self.assertNotEqual([x.id for x in res], [x.id for x in res3])
 
     async def test_edgeql_insert_unless_conflict_05(self):
         await self.con.execute(r'''
@@ -2739,7 +2739,7 @@ class TestInsert(tb.QueryTestCase):
         res2 = await self.con.query_single(query)
 
         self.assertNotEqual(res1.id, res2.id)
-        self.assertEqual(res1.person, res2.person)
+        self.assertEqual(res1.person.id, res2.person.id)
 
     async def test_edgeql_insert_unless_conflict_09(self):
         query = r'''

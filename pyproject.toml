@@ -4,7 +4,7 @@ description = "EdgeDB Server"
 requires-python = '>=3.10.0'
 dynamic = ["entry-points", "version"]
 dependencies = [
-    'edgedb==0.24.0',
+    'edgedb==0.25.0a1',
 
     'httptools>=0.3.0',
     'immutables>=0.18',
@@ -76,7 +76,7 @@ requires = [
     "wheel",
 
     "parsing ~= 2.0",
-    'edgedb == 0.24.0',
+    'edgedb==0.25.0a1',
 ]
 # Custom backend needed to set up build-time sys.path because
 # setup.py needs to import `edb.buildmeta`.
