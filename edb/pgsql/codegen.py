@@ -160,7 +160,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write('(')
             if self.reordered:
                 self.new_lines = 1
-                self.indentation += 1
+                if not node.op:
+                    self.indentation += 1
 
         if node.ctes:
             self.gen_ctes(node.ctes)
@@ -283,7 +284,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         if parenthesize:
             self.new_lines = 1
-            if self.reordered:
+            if self.reordered and not node.op:
                 self.indentation -= 1
             self.write(')')
 
