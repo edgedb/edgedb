@@ -621,7 +621,7 @@ def compile_UpdateQuery(
         stmt._material_type = typeutils.type_to_typeref(
             ctx.env.schema,
             mat_stype,
-            include_descendants=True,
+            include_children=True,
             include_ancestors=True,
             cache=ctx.env.type_ref_cache,
         )
@@ -751,7 +751,7 @@ def compile_DeleteQuery(
         stmt._material_type = typeutils.type_to_typeref(
             ctx.env.schema,
             mat_stype,
-            include_descendants=True,
+            include_children=True,
             include_ancestors=True,
             cache=ctx.env.type_ref_cache,
         )

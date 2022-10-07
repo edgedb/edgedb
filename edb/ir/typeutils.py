@@ -172,7 +172,7 @@ def type_to_typeref(
     *,
     cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
     typename: Optional[s_name.QualName] = None,
-    include_descendants: bool = False,
+    include_children: bool = False,
     include_ancestors: bool = False,
     _name: Optional[str] = None,
 ) -> irast.TypeRef:
@@ -191,8 +191,8 @@ def type_to_typeref(
         typename:
             Optional name hint to use for the type in the returned
             TypeRef.  If ``None``, the type name is used.
-        include_descendants:
-            Whether to include the description of all material type descendants
+        include_children:
+            Whether to include the description of all material type children
             of *t*.
         include_ancestors:
             Whether to include the description of all material type ancestors
@@ -208,7 +208,7 @@ def type_to_typeref(
     result: irast.TypeRef
     material_type: s_types.Type
 
-    key = (t.id, include_descendants, include_ancestors)
+    key = (t.id, include_children, include_ancestors)
 
     if cache is not None and typename is None:
         cached_result = cache.get(key)
@@ -264,7 +264,7 @@ def type_to_typeref(
             material_typeref = type_to_typeref(
                 schema,
                 material_type,
-                include_descendants=include_descendants,
+                include_children=include_children,
                 include_ancestors=include_ancestors,
                 cache=cache,
             )
@@ -290,22 +290,22 @@ def type_to_typeref(
         else:
             name = tname
 
-        descendants: Optional[FrozenSet[irast.TypeRef]]
+        children: Optional[FrozenSet[irast.TypeRef]]
 
-        if material_typeref is None and include_descendants:
-            descendants = frozenset(
+        if material_typeref is None and include_children:
+            children = frozenset(
                 type_to_typeref(
                     schema,
                     child,
                     cache=cache,
-                    include_descendants=True,
+                    include_children=True,
                     include_ancestors=include_ancestors,
                 )
                 for child in t.children(schema)
                 if not child.get_is_derived(schema)
             )
         else:
-            descendants = None
+            children = None
 
         ancestors: Optional[FrozenSet[irast.TypeRef]]
         if material_typeref is None and include_ancestors:
@@ -314,7 +314,7 @@ def type_to_typeref(
                     schema,
                     ancestor,
                     cache=cache,
-                    include_descendants=include_descendants,
+                    include_children=include_children,
                     include_ancestors=False
                 )
                 for ancestor in t.get_ancestors(schema).objects(schema)
@@ -327,7 +327,7 @@ def type_to_typeref(
             name_hint=name,
             material_type=material_typeref,
             base_type=base_typeref,
-            descendants=descendants,
+            children=children,
             ancestors=ancestors,
             union=union,
             union_is_concrete=union_is_concrete,
@@ -929,12 +929,12 @@ def maybe_find_actual_ptrref(
         return None
 
 
-def get_typeref_descendants(typeref: irast.TypeRef) -> List[irast.TypeRef]:
-    result = []
-    if typeref.descendants:
-        for child in typeref.descendants:
-            result.append(child)
-            result.extend(get_typeref_descendants(child))
+def get_typeref_descendants(typeref: irast.TypeRef) -> Set[irast.TypeRef]:
+    result = set()
+    if typeref.children:
+        for child in typeref.children:
+            result.add(child)
+            result.update(get_typeref_descendants(child))
 
     return result
 
