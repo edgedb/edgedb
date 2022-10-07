@@ -245,7 +245,7 @@ def type_to_typeref(
     schema = env.schema
     cache = env.type_ref_cache
     expr_type = t.get_expr_type(env.schema)
-    include_descendants = (
+    include_children = (
         expr_type is s_types.ExprType.Update
         or expr_type is s_types.ExprType.Delete
     )
@@ -257,7 +257,7 @@ def type_to_typeref(
     return irtyputils.type_to_typeref(
         schema,
         t,
-        include_descendants=include_descendants,
+        include_children=include_children,
         include_ancestors=include_ancestors,
         cache=cache,
     )
