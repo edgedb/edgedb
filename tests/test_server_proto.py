@@ -559,8 +559,9 @@ class TestServerProto(tb.QueryTestCase):
                 ]))
 
             with self.assertRaisesRegex(
-                    edgedb.InterfaceError,
-                    r'query_single\(\) as it returns a multiset'):
+                edgedb.InterfaceError,
+                r'query_single\(\) as it may return more than one element'
+            ):
                 await self.con.query_single('SELECT {1, 2}')
 
             await self.con.query_single('SELECT <int64>{}')
@@ -2655,8 +2656,9 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.query(query),
-                    other)
+                    [x.id for x in await con1.query(query)],
+                    [x.id for x in other],
+                )
 
         finally:
             await con2.aclose()
@@ -2691,8 +2693,9 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.query(query),
-                    foo)
+                    [x.id for x in await con1.query(query)],
+                    [x.id for x in foo],
+                )
 
             await con2.execute(f'''
                 DELETE (SELECT {typename});
@@ -2712,8 +2715,9 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.query(query),
-                    bar)
+                    [x.id for x in await con1.query(query)],
+                    [x.id for x in bar],
+                )
 
         finally:
             await con2.aclose()
