@@ -837,7 +837,8 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             SELECT ((SELECT O {m}), (SELECT O {m}));
         """)
 
-        self._check_crossproduct([(row[0].m, row[1].m) for row in res])
+        self._check_crossproduct(
+            [(tuple(row[0].m), tuple(row[1].m)) for row in res])
 
     async def test_edgeql_volatility_select_hard_objects_07(self):
         # now let's try it with a multi prop
