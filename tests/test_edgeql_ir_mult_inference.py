@@ -770,3 +770,59 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         DUPLICATE
         """
+
+    def test_edgeql_ir_mult_inference_82(self):
+        """
+        select 1 union 1
+% OK %
+        DUPLICATE
+        """
+
+    def test_edgeql_ir_mult_inference_83(self):
+        """
+        select 1 + (2 intersect 3)
+% OK %
+        UNIQUE
+        """
+
+    def test_edgeql_ir_mult_inference_84(self):
+        """
+        select 1 + (2 intersect {3, 3})
+% OK %
+        UNIQUE
+        """
+
+    def test_edgeql_ir_mult_inference_85(self):
+        """
+        select 1 + ({2, 2} intersect {3, 3})
+% OK %
+        DUPLICATE
+        """
+
+    def test_edgeql_ir_mult_inference_86(self):
+        """
+        select {2, 2} intersect <int64>{}
+% OK %
+        EMPTY
+        """
+
+    def test_edgeql_ir_mult_inference_87(self):
+        """
+        select 1 + (2 except 3)
+% OK %
+        UNIQUE
+        """
+
+    def test_edgeql_ir_mult_inference_88(self):
+        """
+        select 1 + (2 except {3, 3})
+% OK %
+        UNIQUE
+        """
+
+    def test_edgeql_ir_mult_inference_89(self):
+        """
+        select 1 + ({2, 2} except {3, 3})
+% OK %
+        DUPLICATE
+        """

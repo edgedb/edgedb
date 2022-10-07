@@ -923,7 +923,6 @@ pub fn is_keyword(s: &str) -> bool {
         | "true"
         | "typeof"
         | "update"
-        | "union"
         | "variadic"
         | "with"
           // Keep in sync with keywords::CURRENT_RESERVED_KEYWORDS
@@ -963,6 +962,12 @@ pub fn is_keyword(s: &str) -> bool {
         | "window"
         | "never"
           // Keep in sync with keywords::FUTURE_RESERVED_KEYWORDS
+        // # Partial reserved keywords #
+          // Keep in sync with keywords::PARTIAL_RESERVED_KEYWORDS
+        | "except"
+        | "intersect"
+        | "union"
+          // Keep in sync with keywords::PARTIAL_RESERVED_KEYWORDS
         => true,
         _ => false,
     }

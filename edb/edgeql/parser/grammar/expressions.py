@@ -429,7 +429,7 @@ class ShapeElementList(ListNonterm, element=ShapeElement,
     pass
 
 
-class VerySimpleShapePath(Nonterm):
+class SimpleShapePath(Nonterm):
 
     def reduce_PathStepName(self, *kids):
         from edb.schema import pointers as s_pointers
@@ -443,13 +443,7 @@ class VerySimpleShapePath(Nonterm):
 
         self.val = qlast.Path(steps=steps)
 
-
-class SimpleShapePath(Nonterm):
-
-    def reduce_VerySimpleShapePath(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_AT_ShortNodeName(self, *kids):
+    def reduce_AT_PathNodeName(self, *kids):
         self.val = qlast.Path(
             steps=[
                 qlast.Ptr(
@@ -475,9 +469,18 @@ class SimpleShapePointer(Nonterm):
 # require two tokens of lookahead.
 class FreeSimpleShapePointer(Nonterm):
 
-    def reduce_VerySimpleShapePath(self, *kids):
+    def reduce_FreeStepName(self, *kids):
+        from edb.schema import pointers as s_pointers
+
+        steps = [
+            qlast.Ptr(
+                ptr=kids[0].val,
+                direction=s_pointers.PointerDirection.Outbound
+            ),
+        ]
+
         self.val = qlast.ShapeElement(
-            expr=kids[0].val
+            expr=qlast.Path(steps=steps)
         )
 
 
@@ -506,7 +509,7 @@ class ShapePath(Nonterm):
 
         self.val = qlast.Path(steps=steps)
 
-    def reduce_AT_ShortNodeName(self, *kids):
+    def reduce_AT_PathNodeName(self, *kids):
         self.val = qlast.Path(
             steps=[
                 qlast.Ptr(
@@ -1189,6 +1192,14 @@ class Expr(Nonterm):
         self.val = qlast.BinOp(left=kids[0].val, op='UNION',
                                right=kids[2].val)
 
+    def reduce_Expr_EXCEPT_Expr(self, *kids):
+        self.val = qlast.BinOp(left=kids[0].val, op='EXCEPT',
+                               right=kids[2].val)
+
+    def reduce_Expr_INTERSECT_Expr(self, *kids):
+        self.val = qlast.BinOp(left=kids[0].val, op='INTERSECT',
+                               right=kids[2].val)
+
 
 class Tuple(Nonterm):
     def reduce_LPAREN_Expr_COMMA_OptExprList_RPAREN(self, *kids):
@@ -1415,7 +1426,7 @@ class PathStep(Nonterm):
             direction=s_pointers.PointerDirection.Inbound
         )
 
-    def reduce_AT_ShortNodeName(self, *kids):
+    def reduce_AT_PathNodeName(self, *kids):
         from edb.schema import pointers as s_pointers
 
         self.val = qlast.Ptr(
@@ -1443,8 +1454,18 @@ class OptTypeIntersection(Nonterm):
         self.val = None
 
 
-class PathStepName(Nonterm):
+# Used in free shapes
+class FreeStepName(Nonterm):
     def reduce_ShortNodeName(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DUNDERTYPE(self, *kids):
+        self.val = qlast.ObjectRef(name=kids[0].val)
+
+
+# Used in shapes, paths and in PROPERTY/LINK definitions.
+class PathStepName(Nonterm):
+    def reduce_PathNodeName(self, *kids):
         self.val = kids[0].val
 
     def reduce_DUNDERTYPE(self, *kids):
@@ -1575,8 +1596,16 @@ class Identifier(Nonterm):
         self.val = kids[0].val
 
 
-class AnyIdentifier(Nonterm):
+class PtrIdentifier(Nonterm):
     def reduce_Identifier(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_PartialReservedKeyword(self, *kids):
+        self.val = kids[0].val
+
+
+class AnyIdentifier(Nonterm):
+    def reduce_PtrIdentifier(self, *kids):
         self.val = kids[0].val
 
     def reduce_ReservedKeyword(self, *kids):
@@ -1610,9 +1639,21 @@ class BaseName(Nonterm):
         self.val = ['__std__', kids[2].val]
 
 
+# this can appear in link/property definitions
+class PtrName(Nonterm):
+    def reduce_PtrIdentifier(self, *kids):
+        self.val = [kids[0].val]
+
+    def reduce_Identifier_DOUBLECOLON_AnyIdentifier(self, *kids):
+        self.val = [kids[0].val, kids[2].val]
+
+    def reduce_DUNDERSTD_DOUBLECOLON_AnyIdentifier(self, *kids):
+        self.val = ['__std__', kids[2].val]
+
+
 # Non-collection type.
 class SimpleTypeName(Nonterm):
-    def reduce_NodeName(self, *kids):
+    def reduce_PtrNodeName(self, *kids):
         self.val = qlast.TypeName(maintype=kids[0].val)
 
     def reduce_ANYTYPE(self, *kids):
@@ -1767,6 +1808,17 @@ class NodeNameList(ListNonterm, element=NodeName, separator=tokens.T_COMMA):
     pass
 
 
+class PtrNodeName(Nonterm):
+    # NOTE: Generic short of fully-qualified name.
+    #
+    # This name is safe to be used in most DDL and SDL definitions.
+
+    def reduce_PtrName(self, *kids):
+        self.val = qlast.ObjectRef(
+            module='.'.join(kids[0].val[:-1]) or None,
+            name=kids[0].val[-1])
+
+
 class ShortNodeName(Nonterm):
     # NOTE: A non-qualified name that can be an identifier or
     # UNRESERVED_KEYWORD.
@@ -1786,6 +1838,21 @@ class ShortNodeName(Nonterm):
 class ShortNodeNameList(ListNonterm, element=ShortNodeName,
                         separator=tokens.T_COMMA):
     pass
+
+
+class PathNodeName(Nonterm):
+    # NOTE: A non-qualified name that can be an identifier or
+    # PARTIAL_RESERVED_KEYWORD.
+    #
+    # This name is used as part of paths after the DOT as well as in
+    # definitions after LINK/POINTER. It can be an identifier including
+    # PARTIAL_RESERVED_KEYWORD and does not need to be quoted or
+    # parenthesized.
+
+    def reduce_PtrIdentifier(self, *kids):
+        self.val = qlast.ObjectRef(
+            module=None,
+            name=kids[0].val)
 
 
 class AnyNodeName(Nonterm):
@@ -1828,6 +1895,11 @@ class KeywordMeta(parsing.NontermMeta):
 
 class UnreservedKeyword(Nonterm, metaclass=KeywordMeta,
                         type=keywords.UNRESERVED_KEYWORD):
+    pass
+
+
+class PartialReservedKeyword(Nonterm, metaclass=KeywordMeta,
+                             type=keywords.PARTIAL_RESERVED_KEYWORD):
     pass
 
 

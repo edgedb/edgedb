@@ -6,6 +6,7 @@ pub struct AllKeywords {
     pub current: PyObject,
     pub future: PyObject,
     pub unreserved: PyObject,
+    pub partial: PyObject,
 }
 
 
@@ -28,10 +29,15 @@ pub fn get_keywords(py: Python) -> PyResult<AllKeywords> {
         .iter()
         .map(|x| *x).map(&intern)
         .collect::<Result<Vec<_>,_>>()?;
+    let partial = keywords::PARTIAL_RESERVED_KEYWORDS
+        .iter()
+        .map(|x| *x).map(&intern)
+        .collect::<Result<Vec<_>,_>>()?;
     Ok(AllKeywords {
         current: py_frozenset.call(py, (PyList::new(py, &current),), None)?,
         unreserved: py_frozenset.call(py, (PyList::new(py, &unreserved),), None)?,
         future: py_frozenset.call(py, (PyList::new(py, &future),), None)?,
+        partial: py_frozenset.call(py, (PyList::new(py, &partial),), None)?,
     })
 }
 

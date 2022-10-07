@@ -3160,6 +3160,97 @@ class TestExpressions(tb.QueryTestCase):
             [1, 1, 2, 3, 4, 4, 4],
         )
 
+    async def test_edgeql_expr_set_04(self):
+        await self.assert_query_result(
+            r"""
+                select _ := {1, 2, 3, 4} except 2
+                order by _;
+            """,
+            [1, 3, 4],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select _ := {1, 2, 3, 4} except 2 except 4
+                order by _;
+            """,
+            [1, 3],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select _ := {1, 2, 3, 4} except {1, 2}
+                order by _;
+            """,
+            [3, 4],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select _ := {1, 2, 3, 4} except {4, 5}
+                order by _;
+            """,
+            [1, 2, 3],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select _ := {1, 2, 3, 4} except {5, 6}
+                order by _;
+            """,
+            [1, 2, 3, 4],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select _ := {1, 1, 1, 2, 2, 3} except {1, 3, 3, 2}
+                order by _;
+            """,
+            [1, 1, 2],
+        )
+
+    async def test_edgeql_expr_set_06(self):
+        await self.assert_query_result(
+            r"""
+                select _ := {1, 2, 3, 4} intersect 2
+                order by _;
+            """,
+            [2],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select _ :=
+                    {1, 2, 3, 4} intersect {2, 3, 4} intersect {2, 4}
+                order by _;
+            """,
+            [2, 4],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select _ := {1, 2, 3, 4} intersect {5, 6}
+                order by _;
+            """,
+            [],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select _ := {1, 2, 3, 4} intersect 4
+                order by _;
+            """,
+            [4],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select _ := {1, 1, 1, 2, 2, 3} intersect {1, 3, 3, 2, 2, 5}
+                order by _;
+            """,
+            [1, 2, 2, 3],
+        )
+
     async def test_edgeql_expr_array_01(self):
         await self.assert_query_result(
             r'''SELECT [1];''',

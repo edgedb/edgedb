@@ -1485,6 +1485,8 @@ def process_set_as_membership_expr(
 
 
 @_special_case('std::UNION')
+@_special_case('std::EXCEPT')
+@_special_case('std::INTERSECT')
 def process_set_as_setop(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -1513,19 +1515,19 @@ def process_set_as_setop(
 
     with ctx.subrel() as subctx:
         subqry = subctx.rel
-        # There is only one binary set operators possible coming from IR:
-        # UNION
-        subqry.op = 'UNION'
+        # There are three possible binary set operators coming from IR:
+        # UNION, EXCEPT, and INTERSECT
+        subqry.op = expr.func_shortname.name
         subqry.all = True
         subqry.larg = larg
         subqry.rarg = rarg
 
-        union_rvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
+        setop_rvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
         # No pull_namespace because we don't want the union arguments to
         # escape, just the final result.
         relctx.include_rvar(
             ctx.rel,
-            union_rvar,
+            setop_rvar,
             ir_set.path_id,
             aspects=aspects,
             pull_namespace=False,

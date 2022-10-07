@@ -30,7 +30,6 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "desc",
     "deny",
     "empty",
-    "except",
     "expression",
     "extension",
     "final",
@@ -102,6 +101,15 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "version",
     "view",
     "write",
+];
+
+
+pub const PARTIAL_RESERVED_KEYWORDS: &[&str] = &[
+    // Keep in sync with `tokenizer::is_keyword`
+    "except",
+    "intersect",
+    "union",
+    // Keep in sync with `tokenizer::is_keyword`
 ];
 
 
@@ -193,7 +201,6 @@ pub const CURRENT_RESERVED_KEYWORDS: &[&str] = &[
     "true",
     "typeof",
     "update",
-    "union",
     "variadic",
     "with",
     // Keep in sync with `tokenizer::is_keyword`

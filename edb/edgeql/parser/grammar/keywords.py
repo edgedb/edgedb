@@ -25,8 +25,9 @@ from typing import *
 from edb import _edgeql_rust
 
 
-keyword_types = range(1, 4)
-UNRESERVED_KEYWORD, RESERVED_KEYWORD, TYPE_FUNC_NAME_KEYWORD = keyword_types
+keyword_types = range(1, 5)
+(UNRESERVED_KEYWORD, RESERVED_KEYWORD, TYPE_FUNC_NAME_KEYWORD,
+ PARTIAL_RESERVED_KEYWORD) = keyword_types
 
 unreserved_keywords = _edgeql_rust.unreserved_keywords
 future_reserved_keywords = _edgeql_rust.future_reserved_keywords
@@ -34,6 +35,12 @@ reserved_keywords = (
     future_reserved_keywords |
     _edgeql_rust.current_reserved_keywords
 )
+# These keywords can be used in pretty much all the places where they are
+# preceeded by a reserved keyword or some other disambiguating token like `.`,
+# `.<`, or `@`.
+#
+# In practice we mainly relax their usage as link/property names.
+partial_reserved_keywords = _edgeql_rust.partial_reserved_keywords
 
 
 def _check_keywords():
@@ -62,6 +69,8 @@ edgeql_keywords = {k: (tok_name(k), UNRESERVED_KEYWORD)
                    for k in unreserved_keywords}
 edgeql_keywords.update({k: (tok_name(k), RESERVED_KEYWORD)
                         for k in reserved_keywords})
+edgeql_keywords.update({k: (tok_name(k), PARTIAL_RESERVED_KEYWORD)
+                        for k in partial_reserved_keywords})
 
 
 by_type: Dict[int, dict] = {typ: {} for typ in keyword_types}

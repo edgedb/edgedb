@@ -78,6 +78,18 @@ def _max_multiplicity(
     return inf_ctx.MultiplicityInfo(own=max_mult)
 
 
+def _min_multiplicity(
+    args: Iterable[inf_ctx.MultiplicityInfo]
+) -> inf_ctx.MultiplicityInfo:
+    arg_list = [a.own for a in args]
+    if not arg_list:
+        min_mult = qltypes.Multiplicity.UNIQUE
+    else:
+        min_mult = min(arg_list)
+
+    return inf_ctx.MultiplicityInfo(own=min_mult)
+
+
 def _common_multiplicity(
     args: Iterable[irast.Base],
     *,
@@ -404,6 +416,15 @@ def __infer_oper_call(
                 pass
 
         return result
+
+    elif op_name == 'std::EXCEPT':
+        # EXCEPT will produce multiplicity no greater than that of its first
+        # argument.
+        return mult[0]
+
+    elif op_name == 'std::INTERSECT':
+        # INTERSECT will produce the minimum multiplicity of its arguments.
+        return _min_multiplicity((mult[0], mult[1]))
 
     elif op_name == 'std::DISTINCT':
         if mult[0] == EMPTY:

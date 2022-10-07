@@ -1727,6 +1727,78 @@ aa';
         SELECT sys::Database;
         """
 
+    def test_edgeql_syntax_shape_65(self):
+        """
+        select Foo{union};
+        select Foo{except};
+        select Foo{intersect};
+        """
+
+    def test_edgeql_syntax_shape_66(self):
+        """
+        select Foo {
+            bar: {
+                @union,
+                @except,
+                @intersect,
+            }
+        };
+        """
+
+    def test_edgeql_syntax_shape_67(self):
+        """
+        select Foo {
+            [is Bar].union,
+            [is Bar].except,
+            [is Bar].intersect,
+        };
+        """
+
+    def test_edgeql_syntax_shape_68(self):
+        """
+        select Foo {
+            union := 1,
+            except := 1,
+            intersect := 1
+        };
+        """
+
+    def test_edgeql_syntax_shape_69(self):
+        """
+        select Foo {
+            required union := 1,
+            required except := 1,
+            required intersect := 1
+        };
+        """
+
+    def test_edgeql_syntax_shape_70(self):
+        """
+        select Foo {
+            optional union := 1,
+            optional except := 1,
+            optional intersect := 1
+        };
+        """
+
+    def test_edgeql_syntax_shape_71(self):
+        """
+        select Foo {
+            single union := 1,
+            single except := 1,
+            single intersect := 1
+        };
+        """
+
+    def test_edgeql_syntax_shape_72(self):
+        """
+        select Foo {
+            multi union := 1,
+            multi except := 1,
+            multi intersect := 1
+        };
+        """
+
     def test_edgeql_syntax_struct_01(self):
         """
         SELECT (
@@ -2105,6 +2177,19 @@ aa';
     def test_edgeql_syntax_path_31(self):
         """
         SELECT $ a;
+        """
+
+    def test_edgeql_syntax_path_32(self):
+        """
+        select Foo.union.except.intersect;
+        select Foo.<union[is Foo].<except[is Foo].<intersect[is Foo];
+        """
+
+    def test_edgeql_syntax_path_33(self):
+        """
+        select Foo.bar@union;
+        select Foo.bar@except;
+        select Foo.bar@intersect;
         """
 
     def test_edgeql_syntax_type_interpretation_01(self):
@@ -2797,6 +2882,61 @@ aa';
     def test_edgeql_syntax_set_06(self):
         """
         SELECT DISTINCT ({1, 2, 2, 3});
+        """
+
+    def test_edgeql_syntax_set_07(self):
+        """
+        SELECT ((1 UNION 2) UNION 3);
+        """
+
+    def test_edgeql_syntax_set_08(self):
+        """
+        SELECT 1 EXCEPT 2 EXCEPT 3;
+
+% OK %
+
+        SELECT ((1 EXCEPT 2) EXCEPT 3);
+        """
+
+    def test_edgeql_syntax_set_09(self):
+        """
+        SELECT 1 EXCEPT 2 UNION 3;
+
+% OK %
+
+        SELECT ((1 EXCEPT 2) UNION 3);
+        """
+
+    def test_edgeql_syntax_set_10(self):
+        """
+        SELECT (1 EXCEPT (2 UNION 3));
+        """
+
+    def test_edgeql_syntax_set_11(self):
+        """
+        SELECT 1 INTERSECT 2 INTERSECT 3;
+
+% OK %
+
+        SELECT ((1 INTERSECT 2) INTERSECT 3);
+        """
+
+    def test_edgeql_syntax_set_12(self):
+        """
+        SELECT 1 UNION 2 INTERSECT 3;
+
+% OK %
+
+        SELECT (1 UNION (2 INTERSECT 3));
+        """
+
+    def test_edgeql_syntax_set_13(self):
+        """
+        SELECT 1 INTERSECT 2 EXCEPT 3 INTERSECT 4 UNION 5;
+
+% OK %
+
+        SELECT (((1 INTERSECT 2) EXCEPT (3 INTERSECT 4)) UNION 5);
         """
 
     def test_edgeql_syntax_insert_01(self):
@@ -4960,6 +5100,20 @@ aa';
         ALTER ABSTRACT PROPERTY prop RESET default;
         """
 
+    def test_edgeql_syntax_ddl_property_07(self):
+        """
+        create abstract property union;
+        alter abstract property union reset default;
+        drop abstract property union;
+        """
+
+    def test_edgeql_syntax_ddl_link_01(self):
+        """
+        create abstract link union;
+        alter abstract link union reset default;
+        drop abstract link union;
+        """
+
     def test_edgeql_syntax_ddl_module_01(self):
         """
         CREATE MODULE foo;
@@ -5245,6 +5399,26 @@ aa';
         """
         CREATE TYPE `123` {
             CREATE PROPERTY `456` -> str;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_24(self):
+        """
+        ALTER TYPE mymod::Foo {
+            ALTER LINK union {
+                USING (SELECT Object);
+            };
+            ALTER PROPERTY except {
+                USING (1312);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_25(self):
+        """
+        ALTER TYPE mymod::Foo {
+            DROP LINK union;
+            DROP PROPERTY except;
         };
         """
 

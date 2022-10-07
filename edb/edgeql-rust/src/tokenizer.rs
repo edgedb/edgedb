@@ -14,7 +14,8 @@ use num_bigint::ToBigInt;
 use edgeql_parser::tokenizer::{TokenStream, Kind, is_keyword, SpannedToken};
 use edgeql_parser::tokenizer::{MAX_KEYWORD_LENGTH};
 use edgeql_parser::position::Pos;
-use edgeql_parser::keywords::{CURRENT_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
+use edgeql_parser::keywords::{PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
+use edgeql_parser::keywords::{CURRENT_RESERVED_KEYWORDS};
 use edgeql_parser::keywords::{FUTURE_RESERVED_KEYWORDS};
 use edgeql_parser::helpers::unquote_string;
 use crate::errors::TokenizerError;
@@ -334,6 +335,9 @@ impl Tokens {
         };
         // 'EOF'
         for kw in UNRESERVED_KEYWORDS.iter() {
+            res.add_kw(py, kw);
+        }
+        for kw in PARTIAL_RESERVED_KEYWORDS.iter() {
             res.add_kw(py, kw);
         }
         for kw in CURRENT_RESERVED_KEYWORDS.iter() {

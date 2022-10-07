@@ -214,7 +214,7 @@ class InnerDDLStmtBlock(parsing.ListNonterm, element=InnerDDLStmt,
 
 
 class PointerName(Nonterm):
-    def reduce_NodeName(self, *kids):
+    def reduce_PtrNodeName(self, *kids):
         self.val = kids[0].val
 
     def reduce_DUNDERTYPE(self, *kids):
@@ -1312,7 +1312,7 @@ class DropIndexStmt(Nonterm):
 #
 class CreatePropertyStmt(Nonterm):
     def reduce_CreateProperty(self, *kids):
-        r"""%reduce CREATE ABSTRACT PROPERTY NodeName OptExtendingSimple \
+        r"""%reduce CREATE ABSTRACT PROPERTY PtrNodeName OptExtendingSimple \
                     OptCreateCommandsBlock \
         """
         self.val = qlast.CreateProperty(
@@ -1342,7 +1342,7 @@ commands_block(
 class AlterPropertyStmt(Nonterm):
     def reduce_AlterProperty(self, *kids):
         r"""%reduce \
-            ALTER ABSTRACT PROPERTY NodeName \
+            ALTER ABSTRACT PROPERTY PtrNodeName \
             AlterPropertyCommandsBlock \
         """
         self.val = qlast.AlterProperty(
@@ -1356,7 +1356,7 @@ class AlterPropertyStmt(Nonterm):
 #
 class DropPropertyStmt(Nonterm):
     def reduce_DropProperty(self, *kids):
-        r"""%reduce DROP ABSTRACT PROPERTY NodeName"""
+        r"""%reduce DROP ABSTRACT PROPERTY PtrNodeName"""
         self.val = qlast.DropProperty(
             name=kids[3].val
         )
@@ -1598,7 +1598,7 @@ commands_block(
 class CreateLinkStmt(Nonterm):
     def reduce_CreateLink(self, *kids):
         r"""%reduce \
-            CREATE ABSTRACT LINK NodeName OptExtendingSimple \
+            CREATE ABSTRACT LINK PtrNodeName OptExtendingSimple \
             OptCreateLinkCommandsBlock \
         """
         self.val = qlast.CreateLink(
@@ -1638,7 +1638,7 @@ commands_block(
 class AlterLinkStmt(Nonterm):
     def reduce_AlterLink(self, *kids):
         r"""%reduce \
-            ALTER ABSTRACT LINK NodeName \
+            ALTER ABSTRACT LINK PtrNodeName \
             AlterLinkCommandsBlock \
         """
         self.val = qlast.AlterLink(
@@ -1663,7 +1663,7 @@ commands_block(
 class DropLinkStmt(Nonterm):
     def reduce_DropLink(self, *kids):
         r"""%reduce \
-            DROP ABSTRACT LINK NodeName \
+            DROP ABSTRACT LINK PtrNodeName \
             OptDropLinkCommandsBlock \
         """
         self.val = qlast.DropLink(
