@@ -97,6 +97,7 @@ cdef WriteBuffer recode_bind_args(
 ):
     cdef:
         FRBuffer in_buf
+        FRBuffer peek_buf
         WriteBuffer out_buf = WriteBuffer.new()
         int32_t recv_args
         int32_t decl_args
@@ -156,7 +157,11 @@ cdef WriteBuffer recode_bind_args(
                 positions.append(out_buf._length)
 
             frb_read(&in_buf, 4)  # reserved
-            in_len = hton.unpack_int32(frb_read(&in_buf, 4))
+            # Some of the logic paths below need the length are cleaner if
+            # the length is still present in the input buf, so we just
+            # *peek* at the length here, and need to consume it later.
+            peek_buf = in_buf
+            in_len = hton.unpack_int32(frb_read(&peek_buf, 4))
             if in_len < 0:
                 # This means argument value is NULL
                 if param.required:
@@ -166,15 +171,12 @@ cdef WriteBuffer recode_bind_args(
             # If the param has encoded tuples, we need to decode them
             # and reencode them as arrays of scalars.
             if param.sub_params:
-                # HACK: Rewind the frb, since _decode_tuple_args needs the
-                # length present.
-                frb_read(&in_buf, -4)
-
                 tids, trans_typ = param.sub_params
                 _decode_tuple_args(
                     dbv, &in_buf, out_buf, in_len, tids, trans_typ)
                 continue
 
+            frb_read(&in_buf, 4)
             out_buf.write_int32(in_len)
 
             if in_len > 0:
