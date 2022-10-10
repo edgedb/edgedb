@@ -132,6 +132,8 @@ class DDLQuery(BaseQuery):
     single_unit: bool = False
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
+    create_ext: Optional[str] = None
+    drop_ext: Optional[str] = None
     create_db_template: Optional[str] = None
     has_role_ddl: bool = False
     ddl_stmt_id: Optional[str] = None
@@ -254,6 +256,10 @@ class QueryUnit:
     # a template database to create the database. The server should
     # close all inactive unused pooled connections to the template db.
     create_db_template: Optional[str] = None
+
+    # If non-None, contains names of created/deleted extensions.
+    create_ext: Optional[Set[str]] = None
+    drop_ext: Optional[Set[str]] = None
 
     # If non-None, the DDL statement will emit data packets marked
     # with the indicated ID.
