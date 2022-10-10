@@ -167,6 +167,12 @@
         fi
         rsync -av ./build/rust_extensions/edb/ ./edb/
 
+    # Build libpg_query
+
+    - name: Build libpg_query
+      run: |
+        python setup.py build_libpg_query
+
     # Build extensions
 
     - name: Handle Cython extensions build cache
