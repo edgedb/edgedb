@@ -847,7 +847,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                select std::json_object_pack({})
+                select std::json_object_pack(
+                    <tuple<str, json>>{}
+                )
             """,
             [{}],
             ["{}"],
