@@ -23,6 +23,8 @@ from typing import *
 
 import random
 
+from edb.common import ast as ast_visitor
+
 from edb.edgeql import qltypes
 from edb.ir import ast as irast
 from edb.pgsql import ast as pgast
@@ -375,10 +377,19 @@ def fini_toplevel(
 
     if not ctx.env.use_named_params:
         # Adding unused parameters into a CTE
+
+        # Find the used parameters by searching the query, so we don't
+        # get confused if something has been compiled but then omitted
+        # from the output for some reason.
+        flt = lambda n: isinstance(n, pgast.ParamRef)
+        param_refs: List[pgast.ParamRef] = ast_visitor.find_children(stmt, flt)
+
+        used = {param_ref.number for param_ref in param_refs}
+
         targets = []
         for param in ctx.env.query_params:
             pgparam = argmap[param.name]
-            if pgparam.used:
+            if pgparam.index in used:
                 continue
             targets.append(pgast.ResTarget(val=pgast.TypeCast(
                 arg=pgast.ParamRef(number=pgparam.index),

@@ -5643,3 +5643,11 @@ class TestInsert(tb.QueryTestCase):
             [{'id': str}],
             always_typenames=True,
         )
+
+    async def test_edgeql_insert_pointless_shape_elements_01(self):
+        await self.con.execute('''
+            insert Person {
+                name := "test",
+                notes := (select Note { foo := 0 })
+            };
+        ''')

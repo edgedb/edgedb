@@ -459,8 +459,6 @@ class Param:
     #: whether parameter is required
     required: bool
 
-    used: bool = False
-
 
 class Query(ReturningQuery):
     """Generic superclass representing a query."""
