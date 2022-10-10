@@ -1955,6 +1955,8 @@ cdef class PGConnection:
                     self.server._on_global_schema_change()
                 elif event == 'database-changes':
                     self.server._on_remote_database_changes()
+                elif event == 'extension-changes':
+                    self.server._on_database_extensions_changes()
                 elif event == 'ensure-database-not-used':
                     dbname = event_payload['dbname']
                     self.server._on_remote_database_quarantine(dbname)

@@ -749,6 +749,7 @@ class Server(ha_base.ClusterProtocol):
             backend_ids = json.loads(backend_ids_json)
 
             db_config = await self.introspect_db_config(conn)
+            extensions = await self._introspect_extensions(conn)
 
             assert self._dbindex is not None
             self._dbindex.register_db(
@@ -757,9 +758,38 @@ class Server(ha_base.ClusterProtocol):
                 db_config=db_config,
                 reflection_cache=reflection_cache,
                 backend_ids=backend_ids,
+                extensions=extensions,
             )
         finally:
             self.release_pgcon(dbname, conn)
+
+    async def _introspect_extensions(self, conn):
+        extension_names_json = await conn.sql_fetch_val(
+            b'''
+                SELECT json_agg(name) FROM edgedb."_SchemaExtension";
+            ''',
+        )
+        if extension_names_json:
+            extensions = set(json.loads(extension_names_json))
+        else:
+            extensions = set()
+
+        return extensions
+
+    async def introspect_extensions(self, dbname):
+        logger.info("introspecting extensions for database '%s'", dbname)
+        conn = await self._acquire_intro_pgcon(dbname)
+        if not conn:
+            return
+
+        try:
+            extensions = await self._introspect_extensions(conn)
+        finally:
+            self.release_pgcon(dbname, conn)
+
+        db = self._dbindex.maybe_get_db(dbname)
+        if db is not None:
+            db.extensions = extensions
 
     async def introspect_db_config(self, conn):
         result = await conn.sql_fetch_val(self.get_sys_query('dbconfig'))
@@ -778,16 +808,7 @@ class Server(ha_base.ClusterProtocol):
             return
 
         try:
-            extension_names_json = await conn.sql_fetch_val(
-                b'''
-                    SELECT json_agg(name) FROM edgedb."_SchemaExtension";
-                ''',
-            )
-            if extension_names_json:
-                extensions = set(json.loads(extension_names_json))
-            else:
-                extensions = set()
-
+            extensions = await self._introspect_extensions(conn)
             assert self._dbindex is not None
             self._dbindex.register_db(
                 dbname,
@@ -1385,6 +1406,20 @@ class Server(ha_base.ClusterProtocol):
             except Exception:
                 metrics.background_errors.inc(
                     1.0, 'on_remote_database_config_change')
+                raise
+
+        self.create_task(task(), interruptable=True)
+
+    def _on_database_extensions_changes(self, dbname):
+        if not self._accept_new_tasks:
+            return
+
+        async def task():
+            try:
+                await self.introspect_extensions(dbname)
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, 'on_database_extensions_change')
                 raise
 
         self.create_task(task(), interruptable=True)
