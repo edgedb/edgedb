@@ -38,7 +38,9 @@ The key insight to resolve this dilemma is that a nested array type
 types `array<T>` and `array<int32>`, where the `array<T>` contains all
 of the elements of the nested arrays flattened out and the
 `array<int>` contains the indexes into the flattened array indicating where
-each of the outer arrays begins.
+each of the nested arrays begins (followed by the length of the flattened
+array, so that pairs of adjacent elements form the slice indexes into
+the flattened array).
 
 As an example, consider a parameter of type `array<tuple<str, array<int64>>>`,
 with the value:
@@ -67,21 +69,21 @@ the value in a single pass.
 
 The code we generate for our running example could look something like:
   with v0 := <array<str>>$0, v1 := <array<int32>>$1, v2 := <array<int64>>$2,
-  for i in range_unpack(range(0, len(v0))) union (
+  select array_agg((for i in range_unpack(range(0, len(v0))) union (
     (
       v0[i],
       array_agg((for j in range_unpack(v1[i], v1[i + 1]) union (v2[i]))),
     )
-  )
+  )))
 In this case, since the nested array is simply an array of a scalar, we can
 do an optimization and use slicing instead of an array_agg+for:
   with v0 := <array<str>>$0, v1 := <array<int32>>$1, v2 := <array<int64>>$2,
-  for i in range_unpack(range(0, len(v0))) union (
+  select array_agg((for i in range_unpack(range(0, len(v0))) union (
     (
       v0[i],
       v2[v1[i] : v1[i + 1]],
     )
-  )
+  )))
 
 The decoder queries will get placed in a CTE in the generated SQL.
 """
