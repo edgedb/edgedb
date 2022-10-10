@@ -3492,15 +3492,17 @@ def process_set_as_json_object_pack(
 
     ir_arg = expr.args[0].expr
 
-    # compile IR to pg AST (that may be a ref)
-    arg_ref = dispatch.compile(ir_arg, ctx=ctx)
-
-    # ensure that pgast ref is actually a value
-    arg_val = output.output_as_value(arg_ref, env=ctx.env)
+    # compile IR to pg AST
+    dispatch.visit(ir_arg, ctx=ctx)
+    arg_val = pathctx.get_path_value_var(ctx.rel, ir_arg.path_id, env=ctx.env)
 
     # get first and the second fields of the tuple
-    keys = astutils.tuple_getattr(arg_val, ir_arg.typeref, '0')
-    values = astutils.tuple_getattr(arg_val, ir_arg.typeref, '1')
+    if isinstance(arg_val, pgast.TupleVar):
+        keys = arg_val.elements[0].val
+        values = arg_val.elements[1].val
+    else:
+        keys = astutils.tuple_getattr(arg_val, ir_arg.typeref, "0")
+        values = astutils.tuple_getattr(arg_val, ir_arg.typeref, "1")
 
     # construct the function call
     set_expr = pgast.FuncCall(

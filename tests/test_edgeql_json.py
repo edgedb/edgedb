@@ -845,6 +845,28 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ['{"bar": null, "baz": [], "foo": 1}'],
         )
 
+        await self.assert_query_result(
+            r"""
+                select std::json_object_pack({})
+            """,
+            [{}],
+            ["{}"],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select std::json_object_pack(
+                    array_unpack([
+                        ('foo', <json>1),
+                        ('bar', <json>2),
+                        ('baz', <json>3)
+                    ])
+                )
+            """,
+            [{"bar": 2, "baz": 3, "foo": 1}],
+            ['{"bar": 2, "baz": 3, "foo": 1}'],
+        )
+
     async def test_edgeql_json_get_01(self):
         await self.assert_query_result(
             r'''
