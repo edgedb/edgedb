@@ -3483,6 +3483,49 @@ def process_set_as_exists_expr(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+@_special_case('std::json_object_pack')
+def process_set_as_json_object_pack(
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    ir_arg = expr.args[0].expr
+
+    # compile IR to pg AST
+    dispatch.visit(ir_arg, ctx=ctx)
+    arg_val = pathctx.get_path_value_var(ctx.rel, ir_arg.path_id, env=ctx.env)
+
+    # get first and the second fields of the tuple
+    if isinstance(arg_val, pgast.TupleVar):
+        keys = arg_val.elements[0].val
+        values = arg_val.elements[1].val
+    else:
+        keys = astutils.tuple_getattr(arg_val, ir_arg.typeref, "0")
+        values = astutils.tuple_getattr(arg_val, ir_arg.typeref, "1")
+
+    # construct the function call
+    set_expr = pgast.FuncCall(
+        name=("coalesce",),
+        args=[
+            pgast.FuncCall(name=("jsonb_object_agg",), args=[keys, values]),
+            pgast.TypeCast(
+                arg=pgast.StringConstant(val="{}"),
+                type_name=pgast.TypeName(name=('jsonb',)),
+            ),
+        ],
+    )
+
+    # declare that the 'aspect=value' of ir_set (original set)
+    # can be found by in ctx.rel, by using set_expr
+    pathctx.put_path_value_var_if_not_exists(
+        ctx.rel, ir_set.path_id, set_expr, env=ctx.env
+    )
+
+    # return subquery as set_rvar
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
 def build_array_expr(
         ir_expr: irast.Base,
         elements: List[pgast.BaseExpr], *,
