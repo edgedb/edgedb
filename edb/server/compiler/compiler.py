@@ -962,11 +962,17 @@ class Compiler:
         create_db = None
         drop_db = None
         create_db_template = None
+        create_ext = None
+        drop_ext = None
         if isinstance(stmt, qlast.DropDatabase):
             drop_db = stmt.name.name
         elif isinstance(stmt, qlast.CreateDatabase):
             create_db = stmt.name.name
             create_db_template = stmt.template.name if stmt.template else None
+        elif isinstance(stmt, qlast.CreateExtension):
+            create_ext = stmt.name.name
+        elif isinstance(stmt, qlast.DropExtension):
+            drop_ext = stmt.name.name
 
         if debug.flags.delta_execute:
             debug.header('Delta Script')
@@ -984,6 +990,8 @@ class Compiler:
             create_db=create_db,
             drop_db=drop_db,
             create_db_template=create_db_template,
+            create_ext=create_ext,
+            drop_ext=drop_ext,
             has_role_ddl=isinstance(stmt, qlast.RoleCommand),
             ddl_stmt_id=ddl_stmt_id,
             user_schema=current_tx.get_user_schema_if_updated(),
@@ -1888,6 +1896,8 @@ class Compiler:
                 unit.create_db = comp.create_db
                 unit.drop_db = comp.drop_db
                 unit.create_db_template = comp.create_db_template
+                unit.create_ext = comp.create_ext
+                unit.drop_ext = comp.drop_ext
                 unit.has_role_ddl = comp.has_role_ddl
                 unit.ddl_stmt_id = comp.ddl_stmt_id
                 if comp.user_schema is not None:

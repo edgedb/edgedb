@@ -184,6 +184,9 @@ cdef class Database:
     cdef schedule_config_update(self):
         self._index._server._on_local_database_config_change(self.name)
 
+    cdef schedule_extensions_update(self):
+        self._index._server._on_database_extensions_changes(self.name)
+
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema,
@@ -830,6 +833,9 @@ cdef class DatabaseConnectionView:
             if query_unit.has_role_ddl:
                 side_effects |= SideEffects.RoleChanges
                 self._db._index._server._fetch_roles()
+            if query_unit.create_ext or query_unit.drop_ext:
+                side_effects |= SideEffects.ExtensionChanges
+                self._db.schedule_extensions_update()
         else:
             if new_types:
                 self._in_tx_new_types.update(new_types)
