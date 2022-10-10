@@ -129,8 +129,6 @@ def compile_Parameter(
         )
     else:
         index = ctx.argmap[expr.name].index
-        ctx.argmap[expr.name].used = True
-
         result = pgast.ParamRef(number=index, nullable=not expr.required)
 
     return pgast.TypeCast(
