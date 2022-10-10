@@ -148,6 +148,8 @@ class Server(ha_base.ClusterProtocol):
         http_endpoint_security: srvargs.ServerEndpointSecurityMode = (
             srvargs.ServerEndpointSecurityMode.Tls),
         auto_shutdown_after: float = -1,
+        initial_readiness_state: srvargs.ReadinessState = (
+            srvargs.ReadinessState.Ready),
         echo_runtime_info: bool = False,
         status_sinks: Sequence[Callable[[str], None]] = (),
         startup_script: Optional[srvargs.StartupScript] = None,
@@ -272,6 +274,8 @@ class Server(ha_base.ClusterProtocol):
 
         self._admin_ui = admin_ui
 
+        self._ready = initial_readiness_state
+
         # A set of databases that should not accept new connections.
         self._block_new_connections: set[str] = set()
 
@@ -314,6 +318,9 @@ class Server(ha_base.ClusterProtocol):
 
     def is_admin_ui_enabled(self):
         return self._admin_ui
+
+    def is_ready(self) -> bool:
+        return self._ready is srvargs.ReadinessState.Ready
 
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
@@ -750,6 +757,16 @@ class Server(ha_base.ClusterProtocol):
 
             db_config = await self.introspect_db_config(conn)
             extensions = await self._introspect_extensions(conn)
+
+            extension_names_json = await conn.sql_fetch_val(
+                b'''
+                    SELECT json_agg(name) FROM edgedb."_SchemaExtension";
+                ''',
+            )
+            if extension_names_json:
+                extensions = set(json.loads(extension_names_json))
+            else:
+                extensions = set()
 
             assert self._dbindex is not None
             self._dbindex.register_db(
@@ -2070,6 +2087,7 @@ class Server(ha_base.ClusterProtocol):
         return (
             dbname != defines.EDGEDB_TEMPLATE_DB
             and dbname not in self._block_new_connections
+            and self.is_ready()
         )
 
     def get_sys_query(self, key):

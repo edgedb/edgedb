@@ -21,11 +21,13 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
+import http
 import http.client
 import json
 import os.path
 import pathlib
 import random
+import signal
 import subprocess
 import ssl
 import sys
@@ -44,7 +46,7 @@ from edb.server import cluster as edbcluster
 from edb.testbase import server as tb
 
 
-class TestServerOps(tb.TestCase):
+class TestServerOps(tb.BaseHTTPTestCase):
 
     async def kill_process(self, proc: asyncio.subprocess.Process):
         proc.terminate()
@@ -680,3 +682,66 @@ class TestServerOps(tb.TestCase):
                 await self._test_connection(con)
             finally:
                 await con.aclose()
+
+    async def test_server_ops_readiness(self):
+        async with tb.start_edgedb_server(
+            initial_readiness_state=args.ReadinessState.NotReady,
+        ) as sd:
+            with self.assertRaises(errors.AccessError):
+                # Initially not ready, not accepting connections
+                await sd.connect()
+
+            # Readiness check returns 503
+            with self.http_con(server=sd) as http_con:
+                _, _, status = self.http_con_request(
+                    http_con,
+                    path='/server/status/ready',
+                )
+
+                self.assertEqual(status, http.HTTPStatus.SERVICE_UNAVAILABLE)
+
+            # It is alive though.
+            with self.http_con(server=sd) as http_con:
+                _, _, status = self.http_con_request(
+                    http_con,
+                    path='/server/status/alive',
+                )
+
+                self.assertEqual(status, http.HTTPStatus.OK)
+
+            # Make ready with SIGUSR1
+            os.kill(sd.pid, signal.SIGUSR1)
+            await asyncio.sleep(0.05)
+            async for tr in self.try_until_succeeds(
+                ignore=(errors.AccessError, AssertionError),
+            ):
+                async with tr:
+                    with self.http_con(server=sd) as http_con:
+                        _, _, status = self.http_con_request(
+                            http_con,
+                            path='/server/status/ready',
+                        )
+
+                        self.assertEqual(status, http.HTTPStatus.OK)
+
+                    conn = await sd.connect()
+                    await conn.aclose()
+
+            # Make not ready again with SIGUSR2
+            os.kill(sd.pid, signal.SIGUSR2)
+            await asyncio.sleep(0.05)
+            async for tr in self.try_until_fails(
+                wait_for=(errors.AccessError,),
+            ):
+                async with tr:
+                    conn = await sd.connect()
+                    await conn.aclose()
+
+            # Readiness check returns 503 once more
+            with self.http_con(server=sd) as http_con:
+                _, _, status = self.http_con_request(
+                    http_con,
+                    path='/server/status/ready',
+                )
+
+                self.assertEqual(status, http.HTTPStatus.SERVICE_UNAVAILABLE)

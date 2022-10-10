@@ -39,7 +39,9 @@ async def handle_request(
 ):
     try:
         if path_parts == ['status', 'ready'] and request.method == b'GET':
-            await handle_status_request(request, response, server)
+            await handle_readiness_query(request, response, server)
+        elif path_parts == ['status', 'alive'] and request.method == b'GET':
+            await handle_liveness_query(request, response, server)
         else:
             response.body = b'Unknown path'
             response.status = http.HTTPStatus.NOT_FOUND
@@ -80,21 +82,42 @@ def _response_error(response, status, message, ex_type):
     response.close_connection = True
 
 
-async def handle_status_request(
-    request,
-    response,
-    server,
-):
+def _response_ok(response, message):
     response.status = http.HTTPStatus.OK
     response.content_type = b'application/json'
-    db = server.get_db(dbname=edbdef.EDGEDB_SYSTEM_DB)
-    result = await execute.parse_execute_json(
-        db,
+    response.body = message
+
+
+async def _ping(server):
+    return await execute.parse_execute_json(
+        server.get_db(dbname=edbdef.EDGEDB_SYSTEM_DB),
         query="SELECT 'OK'",
         output_format=compiler.OutputFormat.JSON_ELEMENTS,
         # Disable query cache because we need to ensure that the compiled
         # pool is healthy.
         query_cache_enabled=False,
     )
-    response.body = result
-    return
+
+
+async def handle_liveness_query(
+    request,
+    response,
+    server,
+):
+    _response_ok(response, await _ping(server))
+
+
+async def handle_readiness_query(
+    request,
+    response,
+    server,
+):
+    if not server.is_ready():
+        _response_error(
+            response,
+            http.HTTPStatus.SERVICE_UNAVAILABLE,
+            "this server is not ready to accept connections",
+            errors.AccessError,
+        )
+    else:
+        _response_ok(response, await _ping(server))

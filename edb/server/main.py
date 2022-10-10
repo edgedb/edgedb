@@ -198,6 +198,7 @@ async def _run_server(
             startup_script=args.startup_script,
             binary_endpoint_security=args.binary_endpoint_security,
             http_endpoint_security=args.http_endpoint_security,
+            initial_readiness_state=args.initial_readiness_state,
             backend_adaptive_ha=args.backend_adaptive_ha,
             default_auth_method=args.default_auth_method,
             testmode=args.testmode,
@@ -259,6 +260,20 @@ async def _run_server(
                 )
                 ss.request_shutdown()
 
+        def make_ready(signum: signal.Signals) -> None:
+            logger.info(
+                'received %s, switching server to the Ready state',
+                signum._name_,
+            )
+            ss._ready = srvargs.ReadinessState.Ready
+
+        def make_not_ready(signum: signal.Signals) -> None:
+            logger.info(
+                'received %s, switching server to the NotReady state',
+                signum._name_,
+            )
+            ss._ready = srvargs.ReadinessState.NotReady
+
         try:
             await sc.wait_for(ss.start())
 
@@ -270,8 +285,24 @@ async def _run_server(
             # Notify systemd that we've started up.
             service_manager.sd_notify('READY=1')
 
-            with signalctl.SignalController(signal.SIGHUP) as reload_ctl:
-                reload_ctl.add_handler(load_configuration)
+            with signalctl.SignalController(
+                signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2,
+            ) as reload_ctl:
+                reload_ctl.add_handler(
+                    load_configuration,
+                    signals=(signal.SIGHUP,)
+                )
+
+                reload_ctl.add_handler(
+                    make_ready,
+                    signals=(signal.SIGUSR1,),
+                )
+
+                reload_ctl.add_handler(
+                    make_not_ready,
+                    signals=(signal.SIGUSR2,),
+                )
+
                 try:
                     await sc.wait_for(ss.serve_forever())
                 except signalctl.SignalError as e:
