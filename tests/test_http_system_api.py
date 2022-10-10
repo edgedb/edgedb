@@ -17,14 +17,13 @@
 #
 
 
-from edb.testbase import http as tb
 from edb.testbase import server as tb_server
 
 
-class TestHttpSystemAPI(tb.BaseHttpTest, tb_server.ConnectedTestCase):
+class TestHttpSystemAPI(tb_server.ConnectedTestCase):
 
     @classmethod
-    def get_api_path(cls) -> str:
+    def get_api_prefix(cls) -> str:
         return '/server'
 
     def test_http_sys_api_status(self):

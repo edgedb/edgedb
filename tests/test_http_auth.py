@@ -24,13 +24,12 @@ import edgedb
 from edgedb import scram
 
 from edb import protocol
-from edb.testbase import http as tb
 from edb.testbase import server as tb_server
 
 
-class BaseTestHttpAuth(tb.BaseHttpTest, tb_server.ConnectedTestCase):
+class BaseTestHttpAuth(tb_server.ConnectedTestCase):
     @classmethod
-    def get_api_path(cls) -> str:
+    def get_api_prefix(cls) -> str:
         return "/auth"
 
     def _scram_auth(self, user, password):
