@@ -45,8 +45,7 @@ def get_longest_paths(ir: irast.Base) -> Set[irast.Set]:
     result = set()
     parents = set()
 
-    flt = lambda n: isinstance(n, irast.Set) and n.expr is None
-    ir_sets = ast.find_children(ir, flt)
+    ir_sets = ast.find_children(ir, irast.Set, lambda n: n.expr is None)
     for ir_set in ir_sets:
         result.add(ir_set)
         if ir_set.rptr:
@@ -57,16 +56,13 @@ def get_longest_paths(ir: irast.Base) -> Set[irast.Set]:
 
 def get_parameters(ir: irast.Base) -> Set[irast.Parameter]:
     """Return all parameters found in *ir*."""
-    result: Set[irast.Parameter] = set()
-    flt = lambda n: isinstance(n, irast.Parameter)
-    result.update(ast.find_children(ir, flt))
-    return result
+    return set(ast.find_children(ir, irast.Parameter))
 
 
 def is_const(ir: irast.Base) -> bool:
     """Return True if the given *ir* expression is constant."""
-    flt = lambda n: isinstance(n, irast.Set) and n.expr is None and n is not ir
-    ir_sets = ast.find_children(ir, flt)
+    flt = lambda n: n.expr is None and n is not ir
+    ir_sets = ast.find_children(ir, irast.Set, flt)
     variables = get_parameters(ir)
     return not ir_sets and not variables
 
@@ -452,7 +448,6 @@ def find_potentially_visible(
 
 
 def contains_set_of_op(ir: irast.Base) -> bool:
-    flt = (lambda n: isinstance(n, irast.Call)
-           and any(x == ft.TypeModifier.SetOfType
-                   for x in n.params_typemods))
-    return bool(ast.find_children(ir, flt, terminate_early=True))
+    flt = (lambda n: any(x == ft.TypeModifier.SetOfType
+                         for x in n.params_typemods))
+    return bool(ast.find_children(ir, irast.Call, flt, terminate_early=True))

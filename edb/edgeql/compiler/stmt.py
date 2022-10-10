@@ -365,8 +365,7 @@ def compile_InternalGroupQuery(
                     grouping_stype, expr.grouping_alias, ctx=topctx)
 
         # Check that the by clause is legit
-        by_refs: List[qlast.ObjectRef] = ast.find_children(
-            stmt.by, lambda n: isinstance(n, qlast.ObjectRef))
+        by_refs = ast.find_children(stmt.by, qlast.ObjectRef)
         for by_ref in by_refs:
             if by_ref.name not in stmt.using:
                 raise errors.InvalidReferenceError(

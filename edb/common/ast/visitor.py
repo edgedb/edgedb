@@ -30,8 +30,15 @@ class SkipNode(Exception):
     pass
 
 
-def find_children(node, test_func, *args,
-                  terminate_early=False, **kwargs):
+_T = TypeVar('_T')
+
+
+def find_children(
+    node: base.AST | Collection[base.AST],
+    type: Type[_T],
+    test_func: Optional[Callable[[_T], bool]] = None,
+    terminate_early=False,
+) -> list[_T]:
     visited = set()
     result = []
 
@@ -50,7 +57,7 @@ def find_children(node, test_func, *args,
             visited.add(node)
 
         try:
-            if test_func(node, *args, **kwargs):
+            if isinstance(node, type) and (not test_func or test_func(node)):
                 result.append(node)
                 if terminate_early:
                     return True
@@ -68,13 +75,7 @@ def find_children(node, test_func, *args,
         return False
 
     _find_children(node)
-    if terminate_early:
-        if result:
-            return result[0]
-        else:
-            return None
-    else:
-        return result
+    return result
 
 
 class NodeVisitor:

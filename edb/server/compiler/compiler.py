@@ -1212,8 +1212,7 @@ class Compiler:
                             # it into the actual query, so filter them out.
                             used_placeholders = {
                                 p.name for p in ast.find_children(
-                                    ddl_ast,
-                                    lambda n: isinstance(n, qlast.Placeholder))
+                                    ddl_ast, qlast.Placeholder)
                             }
                             required_user_input = tuple(
                                 (k, v) for k, v in (

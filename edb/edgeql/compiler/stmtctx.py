@@ -303,11 +303,10 @@ def _fixup_materialized_sets(
     ir: irast.Base, *, ctx: context.ContextLevel
 ) -> List[irast.Set]:
     # Make sure that all materialized sets have their views compiled
-    flt = lambda n: isinstance(n, irast.Stmt)
-    children: List[irast.Stmt] = ast_visitor.find_children(ir, flt)
+    children = ast_visitor.find_children(ir, irast.Stmt)
     for nobe in ctx.env.source_map.values():
         if nobe.irexpr:
-            children += ast_visitor.find_children(nobe.irexpr, flt)
+            children += ast_visitor.find_children(nobe.irexpr, irast.Stmt)
 
     to_clear = []
     for stmt in ordered.OrderedSet(children):
@@ -388,8 +387,8 @@ def _fixup_materialized_sets(
 def _find_visible_binding_refs(
     ir: irast.Base, *, ctx: context.ContextLevel
 ) -> List[irast.Set]:
-    flt = lambda n: isinstance(n, irast.Set) and n.is_visible_binding_ref
-    children: List[irast.Set] = ast_visitor.find_children(ir, flt)
+    children = ast_visitor.find_children(
+        ir, irast.Set, lambda n: n.is_visible_binding_ref)
     return children
 
 
