@@ -1,24 +1,52 @@
 from typing import *
 
 from edb.pgsql import ast as pgast
+from edb.edgeql import ast as qlast
+from edb.pgsql.parser.exceptions import PSqlUnsupportedError
 
 # Node = bool | str | int | float | List[Any] | dict[str, Any]
 Node = Any
 T = TypeVar("T")
+U = TypeVar("U")
+
+
+def build_queries(node: Node) -> List[pgast.Query]:
+    return [_build_query(node["stmt"]) for node in node["stmts"]]
+
 
 def _maybe(node: Node, name: str, builder: Callable[[Node], T]) -> Optional[T]:
     if name in node:
         return builder(node[name])
     return None
 
-def _list(node: Node, name: str, builder: Callable[[Node], T]) -> List[T]:
-    return [builder(n) for n in node[name]]
+
+def ident(t: T) -> U:
+    return t  # type: ignore
 
 
-def _maybe_list(node: Node, name: str, builder: Callable[[Node], T]) -> Optional[List[T]]:
-    return _list(node, name, builder) if name in node else None    
+def _list(
+    node: Node,
+    name: str,
+    builder: Callable[[Node], T],
+    mapper: Callable[[T], U] = ident,
+) -> List[U]:
+    return [mapper(builder(n)) for n in node[name]]
 
-def _enum(node: Node, builders: dict[str, Callable[[Node], T]], fallbacks: List[Callable[[Node], T]] = []) -> T:
+
+def _maybe_list(
+    node: Node,
+    name: str,
+    builder: Callable[[Node], T],
+    mapper: Callable[[T], U] = ident,
+) -> Optional[List[U]]:
+    return _list(node, name, builder, mapper) if name in node else None
+
+
+def _enum(
+    node: Node,
+    builders: dict[str, Callable[[Node], T]],
+    fallbacks: Sequence[Callable[[Node], T]] = (),
+) -> T:
     for name in builders:
         if name in node:
             builder = builders[name]
@@ -26,175 +54,446 @@ def _enum(node: Node, builders: dict[str, Callable[[Node], T]], fallbacks: List[
     for fallback in fallbacks:
         try:
             return fallback(node)
-        except:
+        except PSqlUnsupportedError:
             pass
-    raise BaseException(f'unknown enum: {node}')
+    raise PSqlUnsupportedError(f"unknown enum: {node}")
 
-def build_any(node: Node) -> Any:
+
+def _build_any(node: Node) -> Any:
     return node
 
-def build_str(node: Node) -> str:
-    node = unwrap(node, 'String')
-    node = unwrap(node, 'str')
+
+def _build_str(node: Node) -> str:
+    node = _unwrap(node, "String")
+    node = _unwrap(node, "str")
     return str(node)
 
-def build_bool(node: Node) -> bool:
-    return node == True
 
-def maybe_bool(node: Node, name: str) -> bool:
-    return node[name] == True if name in node else False
+def _build_bool(node: Node) -> bool:
+    return node
 
-def build_queries(node: Node) -> List[pgast.Query]:
-    return [build_query(node) for node in node['stmts']]
 
-def unwrap(node: Node, name: str) -> pgast.Query:
+def _maybe_bool(node: Node, name: str) -> bool:
+    return node[name] if name in node else False
+
+
+def _unwrap(node: Node, name: str) -> pgast.Query:
     if isinstance(node, dict) and name in node:
         return node[name]
     return node
 
-def build_query(node: Node) -> pgast.Query:
-    return _enum(node['stmt'], {
-        'SelectStmt': build_select_stmt,
-    })
 
-
-def build_select_stmt(node: Node) -> pgast.SelectStmt:
-    return pgast.SelectStmt(
-        distinct_clause=_maybe_list(node, 'distinct_clause', build_any),
-        target_list=_list(node, 'targetList', build_res_target),
-        from_clause=_list(node, 'fromClause', build_base_range_var),
-        where_clause=_maybe(node, 'whereClause', build_base_expr),
-        group_clause=_maybe_list(node, 'groupClause', build_base),
-        having=_maybe(node, 'having', build_base_expr),
-        window_clause=_maybe_list(node, 'windowClause', build_base),
-        values=_maybe_list(node, 'windowClause', build_base),
-        sort_clause=_maybe_list(node, 'sortClause', build_sort_by),
-        limit_offset=_maybe(node, 'limitOffset', build_base_expr),
-        limit_count=_maybe(node, 'limitCount', build_base_expr),
-        locking_clause=_maybe_list(node, 'sortClause', build_any),
-        op=_maybe(node, 'op', build_str),
-        all=node['all'] if 'all' in node else False,
-        larg=_maybe(node, 'larg', build_query),
-        rarg=_maybe(node, 'rarg', build_query),
-    )
-
-def build_base_expr(node: Node) -> pgast.BaseExpr:
-    return _enum(node, {
-        'ResTarget': build_res_target,
-        'ColumnRef': build_column_ref,
-        'FuncCall': build_func_call,
-        'A_Expr': build_a_expr,
-        'List': build_array,
-        'A_Const': build_const,
-    }, [build_base_range_var])
-
-def build_base_range_var(n: Node) -> pgast.BaseRangeVar:
-    return _enum(n, {
-        'RangeVar': build_rel_range_var,
-        'JoinExpr': build_join_expr,
-        'RangeFunction': build_range_function
-    })
-
-def build_const(n: Node) -> pgast.BaseConstant:
-    return _enum(n['val'], {
-        'Integer': build_integer,
-        'Float': lambda n: pgast.NumericConstant(val=n['str']),
-        'String': build_string_constant,
-        'Null': lambda n: pgast.NullConstant(),
-    })
-
-def build_integer(n: Node) -> pgast.NumericConstant:
-    return pgast.NumericConstant(val=str(n['ival']))
-
-def build_string_constant(n: Node) -> pgast.StringConstant:
-    return pgast.StringConstant(
-        val=build_str(n)
-    )
-
-
-def build_range_function(n: Node) -> pgast.RangeFunction:
-    return pgast.RangeFunction(
-        lateral = maybe_bool(n, 'lateral'),
-        with_ordinality = maybe_bool(n, 'with_ordinality'),
-        is_rowsfrom = maybe_bool(n, 'is_rowsfrom'),
-        functions = _list(n, 'functions', build_func_call),
-    )
-
-def build_join_expr(n: Node) -> pgast.JoinExpr:
-    return pgast.JoinExpr(
-        type=n['jointype'],
-        larg=build_base_expr(n['larg']),
-        rarg=build_base_expr(n['rarg']),
-        using_clause=_maybe_list(n, 'usingClause', build_base_expr),
-        quals=_maybe(n, 'quals', build_base_expr),
-    )
-
-def build_rel_range_var(n: Node) -> pgast.RelRangeVar:
-    return pgast.RelRangeVar(
-        relation=build_base_relation(n),
-        include_inherited=build_bool(n['inh'])
-    )
-
-def build_base_relation(node: Node) -> pgast.BaseRelation:
-    return pgast.Relation(
-        name=_maybe(node, 'relname', build_str)
-    )
-
-def build_array(n: Node) -> pgast.ArrayExpr:
-    return pgast.ArrayExpr(
-        elements=_list(n, 'items', build_base_expr)
-    )
-
-def build_a_expr(n: Node) -> pgast.Expr:
-    if n['kind'] != 'AEXPR_OP':
-        raise BaseException(f'unknown ExprKind: {n["kind"]}')
-    return pgast.Expr(
-        kind=pgast.ExprKind.OP,
-        name=build_str(n['name'][0]),
-        lexpr=_maybe(n, 'lexpr', build_base_expr),
-        rexpr=_maybe(n, 'rexpr', build_base_expr),
-    )
-
-def build_func_call(n: Node) -> pgast.FuncCall:
-    n = unwrap(n, 'FuncCall')
-    return pgast.FuncCall(
-        name=tuple(_list(n, 'funcname', build_str)),
-        args=_maybe_list(n, 'args', build_base_expr) or [],
-        agg_order=_maybe_list(n, 'aggOrder', build_sort_by),
-        agg_filter=_maybe(n, 'aggFilter', build_base_expr),
-        agg_star=maybe_bool(n, 'agg_star'),
-        agg_distinct=maybe_bool(n, 'agg_distinct'),
-        over=_maybe(n, 'over', build_window_def),
-        with_ordinality=maybe_bool(n, 'withOrdinality'),
-    )
-
-def build_res_target(n: Node) -> pgast.ResTarget:
-    n = unwrap(n, 'ResTarget')
-    return pgast.ResTarget(
-        name=_maybe(n, 'name', build_str),
-        indirection=_maybe_list(n, 'indirection', build_any),
-        val=build_base_expr(n['val'])
-    )
-    
-
-def build_base(node: Node) -> pgast.Base:
-    return None
-
-def build_window_def(node: Node) -> pgast.WindowDef:
-    return None
-
-def build_sort_by(node: Node) -> pgast.SortBy:
-    return None
-
-def build_column_ref(node: Node) -> pgast.ColumnRef:
+def _as_column_ref(name: str) -> pgast.ColumnRef:
     return pgast.ColumnRef(
-        name=_list(node, 'fields', build_string_or_star),
-        optional=_maybe(node, 'optional', build_bool),
+        name=(name,),
     )
 
-def build_string_or_star(node: Node) -> pgast.Star | str:
-    return _enum(node, {
-        'String': build_str,
-        'A_Star': lambda n: pgast.Star()
-    })
 
+def _build_query(node: Node) -> pgast.Query:
+    return _enum(
+        node,
+        {
+            "SelectStmt": _build_select_stmt,
+            "InsertStmt": _build_insert_stmt,
+        },
+    )
+
+
+def _build_select_stmt(n: Node) -> pgast.SelectStmt:
+    op = _maybe(n, "op", _build_str)
+    if op:
+        op = op[6:]
+        if op == "NONE":
+            op = None
+    return pgast.SelectStmt(
+        distinct_clause=_maybe_list(n, "distinct_clause", _build_any),
+        target_list=_maybe_list(n, "targetList", _build_res_target) or [],
+        from_clause=_maybe_list(n, "fromClause", _build_base_range_var) or [],
+        where_clause=_maybe(n, "whereClause", _build_base_expr),
+        group_clause=_maybe_list(n, "groupClause", _build_base),
+        having=_maybe(n, "having", _build_base_expr),
+        window_clause=_maybe_list(n, "windowClause", _build_base),
+        values=_maybe_list(n, "valuesLists", _build_base_expr),
+        sort_clause=_maybe_list(n, "sortClause", _build_sort_by),
+        limit_offset=_maybe(n, "limitOffset", _build_base_expr),
+        limit_count=_maybe(n, "limitCount", _build_base_expr),
+        locking_clause=_maybe_list(n, "sortClause", _build_any),
+        op=op,
+        all=n["all"] if "all" in n else False,
+        larg=_maybe(n, "larg", _build_select_stmt),
+        rarg=_maybe(n, "rarg", _build_select_stmt),
+        ctes=_maybe(n, "withClause", _build_ctes),
+    )
+
+
+def _build_insert_stmt(n: Node) -> pgast.InsertStmt:
+    # Insert is currently unsupported,
+    # because ResTarget#val is required in our AST
+
+    op = _maybe(n, "op", _build_str)
+    if op:
+        op = op[6:]
+        if op == "NONE":
+            op = None
+    return pgast.InsertStmt(
+        relation=_maybe(n, "relation", _build_rel_range_var),
+        returning_list=_maybe_list(n, "returningList", _build_res_target)
+        or [],
+        cols=_maybe_list(n, "cols", _build_res_target),
+        select_stmt=_maybe(n, "select_stmt", _build_query),
+        on_conflict=_maybe(n, "on_conflict", _build_on_conflict),
+    )
+
+
+def _build_base_expr(node: Node) -> pgast.BaseExpr:
+    return _enum(
+        node,
+        {
+            "ResTarget": _build_res_target,
+            "ColumnRef": _build_column_ref,
+            "FuncCall": _build_func_call,
+            "List": _build_implicit_row,
+            "A_Expr": _build_a_expr,
+            "A_ArrayExpr": _build_array_expr,
+            "A_Const": _build_const,
+            "BoolExpr": _build_bool_expr,
+            "CaseExpr": _build_case_expr,
+            "TypeCast": _build_type_cast,
+            "NullTest": _build_null_test,
+            "BooleanTest": _build_boolean_test,
+            "RowExpr": _build_row_expr,
+            "SubLink": _build_sub_link,
+            "ParamRef": _build_param_ref,
+        },
+        [_build_base_range_var],  # type: ignore
+    )
+
+
+def _build_base(n: Node) -> pgast.Base:
+    return _enum(
+        n,
+        {
+            "CommonTableExpr": _build_cte,
+        },
+        [_build_base_expr],  # type: ignore
+    )
+
+
+def _build_ctes(n: Node) -> List[pgast.CommonTableExpr]:
+    return _list(n, "ctes", _build_cte)
+
+
+def _build_cte(n: Node) -> pgast.CommonTableExpr:
+    n = _unwrap(n, "CommonTableExpr")
+
+    materialized = None
+    if n["ctematerialized"] == "CTEMaterializeAlways":
+        materialized = True
+    elif n["ctematerialized"] == "CTEMaterializeNever":
+        materialized = False
+
+    return pgast.CommonTableExpr(
+        name=n["ctename"],
+        query=_build_query(n["ctequery"]),
+        # recursive=False,
+        # aliascolnames=None,
+        materialized=materialized,
+    )
+
+
+def _build_param_ref(n: Node) -> pgast.BaseParamRef:
+    return pgast.ParamRef(number=n["number"])
+
+
+def _build_sub_link(n: Node) -> pgast.SubLink:
+    typ = n["subLinkType"]
+    if typ == "EXISTS_SUBLINK":
+        type = pgast.SubLinkType.EXISTS
+    elif typ == "NOT_EXISTS_SUBLINK":
+        type = pgast.SubLinkType.NOT_EXISTS
+    elif typ == "ALL_SUBLINK":
+        type = pgast.SubLinkType.ALL
+    elif typ == "ANY_SUBLINK":
+        type = pgast.SubLinkType.ANY
+    elif typ == "EXPR_SUBLINK":
+        type = pgast.SubLinkType.EXPR
+    else:
+        raise PSqlUnsupportedError(f"unknown SubLink type: `{typ}`")
+
+    return pgast.SubLink(type=type, expr=_build_query(n["subselect"]))
+
+
+def _build_row_expr(n: Node) -> pgast.ImplicitRowExpr:
+    return pgast.ImplicitRowExpr(args=_list(n, "args", _build_base_expr))
+
+
+def _build_boolean_test(n: Node) -> pgast.BooleanTest:
+    return pgast.BooleanTest(
+        arg=_build_base_expr(n["arg"]),
+        negated=n["booltesttype"].startswith("IS_NOT"),
+        is_true=n["booltesttype"].endswith("TRUE"),
+    )
+
+
+def _build_null_test(n: Node) -> pgast.NullTest:
+    return pgast.NullTest(
+        arg=_build_base_expr(n["arg"]),
+        negated=n["nulltesttype"] == "IS_NOT_NULL",
+    )
+
+
+def _build_type_cast(n: Node) -> pgast.TypeCast:
+    return pgast.TypeCast(
+        arg=_build_base_expr(n["arg"]),
+        type_name=_build_type_name(n["typeName"]),
+    )
+
+
+def _build_type_name(n: Node) -> pgast.TypeName:
+    return pgast.TypeName(
+        name=tuple(_list(n, "names", _build_str)),
+        setof=_maybe_bool(n, "setof"),
+        typmods=None,
+        array_bounds=None,
+    )
+
+
+def _build_case_expr(n: Node) -> pgast.CaseExpr:
+    return pgast.CaseExpr(
+        arg=_maybe(n, "arg", _build_base_expr),
+        args=_list(n, "args", _build_case_when),
+        defresult=_maybe(n, "defresult", _build_base_expr),
+    )
+
+
+def _build_case_when(n: Node) -> pgast.CaseWhen:
+    n = _unwrap(n, "CaseWhen")
+    return pgast.CaseWhen(
+        expr=_build_base_expr(n["expr"]),
+        result=_build_base_expr(n["result"]),
+    )
+
+
+def _build_bool_expr(n: Node) -> pgast.Expr:
+    name = _build_str(n["boolop"])[0:-5]
+    res = pgast.Expr(
+        kind=pgast.ExprKind.OP,
+        name=name,
+        lexpr=_build_base_expr(n["args"].pop(0)),
+        rexpr=_build_base_expr(n["args"].pop(0)),
+    )
+    while len(n["args"]) > 0:
+        res = pgast.Expr(
+            kind=pgast.ExprKind.OP,
+            name=_build_str(n["boolop"])[0:-5],
+            lexpr=res,
+            rexpr=_build_base_expr(n["args"].pop(0)),
+        )
+    return res
+
+
+def _build_base_range_var(n: Node) -> pgast.BaseRangeVar:
+    return _enum(
+        n,
+        {
+            "RangeVar": _build_rel_range_var,
+            "JoinExpr": _build_join_expr,
+            "RangeFunction": _build_range_function,
+            "RangeSubselect": _build_range_subselect,
+        },
+    )
+
+
+def _build_const(n: Node) -> pgast.BaseConstant:
+    return _enum(
+        n["val"],
+        {
+            "Integer": _build_integer,
+            "Float": lambda n: pgast.NumericConstant(val=n["str"]),
+            "String": _build_string_constant,
+            "Null": lambda n: pgast.NullConstant(),
+        },
+    )
+
+
+def _build_integer(n: Node) -> pgast.NumericConstant:
+    return pgast.NumericConstant(val=str(n["ival"]))
+
+
+def _build_string_constant(n: Node) -> pgast.StringConstant:
+    return pgast.StringConstant(val=_build_str(n))
+
+
+def _build_range_subselect(n: Node) -> pgast.RangeSubselect:
+    return pgast.RangeSubselect(
+        alias=_maybe(n, "alias", _build_alias) or pgast.Alias(aliasname=""),
+        lateral=_maybe_bool(n, "lateral"),
+        subquery=_build_query(n["subquery"]),
+    )
+
+
+def _build_range_function(n: Node) -> pgast.RangeFunction:
+    return pgast.RangeFunction(
+        alias=_maybe(n, "alias", _build_alias) or pgast.Alias(aliasname=""),
+        lateral=_maybe_bool(n, "lateral"),
+        with_ordinality=_maybe_bool(n, "with_ordinality"),
+        is_rowsfrom=_maybe_bool(n, "is_rowsfrom"),
+        functions=_build_implicit_row(n["functions"]).args,  # type: ignore
+    )
+
+
+def _build_join_expr(n: Node) -> pgast.JoinExpr:
+    return pgast.JoinExpr(
+        alias=_maybe(n, "alias", _build_alias) or pgast.Alias(aliasname=""),
+        type=n["jointype"][5:],
+        larg=_build_base_expr(n["larg"]),
+        rarg=_build_base_expr(n["rarg"]),
+        using_clause=_maybe_list(n, "usingClause", _build_str, _as_column_ref),
+        quals=_maybe(n, "quals", _build_base_expr),
+    )
+
+
+def _build_rel_range_var(n: Node) -> pgast.RelRangeVar:
+    return pgast.RelRangeVar(
+        alias=_maybe(n, "alias", _build_alias) or pgast.Alias(aliasname=""),
+        relation=_build_base_relation(n),
+        include_inherited=_build_bool(n["inh"]),
+    )
+
+
+def _build_alias(n: Node) -> pgast.Alias:
+    return pgast.Alias(
+        aliasname=_build_str(n["aliasname"]),
+        colnames=_maybe_list(n, "colnames", _build_str),
+    )
+
+
+def _build_base_relation(node: Node) -> pgast.BaseRelation:
+    return pgast.Relation(name=_maybe(node, "relname", _build_str))
+
+
+def _build_implicit_row(n: Node) -> pgast.ImplicitRowExpr:
+    if isinstance(n, list):
+        n = n[0]
+    n = _unwrap(n, "List")
+
+    return pgast.ImplicitRowExpr(
+        args=[_build_base_expr(e) for e in n["items"] if len(e) > 0]
+    )
+
+
+def _build_array_expr(n: Node) -> pgast.ArrayExpr:
+    return pgast.ArrayExpr(elements=_list(n, "elements", _build_base_expr))
+
+
+def _build_a_expr(n: Node) -> pgast.Expr:
+    if n["kind"] == "AEXPR_OP":
+        return pgast.Expr(
+            kind=pgast.ExprKind.OP,
+            name=_build_str(n["name"][0]),
+            lexpr=_maybe(n, "lexpr", _build_base_expr),
+            rexpr=_maybe(n, "rexpr", _build_base_expr),
+        )
+    elif n["kind"] == "AEXPR_LIKE":
+        return pgast.Expr(
+            kind=pgast.ExprKind.OP,
+            name="LIKE",
+            lexpr=_maybe(n, "lexpr", _build_base_expr),
+            rexpr=_maybe(n, "rexpr", _build_base_expr),
+        )
+    elif n["kind"] == "AEXPR_IN":
+        return pgast.Expr(
+            kind=pgast.ExprKind.OP,
+            name="IN",
+            lexpr=_maybe(n, "lexpr", _build_base_expr),
+            rexpr=_maybe(n, "rexpr", _build_base_expr),
+        )
+    else:
+        raise PSqlUnsupportedError(f'unknown ExprKind: {n["kind"]}')
+
+
+def _build_func_call(n: Node) -> pgast.FuncCall:
+    n = _unwrap(n, "FuncCall")
+    return pgast.FuncCall(
+        name=tuple(_list(n, "funcname", _build_str)),
+        args=_maybe_list(n, "args", _build_base_expr) or [],
+        agg_order=_maybe_list(n, "aggOrder", _build_sort_by),
+        agg_filter=_maybe(n, "aggFilter", _build_base_expr),
+        agg_star=_maybe_bool(n, "agg_star"),
+        agg_distinct=_maybe_bool(n, "agg_distinct"),
+        over=_maybe(n, "over", _build_window_def),
+        with_ordinality=_maybe_bool(n, "withOrdinality"),
+    )
+
+
+def _build_res_target(n: Node) -> pgast.ResTarget:
+    n = _unwrap(n, "ResTarget")
+    return pgast.ResTarget(
+        name=_maybe(n, "name", _build_str),
+        indirection=_maybe_list(n, "indirection", _build_any),
+        val=_build_base_expr(n["val"]),
+    )
+
+
+def _build_window_def(n: Node) -> pgast.WindowDef:
+    return pgast.WindowDef(
+        name=_maybe(n, "name", _build_str),
+        refname=_maybe(n, "refname", _build_str),
+        partition_clause=_maybe_list(n, "partitionClause", _build_base_expr),
+        order_clause=_maybe_list(n, "orderClause", _build_sort_by),
+        frame_options=None,
+        start_offset=_maybe(n, "startOffset", _build_base_expr),
+        end_offset=_maybe(n, "endOffset", _build_base_expr),
+    )
+
+
+def _build_sort_by(n: Node) -> pgast.SortBy:
+    n = _unwrap(n, "SortBy")
+    return pgast.SortBy(
+        node=_build_base_expr(n["node"]),
+        dir=_maybe(n, "sortby_dir", _build_sort_order),
+        nulls=_maybe(n, "sortby_nulls", _build_nones_order),
+    )
+
+
+def _build_nones_order(n: Node) -> qlast.NonesOrder:
+    if n == "SORTBY_NULLS_FIRST":
+        return qlast.NonesFirst
+    return qlast.NonesLast
+
+
+def _build_sort_order(n: Node) -> qlast.SortOrder:
+    if n == "SORTBY_DESC":
+        return qlast.SortOrder.Desc
+    return qlast.SortOrder.Asc
+
+
+def _build_column_ref(node: Node) -> pgast.ColumnRef:
+    return pgast.ColumnRef(
+        name=_list(node, "fields", _build_string_or_star),
+        optional=_maybe(node, "optional", _build_bool),
+    )
+
+
+def _build_infer_clause(n: Node) -> pgast.InferClause:
+    return pgast.InferClause(
+        index_elems=_maybe_list(n, "indexElems", _build_str),
+        where_clause=_maybe(n, "whereClause", _build_base_expr),
+        conname=_maybe(n, "conname", _build_str),
+    )
+
+
+def _build_on_conflict(n: Node) -> pgast.OnConflictClause:
+    return pgast.OnConflictClause(
+        action=_build_str(n["action"]),
+        infer=_maybe(n, "infer", _build_infer_clause),
+        target_list=_maybe(n, "targetList", _build_str),  # type: ignore
+        where=_maybe(n, "where", _build_base_expr),
+    )
+
+
+def _build_string_or_star(node: Node) -> pgast.Star | str:
+    def star(_: Node) -> pgast.Star | str:
+        return pgast.Star()
+
+    return _enum(node, {"String": _build_str, "A_Star": star})

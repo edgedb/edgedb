@@ -836,7 +836,7 @@ class JoinExpr(BaseRangeVar):
     # Right subtree
     rarg: BaseExpr
     # USING clause, if any
-    using_clause: typing.Optional[typing.List[BaseExpr]] = None
+    using_clause: typing.Optional[typing.List[ColumnRef]] = None
     # Qualifiers on join, if any
     quals: typing.Optional[BaseExpr] = None
 
@@ -857,6 +857,7 @@ class SubLinkType(enum.IntEnum):
     NOT_EXISTS = enum.auto()
     ALL = enum.auto()
     ANY = enum.auto()
+    EXPR = enum.auto()
 
 
 class SubLink(ImmutableBaseExpr):
@@ -902,6 +903,17 @@ class NullTest(ImmutableBaseExpr):
     arg: BaseExpr
     # NOT NULL?
     negated: bool = False
+    # NullTest is never NULL
+    nullable: bool = False
+
+
+class BooleanTest(ImmutableBaseExpr):
+    """IS [NOT] {TRUE,FALSE}"""
+
+    # Input expression,
+    arg: BaseExpr
+    negated: bool = False
+    is_true: bool = False
     # NullTest is never NULL
     nullable: bool = False
 

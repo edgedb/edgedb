@@ -1041,6 +1041,7 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS,
             include_dirs=EXT_INC_DIRS,
             library_dirs=EXT_LIB_DIRS,
+            libraries=['pg_query']
         ),
     ],
     rust_extensions=[
