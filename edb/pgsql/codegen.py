@@ -550,10 +550,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.rarg is not None:
             self.new_lines = 1
             join_type = node.type.upper()
-            if join_type == "INNER":
-                self.write("JOIN ")
+            if join_type == 'INNER':
+                self.write('JOIN ')
             else:
-                self.write("INNER JOIN ")
+                self.write(join_type + ' JOIN ')
             nested_join = (
                 isinstance(node.rarg, pgast.JoinExpr) and
                 node.rarg.rarg is not None
@@ -693,20 +693,20 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_SubLink(self, node):
         if node.type == pgast.SubLinkType.EXISTS:
-            self.write("EXISTS ")
+            self.write('EXISTS ')
         elif node.type == pgast.SubLinkType.NOT_EXISTS:
-            self.write("NOT EXISTS ")
+            self.write('NOT EXISTS ')
         elif node.type == pgast.SubLinkType.ALL:
-            self.write("ALL ")
+            self.write('ALL ')
         elif node.type == pgast.SubLinkType.ANY:
-            self.write("ANY ")
+            self.write('ANY ')
         elif node.type == pgast.SubLinkType.EXPR:
             pass
         else:
             raise SQLSourceGeneratorError(
                 'unexpected SubLinkType: {!r}'.format(node.type))
 
-        self.write("(")
+        self.write('(')
         self.new_lines = 1
         self.indentation += 1
         self.visit(node.expr)
