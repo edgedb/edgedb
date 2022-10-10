@@ -27,6 +27,7 @@ import atexit
 import contextlib
 import functools
 import heapq
+import http
 import http.client
 import inspect
 import json
@@ -37,11 +38,13 @@ import re
 import secrets
 import shlex
 import socket
+import ssl
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
+import urllib
 
 import edgedb
 
@@ -94,6 +97,17 @@ bag = assert_data_shape.bag
 
 generate_jwk = edgedb_main.generate_jwk
 generate_tls_cert = edgedb_main.generate_tls_cert
+
+
+class StubbornHttpConnection(http.client.HTTPSConnection):
+
+    def close(self):
+        # Don't actually close the connection.  This allows us to
+        # test keep-alive and "Connection: close" headers.
+        pass
+
+    def true_close(self):
+        http.client.HTTPConnection.close(self)
 
 
 class TestCaseMeta(type(unittest.TestCase)):
@@ -305,6 +319,111 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         }
 
 
+class BaseHTTPTestCase(TestCase):
+    @classmethod
+    def get_api_prefix(cls):
+        return ''
+
+    @contextlib.contextmanager
+    def http_con(self, server, keep_alive=True):
+        conn_args = server.get_connect_args()
+        tls_context = ssl.create_default_context(
+            ssl.Purpose.SERVER_AUTH,
+            cafile=conn_args["tls_ca_file"],
+        )
+        tls_context.check_hostname = False
+        if keep_alive:
+            ConCls = StubbornHttpConnection
+        else:
+            ConCls = http.client.HTTPSConnection
+
+        con = ConCls(
+            conn_args["host"],
+            conn_args["port"],
+            context=tls_context,
+        )
+        con.connect()
+        try:
+            yield con
+        finally:
+            con.true_close()
+
+    def http_con_send_request(
+        self,
+        http_con: http.client.HTTPConnection,
+        params: Optional[dict[str, str]] = None,
+        *,
+        headers: Optional[dict[str, str]] = None,
+        method: str = "GET",
+        body: bytes = b"",
+        path: str = "",
+    ):
+        url = f'https://{http_con.host}:{http_con.port}'
+        prefix = self.get_api_prefix()
+        if prefix:
+            url = f'{url}{prefix}'
+        if path:
+            url = f'{url}/{path}'
+        if params is not None:
+            url = f'{url}?{urllib.parse.urlencode(params)}'
+        if headers is None:
+            headers = {}
+        http_con.request(method, url, body=body, headers=headers)
+
+    def http_con_read_response(
+        self,
+        http_con: http.client.HTTPConnection,
+    ) -> tuple[bytes, dict[str, str], int]:
+        resp = http_con.getresponse()
+        resp_body = resp.read()
+        resp_headers = {k.lower(): v.lower() for k, v in resp.getheaders()}
+        return resp_body, resp_headers, resp.status
+
+    def http_con_request(
+        self,
+        http_con: http.client.HTTPConnection,
+        params: Optional[dict[str, str]] = None,
+        *,
+        headers: Optional[dict[str, str]] = None,
+        method: str = "GET",
+        body: bytes = b"",
+        path: str = "",
+    ) -> tuple[bytes, dict[str, str], int]:
+        self.http_con_send_request(
+            http_con,
+            params,
+            headers=headers,
+            method=method,
+            body=body,
+            path=path,
+        )
+        return self.http_con_read_response(http_con)
+
+    def http_con_json_request(
+        self,
+        http_con: http.client.HTTPConnection,
+        params: Optional[dict[str, str]] = None,
+        *,
+        body: Any,
+        path: str = "",
+    ):
+        response, headers, status = self.http_con_request(
+            http_con,
+            params,
+            method="POST",
+            body=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json"},
+            path=path,
+        )
+
+        if status == http.HTTPStatus.OK:
+            result = json.loads(response)
+        else:
+            result = None
+
+        return result, headers, status
+
+
 _default_cluster = None
 
 
@@ -458,7 +577,7 @@ def _extract_background_errors(metrics: str) -> str | None:
         return None
 
 
-class ClusterTestCase(TestCase):
+class ClusterTestCase(BaseHTTPTestCase):
 
     BASE_TEST_CLASS = True
     backend_dsn: Optional[str] = None
@@ -626,6 +745,32 @@ class ClusterTestCase(TestCase):
                 raise
             finally:
                 await tx.rollback()
+
+    @contextlib.contextmanager
+    def http_con(self, server=None):
+        if server is None:
+            server = self
+        with super().http_con(server) as http_con:
+            yield http_con
+
+    @property
+    def http_addr(self) -> str:
+        conn_args = self.get_connect_args()
+        url = f'https://{conn_args["host"]}:{conn_args["port"]}'
+        prefix = self.get_api_prefix()
+        if prefix:
+            url = f'{url}{prefix}'
+        return url
+
+    @property
+    def tls_context(self) -> ssl.SSLContext:
+        conn_args = self.get_connect_args()
+        tls_context = ssl.create_default_context(
+            ssl.Purpose.SERVER_AUTH,
+            cafile=conn_args["tls_ca_file"],
+        )
+        tls_context.check_hostname = False
+        return tls_context
 
 
 class RollbackChanges:
@@ -972,6 +1117,10 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             return f'{dbname.lower()}_{os.getpid()}'
         else:
             return dbname.lower()
+
+    @classmethod
+    def get_api_prefix(cls):
+        return f'/db/{cls.get_database_name()}'
 
     @classmethod
     def get_setup_script(cls):
