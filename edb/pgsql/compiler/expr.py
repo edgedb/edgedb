@@ -122,11 +122,16 @@ def compile_Parameter(
     result: pgast.BaseParamRef
     is_decimal: bool = expr.name.isdecimal()
 
+    params = [p for p in ctx.env.query_params if p.name == expr.name]
+    param = params[0] if params else None
+
     if not is_decimal and ctx.env.use_named_params:
         result = pgast.NamedParamRef(
             name=expr.name,
             nullable=not expr.required,
         )
+    elif param and param.sub_params:
+        return relgen.process_encoded_param(param, ctx=ctx)
     else:
         index = ctx.argmap[expr.name].index
         result = pgast.ParamRef(number=index, nullable=not expr.required)

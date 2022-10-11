@@ -179,6 +179,7 @@ class Param:
     required: bool
     array_type_id: Optional[uuid.UUID]
     outer_idx: int
+    sub_params: Optional[tuple[list[Optional[uuid.UUID]], tuple]]
 
 
 #############################
@@ -269,6 +270,7 @@ class QueryUnit:
     in_type_data: bytes = sertypes.NULL_TYPE_DESC
     in_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
     in_type_args: Optional[List[Param]] = None
+    in_type_args_real_count: int = 0
     globals: Optional[List[str]] = None
 
     # Set only when this unit contains a CONFIGURE INSTANCE command.
@@ -332,6 +334,7 @@ class QueryUnitGroup:
     in_type_data: bytes = sertypes.NULL_TYPE_DESC
     in_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
     in_type_args: Optional[List[Param]] = None
+    in_type_args_real_count: int = 0
     globals: Optional[List[str]] = None
 
     units: List[QueryUnit] = dataclasses.field(default_factory=list)
@@ -360,6 +363,7 @@ class QueryUnitGroup:
         self.in_type_data = query_unit.in_type_data
         self.in_type_id = query_unit.in_type_id
         self.in_type_args = query_unit.in_type_args
+        self.in_type_args_real_count = query_unit.in_type_args_real_count
         if query_unit.globals is not None:
             if self.globals is None:
                 self.globals = []

@@ -56,6 +56,7 @@ from . import pathctx
 from . import setgen
 from . import viewgen
 from . import schemactx
+from . import tuple_args
 from . import typegen
 
 
@@ -163,14 +164,21 @@ def fini_expression(
 
     ctx.path_scope.validate_unique_ids()
 
-    # Infer cardinalities of type rewrites
-    for rw in ctx.env.type_rewrites.values():
-        if isinstance(rw, irast.Set):
-            inference.infer_cardinality(
-                rw, scope_tree=ctx.path_scope, ctx=inf_ctx
-            )
-            inference.infer_multiplicity(
-                rw, scope_tree=ctx.path_scope, ctx=inf_ctx)
+    # Infer cardinalities and multiplicities of various sets in side tables
+    extra_exprs = []
+    extra_exprs += [
+        rw for rw in ctx.env.type_rewrites.values()
+        if isinstance(rw, irast.Set)
+    ]
+    extra_exprs += [
+        p.sub_params.decoder_ir for p in ctx.env.query_parameters.values()
+        if p.sub_params and p.sub_params.decoder_ir
+    ]
+    for extra in extra_exprs:
+        inference.infer_cardinality(
+            extra, scope_tree=ctx.path_scope, ctx=inf_ctx)
+        inference.infer_multiplicity(
+            extra, scope_tree=ctx.path_scope, ctx=inf_ctx)
 
     # ConfigSet and ConfigReset don't like being part of a Set
     if isinstance(ir.expr, (irast.ConfigSet, irast.ConfigReset)):
@@ -260,9 +268,19 @@ def fini_expression(
     assert isinstance(ir, irast.Set)
     source_map = {k: v for k, v in ctx.env.source_map.items()
                   if isinstance(k, s_pointers.Pointer)}
-    params = list(ctx.env.query_parameters.values())
-    if params and params[0].name.isdecimal():
-        params.sort(key=lambda x: int(x.name))
+    lparams = [
+        p for p in ctx.env.query_parameters.values()
+        if not p.is_sub_param
+    ]
+    if lparams and lparams[0].name.isdecimal():
+        lparams.sort(key=lambda x: int(x.name))
+    params = []
+    # Now flatten it out, including all sub_params, making sure subparams
+    # appear in the right order.
+    for p in lparams:
+        params.append(p)
+        if p.sub_params:
+            params.extend(p.sub_params.params)
 
     result = irast.Statement(
         expr=ir,
@@ -767,11 +785,15 @@ def preprocess_script(
 
         target_typeref = typegen.type_to_typeref(target_stype, env=ctx.env)
         required = cast.cardinality_mod != qlast.CardinalityModifier.Optional
+
+        sub_params = tuple_args.create_sub_params(
+            name, required, typeref=target_typeref, pt=target_stype, ctx=ctx)
         params[name] = irast.Param(
             name=name,
             required=required,
             schema_type=target_stype,
             ir_type=target_typeref,
+            sub_params=sub_params,
         )
 
     if params:
