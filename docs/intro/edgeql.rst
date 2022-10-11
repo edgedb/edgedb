@@ -684,9 +684,9 @@ executing a query.
     client = edgedb.create_async_client()
 
     async def main():
-
-        result = await client.query("select <str>$param", param="Play it, Sam.")
-        # => "Play it, Sam"
+        query = "select <str>$param"
+        result = await client.query(query, param="Play it, Sam.")
+        # => "Play it, Sam."
 
   .. code-tab:: go
 
