@@ -100,6 +100,9 @@ class flags(metaclass=FlagsMeta):
     edgeql_compile_sql_ast = Flag(
         doc="Dump generated SQL AST (subset of `edgeql_compile').")
 
+    edgeql_compile_sql_ast_meta = Flag(
+        doc="Whether to include the metadata fields when dumping the SQL AST.")
+
     edgeql_compile_sql_text = Flag(
         doc="Dump generated SQL text (subset of `edgeql_compile').")
 

@@ -278,8 +278,8 @@ class AST:
 
         _check_type(field.type, value, raise_error)
 
-    def dump(self):
-        markup.dump(self)
+    def dump(self, *, meta=True):
+        markup.dump(self, _ast_include_meta=meta)
 
 
 class ImmutableASTMixin:
