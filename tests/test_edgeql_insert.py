@@ -5098,6 +5098,29 @@ class TestInsert(tb.QueryTestCase):
                 update X set { foo := "!" };
             ''')
 
+    async def test_edgeql_insert_update_cross_type_conflict_16(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+            CREATE TYPE Baz EXTENDING Foo;
+
+            INSERT Bar { name := "bar" };
+            INSERT Baz { name := "baz" };
+        ''')
+
+        query = r'''
+            UPDATE {Bar, Baz} FILTER true SET { name := "!" };
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
     async def test_edgeql_insert_and_update_01(self):
         # INSERTing something that would violate a constraint while
         # fixing the violation is still supposed to be an error.
