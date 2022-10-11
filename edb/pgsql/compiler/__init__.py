@@ -52,6 +52,7 @@ def compile_ir_to_sql_tree(
     singleton_mode: bool = False,
     use_named_params: bool = False,
     expected_cardinality_one: bool = False,
+    expand_inhviews: bool = False,
     external_rvars: Optional[
         Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
     ] = None,
@@ -95,6 +96,7 @@ def compile_ir_to_sql_tree(
             type_rewrites=type_rewrites,
             ignore_object_shapes=ignore_shapes,
             explicit_top_cast=explicit_top_cast,
+            expand_inhviews=expand_inhviews,
             singleton_mode=singleton_mode,
             scope_tree_nodes=scope_tree_nodes,
             external_rvars=external_rvars,
@@ -145,6 +147,7 @@ def compile_ir_to_sql(
     singleton_mode: bool=False,
     use_named_params: bool=False,
     expected_cardinality_one: bool=False,
+    expand_inhviews: bool = False,
     pretty: bool=True,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
 ) -> Tuple[str, Dict[str, pgast.Param]]:
@@ -158,6 +161,7 @@ def compile_ir_to_sql(
         use_named_params=use_named_params,
         expected_cardinality_one=expected_cardinality_one,
         backend_runtime_params=backend_runtime_params,
+        expand_inhviews=expand_inhviews,
     )
 
     if (  # pragma: no cover

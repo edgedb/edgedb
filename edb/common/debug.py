@@ -112,6 +112,9 @@ class flags(metaclass=FlagsMeta):
     edgeql_disable_normalization = Flag(
         doc="Disable EdgeQL normalization (constant extraction etc)")
 
+    edgeql_expand_inhviews = Flag(
+        doc="Force the EdgeQL compiler to expand inhviews *always*")
+
     graphql_compile = Flag(
         doc="Debug GraphQL compiler.")
 
