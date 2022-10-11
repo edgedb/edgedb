@@ -560,25 +560,6 @@ def _get_dunder_type_ptrref(ctx: context.ContextLevel) -> irast.PointerRef:
     )
 
 
-def get_all_concrete(
-    stype: s_objtypes.ObjectType, *, ctx: context.ContextLevel
-) -> set[s_objtypes.ObjectType]:
-    if stype.get_intersection_of(ctx.env.schema):
-        # TODO: We should enumerate all object types in the intersection
-        # maybe in concretify, though?
-        raise errors.UnsupportedFeatureError(
-            'DML statements on intersections are not implemented yet',
-        )
-
-    if union := stype.get_union_of(ctx.env.schema):
-        return {
-            x
-            for t in union.objects(ctx.env.schema)
-            for x in get_all_concrete(t, ctx=ctx)
-        }
-    return {stype} | stype.descendants(ctx.env.schema)
-
-
 @dispatch.compile.register(qlast.UpdateQuery)
 def compile_UpdateQuery(
         expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
@@ -660,7 +641,7 @@ def compile_UpdateQuery(
                 ctx=resultctx,
             )
 
-        for dtype in get_all_concrete(mat_stype, ctx=ctx):
+        for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
             if pol_cond := policies.compile_dml_policy(
                 dtype, result, mode=qltypes.AccessKind.UpdateRead, ctx=ctx
             ):
@@ -780,7 +761,7 @@ def compile_DeleteQuery(
                 ctx=resultctx,
             )
 
-        for dtype in get_all_concrete(mat_stype, ctx=ctx):
+        for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
             if pol_cond := policies.compile_dml_policy(
                 dtype, result, mode=qltypes.AccessKind.Delete, ctx=ctx
             ):

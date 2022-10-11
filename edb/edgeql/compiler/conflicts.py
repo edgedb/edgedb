@@ -43,6 +43,7 @@ from . import context
 from . import dispatch
 from . import inference
 from . import pathctx
+from . import schemactx
 from . import setgen
 from . import typegen
 
@@ -678,14 +679,14 @@ def compile_inheritance_conflict_checks(
 
     subject_stype = subject_stype.get_nearest_non_derived_parent(
         ctx.env.schema)
-    subject_stypes = [subject_stype]
+    subject_stype = schemactx.concretify(subject_stype, ctx=ctx)
     # For updates, we need to also consider all descendants, because
     # those could also have interesting constraints of their own.
     if isinstance(stmt, irast.UpdateStmt):
-        subject_stypes.extend(
-            desc for desc in subject_stype.descendants(ctx.env.schema)
-            if not desc.is_view(ctx.env.schema)
-        )
+        subject_stypes = list(
+            schemactx.get_all_concrete(subject_stype, ctx=ctx))
+    else:
+        subject_stypes = [subject_stype]
 
     for ir in ctx.env.dml_stmts:
         # N.B that for updates, the update itself will be in dml_stmts,
@@ -696,15 +697,13 @@ def compile_inheritance_conflict_checks(
 
         typ = setgen.get_set_type(ir.subject, ctx=ctx)
         assert isinstance(typ, s_objtypes.ObjectType)
-        typ = typ.get_nearest_non_derived_parent(ctx.env.schema)
+        typ = schemactx.concretify(typ, ctx=ctx)
 
-        typs = [typ]
         # As mentioned above, need to consider descendants of updates
         if isinstance(ir, irast.UpdateStmt):
-            typs.extend(
-                desc for desc in typ.descendants(ctx.env.schema)
-                if not desc.is_view(ctx.env.schema)
-            )
+            typs = list(schemactx.get_all_concrete(typ, ctx=ctx))
+        else:
+            typs = [typ]
 
         for typ in typs:
             for subject_stype in subject_stypes:
@@ -717,6 +716,9 @@ def compile_inheritance_conflict_checks(
                     and not isinstance(stmt, irast.UpdateStmt)
                 ):
                     continue
+                if subject_stype == typ and ir == stmt:
+                    continue
+
                 ancs = s_utils.get_class_nearest_common_ancestors(
                     ctx.env.schema, [subject_stype, typ])
                 for anc in ancs:
