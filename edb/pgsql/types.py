@@ -121,16 +121,6 @@ base_type_name_map_r = {
     'memory_t': sn.QualName('cfg', 'memory'),
 }
 
-# Use the known type IDs to generate corresponding range type IDs
-base_range_name_map = {
-    s_obj.get_known_type_id(
-        f'range<'
-        f'{str(base_type_name_map_r[".".join(pg_type)]).replace("::", "|")}'
-        f'>'
-    ): pg_range
-    for pg_type, pg_range in type_to_range_name_map.items()
-}
-
 
 def is_builtin_scalar(schema, scalar):
     return scalar.id in base_type_name_map

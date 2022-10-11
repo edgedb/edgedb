@@ -3973,7 +3973,6 @@ class GetBaseScalarTypeMap(dbops.Function):
     """Return a map of base EdgeDB scalar type ids to Postgres type names."""
     type_name_maps = {
         **types.base_type_name_map,
-        **types.base_range_name_map,
     }
 
     text = f'''
@@ -4039,7 +4038,27 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                                 edgedb._get_base_scalar_type_map()
                                     AS m(tid uuid, tn text)
                             WHERE
-                                tid = elemid
+                                tid = "elemid"
+                        )
+                ),
+                (
+                    SELECT
+                        rng.rngtypid
+                    FROM
+                        pg_catalog.pg_range rng
+                        INNER JOIN pg_catalog.pg_type typ
+                            ON (rng.rngsubtype = typ.oid)
+                    WHERE
+                        typ.typname = "elemid"::text || '_domain'
+                        OR typ.typname = "elemid"::text || '_t'
+                        OR typ.oid = (
+                            SELECT
+                                tn::regtype::oid
+                            FROM
+                                edgedb._get_base_scalar_type_map()
+                                    AS m(tid uuid, tn text)
+                            WHERE
+                                tid = "elemid"
                         )
                 ),
                 edgedb.raise(
@@ -4048,7 +4067,7 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                     msg => (
                         format(
                             'cannot determine OID of EdgeDB type %L',
-                            typeid::text
+                            "typeid"::text
                         )
                     )
                 )
