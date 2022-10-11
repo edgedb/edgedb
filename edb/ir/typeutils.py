@@ -205,6 +205,19 @@ def type_to_typeref(
         A ``TypeRef`` instance corresponding to the given schema type.
     """
 
+    def _typeref(
+        t: s_types.Type, *,
+        include_children: bool = include_children,
+        include_ancestors: bool = include_ancestors,
+    ) -> irast.TypeRef:
+        return type_to_typeref(
+            schema,
+            t,
+            include_children=include_children,
+            include_ancestors=include_ancestors,
+            cache=cache,
+        )
+
     result: irast.TypeRef
     material_type: s_types.Type
 
@@ -240,8 +253,7 @@ def type_to_typeref(
                 )
             )
             union = frozenset(
-                type_to_typeref(schema, c, cache=cache)
-                for c in non_overlapping
+                _typeref(c) for c in non_overlapping
             )
         else:
             union_is_concrete = False
@@ -251,8 +263,7 @@ def type_to_typeref(
         intersection: Optional[FrozenSet[irast.TypeRef]]
         if intersection_of:
             intersection = frozenset(
-                type_to_typeref(schema, c, cache=cache)
-                for c in intersection_of.objects(schema)
+                _typeref(c) for c in intersection_of.objects(schema)
             )
         else:
             intersection = None
@@ -261,13 +272,7 @@ def type_to_typeref(
 
         material_typeref: Optional[irast.TypeRef]
         if material_type != t:
-            material_typeref = type_to_typeref(
-                schema,
-                material_type,
-                include_children=include_children,
-                include_ancestors=include_ancestors,
-                cache=cache,
-            )
+            material_typeref = _typeref(material_type)
         else:
             material_typeref = None
 
@@ -278,9 +283,7 @@ def type_to_typeref(
                 base_typeref = None
             else:
                 assert isinstance(base_type, s_types.Type)
-                base_typeref = type_to_typeref(
-                    schema, base_type, cache=cache
-                )
+                base_typeref = _typeref(base_type)
         else:
             base_typeref = None
 
@@ -294,13 +297,7 @@ def type_to_typeref(
 
         if material_typeref is None and include_children:
             children = frozenset(
-                type_to_typeref(
-                    schema,
-                    child,
-                    cache=cache,
-                    include_children=True,
-                    include_ancestors=include_ancestors,
-                )
+                _typeref(child, include_children=True)
                 for child in t.children(schema)
                 if not child.get_is_derived(schema)
             )
@@ -310,13 +307,7 @@ def type_to_typeref(
         ancestors: Optional[FrozenSet[irast.TypeRef]]
         if material_typeref is None and include_ancestors:
             ancestors = frozenset(
-                type_to_typeref(
-                    schema,
-                    ancestor,
-                    cache=cache,
-                    include_children=include_children,
-                    include_ancestors=False
-                )
+                _typeref(ancestor, include_ancestors=False)
                 for ancestor in t.get_ancestors(schema).objects(schema)
             )
         else:
@@ -342,9 +333,7 @@ def type_to_typeref(
         schema, material_type = t.material_type(schema)
 
         if material_type != t:
-            material_typeref = type_to_typeref(
-                schema, material_type, cache=cache
-            )
+            material_typeref = _typeref(material_type)
         else:
             material_typeref = None
 
@@ -378,8 +367,7 @@ def type_to_typeref(
             collection=t.get_schema_name(),
             in_schema=t.get_is_persistent(schema),
             subtypes=tuple(
-                type_to_typeref(schema, st, cache=cache)
-                for st in t.get_subtypes(schema)
+                _typeref(st) for st in t.get_subtypes(schema)
             )
         )
 
