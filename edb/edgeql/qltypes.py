@@ -173,19 +173,19 @@ class Volatility(s_enum.StrEnum):
 
 
 class Multiplicity(s_enum.StrEnum):
-    ZERO = 'ZERO'  # This is valid for empty sets
-    ONE = 'ONE'
-    MANY = 'MANY'
+    EMPTY = 'EMPTY'
+    UNIQUE = 'UNIQUE'
+    DUPLICATE = 'DUPLICATE'
     UNKNOWN = 'UNKNOWN'
 
-    def is_one(self) -> bool:
-        return self is Multiplicity.ONE
+    def is_empty(self) -> bool:
+        return self is Multiplicity.EMPTY
 
-    def is_many(self) -> bool:
-        return self is Multiplicity.MANY
+    def is_unique(self) -> bool:
+        return self is Multiplicity.UNIQUE
 
-    def is_zero(self) -> bool:
-        return self is Multiplicity.ZERO
+    def is_duplicate(self) -> bool:
+        return self is Multiplicity.DUPLICATE
 
 
 class AccessPolicyAction(s_enum.StrEnum):

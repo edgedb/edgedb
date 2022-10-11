@@ -13,7 +13,7 @@ this tutorial.
 
 .. code-block:: bash
 
-  $ npx create-next-app --typescript nextjs-todo
+  $ npx create-next-app --typescript nextjs-blog
 
 This will take a minute to run. The scaffolding tool is creating a simple
 Next.js app and installing all our dependencies for us. Once it's complete,

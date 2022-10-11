@@ -4432,11 +4432,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xerror('''
-        edb.errors.SchemaError: cannot drop link 'user' of object type
-        'default::Action' because other objects in the schema depend
-        on it
-    ''')
     def test_schema_migrations_equivalence_47(self):
         # change a link used in a computable
         self._assert_migration_equivalence([r"""

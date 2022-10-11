@@ -51,3 +51,11 @@ INSERT JSONTest {
     j_bigint := <json>123456789123456789123456789n,
     j_decimal := <json>123456789123456789123456789.123456789123456789123456789n
 };
+
+INSERT Person {
+    name := 'tom',
+};
+
+INSERT Person {
+    name := 'kelly',
+};

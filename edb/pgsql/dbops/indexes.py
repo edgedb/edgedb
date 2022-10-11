@@ -24,7 +24,6 @@ from typing import *
 
 from edb.common import ordered
 
-from .. import common
 from ..common import qname as qn
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
@@ -71,13 +70,11 @@ class Index(tables.InheritableTableObject):
         self.unique = unique
         self.exprs = exprs
 
-        if self.name_in_catalog != self.name:
-            self.add_metadata('fullname', self.name)
+        self.add_metadata('fullname', self.name)
 
     @property
     def name_in_catalog(self):
-        return common.edgedb_name_to_pg_name(
-            self.table_name[1] + '__' + self.name)
+        return self.name
 
     def add_columns(self, columns):
         for col in columns:

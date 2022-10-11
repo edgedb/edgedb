@@ -3587,6 +3587,10 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
                 )
 
         schema = schema.delete(self.scls)
+
+        if not context.canonical:
+            schema = self._finalize_affected_refs(schema, context)
+
         return schema
 
     def _has_outside_references(

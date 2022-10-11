@@ -164,7 +164,8 @@ def compile_ir_to_sql(
         debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_ast
     ):
         debug.header('SQL Tree')
-        debug.dump(qtree)
+        debug.dump(
+            qtree, _ast_include_meta=debug.flags.edgeql_compile_sql_ast_meta)
 
     if isinstance(qtree, pgast.Query) and qtree.argnames:
         argmap = qtree.argnames

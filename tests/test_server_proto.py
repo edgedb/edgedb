@@ -18,6 +18,7 @@
 
 import asyncio
 import decimal
+import http
 import json
 import uuid
 import unittest
@@ -558,8 +559,9 @@ class TestServerProto(tb.QueryTestCase):
                 ]))
 
             with self.assertRaisesRegex(
-                    edgedb.InterfaceError,
-                    r'query_single\(\) as it returns a multiset'):
+                edgedb.InterfaceError,
+                r'query_single\(\) as it may return more than one element'
+            ):
                 await self.con.query_single('SELECT {1, 2}')
 
             await self.con.query_single('SELECT <int64>{}')
@@ -2250,6 +2252,112 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
             await con2.aclose()
 
+    @unittest.skipUnless(devmode.is_in_dev_mode(),
+                         'the test requires devmode')
+    async def test_server_adjacent_extension_propagation(self):
+        server_args = {}
+        if self.backend_dsn:
+            server_args['backend_dsn'] = self.backend_dsn
+        else:
+            server_args['adjacent_to'] = self.con
+
+        async with tb.start_edgedb_server(**server_args) as sd:
+
+            await self.con.execute("CREATE EXTENSION notebook;")
+
+            # First, ensure that the local server is aware of the new ext.
+            async for tr in self.try_until_succeeds(
+                ignore=self.failureException,
+            ):
+                async with tr:
+                    with self.http_con(server=self) as http_con:
+                        response, _, status = self.http_con_json_request(
+                            http_con,
+                            path="notebook",
+                            body={"queries": ["SELECT 1"]},
+                        )
+
+                        self.assertEqual(status, http.HTTPStatus.OK)
+                        self.assertEqual(
+                            response,
+                            {
+                                'kind': 'results',
+                                'results': [
+                                    {
+                                        'kind': 'data',
+                                        'data': [
+                                            'AAAAAAAAAAAAAAAAAAABBQ==',
+                                            'AgAAAAAAAAAAAAAAAAAAAQU=',
+                                            'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
+                                            'U0VMRUNU'
+                                        ]
+                                    },
+                                ],
+                            },
+                        )
+
+            # Make sure the adjacent server picks up on the new extension
+            async for tr in self.try_until_succeeds(
+                ignore=self.failureException,
+            ):
+                async with tr:
+                    with self.http_con(server=sd) as http_con:
+                        response, _, status = self.http_con_json_request(
+                            http_con,
+                            path="notebook",
+                            body={"queries": ["SELECT 1"]},
+                        )
+
+                        self.assertEqual(status, http.HTTPStatus.OK)
+                        self.assertEqual(
+                            response,
+                            {
+                                'kind': 'results',
+                                'results': [
+                                    {
+                                        'kind': 'data',
+                                        'data': [
+                                            'AAAAAAAAAAAAAAAAAAABBQ==',
+                                            'AgAAAAAAAAAAAAAAAAAAAQU=',
+                                            'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
+                                            'U0VMRUNU'
+                                        ]
+                                    },
+                                ],
+                            },
+                        )
+
+            # Now drop the extension.
+            await self.con.execute("DROP EXTENSION notebook;")
+
+            # First, ensure that the local server is aware of the new ext.
+            async for tr in self.try_until_succeeds(
+                ignore=self.failureException,
+            ):
+                async with tr:
+                    with self.http_con(server=self) as http_con:
+                        response, _, status = self.http_con_json_request(
+                            http_con,
+                            path="notebook",
+                            body={"queries": ["SELECT 1"]},
+                        )
+
+                        self.assertEqual(status, http.HTTPStatus.NOT_FOUND)
+
+            # Make sure the adjacent server picks up on the new extension
+            async for tr in self.try_until_succeeds(
+                ignore=self.failureException,
+            ):
+                async with tr:
+                    with self.http_con(server=sd) as http_con:
+                        response, _, status = self.http_con_json_request(
+                            http_con,
+                            path="notebook",
+                            body={"queries": ["SELECT 1"]},
+                        )
+
+                        self.assertEqual(status, http.HTTPStatus.NOT_FOUND)
+
 
 class TestServerProtoDDL(tb.DDLTestCase):
 
@@ -2537,8 +2645,9 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.query(query),
-                    other)
+                    [x.id for x in await con1.query(query)],
+                    [x.id for x in other],
+                )
 
         finally:
             await con2.aclose()
@@ -2573,8 +2682,9 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.query(query),
-                    foo)
+                    [x.id for x in await con1.query(query)],
+                    [x.id for x in foo],
+                )
 
             await con2.execute(f'''
                 DELETE (SELECT {typename});
@@ -2594,8 +2704,9 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
             for _ in range(5):
                 self.assertEqual(
-                    await con1.query(query),
-                    bar)
+                    [x.id for x in await con1.query(query)],
+                    [x.id for x in bar],
+                )
 
         finally:
             await con2.aclose()
@@ -3057,6 +3168,15 @@ class TestServerProtoDDL(tb.DDLTestCase):
             SELECT {"test1", "test2"}
         ''')
         self.assertEqual(result, ['"test1"', '"test2"'])
+
+    async def test_query_single_script(self):
+        # query single should work even if earlier parts of the script
+        # are multisets
+        result = await self.con.query_single('''
+            select {1, 2};
+            select 1;
+        ''')
+        self.assertEqual(result, 1)
 
 
 class TestServerProtoConcurrentDDL(tb.DDLTestCase):

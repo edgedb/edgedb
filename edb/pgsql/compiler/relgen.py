@@ -23,6 +23,7 @@
 from __future__ import annotations
 from typing import *
 
+import collections
 import contextlib
 
 from edb import errors
@@ -2338,7 +2339,7 @@ def process_set_as_multiplicity_assertion(
     ir_arg = expr.args[1]
     ir_arg_set = ir_arg.expr
 
-    if not ir_arg.multiplicity.is_many():
+    if not ir_arg.multiplicity.is_duplicate():
         # If the argument has been statically proven to be distinct,
         # elide the entire assertion.
         arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
@@ -2366,8 +2367,8 @@ def process_set_as_multiplicity_assertion(
     #       compliant sets.
     with ctx.subrel() as newctx:
         with newctx.subrel() as subctx:
-            dispatch.compile(ir_arg_set, ctx=subctx)
-            arg_ref = pathctx.get_path_output_and_fix_tuple(
+            dispatch.visit(ir_arg_set, ctx=subctx)
+            arg_ref = pathctx.get_path_output(
                 subctx.rel, ir_arg_set.path_id, aspect='value', env=subctx.env)
             arg_val = output.output_as_value(arg_ref, env=newctx.env)
             sub_rvar = relctx.new_rel_rvar(ir_arg_set, subctx.rel, ctx=subctx)
@@ -3052,6 +3053,8 @@ def _compile_call_args(
             args.append(output.output_as_value(arg_ref, env=ctx.env))
 
     for ir_arg, typemod in zip(expr.args, expr.params_typemods):
+        assert ir_arg.multiplicity != qltypes.Multiplicity.UNKNOWN
+
         arg_ref = dispatch.compile(ir_arg.expr, ctx=ctx)
         args.append(output.output_as_value(arg_ref, env=ctx.env))
         _compile_arg_null_check(expr, ir_arg, arg_ref, typemod, ctx=ctx)
@@ -3481,6 +3484,49 @@ def process_set_as_exists_expr(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+@_special_case('std::json_object_pack')
+def process_set_as_json_object_pack(
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    ir_arg = expr.args[0].expr
+
+    # compile IR to pg AST
+    dispatch.visit(ir_arg, ctx=ctx)
+    arg_val = pathctx.get_path_value_var(ctx.rel, ir_arg.path_id, env=ctx.env)
+
+    # get first and the second fields of the tuple
+    if isinstance(arg_val, pgast.TupleVar):
+        keys = arg_val.elements[0].val
+        values = arg_val.elements[1].val
+    else:
+        keys = astutils.tuple_getattr(arg_val, ir_arg.typeref, "0")
+        values = astutils.tuple_getattr(arg_val, ir_arg.typeref, "1")
+
+    # construct the function call
+    set_expr = pgast.FuncCall(
+        name=("coalesce",),
+        args=[
+            pgast.FuncCall(name=("jsonb_object_agg",), args=[keys, values]),
+            pgast.TypeCast(
+                arg=pgast.StringConstant(val="{}"),
+                type_name=pgast.TypeName(name=('jsonb',)),
+            ),
+        ],
+    )
+
+    # declare that the 'aspect=value' of ir_set (original set)
+    # can be found by in ctx.rel, by using set_expr
+    pathctx.put_path_value_var_if_not_exists(
+        ctx.rel, ir_set.path_id, set_expr, env=ctx.env
+    )
+
+    # return subquery as set_rvar
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
 def build_array_expr(
         ir_expr: irast.Base,
         elements: List[pgast.BaseExpr], *,
@@ -3569,3 +3615,51 @@ def process_set_as_array_expr(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
+def process_encoded_param(
+        param: irast.Param, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+
+    assert param.sub_params
+    decoder = param.sub_params.decoder_ir
+    assert decoder
+
+    if (param_cte := ctx.param_ctes.get(param.name)) is None:
+        with ctx.newrel() as sctx:
+            sctx.pending_query = sctx.rel
+            sctx.volatility_ref = ()
+            sctx.type_rel_overlays = collections.defaultdict(
+                lambda: collections.defaultdict(list))
+            sctx.ptr_rel_overlays = collections.defaultdict(
+                lambda: collections.defaultdict(list))
+            arg_ref = dispatch.compile(decoder, ctx=sctx)
+
+            # Force it into a real tuple so we can just always grab it
+            # from a subquery below.
+            arg_val = output.output_as_value(arg_ref, env=sctx.env)
+            pathctx.put_path_value_var(
+                sctx.rel, decoder.path_id, arg_val, env=sctx.env, force=True)
+
+            param_cte = pgast.CommonTableExpr(
+                name=ctx.env.aliases.get('p'),
+                query=sctx.rel,
+                materialized=False,
+            )
+            ctx.param_ctes[param.name] = param_cte
+
+    with ctx.subrel() as sctx:
+        cte_rvar = pgast.RelRangeVar(
+            relation=param_cte,
+            typeref=decoder.typeref,
+            alias=pgast.Alias(aliasname=ctx.env.aliases.get('t'))
+        )
+        relctx.include_rvar(
+            sctx.rel, cte_rvar, decoder.path_id, pull_namespace=False,
+            aspects=('value',), ctx=sctx,
+        )
+        pathctx.get_path_value_output(sctx.rel, decoder.path_id, env=ctx.env)
+        if not param.required:
+            sctx.rel.nullable = True
+
+    return sctx.rel

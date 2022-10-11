@@ -328,17 +328,23 @@ class Compiler:
             raise AssertionError('compiler is not initialized')
         return self._std_schema
 
+    def _get_delta_context_args(self, ctx: CompileContext):
+        """Get the args need from delta_from_ddl"""
+        return dict(
+            testmode=self.get_config_val(ctx, '__internal_testmode'),
+            allow_dml_in_functions=(
+                self.get_config_val(ctx, 'allow_dml_in_functions')),
+            schema_object_ids=ctx.schema_object_ids,
+            compat_ver=ctx.compat_ver,
+        )
+
     def _new_delta_context(self, ctx: CompileContext):
-        context = s_delta.CommandContext()
-        context.testmode = self.get_config_val(ctx, '__internal_testmode')
-        context.stdmode = ctx.bootstrap_mode
-        context.internal_schema_mode = ctx.internal_schema_mode
-        context.schema_object_ids = ctx.schema_object_ids
-        context.compat_ver = ctx.compat_ver
-        context.backend_runtime_params = self._backend_runtime_params
-        context.allow_dml_in_functions = (
-            self.get_config_val(ctx, 'allow_dml_in_functions'))
-        return context
+        return s_delta.CommandContext(
+            backend_runtime_params=self._backend_runtime_params,
+            stdmode=ctx.bootstrap_mode,
+            internal_schema_mode=ctx.internal_schema_mode,
+            **self._get_delta_context_args(ctx),
+        )
 
     def _process_delta(self, ctx: CompileContext, delta):
         """Adapt and process the delta command."""
@@ -625,10 +631,6 @@ class Compiler:
             options=self._get_compile_options(ctx),
         )
 
-        if ir.cardinality.is_multi() and ctx.expected_cardinality_one:
-            raise errors.ResultCardinalityMismatchError(
-                f'the query has cardinality {ir.cardinality.name} '
-                f'which does not match the expected cardinality ONE')
         result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
@@ -749,23 +751,27 @@ class Compiler:
         else:
             first_extra = None
 
-        total_params = len(script_info.params) if script_info else len(params)
+        all_params = script_info.params.values() if script_info else params
+        total_params = len([p for p in all_params if not p.is_sub_param])
         user_params = first_extra if first_extra is not None else total_params
 
         if script_info is not None:
             outer_mapping = {n: i for i, n in enumerate(script_info.params)}
             # Count however many of *our* arguments are user_params
             user_params = sum(
-                outer_mapping[n.name] < user_params for n in params)
+                outer_mapping[n.name] < user_params for n in params
+                if not n.is_sub_param)
         else:
             outer_mapping = None
 
         oparams = [None] * user_params
         in_type_args = [None] * user_params
         for idx, param in enumerate(params):
+            if param.is_sub_param:
+                continue
             if argmap is not None:
                 sql_param = argmap[param.name]
-                idx = sql_param.index - 1
+                idx = sql_param.logical_index - 1
             if idx >= user_params:
                 continue
 
@@ -790,11 +796,26 @@ class Compiler:
                 param.required,
             )
 
+            if param.sub_params:
+                array_tids = []
+                for p in param.sub_params.params:
+                    if p.schema_type.is_array():
+                        el_type = p.schema_type.get_element_type(schema)
+                        array_tids.append(el_type.id)
+                    else:
+                        array_tids.append(None)
+
+                sub_params = (
+                    array_tids, param.sub_params.trans_type.flatten())
+            else:
+                sub_params = None
+
             in_type_args[idx] = dbstate.Param(
                 name=param.name,
                 required=param.required,
                 array_type_id=array_tid,
                 outer_idx=outer_mapping[param.name] if outer_mapping else None,
+                sub_params=sub_params,
             )
 
         return oparams, in_type_args
@@ -850,11 +871,7 @@ class Compiler:
             stmt,
             schema=schema,
             modaliases=current_tx.get_modaliases(),
-            testmode=self.get_config_val(ctx, '__internal_testmode'),
-            allow_dml_in_functions=(
-                self.get_config_val(ctx, 'allow_dml_in_functions')),
-            schema_object_ids=ctx.schema_object_ids,
-            compat_ver=ctx.compat_ver,
+            **self._get_delta_context_args(ctx),
         )
 
         if debug.flags.delta_plan_input:
@@ -957,11 +974,17 @@ class Compiler:
         create_db = None
         drop_db = None
         create_db_template = None
+        create_ext = None
+        drop_ext = None
         if isinstance(stmt, qlast.DropDatabase):
             drop_db = stmt.name.name
         elif isinstance(stmt, qlast.CreateDatabase):
             create_db = stmt.name.name
             create_db_template = stmt.template.name if stmt.template else None
+        elif isinstance(stmt, qlast.CreateExtension):
+            create_ext = stmt.name.name
+        elif isinstance(stmt, qlast.DropExtension):
+            drop_ext = stmt.name.name
 
         if debug.flags.delta_execute:
             debug.header('Delta Script')
@@ -979,6 +1002,8 @@ class Compiler:
             create_db=create_db,
             drop_db=drop_db,
             create_db_template=create_db_template,
+            create_ext=create_ext,
+            drop_ext=drop_ext,
             has_role_ddl=isinstance(stmt, qlast.RoleCommand),
             ddl_stmt_id=ddl_stmt_id,
             user_schema=current_tx.get_user_schema_if_updated(),
@@ -1101,7 +1126,23 @@ class Compiler:
             current_tx.update_migration_state(mstate)
 
             delta_context = self._new_delta_context(ctx)
-            schema = diff.apply(schema, delta_context)
+
+            # We want to make *certain* that the DDL we generate
+            # produces the correct schema when applied, so we reload
+            # the diff from the AST instead of just relying on the
+            # delta tree. We do this check because it is *very
+            # important* that we not emit DDL that moves the schema
+            # into the wrong state.
+            #
+            # The actual check for whether the schema matches is done
+            # by DESCRIBE CURRENT MIGRATION AS JSON, to populate the
+            # 'complete' flag.
+            for cmd in new_ddl:
+                reloaded_diff = s_ddl.delta_from_ddl(
+                    cmd, schema=schema, modaliases=current_tx.get_modaliases(),
+                    **self._get_delta_context_args(ctx),
+                )
+                schema = reloaded_diff.apply(schema, delta_context)
             current_tx.update_schema(schema)
 
             query = dbstate.MigrationControlQuery(
@@ -1198,8 +1239,7 @@ class Compiler:
                             # it into the actual query, so filter them out.
                             used_placeholders = {
                                 p.name for p in ast.find_children(
-                                    ddl_ast,
-                                    lambda n: isinstance(n, qlast.Placeholder))
+                                    ddl_ast, qlast.Placeholder)
                             }
                             required_user_input = tuple(
                                 (k, v) for k, v in (
@@ -1867,6 +1907,8 @@ class Compiler:
                 unit.create_db = comp.create_db
                 unit.drop_db = comp.drop_db
                 unit.create_db_template = comp.create_db_template
+                unit.create_ext = comp.create_ext
+                unit.drop_ext = comp.drop_ext
                 unit.has_role_ddl = comp.has_role_ddl
                 unit.ddl_stmt_id = comp.ddl_stmt_id
                 if comp.user_schema is not None:
@@ -1969,6 +2011,12 @@ class Compiler:
             else:  # pragma: no cover
                 raise errors.InternalServerError('unknown compile state')
 
+            if unit.in_type_args:
+                unit.in_type_args_real_count = sum(
+                    len(p.sub_params[0]) if p.sub_params else 1
+                    for p in unit.in_type_args
+                )
+
             rv.append(unit)
 
         if script_info:
@@ -2026,6 +2074,14 @@ class Compiler:
                     not unit.sql_hash):
                 raise errors.InternalServerError(
                     f'unit has invalid "cardinality": {unit!r}')
+
+        multi_card = rv.cardinality in (
+            enums.Cardinality.MANY, enums.Cardinality.AT_LEAST_ONE,
+        )
+        if multi_card and ctx.expected_cardinality_one:
+            raise errors.ResultCardinalityMismatchError(
+                f'the query has cardinality {unit.cardinality.name} '
+                f'which does not match the expected cardinality ONE')
 
         return rv
 

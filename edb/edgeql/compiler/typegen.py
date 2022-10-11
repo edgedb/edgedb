@@ -238,6 +238,14 @@ def collapse_type_intersection_rptr(
     return ind_prefix, ptrs
 
 
+def type_from_typeref(
+    t: irast.TypeRef,
+    env: context.Environment,
+) -> s_types.Type:
+    env.schema, styp = irtyputils.ir_typeref_to_type(env.schema, t)
+    return styp
+
+
 def type_to_typeref(
     t: s_types.Type,
     env: context.Environment,
@@ -245,7 +253,7 @@ def type_to_typeref(
     schema = env.schema
     cache = env.type_ref_cache
     expr_type = t.get_expr_type(env.schema)
-    include_descendants = (
+    include_children = (
         expr_type is s_types.ExprType.Update
         or expr_type is s_types.ExprType.Delete
     )
@@ -257,7 +265,7 @@ def type_to_typeref(
     return irtyputils.type_to_typeref(
         schema,
         t,
-        include_descendants=include_descendants,
+        include_children=include_children,
         include_ancestors=include_ancestors,
         cache=cache,
     )

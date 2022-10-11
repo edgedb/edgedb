@@ -459,7 +459,8 @@ class Param:
     #: whether parameter is required
     required: bool
 
-    used: bool = False
+    #: index in the "logical" arg map
+    logical_index: int
 
 
 class Query(ReturningQuery):

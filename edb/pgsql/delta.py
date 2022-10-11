@@ -4318,7 +4318,7 @@ class LinkMetaCommand(CompositeMetaCommand, PointerMetaCommand):
         ct = dbops.CreateTable(table=table)
 
         index_name = common.edgedb_name_to_pg_name(
-            str(link.get_name(schema)) + 'target_id_default_idx')
+            str(link.id) + '_target_key')
         index = dbops.Index(index_name, new_table_name, unique=False)
         index.add_columns([tgt_col])
         ci = dbops.CreateIndex(index)

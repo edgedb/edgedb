@@ -381,6 +381,14 @@ def signal_side_effects(dbv, side_effects):
             interruptable=False,
         )
 
+    if side_effects & dbview.SideEffects.ExtensionChanges:
+        server.create_task(
+            server._signal_sysevent(
+                'extension-changes',
+            ),
+            interruptable=False,
+        )
+
 
 async def parse_execute_json(
     db: dbview.Database,

@@ -122,15 +122,18 @@ def compile_Parameter(
     result: pgast.BaseParamRef
     is_decimal: bool = expr.name.isdecimal()
 
+    params = [p for p in ctx.env.query_params if p.name == expr.name]
+    param = params[0] if params else None
+
     if not is_decimal and ctx.env.use_named_params:
         result = pgast.NamedParamRef(
             name=expr.name,
             nullable=not expr.required,
         )
+    elif param and param.sub_params:
+        return relgen.process_encoded_param(param, ctx=ctx)
     else:
         index = ctx.argmap[expr.name].index
-        ctx.argmap[expr.name].used = True
-
         result = pgast.ParamRef(number=index, nullable=not expr.required)
 
     return pgast.TypeCast(
@@ -317,36 +320,26 @@ def _inline_array_slicing(
         indirection=[
             pgast.Slice(
                 lidx=pgast.FuncCall(
-                    name=("edgedb", "_int_bound"),
+                    name=("edgedb", "_normalize_array_slice_index"),
                     args=[
+                        start,
                         pgast.FuncCall(
-                            name=("edgedb", "_normalize_array_index"),
-                            args=[
-                                start,
-                                pgast.FuncCall(
-                                    name=("cardinality",), args=[subj]
-                                ),
-                            ],
-                        )
-                    ],
-                ),
-                ridx=pgast.FuncCall(
-                    name=("edgedb", "_int_bound"),
-                    args=[
-                        astutils.new_binop(
-                            lexpr=pgast.FuncCall(
-                                name=("edgedb", "_normalize_array_index"),
-                                args=[
-                                    stop,
-                                    pgast.FuncCall(
-                                        name=("cardinality",), args=[subj]
-                                    ),
-                                ],
-                            ),
-                            op="-",
-                            rexpr=pgast.LiteralExpr(expr="1"),
+                            name=("cardinality",), args=[subj]
                         ),
                     ],
+                ),
+                ridx=astutils.new_binop(
+                    lexpr=pgast.FuncCall(
+                        name=("edgedb", "_normalize_array_slice_index"),
+                        args=[
+                            stop,
+                            pgast.FuncCall(
+                                name=("cardinality",), args=[subj]
+                            ),
+                        ],
+                    ),
+                    op="-",
+                    rexpr=pgast.LiteralExpr(expr="1"),
                 ),
             )
         ],

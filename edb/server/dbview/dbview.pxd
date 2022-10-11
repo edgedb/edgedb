@@ -31,6 +31,7 @@ cpdef enum SideEffects:
     RoleChanges = 1 << 3
     GlobalSchemaChanges = 1 << 4
     DatabaseChanges = 1 << 5
+    ExtensionChanges = 1 << 6
 
 
 @cython.final
@@ -86,6 +87,7 @@ cdef class Database:
         readonly object extensions
 
     cdef schedule_config_update(self)
+    cdef schedule_extensions_update(self)
 
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, query_unit)

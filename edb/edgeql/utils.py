@@ -133,11 +133,7 @@ def inline_anchors(
 
 
 def find_paths(ql: qlast.Base) -> List[qlast.Path]:
-    paths: List[qlast.Path] = ast.find_children(
-        ql,
-        lambda x: isinstance(x, qlast.Path),
-    )
-    return paths
+    return ast.find_children(ql, qlast.Path)
 
 
 def find_subject_ptrs(ast: qlast.Base) -> Set[str]:
@@ -195,7 +191,8 @@ def contains_dml(ql_expr: qlast.Base) -> bool:
     if isinstance(ql_expr, dml_types):
         return True
 
-    res = ast.find_children(ql_expr, lambda x: isinstance(x, dml_types),
+    res = ast.find_children(ql_expr, qlast.Query,
+                            lambda x: isinstance(x, dml_types),
                             terminate_early=True)
 
     return bool(res)

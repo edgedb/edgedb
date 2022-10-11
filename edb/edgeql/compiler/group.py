@@ -224,8 +224,7 @@ def infer_group_aggregates(
     *,
     ctx: context.ContextLevel,
 ) -> None:
-    flt = lambda n: isinstance(n, irast.GroupStmt)
-    groups: List[irast.GroupStmt] = ast_visitor.find_children(ir, flt)
+    groups = ast_visitor.find_children(ir, irast.GroupStmt)
     for stmt in groups:
         visitor = FindAggregatingUses(
             stmt.group_binding.path_id,

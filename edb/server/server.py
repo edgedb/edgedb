@@ -101,6 +101,7 @@ class Server(ha_base.ClusterProtocol):
     _global_intro_query: bytes
     _report_config_typedesc: bytes
     _report_config_data: bytes
+    _tls_certs_watch_handles: list[asyncio.Handle]
 
     _std_schema: s_schema.Schema
     _refl_schema: s_schema.Schema
@@ -273,6 +274,9 @@ class Server(ha_base.ClusterProtocol):
 
         # A set of databases that should not accept new connections.
         self._block_new_connections: set[str] = set()
+
+        self._tls_certs_watch_handles = []
+        self._tls_certs_reload_retry_handle = None
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -745,6 +749,7 @@ class Server(ha_base.ClusterProtocol):
             backend_ids = json.loads(backend_ids_json)
 
             db_config = await self.introspect_db_config(conn)
+            extensions = await self._introspect_extensions(conn)
 
             assert self._dbindex is not None
             self._dbindex.register_db(
@@ -753,9 +758,38 @@ class Server(ha_base.ClusterProtocol):
                 db_config=db_config,
                 reflection_cache=reflection_cache,
                 backend_ids=backend_ids,
+                extensions=extensions,
             )
         finally:
             self.release_pgcon(dbname, conn)
+
+    async def _introspect_extensions(self, conn):
+        extension_names_json = await conn.sql_fetch_val(
+            b'''
+                SELECT json_agg(name) FROM edgedb."_SchemaExtension";
+            ''',
+        )
+        if extension_names_json:
+            extensions = set(json.loads(extension_names_json))
+        else:
+            extensions = set()
+
+        return extensions
+
+    async def introspect_extensions(self, dbname):
+        logger.info("introspecting extensions for database '%s'", dbname)
+        conn = await self._acquire_intro_pgcon(dbname)
+        if not conn:
+            return
+
+        try:
+            extensions = await self._introspect_extensions(conn)
+        finally:
+            self.release_pgcon(dbname, conn)
+
+        db = self._dbindex.maybe_get_db(dbname)
+        if db is not None:
+            db.extensions = extensions
 
     async def introspect_db_config(self, conn):
         result = await conn.sql_fetch_val(self.get_sys_query('dbconfig'))
@@ -774,16 +808,7 @@ class Server(ha_base.ClusterProtocol):
             return
 
         try:
-            extension_names_json = await conn.sql_fetch_val(
-                b'''
-                    SELECT json_agg(name) FROM edgedb."_SchemaExtension";
-                ''',
-            )
-            if extension_names_json:
-                extensions = set(json.loads(extension_names_json))
-            else:
-                extensions = set()
-
+            extensions = await self._introspect_extensions(conn)
             assert self._dbindex is not None
             self._dbindex.register_db(
                 dbname,
@@ -1385,6 +1410,20 @@ class Server(ha_base.ClusterProtocol):
 
         self.create_task(task(), interruptable=True)
 
+    def _on_database_extensions_changes(self, dbname):
+        if not self._accept_new_tasks:
+            return
+
+        async def task():
+            try:
+                await self.introspect_extensions(dbname)
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, 'on_database_extensions_change')
+                raise
+
+        self.create_task(task(), interruptable=True)
+
     def _on_local_database_config_change(self, dbname):
         if not self._accept_new_tasks:
             return
@@ -1707,14 +1746,12 @@ class Server(ha_base.ClusterProtocol):
 
         return servers, port, addrs
 
-    def init_tls(
-        self,
-        tls_cert_file,
-        tls_key_file,
-        tls_cert_newly_generated,
-    ):
-        assert self._sslctx is None
+    def reload_tls(self, tls_cert_file, tls_key_file):
+        logger.info("loading TLS certificates")
         tls_password_needed = False
+        if self._tls_certs_reload_retry_handle is not None:
+            self._tls_certs_reload_retry_handle.cancel()
+            self._tls_certs_reload_retry_handle = None
 
         def _tls_private_key_password():
             nonlocal tls_password_needed
@@ -1765,15 +1802,58 @@ class Server(ha_base.ClusterProtocol):
 
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
         self._sslctx = sslctx
+
+    def init_tls(
+        self,
+        tls_cert_file,
+        tls_key_file,
+        tls_cert_newly_generated,
+    ):
+        assert self._sslctx is None
+        self.reload_tls(tls_cert_file, tls_key_file)
+
         self._tls_cert_file = str(tls_cert_file)
         self._tls_cert_newly_generated = tls_cert_newly_generated
 
-    def init_jwcrypto(
+        def reload_tls(_file_modified, _event, retry=0):
+            try:
+                self.reload_tls(tls_cert_file, tls_key_file)
+            except (StartupError, FileNotFoundError) as e:
+                if retry > defines._TLS_CERT_RELOAD_MAX_RETRIES:
+                    logger.critical(str(e))
+                    self.request_shutdown()
+                else:
+                    delay = defines._TLS_CERT_RELOAD_EXP_INTERVAL * 2 ** retry
+                    logger.warning("%s; retrying in %.1f seconds.", e, delay)
+                    self._tls_certs_reload_retry_handle = (
+                        self.__loop.call_later(
+                            delay,
+                            reload_tls,
+                            _file_modified,
+                            _event,
+                            retry + 1,
+                        )
+                    )
+            except Exception:
+                logger.critical(
+                    "error while reloading TLS certificate and/or key, "
+                    "shutting down.",
+                    exc_info=True,
+                )
+                self.request_shutdown()
+
+        self._tls_certs_watch_handles.append(
+            self.__loop._monitor_fs(str(tls_cert_file), reload_tls)
+        )
+        if tls_cert_file != tls_key_file:
+            self._tls_certs_watch_handles.append(
+                self.__loop._monitor_fs(str(tls_key_file), reload_tls)
+            )
+
+    def load_jwcrypto(
         self,
         jws_key_file: pathlib.Path,
         jwe_key_file: pathlib.Path,
-        jws_keys_newly_generated: bool,
-        jwe_keys_newly_generated: bool,
     ) -> None:
         try:
             with open(jws_key_file, 'rb') as kf:
@@ -1802,6 +1882,15 @@ class Server(ha_base.ClusterProtocol):
             raise StartupError(
                 f"the provided JWE key file does not "
                 f"contain a valid RSA or EC private key")
+
+    def init_jwcrypto(
+        self,
+        jws_key_file: pathlib.Path,
+        jwe_key_file: pathlib.Path,
+        jws_keys_newly_generated: bool,
+        jwe_keys_newly_generated: bool,
+    ) -> None:
+        self.load_jwcrypto(jws_key_file, jwe_key_file)
         self._jws_keys_newly_generated = jws_keys_newly_generated
         self._jwe_keys_newly_generated = jwe_keys_newly_generated
 
@@ -1884,6 +1973,9 @@ class Server(ha_base.ClusterProtocol):
                 f"shutting down server: no clients connected in last"
                 f" {self._auto_shutdown_after} seconds"
             )
+        self.request_shutdown()
+
+    def request_shutdown(self):
         self._accepting_connections = False
         self._stop_evt.set()
 
@@ -1899,6 +1991,10 @@ class Server(ha_base.ClusterProtocol):
             self._cluster.stop_watching()
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
+
+            for handle in self._tls_certs_watch_handles:
+                handle.cancel()
+            self._tls_certs_watch_handles.clear()
 
             await self._stop_servers(self._servers.values())
             self._servers = {}

@@ -96,6 +96,10 @@ which client library you're using.
 
       fmt.Println(result)
     }
+    
+  .. code-tab:: edgeql
+
+    set global current_user_id := <uuid>'2141a5b4-5634-4ccc-b835-437863534c51';
 
 
 The ``.withGlobals/.with_globals`` method returns a new ``Client`` instance

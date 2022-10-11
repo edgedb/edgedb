@@ -193,7 +193,7 @@ class IndexCommand(
 
         expr_qual = cls._name_qual_from_exprs(schema, exprs)
 
-        ptrs = ast.find_children(astnode, lambda n: isinstance(n, qlast.Ptr))
+        ptrs = ast.find_children(astnode, qlast.Ptr)
         ptr_name_qual = '_'.join(ptr.ptr.name for ptr in ptrs)
         if not ptr_name_qual:
             ptr_name_qual = 'idx'
