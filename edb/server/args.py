@@ -93,7 +93,7 @@ class JOSEKeyMode(enum.StrEnum):
 
 class ReadinessState(enum.StrEnum):
 
-    Ready = "ready"
+    Default = "default"
     NotReady = "not_ready"
 
 
@@ -188,7 +188,7 @@ class ServerConfig(NamedTuple):
     emit_server_status: str
     temp_dir: bool
     auto_shutdown_after: float
-    initial_readiness_state: ReadinessState
+    readiness_state_file: Optional[str]
 
     startup_script: Optional[StartupScript]
     status_sinks: List[Callable[[str], None]]
@@ -768,19 +768,17 @@ _server_options = [
         ),
     ),
     click.option(
-        "--initial-readiness-state",
-        envvar="EDGEDB_SERVER_INITIAL_READINESS_STATE",
-        type=click.Choice(
-            list(ReadinessState.__members__.values()),
-            case_sensitive=True,
-        ),
-        default=ReadinessState.Ready,
+        "--readiness-state-file",
+        envvar="EDGEDB_SERVER_READINESS_STATE_FILE",
+        type=PathPath(),
         help=(
-            "The initial readiness state of this server.  When set to "
-            "'not_ready', the server will refuse connections and "
-            "the '/server/status/ready' check will return a 503 status. "
-            "To switch server into the 'ready' state, send a SIGUSR1 signal "
-            "to the main process."
+            "Path to a file containing the value for server readiness state. "
+            "When it contains 'not_ready' (without quotes), the server will "
+            "refuse connections and the '/server/status/ready' check will "
+            "return a 503 status.  Every other value, including absense of "
+            "file indicates that the server is in the 'ready' state and "
+            "can server connections.  The file can be modified when the "
+            "server is running."
         ),
     ),
     click.option(

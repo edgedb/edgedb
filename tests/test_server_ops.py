@@ -27,7 +27,6 @@ import json
 import os.path
 import pathlib
 import random
-import signal
 import subprocess
 import ssl
 import sys
@@ -684,64 +683,97 @@ class TestServerOps(tb.BaseHTTPTestCase):
                 await con.aclose()
 
     async def test_server_ops_readiness(self):
-        async with tb.start_edgedb_server(
-            initial_readiness_state=args.ReadinessState.NotReady,
-        ) as sd:
-            with self.assertRaises(errors.AccessError):
-                # Initially not ready, not accepting connections
-                await sd.connect()
+        rf_no, rf_name = tempfile.mkstemp(text=True)
+        rf = open(rf_no, "wt")
 
-            # Readiness check returns 503
-            with self.http_con(server=sd) as http_con:
-                _, _, status = self.http_con_request(
-                    http_con,
-                    path='/server/status/ready',
-                )
+        try:
+            print("not_ready", file=rf, flush=True)
 
-                self.assertEqual(status, http.HTTPStatus.SERVICE_UNAVAILABLE)
+            async with tb.start_edgedb_server(
+                readiness_state_file=rf_name,
+            ) as sd:
+                with self.assertRaises(errors.AccessError):
+                    # Initially not ready, not accepting connections
+                    await sd.connect()
 
-            # It is alive though.
-            with self.http_con(server=sd) as http_con:
-                _, _, status = self.http_con_request(
-                    http_con,
-                    path='/server/status/alive',
-                )
+                # Readiness check returns 503
+                with self.http_con(server=sd) as http_con:
+                    _, _, status = self.http_con_request(
+                        http_con,
+                        path='/server/status/ready',
+                    )
 
-                self.assertEqual(status, http.HTTPStatus.OK)
+                    self.assertEqual(
+                        status, http.HTTPStatus.SERVICE_UNAVAILABLE)
 
-            # Make ready with SIGUSR1
-            os.kill(sd.pid, signal.SIGUSR1)
-            await asyncio.sleep(0.05)
-            async for tr in self.try_until_succeeds(
-                ignore=(errors.AccessError, AssertionError),
-            ):
-                async with tr:
-                    with self.http_con(server=sd) as http_con:
-                        _, _, status = self.http_con_request(
-                            http_con,
-                            path='/server/status/ready',
-                        )
+                # It is alive though.
+                with self.http_con(server=sd) as http_con:
+                    _, _, status = self.http_con_request(
+                        http_con,
+                        path='/server/status/alive',
+                    )
 
-                        self.assertEqual(status, http.HTTPStatus.OK)
+                    self.assertEqual(status, http.HTTPStatus.OK)
 
-                    conn = await sd.connect()
-                    await conn.aclose()
+                # Make ready explicitly
+                rf.seek(0)
+                print("default", file=rf, flush=True)
+                await asyncio.sleep(0.05)
+                async for tr in self.try_until_succeeds(
+                    ignore=(errors.AccessError, AssertionError),
+                ):
+                    async with tr:
+                        with self.http_con(server=sd) as http_con:
+                            _, _, status = self.http_con_request(
+                                http_con,
+                                path='/server/status/ready',
+                            )
 
-            # Make not ready again with SIGUSR2
-            os.kill(sd.pid, signal.SIGUSR2)
-            await asyncio.sleep(0.05)
-            async for tr in self.try_until_fails(
-                wait_for=(errors.AccessError,),
-            ):
-                async with tr:
-                    conn = await sd.connect()
-                    await conn.aclose()
+                            self.assertEqual(status, http.HTTPStatus.OK)
 
-            # Readiness check returns 503 once more
-            with self.http_con(server=sd) as http_con:
-                _, _, status = self.http_con_request(
-                    http_con,
-                    path='/server/status/ready',
-                )
+                        conn = await sd.connect()
+                        await conn.aclose()
 
-                self.assertEqual(status, http.HTTPStatus.SERVICE_UNAVAILABLE)
+                # Make not ready
+                rf.seek(0)
+                print("not_ready", file=rf, flush=True)
+                await asyncio.sleep(0.05)
+                async for tr in self.try_until_fails(
+                    wait_for=(errors.AccessError,),
+                ):
+                    async with tr:
+                        conn = await sd.connect()
+                        await conn.aclose()
+
+                # Readiness check returns 503 once more
+                with self.http_con(server=sd) as http_con:
+                    _, _, status = self.http_con_request(
+                        http_con,
+                        path='/server/status/ready',
+                    )
+
+                    self.assertEqual(
+                        status, http.HTTPStatus.SERVICE_UNAVAILABLE)
+
+                # Make ready by removing the file
+                rf.close()
+                os.unlink(rf_name)
+                await asyncio.sleep(0.05)
+                async for tr in self.try_until_succeeds(
+                    ignore=(errors.AccessError, AssertionError),
+                ):
+                    async with tr:
+                        with self.http_con(server=sd) as http_con:
+                            _, _, status = self.http_con_request(
+                                http_con,
+                                path='/server/status/ready',
+                            )
+
+                            self.assertEqual(status, http.HTTPStatus.OK)
+
+                        conn = await sd.connect()
+                        await conn.aclose()
+        finally:
+            if os.path.exists(rf_name):
+                rf.close()
+                os.unlink(rf_name)

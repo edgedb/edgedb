@@ -1541,7 +1541,7 @@ class _EdgeDBServer:
             edgedb_args.ServerEndpointSecurityMode] = None,  # see __aexit__
         enable_backend_adaptive_ha: bool = False,
         ignore_other_tenants: bool = False,
-        initial_readiness_state: Optional[edgedb_args.ReadinessState] = None,
+        readiness_state_file: Optional[str] = None,
         tls_cert_file: Optional[os.PathLike] = None,
         tls_key_file: Optional[os.PathLike] = None,
         tls_cert_mode: edgedb_args.ServerTlsCertMode = (
@@ -1569,7 +1569,7 @@ class _EdgeDBServer:
         self.http_endpoint_security = http_endpoint_security
         self.enable_backend_adaptive_ha = enable_backend_adaptive_ha
         self.ignore_other_tenants = ignore_other_tenants
-        self.initial_readiness_state = initial_readiness_state
+        self.readiness_state_file = readiness_state_file
         self.tls_cert_file = tls_cert_file
         self.tls_key_file = tls_key_file
         self.tls_cert_mode = tls_cert_mode
@@ -1720,9 +1720,8 @@ class _EdgeDBServer:
         if self.tls_key_file:
             cmd += ['--tls-key-file', self.tls_key_file]
 
-        if self.initial_readiness_state is not None:
-            cmd += ['--initial-readiness-state',
-                    str(self.initial_readiness_state)]
+        if self.readiness_state_file is not None:
+            cmd += ['--readiness-state-file', self.readiness_state_file]
 
         if self.debug:
             print(
@@ -1839,7 +1838,7 @@ def start_edgedb_server(
         edgedb_args.ServerEndpointSecurityMode] = None,
     enable_backend_adaptive_ha: bool = False,
     ignore_other_tenants: bool = False,
-    initial_readiness_state: Optional[edgedb_args.ReadinessState] = None,
+    readiness_state_file: Optional[str] = None,
     tls_cert_file: Optional[os.PathLike] = None,
     tls_key_file: Optional[os.PathLike] = None,
     tls_cert_mode: edgedb_args.ServerTlsCertMode = (
@@ -1886,7 +1885,7 @@ def start_edgedb_server(
         http_endpoint_security=http_endpoint_security,
         enable_backend_adaptive_ha=enable_backend_adaptive_ha,
         ignore_other_tenants=ignore_other_tenants,
-        initial_readiness_state=initial_readiness_state,
+        readiness_state_file=readiness_state_file,
         tls_cert_file=tls_cert_file,
         tls_key_file=tls_key_file,
         tls_cert_mode=tls_cert_mode,

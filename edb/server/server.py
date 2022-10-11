@@ -101,7 +101,7 @@ class Server(ha_base.ClusterProtocol):
     _global_intro_query: bytes
     _report_config_typedesc: bytes
     _report_config_data: bytes
-    _tls_certs_watch_handles: list[asyncio.Handle]
+    _file_watch_handles: list[asyncio.Handle]
 
     _std_schema: s_schema.Schema
     _refl_schema: s_schema.Schema
@@ -148,8 +148,6 @@ class Server(ha_base.ClusterProtocol):
         http_endpoint_security: srvargs.ServerEndpointSecurityMode = (
             srvargs.ServerEndpointSecurityMode.Tls),
         auto_shutdown_after: float = -1,
-        initial_readiness_state: srvargs.ReadinessState = (
-            srvargs.ReadinessState.Ready),
         echo_runtime_info: bool = False,
         status_sinks: Sequence[Callable[[str], None]] = (),
         startup_script: Optional[srvargs.StartupScript] = None,
@@ -274,12 +272,12 @@ class Server(ha_base.ClusterProtocol):
 
         self._admin_ui = admin_ui
 
-        self._ready = initial_readiness_state
+        self._readiness = srvargs.ReadinessState.Default
 
         # A set of databases that should not accept new connections.
         self._block_new_connections: set[str] = set()
 
-        self._tls_certs_watch_handles = []
+        self._file_watch_handles = []
         self._tls_certs_reload_retry_handle = None
 
     async def _request_stats_logger(self):
@@ -320,7 +318,7 @@ class Server(ha_base.ClusterProtocol):
         return self._admin_ui
 
     def is_ready(self) -> bool:
-        return self._ready is srvargs.ReadinessState.Ready
+        return self._readiness is srvargs.ReadinessState.Default
 
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
@@ -1763,6 +1761,52 @@ class Server(ha_base.ClusterProtocol):
 
         return servers, port, addrs
 
+    def init_readiness_state(self, state_file):
+        def reload_state_file(_file_modified, _event):
+            self.reload_readiness_state(state_file)
+
+        self.reload_readiness_state(state_file)
+        self._file_watch_handles.append(
+            self.__loop._monitor_fs(str(state_file), reload_state_file)
+        )
+
+    def reload_readiness_state(self, state_file):
+        try:
+            with open(state_file, 'rt') as rt:
+                state = rt.readline().strip()
+                try:
+                    self._readiness = srvargs.ReadinessState(state)
+                    logger.info(
+                        "readiness state file changed, "
+                        "setting server readiness to %r",
+                        state,
+                    )
+                except ValueError:
+                    logger.warning(
+                        "invalid state in readiness state file (%r): %r, "
+                        "resetting server readiness to 'default'",
+                        state_file,
+                        state,
+                    )
+                    self._readiness = srvargs.ReadinessState.Default
+
+        except FileNotFoundError:
+            logger.info(
+                "readiness state file (%s) removed, resetting "
+                "server readiness to 'default'",
+                state_file,
+            )
+            self._readiness = srvargs.ReadinessState.Default
+
+        except Exception as e:
+            logger.warning(
+                "cannot read readiness state file (%s): %s, "
+                "resetting server readiness to 'default'",
+                state_file,
+                e,
+            )
+            self._readiness = srvargs.ReadinessState.Default
+
     def reload_tls(self, tls_cert_file, tls_key_file):
         logger.info("loading TLS certificates")
         tls_password_needed = False
@@ -1859,11 +1903,11 @@ class Server(ha_base.ClusterProtocol):
                 )
                 self.request_shutdown()
 
-        self._tls_certs_watch_handles.append(
+        self._file_watch_handles.append(
             self.__loop._monitor_fs(str(tls_cert_file), reload_tls)
         )
         if tls_cert_file != tls_key_file:
-            self._tls_certs_watch_handles.append(
+            self._file_watch_handles.append(
                 self.__loop._monitor_fs(str(tls_key_file), reload_tls)
             )
 
@@ -2009,9 +2053,9 @@ class Server(ha_base.ClusterProtocol):
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
 
-            for handle in self._tls_certs_watch_handles:
+            for handle in self._file_watch_handles:
                 handle.cancel()
-            self._tls_certs_watch_handles.clear()
+            self._file_watch_handles.clear()
 
             await self._stop_servers(self._servers.values())
             self._servers = {}
