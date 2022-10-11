@@ -278,7 +278,7 @@ class TypeSerializer:
         elif isinstance(t, s_objtypes.ObjectType):
             # This is a view
             self.schema, mt = t.material_type(self.schema)
-            base_type_name = mt.get_displayname(self.schema)
+            base_type_name = str(mt.get_name(self.schema))
 
             subtypes = []
             element_names = []
@@ -465,7 +465,7 @@ class TypeSerializer:
                 return
 
             self.schema, mt = t.material_type(self.schema)
-            base_type_name = mt.get_displayname(self.schema)
+            base_type_name = str(mt.get_name(self.schema))
 
             type_id = self._get_object_type_id(
                 base_type_name, subtypes, element_names, cardinalities
