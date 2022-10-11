@@ -117,9 +117,10 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
         ''')
         child = ast_visitor.find_children(
             sql,
-            lambda x: isinstance(x, pgast.SelectStmt) and x.sort_clause,
+            pgast.SelectStmt,
+            lambda x: bool(x.sort_clause),
             terminate_early=True
-        )
+        )[0]
 
         # Make sure that a simple order by on a property is not compiled
         # as a subquery in the ORDER BY, which pg fails to use an index for.
@@ -135,9 +136,10 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
         ''')
         child = ast_visitor.find_children(
             sql,
-            lambda x: isinstance(x, pgast.SelectStmt) and x.sort_clause,
+            pgast.SelectStmt,
+            lambda x: bool(x.sort_clause),
             terminate_early=True
-        )
+        )[0]
 
         # Make sure that a simple order by on a property is not compiled
         # as a subquery in the ORDER BY, which pg fails to use an index for.
@@ -188,9 +190,10 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
         ''')
         child = ast_visitor.find_children(
             tree,
-            lambda x: isinstance(x, pgast.SelectStmt) and x.group_clause,
+            pgast.SelectStmt,
+            lambda x: bool(x.group_clause),
             terminate_early=True
-        )
+        )[0]
         group_sql = pg_compiler.run_codegen(child, pretty=True)
 
         # We want no array_agg in the group - it should just be able

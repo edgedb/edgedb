@@ -381,8 +381,7 @@ def fini_toplevel(
         # Find the used parameters by searching the query, so we don't
         # get confused if something has been compiled but then omitted
         # from the output for some reason.
-        flt = lambda n: isinstance(n, pgast.ParamRef)
-        param_refs: List[pgast.ParamRef] = ast_visitor.find_children(stmt, flt)
+        param_refs = ast_visitor.find_children(stmt, pgast.ParamRef)
 
         used = {param_ref.number for param_ref in param_refs}
 
