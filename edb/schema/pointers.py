@@ -1848,6 +1848,7 @@ class CreatePointer(
             )
         ):
             cmd.set_attribute_value('from_alias', True)
+            cmd.set_object_aux_data('from_alias', True)
 
         return cmd
 
