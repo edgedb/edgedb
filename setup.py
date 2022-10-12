@@ -408,7 +408,7 @@ class build(setuptools_build.build):
             ("build_libpg_query", lambda self: True),
             ("build_parsers", lambda self: True),
             ("build_postgres", lambda self: True),
-            # ("build_cli", lambda self: True),
+            ("build_cli", lambda self: True),
             ("build_ui", lambda self: True),
         ]
     )
@@ -601,8 +601,6 @@ class build_libpg_query(setuptools.Command):
         pass
 
     def run(self):
-        if os.environ.get("EDGEDB_BUILD_PACKAGE"):
-            return
         _compile_libpg_query()
 
 class build_ext(setuptools_build_ext.build_ext):
