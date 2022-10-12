@@ -14694,6 +14694,17 @@ type default::Foo {
             [{}],
         )
 
+    async def test_edgeql_ddl_alias_and_create_set_required(self):
+        await self.con.execute(r"""
+            create type T;
+            create alias A := T;
+            alter type T {
+                create required property bar -> str {
+                    set required using ('!')
+                }
+            };
+        """)
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
