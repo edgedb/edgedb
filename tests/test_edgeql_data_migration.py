@@ -11140,6 +11140,19 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         """)
 
+    async def test_edgeql_migration_alias_linkprop_01(self):
+        await self.migrate(r"""
+            alias UserAlias := User;
+
+            type User {
+              multi link ml -> Target {
+                property lp -> str;
+              };
+            }
+
+            type Target;
+        """)
+
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False
