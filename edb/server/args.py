@@ -91,6 +91,12 @@ class JOSEKeyMode(enum.StrEnum):
     Generate = "generate"
 
 
+class ReadinessState(enum.StrEnum):
+
+    Default = "default"
+    NotReady = "not_ready"
+
+
 class ServerAuthMethod(enum.StrEnum):
 
     Auto = "auto"
@@ -182,6 +188,7 @@ class ServerConfig(NamedTuple):
     emit_server_status: str
     temp_dir: bool
     auto_shutdown_after: float
+    readiness_state_file: Optional[str]
 
     startup_script: Optional[StartupScript]
     status_sinks: List[Callable[[str], None]]
@@ -758,6 +765,20 @@ _server_options = [
             "explicitly configured. Defaults to 'auto', which means "
             "the SCRAM authentication method for TCP connections and "
             "the JWT authentication method for HTTP-tunneled connections."
+        ),
+    ),
+    click.option(
+        "--readiness-state-file",
+        envvar="EDGEDB_SERVER_READINESS_STATE_FILE",
+        type=PathPath(),
+        help=(
+            "Path to a file containing the value for server readiness state. "
+            "When it contains 'not_ready' (without quotes), the server will "
+            "refuse connections and the '/server/status/ready' check will "
+            "return a 503 status.  Every other value, including absense of "
+            "file indicates that the server is in the 'ready' state and "
+            "can server connections.  The file can be modified when the "
+            "server is running."
         ),
     ),
     click.option(
