@@ -166,7 +166,7 @@ cdef WriteBuffer recode_bind_args(
             if in_len < 0:
                 # This means argument value is NULL
                 if param.required:
-                    raise errors.InputDataError(
+                    raise errors.QueryError(
                         f"parameter ${param.name} is required")
 
             # If the param has encoded tuples, we need to decode them
