@@ -103,6 +103,7 @@ cdef WriteBuffer recode_bind_args(
         int32_t decl_args
         ssize_t in_len
         ssize_t i
+        int32_t array_tid
         const char *data
         bint live = positions is None
 
@@ -122,12 +123,12 @@ cdef WriteBuffer recode_bind_args(
     is_null_type = qug.in_type_id == sertypes.NULL_TYPE_ID.bytes
     if frb_get_len(&in_buf) == 0:
         if not is_null_type:
-            raise errors.ProtocolError(
+            raise errors.InputDataError(
                 f"insufficient data for type-id {qug.in_type_id}")
         recv_args = 0
     else:
         if is_null_type:
-            raise errors.ProtocolError(
+            raise errors.InputDataError(
                 "absence of query arguments must be encoded with a "
                 "'zero' type "
                 "(id: 00000000-0000-0000-0000-000000000000, "
@@ -136,7 +137,7 @@ cdef WriteBuffer recode_bind_args(
     decl_args = len(qug.in_type_args or ())
 
     if recv_args != decl_args:
-        raise errors.QueryError(
+        raise errors.InputDataError(
             f"invalid argument count, "
             f"expected: {decl_args}, got: {recv_args}")
 
@@ -180,17 +181,12 @@ cdef WriteBuffer recode_bind_args(
             out_buf.write_int32(in_len)
 
             if in_len > 0:
-                data = frb_read(&in_buf, in_len)
-                # Ensure all array parameters have correct element OIDs as
-                # per Postgres' expectations.
                 if param.array_type_id is not None:
-                    # ndimensions + flags
                     array_tid = dbv.resolve_backend_type_id(
                         param.array_type_id)
-                    out_buf.write_cstr(data, 8)
-                    out_buf.write_int32(<int32_t>array_tid)
-                    out_buf.write_cstr(&data[12], in_len - 12)
+                    recode_array(dbv, &in_buf, out_buf, in_len, array_tid)
                 else:
+                    data = frb_read(&in_buf, in_len)
                     out_buf.write_cstr(data, in_len)
 
     if positions is not None:
@@ -207,6 +203,55 @@ cdef WriteBuffer recode_bind_args(
         out_buf.write_int32(0x00010001)
 
     return out_buf
+
+
+cdef WriteBuffer recode_array(
+    dbv: dbview.DatabaseConnectionView,
+    FRBuffer* in_buf,
+    out_buf: WriteBuffer,
+    in_len: ssize_t,
+    array_tid: int32_t,
+):
+    # For a standalone array, we still need to inject oids and reject
+    # NULL elements.
+    cdef:
+        WriteBuffer buf
+        ssize_t cnt
+        ssize_t idx
+        ssize_t num
+        ssize_t tag
+        FRBuffer sub_buf
+
+    frb_slice_from(&sub_buf, in_buf, in_len)
+
+    val = hton.unpack_int32(frb_read(&sub_buf, 4)) # ndims
+    if val != 1 and val != 0:
+        raise errors.InputDataError("unsupported array dimensions")
+    out_buf.write_int32(val)
+
+    data = frb_read(&sub_buf, 8)  # flags + reserved (oid)
+    out_buf.write_cstr(data, 4)  # just write flags
+    out_buf.write_int32(<int32_t>array_tid)
+
+    cnt = hton.unpack_int32(frb_read(&sub_buf, 4))
+    out_buf.write_int32(cnt)
+
+    val = hton.unpack_int32(frb_read(&sub_buf, 4)) # bound
+    if val != 1:
+        raise errors.InputDataError("unsupported array bound")
+    out_buf.write_int32(val)
+
+    # We have to actually scan the array to make sure it
+    # doesn't have any NULLs in it.
+    for idx in range(cnt):
+        in_len = hton.unpack_int32(frb_read(&sub_buf, 4))
+        if in_len < 0:
+            raise errors.InputDataError("invalid NULL inside type")
+        out_buf.write_int32(in_len)
+        data = frb_read(&sub_buf, in_len)
+        out_buf.write_cstr(data, in_len)
+    if frb_get_len(&sub_buf):
+        raise errors.InputDataError('unexpected trailing data in buffer')
 
 
 cdef WriteBuffer _decode_tuple_args_core(
@@ -228,6 +273,7 @@ cdef WriteBuffer _decode_tuple_args_core(
         ssize_t idx
         ssize_t num
         ssize_t tag
+        int32_t val
         FRBuffer sub_buf
 
     tag = trans_typ[0]
@@ -237,7 +283,7 @@ cdef WriteBuffer _decode_tuple_args_core(
     buf = out_bufs[idx]
 
     if in_len < 0:
-        raise errors.QueryError("invalid NULL inside type")
+        raise errors.InputDataError("invalid NULL inside type")
 
     frb_slice_from(&sub_buf, in_buf, in_len)
 
@@ -252,7 +298,7 @@ cdef WriteBuffer _decode_tuple_args_core(
         cnt = <uint32_t>hton.unpack_int32(frb_read(&sub_buf, 4))
         num = len(trans_typ) - 2
         if cnt != num:
-            raise errors.QueryError(
+            raise errors.InputDataError(
                 f"tuple length mismatch: {cnt} vs {num}")
         for idx in range(num):
             typ = trans_typ[idx + 2]
@@ -261,11 +307,15 @@ cdef WriteBuffer _decode_tuple_args_core(
                 &sub_buf, out_bufs, counts, acounts, typ, in_array)
 
     elif tag == 2:  # array
-        frb_read(&sub_buf, 4)  # ndims
+        val = hton.unpack_int32(frb_read(&sub_buf, 4)) # ndims
+        if val != 1 and val != 0:
+            raise errors.InputDataError("unsupported array dimensions")
         frb_read(&sub_buf, 4)  # flags
         frb_read(&sub_buf, 4)  # reserved
         cnt = <uint32_t>hton.unpack_int32(frb_read(&sub_buf, 4))
-        frb_read(&sub_buf, 4)  # bound
+        val = hton.unpack_int32(frb_read(&sub_buf, 4)) # bound
+        if val != 1:
+            raise errors.InputDataError("unsupported array bound")
 
         # For nested arrays, we need to produce an array containing
         # the start/end indexes in the flattened array.
@@ -287,7 +337,7 @@ cdef WriteBuffer _decode_tuple_args_core(
                 &sub_buf, out_bufs, counts, acounts, styp, True)
 
     if frb_get_len(&sub_buf):
-        raise RuntimeError('unexpected trailing data in buffer')
+        raise errors.InputDataError('unexpected trailing data in buffer')
 
 
 cdef WriteBuffer _decode_tuple_args(
