@@ -278,7 +278,7 @@ class TypeSerializer:
         elif isinstance(t, s_objtypes.ObjectType):
             # This is a view
             self.schema, mt = t.material_type(self.schema)
-            base_type_id = mt.id
+            base_type_name = str(mt.get_name(self.schema))
 
             subtypes = []
             element_names = []
@@ -342,7 +342,7 @@ class TypeSerializer:
                         cardinality_from_ptr(ptr, self.schema).value)
 
             type_id = self._get_object_type_id(
-                base_type_id, subtypes, element_names, cardinalities,
+                base_type_name, subtypes, element_names, cardinalities,
                 links_props=link_props, links=links,
                 has_implicit_fields=implicit_id)
 
@@ -465,10 +465,10 @@ class TypeSerializer:
                 return
 
             self.schema, mt = t.material_type(self.schema)
-            base_type_id = mt.id
+            base_type_name = str(mt.get_name(self.schema))
 
             type_id = self._get_object_type_id(
-                base_type_id, subtypes, element_names, cardinalities
+                base_type_name, subtypes, element_names, cardinalities
             )
 
             if type_id in self.uuid_to_pos:
