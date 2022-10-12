@@ -14637,6 +14637,74 @@ type default::Foo {
             alter type X { create link bar := .foo };
         """)
 
+    async def test_edgeql_ddl_rebase_views_01(self):
+        await self.con.execute(r"""
+            CREATE TYPE default::Foo {
+                CREATE PROPERTY x -> std::str {
+                    CREATE CONSTRAINT std::exclusive;
+                };
+            };
+            CREATE TYPE default::Bar EXTENDING default::Foo;
+            CREATE TYPE default::Baz EXTENDING default::Foo;
+        """)
+
+        await self.con.execute(r"""
+            CREATE TYPE default::Foo2 EXTENDING default::Foo;
+            ALTER TYPE default::Bar {
+                DROP EXTENDING default::Foo;
+                EXTENDING default::Foo2 LAST;
+            };
+
+            INSERT Bar;
+        """)
+
+        # should still be in the view
+        await self.assert_query_result(
+            'select Foo',
+            [{}],
+        )
+
+        await self.assert_query_result(
+            'select Object',
+            [{}],
+        )
+
+    async def test_edgeql_ddl_rebase_views_02(self):
+        await self.con.execute(r"""
+            CREATE TYPE default::Foo {
+                CREATE PROPERTY x -> std::str {
+                    CREATE CONSTRAINT std::exclusive;
+                };
+            };
+            CREATE TYPE default::Bar EXTENDING default::Foo;
+            CREATE TYPE default::Baz EXTENDING default::Foo;
+        """)
+
+        await self.con.execute(r"""
+            CREATE TYPE default::Foo2 {
+                CREATE PROPERTY x -> std::str {
+                    CREATE CONSTRAINT std::exclusive;
+                };
+            };
+            ALTER TYPE default::Bar {
+                DROP EXTENDING default::Foo;
+                EXTENDING default::Foo2 LAST;
+            };
+
+            INSERT Bar;
+        """)
+
+        # should *not* still be in the view
+        await self.assert_query_result(
+            'select Foo',
+            [],
+        )
+
+        await self.assert_query_result(
+            'select Object',
+            [{}],
+        )
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False

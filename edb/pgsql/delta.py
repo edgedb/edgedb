@@ -2931,17 +2931,23 @@ class CompositeMetaCommand(MetaCommand):
         bases = set(obj.get_bases(schema).objects(schema))
         orig_bases = set(obj.get_bases(orig_schema).objects(orig_schema))
 
-        for new_base in bases - orig_bases:
-            if has_table(new_base, schema):
-                self.alter_inhview(schema, context, new_base)
+        base_ancestors = set()
+        for base in bases.symmetric_difference(orig_bases):
+            base_ancestors.add(base)
+            base_ancestors.update(base.get_ancestors(schema).objects(schema))
 
-        for old_base in orig_bases - bases:
-            if has_table(old_base, schema) and not context.is_deleting(
-                old_base
-            ):
+        # Now filter out any ancestors where the relationship did not
+        # actually change. (This should always get Object and
+        # BaseObject, at least.)
+        base_ancestors = {
+            b for b in base_ancestors
+            if obj.issubclass(schema, b) != obj.issubclass(orig_schema, b)
+        }
+
+        for base in base_ancestors:
+            if has_table(base, schema) and not context.is_deleting(base):
                 self.alter_inhview(
-                    schema, context, old_base,
-                    exclude_children=frozenset((obj,)))
+                    schema, context, base, alter_ancestors=False)
 
     def alter_ancestor_inhviews(
         self,
