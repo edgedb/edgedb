@@ -1489,6 +1489,7 @@ class _EdgeDBServerData(NamedTuple):
     password: str
     server_data: Any
     tls_cert_file: str
+    pid: int
 
     def get_connect_args(self, **kwargs) -> dict[str, str | int]:
         conn_args = dict(
@@ -1550,6 +1551,7 @@ class _EdgeDBServer:
             edgedb_args.ServerEndpointSecurityMode] = None,  # see __aexit__
         enable_backend_adaptive_ha: bool = False,
         ignore_other_tenants: bool = False,
+        readiness_state_file: Optional[str] = None,
         tls_cert_file: Optional[os.PathLike] = None,
         tls_key_file: Optional[os.PathLike] = None,
         tls_cert_mode: edgedb_args.ServerTlsCertMode = (
@@ -1577,6 +1579,7 @@ class _EdgeDBServer:
         self.http_endpoint_security = http_endpoint_security
         self.enable_backend_adaptive_ha = enable_backend_adaptive_ha
         self.ignore_other_tenants = ignore_other_tenants
+        self.readiness_state_file = readiness_state_file
         self.tls_cert_file = tls_cert_file
         self.tls_key_file = tls_key_file
         self.tls_cert_mode = tls_cert_mode
@@ -1727,6 +1730,9 @@ class _EdgeDBServer:
         if self.tls_key_file:
             cmd += ['--tls-key-file', self.tls_key_file]
 
+        if self.readiness_state_file is not None:
+            cmd += ['--readiness-state-file', self.readiness_state_file]
+
         if self.debug:
             print(
                 f'Starting EdgeDB cluster with the following params:\n'
@@ -1790,6 +1796,7 @@ class _EdgeDBServer:
             password=password,
             server_data=data,
             tls_cert_file=data['tls_cert_file'],
+            pid=self.proc.pid,
         )
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -1841,6 +1848,7 @@ def start_edgedb_server(
         edgedb_args.ServerEndpointSecurityMode] = None,
     enable_backend_adaptive_ha: bool = False,
     ignore_other_tenants: bool = False,
+    readiness_state_file: Optional[str] = None,
     tls_cert_file: Optional[os.PathLike] = None,
     tls_key_file: Optional[os.PathLike] = None,
     tls_cert_mode: edgedb_args.ServerTlsCertMode = (
@@ -1887,6 +1895,7 @@ def start_edgedb_server(
         http_endpoint_security=http_endpoint_security,
         enable_backend_adaptive_ha=enable_backend_adaptive_ha,
         ignore_other_tenants=ignore_other_tenants,
+        readiness_state_file=readiness_state_file,
         tls_cert_file=tls_cert_file,
         tls_key_file=tls_key_file,
         tls_cert_mode=tls_cert_mode,
