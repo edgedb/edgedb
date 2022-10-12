@@ -685,7 +685,7 @@ class Pointer(referencing.ReferencedInheritingObject,
     def is_special_pointer(self, schema: s_schema.Schema) -> bool:
         return self.get_shortname(schema).name in {
             'source', 'target', 'id'
-        }
+        } and (self.is_id_pointer(schema) or self.is_endpoint_pointer(schema))
 
     def is_property(self, schema: s_schema.Schema) -> bool:
         raise NotImplementedError
