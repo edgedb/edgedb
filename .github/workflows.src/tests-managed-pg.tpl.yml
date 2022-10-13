@@ -100,7 +100,7 @@ jobs:
       << setup_aws_creds()|indent(2) >>
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds
@@ -155,7 +155,7 @@ jobs:
       run: terraform init
 
     - name: Restore Terraform state
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: do-database-tfstate
         path: .github/do-database
@@ -210,7 +210,7 @@ jobs:
       << setup_terraform()|indent(2) >>
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: do-database-tfstate
           path: .github/do-database
@@ -287,7 +287,7 @@ jobs:
       << setup_gcp_creds()|indent(2) >>
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql
@@ -366,7 +366,7 @@ jobs:
       << setup_aws_creds()|indent(2) >>
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora
@@ -423,7 +423,7 @@ jobs:
       run: terraform init
 
     - name: Restore Terraform state
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: heroku-postgres-tfstate
         path: .github/heroku-postgres
@@ -457,7 +457,7 @@ jobs:
       << setup_aws_creds()|indent(2) >>
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres

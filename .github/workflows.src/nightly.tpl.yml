@@ -21,7 +21,7 @@ jobs:
       shell: bash
       run: |
         branch=${GITHUB_REF#refs/heads/}
-        echo ::set-output name=branch::"${branch}"
+        echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
 <% for tgt in targets.linux %>
@@ -103,7 +103,7 @@ jobs:
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -133,7 +133,7 @@ jobs:
         ref: master
         path: edgedb-pkg
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -153,7 +153,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -172,7 +172,7 @@ jobs:
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -203,7 +203,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>

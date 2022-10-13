@@ -65,7 +65,7 @@ jobs:
         exit 1
 
     - name: Download cache key
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: shared-artifacts
         path: .tmp
@@ -75,7 +75,7 @@ jobs:
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
     - name: Handle Rust extensions build cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: rust-cache
       with:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
@@ -163,13 +163,13 @@ jobs:
           python -m pip install requests
 
       - name: Download shared artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: shared-artifacts
           path: .tmp
 
       - name: Download python-test results
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: python-test-results
           path: .results

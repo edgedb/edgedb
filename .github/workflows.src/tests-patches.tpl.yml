@@ -56,7 +56,8 @@ jobs:
         matrix = {"edgedb-version": versions, "make-dbs": [True, False]}
 
         print("matrix:", matrix)
-        print(f'::set-output name=matrix::{json.dumps(matrix)}')
+        with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+            print(f'matrix={json.dumps(matrix)}', file=f)
 
   test:
     runs-on: ubuntu-latest
