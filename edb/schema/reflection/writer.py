@@ -424,7 +424,7 @@ def _build_object_mutation_shape(
             and not issubclass(mcls, s_types.CollectionExprAlias)
             and not cmd.get_attribute_value('abstract')
         ):
-            if issubclass(mcls, s_types.Array):
+            if issubclass(mcls, (s_types.Array, s_types.Range)):
                 assignments.append(
                     f'backend_id := sys::_get_pg_type_for_edgedb_type('
                     f'<uuid>$__{var_prefix}id, '

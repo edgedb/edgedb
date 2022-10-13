@@ -3981,17 +3981,7 @@ class GetBaseScalarTypeMap(dbops.Function):
                         else ql(f'pg_catalog.{v[0]}')
                     }
                 )"""
-            for k, v in types.base_type_name_map.items())},
-
-            {", ".join(
-                f"""(
-                    {ql(str(k))}::uuid,
-                    {
-                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
-                        else ql(f'pg_catalog.{v[0]}')
-                    }
-                )"""
-            for k, v in types.base_range_name_map.items())}
+            for k, v in types.base_type_name_map.items())}
     '''
 
     def __init__(self) -> None:
@@ -4044,7 +4034,27 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                                 edgedb._get_base_scalar_type_map()
                                     AS m(tid uuid, tn text)
                             WHERE
-                                tid = elemid
+                                tid = "elemid"
+                        )
+                ),
+                (
+                    SELECT
+                        rng.rngtypid
+                    FROM
+                        pg_catalog.pg_range rng
+                        INNER JOIN pg_catalog.pg_type typ
+                            ON (rng.rngsubtype = typ.oid)
+                    WHERE
+                        typ.typname = "elemid"::text || '_domain'
+                        OR typ.typname = "elemid"::text || '_t'
+                        OR typ.oid = (
+                            SELECT
+                                tn::regtype::oid
+                            FROM
+                                edgedb._get_base_scalar_type_map()
+                                    AS m(tid uuid, tn text)
+                            WHERE
+                                tid = "elemid"
                         )
                 ),
                 edgedb.raise(
@@ -4053,7 +4063,7 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                     msg => (
                         format(
                             'cannot determine OID of EdgeDB type %L',
-                            typeid::text
+                            "typeid"::text
                         )
                     )
                 )

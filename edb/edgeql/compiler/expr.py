@@ -589,7 +589,9 @@ def compile_TypeCast(
             )
 
         if ex_param := ctx.env.script_params.get(param_name):
-            param_first_type = ex_param.schema_type
+            # N.B. Accessing the schema_type from the param is unreliable
+            ctx.env.schema, param_first_type = irtyputils.ir_typeref_to_type(
+                ctx.env.schema, ex_param.ir_type)
             if param_first_type != pt:
                 raise errors.QueryError(
                     f'parameter type '

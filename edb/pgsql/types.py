@@ -33,7 +33,6 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
-from edb.schema import types as s_types
 
 from . import common
 
@@ -120,17 +119,6 @@ base_type_name_map_r = {
 
     'edgedb.memory_t': sn.QualName('cfg', 'memory'),
     'memory_t': sn.QualName('cfg', 'memory'),
-}
-
-# Use the known type IDs to generate corresponding range type IDs
-base_range_name_map = {
-    s_types.generate_type_id(
-        f'''range-{
-            s_obj.get_known_type_id(
-                base_type_name_map_r[".".join(pg_type)])
-        }'''
-    ): pg_range
-    for pg_type, pg_range in type_to_range_name_map.items()
 }
 
 
