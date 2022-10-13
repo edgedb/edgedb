@@ -58,7 +58,14 @@ EXT_LDFLAGS: list[str] = []
 
 ROOT_PATH = pathlib.Path(__file__).parent.resolve()
 
-EXT_INC_DIRS = [(ROOT_PATH / 'edb' / 'server' / 'pgproto').as_posix()]
+EXT_INC_DIRS = [
+    (ROOT_PATH / 'edb' / 'server' / 'pgproto').as_posix(),
+    (ROOT_PATH / 'edb' / 'pgsql' / 'parser' / 'libpg_query').as_posix()
+]
+
+EXT_LIB_DIRS = [
+    (ROOT_PATH / 'edb' / 'pgsql' / 'parser' / 'libpg_query').as_posix()
+]
 
 
 if platform.uname().system != 'Windows':
@@ -278,6 +285,27 @@ def _compile_postgres(build_base, *,
             )
 
 
+def _compile_libpg_query():
+    proc = subprocess.run(
+        ['git', 'submodule', 'status', 'edb/pgsql/parser/libpg_query'],
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        check=True,
+        cwd=ROOT_PATH,
+    )
+    status = proc.stdout
+    if status[0] == '-':
+        print('libpg_query submodule not initialized, '
+              'run `git submodule init; git submodule update`')
+        exit(1)
+
+    dir = (ROOT_PATH / 'edb' / 'pgsql' / 'parser' / 'libpg_query').resolve()
+
+    subprocess.run(
+        ['make'] + ['build', '-j', str(max(os.cpu_count() - 1, 1))],
+        cwd=str(dir), check=True)
+
+
 def _check_rust():
     import packaging.version
 
@@ -374,8 +402,9 @@ class build(setuptools_build.build):
     user_options = setuptools_build.build.user_options
 
     sub_commands = (
-        setuptools_build.build.sub_commands
-        + [
+        [
+            ("build_libpg_query", lambda self: True),
+            *setuptools_build.build.sub_commands,
             ("build_metadata", lambda self: True),
             ("build_parsers", lambda self: True),
             ("build_postgres", lambda self: True),
@@ -559,6 +588,20 @@ class build_postgres(setuptools.Command):
             produce_compile_commands_json=self.compile_commands,
         )
 
+class build_libpg_query(setuptools.Command):
+
+    description = "build libpg_query"
+
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        _compile_libpg_query()
 
 class build_ext(setuptools_build_ext.build_ext):
 
@@ -865,6 +908,7 @@ setuptools.setup(
         'build_cli': build_cli,
         'build_parsers': build_parsers,
         'build_ui': build_ui,
+        'build_libpg_query': build_libpg_query,
         'ci_helper': ci_helper,
     },
     ext_modules=[
@@ -986,6 +1030,16 @@ setuptools.setup(
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS,
             include_dirs=EXT_INC_DIRS,
+        ),
+
+        setuptools_extension.Extension(
+            "edb.pgsql.parser.parser",
+            ["edb/pgsql/parser/parser.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+            library_dirs=EXT_LIB_DIRS,
+            libraries=['pg_query']
         ),
     ],
     rust_extensions=[

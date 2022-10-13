@@ -24,7 +24,7 @@ import dataclasses
 import typing
 import uuid
 
-from edb.common import ast
+from edb.common import ast, parsing
 from edb.common import typeutils
 from edb.edgeql import ast as qlast
 from edb.ir import ast as irast
@@ -39,6 +39,13 @@ from edb.ir import ast as irast
 
 
 class Base(ast.AST):
+    __ast_hidden__ = {'context'}
+
+    context: typing.Optional[parsing.ParserContext] = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def __repr__(self):
         return f'<pg.{self.__class__.__name__} at 0x{id(self):x}>'
 
@@ -413,6 +420,13 @@ class ResTarget(ImmutableBaseExpr):
     val: BaseExpr
 
 
+class InsertTarget(ImmutableBaseExpr):
+    """Column reference in INSERT."""
+
+    # Column name
+    name: str
+
+
 class UpdateTarget(ImmutableBaseExpr):
     """Query update target."""
 
@@ -420,6 +434,8 @@ class UpdateTarget(ImmutableBaseExpr):
     name: str | typing.List[str]
     # value expression to assign
     val: BaseExpr
+    # subscripts, field names and '*'
+    indirection: typing.Optional[typing.List[IndirectionOp]] = None
 
 
 class InferClause(ImmutableBaseExpr):
@@ -436,7 +452,9 @@ class OnConflictClause(ImmutableBaseExpr):
 
     action: str
     infer: typing.Optional[InferClause]
-    target_list: typing.Optional[list] = None
+    target_list: typing.Optional[
+        typing.List[UpdateTarget | MultiAssignRef]
+    ] = None
     where: typing.Optional[BaseExpr] = None
 
 
@@ -533,7 +551,7 @@ class DMLQuery(Query):
 class InsertStmt(DMLQuery):
 
     # (optional) list of target column names
-    cols: typing.Optional[typing.List[ColumnRef]] = None
+    cols: typing.Optional[typing.List[InsertTarget]] = None
     # source SELECT/VALUES or None
     select_stmt: typing.Optional[Query] = None
     # ON CONFLICT clause
@@ -543,7 +561,9 @@ class InsertStmt(DMLQuery):
 class UpdateStmt(DMLQuery):
 
     # The UPDATE target list
-    targets: typing.List[UpdateTarget] = ast.field(factory=list)
+    targets: typing.List[UpdateTarget | MultiAssignRef] = ast.field(
+        factory=list
+    )
     # WHERE clause
     where_clause: typing.Optional[BaseExpr] = None
     # optional FROM clause
@@ -746,13 +766,16 @@ class Slice(ImmutableBaseExpr):
     ridx: typing.Optional[BaseExpr]
 
 
+IndirectionOp = Slice | Index | ColumnRef | Star
+
+
 class Indirection(ImmutableBaseExpr):
     """Field and/or array element indirection."""
 
     # Indirection subject
     arg: BaseExpr
     # Subscripts and/or field names and/or '*'
-    indirection: list
+    indirection: typing.List[IndirectionOp]
 
 
 class ArrayExpr(ImmutableBaseExpr):
@@ -837,7 +860,7 @@ class JoinExpr(BaseRangeVar):
     # Right subtree
     rarg: BaseExpr
     # USING clause, if any
-    using_clause: typing.Optional[typing.List[BaseExpr]] = None
+    using_clause: typing.Optional[typing.List[ColumnRef]] = None
     # Qualifiers on join, if any
     quals: typing.Optional[BaseExpr] = None
 
@@ -858,6 +881,7 @@ class SubLinkType(enum.IntEnum):
     NOT_EXISTS = enum.auto()
     ALL = enum.auto()
     ANY = enum.auto()
+    EXPR = enum.auto()
 
 
 class SubLink(ImmutableBaseExpr):
@@ -867,6 +891,8 @@ class SubLink(ImmutableBaseExpr):
     type: SubLinkType
     # Sublink expression
     expr: BaseExpr
+    # Sublink expression
+    test_expr: typing.Optional[BaseExpr] = None
     # Sublink is never NULL
     nullable: bool = False
 
@@ -903,6 +929,17 @@ class NullTest(ImmutableBaseExpr):
     arg: BaseExpr
     # NOT NULL?
     negated: bool = False
+    # NullTest is never NULL
+    nullable: bool = False
+
+
+class BooleanTest(ImmutableBaseExpr):
+    """IS [NOT] {TRUE,FALSE}"""
+
+    # Input expression,
+    arg: BaseExpr
+    negated: bool = False
+    is_true: bool = False
     # NullTest is never NULL
     nullable: bool = False
 

@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import Sequence
 
 from edb import errors
 
@@ -305,16 +306,17 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.indentation += 1
         self.new_lines = 1
 
-        if node.select_stmt.values:
-            self.write('VALUES ')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit_list(node.select_stmt.values)
-            self.indentation -= 1
-        else:
-            self.write('(')
-            self.visit(node.select_stmt)
-            self.write(')')
+        if node.select_stmt:
+            if node.select_stmt.values:
+                self.write('VALUES ')
+                self.new_lines = 1
+                self.indentation += 1
+                self.visit_list(node.select_stmt.values)
+                self.indentation -= 1
+            else:
+                self.write('(')
+                self.visit(node.select_stmt)
+                self.write(')')
 
         if node.on_conflict:
             self.new_lines = 1
@@ -441,8 +443,13 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_ResTarget(self, node):
         self.visit(node.val)
+        if node.indirection:
+            self._visit_indirection_ops(node.indirection)
         if node.name:
             self.write(' AS ' + common.quote_ident(node.name))
+
+    def visit_InsertTarget(self, node: pgast.InsertTarget):
+        self.write(common.quote_ident(node.name))
 
     def visit_UpdateTarget(self, node):
         if isinstance(node.name, list):
@@ -451,6 +458,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(')')
         else:
             self.write(common.quote_ident(node.name))
+        if node.indirection:
+            self._visit_indirection_ops(node.indirection)
         self.write(' = ')
         self.visit(node.val)
 
@@ -550,7 +559,11 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.larg)
         if node.rarg is not None:
             self.new_lines = 1
-            self.write(node.type.upper() + ' JOIN ')
+            join_type = node.type.upper()
+            if join_type == 'INNER':
+                self.write('JOIN ')
+            else:
+                self.write(join_type + ' JOIN ')
             nested_join = (
                 isinstance(node.rarg, pgast.JoinExpr) and
                 node.rarg.rarg is not None
@@ -574,6 +587,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.visit(node.quals)
                 if not nested_join:
                     self.indentation -= 1
+            elif node.using_clause:
+                self.write(" USING (")
+                self.visit_list(node.using_clause)
+                self.write(")")
 
     def visit_Expr(self, node):
         self.write('(')
@@ -685,19 +702,24 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.val)
 
     def visit_SubLink(self, node):
-        if node.type == pgast.SubLinkType.EXISTS:
-            self.write('EXISTS')
+        if node.test_expr and node.type == pgast.SubLinkType.ANY:
+            self.visit(node.test_expr)
+            self.write(' IN ')
+        elif node.type == pgast.SubLinkType.EXISTS:
+            self.write('EXISTS ')
         elif node.type == pgast.SubLinkType.NOT_EXISTS:
-            self.write('NOT EXISTS')
+            self.write('NOT EXISTS ')
         elif node.type == pgast.SubLinkType.ALL:
-            self.write('ALL')
+            self.write('ALL ')
         elif node.type == pgast.SubLinkType.ANY:
-            self.write('ANY')
+            self.write('ANY ')
+        elif node.type == pgast.SubLinkType.EXPR:
+            pass
         else:
             raise SQLSourceGeneratorError(
                 'unexpected SubLinkType: {!r}'.format(node.type))
 
-        self.write(' (')
+        self.write('(')
         self.new_lines = 1
         self.indentation += 1
         self.visit(node.expr)
@@ -773,14 +795,30 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(' IS NULL')
         self.write(')')
 
-    def visit_Indirection(self, node):
+    def visit_BooleanTest(self, node):
+        self.write("(")
+        self.visit(node.arg)
+        op = " IS"
+        if node.negated:
+            op += " NOT"
+        if node.is_true:
+            op += " TRUE"
+        else:
+            op += " FALSE"
+        self.write(op)
+        self.write(")")
+
+    def visit_Indirection(self, node: pgast.Indirection):
         self.write('(')
         self.visit(node.arg)
         self.write(')')
-        for indirection in node.indirection:
-            if isinstance(indirection, (pgast.Star, pgast.ColumnRef)):
+        self._visit_indirection_ops(node.indirection)
+
+    def _visit_indirection_ops(self, ops: Sequence[pgast.IndirectionOp]):
+        for op in ops:
+            if isinstance(op, (pgast.Star, pgast.ColumnRef)):
                 self.write('.')
-            self.visit(indirection)
+            self.visit(op)
 
     def visit_Index(self, node):
         self.write('[')
