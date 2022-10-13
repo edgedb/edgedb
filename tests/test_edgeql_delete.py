@@ -511,3 +511,19 @@ class TestDelete(tb.QueryTestCase):
                 'name': 'child of abstract 2'
             }],
         )
+
+    async def test_edgeql_delete_then_union(self):
+        await self.con.execute(r"""
+            INSERT DeleteTest2 { name := 'x' };
+            INSERT DeleteTest2 { name := 'y' };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            with
+            delete1 := assert_exists((delete DeleteTest2 filter .name = 'x')),
+            delete2 := assert_exists((delete DeleteTest2 filter .name = 'y')),
+            select {delete1, delete2};
+            """,
+            [{}, {}],
+        )
