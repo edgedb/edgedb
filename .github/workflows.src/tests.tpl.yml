@@ -75,7 +75,7 @@ jobs:
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
     - name: Handle Rust extensions build cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: rust-cache
       with:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
