@@ -92,7 +92,7 @@ cdef WriteBuffer recode_bind_args(
     dbview.DatabaseConnectionView dbv,
     dbview.CompiledQuery compiled,
     bytes bind_args,
-    # XXX do something better?!?
+    # XXX do something better?!
     list positions = None,
 ):
     cdef:
