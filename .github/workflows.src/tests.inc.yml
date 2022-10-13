@@ -10,14 +10,14 @@
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: '3.10.0'
 <%- endmacro %>
 
 <% macro _init_venv() -%>
     - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.2
+      uses: syphar/restore-virtualenv@v1
       id: venv-cache
       with:
         requirement_files: |
