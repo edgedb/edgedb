@@ -1097,9 +1097,8 @@ def _normalize_view_ptr_expr(
         )
 
     # Prohibit invalid operations on id and __type__
-    ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
     id_access = (
-        ptrcls_sn.name == 'id'
+        ptrcls.is_id_pointer(ctx.env.schema)
         and (
             not ctx.env.options.allow_user_specified_id
             or not exprtype.is_mutation()
@@ -1110,6 +1109,7 @@ def _normalize_view_ptr_expr(
         and (id_access or ptrcls.is_protected_pointer(ctx.env.schema))
         and not from_default
     ):
+        ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
         if is_polymorphic:
             msg = (f'cannot access {ptrcls_sn.name} on a polymorphic '
                    f'shape element')
