@@ -33,6 +33,7 @@ from edb.server.pgproto.pgproto cimport (
     frb_init,
     frb_read,
     frb_get_len,
+    frb_slice_from,
 )
 
 
