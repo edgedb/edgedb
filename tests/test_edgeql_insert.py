@@ -5121,6 +5121,27 @@ class TestInsert(tb.QueryTestCase):
                 "name violates exclusivity constraint"):
             await self.con.execute(query)
 
+    async def test_edgeql_insert_update_cross_type_conflict_17(self):
+
+        await self.con.execute('''
+            create type T;
+            create type X {
+                create multi link l -> T {
+                    create property x -> str { create constraint exclusive; }
+                };
+            };
+            create type Y extending X;
+            insert X;
+            insert Y;
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "do not support exclusive constraints on link properties"):
+            await self.con.execute('''
+                update X set { l := (insert T { @x := 'x' }) };
+            ''')
+
     async def test_edgeql_insert_and_update_01(self):
         # INSERTing something that would violate a constraint while
         # fixing the violation is still supposed to be an error.

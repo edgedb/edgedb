@@ -31,6 +31,7 @@ from edb.ir import typeutils
 
 from edb.schema import constraints as s_constr
 from edb.schema import name as s_name
+from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import utils as s_utils
@@ -568,6 +569,33 @@ def _has_explicit_id_write(stmt: irast.MutatingStmt) -> bool:
     return False
 
 
+def _disallow_exclusive_linkprops(
+    stmt: irast.MutatingStmt,
+    typ: s_objtypes.ObjectType,
+    *, ctx: context.ContextLevel,
+
+) -> None:
+    # TODO: It should be possible to support this, but we don't deal
+    # with it yet, so disallow it for safety reasons.
+    schema = ctx.env.schema
+    exclusive_constr = schema.get('std::exclusive', type=s_constr.Constraint)
+    for ptr in typ.get_pointers(schema).objects(schema):
+        if not isinstance(ptr, s_links.Link):
+            continue
+        ptr = ptr.get_nearest_non_derived_parent(schema)
+        for lprop in ptr.get_pointers(schema).objects(schema):
+            ex_cnstrs = [
+                c for c in lprop.get_constraints(schema).objects(schema)
+                if c.issubclass(schema, exclusive_constr)]
+            if ex_cnstrs:
+                raise errors.UnsupportedFeatureError(
+                    'INSERT/UPDATE do not support exclusive constraints on '
+                    'link properties when another statement in '
+                    'the same query modifies a related type',
+                    context=stmt.context,
+                )
+
+
 def compile_inheritance_conflict_selects(
     stmt: irast.MutatingStmt,
     conflict: irast.MutatingStmt,
@@ -585,6 +613,7 @@ def compile_inheritance_conflict_selects(
     cross-type exclusive constraints, and they use a snapshot
     beginning at the start of the statement.
     """
+    _disallow_exclusive_linkprops(stmt, typ, ctx=ctx)
     has_id_write = _has_explicit_id_write(stmt)
     pointers = _get_exclusive_ptr_constraints(
         typ, include_id=has_id_write, ctx=ctx)
