@@ -778,7 +778,7 @@ def is_id_ptrref(ptrref: irast.BasePointerRef) -> bool:
     """Return True if *ptrref* describes the id property."""
     return (
         str(ptrref.std_parent_name) == 'std::id'
-    )
+    ) and not ptrref.source_ptr
 
 
 def is_computable_ptrref(ptrref: irast.BasePointerRef) -> bool:
