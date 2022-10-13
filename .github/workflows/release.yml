@@ -16,7 +16,7 @@ jobs:
       shell: bash
       run: |
         branch=${GITHUB_REF#refs/heads/}
-        echo ::set-output name=branch::"${branch}"
+        echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
 
@@ -2238,7 +2238,7 @@ jobs:
         fi
 
         IFS=,
-        echo "::set-output name=tags::${tags[*]}"
+        echo "tags=${tags[*]}" >> $GITHUB_OUTPUT
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2
