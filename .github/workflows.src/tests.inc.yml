@@ -58,14 +58,14 @@
     # Restore binary cache
 
     - name: Handle cached EdgeDB CLI binaries
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Handle cached Rust extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: rust-cache
       with:
         path: build/rust_extensions
@@ -74,7 +74,7 @@
           edb-rust-v3-
 
     - name: Handle cached Cython extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: ext-cache
       with:
         path: build/extensions
@@ -83,14 +83,14 @@
           edb-ext-v4-
 
     - name: Handle cached PostgreSQL build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Handle cached Stolon build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: stolon-cache
       with:
         path: build/stolon/bin
@@ -122,7 +122,7 @@
     # Build EdgeDB CLI
 
     - name: Handle EdgeDB CLI build cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       if: steps.cli-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/cli
@@ -144,7 +144,7 @@
     # Build Rust extensions
 
     - name: Handle Rust extensions build cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       if: steps.rust-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
@@ -176,7 +176,7 @@
     # Build extensions
 
     - name: Handle Cython extensions build cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       if: steps.ext-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/edb
@@ -202,7 +202,7 @@
     # Build parsers
 
     - name: Handle compiled parsers cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: parsers-cache
       with:
         path: build/lib
@@ -276,7 +276,7 @@
     # Refresh the bootstrap cache
 
     - name: Handle bootstrap cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: bootstrap-cache
       with:
         path: build/cache
@@ -330,49 +330,49 @@
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: parsers-cache
       with:
         path: build/lib
         key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: bootstrap-cache
       with:
         path: build/cache
