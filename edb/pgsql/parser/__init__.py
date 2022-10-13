@@ -31,6 +31,6 @@ def parse(sql_query: str) -> List[pgast.Query]:
     ast_json = pg_parse(bytes(sql_query, encoding="UTF8"))
 
     try:
-        return build_queries(json.loads(ast_json, strict=False))
+        return build_queries(json.loads(ast_json), sql_query)
     except IndexError:
         raise PSqlUnsupportedError()
