@@ -159,8 +159,8 @@ def compile_StringConstant(
 
 @dispatch.compile.register(irast.BytesConstant)
 def compile_BytesConstant(
-        expr: irast.StringConstant, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    expr: irast.BytesConstant, *, ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
 
     return pgast.ByteaConstant(val=expr.value)
 
