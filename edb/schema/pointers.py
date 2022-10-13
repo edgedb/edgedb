@@ -777,7 +777,8 @@ class Pointer(referencing.ReferencedInheritingObject,
     ) -> bool:
         object_type = self.get_source(schema)
         if isinstance(object_type, s_types.Type):
-            return not object_type.is_view(schema)
+            return (
+                not object_type.is_view(schema) or refdict.attr == 'pointers')
         else:
             return True
 
