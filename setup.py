@@ -300,7 +300,7 @@ def _compile_libpg_query():
         exit(1)
 
     dir = (ROOT_PATH / 'edb' / 'pgsql' / 'parser' / 'libpg_query').resolve()
-    
+
     subprocess.run(
         ['make'] + ['build', '-j', str(max(os.cpu_count() - 1, 1))],
         cwd=str(dir), check=True)
@@ -402,10 +402,10 @@ class build(setuptools_build.build):
     user_options = setuptools_build.build.user_options
 
     sub_commands = (
-        setuptools_build.build.sub_commands
-        + [
-            ("build_metadata", lambda self: True),
+        [
             ("build_libpg_query", lambda self: True),
+            *setuptools_build.build.sub_commands,
+            ("build_metadata", lambda self: True),
             ("build_parsers", lambda self: True),
             ("build_postgres", lambda self: True),
             ("build_cli", lambda self: True),
