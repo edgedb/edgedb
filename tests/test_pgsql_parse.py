@@ -17,27 +17,17 @@
 #
 
 
-import textwrap
-import unittest
-
+from edb.pgsql import codegen, parser
 from edb.testbase import lang as tb
 from edb.tools import test
 
-from edb.pgsql import parser
-from edb.pgsql import codegen
 
-
-def parse_and_gen(sql: str) -> str:
-    ast = parser.parse(sql)
-    sql_stmts = [codegen.generate_source(stmt, pretty=False) for stmt in ast]
-    sql = "; ".join(sql_stmts)
-    return sql.replace("  ", " ").replace("( (", "((").replace(") )", "))")
 class TestEdgeQLSelect(tb.BaseDocTest):
 
     def run_test(self, *, source, spec, expected):
         def inline(text):
-            lines = (l.strip() for l in text.split('\n'))
-            return ' '.join((l for l in lines if len(l) > 0))
+            lines = (line.strip() for line in text.split('\n'))
+            return ' '.join((line for line in lines if len(line) > 0))
 
         def normalize(s):
             return s.replace("  ", " ").replace("( ", "(").replace(" )", ")")
@@ -52,7 +42,9 @@ class TestEdgeQLSelect(tb.BaseDocTest):
             expected = source
 
         ast = parser.parse(source)
-        sql_stmts = [codegen.generate_source(stmt, pretty=False) for stmt in ast]
+        sql_stmts = [
+            codegen.generate_source(stmt, pretty=False) for stmt in ast
+        ]
         sql = normalize("; ".join(sql_stmts))
 
         self.assertEqual(expected, sql)
@@ -193,7 +185,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT m.* FROM mytable AS m WHERE (m.foo IS TRUE)
         """
 
-
     def test_pgsql_parse_select_18(self):
         """
         SELECT m.name AS mname, pname FROM manufacturers m,
@@ -231,7 +222,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT a, CASE WHEN a=1 THEN 'one'
         WHEN a=2 THEN ELSE 'other' END FROM test
         """
-
 
     def test_pgsql_parse_select_23(self):
         """
@@ -397,7 +387,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT y, x FROM z
         """
 
-
     def test_pgsql_parse_select_48(self):
         """
         SELECT * FROM a
@@ -428,7 +417,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
 % OK %
         SELECT ($2)::pg_catalog.interval
         """
-
 
     def test_pgsql_parse_select_53(self):
         """
@@ -463,283 +451,336 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT * FROM t_20210301_x
         """
 
+    def test_pgsql_parse_insert_00(self):
+        """
+        INSERT INTO my_table (id, name) VALUES (1, 'some')
+        """
 
-    @unittest.skip("unsupported SQL INSERT statement")
-    def test_pgsql_parse_insert(self):
-        self.assertEqual(
-            parse_and_gen("INSERT INTO my_table(id, name) VALUES(1, 'some')"),
-            "INSERT INTO my_table(id, name) VALUES(1, 'some')",
-        )
-        self.assertEqual(
-            parse_and_gen("INSERT INTO my_table(id, name) SELECT 1, 'some'"),
-            "INSERT INTO my_table(id, name) SELECT 1, 'some'",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                'INSERT INTO my_table(id) VALUES (5) RETURNING id, "date"'
-            ),
-            'INSERT INTO my_table(id) VALUES (5) RETURNING id, "date"',
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "INSERT INTO my_table(id) VALUES(1); SELECT * FROM my_table"
-            ),
-            "INSERT INTO my_table(id) VALUES(1); SELECT * FROM my_table",
-        )
-        self.assertEqual(
-            parse_and_gen("INSERT INTO my_table"), "INSERT INTO my_table"
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "INSERT INTO table_one(id, name) SELECT * from table_two"
-            ),
-            "INSERT INTO table_one(id, name) SELECT * from table_two",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "WITH fake as (SELECT * FROM inner_table) "
-                "INSERT INTO dataset SELECT * FROM fake"
-            ),
-            "WITH fake as (SELECT * FROM inner_table) "
-            "INSERT INTO dataset SELECT * FROM fake",
-        )
-        self.assertEqual(
-            parse_and_gen("INSERT INTO test (a, b) VALUES (?, ?)"),
-            "INSERT INTO test (a, b) VALUES (?, ?)",
-        )
-        self.assertEqual(
-            parse_and_gen("INSERT INTO test (b, a) VALUES (?, ?)"),
-            "INSERT INTO test (b, a) VALUES (?, ?)",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "INSERT INTO test (a, b) VALUES "
-                "(ARRAY[?, ?, ?, ?], ?::timestamptz), "
-                "(ARRAY[?, ?, ?, ?], ?::timestamptz), "
-                "(?, ?::timestamptz)"
-            ),
-            "INSERT INTO test (a, b) VALUES "
-            "(ARRAY[?, ?, ?, ?], ?::timestamptz), "
-            "(ARRAY[?, ?, ?, ?], ?::timestamptz), "
-            "(?, ?::timestamptz)",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "INSERT INTO films (code, title, did) VALUES "
-                "('UA502', 'Bananas', 105), ('T_601', 'Yojimbo', DEFAULT)"
-            ),
-            "INSERT INTO films (code, title, did) VALUES "
-            "('UA502', 'Bananas', 105), ('T_601', 'Yojimbo', DEFAULT)",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "INSERT INTO films (code, title, did) VALUES (?, ?, ?)"
-            ),
-            "INSERT INTO films (code, title, did) VALUES (?, ?, ?)",
-        )
+    def test_pgsql_parse_insert_01(self):
+        """
+        INSERT INTO my_table (id, name) SELECT 1, 'some'
+% OK %
+        INSERT INTO my_table (id, name) ((SELECT 1, 'some'))
+        """
 
-    @test.skip("unsupported SQL UPDATE")
-    def test_pgsql_parse_update(self):
-        self.assertEqual(
-            parse_and_gen("UPDATE my_table SET the_value = DEFAULT"),
-            "UPDATE my_table SET the_value = DEFAULT",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "UPDATE tictactoe SET board[1:3][1:3] = '{{,,},{,,},{,,}}' "
-                "WHERE game = 1"
-            ),
-            "UPDATE tictactoe SET board[1:3][1:3] = '{{,,},{,,},{,,}}' "
-            "WHERE game = 1",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "UPDATE accounts SET "
-                "(contact_first_name, contact_last_name) = "
-                "(SELECT first_name, last_name "
-                "FROM salesmen WHERE salesmen.id = accounts.sales_id)"
-            ),
-            "UPDATE accounts SET "
-            "(contact_first_name, contact_last_name) = "
-            "(SELECT first_name, last_name "
-            "FROM salesmen WHERE salesmen.id = accounts.sales_id)",
-        )
-        self.assertEqual(
-            parse_and_gen("UPDATE my_table SET id = 5; DELETE FROM my_table"),
-            "UPDATE my_table SET id = 5; DELETE FROM my_table",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "UPDATE dataset SET a = 5 WHERE id IN "
-                "(SELECT * from table_one) OR age IN (select * from table_two)"
-            ),
-            "UPDATE dataset SET a = 5 WHERE id IN "
-            "(SELECT * from table_one) OR age IN (select * from table_two)",
-        )
-        self.assertEqual(
-            parse_and_gen("UPDATE dataset SET a = 5 FROM extra WHERE b = c"),
-            "UPDATE dataset SET a = 5 FROM extra WHERE b = c",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "UPDATE users SET one_thing = $1, second_thing = $2 "
-                "WHERE users.id = ?"
-            ),
-            "UPDATE users SET one_thing = $1, second_thing = $2 "
-            "WHERE users.id = ?",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "UPDATE users SET something_else = $1 WHERE users.id = ?"
-            ),
-            "UPDATE users SET something_else = $1 WHERE users.id = ?",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "UPDATE users SET something_else = "
-                "(SELECT a FROM x WHERE uid = users.id LIMIT 1) "
-                "WHERE users.id = ?"
-            ),
-            "UPDATE users SET something_else = "
-            "(SELECT a FROM x WHERE uid = users.id LIMIT 1) "
-            "WHERE users.id = ?",
-        )
-        self.assertEqual(
-            parse_and_gen("UPDATE x SET a = 1, b = 2, c = 3"),
-            "UPDATE x SET a = 1, b = 2, c = 3",
-        )
-        self.assertEqual(
-            parse_and_gen("UPDATE x SET z = now()"), "UPDATE x SET z = now()"
-        )
+    def test_pgsql_parse_insert_02(self):
+        """
+        INSERT INTO my_table (id) VALUES (5) RETURNING id, date
+        """
 
-    @test.skip("unsupported SQL constructs")
-    def test_pgsql_parse_unsupported(self):
-        self.assertEqual(
-            parse_and_gen(
-                "SELECT * FROM "
-                "(VALUES (1, 'one'), (2, 'two')) AS t (num, letter)"
-            ),
-            "SELECT * FROM "
-            "(VALUES (1, 'one'), (2, 'two')) AS t (num, letter)",
-        )
-        self.assertEqual(
-            parse_and_gen("SELECT * FROM my_table ORDER BY field"),
-            "SELECT * FROM my_table ORDER BY field ASC NULLS LAST USING @>",
-        )
-        self.assertEqual(
-            parse_and_gen("SELECT m.* FROM mytable m FOR UPDATE"),
-            "SELECT m.* FROM mytable AS m FOR UPDATE",
-        )
-        self.assertEqual(
-            parse_and_gen("SELECT m.* FROM mytable m FOR SHARE of m nowait"),
-            "SELECT m.* FROM mytable m FOR SHARE of m nowait",
-        )
+    def test_pgsql_parse_insert_03(self):
+        """
+        INSERT INTO my_table (id) VALUES (5) RETURNING id, "date"
+% OK %
+        INSERT INTO my_table (id) VALUES (5) RETURNING id, date
+        """
 
-        self.assertEqual(
-            parse_and_gen(
-                "SELECT * FROM unnest(ARRAY['a','b','c','d','e','f']) "
-                "WITH ORDINALITY"
-            ),
-            "SELECT * FROM unnest(ARRAY['a', 'b', 'c', 'd', 'e', 'f'])",
-        )
+    def test_pgsql_parse_insert_04(self):
+        """
+        INSERT INTO my_table (id) VALUES(1); SELECT * FROM my_table
+% OK %
+        INSERT INTO my_table (id) VALUES (1); SELECT * FROM my_table
+        """
 
-        self.assertEqual(
-            parse_and_gen(
-                "DELETE FROM dataset USING table_one "
-                "WHERE x = y OR x IN (SELECT * from table_two)"
-            ),
-            "DELETE FROM dataset USING table_one "
-            "WHERE x = y OR x IN (SELECT * from table_two)",
-        )
+    @test.xerror('missing VALUES or SELECT')
+    def test_pgsql_parse_insert_05(self):
+        """
+        INSERT INTO my_table
+        """
 
-        self.assertEqual(
-            parse_and_gen("SELECT ?"), "SELECT ?")
-        self.assertEqual(
-            parse_and_gen("SELECT * FROM x WHERE y = ?"),
-            "SELECT * FROM x WHERE y = ?",
-        )
-        self.assertEqual(
-            parse_and_gen("SELECT * FROM x WHERE y = ANY ($1)"),
-            "SELECT * FROM x WHERE y = ANY ($1)",
-        )
-        self.assertEqual(
-            parse_and_gen("PREPARE a123 AS SELECT a"),
-            "PREPARE a123 AS SELECT a",
-        )
-        self.assertEqual(
-            parse_and_gen("EXECUTE a123"), "EXECUTE a123")
-        self.assertEqual(
-            parse_and_gen("DEALLOCATE a123"), "DEALLOCATE a123")
-        self.assertEqual(
-            parse_and_gen("DEALLOCATE ALL"), "DEALLOCATE ALL")
-        self.assertEqual(
-            parse_and_gen("EXPLAIN ANALYZE SELECT a"),
-            "EXPLAIN ANALYZE SELECT a",
-        )
-        self.assertEqual(
-            parse_and_gen("VACUUM FULL my_table"), "VACUUM FULL my_table"
-        )
-        self.assertEqual(
-            parse_and_gen("SAVEPOINT some_id"), "SAVEPOINT some_id"
-        )
-        self.assertEqual(
-            parse_and_gen("RELEASE some_id"), "RELEASE some_id")
-        self.assertEqual(
-            parse_and_gen("PREPARE TRANSACTION 'some_id'"),
-            "PREPARE TRANSACTION 'some_id'",
-        )
-        self.assertEqual(
-            parse_and_gen("START TRANSACTION READ WRITE"),
-            "START TRANSACTION READ WRITE",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "DECLARE cursor_123 CURSOR FOR "
-                "SELECT * FROM test WHERE id = 123"
-            ),
-            "DECLARE cursor_123 CURSOR FOR "
-            "SELECT * FROM test WHERE id = 123",
-        )
-        self.assertEqual(
-            parse_and_gen("FETCH 1000 FROM cursor_123"),
-            "FETCH 1000 FROM cursor_123",
-        )
-        self.assertEqual(
-            parse_and_gen("CLOSE cursor_123"), "CLOSE cursor_123")
+    def test_pgsql_parse_insert_06(self):
+        """
+        INSERT INTO table_one (id, name) SELECT * from table_two
+% OK %
+        INSERT INTO table_one (id, name) ((SELECT * FROM table_two))
+        """
 
-        self.assertEqual(
-            parse_and_gen(
-                "CREATE TABLE types ("
-                "a float(2), b float(49), "
-                "c NUMERIC(2, 3), d character(4), e char(5), "
-                "f varchar(6), g character varying(7))"
-            ),
-            "CREATE TABLE types ("
-            "a float(2), b float(49), "
-            "c NUMERIC(2, 3), d character(4), e char(5), "
-            "f varchar(6), g character varying(7))",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "CREATE VIEW view_a (a, b) AS WITH RECURSIVE view_a (a, b) AS"
-                ' (SELECT * FROM a(1)) SELECT "a", "b" FROM "view_a"'
-            ),
-            "CREATE VIEW view_a (a, b) AS WITH RECURSIVE view_a (a, b) AS"
-            ' (SELECT * FROM a(1)) SELECT "a", "b" FROM "view_a"',
-        )
-        self.assertEqual(
-            parse_and_gen("CREATE FOREIGN TABLE ft1 () SERVER no_server"),
-            "CREATE FOREIGN TABLE ft1 () SERVER no_server",
-        )
-        self.assertEqual(
-            parse_and_gen(
-                "CREATE TEMPORARY TABLE my_temp_table "
-                "(test_id integer NOT NULL) ON COMMIT DROP"
-            ),
-            "CREATE TEMPORARY TABLE my_temp_table "
-            "(test_id integer NOT NULL) ON COMMIT DROP",
-        )
-        self.assertEqual(
-            parse_and_gen("CREATE TEMPORARY TABLE my_temp_table AS SELECT 1"),
-            "CREATE TEMPORARY TABLE my_temp_table AS SELECT 1",
-        )
+    def test_pgsql_parse_insert_07(self):
+        """
+        WITH fake as (SELECT * FROM inner_table)
+        INSERT INTO dataset SELECT * FROM fake
+% OK %
+        WITH fake AS ((SELECT * FROM inner_table))
+        INSERT INTO dataset ((SELECT * FROM fake))
+        """
+
+    def test_pgsql_parse_insert_08(self):
+        """
+        INSERT INTO test (a, b) VALUES
+        (ARRAY[$1, $1, $2, $3], $4::timestamptz),
+        (ARRAY[$1, $1, $2, $3], $4::timestamptz),
+        ($5, $6::timestamptz)
+% OK %
+        INSERT INTO test (a, b) VALUES
+        (ARRAY[$1, $1, $2, $3], ($4)::timestamptz),
+        (ARRAY[$1, $1, $2, $3], ($4)::timestamptz),
+        ($5, ($6)::timestamptz)
+        """
+
+    def test_pgsql_parse_insert_09(self):
+        """
+        INSERT INTO films (code, title, did) VALUES
+        ('UA502', 'Bananas', 105), ('T_601', 'Yojimbo', DEFAULT)
+        """
+
+    def test_pgsql_parse_insert_10(self):
+        """
+        INSERT INTO films (code, title, did) VALUES ($1, $2, $3)
+        """
+
+    def test_pgsql_parse_update_00(self):
+        """
+        UPDATE my_table SET the_value = DEFAULT
+        """
+
+    def test_pgsql_parse_update_01(self):
+        """
+        UPDATE tictactoe SET board[1:3][1:3] = '{{,,},{,,},{,,}}'
+        WHERE game = 1
+% OK %
+        UPDATE tictactoe SET board[1:3][1:3] = '{{,,},{,,},{,,}}'
+        WHERE (game = 1)
+        """
+
+    def test_pgsql_parse_update_02(self):
+        """
+        UPDATE accounts SET
+        (contact_first_name, contact_last_name) =
+        (SELECT first_name, last_name
+        FROM salesmen WHERE salesmen.id = accounts.sales_id)
+% OK %
+        UPDATE accounts SET
+        (contact_first_name, contact_last_name) =
+        ((SELECT first_name, last_name
+        FROM salesmen WHERE (salesmen.id = accounts.sales_id)))
+        """
+
+    def test_pgsql_parse_update_03(self):
+        """
+        UPDATE my_table SET id = 5; DELETE FROM my_table
+        """
+
+    def test_pgsql_parse_update_04(self):
+        """
+        UPDATE dataset SET a = 5
+        WHERE id IN (SELECT * from table_one)
+        OR age IN (select * from table_two)
+% OK %
+        UPDATE dataset SET a = 5
+        WHERE (id IN ((SELECT * FROM table_one))
+        OR age IN ((SELECT * FROM table_two)))
+        """
+
+    def test_pgsql_parse_update_05(self):
+        """
+        UPDATE dataset SET a = 5 FROM extra WHERE b = c
+% OK %
+        UPDATE dataset SET a = 5 FROM extra WHERE (b = c)
+        """
+
+    def test_pgsql_parse_update_06(self):
+        """
+        UPDATE users SET one_thing = $1, second_thing = $2
+        WHERE users.id = $1
+% OK %
+        UPDATE users SET one_thing = $1, second_thing = $2
+        WHERE (users.id = $1)
+        """
+
+    def test_pgsql_parse_update_07(self):
+        """
+        UPDATE users SET something_else = $1 WHERE users.id = $1
+% OK %
+        UPDATE users SET something_else = $1 WHERE (users.id = $1)
+        """
+
+    def test_pgsql_parse_update_08(self):
+        """
+        UPDATE users SET something_else =
+        (SELECT a FROM x WHERE uid = users.id LIMIT 1)
+        WHERE users.id = $1
+% OK %
+        UPDATE users SET something_else =
+        ((SELECT a FROM x WHERE (uid = users.id) LIMIT 1))
+        WHERE (users.id = $1)
+        """
+
+    def test_pgsql_parse_update_09(self):
+        """
+        UPDATE x SET a = 1, b = 2, c = 3
+        """
+
+    def test_pgsql_parse_update_10(self):
+        """
+        UPDATE x SET z = now()
+        """
+
+    def test_pgsql_parse_delete(self):
+        """
+        DELETE FROM dataset USING table_one
+        WHERE x = y OR x IN (SELECT * from table_two)
+% OK %
+        DELETE FROM dataset USING table_one
+        WHERE ((x = y) OR x IN ((SELECT * FROM table_two)))
+        """
+
+    def test_pgsql_parse_query_00(self):
+        """
+        SELECT * FROM
+        (VALUES (1, 'one'), (2, 'two')) AS t(num, letter)
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_01(self):
+        """
+        SELECT * FROM my_table ORDER BY field ASC NULLS LAST USING @>
+        """
+
+    @test.xfail("unsupported")
+    def test_pgsql_parse_query_02(self):
+        """
+        SELECT m.* FROM mytable AS m FOR UPDATE
+        """
+
+    @test.xfail("unsupported")
+    def test_pgsql_parse_query_03(self):
+        """
+        SELECT m.* FROM mytable m FOR SHARE of m nowait
+        """
+
+    def test_pgsql_parse_query_04(self):
+        """
+        SELECT * FROM unnest(ARRAY['a', 'b', 'c', 'd', 'e', 'f'])
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_06(self):
+        """
+        SELECT ?
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_07(self):
+        """
+        SELECT * FROM x WHERE y = ?
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_08(self):
+        """
+        SELECT * FROM x WHERE y = ANY ($1)
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_09(self):
+        """
+        PREPARE a123 AS SELECT a
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_10(self):
+        """
+        EXECUTE a123
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_11(self):
+        """
+        DEALLOCATE a123
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_12(self):
+        """
+        DEALLOCATE ALL
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_13(self):
+        """
+        EXPLAIN ANALYZE SELECT a
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_14(self):
+        """
+        VACUUM FULL my_table
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_15(self):
+        """
+        SAVEPOINT some_id
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_16(self):
+        """
+        RELEASE some_id
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_17(self):
+        """
+        PREPARE TRANSACTION 'some_id'
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_18(self):
+        """
+        START TRANSACTION READ WRITE
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_19(self):
+        """
+        DECLARE cursor_123 CURSOR FOR
+        SELECT * FROM test WHERE id = 123
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_20(self):
+        """
+        FETCH 1000 FROM cursor_123
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_21(self):
+        """
+        CLOSE cursor_123
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_22(self):
+        """
+        CREATE VIEW view_a (a, b) AS WITH RECURSIVE view_a (a, b) AS
+        (SELECT * FROM a(1)) SELECT "a", "b" FROM "view_a"
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_23(self):
+        """
+        CREATE FOREIGN TABLE ft1 () SERVER no_server
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_24(self):
+        """
+        CREATE TEMPORARY TABLE my_temp_table
+        (test_id integer NOT NULL) ON COMMIT DROP
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_25(self):
+        """
+        CREATE TEMPORARY TABLE my_temp_table AS SELECT 1
+        """
+
+    @test.xerror("unsupported")
+    def test_pgsql_parse_query_26(self):
+        """
+        CREATE TABLE types (
+        a float(2), b float(49),
+        c NUMERIC(2, 3), d character(4), e char(5),
+        f varchar(6), g character varying(7))
+        """

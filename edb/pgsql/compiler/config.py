@@ -145,9 +145,9 @@ def compile_ConfigSet(
                 ]
             ),
             cols=[
-                pgast.ColumnRef(name=['name']),
-                pgast.ColumnRef(name=['value']),
-                pgast.ColumnRef(name=['type']),
+                pgast.InsertTarget(name='name'),
+                pgast.InsertTarget(name='value'),
+                pgast.InsertTarget(name='type'),
             ],
             on_conflict=pgast.OnConflictClause(
                 action='update',
@@ -212,8 +212,8 @@ def compile_ConfigSet(
                 ]
             ),
             cols=[
-                pgast.ColumnRef(name=['name']),
-                pgast.ColumnRef(name=['value']),
+                pgast.InsertTarget(name='name'),
+                pgast.InsertTarget(name='value'),
             ],
             on_conflict=pgast.OnConflictClause(
                 action='update',

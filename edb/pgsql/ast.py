@@ -413,6 +413,13 @@ class ResTarget(ImmutableBaseExpr):
     val: BaseExpr
 
 
+class InsertTarget(ImmutableBaseExpr):
+    """Column reference in INSERT."""
+
+    # Column name
+    name: str
+
+
 class UpdateTarget(ImmutableBaseExpr):
     """Query update target."""
 
@@ -420,6 +427,8 @@ class UpdateTarget(ImmutableBaseExpr):
     name: str | typing.List[str]
     # value expression to assign
     val: BaseExpr
+    # subscripts, field names and '*'
+    indirection: typing.Optional[typing.List[IndirectionOp]] = None
 
 
 class InferClause(ImmutableBaseExpr):
@@ -436,7 +445,9 @@ class OnConflictClause(ImmutableBaseExpr):
 
     action: str
     infer: typing.Optional[InferClause]
-    target_list: typing.Optional[list] = None
+    target_list: typing.Optional[
+        typing.List[UpdateTarget | MultiAssignRef]
+    ] = None
     where: typing.Optional[BaseExpr] = None
 
 
@@ -532,7 +543,7 @@ class DMLQuery(Query):
 class InsertStmt(DMLQuery):
 
     # (optional) list of target column names
-    cols: typing.Optional[typing.List[ColumnRef]] = None
+    cols: typing.Optional[typing.List[InsertTarget]] = None
     # source SELECT/VALUES or None
     select_stmt: typing.Optional[Query] = None
     # ON CONFLICT clause
@@ -542,7 +553,9 @@ class InsertStmt(DMLQuery):
 class UpdateStmt(DMLQuery):
 
     # The UPDATE target list
-    targets: typing.List[UpdateTarget] = ast.field(factory=list)
+    targets: typing.List[UpdateTarget | MultiAssignRef] = ast.field(
+        factory=list
+    )
     # WHERE clause
     where_clause: typing.Optional[BaseExpr] = None
     # optional FROM clause
@@ -745,13 +758,16 @@ class Slice(ImmutableBaseExpr):
     ridx: typing.Optional[BaseExpr]
 
 
+IndirectionOp = Slice | Index | ColumnRef | Star
+
+
 class Indirection(ImmutableBaseExpr):
     """Field and/or array element indirection."""
 
     # Indirection subject
     arg: BaseExpr
     # Subscripts and/or field names and/or '*'
-    indirection: list
+    indirection: typing.List[IndirectionOp]
 
 
 class ArrayExpr(ImmutableBaseExpr):
@@ -867,6 +883,8 @@ class SubLink(ImmutableBaseExpr):
     type: SubLinkType
     # Sublink expression
     expr: BaseExpr
+    # Sublink expression
+    test_expr: typing.Optional[BaseExpr] = None
     # Sublink is never NULL
     nullable: bool = False
 

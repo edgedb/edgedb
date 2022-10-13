@@ -39,7 +39,7 @@ def _maybe(node: Node, name: str, builder: Callable[[Node], T]) -> Optional[T]:
     return None
 
 
-def ident(t: T) -> U:
+def _ident(t: T) -> U:
     return t  # type: ignore
 
 
@@ -47,7 +47,7 @@ def _list(
     node: Node,
     name: str,
     builder: Callable[[Node], T],
-    mapper: Callable[[T], U] = ident,
+    mapper: Callable[[T], U] = _ident,
 ) -> List[U]:
     return [mapper(builder(n)) for n in node[name]]
 
@@ -56,7 +56,7 @@ def _maybe_list(
     node: Node,
     name: str,
     builder: Callable[[Node], T],
-    mapper: Callable[[T], U] = ident,
+    mapper: Callable[[T], U] = _ident,
 ) -> Optional[List[U]]:
     return _list(node, name, builder, mapper) if name in node else None
 
@@ -92,7 +92,7 @@ def _build_bool(node: Node) -> bool:
     return node
 
 
-def _maybe_bool(node: Node, name: str) -> bool:
+def _bool_or_false(node: Node, name: str) -> bool:
     return node[name] if name in node else False
 
 
@@ -100,6 +100,16 @@ def _unwrap(node: Node, name: str) -> pgast.Query:
     if isinstance(node, dict) and name in node:
         return node[name]
     return node
+
+
+def _probe(n: Node, keys: List[str | int]) -> bool:
+    for key in keys:
+        contained = key in n if isinstance(key, str) else key < len(n)
+        if contained:
+            n = n[key]
+        else:
+            return False
+    return True
 
 
 def _as_column_ref(name: str) -> pgast.ColumnRef:
@@ -114,6 +124,8 @@ def _build_query(node: Node) -> pgast.Query:
         {
             "SelectStmt": _build_select_stmt,
             "InsertStmt": _build_insert_stmt,
+            "UpdateStmt": _build_update_stmt,
+            "DeleteStmt": _build_delete_stmt,
         },
     )
 
@@ -146,21 +158,44 @@ def _build_select_stmt(n: Node) -> pgast.SelectStmt:
 
 
 def _build_insert_stmt(n: Node) -> pgast.InsertStmt:
-    # Insert is currently unsupported,
-    # because ResTarget#val is required in our AST
-
-    op = _maybe(n, "op", _build_str)
-    if op:
-        op = op[6:]
-        if op == "NONE":
-            op = None
     return pgast.InsertStmt(
         relation=_maybe(n, "relation", _build_rel_range_var),
         returning_list=_maybe_list(n, "returningList", _build_res_target)
         or [],
-        cols=_maybe_list(n, "cols", _build_res_target),
-        select_stmt=_maybe(n, "select_stmt", _build_query),
+        cols=_maybe_list(n, "cols", _build_insert_target),
+        select_stmt=_maybe(n, "selectStmt", _build_query),
         on_conflict=_maybe(n, "on_conflict", _build_on_conflict),
+        ctes=_maybe(n, "withClause", _build_ctes),
+    )
+
+
+def _build_update_stmt(n: Node) -> pgast.UpdateStmt:
+    return pgast.UpdateStmt(
+        relation=_maybe(n, "relation", _build_rel_range_var),
+        targets=_build_targets(n, "targetList") or [],
+        where_clause=_maybe(n, "whereClause", _build_base_expr),
+        from_clause=_maybe_list(n, "fromClause", _build_base_range_var) or [],
+    )
+
+
+def _build_delete_stmt(n: Node) -> pgast.DeleteStmt:
+    return pgast.DeleteStmt(
+        relation=_maybe(n, "relation", _build_rel_range_var),
+        returning_list=_maybe_list(n, "returningList", _build_res_target)
+        or [],
+        where_clause=_maybe(n, "whereClause", _build_base_expr),
+        using_clause=_maybe_list(n, "usingClause", _build_base_range_var)
+        or [],
+    )
+
+
+def _build_base(n: Node) -> pgast.Base:
+    return _enum(
+        n,
+        {
+            "CommonTableExpr": _build_cte,
+        },
+        [_build_base_expr],  # type: ignore
     )
 
 
@@ -169,7 +204,6 @@ def _build_base_expr(node: Node) -> pgast.BaseExpr:
         node,
         {
             "ResTarget": _build_res_target,
-            "ColumnRef": _build_column_ref,
             "FuncCall": _build_func_call,
             "List": _build_implicit_row,
             "A_Expr": _build_a_expr,
@@ -183,18 +217,20 @@ def _build_base_expr(node: Node) -> pgast.BaseExpr:
             "RowExpr": _build_row_expr,
             "SubLink": _build_sub_link,
             "ParamRef": _build_param_ref,
+            "SetToDefault": _build_keyword("DEFAULT"),
         },
-        [_build_base_range_var],  # type: ignore
+        [_build_base_range_var, _build_indirection_op],  # type: ignore
     )
 
 
-def _build_base(n: Node) -> pgast.Base:
+def _build_indirection_op(n: Node) -> pgast.IndirectionOp:
     return _enum(
         n,
         {
-            "CommonTableExpr": _build_cte,
+            'A_Indices': _build_index_or_slice,
+            'Star': lambda _: pgast.Star(),
+            'ColumnRef': _build_column_ref,
         },
-        [_build_base_expr],  # type: ignore
     )
 
 
@@ -214,10 +250,16 @@ def _build_cte(n: Node) -> pgast.CommonTableExpr:
     return pgast.CommonTableExpr(
         name=n["ctename"],
         query=_build_query(n["ctequery"]),
-        recursive=_maybe_bool(n, "cterecursive"),
-        aliascolnames=_maybe_list(n, "aliascolnames", _build_str), # type: ignore
+        recursive=_bool_or_false(n, "cterecursive"),
+        aliascolnames=_maybe_list(
+            n, "aliascolnames", _build_str  # type: ignore
+        ),
         materialized=materialized,
     )
+
+
+def _build_keyword(name: str) -> Callable[[Node], pgast.Keyword]:
+    return lambda _: pgast.Keyword(name=name)
 
 
 def _build_param_ref(n: Node) -> pgast.BaseParamRef:
@@ -239,7 +281,11 @@ def _build_sub_link(n: Node) -> pgast.SubLink:
     else:
         raise PSqlUnsupportedError(f"unknown SubLink type: `{typ}`")
 
-    return pgast.SubLink(type=type, expr=_build_query(n["subselect"]))
+    return pgast.SubLink(
+        type=type,
+        expr=_build_query(n["subselect"]),
+        test_expr=_maybe(n, 'testexpr', _build_base_expr),
+    )
 
 
 def _build_row_expr(n: Node) -> pgast.ImplicitRowExpr:
@@ -271,7 +317,7 @@ def _build_type_cast(n: Node) -> pgast.TypeCast:
 def _build_type_name(n: Node) -> pgast.TypeName:
     return pgast.TypeName(
         name=tuple(_list(n, "names", _build_str)),
-        setof=_maybe_bool(n, "setof"),
+        setof=_bool_or_false(n, "setof"),
         typmods=None,
         array_bounds=None,
     )
@@ -346,7 +392,7 @@ def _build_string_constant(n: Node) -> pgast.StringConstant:
 def _build_range_subselect(n: Node) -> pgast.RangeSubselect:
     return pgast.RangeSubselect(
         alias=_maybe(n, "alias", _build_alias) or pgast.Alias(aliasname=""),
-        lateral=_maybe_bool(n, "lateral"),
+        lateral=_bool_or_false(n, "lateral"),
         subquery=_build_query(n["subquery"]),
     )
 
@@ -354,9 +400,9 @@ def _build_range_subselect(n: Node) -> pgast.RangeSubselect:
 def _build_range_function(n: Node) -> pgast.RangeFunction:
     return pgast.RangeFunction(
         alias=_maybe(n, "alias", _build_alias) or pgast.Alias(aliasname=""),
-        lateral=_maybe_bool(n, "lateral"),
-        with_ordinality=_maybe_bool(n, "with_ordinality"),
-        is_rowsfrom=_maybe_bool(n, "is_rowsfrom"),
+        lateral=_bool_or_false(n, "lateral"),
+        with_ordinality=_bool_or_false(n, "with_ordinality"),
+        is_rowsfrom=_bool_or_false(n, "is_rowsfrom"),
         functions=_build_implicit_row(n["functions"]).args,  # type: ignore
     )
 
@@ -376,7 +422,7 @@ def _build_rel_range_var(n: Node) -> pgast.RelRangeVar:
     return pgast.RelRangeVar(
         alias=_maybe(n, "alias", _build_alias) or pgast.Alias(aliasname=""),
         relation=_build_base_relation(n),
-        include_inherited=_build_bool(n["inh"]),
+        include_inherited=_bool_or_false(n, "inh"),
     )
 
 
@@ -438,19 +484,47 @@ def _build_func_call(n: Node) -> pgast.FuncCall:
         args=_maybe_list(n, "args", _build_base_expr) or [],
         agg_order=_maybe_list(n, "aggOrder", _build_sort_by),
         agg_filter=_maybe(n, "aggFilter", _build_base_expr),
-        agg_star=_maybe_bool(n, "agg_star"),
-        agg_distinct=_maybe_bool(n, "agg_distinct"),
+        agg_star=_bool_or_false(n, "agg_star"),
+        agg_distinct=_bool_or_false(n, "agg_distinct"),
         over=_maybe(n, "over", _build_window_def),
-        with_ordinality=_maybe_bool(n, "withOrdinality"),
+        with_ordinality=_bool_or_false(n, "withOrdinality"),
     )
+
+
+def _build_index_or_slice(n: Node) -> pgast.Slice | pgast.Index:
+    if n['is_slice']:
+        return pgast.Slice(
+            lidx=_build_base_expr(n['lidx']),
+            ridx=_build_base_expr(n['uidx']),
+        )
+    else:
+        return pgast.Index(
+            idx=_build_base_expr(n['lidx']),
+        )
 
 
 def _build_res_target(n: Node) -> pgast.ResTarget:
     n = _unwrap(n, "ResTarget")
     return pgast.ResTarget(
         name=_maybe(n, "name", _build_str),
-        indirection=_maybe_list(n, "indirection", _build_any),
+        indirection=_maybe_list(n, "indirection", _build_indirection_op),
         val=_build_base_expr(n["val"]),
+    )
+
+
+def _build_insert_target(n: Node) -> pgast.InsertTarget:
+    n = _unwrap(n, "ResTarget")
+    return pgast.InsertTarget(
+        name=_build_str(n['name']),
+    )
+
+
+def _build_update_target(n: Node) -> pgast.UpdateTarget:
+    n = _unwrap(n, "ResTarget")
+    return pgast.UpdateTarget(
+        name=_build_str(n['name']),
+        val=_build_base_expr(n['val']),
+        indirection=_maybe_list(n, "indirection", _build_indirection_op),
     )
 
 
@@ -487,6 +561,26 @@ def _build_sort_order(n: Node) -> qlast.SortOrder:
     return qlast.SortOrder.Asc
 
 
+def _build_targets(
+    n: Node, key: str
+) -> Optional[List[pgast.UpdateTarget | pgast.MultiAssignRef]]:
+    if _probe(n, [key, 0, "ResTarget", "val", "MultiAssignRef"]):
+        return [_build_multi_assign_ref(n[key])]
+    else:
+        return _maybe_list(n, key, _build_update_target)
+
+
+def _build_multi_assign_ref(targets: List[Node]) -> pgast.MultiAssignRef:
+    mar = targets[0]['ResTarget']['val']['MultiAssignRef']
+
+    return pgast.MultiAssignRef(
+        source=_build_base_expr(mar['source']),
+        columns=[
+            _as_column_ref(target['ResTarget']['name']) for target in targets
+        ],
+    )
+
+
 def _build_column_ref(node: Node) -> pgast.ColumnRef:
     return pgast.ColumnRef(
         name=_list(node, "fields", _build_string_or_star),
@@ -506,7 +600,7 @@ def _build_on_conflict(n: Node) -> pgast.OnConflictClause:
     return pgast.OnConflictClause(
         action=_build_str(n["action"]),
         infer=_maybe(n, "infer", _build_infer_clause),
-        target_list=_maybe(n, "targetList", _build_str),  # type: ignore
+        target_list=_build_targets(n, "targetList"),
         where=_maybe(n, "where", _build_base_expr),
     )
 

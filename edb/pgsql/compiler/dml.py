@@ -35,7 +35,7 @@ from __future__ import annotations
 from typing import *
 
 from edb.common import uuidgen
-from edb.common.typeutils import not_none
+from edb.common.typeutils import downcast, not_none
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -731,8 +731,7 @@ def process_insert_body(
 
     # Populate the real insert statement based on the select we generated
     insert_stmt.cols = [
-        pgast.ColumnRef(name=[not_none(value.name)])
-        for value in values
+        pgast.InsertTarget(name=not_none(value.name)) for value in values
     ]
     insert_stmt.select_stmt = pgast.SelectStmt(
         target_list=[
@@ -2138,7 +2137,10 @@ def process_link_update(
         query=pgast.InsertStmt(
             relation=target_rvar,
             select_stmt=data_select,
-            cols=cols,
+            cols=[
+                pgast.InsertTarget(name=downcast(col.name[0], str))
+                for col in cols
+            ],
             on_conflict=conflict_clause,
             returning_list=[
                 pgast.ResTarget(
