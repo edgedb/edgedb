@@ -43,6 +43,9 @@ class Base(ast.AST):
 
     context: typing.Optional[parsing.ParserContext] = None
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
     def __repr__(self):
         return f'<pg.{self.__class__.__name__} at 0x{id(self):x}>'
 
@@ -85,7 +88,7 @@ class BaseExpr(Base):
     def __init__(self, *, nullable: typing.Optional[bool]=None,
                  **kwargs) -> None:
         nullable = self._is_nullable(kwargs, nullable)
-        super().__init__(**kwargs)
+        super().__init__(nullable=nullable, **kwargs)
 
     def _is_nullable(self, kwargs: typing.Dict[str, object],
                      nullable: typing.Optional[bool]) -> bool:
