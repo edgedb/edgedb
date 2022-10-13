@@ -112,9 +112,9 @@ jobs:
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
         restore-keys: |
-          edb-ext-v4-
+          edb-ext-v5-
 
     - name: Handle cached PostgreSQL build
       uses: actions/cache@v2
@@ -453,7 +453,7 @@ jobs:
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
       uses: actions/cache@v2
@@ -588,7 +588,7 @@ jobs:
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v5-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
       uses: actions/cache@v2
