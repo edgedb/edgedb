@@ -21,7 +21,7 @@ jobs:
       shell: bash
       run: |
         branch=${GITHUB_REF#refs/heads/}
-        echo ::set-output name=branch::"${branch}"
+        echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
 
