@@ -613,7 +613,10 @@ def declare_view(
     pinned_pid_ns = path_id_namespace
 
     with ctx.newscope(fenced=True) as subctx:
-        subctx.path_scope.factoring_fence = factoring_fence
+        if factoring_fence:
+            subctx.path_scope.factoring_fence = True
+            subctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
+
         if path_id_namespace is not None:
             subctx.path_id_namespace = path_id_namespace
 

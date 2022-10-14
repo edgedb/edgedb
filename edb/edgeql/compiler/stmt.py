@@ -167,12 +167,6 @@ def compile_ForQuery(
             iterator = iterator.elements[0]
 
         contains_dml = qlutils.contains_dml(qlstmt.result)
-        # If the body contains DML, then we need to prohibit
-        # correlation between the iterator and the enclosing
-        # query, since the correlation imposes compilation issues
-        # we aren't willing to tackle.
-        if contains_dml:
-            sctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
 
         with sctx.new() as ectx:
             if ectx.expr_exposed:
@@ -205,22 +199,20 @@ def compile_ForQuery(
             ctx=sctx,
         )
 
-        # Iterator symbol is, by construction, outside of the scope
-        # of the UNION argument, but is perfectly legal to be referenced
-        # inside a factoring fence that is an immediate child of this
-        # scope.
-        sctx.path_scope.factoring_allowlist.add(stmt.iterator_stmt.path_id)
         sctx.iterator_path_ids |= {stmt.iterator_stmt.path_id}
         node = sctx.path_scope.find_descendant(iterator_stmt.path_id)
         if node is not None:
-            # See above about why we need a factoring fence.
-            # We need to do this again when we move the branch so
-            # as to preserve the fencing.
+            # If the body contains DML, then we need to prohibit
+            # correlation between the iterator and the enclosing
+            # query, since the correlation imposes compilation issues
+            # we aren't willing to tackle.
+            #
             # Do this by sticking the iterator subtree onto a branch
             # with a factoring fence.
             if contains_dml:
                 node = node.attach_branch()
                 node.factoring_fence = True
+                node.factoring_allowlist.update(ctx.iterator_path_ids)
                 node = node.attach_branch()
 
             node.attach_subtree(view_scope_info.path_scope,
@@ -1124,7 +1116,7 @@ def init_stmt(
 
     if isinstance(irstmt, irast.MutatingStmt):
         ctx.path_scope.factoring_fence = True
-        parent_ctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
+        ctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
 
 
 def fini_stmt(

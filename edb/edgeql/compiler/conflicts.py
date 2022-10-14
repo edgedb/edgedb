@@ -541,16 +541,17 @@ def compile_insert_unless_conflict_on(
                 context=constraint_spec.context,
             )
 
-        # The ELSE needs to be able to reference the subject in an
-        # UPDATE, even though that would normally be prohibited.
-        ctx.path_scope.factoring_allowlist.add(stmt.subject.path_id)
+        with ctx.new() as ectx:
+            # The ELSE needs to be able to reference the subject in an
+            # UPDATE, even though that would normally be prohibited.
+            ectx.iterator_path_ids |= {stmt.subject.path_id}
 
-        pathctx.ban_inserting_path(
-            stmt.subject.path_id, location='else', ctx=ctx)
+            pathctx.ban_inserting_path(
+                stmt.subject.path_id, location='else', ctx=ectx)
 
-        # Compile else
-        else_ir = dispatch.compile(
-            astutils.ensure_qlstmt(else_branch), ctx=ctx)
+            # Compile else
+            else_ir = dispatch.compile(
+                astutils.ensure_qlstmt(else_branch), ctx=ectx)
         assert isinstance(else_ir, irast.Set)
 
     return irast.OnConflictClause(
