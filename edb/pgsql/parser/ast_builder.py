@@ -289,7 +289,7 @@ def _build_keyword(name: str) -> Builder[pgast.Keyword]:
     return lambda n, c: pgast.Keyword(name=name, context=_build_context(n, c))
 
 
-def _build_param_ref(n: Node, c: Context) -> pgast.BaseParamRef:
+def _build_param_ref(n: Node, c: Context) -> pgast.ParamRef:
     return pgast.ParamRef(number=n["number"], context=_build_context(n, c))
 
 

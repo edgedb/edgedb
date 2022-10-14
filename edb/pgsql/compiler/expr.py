@@ -119,15 +119,15 @@ def compile_Parameter(
         expr: irast.Parameter, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
-    result: pgast.BaseParamRef
+    result: pgast.BaseExpr
     is_decimal: bool = expr.name.isdecimal()
 
     params = [p for p in ctx.env.query_params if p.name == expr.name]
     param = params[0] if params else None
 
     if not is_decimal and ctx.env.use_named_params:
-        result = pgast.NamedParamRef(
-            name=expr.name,
+        result = pgast.ColumnRef(
+            name=(expr.name, ),
             nullable=not expr.required,
         )
     elif param and param.sub_params:
