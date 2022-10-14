@@ -40,8 +40,8 @@ from . import pathctx
 
 
 def compile_where_clause(
-        where: Optional[qlast.Base], *,
-        ctx: context.ContextLevel) -> None:
+    where: Optional[qlast.Base], *, ctx: context.ContextLevel
+) -> Optional[irast.Set]:
 
     if where is None:
         return None

@@ -510,10 +510,10 @@ def compile_InsertQuery(
                 ctx=resultctx,
             )
 
-        if pol_condition := policies.compile_dml_policy(
+        if pol_condition := policies.compile_dml_write_policies(
             mat_stype, result, mode=qltypes.AccessKind.Insert, ctx=ctx
         ):
-            stmt.write_policy_exprs[mat_stype.id] = pol_condition
+            stmt.write_policies[mat_stype.id] = pol_condition
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -631,14 +631,14 @@ def compile_UpdateQuery(
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
-            if pol_cond := policies.compile_dml_policy(
+            if read_pol := policies.compile_dml_read_policies(
                 dtype, result, mode=qltypes.AccessKind.UpdateRead, ctx=ctx
             ):
-                stmt.read_policy_exprs[dtype.id] = pol_cond
-            if pol_cond := policies.compile_dml_policy(
+                stmt.read_policies[dtype.id] = read_pol
+            if write_pol := policies.compile_dml_write_policies(
                 dtype, result, mode=qltypes.AccessKind.UpdateWrite, ctx=ctx
             ):
-                stmt.write_policy_exprs[dtype.id] = pol_cond
+                stmt.write_policies[dtype.id] = write_pol
 
         stmt.conflict_checks = conflicts.compile_inheritance_conflict_checks(
             stmt, mat_stype, ctx=ictx)
@@ -751,10 +751,10 @@ def compile_DeleteQuery(
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
-            if pol_cond := policies.compile_dml_policy(
+            if pol_cond := policies.compile_dml_read_policies(
                 dtype, result, mode=qltypes.AccessKind.Delete, ctx=ctx
             ):
-                stmt.read_policy_exprs[dtype.id] = pol_cond
+                stmt.read_policies[dtype.id] = pol_cond
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 

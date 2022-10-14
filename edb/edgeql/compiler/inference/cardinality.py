@@ -1098,11 +1098,16 @@ def _infer_dml_check_cardinality(
     ctx: inference_context.InfCtx,
 ) -> None:
     pctx = ctx._replace(singletons=ctx.singletons | {ir.result.path_id})
-    for pol in [
-        *ir.read_policy_exprs.values(), *ir.write_policy_exprs.values()
-    ]:
-        pol.cardinality = infer_cardinality(
-            pol.expr, scope_tree=scope_tree, ctx=pctx)
+    for read_pol in ir.read_policies.values():
+        read_pol.cardinality = infer_cardinality(
+            read_pol.expr, scope_tree=scope_tree, ctx=pctx
+        )
+
+    for write_pol in ir.write_policies.values():
+        for p in write_pol.policies:
+            p.cardinality = infer_cardinality(
+                p.expr, scope_tree=scope_tree, ctx=pctx
+            )
 
     if ir.conflict_checks:
         for on_conflict in ir.conflict_checks:
@@ -1258,8 +1263,10 @@ def __infer_insert_stmt(
     # ... except if UNLESS CONFLICT is used
     else:
         return _infer_on_conflict_cardinality(
-            ir.on_conflict, type_has_rewrites=bool(ir.write_policy_exprs),
-            scope_tree=scope_tree, ctx=ctx,
+            ir.on_conflict,
+            type_has_rewrites=bool(ir.write_policies),
+            scope_tree=scope_tree,
+            ctx=ctx,
         )
 
 

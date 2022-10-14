@@ -286,9 +286,7 @@ def gen_dml_cte(
                 range_rvar, target_ir_set.path_id, env=ctx.env)
         )
         # Do any read-side filtering
-        if (
-            (pol_expr := ir_stmt.read_policy_exprs.get(typeref.id))
-        ):
+        if pol_expr := ir_stmt.read_policies.get(typeref.id):
             with ctx.newrel() as sctx:
                 pathctx.put_path_value_rvar(
                     sctx.rel, target_path_id, relation, env=ctx.env)
@@ -767,7 +765,7 @@ def process_insert_body(
 
     dml_cte = contents_cte if not needs_insert_on_conflict else insert_cte
 
-    pol_expr = ir_stmt.write_policy_exprs.get(typeref.id)
+    pol_expr = ir_stmt.write_policies.get(typeref.id)
     pol_ctx = None
     if pol_expr:
         with ctx.new() as pol_ctx:
@@ -821,12 +819,13 @@ def process_insert_body(
 
 
 def compile_policy_check(
-        dml_cte: pgast.CommonTableExpr,
-        ir_stmt: irast.MutatingStmt,
-        policy_expr: irast.PolicyExpr,
-        typeref: irast.TypeRef,
-        *,
-        ctx: context.CompilerContextLevel) -> pgast.CommonTableExpr:
+    dml_cte: pgast.CommonTableExpr,
+    ir_stmt: irast.MutatingStmt,
+    access_policies: irast.WritePolicies,
+    typeref: irast.TypeRef,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.CommonTableExpr:
     subject_id = ir_stmt.subject.path_id
 
     with ctx.newrel() as ictx:
@@ -839,32 +838,80 @@ def compile_policy_check(
         dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
         relctx.include_rvar(ictx.rel, dml_rvar, path_id=subject_id, ctx=ictx)
 
-        cond_ref = clauses.compile_filter_clause(
-            policy_expr.expr, policy_expr.cardinality, ctx=ictx)
+        def raise_if(
+            a: pgast.BaseExpr, compare_to: bool, hint: Optional[str]
+        ) -> pgast.BaseExpr:
+            if isinstance(ir_stmt, irast.InsertStmt):
+                op = 'insert'
+            else:
+                op = 'update'
+            msg = f'access policy violation on {op} of {typeref.name_hint}'
+            if hint:
+                msg += ' (' + hint + ')'
+            return pgast.FuncCall(
+                name=('edgedb', 'raise_on_null'),
+                args=[
+                    pgast.FuncCall(
+                        name=('nullif',),
+                        args=[
+                            a,
+                            pgast.BooleanConstant(val=str(compare_to).lower()),
+                        ],
+                    ),
+                    pgast.StringConstant(val='insufficient_privilege'),
+                    pgast.NamedFuncArg(
+                        name='msg',
+                        val=pgast.StringConstant(val=msg),
+                    ),
+                    pgast.NamedFuncArg(
+                        name='table',
+                        val=pgast.StringConstant(val=str(typeref.id)),
+                    ),
+                ],
+            )
 
-        op = 'insert' if isinstance(ir_stmt, irast.InsertStmt) else 'update'
-        msg = f'access policy violation on {op} of {typeref.name_hint}'
-        maybe_raise = pgast.FuncCall(
-            name=('edgedb', 'raise_on_null'),
-            args=[
-                pgast.FuncCall(
-                    name=('nullif',),
-                    args=[cond_ref, pgast.BooleanConstant(val='false')],
-                ),
-                pgast.StringConstant(val='insufficient_privilege'),
-                pgast.NamedFuncArg(
-                    name='msg',
-                    val=pgast.StringConstant(val=msg),
-                ),
-                pgast.NamedFuncArg(
-                    name='table',
-                    val=pgast.StringConstant(val=str(typeref.id)),
-                ),
-            ],
-        )
+        # split and compile
+        allow, deny = [], []
+        for policy in access_policies.policies:
+            cond_ref = clauses.compile_filter_clause(
+                policy.expr, policy.cardinality, ctx=ictx
+            )
+
+            if policy.action == qltypes.AccessPolicyAction.Allow:
+                allow.append((policy, cond_ref))
+            else:
+                deny.append((policy, cond_ref))
+
+        # allow
+        allow_expr: pgast.BaseExpr
+        if allow:
+            allow_conds = (cond for _, cond in allow)
+            allow_expr = astutils.extend_binop(None, *allow_conds, op='OR')
+
+            allow_names = (pol.name for pol, _ in allow)
+            hint = 'none of these allow policies match: '
+            hint += ', '.join(allow_names)
+        else:
+            allow_expr = pgast.BooleanConstant(val='false')
+            hint = 'no allow policies'
+
         ictx.rel.target_list.append(
-            pgast.ResTarget(name='error', val=maybe_raise)
+            pgast.ResTarget(
+                name=f'error_allow',
+                val=raise_if(allow_expr, False, hint),
+            )
         )
+
+        # deny
+        for index, (policy, cond) in enumerate(deny):
+            hint = f'denied by policy {policy.name}'
+
+            ictx.rel.target_list.append(
+                pgast.ResTarget(
+                    name=f'error_{index}',
+                    val=raise_if(cond, True, hint),
+                )
+            )
 
         policy_cte = pgast.CommonTableExpr(
             query=ictx.rel,
@@ -1427,7 +1474,7 @@ def process_update_body(
 
         update_cte.query = update_stmt
 
-    pol_expr = ir_stmt.write_policy_exprs.get(typeref.id)
+    pol_expr = ir_stmt.write_policies.get(typeref.id)
     pol_ctx = None
     if pol_expr:
         with ctx.new() as pol_ctx:
