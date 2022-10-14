@@ -231,7 +231,7 @@ def _compile_group(
                 hoistctx.skippable_sources |= skippable
 
                 relgen.process_set_as_agg_expr_inner(
-                    group_use, hoistctx.rel,
+                    group_use,
                     aspect='value', wrapper=None, for_group_by=True,
                     ctx=hoistctx)
                 pathctx.get_path_value_output(
