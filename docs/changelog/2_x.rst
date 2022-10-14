@@ -609,6 +609,63 @@ Protocol overhaul
 * Propagate database creation and deletion events to adjacent servers
   (:eql:gh:`#4415`)
 
+2.4
+===
+
+* Fix database initialization on hosted environments like Heroku.
+  (:eql:gh:`#4432`)
+
+* Prevent spurious errors when using backlinks on types that have
+  properties with the same name but different types
+  (:eql:gh:`#4443`)
+
+* Fix some spurious errors when removing a link from the schema.
+  (:eql:gh:`#4451`)
+
+* For query_single, only check that the *last* query in a script is single.
+  (:eql:gh:`#4453`)
+
+* Catch when POPULATE MIGRATION generates incorrect DDL. This should prevent
+  bugs where the schema can get into wedged states.
+  (:eql:gh:`#4484`)
+
+* workflows: Publish multiarch Docker images
+  (:eql:gh:`#4486`)
+
+* Make unused param insertion in the sql compiler more reliable
+  (:eql:gh:`#4497`)
+
+* Properly propagate creation and deletion of extensions
+
+* Fix potential exclusive constraint violations when doing an UPDATE
+  on a union
+  (:eql:gh:`#4507`)
+
+* Don't lose type from inheritance views when rebasing
+  (:eql:gh:`#4509`)
+
+* Make object type descriptor ids be derived from type name
+  (:eql:gh:`#4503`)
+
+* Check for invalid arrays arguments at the protocol level
+  (:eql:gh:`#4511`)
+
+* Fix SET REQUIRED on newly created properties with alias subtypes
+  (:eql:gh:`#4513`)
+
+* Make newly created link properties get added to the relevant alias types
+  (:eql:gh:`#4512`)
+
+* Disallow queries using conflict machinery on a link property. This
+  prevents certain potential exclusive constraint violations that were
+  not handled correctly.
+  (:eql:gh:`#4515`)
+
+* Fix performing multiple deletions at once in the UI
+  (:eql:gh:`#4523`)
+
+* Fix casting empty sets to built in enum types
+  (:eql:gh:`#4532`)
 
 .. lint-off
 
