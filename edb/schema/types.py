@@ -2963,6 +2963,9 @@ def materialize_type_in_attribute(
                     context=srcctx,
                 )
             raise
+        except errors.InvalidPropertyDefinitionError as e:
+            e.set_source_context(srcctx)
+            raise
     elif not isinstance(type_ref, Type):
         raise AssertionError(
             f'unexpected value in type attribute {attrname!r} of '

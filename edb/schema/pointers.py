@@ -1730,7 +1730,7 @@ class PointerCommand(
 
             new_targets = [
                 utils.ast_to_type_shell(
-                    t,
+                    t,  # type: ignore
                     metaclass=s_types.Type,
                     modaliases=context.modaliases,
                     schema=schema,
@@ -1745,7 +1745,7 @@ class PointerCommand(
             )
         elif targets:
             target_expr = targets[0]
-            if isinstance(target_expr, qlast.TypeName):
+            if isinstance(target_expr, qlast.TypeExpr):
                 target_ref = utils.ast_to_type_shell(
                     target_expr,
                     metaclass=s_types.Type,
