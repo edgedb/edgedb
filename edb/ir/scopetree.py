@@ -756,10 +756,10 @@ class ScopeTreeNode:
 
             if node is not self:
                 ans_finfo = node.fence_info
-                parent_fence = node.parent_fence
-                if (parent_fence is not None
-                        and any(_paths_equal(path_id, wl, namespaces)
-                                for wl in parent_fence.factoring_allowlist)):
+                if any(
+                    _paths_equal(path_id, wl, namespaces)
+                    for wl in node.factoring_allowlist
+                ):
                     ans_finfo = FenceInfo(
                         unnest_fence=ans_finfo.unnest_fence,
                         factoring_fence=False,

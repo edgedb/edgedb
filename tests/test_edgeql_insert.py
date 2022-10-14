@@ -5695,3 +5695,20 @@ class TestInsert(tb.QueryTestCase):
                 notes := (select Note { foo := 0 })
             };
         ''')
+
+    async def test_edgeql_insert_bogus_correlation_typenames(self):
+        # This was being rejected with a correlation error
+        query = r'''
+            for l2 in <int64>{} union (
+                with
+                  subs := (select Subordinate filter .name = '')
+                insert InsertTest {
+                  subordinates := subs,
+                  l2 := l2,
+                }
+            );
+        '''
+
+        await self.con._fetchall(
+            query, __typenames__=True,
+        )
