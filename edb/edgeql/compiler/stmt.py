@@ -133,8 +133,7 @@ def compile_SelectQuery(
             forward_rptr=forward_rptr,
             ctx=sctx)
 
-        clauses.compile_where_clause(
-            stmt, expr.where, ctx=sctx)
+        stmt.where = clauses.compile_where_clause(expr.where, ctx=sctx)
 
         stmt.orderby = clauses.compile_orderby_clause(
             expr.orderby, ctx=sctx)
@@ -391,8 +390,7 @@ def compile_InternalGroupQuery(
                 result_alias=expr.result_alias,
                 ctx=bctx)
 
-            clauses.compile_where_clause(
-                stmt, expr.where, ctx=bctx)
+            stmt.where = clauses.compile_where_clause(expr.where, ctx=bctx)
 
             stmt.orderby = clauses.compile_orderby_clause(
                 expr.orderby, ctx=bctx)
@@ -600,8 +598,7 @@ def compile_UpdateQuery(
 
         ictx.partial_path_prefix = subject
 
-        clauses.compile_where_clause(
-            stmt, expr.where, ctx=ictx)
+        stmt.where = clauses.compile_where_clause(expr.where, ctx=ictx)
 
         with ictx.new() as bodyctx:
             bodyctx.class_view_overrides = ictx.class_view_overrides.copy()

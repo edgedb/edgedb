@@ -271,8 +271,7 @@ def try_type_rewrite(
                 subctx.partial_path_prefix = base_set
                 subctx.path_scope = subctx.env.path_scope.root.attach_fence()
 
-                clauses.compile_where_clause(
-                    filtered_stmt,
+                filtered_stmt.where = clauses.compile_where_clause(
                     get_rewrite_filter(
                         stype, mode=qltypes.AccessKind.Select, ctx=subctx),
                     ctx=subctx)
