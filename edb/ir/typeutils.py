@@ -246,12 +246,21 @@ def type_to_typeref(
         union_of = t.get_union_of(schema)
         union: Optional[FrozenSet[irast.TypeRef]]
         if union_of:
+            assert isinstance(t, s_objtypes.ObjectType)
+            union_types = {
+                cast(s_objtypes.ObjectType, c).get_nearest_non_derived_parent(
+                    schema)
+                for c in union_of.objects(schema)
+            }
             non_overlapping, union_is_concrete = (
-                s_utils.get_non_overlapping_union(
-                    schema,
-                    union_of.objects(schema),
-                )
+                s_utils.get_non_overlapping_union(schema, union_types)
             )
+            if union_is_concrete:
+                non_overlapping = frozenset({
+                    t for t in non_overlapping
+                    if t.is_material_object_type(schema)
+                })
+
             union = frozenset(
                 _typeref(c) for c in non_overlapping
             )
