@@ -31,6 +31,7 @@ from edb.ir import typeutils as irtyputils
 
 from edb.schema import name as s_name
 from edb.schema import pointers as s_pointers
+from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
 from . import context
@@ -76,7 +77,17 @@ def get_expression_path_id(
         ctx: context.ContextLevel) -> irast.PathId:
     if alias is None:
         alias = ctx.aliases.get('expr')
-    typename = s_name.QualName(module='__derived__', name=alias)
+    name = stype.get_name(ctx.env.schema)
+    # If the type comes from one of our standard modules, we need to
+    # make our derived typename also be from a standard module, so that
+    # if we need to generate a cast on the backend we can detect that
+    # it is a stdlib type and not a user one.
+    in_std_module = (
+        isinstance(name, s_name.QualName)
+        and s_name.UnqualName(name.module) in s_schema.STD_MODULES
+    )
+    modname = '__std_derived__' if in_std_module else '__derived__'
+    typename = s_name.QualName(module=modname, name=alias)
     return get_path_id(stype, typename=typename, ctx=ctx)
 
 
