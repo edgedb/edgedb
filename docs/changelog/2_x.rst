@@ -653,7 +653,7 @@ Protocol overhaul
 * Fix SET REQUIRED on newly created properties with alias subtypes
   (:eql:gh:`#4513`)
 
-* Make newly created linkprops get added to the relevant alias types
+* Make newly created link properties get added to the relevant alias types
   (:eql:gh:`#4512`)
 
 * Disallow queries using conflict machinery on a link property. This
@@ -663,6 +663,9 @@ Protocol overhaul
 
 * Fix performing multiple deletions at once in the UI
   (:eql:gh:`#4523`)
+
+* Fix casting empty sets to built in enum types
+  (:eql:gh:`#4532`)
 
 .. lint-off
 
