@@ -654,7 +654,7 @@ class NullConstant(BaseConstant):
 class ByteaConstant(BaseConstant):
     """An bytea string."""
 
-    val: str
+    val: bytes
 
 
 class NumericConstant(BaseConstant):

@@ -120,6 +120,7 @@ module = [
     "edb.graphql.types",
     "edb.ir.*",
     "edb.pgsql.metaschema",
+    "edb.pgsql.codegen",
     "edb.pgsql.compiler.*",
     "edb.repl.*",
     "edb.schema.*",
