@@ -2783,6 +2783,23 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 SELECT <array<foo>><array<bar>>['test']
             """)
 
+    async def test_edgeql_casts_std_enum_01(self):
+        await self.assert_query_result(
+            '''
+            select <schema::Cardinality>{}
+            ''',
+            [],
+        )
+
+    async def test_edgeql_casts_json_set_02(self):
+        await self.assert_query_result(
+            '''
+            select <tuple<str>>json_set(
+                to_json('["b"]'), "0", value := <json>"a");
+            ''',
+            [('a',)],
+        )
+
     async def test_edgeql_casts_all_null(self):
         # For *every* concrete cast, try casting a value we know
         # will be represented as NULL.
