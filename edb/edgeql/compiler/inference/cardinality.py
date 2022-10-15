@@ -130,8 +130,8 @@ def cartesian_cardinality(
         lower, upper = card
         return _bounds_to_card(min(lower), max(upper))
     else:
-        # no args is indicative of a empty set
-        return AT_MOST_ONE
+        # cartesian product of no arguments is ONE (the 0-tuple)
+        return ONE
 
 
 def max_cardinality(
@@ -140,12 +140,9 @@ def max_cardinality(
     '''Maximum lower and upper bound of specified cardinalities.'''
 
     card = list(zip(*(_card_to_bounds(a) for a in args)))
-    if card:
-        lower, upper = card
-        return _bounds_to_card(max(lower), max(upper))
-    else:
-        # no args is indicative of a empty set
-        return AT_MOST_ONE
+    assert card, "cannot take max cardinality of no elements"
+    lower, upper = card
+    return _bounds_to_card(max(lower), max(upper))
 
 
 def _union_cardinality(
@@ -161,7 +158,7 @@ def _union_cardinality(
             CB_MANY if len(upper) > 1 else upper[0],
         )
     else:
-        # no args is indicative of a empty set
+        # union of no args is an empty set
         return AT_MOST_ONE
 
 
@@ -1367,8 +1364,6 @@ def __infer_tuple(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    if not ir.elements:
-        return ONE
     return _common_cardinality(
         [el.val for el in ir.elements], scope_tree=scope_tree, ctx=ctx
     )
