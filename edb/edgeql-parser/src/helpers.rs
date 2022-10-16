@@ -82,7 +82,7 @@ fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
                                    .to_string())?;
                 match c {
                     c@'"' | c@'\\' | c@'/' | c@'\'' => res.push(c),
-                    'b' => res.push('\u{0010}'),
+                    'b' => res.push('\u{0008}'),
                     'f' => res.push('\u{000C}'),
                     'n' => res.push('\n'),
                     'r' => res.push('\r'),
