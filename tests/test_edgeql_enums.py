@@ -284,3 +284,16 @@ class TestEdgeQLEnums(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r'expected JSON string or null; got JSON number'):
             await self.con.execute("SELECT <color_enum_t><json>12")
+
+    async def test_edgeql_enums_anonymous(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidPropertyDefinitionError,
+            r'this type cannot be anonymous',
+        ):
+            await self.con.execute(
+                """
+                create type X {
+                    create property tier -> enum<"Basic", "Common", "Rare">;
+                }
+                """
+            )

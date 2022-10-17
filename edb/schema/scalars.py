@@ -272,8 +272,12 @@ class AnonymousEnumTypeShell(s_types.TypeShell[ScalarType]):
         self.elements = list(elements)
 
     def resolve(self, schema: s_schema.Schema) -> ScalarType:
-        raise NotImplementedError(
-            f'cannot resolve {self.__class__.__name__!r}'
+        raise errors.InvalidPropertyDefinitionError(
+            'this type cannot be anonymous',
+            details=(
+                'you may want define this enum first:\n\n'
+                '  scalar type MyEnum extending enum<...>;'
+            ),
         )
 
 
