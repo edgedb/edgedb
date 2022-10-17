@@ -12,6 +12,7 @@ Client Libraries
 * `TypeScript/Javascript <js/index>`_
 * `Go <go/index>`_
 * `Rust <rust/index>`_
+* `Dotnet <dotnet/index>`
 
 
 **Community-Maintained Clients**
@@ -35,6 +36,7 @@ Client Libraries
     go/index
     rust/index
     dart/index
+    dotnet/index
     http/index
     graphql/index
 
