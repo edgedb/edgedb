@@ -1185,23 +1185,31 @@ def _get_hard_deps(
 ) -> MutableSet[s_name.QualName]:
     deps: MutableSet[s_name.QualName] = set()
 
-    # If we have any type ops, get a flat list of their operands.
-    targets = qlast.get_targets(expr)
-    for target in targets:
+    if isinstance(expr, qlast.TypeName):
         # We care about subtypes dependencies, because
         # they can either be custom scalars or illegal
         # ObjectTypes (then error message will depend on
         # dependency tracing)
-        if target.subtypes:
-            for subtype in target.subtypes:
-                # Recurse!
+        if expr.subtypes:
+            for subtype in expr.subtypes:
                 deps |= _get_hard_deps(subtype, ctx=ctx)
 
         else:
             # Base case.
-            name = ctx.get_ref_name(target.maintype)
+            name = ctx.get_ref_name(expr.maintype)
             if name.get_module_name() not in s_schema.STD_MODULES:
                 deps.add(name)
+
+    elif isinstance(expr, qlast.TypeExprLiteral):
+        pass
+
+    elif isinstance(expr, qlast.TypeOf):
+        # TODO: maybe we should also recurse into the inner expr?
+        pass
+
+    elif isinstance(expr, qlast.TypeOp):
+        deps |= _get_hard_deps(expr.left, ctx=ctx)
+        deps |= _get_hard_deps(expr.right, ctx=ctx)
 
     return deps
 
