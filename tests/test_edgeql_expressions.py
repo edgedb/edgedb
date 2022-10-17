@@ -6615,6 +6615,15 @@ aa \
             variables=(None,),
         )
 
+    async def test_edgeql_expr_range_38(self):
+        # Test array of range as argument
+        await self.con.query(
+            '''
+            select <array<range<int64>>>$0
+            ''',
+            [edgedb.Range(0, 10)],
+        )
+
     async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to __type__'):
