@@ -2473,7 +2473,7 @@ class DurationInFunction(dbops.Function):
                         || quote_literal(val)
                     ),
                     detail => (
-                        '{"hint":"Units bigger than hours cannot be used '
+                        '{"hint":"Day, month and year units cannot be used '
                         || 'for std::duration."}'
                     )
                 )
