@@ -266,6 +266,7 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
         '''
             CREATE FUNCTION sys::_get_pg_type_for_edgedb_type(
                 typeid: std::uuid,
+                kind: std::str,
                 elemid: OPTIONAL std::uuid,
             ) -> std::int64 {
                 USING SQL FUNCTION 'edgedb.get_pg_type_for_edgedb_type';

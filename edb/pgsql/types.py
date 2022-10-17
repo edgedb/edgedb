@@ -72,6 +72,12 @@ type_to_range_name_map = {
     ('float8',): ('edgedb', 'float64_range_t'),
     ('edgedb', 'timestamptz_t'): ('edgedb', 'datetime_range_t'),
     ('edgedb', 'timestamp_t'): ('edgedb', 'local_datetime_range_t'),
+    # cal::local_date uses the built-in daterange instead of a custom
+    # one that actually uses edgedb.date_t as its subtype. This is
+    # because cal::local_date is discrete, and its range type should
+    # get canonicalized. Defining a canonicalization function for a
+    # custom range is a big hassle, and daterange already has the
+    # correct canonicalization function
     ('edgedb', 'date_t'): ('daterange',),
 }
 
