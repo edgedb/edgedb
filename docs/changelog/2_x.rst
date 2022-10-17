@@ -667,6 +667,12 @@ Protocol overhaul
 * Fix casting empty sets to built in enum types
   (:eql:gh:`#4532`)
 
+* Produce better error messages when using ``enum`` incorrectly
+  (:eql:gh:`#4527`)
+
+* Make ``'\b'`` produce the correct value in string and bytes literals
+  (:eql:gh:`#4535`)
+
 .. lint-off
 
 .. _group:
