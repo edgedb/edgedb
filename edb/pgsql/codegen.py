@@ -656,9 +656,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_ParamRef(self, node: pgast.ParamRef) -> None:
         self.write('$', str(node.number))
 
-    def visit_NamedParamRef(self, node: pgast.NamedParamRef) -> None:
-        self.write(common.quote_ident(node.name))
-
     def visit_RowExpr(self, node: pgast.RowExpr) -> None:
         self.write('ROW(')
         self.visit_list(node.args, newlines=False)

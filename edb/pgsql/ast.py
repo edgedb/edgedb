@@ -392,21 +392,11 @@ class TupleVar(TupleVarBase):
         self.typeref = typeref
 
 
-class BaseParamRef(ImmutableBaseExpr):
-    pass
-
-
-class ParamRef(BaseParamRef):
+class ParamRef(ImmutableBaseExpr):
     """Query parameter ($0..$n)."""
 
     # Number of the parameter.
     number: int
-
-
-class NamedParamRef(BaseParamRef):
-    """Named query parameter."""
-
-    name: str
 
 
 class ResTarget(ImmutableBaseExpr):
