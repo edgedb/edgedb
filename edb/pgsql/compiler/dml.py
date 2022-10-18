@@ -838,37 +838,11 @@ def compile_policy_check(
         dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
         relctx.include_rvar(ictx.rel, dml_rvar, path_id=subject_id, ctx=ictx)
 
-        def raise_if(
-            a: pgast.BaseExpr, compare_to: bool, hint: Optional[str]
-        ) -> pgast.BaseExpr:
-            if isinstance(ir_stmt, irast.InsertStmt):
-                op = 'insert'
-            else:
-                op = 'update'
-            msg = f'access policy violation on {op} of {typeref.name_hint}'
-            if hint:
-                msg += ' (' + hint + ')'
-            return pgast.FuncCall(
-                name=('edgedb', 'raise_on_null'),
-                args=[
-                    pgast.FuncCall(
-                        name=('nullif',),
-                        args=[
-                            a,
-                            pgast.BooleanConstant(val=str(compare_to).lower()),
-                        ],
-                    ),
-                    pgast.StringConstant(val='insufficient_privilege'),
-                    pgast.NamedFuncArg(
-                        name='msg',
-                        val=pgast.StringConstant(val=msg),
-                    ),
-                    pgast.NamedFuncArg(
-                        name='table',
-                        val=pgast.StringConstant(val=str(typeref.id)),
-                    ),
-                ],
-            )
+        if isinstance(ir_stmt, irast.InsertStmt):
+            op = 'insert'
+        else:
+            op = 'update'
+        msg = f'access policy violation on {op} of {typeref.name_hint}'
 
         # split and compile
         allow, deny = [], []
@@ -891,25 +865,111 @@ def compile_policy_check(
             allow_names = (pol.name for pol, _ in allow)
             hint = 'none of these allow policies match: '
             hint += ', '.join(allow_names)
+            allow_msg = msg + ' (' + hint + ')'
         else:
             allow_expr = pgast.BooleanConstant(val='false')
-            hint = 'no allow policies'
+            allow_msg = msg + ' (no allow policies)'
 
         ictx.rel.target_list.append(
             pgast.ResTarget(
                 name=f'error_allow',
-                val=raise_if(allow_expr, False, hint),
+                val=pgast.FuncCall(
+                    name=('edgedb', 'raise_on_null'),
+                    args=[
+                        pgast.FuncCall(
+                            name=('nullif',),
+                            args=[
+                                allow_expr,
+                                pgast.BooleanConstant(val='false'),
+                            ],
+                        ),
+                        pgast.StringConstant(val='insufficient_privilege'),
+                        pgast.NamedFuncArg(
+                            name='msg',
+                            val=pgast.StringConstant(val=allow_msg),
+                        ),
+                        pgast.NamedFuncArg(
+                            name='table',
+                            val=pgast.StringConstant(val=str(typeref.id)),
+                        ),
+                    ],
+                ),
             )
         )
 
         # deny
-        for index, (policy, cond) in enumerate(deny):
+        deny_union = None
+        for policy, cond in deny:
             hint = f'denied by policy {policy.name}'
+
+            deny_select = pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(val=pgast.StringConstant(val=hint))
+                ],
+                where_clause=cond,
+            )
+
+            if not deny_union:
+                deny_union = deny_select
+            else:
+                deny_union = pgast.SelectStmt(
+                    op='UNION', larg=deny_union, rarg=deny_select
+                )
+
+        if deny_union:
+            deny_messages = pgast.SubLink(
+                type=pgast.SubLinkType.EXPR,
+                expr=pgast.SelectStmt(
+                    target_list=[
+                        pgast.ResTarget(
+                            val=pgast.FuncCall(
+                                name=('string_agg',),
+                                args=[
+                                    pgast.ColumnRef(name=('error_msg',)),
+                                    pgast.StringConstant(val=', '),
+                                ],
+                            )
+                        )
+                    ],
+                    from_clause=[
+                        pgast.RangeSubselect(
+                            subquery=deny_union,
+                            alias=pgast.Alias(
+                                aliasname='t', colnames=['error_msg']
+                            ),
+                        )
+                    ],
+                ),
+            )
 
             ictx.rel.target_list.append(
                 pgast.ResTarget(
-                    name=f'error_{index}',
-                    val=raise_if(cond, True, hint),
+                    name=f'error_deny',
+                    val=pgast.FuncCall(
+                        name=('edgedb', 'raise_on_not_null'),
+                        args=[
+                            deny_messages,
+                            pgast.StringConstant(val='insufficient_privilege'),
+                            pgast.NamedFuncArg(
+                                name='msg',
+                                val=pgast.Expr(
+                                    kind=pgast.ExprKind.OP,
+                                    name='||',
+                                    lexpr=pgast.StringConstant(val=msg + ' ('),
+                                    rexpr=pgast.Expr(
+                                        kind=pgast.ExprKind.OP,
+                                        name='||',
+                                        lexpr=deny_messages,
+                                        rexpr=pgast.StringConstant(val=')'),
+                                    ),
+                                ),
+                            ),
+                            pgast.NamedFuncArg(
+                                name='table',
+                                val=pgast.StringConstant(val=str(typeref.id)),
+                            ),
+                        ],
+                    ),
                 )
             )
 

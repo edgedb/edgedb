@@ -39,6 +39,8 @@ from . import context
 from . import dispatch
 from . import setgen
 
+T = TypeVar("T")
+
 
 def get_access_policies(
     stype: s_objtypes.ObjectType, *, ctx: context.ContextLevel,
@@ -125,6 +127,8 @@ def get_rewrite_filter(
 ) -> Optional[qlast.Expr]:
     schema = ctx.env.schema
     pols = get_access_policies(stype, ctx=ctx)
+    if not pols:
+        return None
 
     ctx.anchors = ctx.anchors.copy()
 
@@ -317,27 +321,21 @@ def compile_dml_write_policies(
     mode: qltypes.AccessKind, *,
     ctx: context.ContextLevel,
 ) -> Optional[irast.WritePolicies]:
-    """Compile a policy filter for a DML statement at a particular type"""
+    """Compile policy filters and wrap them into irast.WritePolicies"""
     if not ctx.env.type_rewrites.get((stype, False)):
-        return None
-
-    pols = get_access_policies(stype, ctx=ctx)
-    if not pols:
         return None
 
     with ctx.detached() as _, ctx.newscope(fenced=True) as subctx:
         # TODO: can we make sure to always avoid generating needless
         # select filters
-        skip_subtypes = (stype, False) not in ctx.env.type_rewrites
-        result = setgen.class_set(
-            stype, path_id=result.path_id, skip_subtypes=skip_subtypes, ctx=ctx
-        )
-
-        subctx.anchors[qlast.Subject().name] = result
-        subctx.partial_path_prefix = result
+        _prepare_dml_policy_context(stype, result, ctx=subctx)
 
         schema = subctx.env.schema
         subctx.anchors = subctx.anchors.copy()
+
+        pols = get_access_policies(stype, ctx=ctx)
+        if not pols:
+            return None
 
         policies = []
         for pol in pols:
@@ -367,20 +365,10 @@ def compile_dml_read_policies(
     if not ctx.env.type_rewrites.get((stype, False)):
         return None
 
-    pols = get_access_policies(stype, ctx=ctx)
-    if not pols:
-        return None
-
     with ctx.detached() as _, ctx.newscope(fenced=True) as subctx:
         # TODO: can we make sure to always avoid generating needless
         # select filters
-        skip_subtypes = (stype, False) not in ctx.env.type_rewrites
-        result = setgen.class_set(
-            stype, path_id=result.path_id, skip_subtypes=skip_subtypes,
-            ctx=ctx)
-
-        subctx.anchors[qlast.Subject().name] = result
-        subctx.partial_path_prefix = result
+        _prepare_dml_policy_context(stype, result, ctx=subctx)
 
         condition = get_rewrite_filter(stype, mode=mode, ctx=subctx)
         if not condition:
@@ -391,3 +379,18 @@ def compile_dml_read_policies(
                 dispatch.compile(condition, ctx=subctx), ctx=subctx
             ),
         )
+
+
+def _prepare_dml_policy_context(
+    stype: s_objtypes.ObjectType,
+    result: irast.Set,
+    *,
+    ctx: context.ContextLevel,
+) -> None:
+    skip_subtypes = (stype, False) not in ctx.env.type_rewrites
+    result = setgen.class_set(
+        stype, path_id=result.path_id, skip_subtypes=skip_subtypes, ctx=ctx
+    )
+
+    ctx.anchors[qlast.Subject().name] = result
+    ctx.partial_path_prefix = result
