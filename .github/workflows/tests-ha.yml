@@ -102,8 +102,6 @@ jobs:
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
-        restore-keys: |
-          edb-ext-v4-
 
     - name: Handle cached PostgreSQL build
       uses: actions/cache@v3
@@ -204,8 +202,6 @@ jobs:
       with:
         path: ${{ env.BUILD_TEMP }}/edb
         key: edb-ext-build-v3-${{ hashFiles('.tmp/ext_cache_key.txt') }}
-        restore-keys: |
-          edb-ext-build-v3-
 
     - name: Build Cython extensions
       env:
