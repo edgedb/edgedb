@@ -3142,6 +3142,7 @@ class TestExpressions(tb.QueryTestCase):
                 'schema::Annotation',
                 'schema::AnnotationSubject',
                 'schema::Array',
+                'schema::ArrayExprAlias',
                 'schema::Delta',
                 'schema::Object',
                 'schema::ObjectType',
