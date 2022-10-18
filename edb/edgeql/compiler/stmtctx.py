@@ -44,6 +44,7 @@ from edb.edgeql import parser as qlparser
 
 from edb.common.ast import visitor as ast_visitor
 from edb.common import ordered
+from edb.common.typeutils import not_none
 
 from . import astutils
 from . import context
@@ -341,14 +342,16 @@ def _fixup_materialized_sets(
             ir_set = mat_set.materialized
             assert ir_set.path_scope_id is not None
             new_scope = ctx.env.scope_tree_nodes[ir_set.path_scope_id]
-            assert new_scope.parent
-            parent = new_scope.parent
+            parent = not_none(new_scope.parent)
 
             good_reason = False
             for x in mat_set.reason:
                 if isinstance(x, irast.MaterializeVolatile):
                     good_reason = True
                 elif isinstance(x, irast.MaterializeVisible):
+                    reason_scope = ctx.env.scope_tree_nodes[x.path_scope_id]
+                    reason_parent = not_none(reason_scope.parent)
+
                     # If any of the bindings that the set uses are
                     # *visible* at the definition point and *not
                     # visible* from at least one use point, we need to
@@ -364,7 +367,9 @@ def _fixup_materialized_sets(
                         for x in mat_set.use_sets
                     ]
                     for b, _ in x.sets:
-                        if parent.is_visible(b, allow_group=True) and not all(
+                        if (
+                            reason_parent.is_visible(b, allow_group=True)
+                        ) and not all(
                             use_scope and use_scope.parent
                             and use_scope.parent.is_visible(
                                 b, allow_group=True)

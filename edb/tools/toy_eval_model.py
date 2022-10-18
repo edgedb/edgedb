@@ -1727,7 +1727,10 @@ CARDS_DB = [
         "typ": "test::User"
     },
     {
-        "avatar": null,
+        "avatar": {
+            "@text": "Wow",
+            "id": "8153766e-c308-11eb-98b8-1b59432eef87"
+        },
         "awards": [],
         "deck": [
             {"@count": 1, "id": "81537667-c308-11eb-98b8-e7ee6a203949"},

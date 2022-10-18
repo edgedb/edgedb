@@ -21,7 +21,6 @@ import os.path
 import edgedb
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestEdgeQLGroup(tb.QueryTestCase):
@@ -989,12 +988,6 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [{"grouping": ["awd_size", "element"]}] * 6,
         )
 
-    @test.xerror('''
-        Can't find materialized set
-            ns~5@@(__derived__::GR@w~1).>elements[IS cards::Card]
-
-        Issue #3951
-    ''')
     async def test_edgeql_group_binding_01(self):
         await self.assert_query_result(
             '''
@@ -1165,3 +1158,99 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     deck -= (select Card filter .element = 'Water')
                 };
             ''')
+
+    async def test_edgeql_group_rebind_filter_01(self):
+        await self.assert_query_result(
+            '''
+                with cardsByCost := (
+                  group cards::Card by .cost
+                )
+                select cardsByCost {
+                  key: {cost},
+                  count := count(.elements),
+                } filter .count > 1;
+            ''',
+            tb.bag([
+                {"count": 3, "key": {"cost": 1}},
+                {"count": 2, "key": {"cost": 2}},
+                {"count": 2, "key": {"cost": 3}},
+            ])
+        )
+
+    async def test_edgeql_group_rebind_filter_02(self):
+        await self.assert_query_result(
+            '''
+                with cardsByCost := (
+                  group cards::Card by .cost
+                )
+                select cardsByCost {
+                  key: {cost},
+                  count := count(.elements),
+                } filter .count > 1 order by .key.cost
+            ''',
+            [
+                {"count": 3, "key": {"cost": 1}},
+                {"count": 2, "key": {"cost": 2}},
+                {"count": 2, "key": {"cost": 3}},
+            ]
+        )
+
+    async def test_edgeql_group_rebind_filter_03(self):
+        await self.assert_query_result(
+            '''
+                with cardsByCost := (
+                  group cards::Card by .cost
+                )
+                select (select cardsByCost) {
+                  key: {cost},
+                  count := count(.elements),
+                } filter .count > 1;
+            ''',
+            tb.bag([
+                {"count": 3, "key": {"cost": 1}},
+                {"count": 2, "key": {"cost": 2}},
+                {"count": 2, "key": {"cost": 3}},
+            ])
+        )
+
+    async def test_edgeql_group_binding_complex_01(self):
+        # This query is an adaptation of the query from #4481 to the
+        # cards database. In the process of adaptation I lost track of
+        # what it actually *does*. The toy model agrees with the
+        # results, though.
+        await self.assert_query_result(
+            '''
+            WITH MODULE cards,
+              __scope_0_stdFreeObject := (
+                WITH
+                  __scope_2_defaultBill := DETACHED User,
+                  __scope_2_defaultBill_groups := (
+                    GROUP __scope_2_defaultBill
+                    USING
+                      category := __scope_2_defaultBill.avatar.name
+                    BY category
+                )
+                SELECT __scope_2_defaultBill_groups {
+                  key: {category},
+                  grouping,
+                  elements: {
+                    id
+                  }
+                }
+              )
+            SELECT __scope_0_stdFreeObject {
+              single sum := (
+                sum(len(__scope_0_stdFreeObject.elements.name))
+                - sum((WITH
+                  __scope_1_defaultAssignedPayment :=
+                    __scope_0_stdFreeObject.elements.<friends[is User]
+                SELECT __scope_1_defaultAssignedPayment {
+                  id
+                }
+                FILTER (exists __scope_1_defaultAssignedPayment.avatar))
+              .deck_cost)
+              )
+            };
+          ''',
+            tb.bag([{"sum": -7}, {"sum": 5}, {"sum": -23}]),
+        )
