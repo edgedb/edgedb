@@ -123,6 +123,9 @@ CREATE TYPE schema::Array EXTENDING schema::CollectionType {
 };
 
 
+CREATE TYPE schema::ArrayExprAlias EXTENDING schema::Array;
+
+
 CREATE TYPE schema::TupleElement EXTENDING std::BaseObject {
     CREATE REQUIRED LINK type -> schema::Type {
         ON TARGET DELETE DEFERRED RESTRICT;
@@ -140,11 +143,17 @@ CREATE TYPE schema::Tuple EXTENDING schema::CollectionType {
 };
 
 
+CREATE TYPE schema::TupleExprAlias EXTENDING schema::Tuple;
+
+
 CREATE TYPE schema::Range EXTENDING schema::CollectionType {
     CREATE REQUIRED LINK element_type -> schema::Type {
         ON TARGET DELETE DEFERRED RESTRICT;
     };
 };
+
+
+CREATE TYPE schema::RangeExprAlias EXTENDING schema::Range;
 
 
 CREATE TYPE schema::Delta EXTENDING schema::Object {
