@@ -1063,6 +1063,7 @@ class WritePolicy(Base):
     expr: Set
     action: qltypes.AccessPolicyAction
     name: str
+    error_msg: typing.Optional[str]
 
     cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
 

@@ -879,23 +879,25 @@ def compile_policy_check(
         msg = f'access policy violation on {op} of {typeref.name_hint}'
 
         # allow
-        allow_expr: pgast.BaseExpr
         if allow:
             allow_conds = (cond for _, cond in allow)
             allow_expr = astutils.extend_binop(None, *allow_conds, op='OR')
-
-            allow_names = (pol.name for pol, _ in allow)
-            hint = 'none of these allow policies match: '
-            hint += ', '.join(allow_names)
-            allow_msg = pgast.StringConstant(val=f'{msg} ({hint})')
         else:
             allow_expr = pgast.BooleanConstant(val='false')
-            allow_msg = pgast.StringConstant(val='f{msg} (no allow policies)')
+
+        allow_msgs = (pol.error_msg for pol, _ in allow if pol.error_msg)
+        if allow_msgs:
+            hint = 'none of these allow policies match: '
+            hint += ', '.join(allow_msgs)
+            allow_msg = f'{msg} ({hint})'
+        else:
+            allow_msg = f'{msg} (no allow policies)'
+        allow_msg_expr = pgast.StringConstant(val=allow_msg)
 
         ictx.rel.target_list.append(
             pgast.ResTarget(
                 name=f'error_allow',
-                val=raise_if(allow_expr, False, msg=allow_msg),
+                val=raise_if(allow_expr, False, msg=allow_msg_expr),
             )
         )
 
@@ -905,14 +907,22 @@ def compile_policy_check(
             deny_expr = astutils.extend_binop(None, *deny_conds, op='OR')
 
             deny_messages = [
-                (pgast.StringConstant(val=f'denied by policy {pol.name}'), c)
-                for pol, c in deny
+                (
+                    pgast.StringConstant(
+                        val=f'denied by policy {pol.error_msg}'
+                    ),
+                    cond,
+                )
+                for pol, cond in deny
+                if pol.error_msg
             ]
             deny_message = astutils.conditional_string_agg(deny_messages)
-            assert deny_message
-            deny_message = astutils.extend_concat(
-                msg + ' (', deny_message, ')'
-            )
+            if deny_message:
+                deny_message = astutils.extend_concat(
+                    msg + ' (', deny_message, ')'
+                )
+            else:
+                deny_message = pgast.StringConstant(val=f'{msg} (denied)')
 
             ictx.rel.target_list.append(
                 pgast.ResTarget(

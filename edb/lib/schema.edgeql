@@ -409,6 +409,7 @@ ALTER TYPE schema::AccessPolicy {
   CREATE PROPERTY condition -> std::str;
   CREATE REQUIRED PROPERTY action -> schema::AccessPolicyAction;
   CREATE PROPERTY expr -> std::str;
+  CREATE PROPERTY errmessage -> std::str;
 };
 
 

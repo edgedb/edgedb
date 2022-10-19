@@ -273,7 +273,6 @@ def conditional_string_agg(
     )
 
 
-
 def new_unop(op: str, expr: pgast.BaseExpr) -> pgast.Expr:
     return pgast.Expr(
         kind=pgast.ExprKind.OP,

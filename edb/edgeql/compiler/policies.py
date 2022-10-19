@@ -348,7 +348,12 @@ def compile_dml_write_policies(
             name = str(pol.get_shortname(schema))
 
             policies.append(
-                irast.WritePolicy(action=action, name=name, expr=ir_set)
+                irast.WritePolicy(
+                    expr=ir_set,
+                    action=action,
+                    name=name,
+                    error_msg=pol.get_errmessage(schema),
+                )
             )
 
         return irast.WritePolicies(policies=policies)

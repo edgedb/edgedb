@@ -866,7 +866,8 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
         )
 
     async def test_edgeql_policies_messages(self):
-        await self.con.execute('''
+        await self.con.execute(
+            '''
             create type NoAllows {
                 create access policy allow_select
                     allow select;
@@ -874,11 +875,14 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             create type TwoAllows {
                 create required property val -> str;
                 create access policy allow_insert_of_a
-                    allow insert using (.val = 'a');
+                    allow insert using (.val = 'a')
+                    { errmessage := 'you can insert a' };
                 create access policy allow_insert_of_b
-                    allow insert using (.val = 'b');
+                    allow insert using (.val = 'b')
+                    { errmessage := 'you can insert b' };
             };            
-        ''')
+        '''
+        )
 
         await self.con.execute("insert TwoAllows { val := 'a' };")
 
