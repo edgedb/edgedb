@@ -561,6 +561,7 @@ class MaterializeVolatile(Base):
 class MaterializeVisible(Base):
     __ast_hidden__ = {'sets'}
     sets: typing.Set[typing.Tuple[PathId, Set]]
+    path_scope_id: int
 
 
 @markup.serializer.serializer.register(MaterializeVisible)

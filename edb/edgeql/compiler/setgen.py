@@ -1665,6 +1665,8 @@ def should_materialize(
 
     typ = get_set_type(ir, ctx=ctx)
 
+    assert ir.path_scope_id is not None
+
     # For shape elements, we need to materialize when they reference
     # bindings that are visible from that point. This means that doing
     # WITH/FOR bindings internally is fine, but referring to
@@ -1675,15 +1677,24 @@ def should_materialize(
         materialize_visible
         and (vis := irutils.find_potentially_visible(
             ir,
-            ctx.env.scope_tree_nodes[not_none(ir.path_scope_id)],
+            ctx.env.scope_tree_nodes[ir.path_scope_id],
             ctx.env.scope_tree_nodes, skipped_bindings))
     ):
-        reasons.append(irast.MaterializeVisible(sets=vis))
+        reasons.append(irast.MaterializeVisible(
+            sets=vis, path_scope_id=ir.path_scope_id))
 
     if ptrcls and ptrcls in ctx.env.source_map:
         reasons += ctx.env.source_map[ptrcls].should_materialize
 
-    reasons += should_materialize_type(typ, ctx=ctx)
+    for r in should_materialize_type(typ, ctx=ctx):
+        # Rewrite visibility reasons from the typ to reflect this,
+        # the real bind point.
+        if isinstance(r, irast.MaterializeVolatile):
+            reasons.append(r)
+        else:
+            reasons.append(
+                irast.MaterializeVisible(
+                    sets=r.sets, path_scope_id=ir.path_scope_id))
 
     return reasons
 

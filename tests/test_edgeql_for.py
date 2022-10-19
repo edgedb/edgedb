@@ -1097,10 +1097,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ]
         )
 
-    @test.xerror('''
-        Can't find materialized set
-            ns~2@ns~6@ns~7@@(__derived__::GR@w~1).>key[IS std::str]
-    ''')
     async def test_edgeql_for_fake_group_02(self):
         await self.assert_query_result(
             r'''

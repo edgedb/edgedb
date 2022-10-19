@@ -125,7 +125,7 @@ class TestModelSmokeTests(unittest.TestCase):
             r"""
             SELECT (User.name ++ User.avatar.name) ?? 'hm';
             """,
-            ['AliceDragon'],
+            {'AliceDragon', 'DaveDjinn'},
         )
 
     def test_model_optional_prop_06(self):
