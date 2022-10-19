@@ -11153,6 +11153,23 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Target;
         """)
 
+    async def test_edgeql_migration_lift_01(self):
+        await self.migrate(r"""
+            abstract type A;
+            abstract type B;
+
+            abstract type Foo extending A;
+            type Bar extending Foo, B;
+        """)
+
+        await self.migrate(r"""
+            abstract type A;
+            abstract type B;
+
+            abstract type Foo extending A, B;
+            type Bar extending Foo;
+        """)
+
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False
