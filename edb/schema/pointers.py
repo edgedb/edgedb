@@ -1318,6 +1318,7 @@ class PointerCommandOrFragment(
         singleton_result_expected: bool = False,
         target_as_singleton: bool = False,
         expr_description: Optional[str] = None,
+        no_query_rewrites: bool = False,
     ) -> s_expr.Expression:
         singletons: List[Union[s_types.Type, Pointer]] = []
 
@@ -1372,7 +1373,9 @@ class PointerCommandOrFragment(
                 anchors={qlast.Source().name: source},
                 path_prefix_anchor=qlast.Source().name,
                 singletons=singletons,
-                apply_query_rewrites=not context.stdmode,
+                apply_query_rewrites=(
+                    not context.stdmode and not no_query_rewrites
+                ),
                 track_schema_ref_exprs=track_schema_ref_exprs,
                 in_ddl_context_name=in_ddl_context_name,
             ),
@@ -2224,6 +2227,7 @@ class SetPointerType(
                     expr=self.cast_expr,
                     target_as_singleton=True,
                     singleton_result_expected=True,
+                    no_query_rewrites=True,
                     expr_description=(
                         f'the USING clause for the alteration of {vn}'
                     ),
@@ -2403,6 +2407,7 @@ class AlterPointerUpperCardinality(
                     expr=self.conv_expr,
                     target_as_singleton=False,
                     singleton_result_expected=True,
+                    no_query_rewrites=True,
                     expr_description=(
                         f'the USING clause for the alteration of {vn}'
                     ),
@@ -2617,6 +2622,7 @@ class AlterPointerLowerCardinality(
                     expr=self.fill_expr,
                     target_as_singleton=True,
                     singleton_result_expected=new_card.is_single(),
+                    no_query_rewrites=True,
                     expr_description=(
                         f'the USING clause for the alteration of {vn}'
                     ),

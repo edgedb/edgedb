@@ -4123,6 +4123,7 @@ class PointerMetaCommand(MetaCommand):
                 context,
                 conv_expr,
                 target_as_singleton=target_as_singleton,
+                no_query_rewrites=True,
             )
             ir = conv_expr.irast
 
@@ -4145,6 +4146,7 @@ class PointerMetaCommand(MetaCommand):
                     schema=orig_schema,
                 ),
                 target_as_singleton=target_as_singleton,
+                no_query_rewrites=True,
             )
 
             ir = conv_expr.irast
