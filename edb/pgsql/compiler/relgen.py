@@ -40,6 +40,8 @@ from edb.pgsql import ast as pgast
 from edb.pgsql import common
 from edb.pgsql import types as pg_types
 
+from edb.common.typeutils import not_none
+
 from . import astutils
 from . import context
 from . import dispatch
@@ -1199,10 +1201,20 @@ def _lookup_set_rvar_in_source(
     ):
         return src_rvar
 
+    # When looking for an packed value in our source rvar, we need to
+    # account for the fact that unpack_rvar names all of its outputs
+    # based solely on the source--that is, if any of the pointer paths
+    # have extra namespaces on them, they won't appear. Rebuild the
+    # path_id without any namespaces that aren't on the src_path.
+    path_id = ir_set.path_id
+    path_id = not_none(path_id.src_path()).extend(
+        ptrref=not_none(path_id.rptr()),
+        direction=not_none(path_id.rptr_dir()),
+    )
     if packed_ref := pathctx.maybe_get_rvar_path_var(
         src_rvar,
         pathctx.map_path_id(
-            ir_set.path_id,
+            path_id,
             src_rvar.subquery.view_path_id_map,
         ),
         aspect='value',
