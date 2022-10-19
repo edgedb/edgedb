@@ -864,3 +864,30 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             ''',
             [],
         )
+
+    async def test_edgeql_policies_messages(self):
+        await self.con.execute('''
+            create type NoAllows {
+                create access policy allow_select
+                    allow select;
+            };
+            create type TwoAllows {
+                create required property val -> str;
+                create access policy allow_insert_of_a
+                    allow insert using (.val = 'a');
+                create access policy allow_insert_of_b
+                    allow insert using (.val = 'b');
+            };            
+        ''')
+
+        await self.con.execute("insert TwoAllows { val := 'a' };")
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"no allow policies"):
+            await self.con.query('insert NoAllows')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"none of these allow policies match: "):
+            await self.con.query("insert TwoAllows { val := 'c' }")
