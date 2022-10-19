@@ -198,6 +198,82 @@ def extend_binop(
     return result
 
 
+def extend_concat(
+    expr: str | pgast.BaseExpr, *exprs: str | pgast.BaseExpr
+) -> pgast.BaseExpr:
+    return extend_binop(
+        pgast.StringConstant(val=expr) if isinstance(expr, str) else expr,
+        *[
+            pgast.StringConstant(val=e) if isinstance(e, str) else e
+            for e in exprs
+        ],
+        op='||',
+    )
+
+
+def extend_select_op(
+    stmt: Optional[pgast.SelectStmt],
+    *stmts: pgast.SelectStmt,
+    op: str = 'UNION',
+) -> Optional[pgast.SelectStmt]:
+    stmt_list = list(stmts)
+    result: pgast.SelectStmt
+
+    if stmt is None:
+        if len(stmt_list) == 0:
+            return None
+        result = stmt_list.pop(0)
+    else:
+        result = stmt
+
+    for s in stmt_list:
+        if s is not None and s is not result:
+            result = pgast.SelectStmt(larg=result, op=op, rarg=s)
+
+    return result
+
+
+def conditional_string_agg(
+    pairs: Sequence[Tuple[pgast.BaseExpr, pgast.BaseExpr]],
+) -> Optional[pgast.BaseExpr]:
+
+    selects = [
+        pgast.SelectStmt(
+            target_list=[pgast.ResTarget(val=value)],
+            where_clause=cond,
+        )
+        for value, cond in pairs
+    ]
+    union = extend_select_op(None, *selects)
+
+    if not union:
+        return None
+
+    return pgast.SubLink(
+        type=pgast.SubLinkType.EXPR,
+        expr=pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.FuncCall(
+                        name=('string_agg',),
+                        args=[
+                            pgast.ColumnRef(name=('error_msg',)),
+                            pgast.StringConstant(val=', '),
+                        ],
+                    )
+                )
+            ],
+            from_clause=[
+                pgast.RangeSubselect(
+                    subquery=union,
+                    alias=pgast.Alias(aliasname='t', colnames=['error_msg']),
+                )
+            ],
+        ),
+    )
+
+
+
 def new_unop(op: str, expr: pgast.BaseExpr) -> pgast.Expr:
     return pgast.Expr(
         kind=pgast.ExprKind.OP,

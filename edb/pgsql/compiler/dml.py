@@ -838,12 +838,6 @@ def compile_policy_check(
         dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
         relctx.include_rvar(ictx.rel, dml_rvar, path_id=subject_id, ctx=ictx)
 
-        if isinstance(ir_stmt, irast.InsertStmt):
-            op = 'insert'
-        else:
-            op = 'update'
-        msg = f'access policy violation on {op} of {typeref.name_hint}'
-
         # split and compile
         allow, deny = [], []
         for policy in access_policies.policies:
@@ -856,6 +850,34 @@ def compile_policy_check(
             else:
                 deny.append((policy, cond_ref))
 
+        def raise_if(
+            a: pgast.BaseExpr, b: bool, msg: pgast.BaseExpr
+        ) -> pgast.BaseExpr:
+            return pgast.FuncCall(
+                name=('edgedb', 'raise_on_null'),
+                args=[
+                    pgast.FuncCall(
+                        name=('nullif',),
+                        args=[a, pgast.BooleanConstant(val=str(b))],
+                    ),
+                    pgast.StringConstant(val='insufficient_privilege'),
+                    pgast.NamedFuncArg(
+                        name='msg',
+                        val=msg,
+                    ),
+                    pgast.NamedFuncArg(
+                        name='table',
+                        val=pgast.StringConstant(val=str(typeref.id)),
+                    ),
+                ],
+            )
+
+        if isinstance(ir_stmt, irast.InsertStmt):
+            op = 'insert'
+        else:
+            op = 'update'
+        msg = f'access policy violation on {op} of {typeref.name_hint}'
+
         # allow
         allow_expr: pgast.BaseExpr
         if allow:
@@ -865,111 +887,37 @@ def compile_policy_check(
             allow_names = (pol.name for pol, _ in allow)
             hint = 'none of these allow policies match: '
             hint += ', '.join(allow_names)
-            allow_msg = msg + ' (' + hint + ')'
+            allow_msg = pgast.StringConstant(val=f'{msg} ({hint})')
         else:
             allow_expr = pgast.BooleanConstant(val='false')
-            allow_msg = msg + ' (no allow policies)'
+            allow_msg = pgast.StringConstant(val='f{msg} (no allow policies)')
 
         ictx.rel.target_list.append(
             pgast.ResTarget(
                 name=f'error_allow',
-                val=pgast.FuncCall(
-                    name=('edgedb', 'raise_on_null'),
-                    args=[
-                        pgast.FuncCall(
-                            name=('nullif',),
-                            args=[
-                                allow_expr,
-                                pgast.BooleanConstant(val='false'),
-                            ],
-                        ),
-                        pgast.StringConstant(val='insufficient_privilege'),
-                        pgast.NamedFuncArg(
-                            name='msg',
-                            val=pgast.StringConstant(val=allow_msg),
-                        ),
-                        pgast.NamedFuncArg(
-                            name='table',
-                            val=pgast.StringConstant(val=str(typeref.id)),
-                        ),
-                    ],
-                ),
+                val=raise_if(allow_expr, False, msg=allow_msg),
             )
         )
 
         # deny
-        deny_union = None
-        for policy, cond in deny:
-            hint = f'denied by policy {policy.name}'
+        if deny:
+            deny_conds = (cond for _, cond in deny)
+            deny_expr = astutils.extend_binop(None, *deny_conds, op='OR')
 
-            deny_select = pgast.SelectStmt(
-                target_list=[
-                    pgast.ResTarget(val=pgast.StringConstant(val=hint))
-                ],
-                where_clause=cond,
-            )
-
-            if not deny_union:
-                deny_union = deny_select
-            else:
-                deny_union = pgast.SelectStmt(
-                    op='UNION', larg=deny_union, rarg=deny_select
-                )
-
-        if deny_union:
-            deny_messages = pgast.SubLink(
-                type=pgast.SubLinkType.EXPR,
-                expr=pgast.SelectStmt(
-                    target_list=[
-                        pgast.ResTarget(
-                            val=pgast.FuncCall(
-                                name=('string_agg',),
-                                args=[
-                                    pgast.ColumnRef(name=('error_msg',)),
-                                    pgast.StringConstant(val=', '),
-                                ],
-                            )
-                        )
-                    ],
-                    from_clause=[
-                        pgast.RangeSubselect(
-                            subquery=deny_union,
-                            alias=pgast.Alias(
-                                aliasname='t', colnames=['error_msg']
-                            ),
-                        )
-                    ],
-                ),
+            deny_messages = [
+                (pgast.StringConstant(val=f'denied by policy {pol.name}'), c)
+                for pol, c in deny
+            ]
+            deny_message = astutils.conditional_string_agg(deny_messages)
+            assert deny_message
+            deny_message = astutils.extend_concat(
+                msg + ' (', deny_message, ')'
             )
 
             ictx.rel.target_list.append(
                 pgast.ResTarget(
                     name=f'error_deny',
-                    val=pgast.FuncCall(
-                        name=('edgedb', 'raise_on_not_null'),
-                        args=[
-                            deny_messages,
-                            pgast.StringConstant(val='insufficient_privilege'),
-                            pgast.NamedFuncArg(
-                                name='msg',
-                                val=pgast.Expr(
-                                    kind=pgast.ExprKind.OP,
-                                    name='||',
-                                    lexpr=pgast.StringConstant(val=msg + ' ('),
-                                    rexpr=pgast.Expr(
-                                        kind=pgast.ExprKind.OP,
-                                        name='||',
-                                        lexpr=deny_messages,
-                                        rexpr=pgast.StringConstant(val=')'),
-                                    ),
-                                ),
-                            ),
-                            pgast.NamedFuncArg(
-                                name='table',
-                                val=pgast.StringConstant(val=str(typeref.id)),
-                            ),
-                        ],
-                    ),
+                    val=raise_if(deny_expr, True, msg=deny_message),
                 )
             )
 
