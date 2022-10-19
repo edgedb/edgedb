@@ -692,9 +692,8 @@ class TestServerOps(tb.BaseHTTPTestCase):
             async with tb.start_edgedb_server(
                 readiness_state_file=rf_name,
             ) as sd:
-                with self.assertRaises(errors.AccessError):
-                    # Initially not ready, not accepting connections
-                    await sd.connect()
+                # Initially not ready, but accepts connections
+                await sd.connect()
 
                 # Readiness check returns 503
                 with self.http_con(server=sd) as http_con:
@@ -738,8 +737,8 @@ class TestServerOps(tb.BaseHTTPTestCase):
                 rf.seek(0)
                 print("not_ready", file=rf, flush=True)
                 await asyncio.sleep(0.05)
-                async for tr in self.try_until_fails(
-                    wait_for=(errors.AccessError,),
+                async for tr in self.try_until_succeeds(
+                    ignore=(errors.AccessError, AssertionError),
                 ):
                     async with tr:
                         conn = await sd.connect()
