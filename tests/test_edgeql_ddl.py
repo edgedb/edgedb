@@ -5801,6 +5801,38 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                   SET default := "!!!";
             """)
 
+    async def test_edgeql_ddl_policies_04(self):
+        await self.con.execute("""
+            create global current_user -> uuid;
+
+            create type User {
+                create access policy ins allow insert;
+                create access policy sel allow select
+                  using (.id ?= global current_user);
+            };
+            create type User2 extending User;
+
+            create type Obj {
+                create optional multi link user -> User;
+            };
+        """)
+
+        await self.con.execute("""
+            alter type Obj {
+                alter link user set required using (select User limit 1);
+            };
+        """)
+        await self.con.execute("""
+            alter type Obj {
+                alter link user set single using (select User limit 1);
+            };
+        """)
+        await self.con.execute("""
+            alter type Obj {
+                alter link user set type User2 using (select User2 limit 1);
+            };
+        """)
+
     # A big collection of tests to make sure that functions get
     # updated when access policies change
     async def test_edgeql_ddl_func_policies_01(self):
