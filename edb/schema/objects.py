@@ -3120,7 +3120,9 @@ class InheritingObject(SubclassableObject):
             # Trim these from the base alter since they are redundant
             # and clog up debug output.
             delta.discard(not_none(delta._get_attribute_set_cmd('bases')))
-            delta.discard(not_none(delta._get_attribute_set_cmd('ancestors')))
+            # ancestors might not be in the delta, if it didn't change
+            if anc := delta._get_attribute_set_cmd('ancestors'):
+                delta.discard(anc)
 
             delta.add(rebase_cmd)
 
