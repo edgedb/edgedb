@@ -759,7 +759,8 @@ class CreateMigration(CreateObject, MigrationCommand):
 
     body: NestedQLBlock
     parent: typing.Optional[ObjectRef] = None
-    message: typing.Optional[str] = None
+    message: typing.Optional[Expr] = None
+    generated_by: typing.Optional[Expr] = None
     metadata_only: bool = False
 
 

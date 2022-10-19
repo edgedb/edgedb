@@ -49,6 +49,8 @@ CREATE SCALAR TYPE schema::AccessPolicyAction
 CREATE SCALAR TYPE schema::AccessKind
     EXTENDING enum<`Select`, UpdateRead, UpdateWrite, `Delete`, `Insert`>;
 
+CREATE SCALAR TYPE schema::MigrationGeneratedBy
+    EXTENDING enum<DevMode, DDLStatement>;
 
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
@@ -494,6 +496,7 @@ CREATE TYPE schema::Migration
     CREATE MULTI LINK parents -> schema::Migration;
     CREATE REQUIRED PROPERTY script -> str;
     CREATE PROPERTY message -> str;
+    CREATE PROPERTY generated_by -> schema::MigrationGeneratedBy;
 };
 
 
