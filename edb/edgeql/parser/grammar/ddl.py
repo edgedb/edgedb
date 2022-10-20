@@ -1775,6 +1775,7 @@ class DropConcreteLinkStmt(Nonterm):
 commands_block(
     'CreateAccessPolicy',
     CreateAnnotationValueStmt,
+    SetFieldStmt,
 )
 
 
@@ -1846,6 +1847,8 @@ commands_block(
     AccessPermStmt,
     AccessUsingStmt,
     AccessWhenStmt,
+    SetFieldStmt,
+    ResetFieldStmt,
     opt=False
 )
 

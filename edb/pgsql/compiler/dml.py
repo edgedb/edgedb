@@ -891,7 +891,7 @@ def compile_policy_check(
             hint += ', '.join(allow_msgs)
             allow_msg = f'{msg} ({hint})'
         else:
-            allow_msg = f'{msg} (no allow policies)'
+            allow_msg = msg
         allow_msg_expr = pgast.StringConstant(val=allow_msg)
 
         ictx.rel.target_list.append(
@@ -907,16 +907,9 @@ def compile_policy_check(
             deny_expr = astutils.extend_binop(None, *deny_conds, op='OR')
 
             deny_messages = [
-                (
-                    pgast.StringConstant(
-                        val=f'denied by policy {pol.error_msg}'
-                    ),
-                    cond,
-                )
-                for pol, cond in deny
-                if pol.error_msg
+                (pol.error_msg, cond) for pol, cond in deny if pol.error_msg
             ]
-            deny_message = astutils.conditional_string_agg(deny_messages)
+            deny_message = _conditional_string_agg(deny_messages)
             if deny_message:
                 deny_message = astutils.extend_concat(
                     msg + ' (', deny_message, ')'
@@ -938,6 +931,51 @@ def compile_policy_check(
         )
         ictx.toplevel_stmt.append_cte(policy_cte)
         return policy_cte
+
+
+def _conditional_string_agg(
+    pairs: Sequence[Tuple[str, pgast.BaseExpr]],
+) -> Optional[pgast.BaseExpr]:
+
+    selects = [
+        pgast.SelectStmt(
+            target_list=[pgast.ResTarget(val=pgast.StringConstant(val=str))],
+            where_clause=cond,
+        )
+        for str, cond in pairs
+    ]
+    union = astutils.extend_select_op(None, *selects)
+
+    if not union:
+        return None
+
+    return (
+        pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.FuncCall(
+                        name=('coalesce',),
+                        args=[
+                            pgast.FuncCall(
+                                name=('string_agg',),
+                                args=[
+                                    pgast.ColumnRef(name=('error_msg',)),
+                                    pgast.StringConstant(val=', '),
+                                ],
+                            ),
+                            pgast.StringConstant(val=''),
+                        ],
+                    )
+                )
+            ],
+            from_clause=[
+                pgast.RangeSubselect(
+                    subquery=union,
+                    alias=pgast.Alias(aliasname='t', colnames=['error_msg']),
+                )
+            ],
+        ),
+    )
 
 
 def force_policy_checks(

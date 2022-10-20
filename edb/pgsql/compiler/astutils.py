@@ -233,46 +233,6 @@ def extend_select_op(
     return result
 
 
-def conditional_string_agg(
-    pairs: Sequence[Tuple[pgast.BaseExpr, pgast.BaseExpr]],
-) -> Optional[pgast.BaseExpr]:
-
-    selects = [
-        pgast.SelectStmt(
-            target_list=[pgast.ResTarget(val=value)],
-            where_clause=cond,
-        )
-        for value, cond in pairs
-    ]
-    union = extend_select_op(None, *selects)
-
-    if not union:
-        return None
-
-    return pgast.SubLink(
-        type=pgast.SubLinkType.EXPR,
-        expr=pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(
-                    val=pgast.FuncCall(
-                        name=('string_agg',),
-                        args=[
-                            pgast.ColumnRef(name=('error_msg',)),
-                            pgast.StringConstant(val=', '),
-                        ],
-                    )
-                )
-            ],
-            from_clause=[
-                pgast.RangeSubselect(
-                    subquery=union,
-                    alias=pgast.Alias(aliasname='t', colnames=['error_msg']),
-                )
-            ],
-        ),
-    )
-
-
 def new_unop(op: str, expr: pgast.BaseExpr) -> pgast.Expr:
     return pgast.Expr(
         kind=pgast.ExprKind.OP,
