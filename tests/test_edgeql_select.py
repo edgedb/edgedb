@@ -7652,3 +7652,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             [{"is_abstract": True}]
         )
+
+    async def test_edgeql_select_tname_overriden_type_01(self):
+        # Test that overriding type doesn't break __tname__
+        res = await self.con._fetchall("""
+            SELECT User { __type__ := introspect Issue }
+        """, __typenames__=True)
+        for row in res:
+            self.assertEqual(row.__tname__, "default::User")
