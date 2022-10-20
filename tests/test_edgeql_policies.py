@@ -845,3 +845,22 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             ''',
             [{'username': 'admin'}]
         )
+
+    async def test_edgeql_policies_internal_shape_01(self):
+        await self.con.execute('''
+            alter type Issue {
+                create access policy foo_1 deny select using (
+                    not exists (select .watchers { foo := .todo }
+                                filter .foo.name = "x"));
+                create access policy foo_2 deny select using (
+                    not exists (select .watchers { todo }
+                                filter .todo.name = "x"));
+             };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select Issue
+            ''',
+            [],
+        )

@@ -2131,7 +2131,6 @@ class Server(ha_base.ClusterProtocol):
         return (
             dbname != defines.EDGEDB_TEMPLATE_DB
             and dbname not in self._block_new_connections
-            and self.is_ready()
         )
 
     def get_sys_query(self, key):
