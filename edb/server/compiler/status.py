@@ -91,6 +91,21 @@ def _ddl_migr_alter_current(ql):
     return b'ALTER CURRENT MIGRATION'
 
 
+@get_status.register(qlast.StartMigrationRewrite)
+def _ddl_migr_rw_start(ql):
+    return b'START MIGRATION REWRITE'
+
+
+@get_status.register(qlast.CommitMigrationRewrite)
+def _ddl_migr_rw_commit(ql):
+    return b'COMMIT MIGRATION REWRITE'
+
+
+@get_status.register(qlast.AbortMigrationRewrite)
+def _ddl_migr_rw_abort(ql):
+    return b'ABORT MIGRATION REWRITE'
+
+
 @get_status.register(qlast.SelectQuery)
 @get_status.register(qlast.GroupQuery)
 @get_status.register(qlast.ForQuery)

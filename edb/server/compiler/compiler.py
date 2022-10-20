@@ -58,6 +58,7 @@ from edb.schema import delta as s_delta
 from edb.schema import functions as s_func
 from edb.schema import links as s_links
 from edb.schema import properties as s_props
+from edb.schema import migrations as s_migrations
 from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
@@ -552,6 +553,37 @@ class Compiler:
             )
         return mstate
 
+    def _assert_not_in_migration_rewrite_block(
+        self,
+        ctx: CompileContext,
+        ql: qlast.Base
+    ) -> None:
+        """Check that a START MIGRATION REWRITE block is *not* active."""
+        current_tx = ctx.state.current_tx()
+        mstate = current_tx.get_migration_rewrite_state()
+        if mstate is not None:
+            stmt = status.get_status(ql).decode()
+            raise errors.QueryError(
+                f'cannot execute {stmt} in a migration rewrite block',
+                context=ql.context,
+            )
+
+    def _assert_in_migration_rewrite_block(
+        self,
+        ctx: CompileContext,
+        ql: qlast.Base
+    ) -> dbstate.MigrationRewriteState:
+        """Check that a START MIGRATION REWRITE block *is* active."""
+        current_tx = ctx.state.current_tx()
+        mstate = current_tx.get_migration_rewrite_state()
+        if mstate is None:
+            stmt = status.get_status(ql).decode()
+            raise errors.QueryError(
+                f'cannot execute {stmt} outside of a migration rewrite block',
+                context=ql.context,
+            )
+        return mstate
+
     def _compile_ql_script(
         self,
         ctx: CompileContext,
@@ -930,6 +962,31 @@ class Compiler:
                 single_unit=False,
             )
 
+        # If we are in a migration rewrite, we also don't actually
+        # apply the DDL, just record it. (The DDL also needs to be a
+        # CreateMigration.)
+        if mrstate := current_tx.get_migration_rewrite_state():
+            if not isinstance(stmt, qlast.CreateMigration):
+                # This will always fail, and gives us the error we need
+                self._assert_not_in_migration_rewrite_block(ctx, stmt)
+
+            mrstate = mrstate._replace(accepted_migrations=(
+                mrstate.accepted_migrations + (stmt,)
+            ))
+            current_tx.update_migration_rewrite_state(mrstate)
+
+            context = self._new_delta_context(ctx)
+            schema = delta.apply(schema, context=context)
+
+            current_tx.update_schema(schema)
+
+            return dbstate.DDLQuery(
+                sql=(b'SELECT LIMIT 0',),
+                user_schema=current_tx.get_user_schema(),
+                is_transactional=True,
+                single_unit=False,
+            )
+
         # Do a dry-run on test_schema to canonicalize
         # the schema delta-commands.
         test_schema = current_tx.get_schema(self._std_schema)
@@ -1070,21 +1127,26 @@ class Compiler:
                     modaliases=None,
                 )
 
-            assert self._std_schema is not None
-            base_schema = s_schema.ChainedSchema(
-                self._std_schema,
-                s_schema.FlatSchema(),
-                current_tx.get_global_schema(),
-            )
-            target_schema = s_ddl.apply_sdl(
-                ql.target,
-                base_schema=base_schema,
-                current_schema=schema,
-                testmode=(
-                    self.get_config_val(ctx, '__internal_testmode')),
-                allow_dml_in_functions=(
-                    self.get_config_val(ctx, 'allow_dml_in_functions')),
-            )
+            if isinstance(ql.target, qlast.CommittedSchema):
+                mrstate = self._assert_in_migration_rewrite_block(ctx, ql)
+                target_schema = mrstate.target_schema
+
+            else:
+                assert self._std_schema is not None
+                base_schema = s_schema.ChainedSchema(
+                    self._std_schema,
+                    s_schema.FlatSchema(),
+                    current_tx.get_global_schema(),
+                )
+                target_schema = s_ddl.apply_sdl(
+                    ql.target,
+                    base_schema=base_schema,
+                    current_schema=schema,
+                    testmode=(
+                        self.get_config_val(ctx, '__internal_testmode')),
+                    allow_dml_in_functions=(
+                        self.get_config_val(ctx, 'allow_dml_in_functions')),
+                )
 
             current_tx.update_migration_state(
                 dbstate.MigrationState(
@@ -1413,32 +1475,55 @@ class Compiler:
             current_tx.update_schema(mstate.initial_schema)
             current_tx.update_migration_state(None)
 
-            ddl_query = self._compile_and_apply_ddl_stmt(
-                ctx,
-                create_migration,
-            )
+            # If we are in a migration rewrite, don't actually apply
+            # the change, just record it.
+            if mrstate := current_tx.get_migration_rewrite_state():
+                current_tx.update_schema(mstate.target_schema)
+                mrstate = mrstate._replace(accepted_migrations=(
+                    mrstate.accepted_migrations + (create_migration,)
+                ))
+                current_tx.update_migration_rewrite_state(mrstate)
 
-            if mstate.initial_savepoint:
-                current_tx.commit_migration(mstate.initial_savepoint)
-                sql = ddl_query.sql
-                tx_action = None
+                query = dbstate.MigrationControlQuery(
+                    sql=(b'SELECT LIMIT 0',),
+                    action=dbstate.MigrationAction.COMMIT,
+                    tx_action=None,
+                    cacheable=False,
+                    modaliases=None,
+                )
+
             else:
-                tx_cmd = qlast.CommitTransaction()
-                tx_query = self._compile_ql_transaction(ctx, tx_cmd)
-                sql = ddl_query.sql + tx_query.sql
-                tx_action = tx_query.action
+                current_tx.update_schema(mstate.initial_schema)
+                current_tx.update_migration_state(None)
 
-            query = dbstate.MigrationControlQuery(
-                sql=sql,
-                ddl_stmt_id=ddl_query.ddl_stmt_id,
-                action=dbstate.MigrationAction.COMMIT,
-                tx_action=tx_action,
-                cacheable=False,
-                modaliases=None,
-                single_unit=True,
-                user_schema=ctx.state.current_tx().get_user_schema(),
-                cached_reflection=current_tx.get_cached_reflection_if_updated()
-            )
+                ddl_query = self._compile_and_apply_ddl_stmt(
+                    ctx,
+                    create_migration,
+                )
+
+                if mstate.initial_savepoint:
+                    current_tx.commit_migration(mstate.initial_savepoint)
+                    sql = ddl_query.sql
+                    tx_action = None
+                else:
+                    tx_cmd = qlast.CommitTransaction()
+                    tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+                    sql = ddl_query.sql + tx_query.sql
+                    tx_action = tx_query.action
+
+                query = dbstate.MigrationControlQuery(
+                    sql=sql,
+                    ddl_stmt_id=ddl_query.ddl_stmt_id,
+                    action=dbstate.MigrationAction.COMMIT,
+                    tx_action=tx_action,
+                    cacheable=False,
+                    modaliases=None,
+                    single_unit=True,
+                    user_schema=ctx.state.current_tx().get_user_schema(),
+                    cached_reflection=(
+                        current_tx.get_cached_reflection_if_updated()
+                    )
+                )
 
         elif isinstance(ql, qlast.AbortMigration):
             mstate = self._assert_in_migration_block(ctx, ql)
@@ -1467,6 +1552,153 @@ class Compiler:
             self._assert_not_in_migration_block(ctx, ql)
 
             query = self._compile_and_apply_ddl_stmt(ctx, ql)
+
+        elif isinstance(ql, qlast.StartMigrationRewrite):
+            self._assert_not_in_migration_block(ctx, ql)
+            self._assert_not_in_migration_rewrite_block(ctx, ql)
+
+            # Start a transaction if we aren't in one already
+            if current_tx.is_implicit() and not in_script:
+                savepoint_name = None
+                tx_cmd = qlast.StartTransaction()
+                tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+                query = dbstate.MigrationControlQuery(
+                    sql=tx_query.sql,
+                    action=dbstate.MigrationAction.START,
+                    tx_action=tx_query.action,
+                    cacheable=False,
+                    modaliases=None,
+                    single_unit=tx_query.single_unit,
+                )
+            else:
+                savepoint_name = current_tx.start_migration()
+                query = dbstate.MigrationControlQuery(
+                    sql=(b'SELECT LIMIT 0',),
+                    action=dbstate.MigrationAction.START,
+                    tx_action=None,
+                    cacheable=False,
+                    modaliases=None,
+                )
+
+            # Start from an empty schema except for `module default`
+            base_schema = s_schema.ChainedSchema(
+                self._std_schema,
+                s_schema.FlatSchema(),
+                current_tx.get_global_schema(),
+            )
+            base_schema = s_ddl.apply_sdl(
+                qlast.Schema(declarations=[
+                    qlast.ModuleDeclaration(
+                        name=qlast.ObjectRef(name='default'),
+                        declarations=[],
+                    )
+                ]),
+                base_schema=base_schema,
+                current_schema=base_schema,
+            )
+
+            # Set our current schema to be the empty one
+            current_tx.update_schema(base_schema)
+            current_tx.update_migration_rewrite_state(
+                dbstate.MigrationRewriteState(
+                    target_schema=schema,
+                    initial_savepoint=savepoint_name,
+                    accepted_migrations=tuple(),
+                ),
+            )
+        elif isinstance(ql, qlast.CommitMigrationRewrite):
+            self._assert_not_in_migration_block(ctx, ql)
+            mrstate = self._assert_in_migration_rewrite_block(ctx, ql)
+
+            diff = s_ddl.delta_schemas(schema, mrstate.target_schema)
+            if list(diff.get_subcommands()):
+                if debug.flags.delta_plan:
+                    debug.header("COMMIT MIGRATION REWRITE mismatch")
+                    diff.dump()
+                raise errors.QueryError(
+                    'cannot commit migration rewrite: schema resulting '
+                    'from rewrite does not match committed schema',
+                    context=ql.context,
+                )
+
+            schema = mrstate.target_schema
+            current_tx.update_schema(schema)
+            current_tx.update_migration_rewrite_state(None)
+
+            cmds = []
+            # Now we find all the migrations...
+            migrations = s_delta.sort_by_cross_refs(
+                schema,
+                schema.get_objects(type=s_migrations.Migration),
+            )
+            for mig in migrations:
+                cmds.append(qlast.DropMigration(
+                    name=qlast.ObjectRef(name=mig.get_name(schema).name)
+                ))
+            for cmd in mrstate.accepted_migrations:
+                cmd.metadata_only = True
+                cmds.append(cmd)
+
+            if debug.flags.delta_plan:
+                debug.header('COMMIT MIGRATION REWRITE DDL text')
+                for cmd in cmds:
+                    cmd.dump_edgeql()
+
+            sqls = []
+            for cmd in cmds:
+                ddl_query = self._compile_and_apply_ddl_stmt(
+                    ctx, cmd
+                )
+                # We know nothing serious can be in that query
+                # except for the SQL, so it's fine to just discard
+                # it all.
+                sqls.extend(ddl_query.sql)
+
+            if mrstate.initial_savepoint:
+                current_tx.commit_migration(mrstate.initial_savepoint)
+                tx_action = None
+            else:
+                tx_cmd = qlast.CommitTransaction()
+                tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+                sqls.extend(tx_query.sql)
+                tx_action = tx_query.action
+
+            query = dbstate.MigrationControlQuery(
+                sql=tuple(sqls),
+                action=dbstate.MigrationAction.COMMIT,
+                tx_action=tx_action,
+                cacheable=False,
+                modaliases=None,
+                single_unit=True,
+                user_schema=ctx.state.current_tx().get_user_schema(),
+                cached_reflection=(
+                    current_tx.get_cached_reflection_if_updated()
+                )
+            )
+
+        elif isinstance(ql, qlast.AbortMigrationRewrite):
+            mrstate = self._assert_in_migration_rewrite_block(ctx, ql)
+
+            if mrstate.initial_savepoint:
+                current_tx.abort_migration(mrstate.initial_savepoint)
+                sql = (b'SELECT LIMIT 0',)
+                tx_action = None
+            else:
+                tx_cmd = qlast.RollbackTransaction()
+                tx_query = self._compile_ql_transaction(ctx, tx_cmd)
+                sql = tx_query.sql
+                tx_action = tx_query.action
+
+            current_tx.update_migration_state(None)
+            current_tx.update_migration_rewrite_state(None)
+            query = dbstate.MigrationControlQuery(
+                sql=sql,
+                action=dbstate.MigrationAction.ABORT,
+                tx_action=tx_action,
+                cacheable=False,
+                modaliases=None,
+                single_unit=True,
+            )
 
         else:
             raise AssertionError(f'unexpected migration command: {ql}')
