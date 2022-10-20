@@ -698,7 +698,7 @@ Protocol overhaul
 * Fix access policies that use shapes internally
   (:eql:gh:`#4555`)
 
-* Allow overloading `__type__` with a computed in shapes
+* Allow overloading ``__type__`` with a computed in shapes
   (:eql:gh:`#4557`)
 
 .. lint-off
