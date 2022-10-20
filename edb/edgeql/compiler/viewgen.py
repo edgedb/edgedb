@@ -1096,7 +1096,7 @@ def _normalize_view_ptr_expr(
             context=compexpr and compexpr.context,
         )
 
-    # Prohibit invalid operations on id and __type__
+    # Prohibit invalid operations on id
     id_access = (
         ptrcls.is_id_pointer(ctx.env.schema)
         and (
@@ -1106,8 +1106,7 @@ def _normalize_view_ptr_expr(
     )
     if (
         (compexpr is not None or is_polymorphic)
-        and (id_access or ptrcls.is_protected_pointer(ctx.env.schema))
-        and not from_default
+        and id_access and not from_default
     ):
         ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
         if is_polymorphic:
@@ -1115,7 +1114,7 @@ def _normalize_view_ptr_expr(
                    f'shape element')
         else:
             msg = f'cannot assign to {ptrcls_sn.name}'
-        if id_access and not ctx.env.options.allow_user_specified_id:
+        if not ctx.env.options.allow_user_specified_id:
             hint = (
                 'consider enabling the "allow_user_specified_id" '
                 'configuration parameter to allow setting custom object ids'
