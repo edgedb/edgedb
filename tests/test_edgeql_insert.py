@@ -3275,6 +3275,16 @@ class TestInsert(tb.QueryTestCase):
             q, [], variables={'n': "2"},
         )
 
+    async def test_edgeql_insert_unless_conflict_26(self):
+        # Test unless conflict on a property not actually mentioned
+        await self.con.execute('''
+            INSERT Person {
+              name := "Colin"
+            }
+            UNLESS CONFLICT ON .case_name
+            ELSE (Person)
+        ''')
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             SELECT (
