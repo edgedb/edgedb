@@ -771,6 +771,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1';
             """)
 
+    async def test_edgeql_select_computable_35(self):
+        # allow computed __type__ field
+        await self.assert_query_result(
+            """
+            SELECT Issue {
+                number,
+                __type__ := (select Issue.__type__ { name }),
+            }
+            FILTER .number = '3'
+            """,
+            [
+                {'number': '3', '__type__': {'name': 'default::Issue'}},
+            ],
+        )
+
     async def test_edgeql_select_match_01(self):
         await self.assert_query_result(
             r"""
