@@ -27,7 +27,6 @@ from edb import errors
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
-from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 from edb.edgeql import hasher as qlhasher
 from edb.edgeql import parser as qlparser
