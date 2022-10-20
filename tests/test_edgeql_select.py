@@ -771,6 +771,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1';
             """)
 
+    async def test_edgeql_select_computable_35(self):
+        # allow computed __type__ field
+        await self.assert_query_result(
+            """
+            SELECT Issue {
+                number,
+                __type__ := (select Issue.__type__ { name }),
+            }
+            FILTER .number = '3'
+            """,
+            [
+                {'number': '3', '__type__': {'name': 'default::Issue'}},
+            ],
+        )
+
     async def test_edgeql_select_match_01(self):
         await self.assert_query_result(
             r"""
@@ -1406,22 +1421,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             await self.con.query(r'''
                 SELECT User {
                     [IS Named].id,
-                };
-            ''')
-
-    async def test_edgeql_select_polymorphic_05(self):
-        # Since using a polymorphic shape element means that sometimes
-        # that element may be empty, it is prohibited to access
-        # protected link such as `__type__` on it as that would be
-        # equivalent to re-writing it.
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'cannot access __type__ on a polymorphic shape element'):
-            await self.con.query(r'''
-                SELECT User {
-                    [IS Named].__type__: {
-                        name
-                    },
                 };
             ''')
 
@@ -7637,3 +7636,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             [{"is_abstract": True}]
         )
+
+    async def test_edgeql_select_tname_overriden_type_01(self):
+        # Test that overriding type doesn't break __tname__
+        res = await self.con._fetchall("""
+            SELECT User { __type__ := introspect Issue }
+        """, __typenames__=True)
+        for row in res:
+            self.assertEqual(row.__tname__, "default::User")

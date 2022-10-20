@@ -1096,7 +1096,7 @@ def _normalize_view_ptr_expr(
             context=compexpr and compexpr.context,
         )
 
-    # Prohibit invalid operations on id and __type__
+    # Prohibit invalid operations on id
     id_access = (
         ptrcls.is_id_pointer(ctx.env.schema)
         and (
@@ -1106,8 +1106,7 @@ def _normalize_view_ptr_expr(
     )
     if (
         (compexpr is not None or is_polymorphic)
-        and (id_access or ptrcls.is_protected_pointer(ctx.env.schema))
-        and not from_default
+        and id_access and not from_default
     ):
         ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
         if is_polymorphic:
@@ -1115,7 +1114,7 @@ def _normalize_view_ptr_expr(
                    f'shape element')
         else:
             msg = f'cannot assign to {ptrcls_sn.name}'
-        if id_access and not ctx.env.options.allow_user_specified_id:
+        if not ctx.env.options.allow_user_specified_id:
             hint = (
                 'consider enabling the "allow_user_specified_id" '
                 'configuration parameter to allow setting custom object ids'
@@ -1291,9 +1290,16 @@ def _inline_type_computable(
         )
         with ctx.new() as scopectx:
             scopectx.anchors = scopectx.anchors.copy()
-            scopectx.anchors[qlast.Source().name] = ir_set
+            # Use the actual base type as the root of the injection, so that
+            # if a user has overridden `__type__` in a computable,
+            # we see through that.
+            base_stype = stype.get_nearest_non_derived_parent(ctx.env.schema)
+            base_ir_set = setgen.ensure_set(
+                ir_set, type_override=base_stype, ctx=ctx)
+
+            scopectx.anchors[qlast.Source().name] = base_ir_set
             ptr, ptr_set = _normalize_view_ptr_expr(
-                ir_set, ql, stype, path_id=ir_set.path_id, ctx=scopectx)
+                base_ir_set, ql, stype, path_id=ir_set.path_id, ctx=scopectx)
 
     view_shape = ctx.env.view_shapes[stype]
     view_shape_ptrs = {p for p, _ in view_shape}

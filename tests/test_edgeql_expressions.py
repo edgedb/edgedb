@@ -6625,16 +6625,6 @@ aa \
             [edgedb.Range(0, 10)],
         )
 
-    async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError, r'cannot assign to __type__'):
-            await self.con.query(r"""
-                SELECT Text {
-                    __type__ := (SELECT schema::ObjectType
-                                 FILTER .name = 'default::Named')
-                };
-            """)
-
     async def test_edgeql_expr_cannot_assign_id_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to id'):
