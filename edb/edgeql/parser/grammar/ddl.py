@@ -2871,21 +2871,11 @@ class CreateMigrationStmt(Nonterm):
             CREATE MIGRATION OptMigrationNameParentName
             OptCreateMigrationCommandsBlock
         """
-        message = None
-        generated_by = None
-        for f in kids[3].val.fields:
-            match f.name:
-                case 'message':
-                    message = f.value
-                case 'generated_by':
-                    generated_by = f.value
-
         self.val = qlast.CreateMigration(
             name=kids[2].val.name,
             parent=kids[2].val.parent,
             body=kids[3].val.body,
-            message=message,
-            generated_by=generated_by,
+            commands=kids[3].val.fields,
         )
 
     def reduce_CreateAppliedMigration(self, *kids):
@@ -2893,22 +2883,12 @@ class CreateMigrationStmt(Nonterm):
             CREATE APPLIED MIGRATION OptMigrationNameParentName
             OptCreateMigrationCommandsBlock
         """
-        message = None
-        generated_by = None
-        for f in kids[4].val.fields:
-            match f.name:
-                case 'message':
-                    message = f.value
-                case 'generated_by':
-                    generated_by = f.value
-
         self.val = qlast.CreateMigration(
             name=kids[3].val.name,
             parent=kids[3].val.parent,
             body=kids[4].val.body,
             metadata_only=True,
-            message=message,
-            generated_by=generated_by,
+            commands=kids[4].val.fields,
         )
 
 

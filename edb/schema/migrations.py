@@ -167,23 +167,6 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         cmd.set_attribute_value('script', ddl_text)
         cmd.set_attribute_value('builtin', False)
         cmd.set_attribute_value('internal', False)
-        if message := astnode.message:
-            value = qlcompiler.evaluate_ast_to_python_val(message, schema)
-            if value is not None and not isinstance(value, str):
-                raise errors.InvalidSyntaxError(
-                    f'invalid value for `message` field, str expected',
-                    context=message.context,
-                )
-            cmd.set_attribute_value('message', value)
-        if generated_by := astnode.generated_by:
-            value = qlcompiler.evaluate_ast_to_python_val(generated_by, schema)
-            if value is not None and not isinstance(value, str):
-                raise errors.InvalidSyntaxError(
-                    f'invalid value for `generated_by` field, '
-                    f'schema::MigrationGeneratedBy enum value expected',
-                    context=generated_by.context,
-                )
-            cmd.set_attribute_value('generated_by', value)
         if parent is not None:
             cmd.set_attribute_value('parents', [parent])
 
