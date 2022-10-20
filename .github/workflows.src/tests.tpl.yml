@@ -100,6 +100,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         shard: [
              1/16,  2/16,  3/16,  4/16,
