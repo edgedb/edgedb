@@ -949,32 +949,30 @@ def _conditional_string_agg(
     if not union:
         return None
 
-    return (
-        pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(
-                    val=pgast.FuncCall(
-                        name=('coalesce',),
-                        args=[
-                            pgast.FuncCall(
-                                name=('string_agg',),
-                                args=[
-                                    pgast.ColumnRef(name=('error_msg',)),
-                                    pgast.StringConstant(val=', '),
-                                ],
-                            ),
-                            pgast.StringConstant(val=''),
-                        ],
-                    )
+    return pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(
+                val=pgast.FuncCall(
+                    name=('coalesce',),
+                    args=[
+                        pgast.FuncCall(
+                            name=('string_agg',),
+                            args=[
+                                pgast.ColumnRef(name=('error_msg',)),
+                                pgast.StringConstant(val=', '),
+                            ],
+                        ),
+                        pgast.StringConstant(val=''),
+                    ],
                 )
-            ],
-            from_clause=[
-                pgast.RangeSubselect(
-                    subquery=union,
-                    alias=pgast.Alias(aliasname='t', colnames=['error_msg']),
-                )
-            ],
-        ),
+            )
+        ],
+        from_clause=[
+            pgast.RangeSubselect(
+                subquery=union,
+                alias=pgast.Alias(aliasname='t', colnames=['error_msg']),
+            )
+        ],
     )
 
 

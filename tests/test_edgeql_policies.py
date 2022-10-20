@@ -883,14 +883,14 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             };
             create type ThreeDenies {
                 create required property val -> str;
-                
+
                 create access policy allow_insert
                     allow insert;
 
                 create access policy deny_starting_with_f
                     deny insert using (.val[0] = 'f')
                     { set errmessage := 'val cannot start with f' };
-                
+
                 create access policy deny_foo
                     deny insert using (.val = 'foo')
                     { set errmessage := 'val cannot be foo' };
@@ -918,11 +918,11 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidValueError,
-            "access policy violation.*\(" ".*val cannot be foo.*\)",
+            "access policy violation.*\\(" ".*val cannot be foo.*\\)",
         ):
             await self.con.query("insert ThreeDenies { val := 'foo' }")
 
         async with self.assertRaisesRegexTx(
-            edgedb.InvalidValueError, "access policy violation.*\(\)"
+            edgedb.InvalidValueError, "access policy violation.*\\(\\)"
         ):
             await self.con.query("insert ThreeDenies { val := 'bar' }")
