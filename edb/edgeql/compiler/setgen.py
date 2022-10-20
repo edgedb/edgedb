@@ -106,7 +106,7 @@ def new_set(
     return ir_set
 
 
-def new_empty_set(*, stype: Optional[s_types.Type]=None, alias: str,
+def new_empty_set(*, stype: Optional[s_types.Type]=None, alias: str='e',
                   ctx: context.ContextLevel,
                   srcctx: Optional[
                       parsing.ParserContext]=None) -> irast.Set:

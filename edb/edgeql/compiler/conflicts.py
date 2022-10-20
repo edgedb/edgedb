@@ -393,6 +393,10 @@ def compile_conflict_select(
             select_ir, force_reassign=True, ctx=ectx)
         assert isinstance(select_ir, irast.Set)
 
+    # If we have an empty set, remake it with the right type
+    if isinstance(select_ir, irast.EmptySet):
+        select_ir = setgen.new_empty_set(stype=subject_typ, ctx=ctx)
+
     return select_ir, always_check, from_parent
 
 
