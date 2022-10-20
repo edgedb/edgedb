@@ -1424,21 +1424,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 };
             ''')
 
-    async def test_edgeql_select_polymorphic_05(self):
-        # Since using a polymorphic shape element means that sometimes
-        # that element may be empty, it is prohibited to access
-        # protected link such as `__type__` on it as that would be
-        # equivalent to re-writing it.
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'cannot access __type__ on a polymorphic shape element'):
-            await self.con.query(r'''
-                SELECT User {
-                    [IS Named].__type__: {
-                        name
-                    },
-                };
-            ''')
 
     async def test_edgeql_select_polymorphic_06(self):
         await self.assert_query_result(
