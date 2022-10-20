@@ -656,6 +656,9 @@ Protocol overhaul
 * Make newly created link properties get added to the relevant alias types
   (:eql:gh:`#4512`)
 
+* Fix handling of link properties named ``id``
+  (:eql:gh:`#4514`)
+
 * Disallow queries using conflict machinery on a link property. This
   prevents certain potential exclusive constraint violations that were
   not handled correctly.
