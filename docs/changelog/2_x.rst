@@ -673,6 +673,31 @@ Protocol overhaul
 * Make ``'\b'`` produce the correct value in string and bytes literals
   (:eql:gh:`#4535`)
 
+2.5
+===
+
+* Properly infer cardinality of empty array as ONE
+  (:eql:gh:`#4533`)
+
+* Fix several issues that manifest when using GROUP BY
+  (:eql:gh:`#4549`, :eql:gh:`#4439`)
+
+* Fix migration scripts when combined with access policies
+  (:eql:gh:`#4553`)
+
+* Fix failure when a ``ALTER ... EXTENDING`` doesn't change the
+  set of ancestors
+  (:eql:gh:`#4554`)
+
+* Fix ``UNLESS CONFLICT ON`` for a not-inserted property
+  (:eql:gh:`#4556`)
+
+* Fix access policies that use shapes internally
+  (:eql:gh:`#4555`)
+
+* Allow overloading `__type__` with a computed in shapes
+  (:eql:gh:`#4557`)
+
 .. lint-off
 
 .. _group:
