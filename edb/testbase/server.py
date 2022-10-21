@@ -1283,7 +1283,15 @@ class DumpCompatTestCaseMeta(TestCaseMeta):
             finally:
                 self.__class__.con = oldcon
                 await con2.aclose()
-                await self.con.execute(f'DROP DATABASE {qdbname}')
+
+                # The connection might not *actually* be closed on the db
+                # side yet. This is probably a bug, but hack around it
+                # with a retry loop. Without this, the test would flake
+                # a lot.
+                async for tr in self.try_until_succeeds(
+                        ignore=edgedb.ExecutionError):
+                    async with tr:
+                        await self.con.execute(f'DROP DATABASE {qdbname}')
 
         for entry in dumps_dir.iterdir():
             if not entry.is_file() or not entry.name.endswith(".dump"):
