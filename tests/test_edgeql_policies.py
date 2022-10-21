@@ -878,8 +878,7 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                     allow insert using (.val = 'a')
                     { set errmessage := 'you can insert a' };
                 create access policy allow_insert_of_b
-                    allow insert using (.val = 'b')
-                    { set errmessage := 'you can insert b' };
+                    allow insert using (.val = 'b');
             };
             create type ThreeDenies {
                 create required property val -> str;
@@ -904,25 +903,24 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
         await self.con.execute("insert TwoAllows { val := 'a' };")
 
         async with self.assertRaisesRegexTx(
-            edgedb.InvalidValueError, r"access policy violation"
+            edgedb.InvalidValueError,
+            r"access policy violation on insert of default::NoAllows$",
         ):
             await self.con.query('insert NoAllows')
 
         async with self.assertRaisesRegexTx(
-            edgedb.InvalidValueError,
-            "none of these allow policies match: "
-            "you can insert a, "
-            "you can insert b",
+            edgedb.InvalidValueError, r"\(you can insert a\)$"
         ):
             await self.con.query("insert TwoAllows { val := 'c' }")
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidValueError,
-            "access policy violation.*\\(" ".*val cannot be foo.*\\)",
+            "access policy violation.*val cannot.*val cannot",
         ):
             await self.con.query("insert ThreeDenies { val := 'foo' }")
 
         async with self.assertRaisesRegexTx(
-            edgedb.InvalidValueError, "access policy violation.*\\(\\)"
+            edgedb.InvalidValueError,
+            "access policy violation on insert of default::ThreeDenies$",
         ):
             await self.con.query("insert ThreeDenies { val := 'bar' }")

@@ -211,6 +211,12 @@ def extend_concat(
     )
 
 
+def new_coalesce(
+    expr: pgast.BaseExpr, fallback: pgast.BaseExpr
+) -> pgast.BaseExpr:
+    return pgast.FuncCall(name=('coalesce',), args=[expr, fallback])
+
+
 def extend_select_op(
     stmt: Optional[pgast.SelectStmt],
     *stmts: pgast.SelectStmt,

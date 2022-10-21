@@ -850,15 +850,13 @@ def compile_policy_check(
             else:
                 deny.append((policy, cond_ref))
 
-        def raise_if(
-            a: pgast.BaseExpr, b: bool, msg: pgast.BaseExpr
-        ) -> pgast.BaseExpr:
+        def raise_if(a: pgast.BaseExpr, msg: pgast.BaseExpr) -> pgast.BaseExpr:
             return pgast.FuncCall(
                 name=('edgedb', 'raise_on_null'),
                 args=[
                     pgast.FuncCall(
                         name=('nullif',),
-                        args=[a, pgast.BooleanConstant(val=str(b))],
+                        args=[a, pgast.BooleanConstant(val='TRUE')],
                     ),
                     pgast.StringConstant(val='insufficient_privilege'),
                     pgast.NamedFuncArg(
@@ -872,57 +870,51 @@ def compile_policy_check(
                 ],
             )
 
+        # allow
+        if allow:
+            allow_conds = (cond for _, cond in allow)
+            no_allow_expr: pgast.BaseExpr = astutils.new_unop(
+                'NOT', astutils.extend_binop(None, *allow_conds, op='OR')
+            )
+        else:
+            no_allow_expr = pgast.BooleanConstant(val='TRUE')
+
+        # deny
+        deny_exprs = (cond for _, cond in deny)
+
+        # message
         if isinstance(ir_stmt, irast.InsertStmt):
             op = 'insert'
         else:
             op = 'update'
         msg = f'access policy violation on {op} of {typeref.name_hint}'
 
-        # allow
-        if allow:
-            allow_conds = (cond for _, cond in allow)
-            allow_expr = astutils.extend_binop(None, *allow_conds, op='OR')
-        else:
-            allow_expr = pgast.BooleanConstant(val='false')
+        allow_hints = (pol.error_msg for pol, _ in allow if pol.error_msg)
+        allow_hint = ', '.join(allow_hints)
 
-        allow_msgs = (pol.error_msg for pol, _ in allow if pol.error_msg)
-        if allow_msgs:
-            hint = 'none of these allow policies match: '
-            hint += ', '.join(allow_msgs)
-            allow_msg = f'{msg} ({hint})'
+        hints = [(allow_hint, no_allow_expr)] + [
+            (pol.error_msg, cond) for pol, cond in deny if pol.error_msg
+        ]
+
+        hint = _conditional_string_agg(hints)
+        if hint:
+            hint = astutils.new_coalesce(
+                astutils.extend_concat(' (', hint, ')'),
+                pgast.StringConstant(val=''),
+            )
+            message = astutils.extend_concat(msg, hint)
         else:
-            allow_msg = msg
-        allow_msg_expr = pgast.StringConstant(val=allow_msg)
+            message = astutils.extend_concat(msg)
 
         ictx.rel.target_list.append(
             pgast.ResTarget(
-                name=f'error_allow',
-                val=raise_if(allow_expr, False, msg=allow_msg_expr),
+                name=f'error',
+                val=raise_if(
+                    astutils.extend_binop(no_allow_expr, *deny_exprs, op='OR'),
+                    msg=message,
+                ),
             )
         )
-
-        # deny
-        if deny:
-            deny_conds = (cond for _, cond in deny)
-            deny_expr = astutils.extend_binop(None, *deny_conds, op='OR')
-
-            deny_messages = [
-                (pol.error_msg, cond) for pol, cond in deny if pol.error_msg
-            ]
-            deny_message = _conditional_string_agg(deny_messages)
-            if deny_message:
-                deny_message = astutils.extend_concat(
-                    msg + ' (', deny_message, ')'
-                )
-            else:
-                deny_message = pgast.StringConstant(val=f'{msg} (denied)')
-
-            ictx.rel.target_list.append(
-                pgast.ResTarget(
-                    name=f'error_deny',
-                    val=raise_if(deny_expr, True, msg=deny_message),
-                )
-            )
 
         policy_cte = pgast.CommonTableExpr(
             query=ictx.rel,
@@ -934,12 +926,18 @@ def compile_policy_check(
 
 
 def _conditional_string_agg(
-    pairs: Sequence[Tuple[str, pgast.BaseExpr]],
+    pairs: Sequence[Tuple[Optional[str], pgast.BaseExpr]],
 ) -> Optional[pgast.BaseExpr]:
 
     selects = [
         pgast.SelectStmt(
-            target_list=[pgast.ResTarget(val=pgast.StringConstant(val=str))],
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.StringConstant(val=str)
+                    if str
+                    else pgast.NullConstant()
+                )
+            ],
             where_clause=cond,
         )
         for str, cond in pairs
@@ -953,18 +951,12 @@ def _conditional_string_agg(
         target_list=[
             pgast.ResTarget(
                 val=pgast.FuncCall(
-                    name=('coalesce',),
+                    name=('string_agg',),
                     args=[
-                        pgast.FuncCall(
-                            name=('string_agg',),
-                            args=[
-                                pgast.ColumnRef(name=('error_msg',)),
-                                pgast.StringConstant(val=', '),
-                            ],
-                        ),
-                        pgast.StringConstant(val=''),
+                        pgast.ColumnRef(name=('error_msg',)),
+                        pgast.StringConstant(val=', '),
                     ],
-                )
+                ),
             )
         ],
         from_clause=[
