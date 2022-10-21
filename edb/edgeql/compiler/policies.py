@@ -39,8 +39,6 @@ from . import context
 from . import dispatch
 from . import setgen
 
-T = TypeVar("T")
-
 
 def get_access_policies(
     stype: s_objtypes.ObjectType, *, ctx: context.ContextLevel,
