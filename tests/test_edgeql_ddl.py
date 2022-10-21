@@ -12070,6 +12070,26 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
 };
         ''')
 
+    async def test_edgeql_ddl_create_migration_03(self):
+        await self.con.execute(f'''
+            CREATE MIGRATION
+            {{
+                SET message := "migration2";
+                SET generated_by := schema::MigrationGeneratedBy.DevMode;
+                CREATE TYPE Type2 {{
+                    CREATE PROPERTY field2 -> int32;
+                }};
+            }};
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT schema::Migration { generated_by }
+            FILTER .message = "migration2"
+            ''',
+            [{'generated_by': 'DevMode'}]
+        )
+
     async def test_edgeql_ddl_naked_backlink_in_computable(self):
         await self.con.execute('''
             CREATE TYPE User {

@@ -864,6 +864,11 @@ class Compiler:
                 body=qlast.NestedQLBlock(
                     commands=[stmt],
                 ),
+                generated_by=qlast.Path(steps=[
+                    qlast.ObjectRef(name='MigrationGeneratedBy',
+                                    module='schema'),
+                    qlast.Ptr(ptr=qlast.ObjectRef(name='DDLStatement')),
+                ]),
             )
             return self._compile_and_apply_ddl_stmt(ctx, cm)
 

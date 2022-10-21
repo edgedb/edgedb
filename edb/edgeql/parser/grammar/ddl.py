@@ -332,15 +332,21 @@ class NestedQLBlock(ProductionTpl):
     def _process_body(self, body):
         fields = []
         stmts = []
+        uniq_check = set()
         for stmt in body:
             if isinstance(stmt, qlast.SetField):
-                if stmt.name in self.allowed_fields:
-                    fields.append(stmt)
-                else:
+                if stmt.name not in self.allowed_fields:
                     raise errors.InvalidSyntaxError(
                         f'unexpected field: {stmt.name!r}',
                         context=stmt.context,
                     )
+                if stmt.name in uniq_check:
+                    raise errors.InvalidSyntaxError(
+                        f'duplicate `SET {stmt.name} := ...`',
+                        context=stmt.context,
+                    )
+                uniq_check.add(stmt.name)
+                fields.append(stmt)
             else:
                 stmts.append(stmt)
 
@@ -2818,7 +2824,7 @@ class CreateMigrationBodyBlock(NestedQLBlock):
 
     @property
     def allowed_fields(self) -> typing.FrozenSet[str]:
-        return frozenset({'message'})
+        return frozenset({'message', 'generated_by'})
 
     @property
     def result(self) -> typing.Any:
@@ -2869,6 +2875,7 @@ class CreateMigrationStmt(Nonterm):
             name=kids[2].val.name,
             parent=kids[2].val.parent,
             body=kids[3].val.body,
+            commands=kids[3].val.fields,
         )
 
     def reduce_CreateAppliedMigration(self, *kids):
@@ -2881,6 +2888,7 @@ class CreateMigrationStmt(Nonterm):
             parent=kids[3].val.parent,
             body=kids[4].val.body,
             metadata_only=True,
+            commands=kids[4].val.fields,
         )
 
 
