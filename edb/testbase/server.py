@@ -1378,14 +1378,16 @@ def test_cases_use_server(cases: Iterable[unittest.TestCase]) -> bool:
             return True
 
 
-async def setup_test_cases(cases, conn, num_jobs, verbose=False):
+async def setup_test_cases(
+        cases, conn, num_jobs, try_cached_db=False, verbose=False):
     setup = get_test_cases_setup(cases)
 
     stats = []
     if num_jobs == 1:
         # Special case for --jobs=1
         for _case, dbname, setup_script in setup:
-            await _setup_database(dbname, setup_script, conn, stats)
+            await _setup_database(
+                dbname, setup_script, conn, stats, try_cached_db)
             if verbose:
                 print(f' -> {dbname}: OK', flush=True)
     else:
@@ -1404,11 +1406,13 @@ async def setup_test_cases(cases, conn, num_jobs, verbose=False):
 
             for _case, dbname, setup_script in setup:
                 g.create_task(controller(
-                    _setup_database, dbname, setup_script, conn, stats))
+                    _setup_database, dbname, setup_script, conn, stats,
+                    try_cached_db))
     return stats
 
 
-async def _setup_database(dbname, setup_script, conn_args, stats):
+async def _setup_database(
+        dbname, setup_script, conn_args, stats, try_cached_db):
     start_time = time.monotonic()
     default_args = {
         'user': edgedb_defines.EDGEDB_SUPERUSER,
@@ -1434,7 +1438,14 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
         )
     except edgedb.DuplicateDatabaseDefinitionError:
         # Eh, that's fine
-        pass
+        # And, if we are trying to use a cache of the database, assume
+        # the db is populated and return.
+        if try_cached_db:
+            elapsed = time.monotonic() - start_time
+            stats.append(
+                ('setup::' + dbname,
+                 {'running-time': elapsed, 'cached': True}))
+            return
     except Exception as ex:
         raise RuntimeError(
             f'exception during creation of {dbname!r} test DB: '
@@ -1459,8 +1470,8 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
         await dbconn.aclose()
 
     elapsed = time.monotonic() - start_time
-    stats.append(('setup::' + dbname, {'running-time': elapsed}))
-    return dbname
+    stats.append(
+        ('setup::' + dbname, {'running-time': elapsed, 'cached': False}))
 
 
 _lock_cnt = 0
