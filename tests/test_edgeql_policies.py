@@ -864,3 +864,63 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             ''',
             [],
         )
+
+    async def test_edgeql_policies_messages(self):
+        await self.con.execute(
+            '''
+            create type NoAllows {
+                create access policy allow_select
+                    allow select;
+            };
+            create type TwoAllows {
+                create required property val -> str;
+                create access policy allow_insert_of_a
+                    allow insert using (.val = 'a')
+                    { set errmessage := 'you can insert a' };
+                create access policy allow_insert_of_b
+                    allow insert using (.val = 'b');
+            };
+            create type ThreeDenies {
+                create required property val -> str;
+
+                create access policy allow_insert
+                    allow insert;
+
+                create access policy deny_starting_with_f
+                    deny insert using (.val[0] = 'f')
+                    { set errmessage := 'val cannot start with f' };
+
+                create access policy deny_foo
+                    deny insert using (.val = 'foo')
+                    { set errmessage := 'val cannot be foo' };
+
+                create access policy deny_bar
+                    deny insert using (.val = 'bar');
+            };
+        '''
+        )
+
+        await self.con.execute("insert TwoAllows { val := 'a' };")
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            r"access policy violation on insert of default::NoAllows$",
+        ):
+            await self.con.query('insert NoAllows')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError, r"\(you can insert a\)$"
+        ):
+            await self.con.query("insert TwoAllows { val := 'c' }")
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "access policy violation.*val cannot.*val cannot",
+        ):
+            await self.con.query("insert ThreeDenies { val := 'foo' }")
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "access policy violation on insert of default::ThreeDenies$",
+        ):
+            await self.con.query("insert ThreeDenies { val := 'bar' }")

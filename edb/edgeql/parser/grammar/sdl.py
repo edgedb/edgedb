@@ -939,7 +939,9 @@ class ConcreteLinkShort(Nonterm):
 #
 sdl_commands_block(
     'CreateAccessPolicy',
-    SetAnnotation)
+    SetField,
+    SetAnnotation
+)
 
 
 class AccessPolicyDeclarationBlock(Nonterm):

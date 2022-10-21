@@ -85,6 +85,10 @@ class AccessPolicy(
         compcoef=None,
         inheritable=False)
 
+    errmessage = so.SchemaField(
+        str, default=None, compcoef=0.971, allow_ddl_set=True
+    )
+
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'access policy'

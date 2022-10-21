@@ -40,12 +40,11 @@ from . import pathctx
 
 
 def compile_where_clause(
-        ir_stmt: irast.FilteredStmt,
-        where: Optional[qlast.Base], *,
-        ctx: context.ContextLevel) -> None:
+    where: Optional[qlast.Base], *, ctx: context.ContextLevel
+) -> Optional[irast.Set]:
 
     if where is None:
-        return
+        return None
 
     if ctx.partial_path_prefix:
         pathctx.register_set_in_scope(ctx.partial_path_prefix, ctx=ctx)
@@ -57,7 +56,7 @@ def compile_where_clause(
         bool_t = ctx.env.get_track_schema_type(sn.QualName('std', 'bool'))
         ir_set = setgen.scoped_set(ir_expr, typehint=bool_t, ctx=subctx)
 
-    ir_stmt.where = ir_set
+    return ir_set
 
 
 def compile_orderby_clause(

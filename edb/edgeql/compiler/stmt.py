@@ -133,8 +133,7 @@ def compile_SelectQuery(
             forward_rptr=forward_rptr,
             ctx=sctx)
 
-        clauses.compile_where_clause(
-            stmt, expr.where, ctx=sctx)
+        stmt.where = clauses.compile_where_clause(expr.where, ctx=sctx)
 
         stmt.orderby = clauses.compile_orderby_clause(
             expr.orderby, ctx=sctx)
@@ -391,8 +390,7 @@ def compile_InternalGroupQuery(
                 result_alias=expr.result_alias,
                 ctx=bctx)
 
-            clauses.compile_where_clause(
-                stmt, expr.where, ctx=bctx)
+            stmt.where = clauses.compile_where_clause(expr.where, ctx=bctx)
 
             stmt.orderby = clauses.compile_orderby_clause(
                 expr.orderby, ctx=bctx)
@@ -512,10 +510,10 @@ def compile_InsertQuery(
                 ctx=resultctx,
             )
 
-        if pol_condition := policies.compile_dml_policy(
+        if pol_condition := policies.compile_dml_write_policies(
             mat_stype, result, mode=qltypes.AccessKind.Insert, ctx=ctx
         ):
-            stmt.write_policy_exprs[mat_stype.id] = pol_condition
+            stmt.write_policies[mat_stype.id] = pol_condition
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -600,8 +598,7 @@ def compile_UpdateQuery(
 
         ictx.partial_path_prefix = subject
 
-        clauses.compile_where_clause(
-            stmt, expr.where, ctx=ictx)
+        stmt.where = clauses.compile_where_clause(expr.where, ctx=ictx)
 
         with ictx.new() as bodyctx:
             bodyctx.class_view_overrides = ictx.class_view_overrides.copy()
@@ -634,14 +631,14 @@ def compile_UpdateQuery(
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
-            if pol_cond := policies.compile_dml_policy(
+            if read_pol := policies.compile_dml_read_policies(
                 dtype, result, mode=qltypes.AccessKind.UpdateRead, ctx=ctx
             ):
-                stmt.read_policy_exprs[dtype.id] = pol_cond
-            if pol_cond := policies.compile_dml_policy(
+                stmt.read_policies[dtype.id] = read_pol
+            if write_pol := policies.compile_dml_write_policies(
                 dtype, result, mode=qltypes.AccessKind.UpdateWrite, ctx=ctx
             ):
-                stmt.write_policy_exprs[dtype.id] = pol_cond
+                stmt.write_policies[dtype.id] = write_pol
 
         stmt.conflict_checks = conflicts.compile_inheritance_conflict_checks(
             stmt, mat_stype, ctx=ictx)
@@ -754,10 +751,10 @@ def compile_DeleteQuery(
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
-            if pol_cond := policies.compile_dml_policy(
+            if pol_cond := policies.compile_dml_read_policies(
                 dtype, result, mode=qltypes.AccessKind.Delete, ctx=ctx
             ):
-                stmt.read_policy_exprs[dtype.id] = pol_cond
+                stmt.read_policies[dtype.id] = pol_cond
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 

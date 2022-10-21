@@ -1033,11 +1033,13 @@ class MutatingStmt(Stmt):
     # for.
     conflict_checks: typing.Optional[typing.List[OnConflictClause]] = None
     # Access policy checks that we should raise errors on
-    write_policy_exprs: typing.Dict[
-        uuid.UUID, PolicyExpr] = ast.field(factory=dict)
+    write_policies: typing.Dict[uuid.UUID, WritePolicies] = ast.field(
+        factory=dict
+    )
     # Access policy checks that we should filter on
-    read_policy_exprs: typing.Dict[
-        uuid.UUID, PolicyExpr] = ast.field(factory=dict)
+    read_policies: typing.Dict[uuid.UUID, ReadPolicyExpr] = ast.field(
+        factory=dict
+    )
 
     @property
     def material_type(self) -> TypeRef:
@@ -1048,8 +1050,21 @@ class MutatingStmt(Stmt):
         raise NotImplementedError
 
 
-class PolicyExpr(Base):
+class ReadPolicyExpr(Base):
     expr: Set
+    cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
+
+
+class WritePolicies(Base):
+    policies: typing.List[WritePolicy]
+
+
+class WritePolicy(Base):
+    expr: Set
+    action: qltypes.AccessPolicyAction
+    name: str
+    error_msg: typing.Optional[str]
+
     cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
 
 

@@ -79,7 +79,6 @@ def has_own_policies(
 
 
 def compile_pol(
-    stype: s_objtypes.ObjectType,
     pol: s_policies.AccessPolicy, *,
     ctx: context.ContextLevel,
 ) -> irast.Set:
@@ -99,6 +98,7 @@ def compile_pol(
         expr = expr_field.qlast
     else:
         expr = qlast.BooleanConstant(value='true')
+
     if condition := pol.get_condition(schema):
         expr = qlast.BinOp(op='AND', left=condition.qlast, right=expr)
 
@@ -125,6 +125,8 @@ def get_rewrite_filter(
 ) -> Optional[qlast.Expr]:
     schema = ctx.env.schema
     pols = get_access_policies(stype, ctx=ctx)
+    if not pols:
+        return None
 
     ctx.anchors = ctx.anchors.copy()
 
@@ -133,7 +135,7 @@ def get_rewrite_filter(
         if mode not in pol.get_access_kinds(schema):
             continue
 
-        ir_set = compile_pol(stype, pol, ctx=ctx)
+        ir_set = compile_pol(pol, ctx=ctx)
         expr = ctx.create_anchor(ir_set)
 
         is_allow = pol.get_action(schema) == qltypes.AccessPolicyAction.Allow
@@ -142,9 +144,7 @@ def get_rewrite_filter(
         else:
             deny.append(expr)
 
-    if not pols:
-        filter_expr = None
-    elif allow:
+    if allow:
         filter_expr = astutils.extend_binop(None, *allow, op='OR')
     else:
         filter_expr = qlast.BooleanConstant(value='false')
@@ -161,7 +161,7 @@ def get_rewrite_filter(
     # from bogusly optimizing away the entire type CTE if it can prove
     # it empty (which could then result in assert_exists on links to
     # the type not always firing).
-    if filter_expr and mode == qltypes.AccessKind.Select:
+    if mode == qltypes.AccessKind.Select:
         bogus_check = qlast.BinOp(
             op='?=',
             left=qlast.Path(partial=True, steps=[qlast.Ptr(
@@ -271,8 +271,7 @@ def try_type_rewrite(
                 subctx.partial_path_prefix = base_set
                 subctx.path_scope = subctx.env.path_scope.root.attach_fence()
 
-                clauses.compile_where_clause(
-                    filtered_stmt,
+                filtered_stmt.where = clauses.compile_where_clause(
                     get_rewrite_filter(
                         stype, mode=qltypes.AccessKind.Select, ctx=subctx),
                     ctx=subctx)
@@ -314,36 +313,87 @@ def try_type_rewrite(
     type_rewrites[rw_key] = filtered_set
 
 
-def compile_dml_policy(
+def compile_dml_write_policies(
     stype: s_objtypes.ObjectType,
     result: irast.Set,
     mode: qltypes.AccessKind, *,
     ctx: context.ContextLevel,
-) -> Optional[irast.PolicyExpr]:
-    """Compile a policy filter for a DML statement at a particular type"""
+) -> Optional[irast.WritePolicies]:
+    """Compile policy filters and wrap them into irast.WritePolicies"""
     if not ctx.env.type_rewrites.get((stype, False)):
-        return None
-
-    pols = get_access_policies(stype, ctx=ctx)
-    if not pols:
         return None
 
     with ctx.detached() as _, ctx.newscope(fenced=True) as subctx:
         # TODO: can we make sure to always avoid generating needless
         # select filters
-        skip_subtypes = (stype, False) not in ctx.env.type_rewrites
-        result = setgen.class_set(
-            stype, path_id=result.path_id, skip_subtypes=skip_subtypes,
-            ctx=ctx)
+        _prepare_dml_policy_context(stype, result, ctx=subctx)
 
-        subctx.anchors[qlast.Subject().name] = result
-        subctx.partial_path_prefix = result
+        schema = subctx.env.schema
+        subctx.anchors = subctx.anchors.copy()
+
+        pols = get_access_policies(stype, ctx=ctx)
+        if not pols:
+            return None
+
+        policies = []
+        for pol in pols:
+            if mode not in pol.get_access_kinds(schema):
+                continue
+
+            ir_set = compile_pol(pol, ctx=subctx)
+
+            action = pol.get_action(schema)
+            name = str(pol.get_shortname(schema))
+
+            policies.append(
+                irast.WritePolicy(
+                    expr=ir_set,
+                    action=action,
+                    name=name,
+                    error_msg=pol.get_errmessage(schema),
+                )
+            )
+
+        return irast.WritePolicies(policies=policies)
+
+
+def compile_dml_read_policies(
+    stype: s_objtypes.ObjectType,
+    result: irast.Set,
+    mode: qltypes.AccessKind,
+    *,
+    ctx: context.ContextLevel,
+) -> Optional[irast.ReadPolicyExpr]:
+    """Compile a policy filter for a DML statement at a particular type"""
+    if not ctx.env.type_rewrites.get((stype, False)):
+        return None
+
+    with ctx.detached() as _, ctx.newscope(fenced=True) as subctx:
+        # TODO: can we make sure to always avoid generating needless
+        # select filters
+        _prepare_dml_policy_context(stype, result, ctx=subctx)
 
         condition = get_rewrite_filter(stype, mode=mode, ctx=subctx)
-        assert condition
+        if not condition:
+            return None
 
-        return irast.PolicyExpr(
+        return irast.ReadPolicyExpr(
             expr=setgen.scoped_set(
                 dispatch.compile(condition, ctx=subctx), ctx=subctx
             ),
         )
+
+
+def _prepare_dml_policy_context(
+    stype: s_objtypes.ObjectType,
+    result: irast.Set,
+    *,
+    ctx: context.ContextLevel,
+) -> None:
+    skip_subtypes = (stype, False) not in ctx.env.type_rewrites
+    result = setgen.class_set(
+        stype, path_id=result.path_id, skip_subtypes=skip_subtypes, ctx=ctx
+    )
+
+    ctx.anchors[qlast.Subject().name] = result
+    ctx.partial_path_prefix = result

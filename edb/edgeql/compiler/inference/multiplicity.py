@@ -683,11 +683,12 @@ def _infer_mutating_stmt(
         for clause in ir.conflict_checks:
             _infer_on_conflict_clause(clause, scope_tree=scope_tree, ctx=ctx)
 
-    for policy in ir.write_policy_exprs.values():
-        infer_multiplicity(policy.expr, scope_tree=scope_tree, ctx=ctx)
+    for write_pol in ir.write_policies.values():
+        for policy in write_pol.policies:
+            infer_multiplicity(policy.expr, scope_tree=scope_tree, ctx=ctx)
 
-    for policy in ir.read_policy_exprs.values():
-        infer_multiplicity(policy.expr, scope_tree=scope_tree, ctx=ctx)
+    for read_pol in ir.read_policies.values():
+        infer_multiplicity(read_pol.expr, scope_tree=scope_tree, ctx=ctx)
 
 
 def _infer_on_conflict_clause(
