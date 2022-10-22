@@ -893,9 +893,6 @@ class ParallelTextTestRunner:
                     nonlocal cluster
                     nonlocal conn
 
-                    cache_file = (
-                        devmode.get_dev_mode_cache_dir() / 'test_dbs.tar')
-
                     data_dir = self.data_dir
 
                     if (
