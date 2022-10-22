@@ -893,12 +893,14 @@ class ParallelTextTestRunner:
                     nonlocal cluster
                     nonlocal conn
 
-                    cache_file = (
-                        devmode.get_dev_mode_cache_dir() / 'test_dbs.tar')
-
                     data_dir = self.data_dir
 
-                    if self.try_cached_db and cache_file.is_file():
+                    if (
+                        self.try_cached_db
+                        and (cache_file := (
+                            devmode.get_dev_mode_cache_dir() / 'test_dbs.tar')
+                        ).is_file()
+                    ):
                         if self.verbosity >= 1:
                             self._echo(
                                 f'(using DB cache from {cache_file}) ',
