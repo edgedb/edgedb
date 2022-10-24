@@ -498,7 +498,7 @@ def prepare_patch(
 
     # Pure SQL patches are simple
     if kind == 'sql':
-        return (patch, update), (), schema
+        return (patch, update), (), {}
 
     assert kind == 'edgeql'
 
@@ -554,7 +554,7 @@ def prepare_patch(
         WHERE key = 'stdschema'
     '''
 
-    return (patch, update), (schema_update,), schema
+    return (patch, update), (schema_update,), {'stdschema': schema}
 
 
 class StdlibBits(NamedTuple):
