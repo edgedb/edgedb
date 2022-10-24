@@ -357,8 +357,8 @@ async def _create_edgedb_template_database(
     return dbid
 
 
-async def _store_static_bin_cache(
-    ctx: BootstrapContext,
+async def _store_static_bin_cache_conn(
+    conn: pgcon.PGConnection,
     key: str,
     data: bytes,
 ) -> None:
@@ -371,7 +371,15 @@ async def _store_static_bin_cache(
         )
     """
 
-    await _execute(ctx.conn, text)
+    await _execute(conn, text)
+
+
+async def _store_static_bin_cache(
+    ctx: BootstrapContext,
+    key: str,
+    data: bytes,
+) -> None:
+    await _store_static_bin_cache_conn(ctx.conn, key, data)
 
 
 async def _store_static_text_cache(
