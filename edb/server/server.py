@@ -906,6 +906,14 @@ class Server(ha_base.ClusterProtocol):
             _, _, updates = entry
             if 'stdschema' in updates:
                 self._std_schema = updates['stdschema']
+            if 'reflschema' in updates:
+                self._refl_schema = updates['reflschema']
+            if 'local_intro_query' in updates:
+                self._local_intro_query = updates['local_intro_query']
+            if 'global_intro_query' in updates:
+                self._global_intro_query = updates['global_intro_query']
+            if 'classlayout' in updates:
+                self._schema_class_layout = updates['classlayout']
 
         return patches
 

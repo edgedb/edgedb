@@ -482,10 +482,46 @@ def compile_single_query(
     return units[0].sql[0].decode()
 
 
+def _get_all_subcommands(
+        cmd: sd.Command, type: Type[sd.Command]=None) -> list[sd.Command]:
+    cmds = []
+
+    def go(cmd):
+        if not type or isinstance(cmd, type):
+            cmds.append(cmd)
+        for sub in cmd.get_subcommands():
+            go(sub)
+
+    go(cmd)
+    return cmds
+
+
+def _get_schema_object_ids(delta: sd.Command) -> Mapping[
+        Tuple[sn.Name, Optional[str]], uuid.UUID]:
+    schema_object_ids = {}
+    for cmd in _get_all_subcommands(delta, sd.CreateObject):
+        assert isinstance(cmd, sd.CreateObject)
+        mcls = cmd.get_schema_metaclass()
+        if issubclass(mcls, s_obj.QualifiedObject):
+            qlclass = None
+        else:
+            qlclass = mcls.get_ql_class_or_die()
+
+        id = cmd.get_attribute_value('id')
+        schema_object_ids[cmd.classname, qlclass] = id
+
+    return schema_object_ids
+
+
 def prepare_patch(
-    num, kind, patch, schema, reflschema, schema_class_layout,
-    backend_params
-):
+    num: int,
+    kind: str,
+    patch: str,
+    schema: s_schema.Schema,
+    reflschema: s_schema.Schema,
+    schema_class_layout: Dict[Type[s_obj.Object], s_refl.SchemaClassLayout],
+    backend_params: params.BackendRuntimeParams
+) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, Any]]:
     val = f'{pg_common.quote_literal(json.dumps(num + 1))}::jsonb'
     # TODO: This is an INSERT because 2.0 shipped without num_patches.
     # We can just make this an UPDATE for 3.0
@@ -500,25 +536,55 @@ def prepare_patch(
     if kind == 'sql':
         return (patch, update), (), {}
 
-    assert kind == 'edgeql'
-
-    # EdgeQL patches need to be compiled.
+    # EdgeQL and reflection schema patches need to be compiled.
     current_block = dbops.PLTopBlock()
+    preblock = current_block.add_block()
+    subblock = current_block.add_block()
+
     std_plans = []
 
-    for ddl_cmd in edgeql.parse_block(patch):
-        delta_command = s_ddl.delta_from_ddl(
-            ddl_cmd, modaliases={}, schema=schema, stdmode=True)
+    updates: dict[str, Any] = {}
 
-        # Apply and adapt delta, build native delta plan, which
-        # will also update the schema.
-        schema, plan = _process_delta_params(
-            delta_command, schema, backend_params)
-        assert not plan.new_types
-        std_plans.append(delta_command)
-        plan.generate(current_block)
+    if kind == 'edgeql' or kind == 'edgeql+schema':
+        for ddl_cmd in edgeql.parse_block(patch):
+            assert isinstance(ddl_cmd, qlast.DDLCommand)
+            # First apply it to the regular schema, just so we can update
+            # stdschema
+            delta_command = s_ddl.delta_from_ddl(
+                ddl_cmd, modaliases={}, schema=schema, stdmode=True)
+            schema, _ = _process_delta_params(
+                delta_command, schema, backend_params)
 
-        subblock = current_block.add_block()
+            # We need to extract all ids of new objects created when
+            # applying it to the regular schema, so that we can make sure
+            # to use the same ids in the reflschema.
+            schema_object_ids = _get_schema_object_ids(delta_command)
+
+            # Then apply it to the reflschema, which we will use to drive
+            # the actual table updating.
+            delta_command = s_ddl.delta_from_ddl(
+                ddl_cmd, modaliases={}, schema=reflschema,
+                schema_object_ids=schema_object_ids, stdmode=True)
+            reflschema, plan = _process_delta_params(
+                delta_command, reflschema, backend_params)
+            std_plans.append(delta_command)
+            plan.generate(subblock)
+    else:
+        raise AssertionError(f'unknown patch type {kind}')
+
+    if kind == 'edgeql+schema':
+        # If we are modifying the schema layout, we need to rerun
+        # generate_structure to collect schema changes not reflected
+        # in the public schema and to discover the new introspection
+        # query.
+        reflection = s_refl.generate_structure(
+            reflschema, make_funcs=False,
+        )
+        reflection.intro_schema_delta.dump()
+
+        reflschema, plan = _process_delta_params(
+            reflection.intro_schema_delta, reflschema, backend_params)
+        plan.generate(subblock)
 
         compiler = edbcompiler.new_compiler(
             std_schema=schema,
@@ -526,35 +592,81 @@ def prepare_patch(
             schema_class_layout=schema_class_layout
         )
 
-        compilerctx = edbcompiler.new_compiler_context(
+        local_intro_sql, global_intro_sql = _compile_intro_queries_stdlib(
+            compiler=compiler,
             user_schema=reflschema,
-            global_schema=schema,
-            bootstrap_mode=True,
+            reflection=reflection,
         )
 
-        for std_plan in std_plans:
-            compiler._compile_schema_storage_in_delta(
-                ctx=compilerctx,
-                delta=std_plan,
-                block=subblock,
-            )
+        updates.update(dict(
+            classlayout=reflection.class_layout,
+            local_intro_query=local_intro_sql.encode('utf-8'),
+            global_intro_query=global_intro_sql.encode('utf-8'),
+        ))
 
-        patch = current_block.to_string()
+        # This part is wildly hinky
+        # We need to delete all the support views and recreate them at the end
+        support_view_commands = metaschema.get_support_views(
+            reflschema, backend_params)
+        for cv in support_view_commands:
+            dv = dbops.DropView(
+                cv.view.name,
+                cascade=True,
+                conditions=[dbops.ViewExists(cv.view.name)],
+            )
+            dv.generate(preblock)
+
+        support_view_commands.generate(subblock)
+
+    compiler = edbcompiler.new_compiler(
+        std_schema=schema,
+        reflection_schema=reflschema,
+        schema_class_layout=schema_class_layout
+    )
+
+    compilerctx = edbcompiler.new_compiler_context(
+        user_schema=reflschema,
+        bootstrap_mode=True,
+    )
+
+    for std_plan in std_plans:
+        compiler._compile_schema_storage_in_delta(
+            ctx=compilerctx,
+            delta=std_plan,
+            block=subblock,
+        )
+
+    patch = current_block.to_string()
 
     if debug.flags.delta_execute:
         debug.header('Patch Script')
         debug.dump_code(patch, lexer='sql')
 
-    # Just for the system database, we need to update the cached pickle
-    # of the stdschema.
-    schema_data = pickle.dumps(schema, protocol=pickle.HIGHEST_PROTOCOL)
-    schema_update = f'''
-        UPDATE edgedbinstdata.instdata
-        SET bin = {pg_common.quote_bytea_literal(schema_data)}::bytea
-        WHERE key = 'stdschema'
-    '''
+    updates.update(dict(
+        stdschema=schema,
+        reflschema=reflschema,
+    ))
 
-    return (patch, update), (schema_update,), {'stdschema': schema}
+    bins = ('stdschema', 'reflschema', 'global_schema', 'classlayout')
+    # Just for the system database, we need to update the cached pickle
+    # of everything.
+    sys_updates: tuple[str, ...] = ()
+    for k, v in updates.items():
+        if k in bins:
+            v = pickle.dumps(v, protocol=pickle.HIGHEST_PROTOCOL)
+            sys_updates += (f'''
+                UPDATE edgedbinstdata.instdata
+                SET bin = {pg_common.quote_bytea_literal(v)}::bytea
+                WHERE key = '{k}'
+            ''',)
+        else:
+            sys_updates += (f'''
+                UPDATE edgedbinstdata.instdata
+                SET text = {pg_common.quote_literal(v.decode('utf-8'))}::text
+                WHERE key = '{k}'
+            ''',)
+
+    return (patch, update), sys_updates, updates
 
 
 class StdlibBits(NamedTuple):
@@ -691,48 +803,12 @@ async def _make_stdlib(
 
     sqltext = current_block.to_string()
 
-    compilerctx = edbcompiler.new_compiler_context(
+    local_intro_sql, global_intro_sql = _compile_intro_queries_stdlib(
+        compiler=compiler,
         user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
-        schema_reflection_mode=True,
-        output_format=edbcompiler.OutputFormat.JSON_ELEMENTS,
+        reflection=reflection,
     )
-
-    # The introspection query bits are returned in chunks
-    # because it's a large UNION and we currently generate SQL
-    # that is much harder for Postgres to plan as opposed to a
-    # straight flat UNION.
-    sql_intro_local_parts = []
-    sql_intro_global_parts = []
-    for intropart in reflection.local_intro_parts:
-        sql_intro_local_parts.append(
-            compile_single_query(
-                intropart,
-                compiler=compiler,
-                compilerctx=compilerctx,
-            ),
-        )
-
-    for intropart in reflection.global_intro_parts:
-        sql_intro_global_parts.append(
-            compile_single_query(
-                intropart,
-                compiler=compiler,
-                compilerctx=compilerctx,
-            ),
-        )
-
-    local_intro_sql = ' UNION ALL '.join(sql_intro_local_parts)
-    local_intro_sql = f'''
-        WITH intro(c) AS ({local_intro_sql})
-        SELECT json_agg(intro.c) FROM intro
-    '''
-
-    global_intro_sql = ' UNION ALL '.join(sql_intro_global_parts)
-    global_intro_sql = f'''
-        WITH intro(c) AS ({global_intro_sql})
-        SELECT json_agg(intro.c) FROM intro
-    '''
 
     return StdlibBits(
         stdschema=schema.get_top_schema(),
@@ -795,6 +871,59 @@ async def _amend_stdlib(
     sqltext = topblock.to_string()
 
     return stdlib._replace(stdschema=schema, reflschema=reflschema), sqltext
+
+
+def _compile_intro_queries_stdlib(
+    *,
+    compiler: edbcompiler.Compiler,
+    user_schema: s_schema.Schema,
+    global_schema: s_schema.Schema=s_schema.FlatSchema(),
+    reflection: s_refl.SchemaReflectionParts,
+) -> Tuple[str, str]:
+    compilerctx = edbcompiler.new_compiler_context(
+        user_schema=user_schema,
+        global_schema=global_schema,
+        schema_reflection_mode=True,
+        output_format=edbcompiler.OutputFormat.JSON_ELEMENTS,
+    )
+
+    # The introspection query bits are returned in chunks
+    # because it's a large UNION and we currently generate SQL
+    # that is much harder for Postgres to plan as opposed to a
+    # straight flat UNION.
+    sql_intro_local_parts = []
+    sql_intro_global_parts = []
+    for intropart in reflection.local_intro_parts:
+        sql_intro_local_parts.append(
+            compile_single_query(
+                intropart,
+                compiler=compiler,
+                compilerctx=compilerctx,
+            ),
+        )
+
+    for intropart in reflection.global_intro_parts:
+        sql_intro_global_parts.append(
+            compile_single_query(
+                intropart,
+                compiler=compiler,
+                compilerctx=compilerctx,
+            ),
+        )
+
+    local_intro_sql = ' UNION ALL '.join(sql_intro_local_parts)
+    local_intro_sql = f'''
+        WITH intro(c) AS ({local_intro_sql})
+        SELECT json_agg(intro.c) FROM intro
+    '''
+
+    global_intro_sql = ' UNION ALL '.join(sql_intro_global_parts)
+    global_intro_sql = f'''
+        WITH intro(c) AS ({global_intro_sql})
+        SELECT json_agg(intro.c) FROM intro
+    '''
+
+    return local_intro_sql, global_intro_sql
 
 
 async def _init_stdlib(
