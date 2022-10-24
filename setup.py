@@ -294,8 +294,16 @@ def _compile_libpg_query():
         exit(1)
 
     subprocess.run(
-        ['make'] + ['build', '-j', str(max(os.cpu_count() - 1, 1))],
-        cwd=str(dir), check=True)
+        [
+            'make',
+            'build',
+            '-j',
+            str(max(os.cpu_count() - 1, 1)),
+            'CFLAGS=--std=gnu99',
+        ],
+        cwd=str(dir),
+        check=True,
+    )
 
 
 def _check_rust():
