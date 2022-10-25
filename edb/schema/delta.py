@@ -3413,6 +3413,11 @@ class AlterObject(AlterObjectOrFragment[so.Object_T], Generic[so.Object_T]):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, AlterObject)
 
+        # idk how, but somehow there could be an instance
+        # of CreateConcreteLink here
+        if isinstance(astnode, qlast.AlterObject):
+            cmd.if_exists = astnode.alter_if_exists
+
         if getattr(astnode, 'abstract', False):
             cmd.set_attribute_value('abstract', True)
 
@@ -3448,8 +3453,7 @@ class AlterObject(AlterObjectOrFragment[so.Object_T], Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-
-        if not context.canonical and self.if_exists:
+        if self.if_exists:
             scls = self.get_object(schema, context, default=None)
             if scls is None:
                 context.current().op.discard(self)
@@ -3610,6 +3614,21 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         ]
 
         return bool(refs)
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: CommandContext,
+    ) -> Command:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(astnode, qlast.DropObject)
+        assert isinstance(cmd, DeleteObject)
+
+        cmd.if_exists = astnode.drop_if_exists
+
+        return cmd
 
     def apply(
         self,

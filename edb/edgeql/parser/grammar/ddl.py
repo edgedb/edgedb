@@ -227,6 +227,14 @@ class UnqualifiedPointerName(Nonterm):
         self.val = kids[0].val
 
 
+class OptIfExists(Nonterm):
+    def reduce_IF_EXISTS(self, *kids):
+        self.val = True
+
+    def reduce_empty(self, *kids):
+        self.val = False
+
+
 class OptIfNotExists(Nonterm):
     def reduce_IF_NOT_EXISTS(self, *kids):
         self.val = True
@@ -767,12 +775,13 @@ class CreateExtensionStmt(Nonterm):
 
     def reduce_CreateExtensionStmt(self, *kids):
         r"""%reduce CREATE EXTENSION ShortNodeName OptExtensionVersion
-                    OptCreateExtensionCommandsBlock
+                    OptIfNotExists OptCreateExtensionCommandsBlock
         """
         self.val = qlast.CreateExtension(
             name=kids[2].val,
             version=kids[3].val,
-            commands=kids[4].val,
+            create_if_not_exists=kids[4].val,
+            commands=kids[5].val,
         )
 
 
@@ -782,10 +791,13 @@ class CreateExtensionStmt(Nonterm):
 class DropExtensionStmt(Nonterm):
 
     def reduce_DropExtensionPackageStmt(self, *kids):
-        r"""%reduce DROP EXTENSION ShortNodeName OptExtensionVersion"""
+        r"""%reduce DROP EXTENSION ShortNodeName
+                    OptExtensionVersion OptIfExists
+        """
         self.val = qlast.DropExtension(
             name=kids[2].val,
             version=kids[3].val,
+            drop_if_exists=kids[4].val,
         )
 
 
@@ -875,10 +887,14 @@ commands_block(
 
 
 class AlterRoleStmt(Nonterm):
-    def reduce_ALTER_ROLE_ShortNodeName_AlterRoleCommandsBlock(self, *kids):
+    def reduce_AlterRoleStmt(self, *kids):
+        r"""%reduce ALTER ROLE ShortNodeName OptIfExists
+                    AlterRoleCommandsBlock
+        """
         self.val = qlast.AlterRole(
             name=kids[2].val,
-            commands=kids[3].val,
+            alter_if_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -886,9 +902,10 @@ class AlterRoleStmt(Nonterm):
 # DROP ROLE
 #
 class DropRoleStmt(Nonterm):
-    def reduce_DROP_ROLE_ShortNodeName(self, *kids):
+    def reduce_DROP_ROLE_ShortNodeName_OptIfExists(self, *kids):
         self.val = qlast.DropRole(
             name=kids[2].val,
+            drop_if_exists=kids[3].val,
         )
 
 
@@ -898,41 +915,49 @@ class DropRoleStmt(Nonterm):
 class CreateConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
         r"""%reduce CREATE ABSTRACT CONSTRAINT NodeName OptOnExpr \
-                    OptExtendingSimple OptCreateCommandsBlock"""
+                    OptExtendingSimple OptIfNotExists \
+                    OptCreateCommandsBlock
+        """
         self.val = qlast.CreateConstraint(
             name=kids[3].val,
             subjectexpr=kids[4].val,
             bases=kids[5].val,
-            commands=kids[6].val,
+            create_if_not_exists=kids[6].val,
+            commands=kids[7].val,
         )
 
     def reduce_CreateConstraint_CreateFunctionArgs(self, *kids):
         r"""%reduce CREATE ABSTRACT CONSTRAINT NodeName CreateFunctionArgs \
-                    OptOnExpr OptExtendingSimple OptCreateCommandsBlock"""
+                    OptOnExpr OptExtendingSimple OptIfNotExists \
+                    OptCreateCommandsBlock
+        """
         self.val = qlast.CreateConstraint(
             name=kids[3].val,
             params=kids[4].val,
             subjectexpr=kids[5].val,
             bases=kids[6].val,
-            commands=kids[7].val,
+            create_if_not_exists=kids[7].val,
+            commands=kids[8].val,
         )
 
 
 class AlterConstraintStmt(Nonterm):
-    def reduce_CreateConstraint(self, *kids):
-        r"""%reduce ALTER ABSTRACT CONSTRAINT NodeName \
+    def reduce_AlterConstraint(self, *kids):
+        r"""%reduce ALTER ABSTRACT CONSTRAINT NodeName OptIfExists \
                     AlterCommandsBlock"""
         self.val = qlast.AlterConstraint(
             name=kids[3].val,
-            commands=kids[4].val,
+            alter_if_exists=kids[4].val,
+            commands=kids[5].val,
         )
 
 
 class DropConstraintStmt(Nonterm):
-    def reduce_CreateConstraint(self, *kids):
-        r"""%reduce DROP ABSTRACT CONSTRAINT NodeName"""
+    def reduce_DropConstraint(self, *kids):
+        r"""%reduce DROP ABSTRACT CONSTRAINT NodeName OptIfExists"""
         self.val = qlast.DropConstraint(
-            name=kids[3].val
+            name=kids[3].val,
+            drop_if_exists=kids[4].val,
         )
 
 
@@ -1064,13 +1089,15 @@ class CreateScalarTypeStmt(Nonterm):
     def reduce_CreateAbstractScalarTypeStmt(self, *kids):
         r"""%reduce \
             CREATE ABSTRACT SCALAR TYPE NodeName \
-            OptExtending OptCreateScalarTypeCommandsBlock \
+            OptExtending OptIfNotExists \
+            OptCreateScalarTypeCommandsBlock \
         """
         self.val = qlast.CreateScalarType(
             name=kids[4].val,
             abstract=True,
             bases=kids[5].val,
-            commands=kids[6].val
+            create_if_not_exists=kids[6].val,
+            commands=kids[7].val,
         )
 
     def reduce_CreateFinalScalarTypeStmt(self, *kids):
@@ -1092,12 +1119,14 @@ class CreateScalarTypeStmt(Nonterm):
     def reduce_CreateScalarTypeStmt(self, *kids):
         r"""%reduce \
             CREATE SCALAR TYPE NodeName \
-            OptExtending OptCreateScalarTypeCommandsBlock \
+            OptExtending OptIfNotExists \
+            OptCreateScalarTypeCommandsBlock \
         """
         self.val = qlast.CreateScalarType(
             name=kids[3].val,
             bases=kids[4].val,
-            commands=kids[5].val
+            create_if_not_exists=kids[5].val,
+            commands=kids[6].val,
         )
 
 
@@ -1124,19 +1153,21 @@ commands_block(
 class AlterScalarTypeStmt(Nonterm):
     def reduce_AlterScalarTypeStmt(self, *kids):
         r"""%reduce \
-            ALTER SCALAR TYPE NodeName \
+            ALTER SCALAR TYPE NodeName OptIfExists \
             AlterScalarTypeCommandsBlock \
         """
         self.val = qlast.AlterScalarType(
             name=kids[3].val,
-            commands=kids[4].val
+            alter_if_exists=kids[4].val,
+            commands=kids[5].val,
         )
 
 
 class DropScalarTypeStmt(Nonterm):
-    def reduce_DROP_SCALAR_TYPE_NodeName(self, *kids):
+    def reduce_DROP_SCALAR_TYPE_NodeName_OptIfExists(self, *kids):
         self.val = qlast.DropScalarType(
-            name=kids[3].val
+            name=kids[3].val,
+            drop_if_exists=kids[4].val,
         )
 
 
@@ -1152,19 +1183,21 @@ commands_block(
 class CreateAnnotationStmt(Nonterm):
     def reduce_CreateAnnotation(self, *kids):
         r"""%reduce CREATE ABSTRACT ANNOTATION NodeName \
-                    OptCreateAnnotationCommandsBlock"""
+                    OptIfNotExists OptCreateAnnotationCommandsBlock"""
         self.val = qlast.CreateAnnotation(
             name=kids[3].val,
-            commands=kids[4].val,
+            create_if_not_exists=kids[4].val,
+            commands=kids[5].val,
             inheritable=False,
         )
 
     def reduce_CreateInheritableAnnotation(self, *kids):
         r"""%reduce CREATE ABSTRACT INHERITABLE ANNOTATION
-                    NodeName OptCreateCommandsBlock"""
+                    NodeName OptIfNotExists OptCreateCommandsBlock"""
         self.val = qlast.CreateAnnotation(
             name=kids[4].val,
-            commands=kids[5].val,
+            create_if_not_exists=kids[5].val,
+            commands=kids[6].val,
             inheritable=True,
         )
 
@@ -1185,10 +1218,11 @@ commands_block(
 class AlterAnnotationStmt(Nonterm):
     def reduce_AlterAnnotation(self, *kids):
         r"""%reduce ALTER ABSTRACT ANNOTATION NodeName \
-                    AlterAnnotationCommandsBlock"""
+                    OptIfExists AlterAnnotationCommandsBlock"""
         self.val = qlast.AlterAnnotation(
             name=kids[3].val,
-            commands=kids[4].val
+            alter_if_exists=kids[4].val,
+            commands=kids[5].val
         )
 
 
@@ -1197,9 +1231,10 @@ class AlterAnnotationStmt(Nonterm):
 #
 class DropAnnotationStmt(Nonterm):
     def reduce_DropAnnotation(self, *kids):
-        r"""%reduce DROP ABSTRACT ANNOTATION NodeName"""
+        r"""%reduce DROP ABSTRACT ANNOTATION NodeName OptIfExists"""
         self.val = qlast.DropAnnotation(
             name=kids[3].val,
+            drop_if_exists=kids[4].val,
         )
 
 
@@ -1554,13 +1589,14 @@ commands_block(
 class CreateLinkStmt(Nonterm):
     def reduce_CreateLink(self, *kids):
         r"""%reduce \
-            CREATE ABSTRACT LINK NodeName OptExtendingSimple \
+            CREATE ABSTRACT LINK NodeName OptExtendingSimple OptIfNotExists \
             OptCreateLinkCommandsBlock \
         """
         self.val = qlast.CreateLink(
             name=kids[3].val,
             bases=kids[4].val,
-            commands=kids[5].val,
+            create_if_not_exists=kids[5].val,
+            commands=kids[6].val,
             abstract=True,
         )
 
@@ -1594,12 +1630,13 @@ commands_block(
 class AlterLinkStmt(Nonterm):
     def reduce_AlterLink(self, *kids):
         r"""%reduce \
-            ALTER ABSTRACT LINK NodeName \
+            ALTER ABSTRACT LINK NodeName OptIfExists \
             AlterLinkCommandsBlock \
         """
         self.val = qlast.AlterLink(
             name=kids[3].val,
-            commands=kids[4].val
+            alter_if_exists=kids[4].val,
+            commands=kids[5].val,
         )
 
 
@@ -1619,12 +1656,13 @@ commands_block(
 class DropLinkStmt(Nonterm):
     def reduce_DropLink(self, *kids):
         r"""%reduce \
-            DROP ABSTRACT LINK NodeName \
+            DROP ABSTRACT LINK NodeName OptIfExists \
             OptDropLinkCommandsBlock \
         """
         self.val = qlast.DropLink(
             name=kids[3].val,
-            commands=kids[4].val
+            drop_if_exists=kids[4].val,
+            commands=kids[5].val,
         )
 
 
@@ -1905,25 +1943,29 @@ class CreateObjectTypeStmt(Nonterm):
     def reduce_CreateAbstractObjectTypeStmt(self, *kids):
         r"""%reduce \
             CREATE ABSTRACT TYPE NodeName \
-            OptExtendingSimple OptCreateObjectTypeCommandsBlock \
+            OptExtendingSimple OptIfNotExists \
+            OptCreateObjectTypeCommandsBlock \
         """
         self.val = qlast.CreateObjectType(
             name=kids[3].val,
             bases=kids[4].val,
             abstract=True,
-            commands=kids[5].val,
+            create_if_not_exists=kids[5].val,
+            commands=kids[6].val,
         )
 
     def reduce_CreateRegularObjectTypeStmt(self, *kids):
         r"""%reduce \
             CREATE TYPE NodeName \
-            OptExtendingSimple OptCreateObjectTypeCommandsBlock \
+            OptExtendingSimple OptIfNotExists \
+            OptCreateObjectTypeCommandsBlock \
         """
         self.val = qlast.CreateObjectType(
             name=kids[2].val,
             bases=kids[3].val,
             abstract=False,
-            commands=kids[4].val,
+            create_if_not_exists=kids[4].val,
+            commands=kids[5].val,
         )
 
 
@@ -1962,12 +2004,13 @@ commands_block(
 class AlterObjectTypeStmt(Nonterm):
     def reduce_AlterObjectTypeStmt(self, *kids):
         r"""%reduce \
-            ALTER TYPE NodeName \
+            ALTER TYPE NodeName OptIfExists \
             AlterObjectTypeCommandsBlock \
         """
         self.val = qlast.AlterObjectType(
             name=kids[2].val,
-            commands=kids[3].val
+            alter_if_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -1988,11 +2031,12 @@ class DropObjectTypeStmt(Nonterm):
     def reduce_DropObjectType(self, *kids):
         r"""%reduce \
             DROP TYPE \
-            NodeName OptDropObjectTypeCommandsBlock \
+            NodeName OptIfExists OptDropObjectTypeCommandsBlock \
         """
         self.val = qlast.DropObjectType(
             name=kids[2].val,
-            commands=kids[3].val
+            drop_if_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -2013,14 +2057,15 @@ commands_block(
 class CreateAliasStmt(Nonterm):
     def reduce_CreateAliasShortStmt(self, *kids):
         r"""%reduce
-            CREATE ALIAS NodeName ASSIGN Expr
+            CREATE ALIAS NodeName OptIfNotExists ASSIGN Expr
         """
         self.val = qlast.CreateAlias(
             name=kids[2].val,
+            create_if_not_exists=kids[3].val,
             commands=[
                 qlast.SetField(
                     name='expr',
-                    value=kids[4].val,
+                    value=kids[5].val,
                     special_syntax=True,
                 )
             ]
@@ -2028,12 +2073,13 @@ class CreateAliasStmt(Nonterm):
 
     def reduce_CreateAliasRegularStmt(self, *kids):
         r"""%reduce
-            CREATE ALIAS NodeName
+            CREATE ALIAS NodeName OptIfNotExists
             CreateAliasCommandsBlock
         """
         self.val = qlast.CreateAlias(
             name=kids[2].val,
-            commands=kids[3].val,
+            create_if_not_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -2057,12 +2103,13 @@ commands_block(
 class AlterAliasStmt(Nonterm):
     def reduce_AlterAliasStmt(self, *kids):
         r"""%reduce
-            ALTER ALIAS NodeName
+            ALTER ALIAS NodeName OptIfExists
             AlterAliasCommandsBlock
         """
         self.val = qlast.AlterAlias(
             name=kids[2].val,
-            commands=kids[3].val
+            alter_if_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -2073,10 +2120,11 @@ class AlterAliasStmt(Nonterm):
 class DropAliasStmt(Nonterm):
     def reduce_DropAlias(self, *kids):
         r"""%reduce
-            DROP ALIAS NodeName
+            DROP ALIAS NodeName OptIfExists
         """
         self.val = qlast.DropAlias(
             name=kids[2].val,
+            drop_if_exists=kids[3].val,
         )
 
 
@@ -2097,11 +2145,12 @@ class CreateModuleStmt(Nonterm):
 # ALTER MODULE
 #
 class AlterModuleStmt(Nonterm):
-    def reduce_ALTER_MODULE_ModuleName_AlterCommandsBlock(
+    def reduce_ALTER_MODULE_ModuleName_OptIfExists_AlterCommandsBlock(
             self, *kids):
         self.val = qlast.AlterModule(
             name=qlast.ObjectRef(module=None, name='.'.join(kids[2].val)),
-            commands=kids[3].val
+            alter_if_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -2109,9 +2158,10 @@ class AlterModuleStmt(Nonterm):
 # DROP MODULE
 #
 class DropModuleStmt(Nonterm):
-    def reduce_DROP_MODULE_ModuleName(self, *kids):
+    def reduce_DROP_MODULE_ModuleName_OptIfExists(self, *kids):
         self.val = qlast.DropModule(
-            name=qlast.ObjectRef(module=None, name='.'.join(kids[2].val))
+            name=qlast.ObjectRef(module=None, name='.'.join(kids[2].val)),
+            drop_if_exists=kids[3].val,
         )
 
 
@@ -2133,7 +2183,7 @@ commands_block(
 class CreateFunctionStmt(Nonterm, commondl.ProcessFunctionBlockMixin):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce CREATE FUNCTION NodeName CreateFunctionArgs \
-                ARROW OptTypeQualifier FunctionType \
+                ARROW OptTypeQualifier FunctionType OptIfNotExists \
                 CreateFunctionCommandsBlock
         """
         self.val = qlast.CreateFunction(
@@ -2141,16 +2191,19 @@ class CreateFunctionStmt(Nonterm, commondl.ProcessFunctionBlockMixin):
             params=kids[3].val,
             returning=kids[6].val,
             returning_typemod=kids[5].val,
-            **self._process_function_body(kids[7])
+            create_if_not_exists=kids[7].val,
+            **self._process_function_body(kids[8]),
         )
 
 
 class DropFunctionStmt(Nonterm):
     def reduce_DropFunction(self, *kids):
-        r"""%reduce DROP FUNCTION NodeName CreateFunctionArgs"""
+        r"""%reduce DROP FUNCTION NodeName CreateFunctionArgs OptIfExists"""
         self.val = qlast.DropFunction(
             name=kids[2].val,
-            params=kids[3].val)
+            params=kids[3].val,
+            drop_if_exists=kids[4].val,
+        )
 
 
 #
@@ -2173,13 +2226,14 @@ commands_block(
 class AlterFunctionStmt(Nonterm, commondl.ProcessFunctionBlockMixin):
     def reduce_AlterFunctionStmt(self, *kids):
         """%reduce
-           ALTER FUNCTION NodeName CreateFunctionArgs
+           ALTER FUNCTION NodeName CreateFunctionArgs OptIfExists
            AlterFunctionCommandsBlock
         """
         self.val = qlast.AlterFunction(
             name=kids[2].val,
             params=kids[3].val,
-            **self._process_function_body(kids[4], optional_using=True)
+            alter_if_exists=kids[4].val,
+            **self._process_function_body(kids[5], optional_using=True)
         )
 
 
@@ -2678,7 +2732,7 @@ class CreateGlobalStmt(Nonterm):
     def reduce_CreateRegularGlobal(self, *kids):
         """%reduce
             CREATE OptPtrQuals GLOBAL NodeName
-            ARROW FullTypeExpr
+            ARROW FullTypeExpr OptIfNotExists
             OptCreateGlobalCommandsBlock
         """
         self.val = qlast.CreateGlobal(
@@ -2686,26 +2740,28 @@ class CreateGlobalStmt(Nonterm):
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
             target=kids[5].val,
-            commands=kids[6].val,
+            create_if_not_exists=kids[6].val,
+            commands=kids[7].val,
         )
 
     def reduce_CreateComputableGlobal(self, *kids):
         """%reduce
-            CREATE OptPtrQuals GLOBAL NodeName ASSIGN Expr
+            CREATE OptPtrQuals GLOBAL NodeName OptIfNotExists ASSIGN Expr
         """
         self.val = qlast.CreateGlobal(
             name=kids[3].val,
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
-            target=kids[5].val,
+            create_if_not_exists=kids[4].val,
+            target=kids[6].val,
         )
 
     def reduce_CreateComputableGlobalWithUsing(self, *kids):
         """%reduce
-            CREATE OptPtrQuals GLOBAL NodeName
+            CREATE OptPtrQuals GLOBAL NodeName OptIfNotExists
             OptCreateConcretePropertyCommandsBlock
         """
-        cmds = kids[4].val
+        cmds = kids[5].val
         target = None
 
         for cmd in cmds:
@@ -2725,6 +2781,7 @@ class CreateGlobalStmt(Nonterm):
             name=kids[3].val,
             is_required=kids[1].val.required,
             cardinality=kids[1].val.cardinality,
+            create_if_not_exists=kids[4].val,
             target=target,
             commands=cmds,
         )
@@ -2769,20 +2826,22 @@ commands_block(
 class AlterGlobalStmt(Nonterm):
     def reduce_AlterGlobal(self, *kids):
         r"""%reduce \
-            ALTER GLOBAL NodeName \
+            ALTER GLOBAL NodeName OptIfExists \
             AlterGlobalCommandsBlock \
         """
         self.val = qlast.AlterGlobal(
             name=kids[2].val,
-            commands=kids[3].val
+            alter_if_exists=kids[3].val,
+            commands=kids[4].val,
         )
 
 
 class DropGlobalStmt(Nonterm):
     def reduce_DropGlobal(self, *kids):
-        r"""%reduce DROP GLOBAL NodeName"""
+        r"""%reduce DROP GLOBAL NodeName OptIfExists"""
         self.val = qlast.DropGlobal(
-            name=kids[2].val
+            name=kids[2].val,
+            drop_if_exists=kids[3].val,
         )
 
 #

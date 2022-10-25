@@ -720,11 +720,11 @@ class CreateObject(ObjectDDL):
 
 
 class AlterObject(ObjectDDL):
-    pass
+    alter_if_exists: bool = False
 
 
 class DropObject(ObjectDDL):
-    pass
+    drop_if_exists: bool = False
 
 
 class CreateExtendingObject(CreateObject, BasesMixin):

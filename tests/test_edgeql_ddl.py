@@ -307,6 +307,68 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
+    async def test_edgeql_ddl_type_07(self):
+        await self.con.execute("""
+            CREATE TYPE A IF NOT EXISTS;
+        """)
+
+        await self.assert_query_result(
+            """
+                SELECT schema::ObjectType {
+                    name
+                }
+                FILTER .name = 'default::A';
+            """,
+            [{'name': 'default::A'}],
+        )
+
+        await self.con.execute("""
+            CREATE TYPE A IF NOT EXISTS;
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE A IF EXISTS {
+                CREATE SINGLE PROPERTY prop -> str;
+            };
+        """)
+
+        await self.assert_query_result(
+            """
+                SELECT schema::ObjectType {
+                    name,
+                    properties: {
+                        name,
+                    } FILTER .name = 'prop'
+                }
+                FILTER .name = 'default::A';
+            """,
+            [{'name': 'default::A', 'properties': [{'name': 'prop'}]}],
+        )
+
+        await self.con.execute("""
+            ALTER TYPE NonExistent IF EXISTS {
+                CREATE SINGLE PROPERTY prop -> str;
+            };
+        """)
+
+        await self.con.execute("""
+            DROP TYPE A IF EXISTS;
+        """)
+
+        await self.assert_query_result(
+            """
+                SELECT schema::ObjectType {
+                    name,
+                }
+                FILTER .name = 'default::A';
+            """,
+            [],
+        )
+
+        await self.con.execute("""
+            DROP TYPE NonExistent IF EXISTS;
+        """)
+
     @test.xerror(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
@@ -1296,6 +1358,72 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             [{"test_object_link":
               {"@computed_prop": 84, "@test_link_prop": 42}}]
         )
+
+    async def test_edgeql_ddl_abstract_link_05(self):
+        await self.con.execute("""
+            CREATE ABSTRACT LINK test_link IF NOT EXISTS {
+                CREATE PROPERTY test_link_prop -> int64;
+            };
+        """)
+
+        await self.con.execute("""
+            CREATE ABSTRACT LINK test_link IF NOT EXISTS {
+                CREATE PROPERTY test_link_prop2 -> int64;
+            };
+        """)
+
+        await self.con.execute("""
+            CREATE TYPE Target;
+            CREATE TYPE TestObjectType {
+                CREATE LINK test_object_link EXTENDING test_link
+                   -> Target;
+            };
+
+            INSERT TestObjectType {
+                test_object_link := (INSERT Target { @test_link_prop := 42 })
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT TestObjectType {
+                    test_object_link: { @test_link_prop },
+                };
+            """,
+            [{"test_object_link": {"@test_link_prop": 42}}]
+        )
+
+        await self.con.execute("""
+            ALTER ABSTRACT LINK test_link IF EXISTS {
+                DROP PROPERTY test_link_prop;
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "link 'test_object_link' of object type "
+            "'default::TestObjectType' has no property 'test_link_prop'",
+        ):
+            await self.con.execute(
+                r"""
+                    SELECT TestObjectType {
+                        test_object_link: { @test_link_prop },
+                    };
+                """
+            )
+
+        await self.con.execute("""
+            DROP TYPE TestObjectType;
+            DROP TYPE Target;
+        """)
+
+        await self.con.execute("""
+            DROP ABSTRACT LINK test_link IF EXISTS;
+        """)
+
+        await self.con.execute("""
+            DROP ABSTRACT LINK non_existent IF EXISTS;
+        """)
 
     async def test_edgeql_ddl_drop_extending_01(self):
         await self.con.execute("""
@@ -4546,6 +4674,64 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
             """)
 
+    async def test_edgeql_ddl_function_36(self):
+        await self.con.execute(r"""
+            CREATE FUNCTION f1(a: std::int64) -> std::int64
+            IF NOT EXISTS
+            USING EdgeQL $$
+                SELECT a
+            $$;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT f1(2)
+            """,
+            [2],
+        )
+
+        await self.con.execute(r"""
+            CREATE FUNCTION f1(a: std::int64) -> std::int64
+            IF NOT EXISTS
+            USING EdgeQL $$
+                SELECT a*a
+            $$;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT f1(2)
+            """,
+            [2],
+        )
+
+        await self.con.execute(r"""
+            ALTER FUNCTION f1(a: std::int64)
+            IF EXISTS
+            RENAME TO new_f1
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT new_f1(1)
+            """,
+            [1],
+        )
+
+        await self.con.execute(r"""
+            ALTER FUNCTION non_existent(a: std::int64)
+            IF EXISTS
+            RENAME TO non_existent2
+        """)
+
+        await self.con.execute(r"""
+            DROP FUNCTION new_f1(a: std::int64) IF EXISTS
+        """)
+
+        await self.con.execute(r"""
+            DROP FUNCTION non_existent(a: std::int64) IF EXISTS
+        """)
+
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
             CREATE FUNCTION foo(s: str) -> str {
@@ -5017,6 +5203,26 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             # make something inside it.
             CREATE TYPE spam::Test;
         ''')
+
+    async def test_edgeql_ddl_module_03(self):
+        await self.con.execute('''\
+            CREATE MODULE spam IF NOT EXISTS;
+        ''')
+
+        await self.con.execute('''\
+            DROP MODULE spam IF EXISTS;
+        ''')
+
+        await self.con.execute('''\
+            DROP MODULE spam IF EXISTS;
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.UnknownModuleError,
+                r"module 'spam' is not in this schema"):
+            await self.con.execute('''\
+                CREATE TYPE spam::Foo;
+            ''')
 
     async def test_edgeql_ddl_operator_01(self):
         await self.con.execute('''
@@ -5546,6 +5752,45 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     drop extending str; extending array<str> last;
                 };
             ''')
+
+    async def test_edgeql_ddl_scalar_14(self):
+        await self.con.execute('''
+            CREATE ABSTRACT SCALAR TYPE a EXTENDING std::int64 IF NOT EXISTS;
+        ''')
+
+        await self.con.execute('''
+            CREATE ABSTRACT SCALAR TYPE a EXTENDING std::int64 IF NOT EXISTS;
+        ''')
+
+        await self.con.execute('''
+            CREATE SCALAR TYPE b EXTENDING std::int64 IF NOT EXISTS;
+        ''')
+
+        await self.con.execute('''
+            CREATE SCALAR TYPE b EXTENDING std::int64 IF NOT EXISTS;
+        ''')
+
+        await self.con.execute('''
+            ALTER SCALAR TYPE b IF EXISTS
+            CREATE CONSTRAINT std::one_of(1, 2);
+        ''')
+
+        await self.con.execute('''
+            ALTER SCALAR TYPE non_existent IF EXISTS
+            CREATE CONSTRAINT std::one_of(1, 2);
+        ''')
+
+        await self.con.execute('''
+            DROP SCALAR TYPE a IF EXISTS;
+        ''')
+
+        await self.con.execute('''
+            DROP SCALAR TYPE a IF EXISTS;
+        ''')
+
+        await self.con.execute('''
+            DROP SCALAR TYPE non_existent IF EXISTS;
+        ''')
 
     async def test_edgeql_ddl_cast_01(self):
         await self.con.execute('''
@@ -6436,6 +6681,57 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute("""
                 alter global foo set type str using ('lol');
             """)
+
+    async def test_edgeql_ddl_global_09(self):
+        await self.con.execute('''
+            CREATE GLOBAL foo -> str IF NOT EXISTS;
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT GLOBAL foo;''',
+            []
+        )
+
+        await self.con.execute('''
+            CREATE GLOBAL foo IF NOT EXISTS := 'foo';
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT GLOBAL foo''',
+            []
+        )
+
+        await self.con.execute('''
+            CREATE GLOBAL bar IF NOT EXISTS := 'bar';
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT GLOBAL bar;''',
+            ['bar']
+        )
+
+        await self.con.execute('''
+            ALTER GLOBAL foo IF EXISTS SET TYPE int64 RESET TO DEFAULT;
+            SET GLOBAL foo := 42;
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT GLOBAL foo''',
+            [42]
+        )
+
+        await self.con.execute('''
+            ALTER GLOBAL non_existent IF EXISTS
+            SET TYPE int64 RESET TO DEFAULT;
+        ''')
+
+        await self.con.execute('''
+            DROP GLOBAL non_existent IF EXISTS;
+        ''')
+
+        await self.con.execute('''
+            DROP GLOBAL bar IF EXISTS;
+        ''')
 
     async def test_edgeql_ddl_property_computable_01(self):
         await self.con.execute('''\
@@ -7446,6 +7742,84 @@ type default::Foo {
             [{"annotations": []}]
         )
 
+    async def test_edgeql_ddl_annotation_19(self):
+        await self.con.execute("""
+            CREATE ABSTRACT ANNOTATION ann IF NOT EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation {
+                    name,
+                }
+                FILTER
+                    .name LIKE 'default::ann';
+            ''',
+            [{"name": "default::ann"}]
+        )
+
+        await self.con.execute("""
+            CREATE ABSTRACT ANNOTATION ann IF NOT EXISTS;
+        """)
+
+        await self.con.execute("""
+            ALTER ABSTRACT ANNOTATION ann IF EXISTS {
+                CREATE ANNOTATION description := "bar";
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation {
+                    annotations: {
+                        name,
+                        @value
+                    }
+                }
+                FILTER .name = 'default::ann'
+            ''',
+            [{"annotations": [{"@value": "bar", "name": "std::description"}]}]
+        )
+
+        await self.con.execute("""
+            ALTER ABSTRACT ANNOTATION non_existent IF EXISTS {
+                ALTER ANNOTATION description := "bar";
+            };
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation {
+                    annotations: {
+                        name,
+                        @value
+                    }
+                }
+                FILTER .name = 'default::non_existent'
+            ''',
+            []
+        )
+
+        await self.con.execute("""
+            DROP ABSTRACT ANNOTATION ann IF EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r'''
+                WITH MODULE schema
+                SELECT Annotation { name }
+                FILTER .name = 'default::ann'
+            ''',
+            []
+        )
+
+        await self.con.execute("""
+            DROP ABSTRACT ANNOTATION non_existent IF EXISTS;
+        """)
+
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
@@ -8123,6 +8497,89 @@ type default::Foo {
                 CREATE EXTENSION MyExtension VERSION '3.0';
             """)
 
+    async def test_edgeql_ddl_extension_02(self):
+        await self.con.execute(r"""
+            CREATE EXTENSION PACKAGE MyExtension VERSION '1.0';
+        """)
+
+        await self.con.execute(r"""
+            CREATE EXTENSION MyExtension IF NOT EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                    package: {
+                        ver := (.version.major, .version.minor)
+                    }
+                }
+                FILTER .name = 'MyExtension'
+            """,
+            [{
+                'name': 'MyExtension',
+                'package': {
+                    'ver': [1, 0],
+                }
+            }]
+        )
+
+        await self.con.execute(r"""
+            CREATE EXTENSION MyExtension IF NOT EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                    package: {
+                        ver := (.version.major, .version.minor)
+                    }
+                }
+                FILTER .name = 'MyExtension'
+            """,
+            [{
+                'name': 'MyExtension',
+                'package': {
+                    'ver': [1, 0],
+                }
+            }]
+        )
+
+        await self.con.execute(r"""
+            DROP EXTENSION MyExtension IF EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                    package: {
+                        ver := (.version.major, .version.minor)
+                    }
+                }
+                FILTER .name = 'MyExtension'
+            """,
+            [],
+        )
+
+        await self.con.execute(r"""
+            DROP EXTENSION MyExtension IF EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Extension {
+                    name,
+                    package: {
+                        ver := (.version.major, .version.minor)
+                    }
+                }
+                FILTER .name = 'MyExtension'
+            """,
+            [],
+        )
+
     async def test_edgeql_ddl_role_01(self):
         if not self.has_create_role:
             self.skipTest("create role is not supported by the backend")
@@ -8332,6 +8789,68 @@ type default::Foo {
                 await con.execute("""DROP DATABASE test_role_05""")
         finally:
             await con.aclose()
+
+    async def test_edgeql_ddl_role_06(self):
+        if not self.has_create_role:
+            self.skipTest("create role is not supported by the backend")
+
+        await self.con.execute(r"""
+            ALTER ROLE foo1 IF EXISTS {
+                SET password := 'secret';
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::Role {
+                    name
+                } FILTER .name = 'foo1'
+            """,
+            []
+        )
+
+        await self.con.execute(r"""
+            CREATE SUPERUSER ROLE foo1 IF NOT EXISTS {
+                SET password := 'secret';
+            };
+        """)
+
+        role = await self.con.query_single('''
+            SELECT sys::Role { password }
+            FILTER .name = 'foo1'
+        ''')
+
+        self.assertIsNotNone(role.password)
+
+        await self.con.execute(r"""
+            ALTER ROLE foo1 IF EXISTS {
+                SET password := {};
+            };
+        """)
+
+        role = await self.con.query_single('''
+            SELECT sys::Role { password }
+            FILTER .name = 'foo1'
+        ''')
+
+        self.assertIsNone(role.password)
+
+        await self.con.execute(r"""
+            DROP ROLE foo1 IF EXISTS;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT sys::Role {
+                    name
+                } FILTER .name = 'foo1'
+            """,
+            []
+        )
+
+        await self.con.execute(r"""
+            DROP ROLE foo1 IF EXISTS;
+        """)
 
     async def test_edgeql_ddl_describe_roles(self):
         if not self.has_create_role:
@@ -9063,6 +9582,91 @@ type default::Foo {
             alter alias X using (Bar);
         """)
 
+    async def test_edgeql_ddl_alias_11(self):
+        await self.con.execute("""
+            CREATE TYPE Foo {
+                CREATE PROPERTY bar -> str;
+            };
+            INSERT Foo { bar := 'spam' };
+        """)
+
+        await self.con.execute("""
+            CREATE ALIAS FooAlias IF NOT EXISTS := Foo;
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT FooAlias {bar};
+            ''',
+            [{
+                'bar': 'spam',
+            }],
+        )
+
+        await self.con.execute("""
+            CREATE ALIAS FooAlias IF NOT EXISTS := Foo { spam := 42 };
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                "object type 'default::Foo' has no link or property 'spam'"):
+            await self.con.execute(
+                r'''
+                    SELECT FooAlias {bar, spam};
+                ''',
+            )
+
+    async def test_edgeql_ddl_alias_12(self):
+        await self.con.execute("""
+            CREATE TYPE Foo {
+                CREATE PROPERTY bar -> str;
+            };
+            INSERT Foo { bar := 'spam' };
+        """)
+
+        await self.con.execute("""
+            CREATE ALIAS FooAlias IF NOT EXISTS := Foo;
+        """)
+
+        await self.con.execute("""
+            ALTER ALIAS FooAlias IF EXISTS USING (Foo { bar2 := 42 });
+        """)
+
+        await self.assert_query_result(
+            r'''
+                SELECT FooAlias {bar, bar2};
+            ''',
+            [{
+                'bar': 'spam',
+                'bar2': 42
+            }],
+        )
+
+        await self.con.execute("""
+            ALTER ALIAS NonExistent IF EXISTS USING (Foo);
+        """)
+
+        await self.con.execute("""
+            DROP ALIAS FooAlias IF EXISTS;
+        """)
+
+        await self.con.execute("""
+            DROP ALIAS FooAlias IF EXISTS;
+        """)
+
+        await self.con.execute("""
+            DROP ALIAS NonExistent IF EXISTS;
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                "object type or alias 'default::FooAlias' does not exist"):
+            await self.con.execute(
+                r'''
+                    SELECT FooAlias {bar};
+                ''',
+            )
+
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE InhTest01 {
@@ -9666,6 +10270,37 @@ type default::Foo {
                     create constraint exclusive;
                 };
             """)
+
+    async def test_edgeql_ddl_constraint_24(self):
+        await self.con.execute(r"""
+            CREATE ABSTRACT CONSTRAINT NewConstraint IF NOT EXISTS {
+                USING ((__subject__ < 10));
+            };
+            CREATE TYPE Foo {
+                CREATE PROPERTY x -> int64 {
+                    CREATE CONSTRAINT NewConstraint;
+                };
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER ABSTRACT CONSTRAINT NewConstraint IF EXISTS
+            RENAME TO NewConstraint2;
+        """)
+
+        await self.con.execute(r"""
+            ALTER ABSTRACT CONSTRAINT NonExistent IF EXISTS
+            RENAME TO NonExistent2;
+        """)
+
+        await self.con.execute(r"""
+            DROP TYPE Foo;
+            DROP ABSTRACT CONSTRAINT NewConstraint2 IF EXISTS;
+        """)
+
+        await self.con.execute(r"""
+            DROP ABSTRACT CONSTRAINT NonExistent IF EXISTS;
+        """)
 
     async def test_edgeql_ddl_constraint_check_01a(self):
         await self.con.execute(r"""

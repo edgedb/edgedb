@@ -962,6 +962,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if after_name:
             after_name()
 
+        if node.alter_if_exists and not self.sdlmode:
+            self._write_keywords(' IF EXISTS')
+
         commands = node.commands
         if ignored_cmds:
             commands = [cmd for cmd in commands
@@ -993,6 +996,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                            ident_to_str(node.name.name))
         if after_name:
             after_name()
+
+        if node.drop_if_exists and not self.sdlmode:
+            self._write_keywords(' IF EXISTS')
+
         if node.commands:
             self.write(' {')
             self._block_ws(1)
