@@ -863,20 +863,49 @@ class Server(ha_base.ClusterProtocol):
         num_patches = json.loads(num_patches) if num_patches else 0
         return num_patches
 
+    async def _get_patch_log(self, conn, idx):
+        # We need to maintain a log in the system database of
+        # patches that have been applied. This is so that if a
+        # patch creates a new object, and then we succesfully
+        # apply the patch to a user db but crash *before* applying
+        # it to the system db, when we start up again and try
+        # applying it to the system db, it is important that we
+        # apply the same compiled version of the patch. If we
+        # instead recompiled it, and it created new objects, those
+        # objects might have a different id in the std schema and
+        # in the actual user db.
+        result = await conn.sql_fetch_val(f'''\
+            SELECT bin FROM edgedbinstdata.instdata
+            WHERE key = 'patch_log_{idx}';
+        '''.encode('utf-8'))
+        if result:
+            return pickle.loads(result)
+        else:
+            return None
+
     async def _prepare_patches(self, conn):
         """Prepare all the patches"""
         num_patches = await self.get_patch_count(conn)
-        schema = self._std_schema
 
         patches = {}
         patch_list = list(enumerate(pg_patches.PATCHES))
         for num, (kind, patch) in patch_list[num_patches:]:
             from . import bootstrap
-            sql, syssql, schema = bootstrap.prepare_patch(
-                num, kind, patch, schema, self._refl_schema,
-                self._schema_class_layout, self.get_backend_runtime_params())
 
-            patches[num] = (sql, syssql, schema)
+            idx = num_patches + num
+            if not (entry := await self._get_patch_log(conn, idx)):
+                entry = bootstrap.prepare_patch(
+                    num, kind, patch, self._std_schema, self._refl_schema,
+                    self._schema_class_layout,
+                    self.get_backend_runtime_params())
+
+                await bootstrap._store_static_bin_cache_conn(
+                    conn, f'patch_log_{idx}', pickle.dumps(entry))
+
+            patches[num] = entry
+            _, _, updates = entry
+            if 'stdschema' in updates:
+                self._std_schema = updates['stdschema']
 
         return patches
 
@@ -931,7 +960,6 @@ class Server(ha_base.ClusterProtocol):
         async with self._use_sys_pgcon() as syscon:
             await self._maybe_apply_patches(
                 defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
-        self._std_schema = patches[max(patches)][-1]
 
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()
