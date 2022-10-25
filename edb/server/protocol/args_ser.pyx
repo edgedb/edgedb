@@ -224,34 +224,35 @@ cdef WriteBuffer recode_array(
 
     frb_slice_from(&sub_buf, in_buf, in_len)
 
-    val = hton.unpack_int32(frb_read(&sub_buf, 4)) # ndims
-    if val != 1 and val != 0:
+    ndims = hton.unpack_int32(frb_read(&sub_buf, 4)) # ndims
+    if ndims != 1 and ndims != 0:
         raise errors.InputDataError("unsupported array dimensions")
-    out_buf.write_int32(val)
+    out_buf.write_int32(ndims)
 
     data = frb_read(&sub_buf, 8)  # flags + reserved (oid)
     out_buf.write_cstr(data, 4)  # just write flags
     out_buf.write_int32(<int32_t>array_tid)
 
-    cnt = hton.unpack_int32(frb_read(&sub_buf, 4))
-    out_buf.write_int32(cnt)
+    if ndims != 0:
+        cnt = hton.unpack_int32(frb_read(&sub_buf, 4))
+        out_buf.write_int32(cnt)
 
-    val = hton.unpack_int32(frb_read(&sub_buf, 4)) # bound
-    if val != 1:
-        raise errors.InputDataError("unsupported array bound")
-    out_buf.write_int32(val)
+        val = hton.unpack_int32(frb_read(&sub_buf, 4)) # bound
+        if val != 1:
+            raise errors.InputDataError("unsupported array bound")
+        out_buf.write_int32(val)
 
-    # We have to actually scan the array to make sure it
-    # doesn't have any NULLs in it.
-    for idx in range(cnt):
-        in_len = hton.unpack_int32(frb_read(&sub_buf, 4))
-        if in_len < 0:
-            raise errors.InputDataError("invalid NULL inside type")
-        out_buf.write_int32(in_len)
-        data = frb_read(&sub_buf, in_len)
-        out_buf.write_cstr(data, in_len)
-    if frb_get_len(&sub_buf):
-        raise errors.InputDataError('unexpected trailing data in buffer')
+        # We have to actually scan the array to make sure it
+        # doesn't have any NULLs in it.
+        for idx in range(cnt):
+            in_len = hton.unpack_int32(frb_read(&sub_buf, 4))
+            if in_len < 0:
+                raise errors.InputDataError("invalid NULL inside type")
+            out_buf.write_int32(in_len)
+            data = frb_read(&sub_buf, in_len)
+            out_buf.write_cstr(data, in_len)
+        if frb_get_len(&sub_buf):
+            raise errors.InputDataError('unexpected trailing data in buffer')
 
 
 cdef WriteBuffer _decode_tuple_args_core(
