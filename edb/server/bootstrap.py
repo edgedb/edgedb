@@ -608,10 +608,9 @@ def prepare_patch(
         # We need to delete all the support views and recreate them at the end
         support_view_commands = metaschema.get_support_views(
             reflschema, backend_params)
-        for cv in support_view_commands:
+        for cv in reversed(list(support_view_commands)):
             dv = dbops.DropView(
                 cv.view.name,
-                cascade=True,
                 conditions=[dbops.ViewExists(cv.view.name)],
             )
             dv.generate(preblock)
