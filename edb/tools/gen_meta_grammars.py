@@ -80,8 +80,10 @@ def main(names, data):
                         eql_keywords.unreserved_keywords - BOOL_LITERALS),
                     bool_literals=sorted(BOOL_LITERALS),
                     type_builtins=types,
-                    module_builtins=(
-                        sorted((str(m) for m in s_schema.STD_MODULES))),
+                    module_builtins=(sorted(
+                        str(m) for m in s_schema.STD_MODULES
+                        if not str(m).startswith('__')
+                    )),
                     constraint_builtins=constraints,
                     fn_builtins=fn_builtins,
                     operators=operators,
@@ -136,7 +138,7 @@ def gen_meta_grammars(names):
                 f_names := re_match(
                     r"(?:std|sys|math|cal)::([a-zA-Z]\w+$)",
                     DISTINCT `Function`.name
-                )[0],
+                ),
                 o_names := (
                     SELECT _ := DISTINCT Operator.name[5:]
                     FILTER not re_test(r"^[a-zA-Z ]+$", _)
@@ -145,7 +147,7 @@ def gen_meta_grammars(names):
             SELECT {
                 t_names := t_names,
                 c_names := c_names,
-                f_names := f_names,
+                f_names := f_names[0] if len(f_names) = 1 else '',
                 o_names := o_names,
             }
             """,
