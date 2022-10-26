@@ -680,10 +680,21 @@ class Compiler:
         # (eventually) rewriting <STRING> and returning it
         assert self._is_dev_instance()
 
-        # TODO: Translate the SQL source code here
-        # current_tx = ctx.state.current_tx()
-        # schema = current_tx.get_schema(self._std_schema)
-        sql_source = ql.source + ';'
+        current_tx = ctx.state.current_tx()
+        schema = current_tx.get_schema(self._std_schema)
+
+        from edb.pgsql import parser as pg_parser
+        from edb.pgsql import resolver as pg_resolver
+        from edb.pgsql import codegen as pg_codegen
+
+        stmts = pg_parser.parse(ql.source)
+        sql_source = ''
+        for stmt in stmts:
+            resolved = pg_resolver.resolve(stmt, schema)
+            source = pg_codegen.generate_source(resolved)
+            sql_source += source + ';'
+
+        print(sql_source)
 
         # Compile the result as a query that just returns the string
         res_ql = edgeql.parse(f'SELECT {qlquote.quote_literal(sql_source)}')
