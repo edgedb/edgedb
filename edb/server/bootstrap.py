@@ -580,7 +580,6 @@ def prepare_patch(
         reflection = s_refl.generate_structure(
             reflschema, make_funcs=False,
         )
-        reflection.intro_schema_delta.dump()
 
         reflschema, plan = _process_delta_params(
             reflection.intro_schema_delta, reflschema, backend_params)
