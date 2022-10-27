@@ -469,6 +469,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'message: "database"'
             )
 
+        token = params.get('token')
+
         logger.debug('received connection request by %s to database %s',
                      user, database)
 
@@ -491,7 +493,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if authmethod_name == 'SCRAM':
             await self._auth_scram(user)
         elif authmethod_name == 'JWT':
-            self._auth_jwt(user)
+            self._auth_jwt(user, token)
         elif authmethod_name == 'Trust':
             self._auth_trust(user)
         else:
@@ -612,20 +614,23 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if user not in roles:
             raise errors.AuthenticationError('authentication failed')
 
-    def _auth_jwt(self, user):
+    def _auth_jwt(self, user, encoded_token):
         role = self.server.get_roles().get(user)
         if role is None:
             raise errors.AuthenticationError('authentication failed')
 
-        if not self._auth_data:
-            raise errors.AuthenticationError(
-                'authentication failed: no authorization data provided')
+        decrypt = False
+        if not encoded_token:
+            decrypt = True  # token in binary protocol over HTTP is encrypted
+            if not self._auth_data:
+                raise errors.AuthenticationError(
+                    'authentication failed: no authorization data provided')
 
-        header_value = self._auth_data.decode("ascii")
-        scheme, _, encoded_token = header_value.partition(" ")
-        if scheme.lower() != "bearer":
-            raise errors.AuthenticationError(
-                'authentication failed: unrecognized authentication scheme')
+            header_value = self._auth_data.decode("ascii")
+            scheme, _, encoded_token = header_value.partition(" ")
+            if scheme.lower() != "bearer":
+                raise errors.AuthenticationError(
+                    'authentication failed: unrecognized authentication scheme')
 
         encoded_token = encoded_token.strip()
         if not encoded_token:
@@ -636,21 +641,24 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         skey = self.server.get_jws_key()
 
         try:
-            decrypted_token = jwt.JWT(
-                key=ekey,
-                algs=[
-                    "RSA-OAEP-256",
-                    "ECDH-ES",
-                    "A128GCM",
-                    "A192GCM",
-                    "A256GCM",
-                ],
-                jwt=encoded_token,
-            )
+            if decrypt:
+                decrypted_token = jwt.JWT(
+                    key=ekey,
+                    algs=[
+                        "RSA-OAEP-256",
+                        "ECDH-ES",
+                        "A128GCM",
+                        "A192GCM",
+                        "A256GCM",
+                    ],
+                    jwt=encoded_token,
+                ).claims
+            else:
+                decrypted_token = encoded_token
             token = jwt.JWT(
                 key=skey,
                 algs=["RS256", "ES256"],
-                jwt=decrypted_token.claims,
+                jwt=decrypted_token,
             )
         except jwt.JWException as e:
             logger.debug('authentication failure', exc_info=True)
