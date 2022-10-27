@@ -853,7 +853,7 @@ class Server(ha_base.ClusterProtocol):
                 g.create_task(self._early_introspect_db(dbname))
 
     async def get_patch_count(self, conn):
-        """Apply any un-applied patches to the database."""
+        """Get the number of applied patches."""
         num_patches = await conn.sql_fetch_val(
             b'''
                 SELECT json::json from edgedbinstdata.instdata
@@ -999,40 +999,43 @@ class Server(ha_base.ClusterProtocol):
             self._sys_queries = immutables.Map(
                 {k: q.encode() for k, q in queries.items()})
 
-            self._local_intro_query = await syscon.sql_fetch_val(b'''\
-                SELECT text FROM edgedbinstdata.instdata
-                WHERE key = 'local_intro_query';
-            ''')
+            patch_count = await self.get_patch_count(syscon)
+            version_key = pg_patches.get_version_key(patch_count)
 
-            self._global_intro_query = await syscon.sql_fetch_val(b'''\
+            self._local_intro_query = await syscon.sql_fetch_val(f'''\
                 SELECT text FROM edgedbinstdata.instdata
-                WHERE key = 'global_intro_query';
-            ''')
+                WHERE key = 'local_intro_query{version_key}';
+            '''.encode('utf-8'))
 
-            result = await syscon.sql_fetch_val(b'''\
+            self._global_intro_query = await syscon.sql_fetch_val(f'''\
+                SELECT text FROM edgedbinstdata.instdata
+                WHERE key = 'global_intro_query{version_key}';
+            '''.encode('utf-8'))
+
+            result = await syscon.sql_fetch_val(f'''\
                 SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'stdschema';
-            ''')
+                WHERE key = 'stdschema{version_key}';
+            '''.encode('utf-8'))
             try:
                 self._std_schema = pickle.loads(result[2:])
             except Exception as e:
                 raise RuntimeError(
                     'could not load std schema pickle') from e
 
-            result = await syscon.sql_fetch_val(b'''\
+            result = await syscon.sql_fetch_val(f'''\
                 SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'reflschema';
-            ''')
+                WHERE key = 'reflschema{version_key}';
+            '''.encode('utf-8'))
             try:
                 self._refl_schema = pickle.loads(result[2:])
             except Exception as e:
                 raise RuntimeError(
                     'could not load refl schema pickle') from e
 
-            result = await syscon.sql_fetch_val(b'''\
+            result = await syscon.sql_fetch_val(f'''\
                 SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'classlayout';
-            ''')
+                WHERE key = 'classlayout{version_key}';
+            '''.encode('utf-8'))
             try:
                 self._schema_class_layout = pickle.loads(result[2:])
             except Exception as e:

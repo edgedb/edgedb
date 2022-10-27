@@ -648,20 +648,26 @@ def prepare_patch(
     bins = ('stdschema', 'reflschema', 'global_schema', 'classlayout')
     # Just for the system database, we need to update the cached pickle
     # of everything.
+    version_key = patches.get_version_key(num + 1)
     sys_updates: tuple[str, ...] = ()
     for k, v in updates.items():
+        key = f"'{k}{version_key}'"
         if k in bins:
             v = pickle.dumps(v, protocol=pickle.HIGHEST_PROTOCOL)
+            val = f'{pg_common.quote_bytea_literal(v)}::bytea'
             sys_updates += (f'''
-                UPDATE edgedbinstdata.instdata
-                SET bin = {pg_common.quote_bytea_literal(v)}::bytea
-                WHERE key = '{k}'
+                INSERT INTO edgedbinstdata.instdata (key, bin)
+                VALUES({key}, {val})
+                ON CONFLICT (key)
+                DO UPDATE SET bin = {val};
             ''',)
         else:
+            val = f'{pg_common.quote_literal(v.decode("utf-8"))}::text'
             sys_updates += (f'''
-                UPDATE edgedbinstdata.instdata
-                SET text = {pg_common.quote_literal(v.decode('utf-8'))}::text
-                WHERE key = '{k}'
+                INSERT INTO edgedbinstdata.instdata (key, text)
+                VALUES({key}, {val})
+                ON CONFLICT (key)
+                DO UPDATE SET text = {val};
             ''',)
 
     return (patch, update), sys_updates, updates
