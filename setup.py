@@ -49,11 +49,13 @@ EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
 # This can be a branch, tag, or commit
 EDGEDBGUI_COMMIT = 'main'
 
-EXT_CFLAGS: list[str] = []
-if flag := os.getenv('EDGEDB_OPT_CFLAG'):
-    EXT_CFLAGS += [flag]
+SAFE_EXT_CFLAGS: list[str] = []
+if flag := os.environ.get('EDGEDB_OPT_CFLAG'):
+    SAFE_EXT_CFLAGS += [flag]
 else:
-    EXT_CFLAGS += ['-O2']
+    SAFE_EXT_CFLAGS += ['-O2']
+
+EXT_CFLAGS: list[str] = list(SAFE_EXT_CFLAGS)
 EXT_LDFLAGS: list[str] = []
 
 ROOT_PATH = pathlib.Path(__file__).parent.resolve()
@@ -293,13 +295,16 @@ def _compile_libpg_query():
               'run `git submodule update --init --recursive`')
         exit(1)
 
+    cflags = os.environ.get("CFLAGS", "")
+    cflags = f"{cflags} {' '.join(SAFE_EXT_CFLAGS)} -std=gnu99"
+
     subprocess.run(
         [
             'make',
             'build',
             '-j',
             str(max(os.cpu_count() - 1, 1)),
-            'CFLAGS=--std=gnu99',
+            f'CFLAGS={cflags}',
         ],
         cwd=str(dir),
         check=True,
