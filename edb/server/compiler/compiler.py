@@ -2265,9 +2265,14 @@ class Compiler:
 
         if script_info:
             if ctx.state.current_tx().is_implicit():
-                if ctx.state.current_tx().get_migration_state() is not None:
+                if ctx.state.current_tx().get_migration_state():
                     raise errors.QueryError(
                         "Cannot leave an incomplete migration in scripts"
+                    )
+                if ctx.state.current_tx().get_migration_rewrite_state():
+                    raise errors.QueryError(
+                        "Cannot leave an incomplete migration rewrite "
+                        "in scripts"
                     )
 
             params, in_type_args = self._extract_params(
