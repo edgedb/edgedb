@@ -605,8 +605,8 @@ class ClusterTestCase(BaseHTTPTestCase):
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
 
-    SETUP_METHOD: Optional[str] = None
-    TEARDOWN_METHOD: Optional[str] = None
+    SETUP_COMMANDS: Sequence[str] = ()
+    TEARDOWN_COMMANDS: Sequence[str] = ()
 
     @classmethod
     def setUpClass(cls):
@@ -690,9 +690,8 @@ class ClusterTestCase(BaseHTTPTestCase):
             self.xact = self.con.transaction()
             self.loop.run_until_complete(self.xact.start())
 
-        if self.SETUP_METHOD:
-            self.loop.run_until_complete(
-                self.con.execute(self.SETUP_METHOD))
+        for cmd in self.SETUP_COMMANDS:
+            self.loop.run_until_complete(self.con.execute(cmd))
 
         super().setUp()
 
@@ -700,9 +699,8 @@ class ClusterTestCase(BaseHTTPTestCase):
         try:
             self.ensure_no_background_server_errors()
 
-            if self.TEARDOWN_METHOD:
-                self.loop.run_until_complete(
-                    self.con.execute(self.TEARDOWN_METHOD))
+            for cmd in self.TEARDOWN_COMMANDS:
+                self.loop.run_until_complete(self.con.execute(cmd))
         finally:
             try:
                 if self.TRANSACTION_ISOLATION:

@@ -1113,19 +1113,37 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._ddl_visit_body(node.body.commands)
 
     def visit_StartMigration(self, node: qlast.StartMigration) -> None:
-        self._write_keywords('START MIGRATION TO {')
-        self.new_lines = 1
-        self.indentation += 1
-        self.visit(node.target)
-        self.indentation -= 1
-        self.new_lines = 1
-        self.write('}')
+        if isinstance(node.target, qlast.CommittedSchema):
+            self._write_keywords('START MIGRATION TO COMMITTED SCHEMA')
+        else:
+            self._write_keywords('START MIGRATION TO {')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.target)
+            self.indentation -= 1
+            self.new_lines = 1
+            self.write('}')
 
     def visit_CommitMigration(self, node: qlast.CommitMigration) -> None:
         self._write_keywords('COMMIT MIGRATION')
 
     def visit_AbortMigration(self, node: qlast.AbortMigration) -> None:
         self._write_keywords('ABORT MIGRATION')
+
+    def visit_PopulateMigration(self, node: qlast.PopulateMigration) -> None:
+        self._write_keywords('POPULATE MIGRATION')
+
+    def visit_StartMigrationRewrite(
+            self, node: qlast.StartMigrationRewrite) -> None:
+        self._write_keywords('START MIGRATION REWRITE')
+
+    def visit_CommitMigrationRewrite(
+            self, node: qlast.CommitMigrationRewrite) -> None:
+        self._write_keywords('COMMIT MIGRATION REWRITE')
+
+    def visit_AbortMigrationRewrite(
+            self, node: qlast.AbortMigrationRewrite) -> None:
+        self._write_keywords('ABORT MIGRATION REWRITE')
 
     def visit_DescribeCurrentMigration(
         self,

@@ -762,9 +762,13 @@ class CreateMigration(CreateObject, MigrationCommand):
     metadata_only: bool = False
 
 
+class CommittedSchema(Base):
+    pass
+
+
 class StartMigration(DDLCommand, MigrationCommand):
 
-    target: Schema
+    target: Schema | CommittedSchema
 
 
 class AbortMigration(DDLCommand, MigrationCommand):
@@ -793,6 +797,18 @@ class AlterMigration(AlterObject, MigrationCommand):
 
 
 class DropMigration(DropObject, MigrationCommand):
+    pass
+
+
+class StartMigrationRewrite(DDLCommand, MigrationCommand):
+    pass
+
+
+class AbortMigrationRewrite(DDLCommand, MigrationCommand):
+    pass
+
+
+class CommitMigrationRewrite(DDLCommand, MigrationCommand):
     pass
 
 
