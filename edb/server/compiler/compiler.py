@@ -1086,7 +1086,11 @@ class Compiler:
         current_tx = ctx.state.current_tx()
         schema = current_tx.get_schema(self._std_schema)
 
-        if ctx.expect_rollback and not isinstance(ql, qlast.AbortMigration):
+        if (
+            ctx.expect_rollback
+            and not isinstance(
+                ql, (qlast.AbortMigration, qlast.AbortMigrationRewrite))
+        ):
             # Only allow ABORT MIGRATION to pass when expecting a rollback
             if current_tx.get_migration_state() is None:
                 raise errors.TransactionError(
