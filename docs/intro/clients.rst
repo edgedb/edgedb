@@ -59,32 +59,38 @@ Configure the environment as needed for your preferred language.
 
 .. tabs::
 
-  .. code-tab:: bash#Node.js
+  .. code-tab:: bash
+    :caption: Node.js
 
     $ npm init -y
     $ tsc --init # (TypeScript only)
     $ touch index.ts
 
-  .. code-tab:: bash#Deno
+  .. code-tab:: bash
+    :caption: Deno
 
     $ touch index.ts
 
-  .. code-tab:: bash#Python
+  .. code-tab:: bash
+    :caption: Python
 
     $ python -m venv venv
     $ source venv/bin/activate
     $ touch main.py
 
-  .. code-tab:: bash#Rust
+  .. code-tab:: bash
+    :caption: Rust
 
     $ cargo init
 
-  .. code-tab:: bash#Go
+  .. code-tab:: bash
+    :caption: Go
 
     $ go mod init example/quickstart
     $ touch hello.go
 
-  ..   code-tab:: bash#.NET
+  .. code-tab:: bash
+    :caption: .NET
 
     $ dotnet new console -o . -f net6.0
 
@@ -92,20 +98,24 @@ Install the EdgeDB client library.
 
 .. tabs::
 
-  .. code-tab:: bash#Node.js
+  .. code-tab:: bash
+    :caption: Node.js
 
     $ npm install edgedb    # npm
     $ yarn add edgedb       # yarn
 
-  .. code-tab:: txt#Deno
+  .. code-tab:: txt
+    :caption: Deno
 
     n/a
 
-  .. code-tab:: bash#Python
+  .. code-tab:: bash
+    :caption: Python
 
     $ pip install edgedb
 
-  .. code-tab:: toml#Rust
+  .. code-tab:: toml
+    :caption: Rust
 
     # Cargo.toml
 
@@ -115,11 +125,13 @@ Install the EdgeDB client library.
     tokio = { version = "1", features = ["full"] }
     anyhow = "1.0.63"
 
-  .. code-tab:: bash#Go
+  .. code-tab:: bash
+    :caption: Go
 
     $ go get github.com/edgedb/edgedb-go
 
-  .. code-tab:: bash#.NET
+  .. code-tab:: bash
+    :caption: .NET
 
     $ dotnet add package EdgeDB.Net.Driver
 
@@ -137,7 +149,8 @@ database and provide a set of methods for executing queries.
 
 .. tabs::
 
-  .. code-tab:: typescript#Node.js
+  .. code-tab:: typescript
+    :caption: Node.js
 
     import {createClient} from 'edgedb';
 
@@ -148,7 +161,8 @@ database and provide a set of methods for executing queries.
     });
 
 
-  .. code-tab:: typescript#Deno
+  .. code-tab:: typescript
+    :caption: Deno
 
     import {createClient} from 'https://deno.land/x/edgedb';
 
@@ -157,7 +171,7 @@ database and provide a set of methods for executing queries.
     const result = await client.querySingle(`select random()`);
     console.log(result);
 
-  .. code-tab:: python#Python
+  .. code-tab:: python
 
     from edgedb import create_client
 
@@ -166,7 +180,7 @@ database and provide a set of methods for executing queries.
     result = client.query_single("select random()")
     print(result)
 
-  .. code-tab:: rust#Rust
+  .. code-tab:: rust
 
     // src/main.rs
     #[tokio::main]
@@ -179,7 +193,7 @@ database and provide a set of methods for executing queries.
         Ok(())
     }
 
-  .. code-tab:: go#Go
+  .. code-tab:: go
 
     // hello.go
     package main
@@ -210,7 +224,8 @@ database and provide a set of methods for executing queries.
       fmt.Println(result)
     }
 
-  .. code-tab:: csharp#.NET
+  .. code-tab:: csharp
+    :caption: .NET
 
     using EdgeDB;
 
@@ -222,27 +237,33 @@ Finally, execute the file.
 
 .. tabs::
 
-  .. code-tab:: bash#Node.js
+  .. code-tab:: bash
+    :caption: Node.js
 
     $ npx tsx index.ts
 
-  .. code-tab:: bash#Deno
+  .. code-tab:: bash
+    :caption: Deno
 
     $ deno run --allow-all --unstable index.deno.ts
 
-  .. code-tab:: bash#Python
+  .. code-tab:: bash
+    :caption: Python
 
     $ python index.py
 
-  .. code-tab:: bash#Rust
+  .. code-tab:: bash
+    :caption: Rust
 
     $ cargo run
 
-  .. code-tab:: bash#Go
+  .. code-tab:: bash
+    :caption: Go
 
     $ go run .
 
-  .. code-tab:: bash#.NET
+  .. code-tab:: bash
+    :caption: .NET
 
     $ dotnet run
 
