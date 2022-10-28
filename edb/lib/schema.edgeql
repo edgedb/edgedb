@@ -503,3 +503,5 @@ CREATE TYPE schema::Migration
 
 # The package link is added in sys.edgeql
 CREATE TYPE schema::Extension EXTENDING schema::AnnotationSubject;
+
+CREATE TYPE schema::Future EXTENDING schema::Object;

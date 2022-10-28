@@ -42,6 +42,7 @@ from edb.schema import delta as sd
 from edb.schema import expr as s_expr
 from edb.schema import expraliases as s_aliases
 from edb.schema import extensions as s_exts
+from edb.schema import futures as s_futures
 from edb.schema import functions as s_funcs
 from edb.schema import globals as s_globals
 from edb.schema import indexes as s_indexes
@@ -6440,6 +6441,26 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
 
 
 class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
+    pass
+
+
+class FutureCommand(MetaCommand):
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+        if self.future_cmd:
+            self.pgops.add(self.future_cmd)
+        return schema
+
+
+class CreateFuture(FutureCommand, adapts=s_futures.CreateFuture):
+    pass
+
+
+class DeleteFuture(FutureCommand, adapts=s_futures.DeleteFuture):
     pass
 
 

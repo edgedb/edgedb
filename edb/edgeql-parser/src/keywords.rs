@@ -37,6 +37,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "first",
     "from",
     "function",
+    "future",
     "implicit",
     "index",
     "infix",

@@ -1070,7 +1070,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateExtension(
         self,
-        node: qlast.CreateExtensionPackage,
+        node: qlast.CreateExtension,
     ) -> None:
         if self.sdlmode or self.descmode:
             self._write_keywords('using extension')
@@ -1089,6 +1089,23 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         node: qlast.DropExtension,
     ) -> None:
         self._visit_DropObject(node, 'EXTENSION')
+
+    def visit_CreateFuture(
+        self,
+        node: qlast.CreateFuture,
+    ) -> None:
+        if self.sdlmode or self.descmode:
+            self._write_keywords('using future')
+        else:
+            self._write_keywords('CREATE FUTURE')
+        self.write(' ')
+        self.write(ident_to_str(node.name.name))
+
+    def visit_DropFuture(
+        self,
+        node: qlast.DropFuture,
+    ) -> None:
+        self._visit_DropObject(node, 'FUTURE')
 
     def visit_CreateMigration(self, node: qlast.CreateMigration) -> None:
         self._write_keywords('CREATE')
