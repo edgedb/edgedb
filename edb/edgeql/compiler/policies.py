@@ -26,10 +26,12 @@ from typing import *
 
 from edb.ir import ast as irast
 
+from edb.schema import futures as s_futures
 from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
 from edb.schema import policies as s_policies
 from edb.schema import schema as s_schema
+from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -38,6 +40,32 @@ from . import astutils
 from . import context
 from . import dispatch
 from . import setgen
+
+
+def should_ignore_rewrite(
+    stype: s_types.Type, *, ctx: context.ContextLevel,
+) -> bool:
+    if not ctx.suppress_rewrites:
+        return False
+
+    if stype in ctx.suppress_rewrites:
+        return True
+
+    # If we are in any access policy at all, suppress all
+    # policies except the stdlib ones.
+    #
+    # (Eventually will might do a generalization of this based on
+    # RBAC ownership of schema objects.)
+    schema = ctx.env.schema
+    if (
+        s_futures.future_enabled(schema, 'nonrecursive_access_policies')
+        and isinstance(stype, s_objtypes.ObjectType)
+        and s_name.UnqualName(stype.get_name(schema).module)
+            not in s_schema.STD_MODULES
+    ):
+        return True
+
+    return False
 
 
 def get_access_policies(
