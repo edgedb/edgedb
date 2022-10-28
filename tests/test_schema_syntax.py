@@ -1676,6 +1676,11 @@ abstract property test::foo {
 annotation test::foo;
         """
 
+    def test_eschema_syntax_future_1(self):
+        """
+        using future foo;
+        """
+
     def test_eschema_syntax_global_1(self):
         """
         module test {

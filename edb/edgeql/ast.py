@@ -862,6 +862,21 @@ class DropExtension(DropObject, ExtensionCommand):
     pass
 
 
+class FutureCommand(UnqualifiedObjectCommand):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.FUTURE)
+
+
+class CreateFuture(CreateObject, FutureCommand):
+    pass
+
+
+class DropFuture(DropObject, ExtensionCommand):
+    pass
+
+
 class ModuleCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True

@@ -94,6 +94,9 @@ class SDLShortStatement(Nonterm):
     def reduce_ExtensionRequirementDeclaration(self, *kids):
         self.val = kids[0].val
 
+    def reduce_FutureRequirementDeclaration(self, *kids):
+        self.val = kids[0].val
+
     def reduce_ScalarTypeDeclarationShort(self, *kids):
         self.val = kids[0].val
 
@@ -289,6 +292,14 @@ class ExtensionRequirementDeclaration(Nonterm):
         )
 
 
+class FutureRequirementDeclaration(Nonterm):
+
+    def reduce_USING_FUTURE_ShortNodeName(self, *kids):
+        self.val = qlast.CreateFuture(
+            name=kids[2].val,
+        )
+
+
 class ModuleDeclaration(Nonterm):
     def reduce_MODULE_ModuleName_SDLCommandBlock(self, *kids):
         # Check that top-level declarations DO NOT use fully-qualified
@@ -302,6 +313,10 @@ class ModuleDeclaration(Nonterm):
             elif isinstance(decl, qlast.ExtensionCommand):
                 raise errors.EdgeQLSyntaxError(
                     "'using extension' cannot be used inside a module block",
+                    context=decl.context)
+            elif isinstance(decl, qlast.FutureCommand):
+                raise errors.EdgeQLSyntaxError(
+                    "'using future' cannot be used inside a module block",
                     context=decl.context)
             elif decl.name.module is not None:
                 raise errors.EdgeQLSyntaxError(

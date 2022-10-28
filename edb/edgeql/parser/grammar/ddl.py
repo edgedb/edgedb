@@ -204,6 +204,9 @@ class InnerDDLStmt(Nonterm):
     def reduce_ExtensionStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_FutureStmt(self, *kids):
+        self.val = kids[0].val
+
 
 class InnerDDLStmtBlock(parsing.ListNonterm, element=InnerDDLStmt,
                         separator=Semicolons):
@@ -786,6 +789,47 @@ class DropExtensionStmt(Nonterm):
         self.val = qlast.DropExtension(
             name=kids[2].val,
             version=kids[3].val,
+        )
+
+
+#
+# FUTURE
+#
+
+
+class FutureStmt(Nonterm):
+
+    def reduce_CreateFutureStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropFutureStmt(self, *kids):
+        self.val = kids[0].val
+
+
+#
+# CREATE FUTURE
+#
+
+
+class CreateFutureStmt(Nonterm):
+
+    def reduce_CreateFutureStmt(self, *kids):
+        r"""%reduce CREATE FUTURE ShortNodeName
+        """
+        self.val = qlast.CreateFuture(
+            name=kids[2].val,
+        )
+
+
+#
+# DROP FUTURE
+#
+class DropFutureStmt(Nonterm):
+
+    def reduce_DropFutureStmt(self, *kids):
+        r"""%reduce DROP FUTURE ShortNodeName"""
+        self.val = qlast.DropFuture(
+            name=kids[2].val,
         )
 
 

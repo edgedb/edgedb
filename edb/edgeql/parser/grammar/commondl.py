@@ -61,7 +61,8 @@ def _validate_declarations(
         if (
             not isinstance(
                 decl,
-                (qlast.ModuleDeclaration, qlast.ExtensionCommand)
+                (qlast.ModuleDeclaration, qlast.ExtensionCommand,
+                 qlast.FutureCommand)
             ) and decl.name.module is None
         ):
             raise EdgeQLSyntaxError(
