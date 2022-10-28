@@ -102,8 +102,8 @@ Reference
 
     Represents a one-dimensional array of an homogeneous ordered list.
 
-    Array indexing will always start at zero. With the exception of other array
-    types, any type may be used as the given element contained within.
+    Array indexing will always start at zero. With the exception of other
+    array types, any type may be used as the given element contained within.
 
     Array types are implicitly created from :ref:`array
     constructors <ref_std_array_constructor>` as seen here:
@@ -127,8 +127,8 @@ Reference
 
 .. eql:operator:: arrayidx: array<anytype> [ int64 ] -> anytype
 
-    Indexes an array of :eql:type:`anytype` containing :eql:type:`int64` into
-    a representable reference of the array element specified.
+    Indexes an array of :eql:type:`anytype` containing :eql:type:`int64`.
+    This results in a representable reference of the array element specified.
 
     Below is an example of selecting an array with an index of zero and
     one:
@@ -140,7 +140,7 @@ Reference
         db> select [(x := 1, y := 1), (x := 2, y := 3.3)][1];
         {(x := 2, y := 3.3)}
 
-    This operator may also be used when trying to negatively index elements.
+    This operator may also be used when negatively index elements.
 
     .. code-block:: edgeql-repl
 
@@ -161,8 +161,8 @@ Reference
 
 .. eql:operator:: arrayslice: array<anytype> [ int64 : int64 ] -> anytype
 
-    Slices an array of :eql:type:`anytype` containing a fixed range of
-    :eql:type:`int64` into a representable reference of the array's elements.
+    Slices an array of :eql:type:`anytype` containing :eql:type:`int64`.
+    This results in a representable reference of the array's elements.
 
     Omitting the lower bound an array will default the result to zero.
     Doing so to the upper bound will also default to the current size of the
@@ -200,8 +200,8 @@ Reference
 
 .. eql:operator:: arrayplus: array<anytype> ++ array<anytype> -> array<anytype>
 
-    Concatenates given arrays of :eql:type:`anytype` into a conjoined and
-    referenceable array of both's elements:
+    Concatenates given arrays of :eql:type:`anytype` into one. This results in
+    a reference of both array's elements conjoined together:
 
     .. code-block:: edgeql-repl
 
@@ -239,10 +239,10 @@ Reference
 
     :index: array access get
 
-    Returns the element of a given *array* at the specified *index*.
+    Returns the element of a given ``array`` at the specified ``index``.
 
-    If the index is out of the array's bounds, the *default* or ``{}``
-    (empty set) will be returned.
+    If the index is out of the array's bounds, the ``default`` argument
+    or ``{}`` (empty set) will be returned.
 
     This works the same as :eql:op:`array indexing operator <arrayidx>`,
     except that if the index is out of boundaries, an empty set of the array
@@ -285,8 +285,8 @@ Reference
 
     :index: join array_to_string implode
 
-    Returns the elements of an array joined together in string-form with,
-    a *delimiter* separating each element:
+    Returns the elements of an array joined together in string-form with
+    a ``delimiter`` separating each element:
 
     .. code-block:: edgeql-repl
 
@@ -301,8 +301,8 @@ Reference
 
     :index: fill
 
-    Returns a new array of a specified size *n* filled with the specified
-    value *val*:
+    Returns a new array of a specified size ``n`` filled with the specified
+    value ``val``:
 
     .. code-block:: edgeql-repl
 
@@ -320,8 +320,8 @@ Reference
                                      new: anytype) \
                   -> array<anytype>
 
-    Returns an array where all occurrences of value *old* are replaced with
-    *new*:
+    Returns an array where all occurrences of ``old`` are replaced with
+    ``new``:
 
     .. code-block:: edgeql-repl
 
