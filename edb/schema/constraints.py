@@ -29,6 +29,7 @@ from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
 from edb.edgeql import utils as qlutils
+from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -502,6 +503,7 @@ class ConstraintCommand(
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
+        from edb.ir import ast as ir_ast
 
         base: Optional[so.Object] = None
         if isinstance(self, AlterConstraint):
@@ -528,19 +530,29 @@ class ConstraintCommand(
                 return value
 
             elif field.name in {'subjectexpr', 'finalexpr', 'except_expr'}:
-                return s_expr.Expression.compiled(
+                expr = s_expr.Expression.compiled(
                     value,
                     schema=schema,
                     options=qlcompiler.CompilerOptions(
                         modaliases=context.modaliases,
                         anchors={qlast.Subject().name: base},
                         path_prefix_anchor=qlast.Subject().name,
+                        singletons=frozenset([base]),
                         allow_generic_type_output=True,
                         schema_object_context=self.get_schema_metaclass(),
                         apply_query_rewrites=False,
                         track_schema_ref_exprs=track_schema_ref_exprs,
                     ),
                 )
+                assert isinstance(expr.irast, ir_ast.Statement)
+
+                if expr.irast.volatility != qltypes.Volatility.Immutable:
+                    raise errors.InvalidConstraintDefinitionError(
+                        f'constraint expressions must be immutable',
+                        context=value.qlast.context,
+                    )
+
+                return expr
 
             else:
                 return super().compile_expr_field(
@@ -556,7 +568,7 @@ class ConstraintCommand(
                 inlined_defaults=False,
             )
 
-            return s_expr.Expression.compiled(
+            expr = s_expr.Expression.compiled(
                 value,
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
@@ -569,6 +581,16 @@ class ConstraintCommand(
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
+            assert isinstance(expr.irast, ir_ast.Statement)
+
+            if expr.irast.volatility != qltypes.Volatility.Immutable:
+                raise errors.InvalidConstraintDefinitionError(
+                    f'constraint expressions must be immutable',
+                    context=value.qlast.context,
+                )
+
+            return expr
+
         else:
             return super().compile_expr_field(
                 schema, context, field, value, track_schema_ref_exprs)
