@@ -9,14 +9,13 @@ Client Libraries
 **Official Client Libraries**
 
 * `Python <python/index>`_
-* `TypeScript/Javascript <js/index>`_
+* `TypeScript/JavaScript <js/index>`_
 * `Go <go/index>`_
 * `Rust <rust/index>`_
-
+* `.NET <dotnet/index>`_
 
 **Community-Maintained Clients**
 
-* `.NET <https://github.com/quinchs/EdgeDB.Net>`_
 * `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
 
 **HTTP Protocols**
@@ -35,6 +34,7 @@ Client Libraries
     go/index
     rust/index
     dart/index
+    dotnet/index
     http/index
     graphql/index
 
