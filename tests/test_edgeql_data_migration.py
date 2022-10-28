@@ -9200,6 +9200,68 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             [{'foo': 'test'}],
         )
 
+    async def test_edgeql_migration_future_01(self):
+        await self.con.execute('''
+            START MIGRATION TO {
+                using future nonrecursive_access_policies;
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        "CREATE FUTURE nonrecursive_access_policies;"
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Future {
+                    name,
+                }
+                FILTER .name = 'nonrecursive_access_policies'
+            """,
+            [{
+                'name': 'nonrecursive_access_policies',
+            }]
+        )
+
+        await self.con.execute('''
+            START MIGRATION TO {
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        'DROP FUTURE nonrecursive_access_policies;'
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result(
+            r"""
+                SELECT schema::Future {
+                    name,
+                }
+                FILTER .name = 'nonrecursive_access_policies'
+            """,
+            []
+        )
+
     async def test_edgeql_migration_extensions_01(self):
         await self.con.execute('''
             START MIGRATION TO {
