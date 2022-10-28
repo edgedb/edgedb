@@ -128,6 +128,7 @@ Reference
 .. eql:operator:: arrayidx: array<anytype> [ int64 ] -> anytype
 
     Indexes an array of :eql:type:`anytype` containing :eql:type:`int64`.
+
     This results in a representable reference of the array element specified.
 
     Below is an example of selecting an array with an index of zero and
@@ -162,6 +163,7 @@ Reference
 .. eql:operator:: arrayslice: array<anytype> [ int64 : int64 ] -> anytype
 
     Slices an array of :eql:type:`anytype` containing :eql:type:`int64`.
+
     This results in a representable reference of the array's elements.
 
     Omitting the lower bound an array will default the result to zero.
@@ -200,8 +202,9 @@ Reference
 
 .. eql:operator:: arrayplus: array<anytype> ++ array<anytype> -> array<anytype>
 
-    Concatenates given arrays of :eql:type:`anytype` into one. This results in
-    a reference of both array's elements conjoined together:
+    Concatenates given arrays of :eql:type:`anytype` into one.
+
+    This results in a reference of both array's elements conjoined together:
 
     .. code-block:: edgeql-repl
 
@@ -285,8 +288,10 @@ Reference
 
     :index: join array_to_string implode
 
-    Returns the elements of an array joined together in string-form with
-    a ``delimiter`` separating each element:
+    Returns the elements of an array joined together in string-form.
+
+    This subsequently returns back a string with ``delimiter`` separating
+    each element:
 
     .. code-block:: edgeql-repl
 
@@ -301,8 +306,7 @@ Reference
 
     :index: fill
 
-    Returns a new array of a specified size ``n`` filled with the specified
-    value ``val``:
+    Returns a new array of size ``n`` with the specified value ``val``:
 
     .. code-block:: edgeql-repl
 
@@ -320,8 +324,7 @@ Reference
                                      new: anytype) \
                   -> array<anytype>
 
-    Returns an array where all occurrences of ``old`` are replaced with
-    ``new``:
+    Returns an array with all occurrences of ``old`` replaced by ``new``:
 
     .. code-block:: edgeql-repl
 
