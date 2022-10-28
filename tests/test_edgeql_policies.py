@@ -35,6 +35,9 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
         os.path.join(os.path.dirname(__file__), 'schemas',
                      'issues_setup.edgeql'),
         '''
+            # Set this because it is the eventual default goal
+            create future nonrecursive_access_policies;
+
             # These are for testing purposes and don't really model anything
             create required global cur_owner_active -> bool {
                 set default := true;
@@ -688,6 +691,8 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             r"'default::Bar' and object type 'default::Foo'"
         ):
             await self.con.execute("""
+                drop future nonrecursive_access_policies;
+
                 CREATE TYPE Bar {
                     CREATE REQUIRED PROPERTY b -> bool;
                 };
@@ -711,6 +716,8 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                 edgedb.InvalidDefinitionError,
                 r"dependency cycle between access policies"):
             await self.con.execute('''
+                drop future nonrecursive_access_policies;
+
                 create type Foo {
                     create required property val -> int64;
                 };
@@ -725,6 +732,8 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                 edgedb.InvalidDefinitionError,
                 r"dependency cycle between access policies"):
             await self.con.execute('''
+                drop future nonrecursive_access_policies;
+
                 create type Z;
                 create type A {
                     create access policy z allow all using (exists Z);
@@ -740,6 +749,8 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                 edgedb.InvalidDefinitionError,
                 r"dependency cycle between access policies"):
             await self.con.execute('''
+                drop future nonrecursive_access_policies;
+
                 create type Z;
                 create type A {
                     create access policy z allow all using (exists Z);
@@ -750,6 +761,25 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                     create access policy z allow all using (exists C);
                 };
             ''')
+
+    async def test_edgeql_policies_cycle_05(self):
+        # cycle is just fine if nonrecursive_access_policies is set
+        await self.con.execute("""
+            CREATE TYPE Bar {
+                CREATE REQUIRED PROPERTY b -> bool;
+            };
+            CREATE TYPE Foo {
+                CREATE LINK bar -> Bar;
+                CREATE REQUIRED PROPERTY b -> bool;
+                CREATE ACCESS POLICY redact
+                    ALLOW ALL USING ((.bar.b ?? false));
+            };
+            ALTER TYPE Bar {
+                CREATE LINK foo -> Foo;
+                CREATE ACCESS POLICY redact
+                    ALLOW ALL USING ((.foo.b ?? false));
+            };
+        """)
 
     async def test_edgeql_policies_missing_prop_01(self):
         await self.con.execute('''
@@ -844,6 +874,57 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                 select User2 { username }
             ''',
             [{'username': 'admin'}]
+        )
+
+    async def test_edgeql_policies_recursive_01(self):
+        await self.con.execute('''
+            create type A;
+            create type B;
+            insert A;
+            insert B;
+            alter type A {
+                create access policy no allow all using (false);
+            };
+            alter type B {
+                create access policy if_a allow all using (exists A);
+            };
+            create function count_B() -> int64 using (count(B));
+        ''')
+
+        # B should be visible if we are using nonrecursive_access_policies
+        await self.assert_query_result(
+            r'''select count(B)''',
+            [1],
+        )
+        await self.assert_query_result(
+            r'''select count_B()''',
+            [1],
+        )
+
+        # But it won't be if we aren't
+        await self.con.execute('''
+            drop future nonrecursive_access_policies;
+        ''')
+        await self.assert_query_result(
+            r'''select count(B)''',
+            [0],
+        )
+        await self.assert_query_result(
+            r'''select count_B()''',
+            [0],
+        )
+
+        # And it should work to go back, also
+        await self.con.execute('''
+            create future nonrecursive_access_policies;
+        ''')
+        await self.assert_query_result(
+            r'''select count(B)''',
+            [1],
+        )
+        await self.assert_query_result(
+            r'''select count_B()''',
+            [1],
         )
 
     async def test_edgeql_policies_internal_shape_01(self):

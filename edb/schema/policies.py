@@ -31,6 +31,7 @@ from edb.edgeql import qltypes
 from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
+from . import futures as s_futures
 from . import links as s_links
 from . import name as sn
 from . import objects as so
@@ -324,7 +325,10 @@ class AccessPolicyCommand(
                     )
 
         try:
-            check_type_policy_ordering(subject, schema)
+            if not s_futures.future_enabled(
+                schema, 'nonrecursive_access_policies'
+            ):
+                check_type_policy_ordering(subject, schema)
         except topological.CycleError as e:
             assert e.item is not None
             assert e.path is not None
@@ -338,7 +342,14 @@ class AccessPolicyCommand(
             msg = (
                 f'dependency cycle between access policies of {vn1} and {vn2}'
             )
-            raise errors.InvalidDefinitionError(msg) from e
+            raise errors.InvalidDefinitionError(
+                msg,
+                hint=(
+                    "Consider 'using future nonrecursive_access_policies' in "
+                    "your schema to disable the evaluation of access policies "
+                    "inside of other access policies."
+                ),
+            ) from e
 
 
 def get_type_policy_deps(
@@ -569,3 +580,39 @@ class DeleteAccessPolicy(
     referencing.DeleteReferencedInheritingObject[AccessPolicy],
 ):
     referenced_astnode = astnode = qlast.DropAccessPolicy
+
+
+@s_futures.register_handler('nonrecursive_access_policies')
+def toggle_nonrecursive_access_policies(
+    cmd: s_futures.FutureCommand,
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    on: bool,
+) -> tuple[s_schema.Schema, sd.Command]:
+    # When nonrecursive_access_policies is turned on or off, we mark every
+    # policy as changed, to force all policy using functions to
+    # recompile.
+    all_pols = [
+        pol
+        for pol in schema.get_objects(type=AccessPolicy)
+        if (
+            sn.UnqualName(pol.get_name(schema).module)
+            not in s_schema.STD_MODULES
+        )
+    ]
+
+    group = sd.CommandGroup()
+
+    for pol in all_pols:
+        delta_alter, cmd_alter, _ = pol.init_delta_branch(
+            schema, context, cmdtype=sd.AlterObject)
+
+        schema = cmd_alter._propagate_if_expr_refs(
+            schema,
+            context,
+            action='change nonrecursive_access_policies',
+            metadata_only=False,
+        )
+        group.add(delta_alter)
+
+    return schema, group
