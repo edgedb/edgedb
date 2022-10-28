@@ -147,7 +147,7 @@ Reference
         db> select [1, 2, 3][-1];
         {3}
 
-    However, referencing an non-existent element of an array will result in
+    However, referencing a non-existent element of an array will result in
     an error:
 
     .. code-block:: edgeql-repl

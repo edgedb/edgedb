@@ -103,7 +103,7 @@ These scalar types are distinguished by the following:
 
 .. eql:type:: std::anypoint
 
-    :index: any anypoint anyrange
+    :index: any anypoint anyrange point
 
     Represents an abstract base type for all valid ranges.
 
@@ -119,7 +119,7 @@ These scalar types are distinguished by the following:
 
 .. eql:type:: std::anydiscrete
 
-    :index: any anydiscrete anyrange
+    :index: any anydiscrete anyrange discrete
 
     Represents an abstract base type for all valid *discrete* ranges.
 
