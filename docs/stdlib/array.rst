@@ -168,7 +168,7 @@ Reference
     Doing so to the upper bound will also default to the current size of the
     array.
 
-    The upper bound an array is non-inclusive.
+    The upper bound of an array is non-inclusive.
 
     Below is an example of selecting indices of an array between slices and
     given ranges:
