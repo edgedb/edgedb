@@ -322,13 +322,16 @@ def _fixup_materialized_sets(
     ir: irast.Base, *, ctx: context.ContextLevel
 ) -> List[irast.Set]:
     # Make sure that all materialized sets have their views compiled
-    children = ast_visitor.find_children(ir, irast.Stmt)
+    skips = {'materialized_sets'}
+    children = ast_visitor.find_children(ir, irast.Stmt, extra_skips=skips)
     for nobe in ctx.env.source_map.values():
         if nobe.irexpr:
-            children += ast_visitor.find_children(nobe.irexpr, irast.Stmt)
+            children += ast_visitor.find_children(
+                nobe.irexpr, irast.Stmt, extra_skips=skips)
     for node in ctx.env.type_rewrites.values():
         if isinstance(node, irast.Set):
-            children += ast_visitor.find_children(node, irast.Stmt)
+            children += ast_visitor.find_children(
+                node, irast.Stmt, extra_skips=skips)
 
     to_clear = []
     for stmt in ordered.OrderedSet(children):
