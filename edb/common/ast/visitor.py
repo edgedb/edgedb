@@ -31,13 +31,20 @@ class SkipNode(Exception):
 
 
 def find_children(node, test_func, *args,
-                  terminate_early=False, **kwargs):
+                  terminate_early=False,
+                  extra_skips: AbstractSet[str] = frozenset(),
+                  **kwargs):
     visited = set()
     result = []
 
     def _find_children(node):
         if isinstance(node, (tuple, list, set, frozenset)):
             for n in node:
+                if _find_children(n):
+                    return True
+            return False
+        elif isinstance(node, dict):
+            for n in node.values():
                 if _find_children(n):
                     return True
             return False
@@ -59,7 +66,7 @@ def find_children(node, test_func, *args,
 
         for field, value in base.iter_fields(node, include_meta=False):
             field_spec = node._fields[field]
-            if field_spec.hidden:
+            if field_spec.hidden or field_spec.name in extra_skips:
                 continue
 
             if _find_children(value):

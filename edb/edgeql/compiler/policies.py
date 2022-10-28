@@ -138,7 +138,7 @@ def compile_pol(
     }
 
     # Compile it with all of the
-    with ctx.detached() as dctx:
+    with ctx.detached() as _, ctx.newscope(fenced=True) as dctx:
         dctx.partial_path_prefix = ctx.partial_path_prefix
         dctx.expr_exposed = context.Exposure.UNEXPOSED
         dctx.suppress_rewrites = frozenset(descs)
