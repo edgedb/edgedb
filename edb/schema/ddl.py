@@ -410,12 +410,15 @@ def apply_sdl(
     # initialize the "default" module
     documents[defines.DEFAULT_MODULE_ALIAS] = []
     extensions = {}
+    futures = {}
     for decl in sdl_document.declarations:
         # declarations are either in a module block or fully-qualified
         if isinstance(decl, qlast.ModuleDeclaration):
             documents[decl.name.name].extend(decl.declarations)
         elif isinstance(decl, qlast.CreateExtension):
             extensions[decl.name.name] = decl
+        elif isinstance(decl, qlast.CreateFuture):
+            futures[decl.name.name] = decl
         else:
             assert decl.name.module is not None
             documents[decl.name.module].append(decl)
@@ -431,7 +434,9 @@ def apply_sdl(
     )
 
     target_schema = base_schema
-    for ddl_stmt in itertools.chain(extensions.values(), ddl_stmts):
+    chained = itertools.chain(
+        extensions.values(), futures.values(), ddl_stmts)
+    for ddl_stmt in chained:
         delta = sd.DeltaRoot()
         with context(sd.DeltaRootContext(schema=target_schema, op=delta)):
             cmd = cmd_from_ddl(

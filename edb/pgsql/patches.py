@@ -391,4 +391,7 @@ SELECT
     END
 $function$
     '''),
+    ('edgeql+schema', '''
+CREATE TYPE schema::Future EXTENDING schema::Object;
+'''),
 ]
