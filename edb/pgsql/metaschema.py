@@ -5001,11 +5001,10 @@ def _generate_schema_alias_view(
     )
 
 
-async def generate_support_views(
-    conn: pgcon.PGConnection,
+def get_support_views(
     schema: s_schema.Schema,
     backend_params: params.BackendRuntimeParams,
-) -> None:
+) -> dbops.CommandGroup:
     commands = dbops.CommandGroup()
 
     schema_alias_views = _generate_schema_alias_views(
@@ -5084,6 +5083,15 @@ async def generate_support_views(
     for alias_view in sys_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
+    return commands
+
+
+async def generate_support_views(
+    conn: pgcon.PGConnection,
+    schema: s_schema.Schema,
+    backend_params: params.BackendRuntimeParams,
+) -> None:
+    commands = get_support_views(schema, backend_params)
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)

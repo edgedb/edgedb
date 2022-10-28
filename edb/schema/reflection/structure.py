@@ -235,7 +235,11 @@ def get_default_base_for_pycls(py_cls: Type[s_obj.Object]) -> sn.Name:
         return sn.QualName(module='schema', name='Object')
 
 
-def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
+def generate_structure(
+    schema: s_schema.Schema,
+    *,
+    make_funcs: bool=True,
+) -> SchemaReflectionParts:
     """Generate schema reflection structure from Python schema classes.
 
     Returns:
@@ -260,10 +264,9 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
 
     ordered_link = schema.get('schema::ordered', type=s_links.Link)
 
-    py_classes = []
-
-    schema = _run_ddl(
-        '''
+    if make_funcs:
+        schema = _run_ddl(
+            '''
             CREATE FUNCTION sys::_get_pg_type_for_edgedb_type(
                 typeid: std::uuid,
                 kind: std::str,
@@ -292,11 +295,12 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
                 $$;
                 SET volatility := 'IMMUTABLE';
             };
-        ''',
-        schema=schema,
-        delta=delta,
-    )
+            ''',
+            schema=schema,
+            delta=delta,
+        )
 
+    py_classes = []
     for py_cls in s_obj.ObjectMeta.get_schema_metaclasses():
         if isinstance(py_cls, adapter.Adapter):
             continue
@@ -360,6 +364,14 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
 
             if added_bases:
                 for subset, position in added_bases:
+                    # XXX: Don't generate changes for just moving around the
+                    # order of types when the mismatch between python and
+                    # the schema, since it doesn't work anyway and causes mass
+                    # grief when trying to patch the schema.
+                    subset = [x for x in subset if x.name not in ex_bases]
+                    if not subset:
+                        continue
+
                     if isinstance(position, tuple):
                         position_clause = (
                             f'{position[0]} {position[1].name}'
@@ -537,7 +549,10 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
                 target_field = ref_cls.get_field(reflection_link)
                 target_cls = target_field.type
                 shadow_pn = f'{refdict.attr}__internal'
+                shadow_ref_ptr = schema_cls.maybe_get_ptr(
+                    schema, sn.UnqualName(shadow_pn))
 
+            if reflect_as_link and not shadow_ref_ptr:
                 schema = _run_ddl(
                     f'''
                         ALTER TYPE {rschema_name} {{
