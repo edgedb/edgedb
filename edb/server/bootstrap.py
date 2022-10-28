@@ -1100,40 +1100,41 @@ async def _init_stdlib(
             schema, 'backend_id', entry['backend_id'])
 
     stdlib = stdlib._replace(stdschema=schema)
+    version_key = patches.get_version_key(len(patches.PATCHES))
 
     await _store_static_bin_cache(
         ctx,
-        'stdschema',
+        f'stdschema{version_key}',
         pickle.dumps(schema, protocol=pickle.HIGHEST_PROTOCOL),
     )
 
     await _store_static_bin_cache(
         ctx,
-        'reflschema',
+        f'reflschema{version_key}',
         pickle.dumps(stdlib.reflschema, protocol=pickle.HIGHEST_PROTOCOL),
     )
 
     await _store_static_bin_cache(
         ctx,
-        'global_schema',
+        f'global_schema{version_key}',
         pickle.dumps(stdlib.global_schema, protocol=pickle.HIGHEST_PROTOCOL),
     )
 
     await _store_static_bin_cache(
         ctx,
-        'classlayout',
+        f'classlayout{version_key}',
         pickle.dumps(stdlib.classlayout, protocol=pickle.HIGHEST_PROTOCOL),
     )
 
     await _store_static_text_cache(
         ctx,
-        'local_intro_query',
+        f'local_intro_query{version_key}',
         stdlib.local_intro_query,
     )
 
     await _store_static_text_cache(
         ctx,
-        'global_intro_query',
+        f'global_intro_query{version_key}',
         stdlib.global_intro_query,
     )
 
