@@ -73,6 +73,7 @@ from edb.pgsql import common as pg_common
 from edb.pgsql import delta as pg_delta
 from edb.pgsql import dbops as pg_dbops
 from edb.pgsql import params as pg_params
+from edb.pgsql import patches as pg_patches
 from edb.pgsql import types as pg_types
 
 from edb.server import config
@@ -208,10 +209,24 @@ def new_compiler_context(
     return ctx
 
 
+async def get_patch_count(backend_conn: pgcon.PGConnection) -> int:
+    """Get the number of applied patches."""
+    num_patches = await backend_conn.sql_fetch_val(
+        b'''
+            SELECT json::json from edgedbinstdata.instdata
+            WHERE key = 'num_patches';
+        ''',
+    )
+    num_patches = json.loads(num_patches) if num_patches else 0
+    return num_patches
+
+
 async def load_cached_schema(
     backend_conn: pgcon.PGConnection,
+    patches: int,
     key: str,
 ) -> s_schema.Schema:
+    key += pg_patches.get_version_key(patches)
     data = await backend_conn.sql_fetch_val(
         b"""
         SELECT bin FROM edgedbinstdata.instdata
@@ -226,14 +241,19 @@ async def load_cached_schema(
             'could not load std schema pickle') from e
 
 
-async def load_std_schema(backend_conn: pgcon.PGConnection) -> s_schema.Schema:
-    return await load_cached_schema(backend_conn, 'stdschema')
+async def load_std_schema(
+    backend_conn: pgcon.PGConnection,
+    patches: int,
+) -> s_schema.Schema:
+    return await load_cached_schema(backend_conn, patches, 'stdschema')
 
 
 async def load_schema_intro_query(
     backend_conn: pgcon.PGConnection,
+    patches: int,
     kind: str,
 ) -> str:
+    kind += pg_patches.get_version_key(patches)
     return await backend_conn.sql_fetch_val(
         b"""
         SELECT text FROM edgedbinstdata.instdata
@@ -245,12 +265,15 @@ async def load_schema_intro_query(
 
 async def load_schema_class_layout(
     backend_conn: pgcon.PGConnection,
+    patches: int,
 ) -> s_refl.SchemaClassLayout:
+    key = f'classlayout{pg_patches.get_version_key(patches)}'
     data = await backend_conn.sql_fetch_val(
         b"""
         SELECT bin FROM edgedbinstdata.instdata
-        WHERE key = 'classlayout';
+        WHERE key = $1::text;
         """,
+        args=[key.encode("utf-8")],
     )
     try:
         return pickle.loads(data)
@@ -288,22 +311,27 @@ class Compiler:
         return h.hexdigest().encode('latin1')
 
     async def initialize_from_pg(self, con: pgcon.PGConnection) -> None:
+        num_patches = await get_patch_count(con)
+
         if self._std_schema is None:
-            self._std_schema = await load_cached_schema(con, 'stdschema')
+            self._std_schema = await load_cached_schema(
+                con, num_patches, 'stdschema')
 
         if self._refl_schema is None:
-            self._refl_schema = await load_cached_schema(con, 'reflschema')
+            self._refl_schema = await load_cached_schema(
+                con, num_patches, 'reflschema')
 
         if self._schema_class_layout is None:
-            self._schema_class_layout = await load_schema_class_layout(con)
+            self._schema_class_layout = await load_schema_class_layout(
+                con, num_patches)
 
         if self._local_intro_query is None:
             self._local_intro_query = await load_schema_intro_query(
-                con, 'local_intro_query')
+                con, num_patches, 'local_intro_query')
 
         if self._global_intro_query is None:
             self._global_intro_query = await load_schema_intro_query(
-                con, 'global_intro_query')
+                con, num_patches, 'global_intro_query')
 
         if self._config_spec is None:
             self._config_spec = config.load_spec_from_schema(
