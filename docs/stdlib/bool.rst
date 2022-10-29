@@ -40,7 +40,7 @@ Booleans
 
 .. eql:type:: std::bool
 
-    A logical boolean type with as either ``true`` or ``false``.
+    Represents a logical boolean type of either ``true`` or ``false``.
 
     EdgeQL has case-insensitive keywords, including boolean literals:
 
@@ -51,7 +51,7 @@ Booleans
         db> select (False, false, FALSE);
         {(false, false, false)}
 
-    A boolean value may arise as a result from :ref:`logical
+    A boolean value may arise as a result of :ref:`logical
     <ref_std_logical>` or :eql:op:`comparison <eq>`
     operations, as well as :eql:op:`in`
     and :eql:op:`not in <in>` operators.
@@ -64,7 +64,7 @@ Booleans
         {false}
 
     It is also possible to :eql:op:`cast <cast>` between
-    :eql:type:`bool`, :eql:type:`str` and :eql:type:`json`:
+    a :eql:type:`bool`, :eql:type:`str` or :eql:type:`json` type:
 
     .. code-block:: edgeql-repl
 
@@ -87,7 +87,7 @@ Booleans
 
 .. eql:operator:: or: bool or bool -> bool
 
-    Logically sets apart a resulting boolean value from two others:
+    Logically differentiates truthfulness between two boolean values:
 
     .. code-block:: edgeql-repl
 
@@ -100,8 +100,7 @@ Booleans
 
 .. eql:operator:: and: bool and bool -> bool
 
-    Performs a logical coexistence resulting in a boolean value from two
-    others:
+    Performs a logical coexistence check of two booleans:
 
     .. code-block:: edgeql-repl
 
