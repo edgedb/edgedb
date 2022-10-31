@@ -142,7 +142,7 @@ picture.
 
 While EdgeDB solves the same problems as ORM libraries, it's so much more. It's
 a full-fledged database with a
-[formally-defined query language](https://www.edgedb.com/docs/edgeql/index), a
+[powerful and elegant query language](https://www.edgedb.com/docs/edgeql/index), a
 [migrations system](https://www.edgedb.com/docs/guides/migrations/index), a
 [suite of client libraries](https://www.edgedb.com/docs/clients/index) in
 different languages, a
