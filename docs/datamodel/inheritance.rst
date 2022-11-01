@@ -157,7 +157,7 @@ Use ``abstract`` to declare reusable, user-defined constraint types.
 Annotations
 -----------
 
-EdgeQL supports three annotations types by default: ``title``, ``description``,
+EdgeQL supports three annotation types by default: ``title``, ``description``,
 and ``deprecated``. Use ``abstract annotation`` to declare custom user-defined
 annotation types.
 
@@ -172,7 +172,7 @@ annotation types.
 
 By default, annotations defined on abstract types, properties, and links will
 not be inherited by their subtypes. To override this behavior, use the
-``inheritable modifier``.
+``inheritable`` modifier.
 
 .. code-block:: sdl
 

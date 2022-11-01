@@ -19,7 +19,7 @@ Properties are used to associate primitive data with an :ref:`object type
   }
 
 Properties are associated with a *key* (e.g. ``first_name``) and a primitive
-type (e.g. ``str```). The term *primitive type* is an umbrella term that
+type (e.g. ``str``). The term *primitive type* is an umbrella term that
 encompasses :ref:`scalar types <ref_datamodel_scalars>` like ``str`` and
 ``bool``, :ref:`enums <ref_datamodel_enums>`, :ref:`arrays
 <ref_datamodel_arrays>`, and :ref:`tuples <ref_datamodel_tuples>`.
@@ -127,7 +127,7 @@ subset of EdgeDB's built-in constraints.
   }
 
 You can constrain properties with arbitrary :ref:`EdgeQL <ref_edgeql>`
-expressions returning ``bool``. To reference to value of the property, use the
+expressions returning ``bool``. To reference the value of the property, use the
 special scope keyword ``__subject__``.
 
 .. code-block:: sdl
