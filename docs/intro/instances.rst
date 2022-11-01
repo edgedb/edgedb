@@ -82,7 +82,7 @@ Further reference
 
 For complete documentation on managing instances with the CLI (upgrading,
 viewing logs, etc.), refer to the :ref:`edgedb instance
-<ref_cli_edgedb_instance>` reference or view the helptext in your shell:
+<ref_cli_edgedb_instance>` reference or view the help text in your shell:
 
 .. code-block:: bash
 
