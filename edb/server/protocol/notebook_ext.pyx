@@ -35,7 +35,6 @@ from edb.server import defines as edbdef
 from edb.server.compiler import OutputFormat
 from edb.server.compiler import dbstate
 from edb.server.compiler import enums
-# from edb.server.protocol cimport args_ser
 from edb.server.protocol import execute as p_execute
 from edb.server.dbview cimport dbview
 from edb.server.protocol cimport frontend
