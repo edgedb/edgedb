@@ -121,12 +121,18 @@ DEF SERVER_HEADER_CAPABILITIES = 0x1001
 DEF ALL_CAPABILITIES = 0xFFFFFFFFFFFFFFFF
 
 
+cdef uint64_t CAP_SESSION_CONFIG = enums.Capability.SESSION_CONFIG
+cdef uint64_t CAP_SET_GLOBAL = enums.Capability.SET_GLOBAL
+
+
 def parse_capabilities_header(value: bytes) -> uint64_t:
     if len(value) != 8:
         raise errors.BinaryProtocolError(
             f'capabilities header must be exactly 8 bytes'
         )
     cdef uint64_t mask = hton.unpack_uint64(cpython.PyBytes_AS_STRING(value))
+    if mask & CAP_SESSION_CONFIG:
+        mask |= CAP_SET_GLOBAL
     return mask
 
 

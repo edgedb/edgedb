@@ -2015,7 +2015,7 @@ class Compiler:
             if ql.scope is qltypes.ConfigScope.SESSION:
                 capability = enums.Capability.SESSION_CONFIG
             elif ql.scope is qltypes.ConfigScope.GLOBAL:
-                capability = enums.Capability.SESSION_CONFIG
+                capability = enums.Capability.SET_GLOBAL
             else:
                 capability = enums.Capability.PERSISTENT_CONFIG
             return (
