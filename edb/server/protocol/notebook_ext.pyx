@@ -33,8 +33,9 @@ from edb.common import markup
 from edb.server import compiler
 from edb.server import defines as edbdef
 from edb.server.compiler import OutputFormat
+from edb.server.compiler import dbstate
 from edb.server.compiler import enums
-from edb.server.protocol cimport args_ser
+from edb.server.protocol import execute as p_execute
 from edb.server.dbview cimport dbview
 from edb.server.protocol cimport frontend
 
@@ -49,7 +50,8 @@ cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
 
 ALLOWED_CAPABILITIES = (
     enums.Capability.MODIFICATIONS |
-    enums.Capability.DDL
+    enums.Capability.DDL |
+    enums.Capability.SET_GLOBAL
 )
 
 
@@ -153,7 +155,7 @@ cdef class NotebookConnection(frontend.FrontendConnection):
 
 
 async def execute(db, server, queries: list):
-    dbv = await server.new_dbview(
+    dbv: dbview.DatabaseConnectionView = await server.new_dbview(
         dbname=db.name,
         query_cache=False,
         protocol_version=edbdef.CURRENT_PROTOCOL,
@@ -184,6 +186,9 @@ async def execute(db, server, queries: list):
                 })
             else:
                 query_unit = unit_or_error
+                query_unit_group = dbstate.QueryUnitGroup()
+                query_unit_group.append(query_unit)
+
                 if query_unit.capabilities & ~ALLOWED_CAPABILITIES:
                     raise query_unit.capabilities.make_error(
                         ALLOWED_CAPABILITIES,
@@ -194,23 +199,17 @@ async def execute(db, server, queries: list):
                         raise errors.QueryError(
                             'cannot use query parameters in tutorial')
 
-                    if bind_data is None:
-                        bind_data = args_ser.recode_bind_args(
-                            dbv,
-                            dbview.CompiledQuery(query_unit_group=query_unit),
-                            b'',
-                        )
-
                     fe_conn = NotebookConnection()
 
-                    await pgcon.parse_execute(
-                        query=query_unit,
-                        fe_conn=fe_conn,
-                        bind_data=bind_data,
-                        use_prep_stmt=False,
-                        state=None,
-                        dbver=dbv.dbver,
+                    dbv.start_implicit(query_unit)
+
+                    compiled = dbview.CompiledQuery(
+                        query_unit_group=query_unit_group)
+                    await p_execute.execute(
+                        pgcon, dbv, compiled, b'', fe_conn=fe_conn,
+                        skip_start=True,
                     )
+
                 except Exception as ex:
                     if debug.flags.server:
                         markup.dump(ex)

@@ -203,3 +203,64 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest):
 
         self.assertEqual(results['kind'], 'results')
         self.assertEqual(results['results'][0]['kind'], 'data')
+
+    def test_http_notebook_07(self):
+        results = self.run_queries([
+            '''
+            create function add_sub(variadic vals: int64) -> int64
+              using (
+                select sum(
+                  (
+                    for tup in enumerate(array_unpack(vals))
+                    union (1 if tup.0 % 2 = 0 else -1) * tup.1
+                  )
+                )
+              );
+            ''',
+            'select add_sub(1, 2, 5, 3);'
+        ])
+
+        self.assertNotIn('error', results['results'][0])
+
+        self.assertEqual(
+            results['results'][1],
+            {
+                'kind': 'data',
+                'data': [
+                    'AAAAAAAAAAAAAAAAAAABBQ==',
+                    'AgAAAAAAAAAAAAAAAAAAAQU=',
+                    'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
+                    'U0VMRUNU'
+                ]
+            },
+        )
+
+    def test_http_notebook_08(self):
+        results = self.run_queries([
+            'create global foo -> int64',
+            'set global foo := 1',
+            'select global foo',
+        ])
+
+        self.assertNotIn('error', results['results'][0])
+        self.assertNotIn('error', results['results'][1])
+
+        self.assertEqual(
+            results['results'][2],
+            {
+                'kind': 'data',
+                'data': [
+                    'AAAAAAAAAAAAAAAAAAABBQ==',
+                    'AgAAAAAAAAAAAAAAAAAAAQU=',
+                    'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
+                    'U0VMRUNU'
+                ]
+            },
+        )
+
+        # Run create global again... to make sure that changes are not
+        # committed
+        results = self.run_queries([
+            'create global foo -> int64',
+        ])
+        self.assertNotIn('error', results['results'][0])
