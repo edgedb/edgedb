@@ -584,7 +584,7 @@ class DeleteAccessPolicy(
 
 @s_futures.register_handler('nonrecursive_access_policies')
 def toggle_nonrecursive_access_policies(
-    cmd: s_futures.FutureCommand,
+    cmd: s_futures.FutureBehaviorCommand,
     schema: s_schema.Schema,
     context: sd.CommandContext,
     on: bool,
