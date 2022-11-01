@@ -268,7 +268,7 @@ policies. This means that they can affect each other in various ways. Because
 of this great care needs to be taken when creating access policies based on
 objects other than the ones they are defined on. For example:
 
-.. code-block:: sdl-diff
+.. code-block:: sdl
 
     global current_user_id -> uuid;
     global current_user := (
@@ -277,11 +277,11 @@ objects other than the ones they are defined on. For example:
 
     type User {
       required property email -> str { constraint exclusive; };
-      required property is_admin -> bool;
+      required property is_admin -> bool { default := false };
 
       access policy admin_only
         allow all
-        using (global current_user.is_admin);
+        using (global current_user.is_admin ?? false);
     }
 
     type BlogPost {
@@ -303,20 +303,22 @@ making the current user able to see their own ``User`` record.
 
 .. warning::
 
-  Starting with the upcoming EdgeDB 3.0 access policy restrictions do **not**
+  Starting with the upcoming EdgeDB 3.0, access policy restrictions will
+  **not**
   apply to any access policy expression. This means that when reasoning about
   access policies it is no longer necesary to take other policies into
-  account. Instead all data is visible for the purpose of *defining* an access
+  account. Instead, all data is visible for the purpose of *defining* an access
   policy.
 
-  This change is done to simplify reasoning about access policies. Since those
-  who have access to modifying the schema can remove unwanted access policies,
-  no additional security is provided by applying access policies to each
-  other's expressions.
+  This change is being made to simplify reasoning about access
+  policies and to allow certain patterns to be express
+  efficiently. Since those who have access to modifying the schema can
+  remove unwanted access policies, no additional security is provided
+  by applying access policies to each other's expressions.
 
-  It is possible to enable this :ref:`future <ref_eql_sdl_future>` behavior in
-  EdgeDB 2.x by adding the following to the schema: ``using future
-  nonrecursive_access_policies;``.
+  It is possible (and recommended) to enable this :ref:`future
+  <ref_eql_sdl_future>` behavior in EdgeDB 2.6 and later by adding the
+  following to the schema: ``using future nonrecursive_access_policies;``.
 
 
 Examples
@@ -461,4 +463,3 @@ Here's a policy that limits the number of blog posts a ``User`` can post.
   * - **See also**
   * - :ref:`SDL > Access policies <ref_eql_sdl_access_policies>`
   * - :ref:`DDL > Access policies <ref_eql_ddl_access_policies>`
-
