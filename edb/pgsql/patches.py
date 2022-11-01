@@ -392,6 +392,6 @@ SELECT
 $function$
     '''),
     ('edgeql+schema', '''
-CREATE TYPE schema::Future EXTENDING schema::Object;
+CREATE TYPE schema::FutureBehavior EXTENDING schema::Object;
 '''),
 ]

@@ -6444,7 +6444,7 @@ class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
     pass
 
 
-class FutureCommand(MetaCommand):
+class FutureBehaviorCommand(MetaCommand):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -6456,11 +6456,13 @@ class FutureCommand(MetaCommand):
         return schema
 
 
-class CreateFuture(FutureCommand, adapts=s_futures.CreateFuture):
+class CreateFutureBehavior(
+        FutureBehaviorCommand, adapts=s_futures.CreateFutureBehavior):
     pass
 
 
-class DeleteFuture(FutureCommand, adapts=s_futures.DeleteFuture):
+class DeleteFutureBehavior(
+        FutureBehaviorCommand, adapts=s_futures.DeleteFutureBehavior):
     pass
 
 

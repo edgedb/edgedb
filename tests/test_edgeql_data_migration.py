@@ -9215,7 +9215,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT schema::Future {
+                SELECT schema::FutureBehavior {
                     name,
                 }
                 FILTER .name = 'nonrecursive_access_policies'
@@ -9246,7 +9246,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT schema::Future {
+                SELECT schema::FutureBehavior {
                     name,
                 }
                 FILTER .name = 'nonrecursive_access_policies'
