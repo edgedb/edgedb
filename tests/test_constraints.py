@@ -1159,7 +1159,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidConstraintDefinitionError,
-            "not supported because it would depend on multiple objects",
+            "constraint expressions must be immutable",
         ):
             await self.con.execute("""
                 ALTER TYPE ObjCnstr2 {
