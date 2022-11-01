@@ -9667,6 +9667,16 @@ type default::Foo {
                 };
             """)
 
+    async def test_edgeql_ddl_constraint_24(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidConstraintDefinitionError,
+                r"constraint expressions must be immutable"):
+            await self.con.execute("""
+                create type X {
+                    create constraint exclusive on (random());
+                };
+            """)
+
     async def test_edgeql_ddl_constraint_check_01a(self):
         await self.con.execute(r"""
             create type Foo {
