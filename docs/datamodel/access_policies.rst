@@ -263,7 +263,8 @@ algorithm for resolving these policies.
    of ``select``, ``insert``, ``update read``, ``update write``, and
    ``delete``.
 
-The access policies affect the values visible in expressions of *other* access
+Currently, by default the access policies affect the values visible
+in expressions of *other* access
 policies. This means that they can affect each other in various ways. Because
 of this great care needs to be taken when creating access policies based on
 objects other than the ones they are defined on. For example:
@@ -300,6 +301,7 @@ won't be able to see their own posts. The above issue can be remedied by
 making the current user able to see their own ``User`` record.
 
 .. _ref_datamodel_access_policies_nonrecursive:
+.. _nonrecursive:
 
 .. warning::
 
@@ -318,7 +320,7 @@ making the current user able to see their own ``User`` record.
 
   It is possible (and recommended) to enable this :ref:`future
   <ref_eql_sdl_future>` behavior in EdgeDB 2.6 and later by adding the
-  following to the schema: ``using future nonrecursive_access_policies;``.
+  following to the schema: ``using future nonrecursive_access_policies;``
 
 
 Examples
