@@ -9627,16 +9627,22 @@ type default::Foo {
             """)
 
     async def test_edgeql_ddl_constraint_21(self):
+        # We plan on rejecting this, but for now do the thing closest
+        # to right.
+        await self.con.execute(r"""
+            create type A {
+                create property x -> str;
+                create constraint exclusive on (A.x);
+            };
+            create type B extending A;
+            insert A { x := "!" };
+        """)
+
         async with self.assertRaisesRegexTx(
-                edgedb.InvalidConstraintDefinitionError,
-                r'constraint expression must be immutable'):
-            await self.con.execute(r"""
-                create type A {
-                    create property x -> str;
-                    create constraint exclusive on (A.x);
-                };
-                create type B extending A;
-                insert A { x := "!" };
+                edgedb.ConstraintViolationError,
+                r'violates exclusivity constraint'):
+            await self.con.execute("""
+                insert B { x := "!" }
             """)
 
     async def test_edgeql_ddl_constraint_22(self):

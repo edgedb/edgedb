@@ -849,7 +849,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         schema = self.run_ddl(schema, '''
             CREATE FUNCTION
             test::my_contains(arr: array<anytype>, val: anytype) -> bool {
-                SET volatility := 'Stable';
+                SET volatility := 'Immutable';
                 USING (
                     SELECT contains(arr, val)
                 );
@@ -860,7 +860,6 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 USING (
                     SELECT (
                         test::my_contains(one_of, __subject__),
-                        test::Object1,
                     ).0
                 );
             };
@@ -871,7 +870,6 @@ class TestSchema(tb.BaseSchemaLoadTest):
         ''')
 
         my_scalar_t = schema.get('test::my_scalar_t')
-        abstr_constr = schema.get('test::my_one_of')
         constr = my_scalar_t.get_constraints(schema).objects(schema)[0]
         my_contains = schema.get_functions('test::my_contains')[0]
         self.assertEqual(
@@ -886,8 +884,6 @@ class TestSchema(tb.BaseSchemaLoadTest):
             frozenset({
                 foo,           # Object 1 is a Object2.foo target
                 foo_target,    # and also a target of its @target property
-                abstr_constr,  # abstract constraint my_one_of
-                constr,        # concrete constraint in my_scalar_t
                 obj1_id,       # Inherited id property
                 obj1_type,     # Inherited __type__ link
                 obj1_type_source,  # and its @source property

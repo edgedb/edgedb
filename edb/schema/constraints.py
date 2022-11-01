@@ -503,7 +503,6 @@ class ConstraintCommand(
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
-        from edb.ir import ast as ir_ast
         from . import pointers as s_pointers
 
         base: Optional[so.Object] = None
@@ -816,18 +815,12 @@ class ConstraintCommand(
                 anchors={qlast.Subject().name: subject},
                 path_prefix_anchor=qlast.Subject().name,
                 singletons=singletons,
-                apply_query_rewrites=not context.stdmode,
+                apply_query_rewrites=False,
                 schema_object_context=self.get_schema_metaclass(),
             ),
         )
 
         assert isinstance(final_expr.irast, ir_ast.Statement)
-        if final_expr.irast.volatility != qltypes.Volatility.Immutable:
-            raise errors.InvalidConstraintDefinitionError(
-                f'constraint expressions must be immutable',
-                context=sourcectx,
-            )
-
         bool_t = schema.get('std::bool', type=s_scalars.ScalarType)
 
         expr_type = final_expr.irast.stype
@@ -853,7 +846,7 @@ class ConstraintCommand(
                 anchors={qlast.Subject().name: subject},
                 path_prefix_anchor=qlast.Subject().name,
                 singletons=singletons,
-                apply_query_rewrites=not context.stdmode,
+                apply_query_rewrites=False,
                 schema_object_context=self.get_schema_metaclass(),
             )
 
@@ -871,15 +864,6 @@ class ConstraintCommand(
                 )
                 assert isinstance(final_except_expr.irast, ir_ast.Statement)
                 refs |= ir_utils.get_longest_paths(final_except_expr.irast)
-
-                if (
-                    final_except_expr.irast.volatility
-                    != qltypes.Volatility.Immutable
-                ):
-                    raise errors.InvalidConstraintDefinitionError(
-                        f'constraint expressions must be immutable',
-                        context=except_expr.context,
-                    )
 
             has_multi = False
             for ref in refs:
@@ -941,6 +925,23 @@ class ConstraintCommand(
                     f'constraint expressions must be immutable',
                     context=final_subjectexpr.irast.context,
                 )
+
+            if final_except_expr:
+                assert isinstance(final_except_expr.irast, ir_ast.Statement)
+                if (
+                    final_except_expr.irast.volatility
+                    != qltypes.Volatility.Immutable
+                ):
+                    raise errors.InvalidConstraintDefinitionError(
+                        f'constraint expressions must be immutable',
+                        context=final_except_expr.irast.context,
+                    )
+
+        if final_expr.irast.volatility != qltypes.Volatility.Immutable:
+            raise errors.InvalidConstraintDefinitionError(
+                f'constraint expressions must be immutable',
+                context=sourcectx,
+            )
 
         attrs['finalexpr'] = final_expr
         attrs['params'] = constr_base.get_params(schema)
