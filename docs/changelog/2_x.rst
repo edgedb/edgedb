@@ -704,14 +704,36 @@ Protocol overhaul
 2.6
 ===
 
-* Add a mechanism to opt into :ref:`future <ref_eql_sdl_future>` behavior
-  changes.
-  (:eql:gh:`#4574`, :eql:gh:`#4606`)
+Nonrecursive access policies and future behaviors
+-------------------------------------------------
 
-* Add a future behavior, ``nonrecursive_access_policies``, which
-  makes access policies
-  :ref:`non-recursive<ref_datamodel_access_policies_nonrecursive>`; that is,
-  it disables the evaluation of access policies within other access policies.
+Starting with EdgeDB 3.0, access policy restrictions will **not** be applied
+while evaluating other access policy expressions (:eql:gh:`#4574`).
+
+It is possible (and recommended) to enable this :ref:`future
+<ref_eql_sdl_future>` behavior in EdgeDB 2.6 by adding the
+following to the schema: ``using future nonrecursive_access_policies;``
+
+For more details, see :ref:`the docs <nonrecursive>`.
+
+To enable opting in to this behavior, 2.6 adds a general mechanism
+to opt into :ref:`future <ref_eql_sdl_future>` behavior changes
+(:eql:gh:`#4574`, :eql:gh:`#4606`).
+
+Other changes
+-------------
+
+* Fix passing zero dimensional array as arguments. This was a regression
+  introduced in 2.4, and affected passing empty arrays from the the Rust
+  bindings.
+  (:eql:gh:`#4511`)
+
+* Require that constraint expressions be immutable
+  (:eql:gh:`#4593`)
+
+* Only permit valid UUID-generation functions to be made the default value
+  for ``id``
+  (:eql:gh:`#4616`)
 
 .. lint-off
 
