@@ -263,6 +263,65 @@ algorithm for resolving these policies.
    of ``select``, ``insert``, ``update read``, ``update write``, and
    ``delete``.
 
+Currently, by default the access policies affect the values visible
+in expressions of *other* access
+policies. This means that they can affect each other in various ways. Because
+of this great care needs to be taken when creating access policies based on
+objects other than the ones they are defined on. For example:
+
+.. code-block:: sdl
+
+    global current_user_id -> uuid;
+    global current_user := (
+      select User filter .id = global current_user_id
+    );
+
+    type User {
+      required property email -> str { constraint exclusive; };
+      required property is_admin -> bool { default := false };
+
+      access policy admin_only
+        allow all
+        using (global current_user.is_admin ?? false);
+    }
+
+    type BlogPost {
+      required property title -> str;
+      link author -> User;
+
+      access policy author_has_full_access
+        allow all
+        using (global current_user ?= .author.id);
+    }
+
+In the above schema only the admin will see a non-empty ``author`` link,
+because only the admin can see any user objects at all. This means that
+instead of making ``BlogPost`` visible to its author, all non-admin authors
+won't be able to see their own posts. The above issue can be remedied by
+making the current user able to see their own ``User`` record.
+
+.. _ref_datamodel_access_policies_nonrecursive:
+.. _nonrecursive:
+
+.. warning::
+
+  Starting with the upcoming EdgeDB 3.0, access policy restrictions will
+  **not**
+  apply to any access policy expression. This means that when reasoning about
+  access policies it is no longer necesary to take other policies into
+  account. Instead, all data is visible for the purpose of *defining* an access
+  policy.
+
+  This change is being made to simplify reasoning about access
+  policies and to allow certain patterns to be express
+  efficiently. Since those who have access to modifying the schema can
+  remove unwanted access policies, no additional security is provided
+  by applying access policies to each other's expressions.
+
+  It is possible (and recommended) to enable this :ref:`future
+  <ref_eql_sdl_future>` behavior in EdgeDB 2.6 and later by adding the
+  following to the schema: ``using future nonrecursive_access_policies;``
+
 
 Examples
 ^^^^^^^^
@@ -406,4 +465,3 @@ Here's a policy that limits the number of blog posts a ``User`` can post.
   * - **See also**
   * - :ref:`SDL > Access policies <ref_eql_sdl_access_policies>`
   * - :ref:`DDL > Access policies <ref_eql_ddl_access_policies>`
-
