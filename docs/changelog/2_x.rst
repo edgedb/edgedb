@@ -701,6 +701,18 @@ Protocol overhaul
 * Allow overloading ``__type__`` with a computed in shapes
   (:eql:gh:`#4557`)
 
+2.5
+===
+
+* Add a mechanism to opt into :ref:`future <ref_eql_sdl_future>` behavior
+  changes.
+  (:eql:gh:`#4574`, :eql:gh:`#4606`)
+
+* Add a future behavior, ``nonrecursive_access_policies``, which
+  makes access policies
+  :ref:`non-recursive<ref_datamodel_access_policies_nonrecursive>`; that is,
+  it disables the evaluation of access policies within other access policies.
+
 .. lint-off
 
 .. _group:
