@@ -24,6 +24,7 @@ Schema
     functions
     inheritance
     extensions
+    future
     comparison
 
 
