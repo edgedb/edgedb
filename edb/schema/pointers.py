@@ -1649,7 +1649,7 @@ class PointerCommand(
         from edb.ir import utils as irutils
 
         # If we add more, we probably want a better mechanism
-        ID_WHITELIST = (
+        ID_ALLOWLIST = (
             'std::uuid_generate_v1mc',
             'std::uuid_generate_v4',
         )
@@ -1664,10 +1664,10 @@ class PointerCommand(
         if not (
             isinstance(expr, irast.Set)
             and isinstance(expr.expr, irast.FunctionCall)
-            and str(expr.expr.func_shortname) in ID_WHITELIST
+            and str(expr.expr.func_shortname) in ID_ALLOWLIST
         ):
             source_context = self.get_attribute_source_context('default')
-            options = ', '.join(ID_WHITELIST)
+            options = ', '.join(ID_ALLOWLIST)
             raise errors.SchemaDefinitionError(
                 "invalid default value for 'id' property",
                 hint=f'default must be a call to one of: {options}',
