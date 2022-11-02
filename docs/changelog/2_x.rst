@@ -735,6 +735,18 @@ Other changes
   for ``id``
   (:eql:gh:`#4616`)
 
+* UI: New mechanism for copying data in REPL and in Data Editor. Hover over
+  a data line and click the context "COPY" button.
+
+  .. image:: images/v2_ui_copy.jpg
+    :width: 100%
+
+* UI: "Disable Access Policies" and "Persist Query" options in REPL remember
+  their state between page refreshes.
+
+* UI: Basic autocomplete now works for ``INSERT``, ``UPDATE``, and ``DELETE``
+  queries.
+
 .. lint-off
 
 .. _group:
