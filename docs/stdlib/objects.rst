@@ -43,6 +43,10 @@ which is a subtype of ``std::BaseObject``.
             required readonly link __type__ -> schema::ObjectType;
         }
 
+    Subtypes may override the ``id`` property, but only to valid uuid
+    generation functions. Currently, these
+    are :eql:func:`uuid_generate_v1mc` and :eql:func:`uuid_generate_v4`.
+
 
 ---------
 

@@ -1968,6 +1968,38 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
+    async def test_edgeql_ddl_default_id(self):
+        # Overriding id's default with another uuid generate function is legit
+        await self.con.execute(r"""
+            create type A {
+                alter property id {
+                    set default := std::uuid_generate_v4()
+                }
+            };
+        """)
+
+        await self.con.execute(r"""
+            create type B {
+                alter property id {
+                    set default := (select std::uuid_generate_v4())
+                }
+            };
+        """)
+
+        # But overriding it with other things is not
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            "invalid default value for 'id' property",
+        ):
+            await self.con.execute(r"""
+                create type C {
+                    alter property id {
+                        set default :=
+                          <uuid>"00000000-0000-0000-0000-000000000000"
+                    }
+                };
+            """)
+
     async def test_edgeql_ddl_property_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE Foo {

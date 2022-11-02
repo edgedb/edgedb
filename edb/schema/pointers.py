@@ -51,6 +51,7 @@ from . import utils
 if TYPE_CHECKING:
     from . import objtypes as s_objtypes
     from . import sources as s_sources
+    from edb.ir import ast as irast
 
 
 class PointerDirection(s_enum.StrEnum):
@@ -1599,6 +1600,10 @@ class PointerCommand(
 
             assert isinstance(default_expr.irast, irast.Statement)
 
+            if scls.is_id_pointer(schema):
+                self._check_id_default(
+                    schema, context, default_expr.irast.expr)
+
             default_schema = default_expr.irast.schema
             default_type = default_expr.irast.stype
             assert default_type is not None
@@ -1635,6 +1640,42 @@ class PointerCommand(
                     f"'single'",
                     context=source_context,
                 )
+
+    def _check_id_default(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        expr: irast.Base,
+    ) -> None:
+        """If default is being set on id, check it against a whitelist"""
+        from edb.ir import ast as irast
+        from edb.ir import utils as irutils
+
+        # If we add more, we probably want a better mechanism
+        ID_ALLOWLIST = (
+            'std::uuid_generate_v1mc',
+            'std::uuid_generate_v4',
+        )
+
+        if (
+            isinstance(expr, irast.Set)
+            and expr.expr
+            and irutils.is_trivial_select(expr.expr)
+        ):
+            expr = expr.expr.result
+
+        if not (
+            isinstance(expr, irast.Set)
+            and isinstance(expr.expr, irast.FunctionCall)
+            and str(expr.expr.func_shortname) in ID_ALLOWLIST
+        ):
+            source_context = self.get_attribute_source_context('default')
+            options = ', '.join(ID_ALLOWLIST)
+            raise errors.SchemaDefinitionError(
+                "invalid default value for 'id' property",
+                hint=f'default must be a call to one of: {options}',
+                context=source_context,
+            )
 
     @classmethod
     def _classname_from_ast(
