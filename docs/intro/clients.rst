@@ -36,11 +36,11 @@ libraries* for the following languages.
 - `Go <https://github.com/edgedb/edgedb-go>`_
 - `Python <https://github.com/edgedb/edgedb-python>`_
 - `Rust <https://github.com/edgedb/edgedb-rust>`_
+- `.NET <https://github.com/edgedb/edgedb-net>`_
 
 Unofficial (community-maintained) libraries are available for the following
 languages.
 
-- `.NET <https://github.com/quinchs/edgedb-dotnet>`_
 - `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
 
 Usage
