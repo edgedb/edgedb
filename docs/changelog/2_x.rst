@@ -701,6 +701,52 @@ Protocol overhaul
 * Allow overloading ``__type__`` with a computed in shapes
   (:eql:gh:`#4557`)
 
+2.6
+===
+
+Nonrecursive access policies and future behaviors
+-------------------------------------------------
+
+Starting with EdgeDB 3.0, access policy restrictions will **not** be applied
+while evaluating other access policy expressions (:eql:gh:`#4574`).
+
+It is possible (and recommended) to enable this :ref:`future
+<ref_eql_sdl_future>` behavior in EdgeDB 2.6 by adding the
+following to the schema: ``using future nonrecursive_access_policies;``
+
+For more details, see :ref:`the docs <nonrecursive>`.
+
+To enable opting in to this behavior, 2.6 adds a general mechanism
+to opt into :ref:`future <ref_eql_sdl_future>` behavior changes
+(:eql:gh:`#4574`, :eql:gh:`#4606`).
+
+Other changes
+-------------
+
+* Fix passing zero dimensional array as arguments. This was a regression
+  introduced in 2.4, and affected passing empty arrays from the the Rust
+  bindings.
+  (:eql:gh:`#4511`)
+
+* Require that constraint expressions be immutable
+  (:eql:gh:`#4593`)
+
+* Only permit valid UUID-generation functions to be made the default value
+  for ``id``
+  (:eql:gh:`#4616`)
+
+* UI: New mechanism for copying data in REPL and in Data Editor. Hover over
+  a data line and click the context "COPY" button.
+
+  .. image:: images/v2_ui_copy.jpg
+    :width: 100%
+
+* UI: "Disable Access Policies" and "Persist Query" options in REPL remember
+  their state between page refreshes.
+
+* UI: Basic autocomplete now works for ``INSERT``, ``UPDATE``, and ``DELETE``
+  queries.
+
 .. lint-off
 
 .. _group:
