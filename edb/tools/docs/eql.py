@@ -205,6 +205,7 @@ import importlib
 import re
 
 import lxml.etree
+import pygments.lexers
 import pygments.lexers.special
 
 from typing import *
@@ -1191,10 +1192,15 @@ class StatementTransform(s_transforms.SphinxTransform):
 
 
 def setup_domain(app):
-    app.add_lexer("edgeql", EdgeQLLexer())
-    app.add_lexer("edgeql-repl", EdgeQLLexer())
-    app.add_lexer("edgeql-synopsis", EdgeQLLexer())
-    app.add_lexer("edgeql-result", pygments.lexers.special.TextLexer())
+    # Dummy lexers; the actual highlighting is implemented
+    # in the edgedb.com website code.
+    app.add_lexer("sdl-diff", pygments.lexers.TextLexer)
+    app.add_lexer("edgeql-diff", pygments.lexers.TextLexer)
+
+    app.add_lexer("edgeql", EdgeQLLexer)
+    app.add_lexer("edgeql-repl", EdgeQLLexer)
+    app.add_lexer("edgeql-synopsis", EdgeQLLexer)
+    app.add_lexer("edgeql-result", pygments.lexers.special.TextLexer)
 
     app.add_role(
         'eql:synopsis',

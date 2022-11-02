@@ -44,6 +44,8 @@ from __future__ import annotations
 from docutils import nodes as d_nodes
 from docutils.parsers.rst import directives  # type: ignore
 
+import pygments.lexers
+
 from sphinx import addnodes as s_nodes
 from sphinx.domains import javascript as js
 from sphinx.locale import _
@@ -143,4 +145,11 @@ class JSDomain(js.JavaScriptDomain):
 
 
 def setup_domain(app):
+    # Dummy lexers; the actual highlighting is implemented
+    # in the edgedb.com website code.
+    app.add_lexer("tsx", pygments.lexers.TextLexer)
+    app.add_lexer("tsx-diff", pygments.lexers.TextLexer)
+    app.add_lexer("typescript-diff", pygments.lexers.TextLexer)
+    app.add_lexer("javascript-diff", pygments.lexers.TextLexer)
+
     app.add_domain(JSDomain, override=True)

@@ -23,5 +23,5 @@ from edb.tools.pygments.graphql import GraphQLLexer
 
 
 def setup_domain(app):
-    app.add_lexer("graphql", GraphQLLexer())
-    app.add_lexer("graphql-schema", GraphQLLexer())
+    app.add_lexer("graphql", GraphQLLexer)
+    app.add_lexer("graphql-schema", GraphQLLexer)
