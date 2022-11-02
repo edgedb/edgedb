@@ -701,7 +701,7 @@ Protocol overhaul
 * Allow overloading ``__type__`` with a computed in shapes
   (:eql:gh:`#4557`)
 
-2.5
+2.6
 ===
 
 * Add a mechanism to opt into :ref:`future <ref_eql_sdl_future>` behavior
