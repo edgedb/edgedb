@@ -23,6 +23,8 @@ from typing import *
 
 from edb.tools.pygments.edgeql import EdgeQLLexer
 
+import pygments.lexers
+
 from sphinx import domains as s_domains
 from sphinx.directives import code as s_code
 
@@ -52,8 +54,13 @@ class CLIDomain(s_domains.Domain):
 
 
 def setup_domain(app):
-    app.add_lexer("cli", EdgeQLLexer())
-    app.add_lexer("cli-synopsis", EdgeQLLexer())
+    # Dummy lexers; the actual highlighting is implemented
+    # in the edgedb.com website code.
+    app.add_lexer("txt", pygments.lexers.TextLexer)
+    app.add_lexer("bash", pygments.lexers.TextLexer)
+
+    app.add_lexer("cli", EdgeQLLexer)
+    app.add_lexer("cli-synopsis", EdgeQLLexer)
 
     app.add_role(
         'cli:synopsis',

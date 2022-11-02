@@ -52,8 +52,8 @@ class SDLDomain(s_domains.Domain):
 
 
 def setup_domain(app):
-    app.add_lexer("sdl", EdgeQLLexer())
-    app.add_lexer("sdl-synopsis", EdgeQLLexer())
+    app.add_lexer("sdl", EdgeQLLexer)
+    app.add_lexer("sdl-synopsis", EdgeQLLexer)
 
     app.add_role(
         'sdl:synopsis',

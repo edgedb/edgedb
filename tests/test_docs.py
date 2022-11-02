@@ -476,6 +476,7 @@ class TestDocSnippets(unittest.TestCase):
                     sys.executable,
                     '-m', 'sphinx',
                     '-n',
+                    '-W',  # fail on warnings
                     '-b', 'xml',
                     '-q',
                     '-D', 'master_doc=index',
