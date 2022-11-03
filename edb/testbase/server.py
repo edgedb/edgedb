@@ -578,19 +578,10 @@ def _extract_background_errors(metrics: str) -> str | None:
 
 
 async def drop_db(conn, dbname):
-    # The retry loop below masks connection abort races.
-    # The current implementation of edgedb-python aborts
-    # connections when it gets a CancelledError.  This creates
-    # a situation in which the server might still have not
-    # realized that the connection went away, and will raise
-    # an ExecutionError on DROP DATABASE below complaining
-    # about the database still being in use.
-    # See issue #4567.
-    #
-    # A better fix would be for edgedb-python to learn to
-    # aclose() gracefully or implement protocol-level
-    # cancellation that guarantees consensus on the server
-    # connection state.
+    # The connection might not *actually* be closed on the db
+    # side yet. This is a bug (#4567), but hack around it
+    # with a retry loop. Without this, tests would flake
+    # a lot.
     async for tr in TestCase.try_until_succeeds(
         ignore=edgedb.ExecutionError,
         timeout=30
