@@ -1980,12 +1980,16 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
     """Get an array element or raise an out-of-bounds exception."""
 
     text = '''
-        SELECT edgedb.raise_on_null(
-            val[edgedb._normalize_array_index(index, array_upper(val, 1))],
-            'array_subscript_error',
-            msg => 'array index ' || index::text || ' is out of bounds',
-            detail => detail
-        )
+        SELECT CASE WHEN val IS NULL THEN
+            NULL
+        ELSE
+            edgedb.raise_on_null(
+                val[edgedb._normalize_array_index(index, array_upper(val, 1))],
+                'array_subscript_error',
+                msg => 'array index ' || index::text || ' is out of bounds',
+                detail => detail
+            )
+        END
     '''
 
     def __init__(self) -> None:

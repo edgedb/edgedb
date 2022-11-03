@@ -5303,6 +5303,54 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             variables=(None,),
         )
 
+        await self.assert_query_result(
+            r'''
+                select (<optional array<int32>>$0)[2];
+            ''',
+            [],
+            variables=(None,),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select (<optional str>$0)[2];
+            ''',
+            [],
+            variables=(None,),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select to_json(<optional str>$0)[2];
+            ''',
+            [],
+            variables=(None,),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select (<optional array<int32>>$0)[1:2];
+            ''',
+            [],
+            variables=(None,),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select (<optional str>$0)[1:2];
+            ''',
+            [],
+            variables=(None,),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select to_json(<optional str>$0)[1:2];
+            ''',
+            [],
+            variables=(None,),
+        )
+
     async def test_edgeql_select_bigint_index_01(self):
 
         big_pos = str(2**40)
