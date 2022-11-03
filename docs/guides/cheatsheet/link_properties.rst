@@ -11,6 +11,14 @@ Links can contain **properties**. Due to how they're persisted under the hood,
 link properties have a few additional constraints: they're always *single* and
 *optional*.
 
+.. note::
+
+  In practice, link properties are best used with many-to-many relationships
+  (``multi`` links without any exclusive constraints). For one-to-one,
+  one-to-many, and many-to-one relationships the same data should be stored in
+  object properties instead.
+
+
 Declaration
 -----------
 
