@@ -2214,13 +2214,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                     await con2.query("select 1")
                     await con2.aclose()
 
-            async for tr in self.try_until_succeeds(
-                ignore=edgedb.ExecutionError,
-            ):
-                async with tr:
-                    await self.con.execute('''
-                        DROP DATABASE test_db_prop;
-                    ''')
+            await tb.drop_db(self.con, 'test_db_prop')
 
             # Now, recreate the DB and try the other way around
             con2 = await sd.connect(
@@ -2242,13 +2236,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                     await con1.query("select 1")
                     await con1.aclose()
 
-            async for tr in self.try_until_succeeds(
-                ignore=edgedb.ExecutionError,
-            ):
-                async with tr:
-                    await con2.execute('''
-                        DROP DATABASE test_db_prop;
-                    ''')
+            await tb.drop_db(con2, 'test_db_prop')
 
             await con2.aclose()
 
@@ -2388,15 +2376,11 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 finally:
                     await con2.aclose()
 
-                await con1.execute(f'''
-                    DROP DATABASE {db};
-                ''')
+                await tb.drop_db(con1, db)
                 cleanup = False
         finally:
             if cleanup:
-                await con1.execute(f'''
-                    DROP DATABASE {db};
-                ''')
+                await tb.drop_db(con1, db)
 
     async def test_server_proto_query_cache_invalidate_01(self):
         typename = 'CacheInv_01'
