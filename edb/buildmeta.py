@@ -505,7 +505,7 @@ def get_version_from_scm(root: pathlib.Path) -> str:
         ver = f'{incremented_ver}.dev{commits_on_branch}'
 
     proc = subprocess.run(
-        ['git', 'rev-parse', '--verify', '--quiet', 'HEAD'],
+        ['git', 'rev-parse', '--verify', '--quiet', 'HEAD^{commit}'],
         stdout=subprocess.PIPE,
         universal_newlines=True,
         check=True,
