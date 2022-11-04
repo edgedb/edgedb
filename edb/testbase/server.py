@@ -577,6 +577,21 @@ def _extract_background_errors(metrics: str) -> str | None:
         return None
 
 
+async def drop_db(conn, dbname):
+    # The connection might not *actually* be closed on the db
+    # side yet. This is a bug (#4567), but hack around it
+    # with a retry loop. Without this, tests would flake
+    # a lot.
+    async for tr in TestCase.try_until_succeeds(
+        ignore=edgedb.ExecutionError,
+        timeout=30
+    ):
+        async with tr:
+            await conn.execute(
+                f'DROP DATABASE {dbname};'
+            )
+
+
 class ClusterTestCase(BaseHTTPTestCase):
 
     BASE_TEST_CLASS = True
@@ -1067,29 +1082,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 elif class_set_up == 'run' or cls.uses_database_copies():
                     dbname = qlquote.quote_ident(cls.get_database_name())
 
-                    # The retry loop below masks connection abort races.
-                    # The current implementation of edgedb-python aborts
-                    # connections when it gets a CancelledError.  This creates
-                    # a situation in which the server might still have not
-                    # realized that the connection went away, and will raise
-                    # an ExecutionError on DROP DATABASE below complaining
-                    # about the database still being in use.
-                    #
-                    # A better fix would be for edgedb-python to learn to
-                    # aclose() gracefully or implement protocol-level
-                    # cancellation that guarantees consensus on the server
-                    # connection state.
-                    async def drop_db():
-                        async for tr in cls.try_until_succeeds(
-                            ignore=edgedb.ExecutionError,
-                            timeout=30
-                        ):
-                            async with tr:
-                                await cls.admin_conn.execute(
-                                    f'DROP DATABASE {dbname};'
-                                )
-
-                    cls.loop.run_until_complete(drop_db())
+                    cls.loop.run_until_complete(
+                        drop_db(cls.admin_conn, dbname))
 
             finally:
                 try:
@@ -1271,7 +1265,7 @@ class DumpCompatTestCaseMeta(TestCaseMeta):
                 self.run_cli('-d', dbname, 'restore', str(dumpfn))
                 con2 = await self.connect(database=dbname)
             except Exception:
-                await self.con.execute(f'DROP DATABASE {qdbname}')
+                await drop_db(self.con, qdbname)
                 raise
 
             oldcon = self.__class__.con
@@ -1282,14 +1276,7 @@ class DumpCompatTestCaseMeta(TestCaseMeta):
                 self.__class__.con = oldcon
                 await con2.aclose()
 
-                # The connection might not *actually* be closed on the db
-                # side yet. This is probably a bug, but hack around it
-                # with a retry loop. Without this, the test would flake
-                # a lot.
-                async for tr in self.try_until_succeeds(
-                        ignore=edgedb.ExecutionError):
-                    async with tr:
-                        await self.con.execute(f'DROP DATABASE {qdbname}')
+                await drop_db(self.con, qdbname)
 
         for entry in dumps_dir.iterdir():
             if not entry.is_file() or not entry.name.endswith(".dump"):
@@ -1343,7 +1330,7 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
                 self.run_cli('-d', tgt_dbname, 'restore', f.name)
                 con2 = await self.connect(database=tgt_dbname)
             except Exception:
-                await self.con.execute(f'DROP DATABASE {q_tgt_dbname}')
+                await drop_db(self.con, q_tgt_dbname)
                 raise
 
         oldcon = self.con
@@ -1353,7 +1340,7 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
         finally:
             self.__class__.con = oldcon
             await con2.aclose()
-            await self.con.execute(f'DROP DATABASE {q_tgt_dbname}')
+            await drop_db(self.con, q_tgt_dbname)
 
 
 def get_test_cases_setup(

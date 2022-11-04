@@ -52,7 +52,7 @@ class TestDatabase(tb.ConnectedTestCase):
 
             await conn.aclose()
         finally:
-            await self.con.execute('DROP DATABASE mytestdb;')
+            await tb.drop_db(self.con, 'mytestdb')
 
     async def test_database_create_02(self):
         with self.assertRaisesRegex(
@@ -74,7 +74,7 @@ class TestDatabase(tb.ConnectedTestCase):
                     r'database "databasename" already exists'):
                 await self.con.execute('CREATE DATABASE databasename;')
         finally:
-            await self.con.execute('DROP DATABASE databasename;')
+            await tb.drop_db(self.con, 'databasename')
 
     async def test_database_drop_01(self):
         if not self.has_create_database:
