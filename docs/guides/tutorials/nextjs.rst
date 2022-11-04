@@ -499,7 +499,7 @@ loading spinners and ensure the page loads fast.
         id: true,
         title: true,
         content: true,
-        filter: e.op(post.id, '=', e.uuid(context!.params!.id as string)),
+        filter_single: e.op(post.id, '=', e.uuid(context!.params!.id as string)),
       }))
       .run(client);
     return {props: {post: post!}};
