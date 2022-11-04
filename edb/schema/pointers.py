@@ -1588,15 +1588,22 @@ class PointerCommand(
 
         self._validate_computables(schema, context)
 
-        scls = self.scls
+        scls: Pointer = self.scls
         if not scls.get_owned(schema):
             return
 
-        default_expr = scls.get_default(schema)
+        default_expr: Optional[s_expr.Expression] = scls.get_default(schema)
 
         if default_expr is not None:
+
+            source_context = self.get_attribute_source_context('default')
+
             if default_expr.irast is None:
-                default_expr = default_expr.compiled(default_expr, schema)
+                try:
+                    default_expr = default_expr.compiled(default_expr, schema)
+                except errors.QueryError as e:
+                    e.set_source_context(source_context)
+                    raise
 
             assert isinstance(default_expr.irast, irast.Statement)
 
@@ -1610,7 +1617,6 @@ class PointerCommand(
             ptr_target = scls.get_target(schema)
             assert ptr_target is not None
 
-            source_context = self.get_attribute_source_context('default')
             if default_type.is_view(default_schema):
                 raise errors.SchemaDefinitionError(
                     f'default expression may not include a shape',
