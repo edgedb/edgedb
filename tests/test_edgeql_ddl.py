@@ -8361,7 +8361,7 @@ type default::Foo {
         con = await self.connect()
         try:
             if self.has_create_database:
-                await con.execute("""DROP DATABASE test_role_05""")
+                await tb.drop_db(con, 'test_role_05')
         finally:
             await con.aclose()
 
