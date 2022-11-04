@@ -70,7 +70,7 @@ class CardinalityBound(int, enum.Enum):
         return self is CB_ONE
 
     def as_schema_cardinality(self) -> qltypes.SchemaCardinality:
-        if self is CB_MANY:
+        if self >= CB_MANY:
             return qltypes.SchemaCardinality.Many
         else:
             return qltypes.SchemaCardinality.One
@@ -84,7 +84,7 @@ class CardinalityBound(int, enum.Enum):
         cls,
         card: qltypes.SchemaCardinality
     ) -> CardinalityBound:
-        if card is qltypes.SchemaCardinality.Many:
+        if card >= qltypes.SchemaCardinality.Many:
             return CB_MANY
         else:
             return CB_ONE

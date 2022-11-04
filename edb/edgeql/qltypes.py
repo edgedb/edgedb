@@ -77,7 +77,7 @@ class TransactionDeferMode(s_enum.StrEnum):
     NOT_DEFERRABLE = 'NOT DEFERRABLE'
 
 
-class SchemaCardinality(s_enum.StrEnum):
+class SchemaCardinality(s_enum.OrderedEnumMixin, s_enum.StrEnum):
     '''This enum is used to store cardinality in the schema.'''
     One = 'One'
     Many = 'Many'
@@ -157,7 +157,8 @@ _TUPLE_TO_CARD = {
 }
 
 
-class Volatility(s_enum.StrEnum):
+class Volatility(s_enum.OrderedEnumMixin, s_enum.StrEnum):
+    # Make sure that the values appear from least volatile to most volatile.
     Immutable = 'Immutable'
     Stable = 'Stable'
     Volatile = 'Volatile'
@@ -172,7 +173,8 @@ class Volatility(s_enum.StrEnum):
         return cls(name.title())
 
 
-class Multiplicity(s_enum.StrEnum):
+class Multiplicity(s_enum.OrderedEnumMixin, s_enum.StrEnum):
+    # Make sure that the values appear in ascending order.
     EMPTY = 'EMPTY'
     UNIQUE = 'UNIQUE'
     DUPLICATE = 'DUPLICATE'

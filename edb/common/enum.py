@@ -20,10 +20,23 @@
 from __future__ import annotations
 
 import enum
+import functools
 
 
 class StrEnum(str, enum.Enum):
     """A version of string enum with reasonable __str__."""
-
     def __str__(self):
         return self._value_
+
+
+@functools.total_ordering
+class OrderedEnumMixin():
+    @classmethod
+    @functools.lru_cache(None)
+    def _index_of(cls, value):
+        return list(cls).index(value)
+
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self._index_of(self) < self._index_of(other)
+        return NotImplemented

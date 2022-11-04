@@ -69,13 +69,11 @@ class ContainerMultiplicityInfo(inf_ctx.MultiplicityInfo):
 def _max_multiplicity(
     args: Iterable[inf_ctx.MultiplicityInfo]
 ) -> inf_ctx.MultiplicityInfo:
-    # Coincidentally, the lexical order of multiplicity is opposite of
-    # order of multiplicity values.
     arg_list = [a.own for a in args]
     if not arg_list:
         max_mult = qltypes.Multiplicity.UNIQUE
     else:
-        max_mult = min(arg_list)
+        max_mult = max(arg_list)
 
     return inf_ctx.MultiplicityInfo(own=max_mult)
 
