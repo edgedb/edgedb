@@ -46,15 +46,7 @@ def compile_SelectStmt(
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
         # Common setup.
-        for binding in (stmt.bindings or ()):
-            # If something we are WITH binding contains DML, we want to
-            # compile it *now*, in the context of its initial appearance
-            # and not where the variable is used. This will populate
-            # dml_stmts with the CTEs, which will be picked up when the
-            # variable is referenced.
-            if irutils.contains_dml(binding):
-                with ctx.substmt() as bctx:
-                    dispatch.compile(binding, ctx=bctx)
+        clauses.compile_dml_bindings(stmt, ctx=ctx)
 
         query = ctx.stmt
 

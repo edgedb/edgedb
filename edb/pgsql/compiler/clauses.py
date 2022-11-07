@@ -27,6 +27,7 @@ from edb.common import ast as ast_visitor
 
 from edb.edgeql import qltypes
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
 from edb.pgsql import ast as pgast
 from edb.pgsql import types as pg_types
 
@@ -222,6 +223,20 @@ def compile_output(
                 ctx.rel, path_id, env=ctx.env)
 
     return val
+
+
+def compile_dml_bindings(
+        stmt: irast.Stmt, *,
+        ctx: context.CompilerContextLevel) -> None:
+    for binding in (stmt.bindings or ()):
+        # If something we are WITH binding contains DML, we want to
+        # compile it *now*, in the context of its initial appearance
+        # and not where the variable is used. This will populate
+        # dml_stmts with the CTEs, which will be picked up when the
+        # variable is referenced.
+        if irutils.contains_dml(binding):
+            with ctx.substmt() as bctx:
+                dispatch.compile(binding, ctx=bctx)
 
 
 def compile_filter_clause(

@@ -91,6 +91,8 @@ def init_dml_stmt(
     range_cte: Optional[pgast.CommonTableExpr]
     range_rvar: Optional[pgast.RelRangeVar]
 
+    clauses.compile_dml_bindings(ir_stmt, ctx=ctx)
+
     if isinstance(ir_stmt, (irast.UpdateStmt, irast.DeleteStmt)):
         # UPDATE and DELETE operate over a range, so generate
         # the corresponding CTE and connect it to the DML statements.

@@ -3285,6 +3285,43 @@ class TestInsert(tb.QueryTestCase):
             ELSE (Person)
         ''')
 
+    async def test_edgeql_insert_unless_conflict_27(self):
+        DML_Q = '''
+            WITH P := (
+                insert Person { name := <str>$0 }
+                unless conflict on .name else (Person)
+            )
+            insert Person2a {
+                first := <str>$1, last := '', bff := P
+            } unless conflict on (.first, .last) else (
+                update Person2a set { bff := P }
+            )
+        '''
+        Q = '''
+            select Person2a { bff: {name} } filter .first = <str>$0
+        '''
+
+        # Try all 4 combinations of which conflict clauses fire
+        all_args = [
+            ('a', 'x'),
+            ('b', 'x'),
+            ('b', 'y'),
+            ('c', 'y'),
+        ]
+        for friend, person in all_args:
+            await self.assert_query_result(
+                DML_Q,
+                [{}],
+                variables=(friend, person),
+                msg=f'insert {(friend, person)}',
+            )
+            await self.assert_query_result(
+                Q,
+                [{'bff': {'name': friend}}],
+                variables=(person,),
+                msg=f'check {(friend, person)}',
+            )
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             SELECT (
