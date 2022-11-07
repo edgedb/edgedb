@@ -7692,3 +7692,13 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         """, __typenames__=True)
         for row in res:
             self.assertEqual(row.__tname__, "default::User")
+
+    async def test_edgeql_select_paths_01(self):
+        # This is OK because Issue.id is a property, not a link
+        await self.assert_query_result(
+            r'''
+                SELECT Issue.name
+                FILTER Issue.number > '2';
+            ''',
+            tb.bag(["Repl tweak.", "Regression."]),
+        )
