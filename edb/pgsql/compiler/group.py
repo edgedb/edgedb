@@ -165,6 +165,8 @@ def _compile_group(
         ctx: context.CompilerContextLevel,
         parent_ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
+    clauses.compile_dml_bindings(stmt, ctx=ctx)
+
     query = ctx.stmt
 
     # Compile a GROUP BY into a subquery, along with all the aggregations
