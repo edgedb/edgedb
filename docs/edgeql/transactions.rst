@@ -42,10 +42,23 @@ under the hood.
 TypeScript/JS
 ^^^^^^^^^^^^^
 
+Using an EdgeQL query string:
+
 .. code-block:: typescript
 
   client.transaction(async tx => {
     await tx.execute(`insert Fish { name := 'Wanda' };`);
+  });
+
+Using the querybuilder:
+
+.. code-block:: typescript
+
+  const query = e.insert(e.Fish, {
+    name: 'Wanda'
+  });
+  client.transaction(async tx => {
+    await query.run(tx);
   });
 
 Full documentation at `Client Libraries > TypeScript/JS
