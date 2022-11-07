@@ -292,6 +292,10 @@ class DynamicRangeVar(PathRangeVar):
 
     dynamic_get_path: DynamicRangeVarFunc
 
+    @property
+    def query(self) -> BaseRelation:
+        raise AssertionError('cannot retrieve query from a dynamic range var')
+
 
 class TypeName(ImmutableBase):
     """Type in definitions and casts."""
