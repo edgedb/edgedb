@@ -44,10 +44,16 @@ Generic
 
 -----------
 
+.. note::
+
+    In EdgeQL, any value can be compared to another as long as they are
+    both the same type.
 
 .. eql:operator:: eq: anytype = anytype -> bool
 
-    Compare two values for equality.
+    Compares two values of :eql:type:`anytype` for equality.
+
+    This reuslts in a :eql:type:`bool`:
 
     .. code-block:: edgeql-repl
 
@@ -70,10 +76,11 @@ Generic
 
 .. eql:operator:: neq: anytype != anytype -> bool
 
-    Compare two values for inequality.
+    Compares two values of :eql:type:`anytype` for inequality.
+
+    This results in a :eql:type:`bool`:
 
     .. code-block:: edgeql-repl
-
 
         db> select 3 != 3.0;
         {false}
@@ -94,10 +101,12 @@ Generic
 
 .. eql:operator:: coaleq: optional anytype ?= optional anytype -> bool
 
-    Compare two (potentially empty) values for equality.
+    Compares two potentially empty values of :eql:type:`anytype` for equality.
 
-    Works the same as regular :eql:op:`=<eq>`, but also allows
-    comparing ``{}``.  Two ``{}`` are considered equal.
+    This works the same as a regular :eql:op:`=<eq>` operator, but also allows
+    comparing an empty ``{}`` set.  Two empty sets are considered equal.
+
+    This results in a :eql:type:`bool`:
 
     .. code-block:: edgeql-repl
 
@@ -114,10 +123,12 @@ Generic
 
 .. eql:operator:: coalneq: optional anytype ?!= optional anytype -> bool
 
-    Compare two (potentially empty) values for inequality.
+    Compares two potentially empty values for inequality.
 
-    Works the same as regular :eql:op:`\!= <neq>`, but also allows
-    comparing ``{}``.  Two ``{}`` are considered equal.
+    This works the same as a negated :eql:op:`\!= <neq>` operator, but also
+    allows comparing an empty ``{}`` set. Two empty sets are considered equal.
+
+    This results in a :eql:type:`bool`:
 
     .. code-block:: edgeql-repl
 
@@ -134,11 +145,11 @@ Generic
 
 .. eql:operator:: lt: anytype < anytype -> bool
 
-    Less than operator.
+    Performs a less than value comparison with operands of
+    :eql:type:`anytype`.
 
-    Return ``true`` if the value of the left expression is less than
-    the value of the right expression. In EdgeQL any values can be
-    compared to each other as long as they are of the same type:
+    This results in a :eql:type:`bool` of ``true`` if the left operand
+    is less than the the right operand:
 
     .. code-block:: edgeql-repl
 
@@ -156,11 +167,11 @@ Generic
 
 .. eql:operator:: gt: anytype > anytype -> bool
 
-    Greater than operator.
+    Performs a greater than value comparison with operands of
+    :eql:type:`anytype`.
 
-    Return ``true`` if the value of the left expression is greater
-    than the value of the right expression. In EdgeQL any values can be
-    compared to each other as long as they are of the same type:
+    This results in a :eql:type:`bool` of ``true`` if the left operand
+    is greater than the the right operand:
 
     .. code-block:: edgeql-repl
 
@@ -179,12 +190,11 @@ Generic
 
 .. eql:operator:: lteq: anytype <= anytype -> bool
 
-    Less or equal operator.
+    Performs a less than/equals comparison with operands of
+    :eql:type:`anytype`.
 
-    Return ``true`` if the value of the left expression is less than
-    or equal to the value of the right expression. In EdgeQL any
-    values can be compared to each other as long as they are of the
-    same type:
+    This results in a :eql:type:`bool` of ``true`` if the left operand
+    is less than or the same value as the right operand:
 
     .. code-block:: edgeql-repl
 
@@ -205,12 +215,11 @@ Generic
 
 .. eql:operator:: gteq: anytype >= anytype -> bool
 
-    Greater or equal operator.
+    Performs a greater than/equals comparison with operands of
+    :eql:type:`anytype`.
 
-    Return ``true`` if the value of the left expression is greater
-    than or equal to the value of the right expression. In EdgeQL any
-    values can be compared to each other as long as they are of the
-    same type:
+    This results in a :eql:type:`bool` of ``true`` if the left operand
+    is greater than or the same value as the right operand:
 
     .. code-block:: edgeql-repl
 
@@ -235,12 +244,11 @@ Generic
 
     :index: length count array
 
-    A polymorphic function to calculate a "length" of its first
-    argument.
+    Returns the number of values within a type as its "length."
 
-    Return the number of characters in a :eql:type:`str`, or the
-    number of bytes in :eql:type:`bytes`, or the number of elements in
-    an :eql:type:`array`.
+    This is a polymorphic function to determine the number of characters
+    within a :eql:type:`str`, number of :eql:type:`bytes` or number of
+    elements in an :eql:type:`array`:
 
     .. code-block:: edgeql-repl
 
