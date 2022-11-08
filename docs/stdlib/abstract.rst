@@ -99,7 +99,7 @@ Abstract Range Types
 ====================
 
 Like abstract types, you may also specify :ref:`ranges <ref_std_range>`.
-These scalar types are distinguished by the following:
+These types are distinguished by the following:
 
 .. eql:type:: std::anypoint
 
