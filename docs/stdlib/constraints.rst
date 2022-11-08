@@ -9,10 +9,10 @@ Constraints
 
 .. eql:constraint:: std::expression on (expr)
 
-    Arbitrary constraint expression.
+    Represents an arbitrary constraint expression.
 
-    Example of using an ``expression`` constraint to create a custom
-    scalar:
+    The ``expression`` constraint may be used to represent a custom scalar
+    type:
 
     .. code-block:: sdl
 
@@ -20,8 +20,8 @@ Constraints
             constraint expression on (__subject__[0] = 'A');
         }
 
-    Example of using an ``expression`` constraint based on a couple of
-    object properties to restrict maximum magnitude for a vector:
+    You may also use this constraint based on a couple of object properties to
+    further restrict, for instance, the maximum magnitude of a ``Vector``:
 
     .. code-block:: sdl
 
@@ -35,9 +35,7 @@ Constraints
 
 .. eql:constraint:: std::one_of(variadic members: anytype)
 
-    Specifies the list of allowed values directly.
-
-    Example:
+    Specifies a list of allowed :eql:type:`anytype` values directly:
 
     .. code-block:: sdl
 
@@ -47,9 +45,7 @@ Constraints
 
 .. eql:constraint:: std::max_value(max: anytype)
 
-    Specifies the maximum value for the subject.
-
-    Example:
+    Specifies the maximum value of :eql:type:`anytype`:
 
     .. code-block:: sdl
 
@@ -59,9 +55,7 @@ Constraints
 
 .. eql:constraint:: std::max_ex_value(max: anytype)
 
-    Specifies the maximum value (as an open interval) for the subject.
-
-    Example:
+    Specifies the maximum value of :eql:type:`anytype` as an open interval:
 
     .. code-block:: sdl
 
@@ -71,9 +65,8 @@ Constraints
 
 .. eql:constraint:: std::max_len_value(max: int64)
 
-    Specifies the maximum length of subject string representation.
-
-    Example:
+    Specifies the maximum length of :eql:type:`int64` in string
+    representation:
 
     .. code-block:: sdl
 
@@ -83,9 +76,7 @@ Constraints
 
 .. eql:constraint:: std::min_value(min: anytype)
 
-    Specifies the minimum value for the subject.
-
-    Example:
+    Specifies the minimum value of :eql:type:`anytype`:
 
     .. code-block:: sdl
 
@@ -95,9 +86,7 @@ Constraints
 
 .. eql:constraint:: std::min_ex_value(min: anytype)
 
-    Specifies the minimum value (as an open interval) for the subject.
-
-    Example:
+    Specifies the minimum value of :eql:type:`anytype` as an open interval:
 
     .. code-block:: sdl
 
@@ -107,9 +96,8 @@ Constraints
 
 .. eql:constraint:: std::min_len_value(min: int64)
 
-    Specifies the minimum length of subject string representation.
-
-    Example:
+    Specifies the minimum length of :eql:type:`int64` as a string
+    representation:
 
     .. code-block:: sdl
 
@@ -121,10 +109,8 @@ Constraints
 
     :index: regex regexp regular
 
-    Specifies that the string representation of the subject must match a
-    regexp.
-
-    Example:
+    Specifies that the string representation of a subject must match a
+    pattern.
 
     .. code-block:: sdl
 
@@ -132,7 +118,8 @@ Constraints
             constraint regexp(r'[A-Za-z]*');
         }
 
-    See :ref:`here <string_regexp>` for more details on regexp patterns.
+    See :ref:`regular expression patterns <string_regexp>` for details
+    covering further usage.
 
 .. eql:constraint:: std::exclusive
 
