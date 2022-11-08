@@ -29,6 +29,7 @@ from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
 from edb.edgeql import utils as qlutils
+from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -502,6 +503,7 @@ class ConstraintCommand(
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
+        from . import pointers as s_pointers
 
         base: Optional[so.Object] = None
         if isinstance(self, AlterConstraint):
@@ -512,6 +514,7 @@ class ConstraintCommand(
                 base = referrer_ctx.op.scls
 
         if base is not None:
+            assert isinstance(base, (s_types.Type, s_pointers.Pointer))
             # Concrete constraint
             if field.name == 'expr':
                 # Concrete constraints cannot redefine the base check
@@ -535,6 +538,7 @@ class ConstraintCommand(
                         modaliases=context.modaliases,
                         anchors={qlast.Subject().name: base},
                         path_prefix_anchor=qlast.Subject().name,
+                        singletons=frozenset([base]),
                         allow_generic_type_output=True,
                         schema_object_context=self.get_schema_metaclass(),
                         apply_query_rewrites=False,
@@ -569,6 +573,7 @@ class ConstraintCommand(
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
+
         else:
             return super().compile_expr_field(
                 schema, context, field, value, track_schema_ref_exprs)
@@ -796,6 +801,12 @@ class ConstraintCommand(
 
         attrs['args'] = args
 
+        if subject_obj:
+            assert isinstance(subject_obj, (s_types.Type, s_pointers.Pointer))
+            singletons = frozenset({subject_obj})
+        else:
+            singletons = frozenset()
+
         assert subject is not None
         final_expr = s_expr.Expression.compiled(
             s_expr.Expression.from_ast(expr_ql, schema, {}),
@@ -803,12 +814,14 @@ class ConstraintCommand(
             options=qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: subject},
                 path_prefix_anchor=qlast.Subject().name,
-                apply_query_rewrites=not context.stdmode,
+                singletons=singletons,
+                apply_query_rewrites=False,
+                schema_object_context=self.get_schema_metaclass(),
             ),
         )
 
-        bool_t = schema.get('std::bool', type=s_scalars.ScalarType)
         assert isinstance(final_expr.irast, ir_ast.Statement)
+        bool_t = schema.get('std::bool', type=s_scalars.ScalarType)
 
         expr_type = final_expr.irast.stype
         expr_schema = final_expr.irast.schema
@@ -829,31 +842,32 @@ class ConstraintCommand(
                 )
 
         if subjectexpr is not None:
-            assert isinstance(subject_obj, (s_types.Type, s_pointers.Pointer))
-            singletons = frozenset({subject_obj})
-
             options = qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: subject},
                 path_prefix_anchor=qlast.Subject().name,
                 singletons=singletons,
-                apply_query_rewrites=not context.stdmode,
+                apply_query_rewrites=False,
+                schema_object_context=self.get_schema_metaclass(),
             )
 
             final_subjectexpr = s_expr.Expression.compiled(
                 subjectexpr, schema=schema, options=options
             )
             assert isinstance(final_subjectexpr.irast, ir_ast.Statement)
+
             refs = ir_utils.get_longest_paths(final_expr.irast)
 
+            final_except_expr = None
             if except_expr:
                 final_except_expr = s_expr.Expression.compiled(
                     except_expr, schema=schema, options=options
                 )
-                assert final_except_expr.irast
+                assert isinstance(final_except_expr.irast, ir_ast.Statement)
                 refs |= ir_utils.get_longest_paths(final_except_expr.irast)
 
             has_multi = False
             for ref in refs:
+                assert subject_obj
                 while ref.rptr:
                     rptr = ref.rptr
                     if rptr.dir_cardinality.is_multi():
@@ -902,6 +916,32 @@ class ConstraintCommand(
                     "in a non-aggregating constraint",
                     context=sourcectx
                 )
+
+            if (
+                final_subjectexpr.irast.volatility
+                != qltypes.Volatility.Immutable
+            ):
+                raise errors.InvalidConstraintDefinitionError(
+                    f'constraint expressions must be immutable',
+                    context=final_subjectexpr.irast.context,
+                )
+
+            if final_except_expr:
+                assert isinstance(final_except_expr.irast, ir_ast.Statement)
+                if (
+                    final_except_expr.irast.volatility
+                    != qltypes.Volatility.Immutable
+                ):
+                    raise errors.InvalidConstraintDefinitionError(
+                        f'constraint expressions must be immutable',
+                        context=final_except_expr.irast.context,
+                    )
+
+        if final_expr.irast.volatility != qltypes.Volatility.Immutable:
+            raise errors.InvalidConstraintDefinitionError(
+                f'constraint expressions must be immutable',
+                context=sourcectx,
+            )
 
         attrs['finalexpr'] = final_expr
         attrs['params'] = constr_base.get_params(schema)

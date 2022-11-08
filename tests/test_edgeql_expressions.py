@@ -184,9 +184,9 @@ def get_test_items(**flags):
 
 class TestExpressionsWithoutConstantFolding(tb.QueryTestCase):
 
-    SETUP_METHOD = """
+    SETUP_COMMANDS = ["""
         CONFIGURE SESSION SET __internal_no_const_folding := true;
-    """
+    """]
 
     async def test_edgeql_no_const_folding_str_concat_01(self):
         await self.assert_query_result(
@@ -3142,6 +3142,7 @@ class TestExpressions(tb.QueryTestCase):
                 'schema::Annotation',
                 'schema::AnnotationSubject',
                 'schema::Array',
+                'schema::ArrayExprAlias',
                 'schema::Delta',
                 'schema::Object',
                 'schema::ObjectType',
@@ -6615,15 +6616,14 @@ aa \
             variables=(None,),
         )
 
-    async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError, r'cannot assign to __type__'):
-            await self.con.query(r"""
-                SELECT Text {
-                    __type__ := (SELECT schema::ObjectType
-                                 FILTER .name = 'default::Named')
-                };
-            """)
+    async def test_edgeql_expr_range_38(self):
+        # Test array of range as argument
+        await self.con.query(
+            '''
+            select <array<range<int64>>>$0
+            ''',
+            [edgedb.Range(0, 10)],
+        )
 
     async def test_edgeql_expr_cannot_assign_id_01(self):
         with self.assertRaisesRegex(

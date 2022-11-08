@@ -111,9 +111,9 @@ class ViewShapeMetadata(Base):
 
 
 class TypeRef(ImmutableBase):
-    # Hide ancestors and descendants from debug spew because they are
+    # Hide ancestors and children from debug spew because they are
     # incredibly noisy.
-    __ast_hidden__ = {'ancestors', 'descendants'}
+    __ast_hidden__ = {'ancestors', 'children'}
 
     # The id of the referenced type
     id: uuid.UUID
@@ -126,9 +126,9 @@ class TypeRef(ImmutableBase):
     # If this is a scalar type, base_type would be the highest
     # non-abstract base type.
     base_type: typing.Optional[TypeRef] = None
-    # A set of type descendant descriptors, if necessary for
+    # A set of type children descriptors, if necessary for
     # this type description.
-    descendants: typing.Optional[typing.FrozenSet[TypeRef]] = None
+    children: typing.Optional[typing.FrozenSet[TypeRef]] = None
     # A set of type ancestor descriptors, if necessary for
     # this type description.
     ancestors: typing.Optional[typing.FrozenSet[TypeRef]] = None
@@ -509,7 +509,7 @@ class Command(Base):
     __abstract_node__ = True
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class Param:
     """Query parameter with it's schema type and IR type"""
 
@@ -524,6 +524,83 @@ class Param:
 
     ir_type: TypeRef
     """IR type reference"""
+
+    sub_params: SubParams | None = None
+    """Sub-parameters containing tuple components.
+
+    If the param needs to be split into multiple real postgres params
+    in order to implement tuples, this collects those parameters and
+    the decoder expression.
+    """
+
+    @property
+    def is_sub_param(self) -> bool:
+        return (
+            self.name.startswith('__edb_decoded_') and self.name.endswith('__')
+        )
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class SubParams:
+    """Information about sub-parameters needed for tuple components.
+
+    If the param needs to be split into multiple real postgres params
+    in order to implement tuples, this collects those parameters and
+    the decoder expression.
+    """
+    trans_type: ParamTransType
+    decoder_edgeql: qlast.Expr
+    params: tuple[Param, ...]
+    decoder_ir: Set | None = None
+
+
+@dataclasses.dataclass(eq=False)
+class ParamTransType:
+    """Representation of how a tuple-containing parameter type is broken down.
+
+    The key thing here is that each node contains the index corresponding
+    to which sub-parameter that node in the argument type corresponds with.
+    See edgeql.compiler.tuple_args for details.
+
+    The reason we track this in a separate data structure (instead of just
+    having an dict from TypeRefs to indexes, say) is that TypeRefs will often
+    be shared among identical types, but we need to track different indexes
+    for different components of a type.
+    (For example, if we have an param type `tuple<str, str>`, this gets
+    decomposed into two `str` params, with indexes 0 and 1.
+    """
+    typeref: TypeRef
+    idx: int
+
+    def flatten(self) -> tuple[typing.Any, ...]:
+        """Flatten out the trans type into a tuple representation.
+
+        The idea here is to produce something that our inner loop in cython
+        can consume efficiently.
+        """
+        raise NotImplementedError
+
+
+@dataclasses.dataclass(eq=False)
+class ParamScalar(ParamTransType):
+    def flatten(self) -> tuple[typing.Any, ...]:
+        return (0, self.idx)
+
+
+@dataclasses.dataclass(eq=False)
+class ParamTuple(ParamTransType):
+    typs: tuple[ParamTransType, ...]
+
+    def flatten(self) -> tuple[typing.Any, ...]:
+        return (1, self.idx) + tuple(x.flatten() for x in self.typs)
+
+
+@dataclasses.dataclass(eq=False)
+class ParamArray(ParamTransType):
+    typ: ParamTransType
+
+    def flatten(self) -> tuple[typing.Any, ...]:
+        return (2, self.idx, self.typ.flatten())
 
 
 @dataclasses.dataclass(frozen=True)
@@ -558,6 +635,7 @@ class MaterializeVolatile(Base):
 class MaterializeVisible(Base):
     __ast_hidden__ = {'sets'}
     sets: typing.Set[typing.Tuple[PathId, Set]]
+    path_scope_id: int
 
 
 @markup.serializer.serializer.register(MaterializeVisible)
@@ -592,7 +670,7 @@ class Statement(Command):
     globals: typing.List[Global]
     cardinality: qltypes.Cardinality
     volatility: qltypes.Volatility
-    multiplicity: typing.Optional[qltypes.Multiplicity]
+    multiplicity: qltypes.Multiplicity
     stype: s_types.Type
     view_shapes: typing.Dict[so.Object, typing.List[s_pointers.Pointer]]
     view_shapes_metadata: typing.Dict[s_types.Type, ViewShapeMetadata]
@@ -955,11 +1033,13 @@ class MutatingStmt(Stmt):
     # for.
     conflict_checks: typing.Optional[typing.List[OnConflictClause]] = None
     # Access policy checks that we should raise errors on
-    write_policy_exprs: typing.Dict[
-        uuid.UUID, PolicyExpr] = ast.field(factory=dict)
+    write_policies: typing.Dict[uuid.UUID, WritePolicies] = ast.field(
+        factory=dict
+    )
     # Access policy checks that we should filter on
-    read_policy_exprs: typing.Dict[
-        uuid.UUID, PolicyExpr] = ast.field(factory=dict)
+    read_policies: typing.Dict[uuid.UUID, ReadPolicyExpr] = ast.field(
+        factory=dict
+    )
 
     @property
     def material_type(self) -> TypeRef:
@@ -970,8 +1050,21 @@ class MutatingStmt(Stmt):
         raise NotImplementedError
 
 
-class PolicyExpr(Base):
+class ReadPolicyExpr(Base):
     expr: Set
+    cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
+
+
+class WritePolicies(Base):
+    policies: typing.List[WritePolicy]
+
+
+class WritePolicy(Base):
+    expr: Set
+    action: qltypes.AccessPolicyAction
+    name: str
+    error_msg: typing.Optional[str]
+
     cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
 
 

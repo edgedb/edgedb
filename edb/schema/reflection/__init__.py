@@ -19,7 +19,7 @@
 
 from .reader import parse_into, SchemaClassLayout
 from .structure import generate_structure
-from .structure import SchemaTypeLayout
+from .structure import SchemaTypeLayout, SchemaReflectionParts
 from .writer import write_meta
 
 __all__ = (
@@ -28,4 +28,5 @@ __all__ = (
     'parse_into',
     'SchemaTypeLayout',
     'SchemaClassLayout',
+    'SchemaReflectionParts'
 )

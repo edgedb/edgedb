@@ -60,9 +60,6 @@ def _normalize_volatility(vol: InferredVolatility) -> Tuple[
 
 
 def _max_volatility(args: Iterable[InferredVolatility]) -> InferredVolatility:
-    # We rely on a happy coincidence that the lexical
-    # order of volatility constants coincides with the volatility
-    # level.
     arg_list = list(args)
     if not arg_list:
         return IMMUTABLE

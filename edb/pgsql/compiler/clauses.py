@@ -23,8 +23,11 @@ from typing import *
 
 import random
 
+from edb.common import ast as ast_visitor
+
 from edb.edgeql import qltypes
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
 from edb.pgsql import ast as pgast
 from edb.pgsql import types as pg_types
 
@@ -222,6 +225,20 @@ def compile_output(
     return val
 
 
+def compile_dml_bindings(
+        stmt: irast.Stmt, *,
+        ctx: context.CompilerContextLevel) -> None:
+    for binding in (stmt.bindings or ()):
+        # If something we are WITH binding contains DML, we want to
+        # compile it *now*, in the context of its initial appearance
+        # and not where the variable is used. This will populate
+        # dml_stmts with the CTEs, which will be picked up when the
+        # variable is referenced.
+        if irutils.contains_dml(binding):
+            with ctx.substmt() as bctx:
+                dispatch.compile(binding, ctx=bctx)
+
+
 def compile_filter_clause(
         ir_set: irast.Set,
         cardinality: qltypes.Cardinality, *,
@@ -369,16 +386,25 @@ def fini_toplevel(
     # Type rewrites go first.
     if stmt.ctes is None:
         stmt.ctes = []
+    stmt.ctes[:0] = list(ctx.param_ctes.values())
     stmt.ctes[:0] = list(ctx.type_ctes.values())
 
     stmt.argnames = argmap = ctx.argmap
 
     if not ctx.env.use_named_params:
         # Adding unused parameters into a CTE
+
+        # Find the used parameters by searching the query, so we don't
+        # get confused if something has been compiled but then omitted
+        # from the output for some reason.
+        param_refs = ast_visitor.find_children(stmt, pgast.ParamRef)
+
+        used = {param_ref.number for param_ref in param_refs}
+
         targets = []
         for param in ctx.env.query_params:
             pgparam = argmap[param.name]
-            if pgparam.used:
+            if pgparam.index in used or param.sub_params:
                 continue
             targets.append(pgast.ResTarget(val=pgast.TypeCast(
                 arg=pgast.ParamRef(number=pgparam.index),
@@ -401,6 +427,8 @@ def populate_argmap(
     *,
     ctx: context.CompilerContextLevel,
 ) -> None:
+    physical_index = 1
+    logical_index = 1
     for map_extra in (False, True):
         for param in params:
             if ctx.env.use_named_params and not param.name.isdecimal():
@@ -409,16 +437,25 @@ def populate_argmap(
                 continue
 
             ctx.argmap[param.name] = pgast.Param(
-                index=len(ctx.argmap) + 1,
+                index=physical_index,
+                logical_index=logical_index,
                 required=param.required,
             )
+            if not param.sub_params:
+                physical_index += 1
+            if not param.is_sub_param:
+                logical_index += 1
     for param in globals:
         ctx.argmap[param.name] = pgast.Param(
-            index=len(ctx.argmap) + 1,
+            index=physical_index,
             required=param.required,
+            logical_index=-1,
         )
+        physical_index += 1
         if param.has_present_arg:
             ctx.argmap[param.name + "present__"] = pgast.Param(
-                index=len(ctx.argmap) + 1,
+                index=physical_index,
                 required=True,
+                logical_index=-1,
             )
+            physical_index += 1

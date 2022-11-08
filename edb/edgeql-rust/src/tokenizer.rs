@@ -686,7 +686,7 @@ fn _unquote_bytes<'a>(s: &'a str) -> Result<Vec<u8>, String> {
             b'\\' => {
                 match *bytes.next().expect("slash cant be at the end") {
                     c@b'"' | c@b'\\' | c@b'/' | c@b'\'' => res.push(c),
-                    b'b' => res.push(b'\x10'),
+                    b'b' => res.push(b'\x08'),
                     b'f' => res.push(b'\x0C'),
                     b'n' => res.push(b'\n'),
                     b'r' => res.push(b'\r'),

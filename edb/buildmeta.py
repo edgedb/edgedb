@@ -44,7 +44,7 @@ from edb.common import verutils
 
 
 # Increment this whenever the database layout or stdlib changes.
-EDGEDB_CATALOG_VERSION = 2022_09_29_00_00
+EDGEDB_CATALOG_VERSION = 2022_11_04_00_00
 EDGEDB_MAJOR_VERSION = 3
 
 
@@ -505,7 +505,7 @@ def get_version_from_scm(root: pathlib.Path) -> str:
         ver = f'{incremented_ver}.dev{commits_on_branch}'
 
     proc = subprocess.run(
-        ['git', 'rev-parse', '--verify', '--quiet', 'HEAD'],
+        ['git', 'rev-parse', '--verify', '--quiet', 'HEAD^{commit}'],
         stdout=subprocess.PIPE,
         universal_newlines=True,
         check=True,

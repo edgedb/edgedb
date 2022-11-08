@@ -286,6 +286,5 @@ class ASTFindChildrenTests(unittest.TestCase):
                     tast.UnaryOp(op='-', operand=tast.Constant(value=3))]),
             ],
         )
-        flt = lambda n: isinstance(n, tast.Constant)
-        children = visitor.find_children(node, flt)
+        children = visitor.find_children(node, tast.Constant)
         assert {x.value for x in children} == {2, 3}

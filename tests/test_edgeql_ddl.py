@@ -1968,6 +1968,38 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
+    async def test_edgeql_ddl_default_id(self):
+        # Overriding id's default with another uuid generate function is legit
+        await self.con.execute(r"""
+            create type A {
+                alter property id {
+                    set default := std::uuid_generate_v4()
+                }
+            };
+        """)
+
+        await self.con.execute(r"""
+            create type B {
+                alter property id {
+                    set default := (select std::uuid_generate_v4())
+                }
+            };
+        """)
+
+        # But overriding it with other things is not
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            "invalid default value for 'id' property",
+        ):
+            await self.con.execute(r"""
+                create type C {
+                    alter property id {
+                        set default :=
+                          <uuid>"00000000-0000-0000-0000-000000000000"
+                    }
+                };
+            """)
+
     async def test_edgeql_ddl_property_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE Foo {
@@ -3240,6 +3272,29 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 }
             };
         """)
+
+    async def test_edgeql_ddl_link_property_09(self):
+        await self.con.execute("""
+            create type T;
+            create type S {
+                create multi link x -> T {
+                    create property id -> str;
+                    create index on (__subject__@id);
+                }
+            };
+            insert T;
+            insert S { x := (select T { @id := "lol" }) };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select S { x: {id, @id} }
+            """,
+            [{'x': [{'id': str, '@id': "lol"}]}],
+            # The python bindings seem to misbehave when there is
+            # linkprop and a regular prop with the same name
+            json_only=True,
+        )
 
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
@@ -5778,6 +5833,38 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                   SET default := "!!!";
             """)
 
+    async def test_edgeql_ddl_policies_04(self):
+        await self.con.execute("""
+            create global current_user -> uuid;
+
+            create type User {
+                create access policy ins allow insert;
+                create access policy sel allow select
+                  using (.id ?= global current_user);
+            };
+            create type User2 extending User;
+
+            create type Obj {
+                create optional multi link user -> User;
+            };
+        """)
+
+        await self.con.execute("""
+            alter type Obj {
+                alter link user set required using (select User limit 1);
+            };
+        """)
+        await self.con.execute("""
+            alter type Obj {
+                alter link user set single using (select User limit 1);
+            };
+        """)
+        await self.con.execute("""
+            alter type Obj {
+                alter link user set type User2 using (select User2 limit 1);
+            };
+        """)
+
     # A big collection of tests to make sure that functions get
     # updated when access policies change
     async def test_edgeql_ddl_func_policies_01(self):
@@ -8274,7 +8361,7 @@ type default::Foo {
         con = await self.connect()
         try:
             if self.has_create_database:
-                await con.execute("""DROP DATABASE test_role_05""")
+                await tb.drop_db(con, 'test_role_05')
         finally:
             await con.aclose()
 
@@ -9609,6 +9696,16 @@ type default::Foo {
             await self.con.execute("""
                 create type X {
                     create constraint exclusive;
+                };
+            """)
+
+    async def test_edgeql_ddl_constraint_24(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidConstraintDefinitionError,
+                r"constraint expressions must be immutable"):
+            await self.con.execute("""
+                create type X {
+                    create constraint exclusive on (random());
                 };
             """)
 
@@ -11992,6 +12089,61 @@ type default::Foo {
             }]
         )
 
+    async def test_edgeql_ddl_create_migration_02(self):
+        await self.con.execute('''
+CREATE MIGRATION m1kmv2mcizpj2twxlxxerkgngr2fkto7wnjd6uig3aa3x67dykvspq
+    ONTO initial
+{
+  CREATE GLOBAL default::foo -> std::bool;
+  CREATE TYPE default::Foo {
+      CREATE ACCESS POLICY foo
+          ALLOW ALL USING ((GLOBAL default::foo ?? true));
+  };
+};
+        ''')
+
+        await self.con.execute('''
+CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
+    ONTO m1kmv2mcizpj2twxlxxerkgngr2fkto7wnjd6uig3aa3x67dykvspq
+{
+  CREATE TYPE default::X;
+
+  INSERT Foo;
+};
+        ''')
+
+    async def test_edgeql_ddl_create_migration_03(self):
+        await self.con.execute('''
+            CREATE MIGRATION
+            {
+                SET message := "migration2";
+                SET generated_by := schema::MigrationGeneratedBy.DevMode;
+                CREATE TYPE Type2 {
+                    CREATE PROPERTY field2 -> int32;
+                };
+            };
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT schema::Migration { generated_by }
+            FILTER .message = "migration2"
+            ''',
+            [{'generated_by': 'DevMode'}]
+        )
+
+        await self.con.execute(f'''
+            CREATE TYPE Type3
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT schema::Migration { generated_by }
+            FILTER .script like "%Type3%"
+            ''',
+            [{'generated_by': 'DDLStatement'}]
+        )
+
     async def test_edgeql_ddl_naked_backlink_in_computable(self):
         await self.con.execute('''
             CREATE TYPE User {
@@ -12287,6 +12439,17 @@ type default::Foo {
             """,
             """SELECT foo("test");""",
             type_refs=2,
+        )
+
+    async def test_edgeql_ddl_rename_ref_function_05(self):
+        await self._simple_rename_ref_tests(
+            """
+            CREATE FUNCTION foo(x: array<Note>) -> str {
+                USING ('x')
+            }
+            """,
+            """DROP FUNCTION foo(x: array<default::Note>);""",
+            prop_refs=0,
         )
 
     async def test_edgeql_ddl_rename_ref_default_01(self):
@@ -14624,6 +14787,85 @@ type default::Foo {
             create type X { create link foo -> Tgt };
             create alias Y := X { foo: {id} };
             alter type X { create link bar := .foo };
+        """)
+
+    async def test_edgeql_ddl_rebase_views_01(self):
+        await self.con.execute(r"""
+            CREATE TYPE default::Foo {
+                CREATE PROPERTY x -> std::str {
+                    CREATE CONSTRAINT std::exclusive;
+                };
+            };
+            CREATE TYPE default::Bar EXTENDING default::Foo;
+            CREATE TYPE default::Baz EXTENDING default::Foo;
+        """)
+
+        await self.con.execute(r"""
+            CREATE TYPE default::Foo2 EXTENDING default::Foo;
+            ALTER TYPE default::Bar {
+                DROP EXTENDING default::Foo;
+                EXTENDING default::Foo2 LAST;
+            };
+
+            INSERT Bar;
+        """)
+
+        # should still be in the view
+        await self.assert_query_result(
+            'select Foo',
+            [{}],
+        )
+
+        await self.assert_query_result(
+            'select Object',
+            [{}],
+        )
+
+    async def test_edgeql_ddl_rebase_views_02(self):
+        await self.con.execute(r"""
+            CREATE TYPE default::Foo {
+                CREATE PROPERTY x -> std::str {
+                    CREATE CONSTRAINT std::exclusive;
+                };
+            };
+            CREATE TYPE default::Bar EXTENDING default::Foo;
+            CREATE TYPE default::Baz EXTENDING default::Foo;
+        """)
+
+        await self.con.execute(r"""
+            CREATE TYPE default::Foo2 {
+                CREATE PROPERTY x -> std::str {
+                    CREATE CONSTRAINT std::exclusive;
+                };
+            };
+            ALTER TYPE default::Bar {
+                DROP EXTENDING default::Foo;
+                EXTENDING default::Foo2 LAST;
+            };
+
+            INSERT Bar;
+        """)
+
+        # should *not* still be in the view
+        await self.assert_query_result(
+            'select Foo',
+            [],
+        )
+
+        await self.assert_query_result(
+            'select Object',
+            [{}],
+        )
+
+    async def test_edgeql_ddl_alias_and_create_set_required(self):
+        await self.con.execute(r"""
+            create type T;
+            create alias A := T;
+            alter type T {
+                create required property bar -> str {
+                    set required using ('!')
+                }
+            };
         """)
 
 

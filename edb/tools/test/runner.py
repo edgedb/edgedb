@@ -37,6 +37,7 @@ import os
 import pathlib
 import random
 import re
+import subprocess
 import sys
 import tempfile
 import threading
@@ -796,7 +797,7 @@ class ParallelTextTestRunner:
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
                  failfast=False, shuffle=False, backend_dsn=None,
-                 data_dir=None):
+                 data_dir=None, try_cached_db=False):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
@@ -806,6 +807,7 @@ class ParallelTextTestRunner:
         self.output_format = output_format
         self.backend_dsn = backend_dsn
         self.data_dir = data_dir
+        self.try_cached_db = try_cached_db
 
     def run(self, test, selected_shard, total_shards, running_times_log_file):
         session_start = time.monotonic()
@@ -891,10 +893,34 @@ class ParallelTextTestRunner:
                     nonlocal cluster
                     nonlocal conn
 
+                    data_dir = self.data_dir
+
+                    if (
+                        self.try_cached_db
+                        and (cache_file := (
+                            devmode.get_dev_mode_cache_dir() / 'test_dbs.tar')
+                        ).is_file()
+                    ):
+                        if self.verbosity >= 1:
+                            self._echo(
+                                f'(using DB cache from {cache_file}) ',
+                                fg='white',
+                                nl=False,
+                            )
+
+                        data_dir = tempfile.mkdtemp(prefix="edb-test-c-")
+
+                        # We shell out to tar with subprocess instead of using
+                        # tarfile because it is quite a bit faster.
+                        subprocess.check_call(
+                            ('tar', 'xf', cache_file, '--strip-components=1'),
+                            cwd=data_dir,
+                        )
+
                     cluster = await tb.init_cluster(
                         backend_dsn=self.backend_dsn,
                         cleanup_atexit=False,
-                        data_dir=self.data_dir,
+                        data_dir=data_dir,
                     )
 
                     if self.verbosity > 1:
@@ -902,15 +928,40 @@ class ParallelTextTestRunner:
 
                     conn = cluster.get_connect_args()
 
-                    if cluster.has_create_database():
-                        return await tb.setup_test_cases(
-                            cases,
-                            conn,
-                            self.num_workers,
-                            verbose=self.verbosity > 1,
-                        )
-                    else:
+                    if not cluster.has_create_database():
                         return []
+
+                    stats = await tb.setup_test_cases(
+                        cases,
+                        conn,
+                        self.num_workers,
+                        verbose=self.verbosity > 1,
+                        try_cached_db=self.try_cached_db,
+                    )
+                    if self.try_cached_db and any(
+                        not x[1]['cached'] for x in stats
+                    ):
+                        # We stop the cluster before making a cache of
+                        # the data directory. This isn't strictly
+                        # necessary, but it speeds up startup when
+                        # restoring a cached directory, since postgres
+                        # needs to go through recovery if the shutdown
+                        # wasn't clean.
+                        cluster.stop()
+                        if self.verbosity > 1:
+                            self._echo(
+                                f'\n -> Writing DB cache to {cache_file} ...',
+                                fg='white',
+                                nl=False,
+                            )
+                        subprocess.check_output(
+                            ('tar', 'cf', cache_file, '.'),
+                            cwd=cluster._data_dir,
+                            stderr=subprocess.STDOUT,
+                        )
+                        await cluster.start(port=conn['port'])
+
+                    return stats
 
                 setup_stats = asyncio.run(_setup())
 
@@ -988,7 +1039,7 @@ class ParallelTextTestRunner:
             if setup:
                 self._echo()
                 self._echo('Shutting down test cluster... ', nl=False)
-                tb._shutdown_cluster(cluster, destroy=True)
+                tb._shutdown_cluster(cluster, destroy=self.data_dir is None)
                 self._echo('OK.')
 
         if result is not None:

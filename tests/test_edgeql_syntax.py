@@ -3896,13 +3896,21 @@ aa';
         };
         """
 
-    def edgeql_syntax_ddl_delta_06(self):
+    def test_edgeql_syntax_ddl_delta_06(self):
         """
         POPULATE MIGRATION;
         ABORT MIGRATION;
         COMMIT MIGRATION;
         DESCRIBE CURRENT MIGRATION AS JSON;
         ALTER CURRENT MIGRATION REJECT PROPOSED;
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_01(self):
+        """
+        START MIGRATION REWRITE;
+        ABORT MIGRATION REWRITE;
+        COMMIT MIGRATION REWRITE;
+        START MIGRATION TO COMMITTED SCHEMA;
         """
 
     def test_edgeql_syntax_ddl_create_migration_01(self):
@@ -4016,7 +4024,17 @@ aa';
         DROP EXTENSION foo;
         """
 
-    # TODO: remove this test once the entire grammar is converted
+    def test_edgeql_syntax_ddl_create_future_01(self):
+        """
+        CREATE FUTURE foo;
+        """
+
+    def test_edgeql_syntax_ddl_drop_future_01(self):
+        """
+        DROP FUTURE foo;
+        """
+
+        # TODO: remove this test once the entire grammar is converted
     def test_edgeql_syntax_ddl_aggregate_00(self):
         """
         CREATE FUNCTION std::sum(v: SET OF std::int64)

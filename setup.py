@@ -43,22 +43,31 @@ RUST_VERSION = '1.59.0'  # Also update docs/internal/dev.rst
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 # This can be a branch, tag, or commit
-EDGEDBCLI_COMMIT = 'master'
+EDGEDBCLI_COMMIT = '166f6f064e1c602a7220c199081d83b38d3da9c2'
 
 EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
 # This can be a branch, tag, or commit
 EDGEDBGUI_COMMIT = 'main'
 
-EXT_CFLAGS: list[str] = []
-if flag := os.getenv('EDGEDB_OPT_CFLAG'):
-    EXT_CFLAGS += [flag]
+SAFE_EXT_CFLAGS: list[str] = []
+if flag := os.environ.get('EDGEDB_OPT_CFLAG'):
+    SAFE_EXT_CFLAGS += [flag]
 else:
-    EXT_CFLAGS += ['-O2']
+    SAFE_EXT_CFLAGS += ['-O2']
+
+EXT_CFLAGS: list[str] = list(SAFE_EXT_CFLAGS)
 EXT_LDFLAGS: list[str] = []
 
 ROOT_PATH = pathlib.Path(__file__).parent.resolve()
 
-EXT_INC_DIRS = [(ROOT_PATH / 'edb' / 'server' / 'pgproto').as_posix()]
+EXT_INC_DIRS = [
+    (ROOT_PATH / 'edb' / 'server' / 'pgproto').as_posix(),
+    (ROOT_PATH / 'edb' / 'pgsql' / 'parser' / 'libpg_query').as_posix()
+]
+
+EXT_LIB_DIRS = [
+    (ROOT_PATH / 'edb' / 'pgsql' / 'parser' / 'libpg_query').as_posix()
+]
 
 
 if platform.uname().system != 'Windows':
@@ -278,6 +287,30 @@ def _compile_postgres(build_base, *,
             )
 
 
+def _compile_libpg_query():
+    dir = (ROOT_PATH / 'edb' / 'pgsql' / 'parser' / 'libpg_query').resolve()
+
+    if not (dir / 'README.md').exists():
+        print('libpg_query submodule has not been initialized, '
+              'run `git submodule update --init --recursive`')
+        exit(1)
+
+    cflags = os.environ.get("CFLAGS", "")
+    cflags = f"{cflags} {' '.join(SAFE_EXT_CFLAGS)} -std=gnu99"
+
+    subprocess.run(
+        [
+            'make',
+            'build',
+            '-j',
+            str(max(os.cpu_count() - 1, 1)),
+            f'CFLAGS={cflags}',
+        ],
+        cwd=str(dir),
+        check=True,
+    )
+
+
 def _check_rust():
     import packaging.version
 
@@ -374,8 +407,9 @@ class build(setuptools_build.build):
     user_options = setuptools_build.build.user_options
 
     sub_commands = (
-        setuptools_build.build.sub_commands
-        + [
+        [
+            ("build_libpg_query", lambda self: True),
+            *setuptools_build.build.sub_commands,
             ("build_metadata", lambda self: True),
             ("build_parsers", lambda self: True),
             ("build_postgres", lambda self: True),
@@ -558,6 +592,24 @@ class build_postgres(setuptools.Command):
             build_contrib=self.build_contrib,
             produce_compile_commands_json=self.compile_commands,
         )
+
+
+class build_libpg_query(setuptools.Command):
+
+    description = "build libpg_query"
+
+    user_options: list[str] = []
+
+    editable_mode: bool
+
+    def initialize_options(self):
+        self.editable_mode = False
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        _compile_libpg_query()
 
 
 class build_ext(setuptools_build_ext.build_ext):
@@ -865,6 +917,7 @@ setuptools.setup(
         'build_cli': build_cli,
         'build_parsers': build_parsers,
         'build_ui': build_ui,
+        'build_libpg_query': build_libpg_query,
         'ci_helper': ci_helper,
     },
     ext_modules=[
@@ -986,6 +1039,16 @@ setuptools.setup(
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS,
             include_dirs=EXT_INC_DIRS,
+        ),
+
+        setuptools_extension.Extension(
+            "edb.pgsql.parser.parser",
+            ["edb/pgsql/parser/parser.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+            library_dirs=EXT_LIB_DIRS,
+            libraries=['pg_query']
         ),
     ],
     rust_extensions=[

@@ -609,6 +609,143 @@ Protocol overhaul
 * Propagate database creation and deletion events to adjacent servers
   (:eql:gh:`#4415`)
 
+2.4
+===
+
+* Fix database initialization on hosted environments like Heroku.
+  (:eql:gh:`#4432`)
+
+* Prevent spurious errors when using backlinks on types that have
+  properties with the same name but different types
+  (:eql:gh:`#4443`)
+
+* Fix some spurious errors when removing a link from the schema.
+  (:eql:gh:`#4451`)
+
+* For query_single, only check that the *last* query in a script is single.
+  (:eql:gh:`#4453`)
+
+* Catch when POPULATE MIGRATION generates incorrect DDL. This should prevent
+  bugs where the schema can get into wedged states.
+  (:eql:gh:`#4484`)
+
+* workflows: Publish multiarch Docker images
+  (:eql:gh:`#4486`)
+
+* Make unused param insertion in the sql compiler more reliable
+  (:eql:gh:`#4497`)
+
+* Properly propagate creation and deletion of extensions
+
+* Fix potential exclusive constraint violations when doing an UPDATE
+  on a union
+  (:eql:gh:`#4507`)
+
+* Don't lose type from inheritance views when rebasing
+  (:eql:gh:`#4509`)
+
+* Make object type descriptor ids be derived from type name
+  (:eql:gh:`#4503`)
+
+* Check for invalid arrays arguments at the protocol level
+  (:eql:gh:`#4511`)
+
+* Fix SET REQUIRED on newly created properties with alias subtypes
+  (:eql:gh:`#4513`)
+
+* Make newly created link properties get added to the relevant alias types
+  (:eql:gh:`#4512`)
+
+* Fix handling of link properties named ``id``
+  (:eql:gh:`#4514`)
+
+* Disallow queries using conflict machinery on a link property. This
+  prevents certain potential exclusive constraint violations that were
+  not handled correctly.
+  (:eql:gh:`#4515`)
+
+* Fix performing multiple deletions at once in the UI
+  (:eql:gh:`#4523`)
+
+* Fix casting empty sets to built in enum types
+  (:eql:gh:`#4532`)
+
+* Produce better error messages when using ``enum`` incorrectly
+  (:eql:gh:`#4527`)
+
+* Make ``'\b'`` produce the correct value in string and bytes literals
+  (:eql:gh:`#4535`)
+
+2.5
+===
+
+* Properly infer cardinality of empty array as ONE
+  (:eql:gh:`#4533`)
+
+* Fix several issues that manifest when using GROUP BY
+  (:eql:gh:`#4549`, :eql:gh:`#4439`)
+
+* Fix migration scripts when combined with access policies
+  (:eql:gh:`#4553`)
+
+* Fix failure when a ``ALTER ... EXTENDING`` doesn't change the
+  set of ancestors
+  (:eql:gh:`#4554`)
+
+* Fix ``UNLESS CONFLICT ON`` for a not-inserted property
+  (:eql:gh:`#4556`)
+
+* Fix access policies that use shapes internally
+  (:eql:gh:`#4555`)
+
+* Allow overloading ``__type__`` with a computed in shapes
+  (:eql:gh:`#4557`)
+
+2.6
+===
+
+Nonrecursive access policies and future behaviors
+-------------------------------------------------
+
+Starting with EdgeDB 3.0, access policy restrictions will **not** be applied
+while evaluating other access policy expressions (:eql:gh:`#4574`).
+
+It is possible (and recommended) to enable this :ref:`future
+<ref_eql_sdl_future>` behavior in EdgeDB 2.6 by adding the
+following to the schema: ``using future nonrecursive_access_policies;``
+
+For more details, see :ref:`the docs <nonrecursive>`.
+
+To enable opting in to this behavior, 2.6 adds a general mechanism
+to opt into :ref:`future <ref_eql_sdl_future>` behavior changes
+(:eql:gh:`#4574`, :eql:gh:`#4606`).
+
+Other changes
+-------------
+
+* Fix passing zero dimensional array as arguments. This was a regression
+  introduced in 2.4, and affected passing empty arrays from the the Rust
+  bindings.
+  (:eql:gh:`#4511`)
+
+* Require that constraint expressions be immutable
+  (:eql:gh:`#4593`)
+
+* Only permit valid UUID-generation functions to be made the default value
+  for ``id``
+  (:eql:gh:`#4616`)
+
+* UI: New mechanism for copying data in REPL and in Data Editor. Hover over
+  a data line and click the context "COPY" button.
+
+  .. image:: images/v2_ui_copy.jpg
+    :width: 100%
+
+* UI: "Disable Access Policies" and "Persist Query" options in REPL remember
+  their state between page refreshes.
+
+* UI: Basic autocomplete now works for ``INSERT``, ``UPDATE``, and ``DELETE``
+  queries.
 
 .. lint-off
 

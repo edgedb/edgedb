@@ -1590,6 +1590,7 @@ class Query(Command):
                 schema,
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
+                    apply_query_rewrites=False,
                 )
             )
         return schema

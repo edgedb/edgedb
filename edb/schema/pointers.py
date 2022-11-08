@@ -51,6 +51,7 @@ from . import utils
 if TYPE_CHECKING:
     from . import objtypes as s_objtypes
     from . import sources as s_sources
+    from edb.ir import ast as irast
 
 
 class PointerDirection(s_enum.StrEnum):
@@ -685,7 +686,7 @@ class Pointer(referencing.ReferencedInheritingObject,
     def is_special_pointer(self, schema: s_schema.Schema) -> bool:
         return self.get_shortname(schema).name in {
             'source', 'target', 'id'
-        }
+        } and (self.is_id_pointer(schema) or self.is_endpoint_pointer(schema))
 
     def is_property(self, schema: s_schema.Schema) -> bool:
         raise NotImplementedError
@@ -777,7 +778,8 @@ class Pointer(referencing.ReferencedInheritingObject,
     ) -> bool:
         object_type = self.get_source(schema)
         if isinstance(object_type, s_types.Type):
-            return not object_type.is_view(schema)
+            return (
+                not object_type.is_view(schema) or refdict.attr == 'pointers')
         else:
             return True
 
@@ -1314,6 +1316,7 @@ class PointerCommandOrFragment(
         singleton_result_expected: bool = False,
         target_as_singleton: bool = False,
         expr_description: Optional[str] = None,
+        no_query_rewrites: bool = False,
     ) -> s_expr.Expression:
         singletons: List[Union[s_types.Type, Pointer]] = []
 
@@ -1368,7 +1371,9 @@ class PointerCommandOrFragment(
                 anchors={qlast.Source().name: source},
                 path_prefix_anchor=qlast.Source().name,
                 singletons=singletons,
-                apply_query_rewrites=not context.stdmode,
+                apply_query_rewrites=(
+                    not context.stdmode and not no_query_rewrites
+                ),
                 track_schema_ref_exprs=track_schema_ref_exprs,
                 in_ddl_context_name=in_ddl_context_name,
             ),
@@ -1580,17 +1585,28 @@ class PointerCommand(
 
         self._validate_computables(schema, context)
 
-        scls = self.scls
+        scls: Pointer = self.scls
         if not scls.get_owned(schema):
             return
 
-        default_expr = scls.get_default(schema)
+        default_expr: Optional[s_expr.Expression] = scls.get_default(schema)
 
         if default_expr is not None:
+
+            source_context = self.get_attribute_source_context('default')
+
             if default_expr.irast is None:
-                default_expr = default_expr.compiled(default_expr, schema)
+                try:
+                    default_expr = default_expr.compiled(default_expr, schema)
+                except errors.QueryError as e:
+                    e.set_source_context(source_context)
+                    raise
 
             assert isinstance(default_expr.irast, irast.Statement)
+
+            if scls.is_id_pointer(schema):
+                self._check_id_default(
+                    schema, context, default_expr.irast.expr)
 
             default_schema = default_expr.irast.schema
             default_type = default_expr.irast.stype
@@ -1598,7 +1614,6 @@ class PointerCommand(
             ptr_target = scls.get_target(schema)
             assert ptr_target is not None
 
-            source_context = self.get_attribute_source_context('default')
             if default_type.is_view(default_schema):
                 raise errors.SchemaDefinitionError(
                     f'default expression may not include a shape',
@@ -1628,6 +1643,42 @@ class PointerCommand(
                     f"'single'",
                     context=source_context,
                 )
+
+    def _check_id_default(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        expr: irast.Base,
+    ) -> None:
+        """If default is being set on id, check it against a whitelist"""
+        from edb.ir import ast as irast
+        from edb.ir import utils as irutils
+
+        # If we add more, we probably want a better mechanism
+        ID_ALLOWLIST = (
+            'std::uuid_generate_v1mc',
+            'std::uuid_generate_v4',
+        )
+
+        if (
+            isinstance(expr, irast.Set)
+            and expr.expr
+            and irutils.is_trivial_select(expr.expr)
+        ):
+            expr = expr.expr.result
+
+        if not (
+            isinstance(expr, irast.Set)
+            and isinstance(expr.expr, irast.FunctionCall)
+            and str(expr.expr.func_shortname) in ID_ALLOWLIST
+        ):
+            source_context = self.get_attribute_source_context('default')
+            options = ', '.join(ID_ALLOWLIST)
+            raise errors.SchemaDefinitionError(
+                "invalid default value for 'id' property",
+                hint=f'default must be a call to one of: {options}',
+                context=source_context,
+            )
 
     @classmethod
     def _classname_from_ast(
@@ -1729,7 +1780,7 @@ class PointerCommand(
 
             new_targets = [
                 utils.ast_to_type_shell(
-                    t,
+                    t,  # type: ignore
                     metaclass=s_types.Type,
                     modaliases=context.modaliases,
                     schema=schema,
@@ -1744,7 +1795,7 @@ class PointerCommand(
             )
         elif targets:
             target_expr = targets[0]
-            if isinstance(target_expr, qlast.TypeName):
+            if isinstance(target_expr, qlast.TypeExpr):
                 target_ref = utils.ast_to_type_shell(
                     target_expr,
                     metaclass=s_types.Type,
@@ -1848,6 +1899,7 @@ class CreatePointer(
             )
         ):
             cmd.set_attribute_value('from_alias', True)
+            cmd.set_object_aux_data('from_alias', True)
 
         return cmd
 
@@ -2219,6 +2271,7 @@ class SetPointerType(
                     expr=self.cast_expr,
                     target_as_singleton=True,
                     singleton_result_expected=True,
+                    no_query_rewrites=True,
                     expr_description=(
                         f'the USING clause for the alteration of {vn}'
                     ),
@@ -2398,6 +2451,7 @@ class AlterPointerUpperCardinality(
                     expr=self.conv_expr,
                     target_as_singleton=False,
                     singleton_result_expected=True,
+                    no_query_rewrites=True,
                     expr_description=(
                         f'the USING clause for the alteration of {vn}'
                     ),
@@ -2612,6 +2666,7 @@ class AlterPointerLowerCardinality(
                     expr=self.fill_expr,
                     target_as_singleton=True,
                     singleton_result_expected=new_card.is_single(),
+                    no_query_rewrites=True,
                     expr_description=(
                         f'the USING clause for the alteration of {vn}'
                     ),

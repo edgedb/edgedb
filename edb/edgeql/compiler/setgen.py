@@ -88,8 +88,10 @@ def new_set(
     ignore_rewrites: bool = kwargs.get('ignore_rewrites', False)
     rw_key = (stype, skip_subtypes)
 
-    if stype in ctx.suppress_rewrites:
-        ignore_rewrites = kwargs['ignore_rewrites'] = True
+    if not ignore_rewrites and ctx.suppress_rewrites:
+        from . import policies
+        ignore_rewrites = kwargs['ignore_rewrites'] = (
+            policies.should_ignore_rewrite(stype, ctx=ctx))
 
     if (
         not ignore_rewrites
@@ -106,7 +108,7 @@ def new_set(
     return ir_set
 
 
-def new_empty_set(*, stype: Optional[s_types.Type]=None, alias: str,
+def new_empty_set(*, stype: Optional[s_types.Type]=None, alias: str='e',
                   ctx: context.ContextLevel,
                   srcctx: Optional[
                       parsing.ParserContext]=None) -> irast.Set:
@@ -1664,6 +1666,8 @@ def should_materialize(
 
     typ = get_set_type(ir, ctx=ctx)
 
+    assert ir.path_scope_id is not None
+
     # For shape elements, we need to materialize when they reference
     # bindings that are visible from that point. This means that doing
     # WITH/FOR bindings internally is fine, but referring to
@@ -1674,15 +1678,24 @@ def should_materialize(
         materialize_visible
         and (vis := irutils.find_potentially_visible(
             ir,
-            ctx.env.scope_tree_nodes[not_none(ir.path_scope_id)],
+            ctx.env.scope_tree_nodes[ir.path_scope_id],
             ctx.env.scope_tree_nodes, skipped_bindings))
     ):
-        reasons.append(irast.MaterializeVisible(sets=vis))
+        reasons.append(irast.MaterializeVisible(
+            sets=vis, path_scope_id=ir.path_scope_id))
 
     if ptrcls and ptrcls in ctx.env.source_map:
         reasons += ctx.env.source_map[ptrcls].should_materialize
 
-    reasons += should_materialize_type(typ, ctx=ctx)
+    for r in should_materialize_type(typ, ctx=ctx):
+        # Rewrite visibility reasons from the typ to reflect this,
+        # the real bind point.
+        if isinstance(r, irast.MaterializeVolatile):
+            reasons.append(r)
+        else:
+            reasons.append(
+                irast.MaterializeVisible(
+                    sets=r.sets, path_scope_id=ir.path_scope_id))
 
     return reasons
 

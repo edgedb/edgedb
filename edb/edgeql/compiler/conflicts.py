@@ -31,6 +31,7 @@ from edb.ir import typeutils
 
 from edb.schema import constraints as s_constr
 from edb.schema import name as s_name
+from edb.schema import links as s_links
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import utils as s_utils
@@ -43,6 +44,7 @@ from . import context
 from . import dispatch
 from . import inference
 from . import pathctx
+from . import schemactx
 from . import setgen
 from . import typegen
 
@@ -391,6 +393,10 @@ def compile_conflict_select(
             select_ir, force_reassign=True, ctx=ectx)
         assert isinstance(select_ir, irast.Set)
 
+    # If we have an empty set, remake it with the right type
+    if isinstance(select_ir, irast.EmptySet):
+        select_ir = setgen.new_empty_set(stype=subject_typ, ctx=ctx)
+
     return select_ir, always_check, from_parent
 
 
@@ -539,16 +545,17 @@ def compile_insert_unless_conflict_on(
                 context=constraint_spec.context,
             )
 
-        # The ELSE needs to be able to reference the subject in an
-        # UPDATE, even though that would normally be prohibited.
-        ctx.path_scope.factoring_allowlist.add(stmt.subject.path_id)
+        with ctx.new() as ectx:
+            # The ELSE needs to be able to reference the subject in an
+            # UPDATE, even though that would normally be prohibited.
+            ectx.iterator_path_ids |= {stmt.subject.path_id}
 
-        pathctx.ban_inserting_path(
-            stmt.subject.path_id, location='else', ctx=ctx)
+            pathctx.ban_inserting_path(
+                stmt.subject.path_id, location='else', ctx=ectx)
 
-        # Compile else
-        else_ir = dispatch.compile(
-            astutils.ensure_qlstmt(else_branch), ctx=ctx)
+            # Compile else
+            else_ir = dispatch.compile(
+                astutils.ensure_qlstmt(else_branch), ctx=ectx)
         assert isinstance(else_ir, irast.Set)
 
     return irast.OnConflictClause(
@@ -565,6 +572,33 @@ def _has_explicit_id_write(stmt: irast.MutatingStmt) -> bool:
         if elem.rptr.ptrref.shortname.name == 'id':
             return elem.context is not None
     return False
+
+
+def _disallow_exclusive_linkprops(
+    stmt: irast.MutatingStmt,
+    typ: s_objtypes.ObjectType,
+    *, ctx: context.ContextLevel,
+
+) -> None:
+    # TODO: It should be possible to support this, but we don't deal
+    # with it yet, so disallow it for safety reasons.
+    schema = ctx.env.schema
+    exclusive_constr = schema.get('std::exclusive', type=s_constr.Constraint)
+    for ptr in typ.get_pointers(schema).objects(schema):
+        if not isinstance(ptr, s_links.Link):
+            continue
+        ptr = ptr.get_nearest_non_derived_parent(schema)
+        for lprop in ptr.get_pointers(schema).objects(schema):
+            ex_cnstrs = [
+                c for c in lprop.get_constraints(schema).objects(schema)
+                if c.issubclass(schema, exclusive_constr)]
+            if ex_cnstrs:
+                raise errors.UnsupportedFeatureError(
+                    'INSERT/UPDATE do not support exclusive constraints on '
+                    'link properties when another statement in '
+                    'the same query modifies a related type',
+                    context=stmt.context,
+                )
 
 
 def compile_inheritance_conflict_selects(
@@ -584,6 +618,7 @@ def compile_inheritance_conflict_selects(
     cross-type exclusive constraints, and they use a snapshot
     beginning at the start of the statement.
     """
+    _disallow_exclusive_linkprops(stmt, typ, ctx=ctx)
     has_id_write = _has_explicit_id_write(stmt)
     pointers = _get_exclusive_ptr_constraints(
         typ, include_id=has_id_write, ctx=ctx)
@@ -678,14 +713,14 @@ def compile_inheritance_conflict_checks(
 
     subject_stype = subject_stype.get_nearest_non_derived_parent(
         ctx.env.schema)
-    subject_stypes = [subject_stype]
+    subject_stype = schemactx.concretify(subject_stype, ctx=ctx)
     # For updates, we need to also consider all descendants, because
     # those could also have interesting constraints of their own.
     if isinstance(stmt, irast.UpdateStmt):
-        subject_stypes.extend(
-            desc for desc in subject_stype.descendants(ctx.env.schema)
-            if not desc.is_view(ctx.env.schema)
-        )
+        subject_stypes = list(
+            schemactx.get_all_concrete(subject_stype, ctx=ctx))
+    else:
+        subject_stypes = [subject_stype]
 
     for ir in ctx.env.dml_stmts:
         # N.B that for updates, the update itself will be in dml_stmts,
@@ -696,15 +731,13 @@ def compile_inheritance_conflict_checks(
 
         typ = setgen.get_set_type(ir.subject, ctx=ctx)
         assert isinstance(typ, s_objtypes.ObjectType)
-        typ = typ.get_nearest_non_derived_parent(ctx.env.schema)
+        typ = schemactx.concretify(typ, ctx=ctx)
 
-        typs = [typ]
         # As mentioned above, need to consider descendants of updates
         if isinstance(ir, irast.UpdateStmt):
-            typs.extend(
-                desc for desc in typ.descendants(ctx.env.schema)
-                if not desc.is_view(ctx.env.schema)
-            )
+            typs = list(schemactx.get_all_concrete(typ, ctx=ctx))
+        else:
+            typs = [typ]
 
         for typ in typs:
             for subject_stype in subject_stypes:
@@ -717,6 +750,9 @@ def compile_inheritance_conflict_checks(
                     and not isinstance(stmt, irast.UpdateStmt)
                 ):
                     continue
+                if subject_stype == typ and ir == stmt:
+                    continue
+
                 ancs = s_utils.get_class_nearest_common_ancestors(
                     ctx.env.schema, [subject_stype, typ])
                 for anc in ancs:

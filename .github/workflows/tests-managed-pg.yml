@@ -25,14 +25,14 @@ jobs:
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.11.0-rc.2'
+        python-version: '3.10.0'
 
     # Build virtualenv
 
     - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.2
+      uses: syphar/restore-virtualenv@v1
       id: venv-cache
       with:
         requirement_files: |
@@ -79,14 +79,14 @@ jobs:
     # Restore binary cache
 
     - name: Handle cached EdgeDB CLI binaries
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Handle cached Rust extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: rust-cache
       with:
         path: build/rust_extensions
@@ -95,23 +95,21 @@ jobs:
           edb-rust-v3-
 
     - name: Handle cached Cython extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
-        restore-keys: |
-          edb-ext-v4-
 
     - name: Handle cached PostgreSQL build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Handle cached Stolon build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: stolon-cache
       with:
         path: build/stolon/bin
@@ -143,7 +141,7 @@ jobs:
     # Build EdgeDB CLI
 
     - name: Handle EdgeDB CLI build cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       if: steps.cli-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/cli
@@ -165,7 +163,7 @@ jobs:
     # Build Rust extensions
 
     - name: Handle Rust extensions build cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       if: steps.rust-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
@@ -188,16 +186,20 @@ jobs:
         fi
         rsync -av ./build/rust_extensions/edb/ ./edb/
 
+    # Build libpg_query
+
+    - name: Build libpg_query
+      run: |
+        python setup.py build_libpg_query
+
     # Build extensions
 
     - name: Handle Cython extensions build cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       if: steps.ext-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/edb
         key: edb-ext-build-v3-${{ hashFiles('.tmp/ext_cache_key.txt') }}
-        restore-keys: |
-          edb-ext-build-v3-
 
     - name: Build Cython extensions
       env:
@@ -217,7 +219,7 @@ jobs:
     # Build parsers
 
     - name: Handle compiled parsers cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: parsers-cache
       with:
         path: build/lib
@@ -291,7 +293,7 @@ jobs:
     # Refresh the bootstrap cache
 
     - name: Handle bootstrap cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: bootstrap-cache
       with:
         path: build/cache
@@ -366,12 +368,12 @@ jobs:
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.11.0-rc.2'
+        python-version: '3.10.0'
 
     - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.2
+      uses: syphar/restore-virtualenv@v1
       id: venv-cache
       with:
         requirement_files: |
@@ -382,7 +384,7 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: shared-artifacts
         path: .tmp
@@ -398,49 +400,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: parsers-cache
       with:
         path: build/lib
         key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: bootstrap-cache
       with:
         path: build/cache
@@ -505,7 +507,7 @@ jobs:
           aws-region: us-east-2
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds
@@ -570,12 +572,12 @@ jobs:
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.11.0-rc.2'
+        python-version: '3.10.0'
 
     - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.2
+      uses: syphar/restore-virtualenv@v1
       id: venv-cache
       with:
         requirement_files: |
@@ -586,7 +588,7 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: shared-artifacts
         path: .tmp
@@ -602,49 +604,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: parsers-cache
       with:
         path: build/lib
         key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: bootstrap-cache
       with:
         path: build/cache
@@ -681,7 +683,7 @@ jobs:
       run: terraform init
 
     - name: Restore Terraform state
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: do-database-tfstate
         path: .github/do-database
@@ -745,7 +747,7 @@ jobs:
         run: terraform init
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: do-database-tfstate
           path: .github/do-database
@@ -822,12 +824,12 @@ jobs:
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.11.0-rc.2'
+        python-version: '3.10.0'
 
     - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.2
+      uses: syphar/restore-virtualenv@v1
       id: venv-cache
       with:
         requirement_files: |
@@ -838,7 +840,7 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: shared-artifacts
         path: .tmp
@@ -854,49 +856,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: parsers-cache
       with:
         path: build/lib
         key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: bootstrap-cache
       with:
         path: build/cache
@@ -960,7 +962,7 @@ jobs:
           export_default_credentials: true
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql
@@ -1040,12 +1042,12 @@ jobs:
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.11.0-rc.2'
+        python-version: '3.10.0'
 
     - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.2
+      uses: syphar/restore-virtualenv@v1
       id: venv-cache
       with:
         requirement_files: |
@@ -1056,7 +1058,7 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: shared-artifacts
         path: .tmp
@@ -1072,49 +1074,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: parsers-cache
       with:
         path: build/lib
         key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: bootstrap-cache
       with:
         path: build/cache
@@ -1179,7 +1181,7 @@ jobs:
           aws-region: us-east-2
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora
@@ -1246,12 +1248,12 @@ jobs:
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.11.0-rc.2'
+        python-version: '3.10.0'
 
     - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.2
+      uses: syphar/restore-virtualenv@v1
       id: venv-cache
       with:
         requirement_files: |
@@ -1262,7 +1264,7 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: shared-artifacts
         path: .tmp
@@ -1278,49 +1280,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: parsers-cache
       with:
         path: build/lib
         key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: bootstrap-cache
       with:
         path: build/cache
@@ -1357,7 +1359,7 @@ jobs:
       run: terraform init
 
     - name: Restore Terraform state
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: heroku-postgres-tfstate
         path: .github/heroku-postgres
@@ -1405,7 +1407,7 @@ jobs:
           aws-region: us-east-2
 
       - name: Restore Terraform state
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres

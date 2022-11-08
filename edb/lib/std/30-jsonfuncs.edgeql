@@ -59,6 +59,16 @@ std::json_object_unpack(obj: std::json) -> SET OF tuple<std::str, std::json>
 
 
 CREATE FUNCTION
+std::json_object_pack(pairs: SET OF tuple<str, json>) -> std::json
+{
+    CREATE ANNOTATION std::description :=
+        'Return a JSON object with set key/value pairs.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+
+CREATE FUNCTION
 std::json_get(
     json: std::json,
     VARIADIC path: std::str,

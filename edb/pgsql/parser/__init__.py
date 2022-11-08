@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2010-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,21 +16,21 @@
 # limitations under the License.
 #
 
+from typing import *
 
-from edb.testbase import http as tb
-from edb.testbase import server as tb_server
+import json
+
+from edb.pgsql import ast as pgast
+
+from .exceptions import PSqlUnsupportedError
+from .parser import pg_parse
+from .ast_builder import build_queries
 
 
-class TestHttpSystemAPI(tb.BaseHttpTest, tb_server.ConnectedTestCase):
+def parse(sql_query: str) -> List[pgast.Query]:
+    ast_json = pg_parse(bytes(sql_query, encoding="UTF8"))
 
-    @classmethod
-    def get_api_path(cls) -> str:
-        return '/server'
-
-    def test_http_sys_api_status(self):
-        with self.http_con() as con:
-            data, _, status = self.http_con_request(
-                con, {}, path='status/ready')
-
-            self.assertEqual(status, 200)
-            self.assertIn(b'OK', data)
+    try:
+        return build_queries(json.loads(ast_json), sql_query)
+    except IndexError:
+        raise PSqlUnsupportedError()

@@ -504,9 +504,10 @@ class TestSignalctl(tb.TestCase):
             p.send_signal(signal.SIGINT)
             await self.wait_for_child(p, 5)
 
-    async def test_signalctl_wait_for_signal(self):
+    async def test_signalctl_add_handler(self):
         test_prog = """\
         async def test_signalctl_wait_for_signal_child(self):
+            done = asyncio.Future()
             expectation = [
                 signal.SIGTERM,
                 signal.SIGTERM,
@@ -515,14 +516,20 @@ class TestSignalctl(tb.TestCase):
                 signal.SIGINT,
             ]
             n_len = len(expectation) + 1
-            with signalctl.SignalController(*set(expectation)) as sc:
-                self.notify_parent(1)
-                async for s in sc.wait_for_signals():
+
+            def handler(s):
+                try:
                     self.assertEqual(s, expectation.pop(0))
                     self.notify_parent(n_len - len(expectation))
                     if not expectation:
-                        break
-                await asyncio.sleep(0.1)  # allow the asyncgen_hook to run
+                        done.set_result(None)
+                except Exception as e:
+                    done.set_exception(e)
+
+            with signalctl.SignalController(*set(expectation)) as sc:
+                sc.add_handler(handler)
+                self.notify_parent(1)
+                await done
         """
 
         async with spawn(test_prog) as p:

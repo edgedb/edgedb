@@ -288,15 +288,15 @@ and ``TVShow``.
 
 .. code-block:: sdl
 
-  type Media {
+  abstract type Media {
     required property title -> str;
   }
 
-  type Movie {
+  type Movie extending Media {
     property release_year -> int64;
   }
 
-  type TVShow {
+  type TVShow extending Media {
     property num_seasons -> int64;
   }
 

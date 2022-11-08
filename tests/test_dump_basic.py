@@ -95,7 +95,7 @@ class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
                 self.run_cli('-d', restored_dbname, 'restore', f.name)
                 con2 = await self.connect(database=restored_dbname)
             except Exception:
-                await self.con.execute(f'DROP DATABASE {restored_dbname}')
+                await tb.drop_db(self.con, restored_dbname)
                 raise
 
         try:
@@ -117,4 +117,4 @@ class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
             self.assertEqual(hasher.digest(), expected_hash)
         finally:
             await con2.aclose()
-            await self.con.execute(f'DROP DATABASE {restored_dbname}')
+            await tb.drop_db(self.con, restored_dbname)

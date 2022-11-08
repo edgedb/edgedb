@@ -204,6 +204,9 @@ class InnerDDLStmt(Nonterm):
     def reduce_ExtensionStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_FutureStmt(self, *kids):
+        self.val = kids[0].val
+
 
 class InnerDDLStmtBlock(parsing.ListNonterm, element=InnerDDLStmt,
                         separator=Semicolons):
@@ -332,15 +335,21 @@ class NestedQLBlock(ProductionTpl):
     def _process_body(self, body):
         fields = []
         stmts = []
+        uniq_check = set()
         for stmt in body:
             if isinstance(stmt, qlast.SetField):
-                if stmt.name in self.allowed_fields:
-                    fields.append(stmt)
-                else:
+                if stmt.name not in self.allowed_fields:
                     raise errors.InvalidSyntaxError(
                         f'unexpected field: {stmt.name!r}',
                         context=stmt.context,
                     )
+                if stmt.name in uniq_check:
+                    raise errors.InvalidSyntaxError(
+                        f'duplicate `SET {stmt.name} := ...`',
+                        context=stmt.context,
+                    )
+                uniq_check.add(stmt.name)
+                fields.append(stmt)
             else:
                 stmts.append(stmt)
 
@@ -780,6 +789,47 @@ class DropExtensionStmt(Nonterm):
         self.val = qlast.DropExtension(
             name=kids[2].val,
             version=kids[3].val,
+        )
+
+
+#
+# FUTURE
+#
+
+
+class FutureStmt(Nonterm):
+
+    def reduce_CreateFutureStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropFutureStmt(self, *kids):
+        self.val = kids[0].val
+
+
+#
+# CREATE FUTURE
+#
+
+
+class CreateFutureStmt(Nonterm):
+
+    def reduce_CreateFutureStmt(self, *kids):
+        r"""%reduce CREATE FUTURE ShortNodeName
+        """
+        self.val = qlast.CreateFuture(
+            name=kids[2].val,
+        )
+
+
+#
+# DROP FUTURE
+#
+class DropFutureStmt(Nonterm):
+
+    def reduce_DropFutureStmt(self, *kids):
+        r"""%reduce DROP FUTURE ShortNodeName"""
+        self.val = qlast.DropFuture(
+            name=kids[2].val,
         )
 
 
@@ -1775,6 +1825,7 @@ class DropConcreteLinkStmt(Nonterm):
 commands_block(
     'CreateAccessPolicy',
     CreateAnnotationValueStmt,
+    SetFieldStmt,
 )
 
 
@@ -1846,6 +1897,8 @@ commands_block(
     AccessPermStmt,
     AccessUsingStmt,
     AccessWhenStmt,
+    SetFieldStmt,
+    ResetFieldStmt,
     opt=False
 )
 
@@ -2818,7 +2871,7 @@ class CreateMigrationBodyBlock(NestedQLBlock):
 
     @property
     def allowed_fields(self) -> typing.FrozenSet[str]:
-        return frozenset({'message'})
+        return frozenset({'message', 'generated_by'})
 
     @property
     def result(self) -> typing.Any:
@@ -2869,6 +2922,7 @@ class CreateMigrationStmt(Nonterm):
             name=kids[2].val.name,
             parent=kids[2].val.parent,
             body=kids[3].val.body,
+            commands=kids[3].val.fields,
         )
 
     def reduce_CreateAppliedMigration(self, *kids):
@@ -2881,6 +2935,7 @@ class CreateMigrationStmt(Nonterm):
             parent=kids[3].val.parent,
             body=kids[4].val.body,
             metadata_only=True,
+            commands=kids[4].val.fields,
         )
 
 
@@ -2894,6 +2949,16 @@ class StartMigrationStmt(Nonterm):
         self.val = qlast.StartMigration(
             target=qlast.Schema(declarations=declarations),
         )
+
+    def reduce_StartMigrationToCommitted(self, *kids):
+        r"""%reduce START MIGRATION TO COMMITTED SCHEMA"""
+        self.val = qlast.StartMigration(
+            target=qlast.CommittedSchema()
+        )
+
+    def reduce_StartMigrationRewrite(self, *kids):
+        r"""%reduce START MIGRATION REWRITE"""
+        self.val = qlast.StartMigrationRewrite()
 
 
 class PopulateMigrationStmt(Nonterm):
@@ -2913,11 +2978,17 @@ class AbortMigrationStmt(Nonterm):
     def reduce_ABORT_MIGRATION(self, *kids):
         self.val = qlast.AbortMigration()
 
+    def reduce_ABORT_MIGRATION_REWRITE(self, *kids):
+        self.val = qlast.AbortMigrationRewrite()
+
 
 class CommitMigrationStmt(Nonterm):
 
     def reduce_COMMIT_MIGRATION(self, *kids):
         self.val = qlast.CommitMigration()
+
+    def reduce_COMMIT_MIGRATION_REWRITE(self, *kids):
+        self.val = qlast.CommitMigrationRewrite()
 
 
 commands_block(

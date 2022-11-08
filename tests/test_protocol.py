@@ -19,6 +19,8 @@
 
 import asyncio
 import contextlib
+import struct
+
 import edgedb
 
 from edb.server import args as srv_args
@@ -27,6 +29,10 @@ from edb import protocol
 from edb.testbase import server as tb
 from edb.testbase import connection as tconn
 from edb.testbase.protocol.test import ProtocolTestCase
+
+
+def pack_i32s(*args):
+    return struct.pack("!" + "i" * len(args), *args)
 
 
 class TestProtocol(ProtocolTestCase):
@@ -442,6 +448,116 @@ class TestProtocol(ProtocolTestCase):
         await self.con.recv_match(
             protocol.CommandDataDescription,
             result_cardinality=compiler.Cardinality.AT_MOST_ONE,
+        )
+
+    async def _parse_execute(self, query, args):
+        await self.con.connect()
+
+        await self._parse(query)
+        res = await self.con.recv()
+
+        await self.con.send(
+            protocol.Execute(
+                annotations=[],
+                allowed_capabilities=protocol.Capability.ALL,
+                compilation_flags=protocol.CompilationFlag(0),
+                implicit_limit=0,
+                command_text=query,
+                output_format=protocol.OutputFormat.NONE,
+                expected_cardinality=protocol.Cardinality.MANY,
+                input_typedesc_id=res.input_typedesc_id,
+                output_typedesc_id=res.output_typedesc_id,
+                state_typedesc_id=b'\0' * 16,
+                arguments=args,
+                state_data=b'',
+            ),
+            protocol.Sync(),
+        )
+        await self.con.recv()
+
+    async def test_proto_execute_bad_array_01(self):
+        q = "SELECT <array<int32>>$0"
+
+        array = pack_i32s(
+            1,  # dims
+            0,  # flags
+            0,  # reserved
+            3,  # num elems
+            1,  # bound,
+
+            4,  # el 1 length
+            1337,  # el 1
+            -1,  # NULL!
+            4,  # el 2 length
+            10000,
+        )
+
+        args = pack_i32s(
+            1,   # num args
+            0,   # reserved
+            len(array),   # len
+        ) + array
+
+        await self._parse_execute(q, args)
+        await self.con.recv_match(
+            protocol.ErrorResponse,
+            message='invalid NULL'
+        )
+
+    async def test_proto_execute_bad_array_02(self):
+        q = "SELECT <array<int32>>$0"
+
+        array = pack_i32s(
+            1,  # dims
+            0,  # flags
+            0,  # reserved
+            2,  # num elems
+            4,  # bound,
+
+            4,  # el 1 length
+            1337,  # el 1
+            4,  # el 2 length
+            10000,
+        )
+
+        args = pack_i32s(
+            1,   # num args
+            0,   # reserved
+            len(array),   # len
+        ) + array
+
+        await self._parse_execute(q, args)
+        await self.con.recv_match(
+            protocol.ErrorResponse,
+            message='unsupported array bound'
+        )
+
+    async def test_proto_execute_bad_array_03(self):
+        q = "SELECT <array<int32>>$0"
+
+        array = pack_i32s(
+            2,  # dims
+            0,  # flags
+            0,  # reserved
+            2,  # num elems
+            1,  # bound,
+
+            4,  # el 1 length
+            1337,  # el 1
+            4,  # el 2 length
+            10000,
+        )
+
+        args = pack_i32s(
+            1,   # num args
+            0,   # reserved
+            len(array),   # len
+        ) + array
+
+        await self._parse_execute(q, args)
+        await self.con.recv_match(
+            protocol.ErrorResponse,
+            message='unsupported array dimensions'
         )
 
 

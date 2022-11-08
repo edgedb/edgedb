@@ -1907,10 +1907,12 @@ class NormalizeArrayIndexFunction(dbops.Function):
 
     text = '''
         SELECT
-            CASE WHEN index < 0 THEN
-                length::bigint + index + 1
+            CASE WHEN index > (2147483647-1) OR index < -2147483648 THEN
+                NULL
+            WHEN index < 0 THEN
+                length + index::int + 1
             ELSE
-                index + 1
+                index::int + 1
             END
     '''
 
@@ -1918,9 +1920,33 @@ class NormalizeArrayIndexFunction(dbops.Function):
         super().__init__(
             name=('edgedb', '_normalize_array_index'),
             args=[('index', ('bigint',)), ('length', ('int',))],
-            returns=('bigint',),
+            returns=('int',),
             volatility='immutable',
-            strict=True,
+            text=self.text,
+        )
+
+
+class NormalizeArraySliceIndexFunction(dbops.Function):
+    """Convert an EdgeQL index to SQL index (for slices)"""
+
+    text = '''
+        SELECT
+            GREATEST(0, LEAST(2147483647,
+                CASE WHEN index < 0 THEN
+                    length::bigint + index + 1
+                ELSE
+                    index + 1
+                END
+            ))
+        WHERE index IS NOT NULL
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_normalize_array_slice_index'),
+            args=[('index', ('bigint',)), ('length', ('int',))],
+            returns=('int',),
+            volatility='immutable',
             text=self.text,
         )
 
@@ -1950,37 +1976,20 @@ class IntOrNullFunction(dbops.Function):
         )
 
 
-class IntBoundFunction(dbops.Function):
-    """
-    Cast bigint to int. If it does not fit, return int's min or max value.
-    """
-
-    text = """
-        SELECT GREATEST(-2147483648, LEAST(2147483647, val))::integer
-    """
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=("edgedb", "_int_bound"),
-            args=[("val", ("bigint",))],
-            returns=("int",),
-            volatility="immutable",
-            strict=True,
-            text=self.text)
-
-
 class ArrayIndexWithBoundsFunction(dbops.Function):
     """Get an array element or raise an out-of-bounds exception."""
 
     text = '''
-        SELECT edgedb.raise_on_null(
-            val[edgedb._int_or_null(
-                edgedb._normalize_array_index(index, array_upper(val, 1))
-            )],
-            'array_subscript_error',
-            msg => 'array index ' || index::text || ' is out of bounds',
-            detail => detail
-        )
+        SELECT CASE WHEN val IS NULL THEN
+            NULL
+        ELSE
+            edgedb.raise_on_null(
+                val[edgedb._normalize_array_index(index, array_upper(val, 1))],
+                'array_subscript_error',
+                msg => 'array index ' || index::text || ' is out of bounds',
+                detail => detail
+            )
+        END
     '''
 
     def __init__(self) -> None:
@@ -1991,7 +2000,6 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
             returns=('anyelement',),
             # Same volatility as raise()
             volatility='stable',
-            strict=True,
             text=self.text,
         )
 
@@ -2005,12 +2013,9 @@ class ArraySliceFunction(dbops.Function):
     # this will return last element instead of an empty array.
     text = """
         SELECT val[
-            edgedb._int_bound(
-                edgedb._normalize_array_index(start, cardinality(val))
-            ):
-            edgedb._int_bound(
-                edgedb._normalize_array_index(stop, cardinality(val)) - 1
-            )
+            edgedb._normalize_array_slice_index(start, cardinality(val))
+            :
+            edgedb._normalize_array_slice_index(stop, cardinality(val)) - 1
         ]
     """
 
@@ -2043,7 +2048,7 @@ class StringIndexWithBoundsFunction(dbops.Function):
             "detail"
         )
         FROM (
-            SELECT edgedb._int_or_null(
+            SELECT (
                 edgedb._normalize_array_index("index", char_length("val"))
             ) as pg_index
         ) t
@@ -2061,7 +2066,6 @@ class StringIndexWithBoundsFunction(dbops.Function):
             returns=('text',),
             # Same volatility as raise_on_empty
             volatility='stable',
-            strict=True,
             text=self.text,
         )
 
@@ -2081,7 +2085,7 @@ class BytesIndexWithBoundsFunction(dbops.Function):
             "detail"
         )
         FROM (
-            SELECT edgedb._int_or_null(
+            SELECT (
                 edgedb._normalize_array_index("index", length("val"))
             ) as pg_index
         ) t
@@ -2098,7 +2102,6 @@ class BytesIndexWithBoundsFunction(dbops.Function):
             returns=('bytea',),
             # Same volatility as raise_on_empty
             volatility='stable',
-            strict=True,
             text=self.text,
         )
 
@@ -2172,12 +2175,12 @@ class StringSliceImplFunction(dbops.Function):
                 pg_end - pg_start
             )
         FROM (SELECT
-            GREATEST(0, edgedb._int_bound(edgedb._normalize_array_index(
+            edgedb._normalize_array_slice_index(
                 start, edgedb._length(val)
-            ))) as pg_start,
-            GREATEST(0, edgedb._int_bound(edgedb._normalize_array_index(
+            ) as pg_start,
+            edgedb._normalize_array_slice_index(
                 stop, edgedb._length(val)
-            ))) as pg_end
+            ) as pg_end
         ) t
     """
 
@@ -2474,7 +2477,7 @@ class DurationInFunction(dbops.Function):
                         || quote_literal(val)
                     ),
                     detail => (
-                        '{"hint":"Units bigger than hours cannot be used '
+                        '{"hint":"Day, month and year units cannot be used '
                         || 'for std::duration."}'
                     )
                 )
@@ -3982,22 +3985,42 @@ class GetBaseScalarTypeMap(dbops.Function):
                         else ql(f'pg_catalog.{v[0]}')
                     }
                 )"""
-            for k, v in types.base_type_name_map.items())},
-
-            {", ".join(
-                f"""(
-                    {ql(str(k))}::uuid,
-                    {
-                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
-                        else ql(f'pg_catalog.{v[0]}')
-                    }
-                )"""
-            for k, v in types.base_range_name_map.items())}
+            for k, v in types.base_type_name_map.items())}
     '''
 
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', '_get_base_scalar_type_map'),
+            args=[],
+            returns=('record',),
+            set_returning=True,
+            volatility='immutable',
+            text=self.text,
+        )
+
+
+class GetTypeToRangeNameMap(dbops.Function):
+    """Return a map of type names to the name of the associated range type"""
+
+    text = f'''
+        VALUES
+            {", ".join(
+                f"""(
+                    {
+                        ql(f'{k[0]}.{k[1]}') if len(k) == 2
+                        else ql(f'pg_catalog.{k[0]}')
+                    },
+                    {
+                        ql(f'{v[0]}.{v[1]}') if len(v) == 2
+                        else ql(f'pg_catalog.{v[0]}')
+                    }
+                )"""
+            for k, v in types.type_to_range_name_map.items())}
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_get_type_to_range_type_map'),
             args=[],
             returns=('record',),
             set_returning=True,
@@ -4036,16 +4059,44 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                     FROM
                         pg_catalog.pg_type typ
                     WHERE
-                        typ.typname = "elemid"::text || '_domain'
-                        OR typ.typname = "elemid"::text || '_t'
-                        OR typ.oid = (
+                        "kind" = 'schema::Array'
+                         AND (
+                            typ.typname = "elemid"::text || '_domain'
+                            OR typ.typname = "elemid"::text || '_t'
+                            OR typ.oid = (
+                                SELECT
+                                    tn::regtype::oid
+                                FROM
+                                    edgedb._get_base_scalar_type_map()
+                                        AS m(tid uuid, tn text)
+                                WHERE
+                                    tid = "elemid"
+                            )
+                        )
+                ),
+                (
+                    SELECT
+                        rng.rngtypid
+                    FROM
+                        pg_catalog.pg_range rng
+                    WHERE
+                        "kind" = 'schema::Range'
+                        -- For ranges, we need to do the lookup based on
+                        -- our internal map of elem names to range names,
+                        -- because we use the builtin daterange as the range
+                        -- for edgedb.date_t.
+                        AND rng.rngtypid = (
                             SELECT
-                                tn::regtype::oid
+                                rn::regtype::oid
                             FROM
                                 edgedb._get_base_scalar_type_map()
                                     AS m(tid uuid, tn text)
+                            INNER JOIN
+                                edgedb._get_type_to_range_type_map()
+                                    AS m2(tn2 text, rn text)
+                                ON tn = tn2
                             WHERE
-                                tid = elemid
+                                tid = "elemid"
                         )
                 ),
                 edgedb.raise(
@@ -4054,7 +4105,7 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                     msg => (
                         format(
                             'cannot determine OID of EdgeDB type %L',
-                            typeid::text
+                            "typeid"::text
                         )
                     )
                 )
@@ -4066,6 +4117,7 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
             name=('edgedb', 'get_pg_type_for_edgedb_type'),
             args=[
                 ('typeid', ('uuid',)),
+                ('kind', ('text',)),
                 ('elemid', ('uuid',)),
             ],
             returns=('bigint',),
@@ -4142,8 +4194,8 @@ async def bootstrap(
         dbops.CreateFunction(GetTableDescendantsFunction()),
         dbops.CreateFunction(ParseTriggerConditionFunction()),
         dbops.CreateFunction(NormalizeArrayIndexFunction()),
+        dbops.CreateFunction(NormalizeArraySliceIndexFunction()),
         dbops.CreateFunction(IntOrNullFunction()),
-        dbops.CreateFunction(IntBoundFunction()),
         dbops.CreateFunction(ArrayIndexWithBoundsFunction()),
         dbops.CreateFunction(ArraySliceFunction()),
         dbops.CreateFunction(StringIndexWithBoundsFunction()),
@@ -4180,6 +4232,7 @@ async def bootstrap(
         dbops.CreateFunction(SysGetTransactionIsolation()),
         dbops.CreateFunction(GetCachedReflection()),
         dbops.CreateFunction(GetBaseScalarTypeMap()),
+        dbops.CreateFunction(GetTypeToRangeNameMap()),
         dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction()),
         dbops.CreateFunction(DescribeInstanceConfigAsDDLFunctionForwardDecl()),
         dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunctionForwardDecl()),
@@ -4952,11 +5005,10 @@ def _generate_schema_alias_view(
     )
 
 
-async def generate_support_views(
-    conn: pgcon.PGConnection,
+def get_support_views(
     schema: s_schema.Schema,
     backend_params: params.BackendRuntimeParams,
-) -> None:
+) -> dbops.CommandGroup:
     commands = dbops.CommandGroup()
 
     schema_alias_views = _generate_schema_alias_views(
@@ -5035,6 +5087,15 @@ async def generate_support_views(
     for alias_view in sys_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
+    return commands
+
+
+async def generate_support_views(
+    conn: pgcon.PGConnection,
+    schema: s_schema.Schema,
+    backend_params: params.BackendRuntimeParams,
+) -> None:
+    commands = get_support_views(schema, backend_params)
     block = dbops.PLTopBlock()
     commands.generate(block)
     await _execute_block(conn, block)

@@ -27,6 +27,7 @@ import atexit
 import contextlib
 import functools
 import heapq
+import http
 import http.client
 import inspect
 import json
@@ -37,11 +38,13 @@ import re
 import secrets
 import shlex
 import socket
+import ssl
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
+import urllib
 
 import edgedb
 
@@ -94,6 +97,17 @@ bag = assert_data_shape.bag
 
 generate_jwk = edgedb_main.generate_jwk
 generate_tls_cert = edgedb_main.generate_tls_cert
+
+
+class StubbornHttpConnection(http.client.HTTPSConnection):
+
+    def close(self):
+        # Don't actually close the connection.  This allows us to
+        # test keep-alive and "Connection: close" headers.
+        pass
+
+    def true_close(self):
+        http.client.HTTPConnection.close(self)
 
 
 class TestCaseMeta(type(unittest.TestCase)):
@@ -305,6 +319,111 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         }
 
 
+class BaseHTTPTestCase(TestCase):
+    @classmethod
+    def get_api_prefix(cls):
+        return ''
+
+    @contextlib.contextmanager
+    def http_con(self, server, keep_alive=True):
+        conn_args = server.get_connect_args()
+        tls_context = ssl.create_default_context(
+            ssl.Purpose.SERVER_AUTH,
+            cafile=conn_args["tls_ca_file"],
+        )
+        tls_context.check_hostname = False
+        if keep_alive:
+            ConCls = StubbornHttpConnection
+        else:
+            ConCls = http.client.HTTPSConnection
+
+        con = ConCls(
+            conn_args["host"],
+            conn_args["port"],
+            context=tls_context,
+        )
+        con.connect()
+        try:
+            yield con
+        finally:
+            con.true_close()
+
+    def http_con_send_request(
+        self,
+        http_con: http.client.HTTPConnection,
+        params: Optional[dict[str, str]] = None,
+        *,
+        headers: Optional[dict[str, str]] = None,
+        method: str = "GET",
+        body: bytes = b"",
+        path: str = "",
+    ):
+        url = f'https://{http_con.host}:{http_con.port}'
+        prefix = self.get_api_prefix()
+        if prefix:
+            url = f'{url}{prefix}'
+        if path:
+            url = f'{url}/{path}'
+        if params is not None:
+            url = f'{url}?{urllib.parse.urlencode(params)}'
+        if headers is None:
+            headers = {}
+        http_con.request(method, url, body=body, headers=headers)
+
+    def http_con_read_response(
+        self,
+        http_con: http.client.HTTPConnection,
+    ) -> tuple[bytes, dict[str, str], int]:
+        resp = http_con.getresponse()
+        resp_body = resp.read()
+        resp_headers = {k.lower(): v.lower() for k, v in resp.getheaders()}
+        return resp_body, resp_headers, resp.status
+
+    def http_con_request(
+        self,
+        http_con: http.client.HTTPConnection,
+        params: Optional[dict[str, str]] = None,
+        *,
+        headers: Optional[dict[str, str]] = None,
+        method: str = "GET",
+        body: bytes = b"",
+        path: str = "",
+    ) -> tuple[bytes, dict[str, str], int]:
+        self.http_con_send_request(
+            http_con,
+            params,
+            headers=headers,
+            method=method,
+            body=body,
+            path=path,
+        )
+        return self.http_con_read_response(http_con)
+
+    def http_con_json_request(
+        self,
+        http_con: http.client.HTTPConnection,
+        params: Optional[dict[str, str]] = None,
+        *,
+        body: Any,
+        path: str = "",
+    ):
+        response, headers, status = self.http_con_request(
+            http_con,
+            params,
+            method="POST",
+            body=json.dumps(body).encode(),
+            headers={"Content-Type": "application/json"},
+            path=path,
+        )
+
+        if status == http.HTTPStatus.OK:
+            result = json.loads(response)
+        else:
+            result = None
+
+        return result, headers, status
+
+
 _default_cluster = None
 
 
@@ -458,7 +577,22 @@ def _extract_background_errors(metrics: str) -> str | None:
         return None
 
 
-class ClusterTestCase(TestCase):
+async def drop_db(conn, dbname):
+    # The connection might not *actually* be closed on the db
+    # side yet. This is a bug (#4567), but hack around it
+    # with a retry loop. Without this, tests would flake
+    # a lot.
+    async for tr in TestCase.try_until_succeeds(
+        ignore=edgedb.ExecutionError,
+        timeout=30
+    ):
+        async with tr:
+            await conn.execute(
+                f'DROP DATABASE {dbname};'
+            )
+
+
+class ClusterTestCase(BaseHTTPTestCase):
 
     BASE_TEST_CLASS = True
     backend_dsn: Optional[str] = None
@@ -486,8 +620,8 @@ class ClusterTestCase(TestCase):
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
 
-    SETUP_METHOD: Optional[str] = None
-    TEARDOWN_METHOD: Optional[str] = None
+    SETUP_COMMANDS: Sequence[str] = ()
+    TEARDOWN_COMMANDS: Sequence[str] = ()
 
     @classmethod
     def setUpClass(cls):
@@ -571,9 +705,8 @@ class ClusterTestCase(TestCase):
             self.xact = self.con.transaction()
             self.loop.run_until_complete(self.xact.start())
 
-        if self.SETUP_METHOD:
-            self.loop.run_until_complete(
-                self.con.execute(self.SETUP_METHOD))
+        for cmd in self.SETUP_COMMANDS:
+            self.loop.run_until_complete(self.con.execute(cmd))
 
         super().setUp()
 
@@ -581,9 +714,8 @@ class ClusterTestCase(TestCase):
         try:
             self.ensure_no_background_server_errors()
 
-            if self.TEARDOWN_METHOD:
-                self.loop.run_until_complete(
-                    self.con.execute(self.TEARDOWN_METHOD))
+            for cmd in self.TEARDOWN_COMMANDS:
+                self.loop.run_until_complete(self.con.execute(cmd))
         finally:
             try:
                 if self.TRANSACTION_ISOLATION:
@@ -626,6 +758,32 @@ class ClusterTestCase(TestCase):
                 raise
             finally:
                 await tx.rollback()
+
+    @contextlib.contextmanager
+    def http_con(self, server=None):
+        if server is None:
+            server = self
+        with super().http_con(server) as http_con:
+            yield http_con
+
+    @property
+    def http_addr(self) -> str:
+        conn_args = self.get_connect_args()
+        url = f'https://{conn_args["host"]}:{conn_args["port"]}'
+        prefix = self.get_api_prefix()
+        if prefix:
+            url = f'{url}{prefix}'
+        return url
+
+    @property
+    def tls_context(self) -> ssl.SSLContext:
+        conn_args = self.get_connect_args()
+        tls_context = ssl.create_default_context(
+            ssl.Purpose.SERVER_AUTH,
+            cafile=conn_args["tls_ca_file"],
+        )
+        tls_context.check_hostname = False
+        return tls_context
 
 
 class RollbackChanges:
@@ -924,29 +1082,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 elif class_set_up == 'run' or cls.uses_database_copies():
                     dbname = qlquote.quote_ident(cls.get_database_name())
 
-                    # The retry loop below masks connection abort races.
-                    # The current implementation of edgedb-python aborts
-                    # connections when it gets a CancelledError.  This creates
-                    # a situation in which the server might still have not
-                    # realized that the connection went away, and will raise
-                    # an ExecutionError on DROP DATABASE below complaining
-                    # about the database still being in use.
-                    #
-                    # A better fix would be for edgedb-python to learn to
-                    # aclose() gracefully or implement protocol-level
-                    # cancellation that guarantees consensus on the server
-                    # connection state.
-                    async def drop_db():
-                        async for tr in cls.try_until_succeeds(
-                            ignore=edgedb.ExecutionError,
-                            timeout=30
-                        ):
-                            async with tr:
-                                await cls.admin_conn.execute(
-                                    f'DROP DATABASE {dbname};'
-                                )
-
-                    cls.loop.run_until_complete(drop_db())
+                    cls.loop.run_until_complete(
+                        drop_db(cls.admin_conn, dbname))
 
             finally:
                 try:
@@ -972,6 +1109,10 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             return f'{dbname.lower()}_{os.getpid()}'
         else:
             return dbname.lower()
+
+    @classmethod
+    def get_api_prefix(cls):
+        return f'/db/{cls.get_database_name()}'
 
     @classmethod
     def get_setup_script(cls):
@@ -1124,7 +1265,7 @@ class DumpCompatTestCaseMeta(TestCaseMeta):
                 self.run_cli('-d', dbname, 'restore', str(dumpfn))
                 con2 = await self.connect(database=dbname)
             except Exception:
-                await self.con.execute(f'DROP DATABASE {qdbname}')
+                await drop_db(self.con, qdbname)
                 raise
 
             oldcon = self.__class__.con
@@ -1134,7 +1275,8 @@ class DumpCompatTestCaseMeta(TestCaseMeta):
             finally:
                 self.__class__.con = oldcon
                 await con2.aclose()
-                await self.con.execute(f'DROP DATABASE {qdbname}')
+
+                await drop_db(self.con, qdbname)
 
         for entry in dumps_dir.iterdir():
             if not entry.is_file() or not entry.name.endswith(".dump"):
@@ -1188,7 +1330,7 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
                 self.run_cli('-d', tgt_dbname, 'restore', f.name)
                 con2 = await self.connect(database=tgt_dbname)
             except Exception:
-                await self.con.execute(f'DROP DATABASE {q_tgt_dbname}')
+                await drop_db(self.con, q_tgt_dbname)
                 raise
 
         oldcon = self.con
@@ -1198,7 +1340,7 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
         finally:
             self.__class__.con = oldcon
             await con2.aclose()
-            await self.con.execute(f'DROP DATABASE {q_tgt_dbname}')
+            await drop_db(self.con, q_tgt_dbname)
 
 
 def get_test_cases_setup(
@@ -1229,14 +1371,16 @@ def test_cases_use_server(cases: Iterable[unittest.TestCase]) -> bool:
             return True
 
 
-async def setup_test_cases(cases, conn, num_jobs, verbose=False):
+async def setup_test_cases(
+        cases, conn, num_jobs, try_cached_db=False, verbose=False):
     setup = get_test_cases_setup(cases)
 
     stats = []
     if num_jobs == 1:
         # Special case for --jobs=1
         for _case, dbname, setup_script in setup:
-            await _setup_database(dbname, setup_script, conn, stats)
+            await _setup_database(
+                dbname, setup_script, conn, stats, try_cached_db)
             if verbose:
                 print(f' -> {dbname}: OK', flush=True)
     else:
@@ -1255,11 +1399,13 @@ async def setup_test_cases(cases, conn, num_jobs, verbose=False):
 
             for _case, dbname, setup_script in setup:
                 g.create_task(controller(
-                    _setup_database, dbname, setup_script, conn, stats))
+                    _setup_database, dbname, setup_script, conn, stats,
+                    try_cached_db))
     return stats
 
 
-async def _setup_database(dbname, setup_script, conn_args, stats):
+async def _setup_database(
+        dbname, setup_script, conn_args, stats, try_cached_db):
     start_time = time.monotonic()
     default_args = {
         'user': edgedb_defines.EDGEDB_SUPERUSER,
@@ -1285,7 +1431,14 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
         )
     except edgedb.DuplicateDatabaseDefinitionError:
         # Eh, that's fine
-        pass
+        # And, if we are trying to use a cache of the database, assume
+        # the db is populated and return.
+        if try_cached_db:
+            elapsed = time.monotonic() - start_time
+            stats.append(
+                ('setup::' + dbname,
+                 {'running-time': elapsed, 'cached': True}))
+            return
     except Exception as ex:
         raise RuntimeError(
             f'exception during creation of {dbname!r} test DB: '
@@ -1310,8 +1463,8 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
         await dbconn.aclose()
 
     elapsed = time.monotonic() - start_time
-    stats.append(('setup::' + dbname, {'running-time': elapsed}))
-    return dbname
+    stats.append(
+        ('setup::' + dbname, {'running-time': elapsed, 'cached': False}))
 
 
 _lock_cnt = 0
@@ -1330,6 +1483,7 @@ class _EdgeDBServerData(NamedTuple):
     password: str
     server_data: Any
     tls_cert_file: str
+    pid: int
 
     def get_connect_args(self, **kwargs) -> dict[str, str | int]:
         conn_args = dict(
@@ -1391,6 +1545,7 @@ class _EdgeDBServer:
             edgedb_args.ServerEndpointSecurityMode] = None,  # see __aexit__
         enable_backend_adaptive_ha: bool = False,
         ignore_other_tenants: bool = False,
+        readiness_state_file: Optional[str] = None,
         tls_cert_file: Optional[os.PathLike] = None,
         tls_key_file: Optional[os.PathLike] = None,
         tls_cert_mode: edgedb_args.ServerTlsCertMode = (
@@ -1418,6 +1573,7 @@ class _EdgeDBServer:
         self.http_endpoint_security = http_endpoint_security
         self.enable_backend_adaptive_ha = enable_backend_adaptive_ha
         self.ignore_other_tenants = ignore_other_tenants
+        self.readiness_state_file = readiness_state_file
         self.tls_cert_file = tls_cert_file
         self.tls_key_file = tls_key_file
         self.tls_cert_mode = tls_cert_mode
@@ -1568,6 +1724,9 @@ class _EdgeDBServer:
         if self.tls_key_file:
             cmd += ['--tls-key-file', self.tls_key_file]
 
+        if self.readiness_state_file is not None:
+            cmd += ['--readiness-state-file', self.readiness_state_file]
+
         if self.debug:
             print(
                 f'Starting EdgeDB cluster with the following params:\n'
@@ -1631,6 +1790,7 @@ class _EdgeDBServer:
             password=password,
             server_data=data,
             tls_cert_file=data['tls_cert_file'],
+            pid=self.proc.pid,
         )
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -1682,6 +1842,7 @@ def start_edgedb_server(
         edgedb_args.ServerEndpointSecurityMode] = None,
     enable_backend_adaptive_ha: bool = False,
     ignore_other_tenants: bool = False,
+    readiness_state_file: Optional[str] = None,
     tls_cert_file: Optional[os.PathLike] = None,
     tls_key_file: Optional[os.PathLike] = None,
     tls_cert_mode: edgedb_args.ServerTlsCertMode = (
@@ -1728,6 +1889,7 @@ def start_edgedb_server(
         http_endpoint_security=http_endpoint_security,
         enable_backend_adaptive_ha=enable_backend_adaptive_ha,
         ignore_other_tenants=ignore_other_tenants,
+        readiness_state_file=readiness_state_file,
         tls_cert_file=tls_cert_file,
         tls_key_file=tls_key_file,
         tls_cert_mode=tls_cert_mode,

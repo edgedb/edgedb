@@ -2461,10 +2461,10 @@ class TestInsert(tb.QueryTestCase):
 
         res = await self.con.query(query2, "test2")
         res2 = await self.con.query(query2, "test2")
-        self.assertEqual(res, res2)
+        self.assertEqual([x.id for x in res], [x.id for x in res2])
 
         res3 = await self.con.query(query2, "test3")
-        self.assertNotEqual(res, res3)
+        self.assertNotEqual([x.id for x in res], [x.id for x in res3])
 
     async def test_edgeql_insert_unless_conflict_02(self):
         async with self.assertRaisesRegexTx(
@@ -2602,10 +2602,10 @@ class TestInsert(tb.QueryTestCase):
 
         res = await self.con.query(query2, "test2")
         res2 = await self.con.query(query2, "test2")
-        self.assertEqual(res, res2)
+        self.assertEqual([x.id for x in res], [x.id for x in res2])
 
         res3 = await self.con.query(query2, "test3")
-        self.assertNotEqual(res, res3)
+        self.assertNotEqual([x.id for x in res], [x.id for x in res3])
 
     async def test_edgeql_insert_unless_conflict_05(self):
         await self.con.execute(r'''
@@ -2739,7 +2739,7 @@ class TestInsert(tb.QueryTestCase):
         res2 = await self.con.query_single(query)
 
         self.assertNotEqual(res1.id, res2.id)
-        self.assertEqual(res1.person, res2.person)
+        self.assertEqual(res1.person.id, res2.person.id)
 
     async def test_edgeql_insert_unless_conflict_09(self):
         query = r'''
@@ -3274,6 +3274,53 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             q, [], variables={'n': "2"},
         )
+
+    async def test_edgeql_insert_unless_conflict_26(self):
+        # Test unless conflict on a property not actually mentioned
+        await self.con.execute('''
+            INSERT Person {
+              name := "Colin"
+            }
+            UNLESS CONFLICT ON .case_name
+            ELSE (Person)
+        ''')
+
+    async def test_edgeql_insert_unless_conflict_27(self):
+        DML_Q = '''
+            WITH P := (
+                insert Person { name := <str>$0 }
+                unless conflict on .name else (Person)
+            )
+            insert Person2a {
+                first := <str>$1, last := '', bff := P
+            } unless conflict on (.first, .last) else (
+                update Person2a set { bff := P }
+            )
+        '''
+        Q = '''
+            select Person2a { bff: {name} } filter .first = <str>$0
+        '''
+
+        # Try all 4 combinations of which conflict clauses fire
+        all_args = [
+            ('a', 'x'),
+            ('b', 'x'),
+            ('b', 'y'),
+            ('c', 'y'),
+        ]
+        for friend, person in all_args:
+            await self.assert_query_result(
+                DML_Q,
+                [{}],
+                variables=(friend, person),
+                msg=f'insert {(friend, person)}',
+            )
+            await self.assert_query_result(
+                Q,
+                [{'bff': {'name': friend}}],
+                variables=(person,),
+                msg=f'check {(friend, person)}',
+            )
 
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
@@ -5098,6 +5145,50 @@ class TestInsert(tb.QueryTestCase):
                 update X set { foo := "!" };
             ''')
 
+    async def test_edgeql_insert_update_cross_type_conflict_16(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+            CREATE TYPE Baz EXTENDING Foo;
+
+            INSERT Bar { name := "bar" };
+            INSERT Baz { name := "baz" };
+        ''')
+
+        query = r'''
+            UPDATE {Bar, Baz} FILTER true SET { name := "!" };
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_17(self):
+
+        await self.con.execute('''
+            create type T;
+            create type X {
+                create multi link l -> T {
+                    create property x -> str { create constraint exclusive; }
+                };
+            };
+            create type Y extending X;
+            insert X;
+            insert Y;
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "do not support exclusive constraints on link properties"):
+            await self.con.execute('''
+                update X set { l := (insert T { @x := 'x' }) };
+            ''')
+
     async def test_edgeql_insert_and_update_01(self):
         # INSERTing something that would violate a constraint while
         # fixing the violation is still supposed to be an error.
@@ -5642,4 +5733,29 @@ class TestInsert(tb.QueryTestCase):
             ''',
             [{'id': str}],
             always_typenames=True,
+        )
+
+    async def test_edgeql_insert_pointless_shape_elements_01(self):
+        await self.con.execute('''
+            insert Person {
+                name := "test",
+                notes := (select Note { foo := 0 })
+            };
+        ''')
+
+    async def test_edgeql_insert_bogus_correlation_typenames(self):
+        # This was being rejected with a correlation error
+        query = r'''
+            for l2 in <int64>{} union (
+                with
+                  subs := (select Subordinate filter .name = '')
+                insert InsertTest {
+                  subordinates := subs,
+                  l2 := l2,
+                }
+            );
+        '''
+
+        await self.con._fetchall(
+            query, __typenames__=True,
         )

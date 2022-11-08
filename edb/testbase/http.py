@@ -18,11 +18,9 @@
 
 
 from __future__ import annotations
+from typing import *
 
-import contextlib
-import http.client
 import json
-import ssl
 import urllib.parse
 import urllib.request
 
@@ -35,70 +33,10 @@ from edb.common import assert_data_shape
 from . import server
 
 
-class StubbornHttpConnection(http.client.HTTPSConnection):
-
-    def close(self):
-        # Don't actually close the connection.  This allows us to
-        # test keep-alive and "Connection: close" headers.
-        pass
-
-    def true_close(self):
-        http.client.HTTPConnection.close(self)
-
-
 bag = assert_data_shape.bag
 
 
-class BaseHttpTest:
-    tls_context: ssl.SSLContext
-
-    @classmethod
-    def get_api_path(cls):
-        raise NotImplementedError
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-
-        cls.tls_context = ssl.create_default_context(
-            ssl.Purpose.SERVER_AUTH,
-            cafile=cls.get_connect_args()['tls_ca_file'],
-        )
-        cls.tls_context.check_hostname = False
-
-        cls.http_host, cls.http_port = cls.con.connected_addr()
-        api_path = cls.get_api_path()
-        cls.http_addr = f'https://{cls.http_host}:{cls.http_port}{api_path}'
-
-    @contextlib.contextmanager
-    def http_con(self):
-        con = StubbornHttpConnection(
-            self.http_host, self.http_port, context=self.tls_context
-        )
-        con.connect()
-        try:
-            yield con
-        finally:
-            con.true_close()
-
-    def http_con_send_request(self, con, params: dict, *, path=''):
-        con.request(
-            'GET',
-            f'{self.http_addr}/{path}'  # type: ignore
-            f'?{urllib.parse.urlencode(params)}')
-
-    def http_con_read_response(self, con):
-        resp = con.getresponse()
-        resp_body = resp.read()
-        resp_headers = {k.lower(): v.lower() for k, v in resp.getheaders()}
-        return resp_body, resp_headers, resp.status
-
-    def http_con_request(self, con, params: dict, *, path=''):
-        self.http_con_send_request(con, params, path=path)
-        return self.http_con_read_response(con)
-
-
-class BaseHttpExtensionTest(BaseHttpTest):
+class BaseHttpExtensionTest(server.QueryTestCase):
 
     @classmethod
     def get_extension_name(cls):
@@ -109,7 +47,7 @@ class BaseHttpExtensionTest(BaseHttpTest):
         return cls.get_extension_name()
 
     @classmethod
-    def get_api_path(cls):
+    def get_api_prefix(cls):
         extpath = cls.get_extension_path()
         dbname = cls.get_database_name()
         return f'/db/{dbname}/{extpath}'
@@ -132,7 +70,7 @@ class BaseHttpExtensionTest(BaseHttpTest):
         super().tearDownClass()
 
 
-class EdgeQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
+class EdgeQLTestCase(BaseHttpExtensionTest):
 
     @classmethod
     def get_extension_name(cls):
@@ -202,7 +140,7 @@ class EdgeQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
         return res
 
 
-class GraphQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
+class GraphQLTestCase(BaseHttpExtensionTest):
 
     @classmethod
     def get_extension_name(cls):

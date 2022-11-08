@@ -76,3 +76,7 @@ type ScalarTest {
     property p_decimal -> decimal;
     property p_json -> json;
 }
+
+type Person {
+    property name -> str;
+}

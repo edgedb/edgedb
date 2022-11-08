@@ -1058,7 +1058,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
         # The deck shape ought to contain just the correlated element
         for row in res:
-            self.assertEqual(row[0].deck, [row[1]])
+            self.assertEqual(len(row[0].deck), 1)
+            self.assertEqual(row[0].deck[0].id, row[1].id)
 
     async def test_edgeql_scope_tuple_16(self):
         await self.assert_query_result(
@@ -3076,10 +3077,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xerror('''
-        Fails assert not ir_set.is_materialized_ref
-        Broken in fix for #3898
-    ''')
     async def test_edgeql_scope_source_rebind_04(self):
         await self.assert_query_result(
             """
@@ -3319,7 +3316,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('Returns tags with all users')
+    @test.xerror("can't find materialized set")
     async def test_edgeql_scope_ref_outer_06b(self):
         # Same as above, basically, but with an extra shape on Bc
         # that causes trouble.

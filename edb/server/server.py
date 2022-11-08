@@ -101,6 +101,7 @@ class Server(ha_base.ClusterProtocol):
     _global_intro_query: bytes
     _report_config_typedesc: bytes
     _report_config_data: bytes
+    _file_watch_handles: list[asyncio.Handle]
 
     _std_schema: s_schema.Schema
     _refl_schema: s_schema.Schema
@@ -271,8 +272,13 @@ class Server(ha_base.ClusterProtocol):
 
         self._admin_ui = admin_ui
 
+        self._readiness = srvargs.ReadinessState.Default
+
         # A set of databases that should not accept new connections.
         self._block_new_connections: set[str] = set()
+
+        self._file_watch_handles = []
+        self._tls_certs_reload_retry_handle = None
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -310,6 +316,9 @@ class Server(ha_base.ClusterProtocol):
 
     def is_admin_ui_enabled(self):
         return self._admin_ui
+
+    def is_ready(self) -> bool:
+        return self._readiness is srvargs.ReadinessState.Default
 
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
@@ -745,6 +754,17 @@ class Server(ha_base.ClusterProtocol):
             backend_ids = json.loads(backend_ids_json)
 
             db_config = await self.introspect_db_config(conn)
+            extensions = await self._introspect_extensions(conn)
+
+            extension_names_json = await conn.sql_fetch_val(
+                b'''
+                    SELECT json_agg(name) FROM edgedb."_SchemaExtension";
+                ''',
+            )
+            if extension_names_json:
+                extensions = set(json.loads(extension_names_json))
+            else:
+                extensions = set()
 
             assert self._dbindex is not None
             self._dbindex.register_db(
@@ -753,9 +773,38 @@ class Server(ha_base.ClusterProtocol):
                 db_config=db_config,
                 reflection_cache=reflection_cache,
                 backend_ids=backend_ids,
+                extensions=extensions,
             )
         finally:
             self.release_pgcon(dbname, conn)
+
+    async def _introspect_extensions(self, conn):
+        extension_names_json = await conn.sql_fetch_val(
+            b'''
+                SELECT json_agg(name) FROM edgedb."_SchemaExtension";
+            ''',
+        )
+        if extension_names_json:
+            extensions = set(json.loads(extension_names_json))
+        else:
+            extensions = set()
+
+        return extensions
+
+    async def introspect_extensions(self, dbname):
+        logger.info("introspecting extensions for database '%s'", dbname)
+        conn = await self._acquire_intro_pgcon(dbname)
+        if not conn:
+            return
+
+        try:
+            extensions = await self._introspect_extensions(conn)
+        finally:
+            self.release_pgcon(dbname, conn)
+
+        db = self._dbindex.maybe_get_db(dbname)
+        if db is not None:
+            db.extensions = extensions
 
     async def introspect_db_config(self, conn):
         result = await conn.sql_fetch_val(self.get_sys_query('dbconfig'))
@@ -774,16 +823,7 @@ class Server(ha_base.ClusterProtocol):
             return
 
         try:
-            extension_names_json = await conn.sql_fetch_val(
-                b'''
-                    SELECT json_agg(name) FROM edgedb."_SchemaExtension";
-                ''',
-            )
-            if extension_names_json:
-                extensions = set(json.loads(extension_names_json))
-            else:
-                extensions = set()
-
+            extensions = await self._introspect_extensions(conn)
             assert self._dbindex is not None
             self._dbindex.register_db(
                 dbname,
@@ -813,7 +853,7 @@ class Server(ha_base.ClusterProtocol):
                 g.create_task(self._early_introspect_db(dbname))
 
     async def get_patch_count(self, conn):
-        """Apply any un-applied patches to the database."""
+        """Get the number of applied patches."""
         num_patches = await conn.sql_fetch_val(
             b'''
                 SELECT json::json from edgedbinstdata.instdata
@@ -823,20 +863,57 @@ class Server(ha_base.ClusterProtocol):
         num_patches = json.loads(num_patches) if num_patches else 0
         return num_patches
 
+    async def _get_patch_log(self, conn, idx):
+        # We need to maintain a log in the system database of
+        # patches that have been applied. This is so that if a
+        # patch creates a new object, and then we succesfully
+        # apply the patch to a user db but crash *before* applying
+        # it to the system db, when we start up again and try
+        # applying it to the system db, it is important that we
+        # apply the same compiled version of the patch. If we
+        # instead recompiled it, and it created new objects, those
+        # objects might have a different id in the std schema and
+        # in the actual user db.
+        result = await conn.sql_fetch_val(f'''\
+            SELECT bin FROM edgedbinstdata.instdata
+            WHERE key = 'patch_log_{idx}';
+        '''.encode('utf-8'))
+        if result:
+            return pickle.loads(result)
+        else:
+            return None
+
     async def _prepare_patches(self, conn):
         """Prepare all the patches"""
         num_patches = await self.get_patch_count(conn)
-        schema = self._std_schema
 
         patches = {}
         patch_list = list(enumerate(pg_patches.PATCHES))
         for num, (kind, patch) in patch_list[num_patches:]:
             from . import bootstrap
-            sql, syssql, schema = bootstrap.prepare_patch(
-                num, kind, patch, schema, self._refl_schema,
-                self._schema_class_layout, self.get_backend_runtime_params())
 
-            patches[num] = (sql, syssql, schema)
+            idx = num_patches + num
+            if not (entry := await self._get_patch_log(conn, idx)):
+                entry = bootstrap.prepare_patch(
+                    num, kind, patch, self._std_schema, self._refl_schema,
+                    self._schema_class_layout,
+                    self.get_backend_runtime_params())
+
+                await bootstrap._store_static_bin_cache_conn(
+                    conn, f'patch_log_{idx}', pickle.dumps(entry))
+
+            patches[num] = entry
+            _, _, updates = entry
+            if 'stdschema' in updates:
+                self._std_schema = updates['stdschema']
+            if 'reflschema' in updates:
+                self._refl_schema = updates['reflschema']
+            if 'local_intro_query' in updates:
+                self._local_intro_query = updates['local_intro_query']
+            if 'global_intro_query' in updates:
+                self._global_intro_query = updates['global_intro_query']
+            if 'classlayout' in updates:
+                self._schema_class_layout = updates['classlayout']
 
         return patches
 
@@ -891,7 +968,6 @@ class Server(ha_base.ClusterProtocol):
         async with self._use_sys_pgcon() as syscon:
             await self._maybe_apply_patches(
                 defines.EDGEDB_SYSTEM_DB, syscon, patches, sys=True)
-        self._std_schema = patches[max(patches)][-1]
 
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()
@@ -923,40 +999,43 @@ class Server(ha_base.ClusterProtocol):
             self._sys_queries = immutables.Map(
                 {k: q.encode() for k, q in queries.items()})
 
-            self._local_intro_query = await syscon.sql_fetch_val(b'''\
-                SELECT text FROM edgedbinstdata.instdata
-                WHERE key = 'local_intro_query';
-            ''')
+            patch_count = await self.get_patch_count(syscon)
+            version_key = pg_patches.get_version_key(patch_count)
 
-            self._global_intro_query = await syscon.sql_fetch_val(b'''\
+            self._local_intro_query = await syscon.sql_fetch_val(f'''\
                 SELECT text FROM edgedbinstdata.instdata
-                WHERE key = 'global_intro_query';
-            ''')
+                WHERE key = 'local_intro_query{version_key}';
+            '''.encode('utf-8'))
 
-            result = await syscon.sql_fetch_val(b'''\
+            self._global_intro_query = await syscon.sql_fetch_val(f'''\
+                SELECT text FROM edgedbinstdata.instdata
+                WHERE key = 'global_intro_query{version_key}';
+            '''.encode('utf-8'))
+
+            result = await syscon.sql_fetch_val(f'''\
                 SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'stdschema';
-            ''')
+                WHERE key = 'stdschema{version_key}';
+            '''.encode('utf-8'))
             try:
                 self._std_schema = pickle.loads(result[2:])
             except Exception as e:
                 raise RuntimeError(
                     'could not load std schema pickle') from e
 
-            result = await syscon.sql_fetch_val(b'''\
+            result = await syscon.sql_fetch_val(f'''\
                 SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'reflschema';
-            ''')
+                WHERE key = 'reflschema{version_key}';
+            '''.encode('utf-8'))
             try:
                 self._refl_schema = pickle.loads(result[2:])
             except Exception as e:
                 raise RuntimeError(
                     'could not load refl schema pickle') from e
 
-            result = await syscon.sql_fetch_val(b'''\
+            result = await syscon.sql_fetch_val(f'''\
                 SELECT bin FROM edgedbinstdata.instdata
-                WHERE key = 'classlayout';
-            ''')
+                WHERE key = 'classlayout{version_key}';
+            '''.encode('utf-8'))
             try:
                 self._schema_class_layout = pickle.loads(result[2:])
             except Exception as e:
@@ -1385,6 +1464,20 @@ class Server(ha_base.ClusterProtocol):
 
         self.create_task(task(), interruptable=True)
 
+    def _on_database_extensions_changes(self, dbname):
+        if not self._accept_new_tasks:
+            return
+
+        async def task():
+            try:
+                await self.introspect_extensions(dbname)
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, 'on_database_extensions_change')
+                raise
+
+        self.create_task(task(), interruptable=True)
+
     def _on_local_database_config_change(self, dbname):
         if not self._accept_new_tasks:
             return
@@ -1707,14 +1800,58 @@ class Server(ha_base.ClusterProtocol):
 
         return servers, port, addrs
 
-    def init_tls(
-        self,
-        tls_cert_file,
-        tls_key_file,
-        tls_cert_newly_generated,
-    ):
-        assert self._sslctx is None
+    def init_readiness_state(self, state_file):
+        def reload_state_file(_file_modified, _event):
+            self.reload_readiness_state(state_file)
+
+        self.reload_readiness_state(state_file)
+        self._file_watch_handles.append(
+            self.__loop._monitor_fs(str(state_file), reload_state_file)
+        )
+
+    def reload_readiness_state(self, state_file):
+        try:
+            with open(state_file, 'rt') as rt:
+                state = rt.readline().strip()
+                try:
+                    self._readiness = srvargs.ReadinessState(state)
+                    logger.info(
+                        "readiness state file changed, "
+                        "setting server readiness to %r",
+                        state,
+                    )
+                except ValueError:
+                    logger.warning(
+                        "invalid state in readiness state file (%r): %r, "
+                        "resetting server readiness to 'default'",
+                        state_file,
+                        state,
+                    )
+                    self._readiness = srvargs.ReadinessState.Default
+
+        except FileNotFoundError:
+            logger.info(
+                "readiness state file (%s) removed, resetting "
+                "server readiness to 'default'",
+                state_file,
+            )
+            self._readiness = srvargs.ReadinessState.Default
+
+        except Exception as e:
+            logger.warning(
+                "cannot read readiness state file (%s): %s, "
+                "resetting server readiness to 'default'",
+                state_file,
+                e,
+            )
+            self._readiness = srvargs.ReadinessState.Default
+
+    def reload_tls(self, tls_cert_file, tls_key_file):
+        logger.info("loading TLS certificates")
         tls_password_needed = False
+        if self._tls_certs_reload_retry_handle is not None:
+            self._tls_certs_reload_retry_handle.cancel()
+            self._tls_certs_reload_retry_handle = None
 
         def _tls_private_key_password():
             nonlocal tls_password_needed
@@ -1765,15 +1902,58 @@ class Server(ha_base.ClusterProtocol):
 
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
         self._sslctx = sslctx
+
+    def init_tls(
+        self,
+        tls_cert_file,
+        tls_key_file,
+        tls_cert_newly_generated,
+    ):
+        assert self._sslctx is None
+        self.reload_tls(tls_cert_file, tls_key_file)
+
         self._tls_cert_file = str(tls_cert_file)
         self._tls_cert_newly_generated = tls_cert_newly_generated
 
-    def init_jwcrypto(
+        def reload_tls(_file_modified, _event, retry=0):
+            try:
+                self.reload_tls(tls_cert_file, tls_key_file)
+            except (StartupError, FileNotFoundError) as e:
+                if retry > defines._TLS_CERT_RELOAD_MAX_RETRIES:
+                    logger.critical(str(e))
+                    self.request_shutdown()
+                else:
+                    delay = defines._TLS_CERT_RELOAD_EXP_INTERVAL * 2 ** retry
+                    logger.warning("%s; retrying in %.1f seconds.", e, delay)
+                    self._tls_certs_reload_retry_handle = (
+                        self.__loop.call_later(
+                            delay,
+                            reload_tls,
+                            _file_modified,
+                            _event,
+                            retry + 1,
+                        )
+                    )
+            except Exception:
+                logger.critical(
+                    "error while reloading TLS certificate and/or key, "
+                    "shutting down.",
+                    exc_info=True,
+                )
+                self.request_shutdown()
+
+        self._file_watch_handles.append(
+            self.__loop._monitor_fs(str(tls_cert_file), reload_tls)
+        )
+        if tls_cert_file != tls_key_file:
+            self._file_watch_handles.append(
+                self.__loop._monitor_fs(str(tls_key_file), reload_tls)
+            )
+
+    def load_jwcrypto(
         self,
         jws_key_file: pathlib.Path,
         jwe_key_file: pathlib.Path,
-        jws_keys_newly_generated: bool,
-        jwe_keys_newly_generated: bool,
     ) -> None:
         try:
             with open(jws_key_file, 'rb') as kf:
@@ -1802,6 +1982,15 @@ class Server(ha_base.ClusterProtocol):
             raise StartupError(
                 f"the provided JWE key file does not "
                 f"contain a valid RSA or EC private key")
+
+    def init_jwcrypto(
+        self,
+        jws_key_file: pathlib.Path,
+        jwe_key_file: pathlib.Path,
+        jws_keys_newly_generated: bool,
+        jwe_keys_newly_generated: bool,
+    ) -> None:
+        self.load_jwcrypto(jws_key_file, jwe_key_file)
         self._jws_keys_newly_generated = jws_keys_newly_generated
         self._jwe_keys_newly_generated = jwe_keys_newly_generated
 
@@ -1884,6 +2073,9 @@ class Server(ha_base.ClusterProtocol):
                 f"shutting down server: no clients connected in last"
                 f" {self._auto_shutdown_after} seconds"
             )
+        self.request_shutdown()
+
+    def request_shutdown(self):
         self._accepting_connections = False
         self._stop_evt.set()
 
@@ -1899,6 +2091,10 @@ class Server(ha_base.ClusterProtocol):
             self._cluster.stop_watching()
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
+
+            for handle in self._file_watch_handles:
+                handle.cancel()
+            self._file_watch_handles.clear()
 
             await self._stop_servers(self._servers.values())
             self._servers = {}

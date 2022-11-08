@@ -38,6 +38,9 @@ class Capability(enum.IntFlag):
     TRANSACTION       = 1 << 2    # noqa
     DDL               = 1 << 3    # noqa
     PERSISTENT_CONFIG = 1 << 4    # noqa
+    # SET_GLOBAL should also be implied by SESSION_CONFIG, for
+    # backward compatability reasons
+    SET_GLOBAL        = 1 << 5    # noqa
 
     ALL               = 0xFFFF_FFFF_FFFF_FFFF  # noqa
 
@@ -64,6 +67,7 @@ CAPABILITY_TITLES = {
     Capability.TRANSACTION: 'transaction control commands',
     Capability.DDL: 'DDL commands',
     Capability.PERSISTENT_CONFIG: 'configuration commands',
+    Capability.SET_GLOBAL: 'set global',
 }
 
 

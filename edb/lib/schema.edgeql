@@ -49,6 +49,8 @@ CREATE SCALAR TYPE schema::AccessPolicyAction
 CREATE SCALAR TYPE schema::AccessKind
     EXTENDING enum<`Select`, UpdateRead, UpdateWrite, `Delete`, `Insert`>;
 
+CREATE SCALAR TYPE schema::MigrationGeneratedBy
+    EXTENDING enum<DevMode, DDLStatement>;
 
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
@@ -123,6 +125,9 @@ CREATE TYPE schema::Array EXTENDING schema::CollectionType {
 };
 
 
+CREATE TYPE schema::ArrayExprAlias EXTENDING schema::Array;
+
+
 CREATE TYPE schema::TupleElement EXTENDING std::BaseObject {
     CREATE REQUIRED LINK type -> schema::Type {
         ON TARGET DELETE DEFERRED RESTRICT;
@@ -140,11 +145,17 @@ CREATE TYPE schema::Tuple EXTENDING schema::CollectionType {
 };
 
 
+CREATE TYPE schema::TupleExprAlias EXTENDING schema::Tuple;
+
+
 CREATE TYPE schema::Range EXTENDING schema::CollectionType {
     CREATE REQUIRED LINK element_type -> schema::Type {
         ON TARGET DELETE DEFERRED RESTRICT;
     };
 };
+
+
+CREATE TYPE schema::RangeExprAlias EXTENDING schema::Range;
 
 
 CREATE TYPE schema::Delta EXTENDING schema::Object {
@@ -400,6 +411,7 @@ ALTER TYPE schema::AccessPolicy {
   CREATE PROPERTY condition -> std::str;
   CREATE REQUIRED PROPERTY action -> schema::AccessPolicyAction;
   CREATE PROPERTY expr -> std::str;
+  CREATE PROPERTY errmessage -> std::str;
 };
 
 
@@ -485,8 +497,11 @@ CREATE TYPE schema::Migration
     CREATE MULTI LINK parents -> schema::Migration;
     CREATE REQUIRED PROPERTY script -> str;
     CREATE PROPERTY message -> str;
+    CREATE PROPERTY generated_by -> schema::MigrationGeneratedBy;
 };
 
 
 # The package link is added in sys.edgeql
 CREATE TYPE schema::Extension EXTENDING schema::AnnotationSubject;
+
+CREATE TYPE schema::FutureBehavior EXTENDING schema::Object;

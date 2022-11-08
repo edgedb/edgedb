@@ -333,6 +333,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         super().__init__()
         self._connect_args = connect_args
         self._protocol = None
+        self._transport = None
         self._query_cache = abstract.QueryCache(
             codecs_registry=protocol.CodecsRegistry(),
             query_cache=protocol.QueryCodecsCache(),
@@ -580,6 +581,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             raise
 
         self._protocol = pr
+        self._transport = tr
 
     def retrying_transaction(self) -> Retry:
         return Retry(self)
@@ -612,6 +614,9 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
     def terminate(self):
         if not self.is_closed():
             self._protocol.abort()
+
+    def get_transport(self):
+        return self._transport
 
 
 async def async_connect_test_client(

@@ -30,14 +30,27 @@ class SkipNode(Exception):
     pass
 
 
-def find_children(node, test_func, *args,
-                  terminate_early=False, **kwargs):
+_T = TypeVar('_T')
+
+
+def find_children(
+    node: base.AST | Collection[base.AST],
+    type: Type[_T],
+    test_func: Optional[Callable[[_T], bool]] = None,
+    terminate_early=False,
+    extra_skips: AbstractSet[str] = frozenset(),
+) -> list[_T]:
     visited = set()
     result = []
 
     def _find_children(node):
         if isinstance(node, (tuple, list, set, frozenset)):
             for n in node:
+                if _find_children(n):
+                    return True
+            return False
+        elif isinstance(node, dict):
+            for n in node.values():
                 if _find_children(n):
                     return True
             return False
@@ -50,7 +63,7 @@ def find_children(node, test_func, *args,
             visited.add(node)
 
         try:
-            if test_func(node, *args, **kwargs):
+            if isinstance(node, type) and (not test_func or test_func(node)):
                 result.append(node)
                 if terminate_early:
                     return True
@@ -59,7 +72,7 @@ def find_children(node, test_func, *args,
 
         for field, value in base.iter_fields(node, include_meta=False):
             field_spec = node._fields[field]
-            if field_spec.hidden:
+            if field_spec.hidden or field_spec.name in extra_skips:
                 continue
 
             if _find_children(value):
@@ -68,13 +81,7 @@ def find_children(node, test_func, *args,
         return False
 
     _find_children(node)
-    if terminate_early:
-        if result:
-            return result[0]
-        else:
-            return None
-    else:
-        return result
+    return result
 
 
 class NodeVisitor:

@@ -858,12 +858,8 @@ class CallableObject(
         canonical_order = canonical_param_sort(schema, params)
         for param in canonical_order:
             pt = param.get_type_shell(schema)
-            if isinstance(pt, s_types.CollectionTypeShell):
-                quals.append(pt.get_schema_class_displayname())
-                pt_id = str(pt.get_id(schema))
-            else:
-                pt_id = str(pt.name)
 
+            pt_id = str(pt.get_name(schema))
             quals.append(pt_id)
             pk = param.get_kind(schema)
             if pk is ft.ParameterKind.NamedOnlyParam:

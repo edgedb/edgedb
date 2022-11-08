@@ -68,7 +68,6 @@ MAX_UNIX_SOCKET_PATH_LENGTH = 21
 MAX_RUNSTATE_DIR_PATH = 104 - MAX_UNIX_SOCKET_PATH_LENGTH - 1
 
 HTTP_PORT_QUERY_CACHE_SIZE = 1000
-HTTP_PORT_MAX_CONCURRENCY = 250  # XXX
 
 # The time in seconds the EdgeDB server shall wait between retries to connect
 # to the system database after the connection was broken during runtime.
@@ -82,3 +81,6 @@ MAX_LEGACY_PROTOCOL = (0, 14)
 
 MIN_SUGGESTED_CLIENT_POOL_SIZE = 10
 MAX_SUGGESTED_CLIENT_POOL_SIZE = 100
+
+_TLS_CERT_RELOAD_MAX_RETRIES = 5
+_TLS_CERT_RELOAD_EXP_INTERVAL = 0.1

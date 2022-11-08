@@ -1070,7 +1070,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CreateExtension(
         self,
-        node: qlast.CreateExtensionPackage,
+        node: qlast.CreateExtension,
     ) -> None:
         if self.sdlmode or self.descmode:
             self._write_keywords('using extension')
@@ -1089,6 +1089,23 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         node: qlast.DropExtension,
     ) -> None:
         self._visit_DropObject(node, 'EXTENSION')
+
+    def visit_CreateFuture(
+        self,
+        node: qlast.CreateFuture,
+    ) -> None:
+        if self.sdlmode or self.descmode:
+            self._write_keywords('using future')
+        else:
+            self._write_keywords('CREATE FUTURE')
+        self.write(' ')
+        self.write(ident_to_str(node.name.name))
+
+    def visit_DropFuture(
+        self,
+        node: qlast.DropFuture,
+    ) -> None:
+        self._visit_DropObject(node, 'FUTURE')
 
     def visit_CreateMigration(self, node: qlast.CreateMigration) -> None:
         self._write_keywords('CREATE')
@@ -1113,19 +1130,37 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._ddl_visit_body(node.body.commands)
 
     def visit_StartMigration(self, node: qlast.StartMigration) -> None:
-        self._write_keywords('START MIGRATION TO {')
-        self.new_lines = 1
-        self.indentation += 1
-        self.visit(node.target)
-        self.indentation -= 1
-        self.new_lines = 1
-        self.write('}')
+        if isinstance(node.target, qlast.CommittedSchema):
+            self._write_keywords('START MIGRATION TO COMMITTED SCHEMA')
+        else:
+            self._write_keywords('START MIGRATION TO {')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.target)
+            self.indentation -= 1
+            self.new_lines = 1
+            self.write('}')
 
     def visit_CommitMigration(self, node: qlast.CommitMigration) -> None:
         self._write_keywords('COMMIT MIGRATION')
 
     def visit_AbortMigration(self, node: qlast.AbortMigration) -> None:
         self._write_keywords('ABORT MIGRATION')
+
+    def visit_PopulateMigration(self, node: qlast.PopulateMigration) -> None:
+        self._write_keywords('POPULATE MIGRATION')
+
+    def visit_StartMigrationRewrite(
+            self, node: qlast.StartMigrationRewrite) -> None:
+        self._write_keywords('START MIGRATION REWRITE')
+
+    def visit_CommitMigrationRewrite(
+            self, node: qlast.CommitMigrationRewrite) -> None:
+        self._write_keywords('COMMIT MIGRATION REWRITE')
+
+    def visit_AbortMigrationRewrite(
+            self, node: qlast.AbortMigrationRewrite) -> None:
+        self._write_keywords('ABORT MIGRATION REWRITE')
 
     def visit_DescribeCurrentMigration(
         self,

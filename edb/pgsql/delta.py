@@ -42,6 +42,7 @@ from edb.schema import delta as sd
 from edb.schema import expr as s_expr
 from edb.schema import expraliases as s_aliases
 from edb.schema import extensions as s_exts
+from edb.schema import futures as s_futures
 from edb.schema import functions as s_funcs
 from edb.schema import globals as s_globals
 from edb.schema import indexes as s_indexes
@@ -2931,17 +2932,23 @@ class CompositeMetaCommand(MetaCommand):
         bases = set(obj.get_bases(schema).objects(schema))
         orig_bases = set(obj.get_bases(orig_schema).objects(orig_schema))
 
-        for new_base in bases - orig_bases:
-            if has_table(new_base, schema):
-                self.alter_inhview(schema, context, new_base)
+        base_ancestors = set()
+        for base in bases.symmetric_difference(orig_bases):
+            base_ancestors.add(base)
+            base_ancestors.update(base.get_ancestors(schema).objects(schema))
 
-        for old_base in orig_bases - bases:
-            if has_table(old_base, schema) and not context.is_deleting(
-                old_base
-            ):
+        # Now filter out any ancestors where the relationship did not
+        # actually change. (This should always get Object and
+        # BaseObject, at least.)
+        base_ancestors = {
+            b for b in base_ancestors
+            if obj.issubclass(schema, b) != obj.issubclass(orig_schema, b)
+        }
+
+        for base in base_ancestors:
+            if has_table(base, schema) and not context.is_deleting(base):
                 self.alter_inhview(
-                    schema, context, old_base,
-                    exclude_children=frozenset((obj,)))
+                    schema, context, base, alter_ancestors=False)
 
     def alter_ancestor_inhviews(
         self,
@@ -4117,6 +4124,7 @@ class PointerMetaCommand(MetaCommand):
                 context,
                 conv_expr,
                 target_as_singleton=target_as_singleton,
+                no_query_rewrites=True,
             )
             ir = conv_expr.irast
 
@@ -4139,6 +4147,7 @@ class PointerMetaCommand(MetaCommand):
                     schema=orig_schema,
                 ),
                 target_as_singleton=target_as_singleton,
+                no_query_rewrites=True,
             )
 
             ir = conv_expr.irast
@@ -4318,7 +4327,7 @@ class LinkMetaCommand(CompositeMetaCommand, PointerMetaCommand):
         ct = dbops.CreateTable(table=table)
 
         index_name = common.edgedb_name_to_pg_name(
-            str(link.get_name(schema)) + 'target_id_default_idx')
+            str(link.id) + '_target_key')
         index = dbops.Index(index_name, new_table_name, unique=False)
         index.add_columns([tgt_col])
         ci = dbops.CreateIndex(index)
@@ -6432,6 +6441,28 @@ class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
 
 
 class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
+    pass
+
+
+class FutureBehaviorCommand(MetaCommand):
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+        if self.future_cmd:
+            self.pgops.add(self.future_cmd)
+        return schema
+
+
+class CreateFutureBehavior(
+        FutureBehaviorCommand, adapts=s_futures.CreateFutureBehavior):
+    pass
+
+
+class DeleteFutureBehavior(
+        FutureBehaviorCommand, adapts=s_futures.DeleteFutureBehavior):
     pass
 
 

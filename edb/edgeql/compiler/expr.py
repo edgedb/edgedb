@@ -53,6 +53,7 @@ from . import inference
 from . import pathctx
 from . import setgen
 from . import stmt
+from . import tuple_args
 from . import typegen
 
 from . import func  # NOQA
@@ -539,25 +540,6 @@ def compile_TypeCast(
     elif isinstance(expr.expr, qlast.Parameter):
         pt = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
 
-        if (
-            (pt.is_tuple(ctx.env.schema) or pt.is_anytuple(ctx.env.schema))
-            and not ctx.env.options.func_params
-        ):
-            raise errors.QueryError(
-                'cannot pass tuples as query parameters',
-                context=expr.expr.context,
-            )
-
-        if (
-            pt.contains_array_of_tuples(ctx.env.schema)
-            and not ctx.env.options.func_params
-        ):
-            raise errors.QueryError(
-                'cannot pass collections with tuple elements'
-                ' as query parameters',
-                context=expr.expr.context,
-            )
-
         param_name = expr.expr.name
         if expr.cardinality_mod:
             if expr.cardinality_mod == qlast.CardinalityModifier.Optional:
@@ -607,7 +589,9 @@ def compile_TypeCast(
             )
 
         if ex_param := ctx.env.script_params.get(param_name):
-            param_first_type = ex_param.schema_type
+            # N.B. Accessing the schema_type from the param is unreliable
+            ctx.env.schema, param_first_type = irtyputils.ir_typeref_to_type(
+                ctx.env.schema, ex_param.ir_type)
             if param_first_type != pt:
                 raise errors.QueryError(
                     f'parameter type '
@@ -617,11 +601,17 @@ def compile_TypeCast(
                     context=expr.expr.context)
 
         if param_name not in ctx.env.query_parameters:
+            sub_params = None
+            if ex_param and ex_param.sub_params:
+                sub_params = tuple_args.finish_sub_params(
+                    ex_param.sub_params, ctx=ctx)
+
             ctx.env.query_parameters[param_name] = irast.Param(
                 name=param_name,
                 required=required,
                 schema_type=pt,
                 ir_type=typeref,
+                sub_params=sub_params,
             )
 
         return param

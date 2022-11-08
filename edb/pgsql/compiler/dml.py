@@ -35,7 +35,7 @@ from __future__ import annotations
 from typing import *
 
 from edb.common import uuidgen
-from edb.common.typeutils import not_none
+from edb.common.typeutils import downcast, not_none
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -90,6 +90,8 @@ def init_dml_stmt(
     """
     range_cte: Optional[pgast.CommonTableExpr]
     range_rvar: Optional[pgast.RelRangeVar]
+
+    clauses.compile_dml_bindings(ir_stmt, ctx=ctx)
 
     if isinstance(ir_stmt, (irast.UpdateStmt, irast.DeleteStmt)):
         # UPDATE and DELETE operate over a range, so generate
@@ -286,9 +288,7 @@ def gen_dml_cte(
                 range_rvar, target_ir_set.path_id, env=ctx.env)
         )
         # Do any read-side filtering
-        if (
-            (pol_expr := ir_stmt.read_policy_exprs.get(typeref.id))
-        ):
+        if pol_expr := ir_stmt.read_policies.get(typeref.id):
             with ctx.newrel() as sctx:
                 pathctx.put_path_value_rvar(
                     sctx.rel, target_path_id, relation, env=ctx.env)
@@ -731,8 +731,7 @@ def process_insert_body(
 
     # Populate the real insert statement based on the select we generated
     insert_stmt.cols = [
-        pgast.ColumnRef(name=[not_none(value.name)])
-        for value in values
+        pgast.InsertTarget(name=not_none(value.name)) for value in values
     ]
     insert_stmt.select_stmt = pgast.SelectStmt(
         target_list=[
@@ -768,7 +767,7 @@ def process_insert_body(
 
     dml_cte = contents_cte if not needs_insert_on_conflict else insert_cte
 
-    pol_expr = ir_stmt.write_policy_exprs.get(typeref.id)
+    pol_expr = ir_stmt.write_policies.get(typeref.id)
     pol_ctx = None
     if pol_expr:
         with ctx.new() as pol_ctx:
@@ -822,12 +821,13 @@ def process_insert_body(
 
 
 def compile_policy_check(
-        dml_cte: pgast.CommonTableExpr,
-        ir_stmt: irast.MutatingStmt,
-        policy_expr: irast.PolicyExpr,
-        typeref: irast.TypeRef,
-        *,
-        ctx: context.CompilerContextLevel) -> pgast.CommonTableExpr:
+    dml_cte: pgast.CommonTableExpr,
+    ir_stmt: irast.MutatingStmt,
+    access_policies: irast.WritePolicies,
+    typeref: irast.TypeRef,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.CommonTableExpr:
     subject_id = ir_stmt.subject.path_id
 
     with ctx.newrel() as ictx:
@@ -840,31 +840,82 @@ def compile_policy_check(
         dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
         relctx.include_rvar(ictx.rel, dml_rvar, path_id=subject_id, ctx=ictx)
 
-        cond_ref = clauses.compile_filter_clause(
-            policy_expr.expr, policy_expr.cardinality, ctx=ictx)
+        # split and compile
+        allow, deny = [], []
+        for policy in access_policies.policies:
+            cond_ref = clauses.compile_filter_clause(
+                policy.expr, policy.cardinality, ctx=ictx
+            )
 
-        op = 'insert' if isinstance(ir_stmt, irast.InsertStmt) else 'update'
+            if policy.action == qltypes.AccessPolicyAction.Allow:
+                allow.append((policy, cond_ref))
+            else:
+                deny.append((policy, cond_ref))
+
+        def raise_if(a: pgast.BaseExpr, msg: pgast.BaseExpr) -> pgast.BaseExpr:
+            return pgast.FuncCall(
+                name=('edgedb', 'raise_on_null'),
+                args=[
+                    pgast.FuncCall(
+                        name=('nullif',),
+                        args=[a, pgast.BooleanConstant(val='TRUE')],
+                    ),
+                    pgast.StringConstant(val='insufficient_privilege'),
+                    pgast.NamedFuncArg(
+                        name='msg',
+                        val=msg,
+                    ),
+                    pgast.NamedFuncArg(
+                        name='table',
+                        val=pgast.StringConstant(val=str(typeref.id)),
+                    ),
+                ],
+            )
+
+        # allow
+        if allow:
+            allow_conds = (cond for _, cond in allow)
+            no_allow_expr: pgast.BaseExpr = astutils.new_unop(
+                'NOT', astutils.extend_binop(None, *allow_conds, op='OR')
+            )
+        else:
+            no_allow_expr = pgast.BooleanConstant(val='TRUE')
+
+        # deny
+        deny_exprs = (cond for _, cond in deny)
+
+        # message
+        if isinstance(ir_stmt, irast.InsertStmt):
+            op = 'insert'
+        else:
+            op = 'update'
         msg = f'access policy violation on {op} of {typeref.name_hint}'
-        maybe_raise = pgast.FuncCall(
-            name=('edgedb', 'raise_on_null'),
-            args=[
-                pgast.FuncCall(
-                    name=('nullif',),
-                    args=[cond_ref, pgast.BooleanConstant(val='false')],
-                ),
-                pgast.StringConstant(val='insufficient_privilege'),
-                pgast.NamedFuncArg(
-                    name='msg',
-                    val=pgast.StringConstant(val=msg),
-                ),
-                pgast.NamedFuncArg(
-                    name='table',
-                    val=pgast.StringConstant(val=str(typeref.id)),
-                ),
-            ],
-        )
+
+        allow_hints = (pol.error_msg for pol, _ in allow if pol.error_msg)
+        allow_hint = ', '.join(allow_hints)
+
+        hints = [(allow_hint, no_allow_expr)] + [
+            (pol.error_msg, cond) for pol, cond in deny if pol.error_msg
+        ]
+
+        hint = _conditional_string_agg(hints)
+        if hint:
+            hint = astutils.new_coalesce(
+                astutils.extend_concat(' (', hint, ')'),
+                pgast.StringConstant(val=''),
+            )
+            message = astutils.extend_concat(msg, hint)
+        else:
+            message = astutils.extend_concat(msg)
+
         ictx.rel.target_list.append(
-            pgast.ResTarget(name='error', val=maybe_raise)
+            pgast.ResTarget(
+                name=f'error',
+                val=raise_if(
+                    astutils.extend_binop(no_allow_expr, *deny_exprs, op='OR'),
+                    msg=message,
+                ),
+            )
         )
 
         policy_cte = pgast.CommonTableExpr(
@@ -874,6 +925,49 @@ def compile_policy_check(
         )
         ictx.toplevel_stmt.append_cte(policy_cte)
         return policy_cte
+
+
+def _conditional_string_agg(
+    pairs: Sequence[Tuple[Optional[str], pgast.BaseExpr]],
+) -> Optional[pgast.BaseExpr]:
+
+    selects = [
+        pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.StringConstant(val=str)
+                    if str
+                    else pgast.NullConstant()
+                )
+            ],
+            where_clause=cond,
+        )
+        for str, cond in pairs
+    ]
+    union = astutils.extend_select_op(None, *selects)
+
+    if not union:
+        return None
+
+    return pgast.SelectStmt(
+        target_list=[
+            pgast.ResTarget(
+                val=pgast.FuncCall(
+                    name=('string_agg',),
+                    args=[
+                        pgast.ColumnRef(name=('error_msg',)),
+                        pgast.StringConstant(val=', '),
+                    ],
+                ),
+            )
+        ],
+        from_clause=[
+            pgast.RangeSubselect(
+                subquery=union,
+                alias=pgast.Alias(aliasname='t', colnames=['error_msg']),
+            )
+        ],
+    )
 
 
 def force_policy_checks(
@@ -1428,7 +1522,7 @@ def process_update_body(
 
         update_cte.query = update_stmt
 
-    pol_expr = ir_stmt.write_policy_exprs.get(typeref.id)
+    pol_expr = ir_stmt.write_policies.get(typeref.id)
     pol_ctx = None
     if pol_expr:
         with ctx.new() as pol_ctx:
@@ -2138,7 +2232,10 @@ def process_link_update(
         query=pgast.InsertStmt(
             relation=target_rvar,
             select_stmt=data_select,
-            cols=cols,
+            cols=[
+                pgast.InsertTarget(name=downcast(col.name[0], str))
+                for col in cols
+            ],
             on_conflict=conflict_clause,
             returning_list=[
                 pgast.ResTarget(

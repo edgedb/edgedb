@@ -24,6 +24,7 @@ import functools
 import hashlib
 import base64
 import re
+from typing import *
 
 from edb.common import uuidgen
 from edb.schema import abc as s_abc
@@ -40,10 +41,12 @@ from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import schema as s_schema
 
+from edb.pgsql import ast as pgast
+
 from . import keywords as pg_keywords
 
 
-def quote_e_literal(string):
+def quote_e_literal(string: str) -> str:
     def escape_sq(s):
         split = re.split(r"(\n|\\\\|\\')", s)
 
@@ -60,12 +63,14 @@ def quote_literal(string):
     return "'" + string.replace("'", "''") + "'"
 
 
-def _quote_ident(string):
+def _quote_ident(string: str) -> str:
     return '"' + string.replace('"', '""') + '"'
 
 
-def quote_ident(string, *, force=False):
-    return _quote_ident(string) if needs_quoting(string) or force else string
+def quote_ident(ident: str | pgast.Star, *, force=False) -> str:
+    if isinstance(ident, pgast.Star):
+        return "*"
+    return _quote_ident(ident) if needs_quoting(ident) or force else ident
 
 
 def quote_bytea_literal(data: bytes) -> str:
@@ -78,7 +83,7 @@ def quote_bytea_literal(data: bytes) -> str:
         return "''::bytea"
 
 
-def needs_quoting(string):
+def needs_quoting(string: str) -> bool:
     isalnum = (string and not string[0].isdecimal() and
                string.replace('_', 'a').isalnum())
     return (
@@ -91,12 +96,12 @@ def needs_quoting(string):
     )
 
 
-def qname(*parts):
+def qname(*parts: str | pgast.Star):
     assert len(parts) <= 3, parts
     return '.'.join([quote_ident(q) for q in parts])
 
 
-def quote_type(type_):
+def quote_type(type_: Tuple[str, ...] | str):
     if isinstance(type_, tuple):
         first = qname(*type_[:-1]) + '.' if len(type_) > 1 else ''
         last = type_[-1]

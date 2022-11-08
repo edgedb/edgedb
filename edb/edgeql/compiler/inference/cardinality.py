@@ -70,7 +70,7 @@ class CardinalityBound(int, enum.Enum):
         return self is CB_ONE
 
     def as_schema_cardinality(self) -> qltypes.SchemaCardinality:
-        if self is CB_MANY:
+        if self >= CB_MANY:
             return qltypes.SchemaCardinality.Many
         else:
             return qltypes.SchemaCardinality.One
@@ -84,7 +84,7 @@ class CardinalityBound(int, enum.Enum):
         cls,
         card: qltypes.SchemaCardinality
     ) -> CardinalityBound:
-        if card is qltypes.SchemaCardinality.Many:
+        if card >= qltypes.SchemaCardinality.Many:
             return CB_MANY
         else:
             return CB_ONE
@@ -130,8 +130,8 @@ def cartesian_cardinality(
         lower, upper = card
         return _bounds_to_card(min(lower), max(upper))
     else:
-        # no args is indicative of a empty set
-        return AT_MOST_ONE
+        # cartesian product of no arguments is ONE (the 0-tuple)
+        return ONE
 
 
 def max_cardinality(
@@ -140,12 +140,9 @@ def max_cardinality(
     '''Maximum lower and upper bound of specified cardinalities.'''
 
     card = list(zip(*(_card_to_bounds(a) for a in args)))
-    if card:
-        lower, upper = card
-        return _bounds_to_card(max(lower), max(upper))
-    else:
-        # no args is indicative of a empty set
-        return AT_MOST_ONE
+    assert card, "cannot take max cardinality of no elements"
+    lower, upper = card
+    return _bounds_to_card(max(lower), max(upper))
 
 
 def _union_cardinality(
@@ -161,7 +158,7 @@ def _union_cardinality(
             CB_MANY if len(upper) > 1 else upper[0],
         )
     else:
-        # no args is indicative of a empty set
+        # union of no args is an empty set
         return AT_MOST_ONE
 
 
@@ -1101,11 +1098,16 @@ def _infer_dml_check_cardinality(
     ctx: inference_context.InfCtx,
 ) -> None:
     pctx = ctx._replace(singletons=ctx.singletons | {ir.result.path_id})
-    for pol in [
-        *ir.read_policy_exprs.values(), *ir.write_policy_exprs.values()
-    ]:
-        pol.cardinality = infer_cardinality(
-            pol.expr, scope_tree=scope_tree, ctx=pctx)
+    for read_pol in ir.read_policies.values():
+        read_pol.cardinality = infer_cardinality(
+            read_pol.expr, scope_tree=scope_tree, ctx=pctx
+        )
+
+    for write_pol in ir.write_policies.values():
+        for p in write_pol.policies:
+            p.cardinality = infer_cardinality(
+                p.expr, scope_tree=scope_tree, ctx=pctx
+            )
 
     if ir.conflict_checks:
         for on_conflict in ir.conflict_checks:
@@ -1261,8 +1263,10 @@ def __infer_insert_stmt(
     # ... except if UNLESS CONFLICT is used
     else:
         return _infer_on_conflict_cardinality(
-            ir.on_conflict, type_has_rewrites=bool(ir.write_policy_exprs),
-            scope_tree=scope_tree, ctx=ctx,
+            ir.on_conflict,
+            type_has_rewrites=bool(ir.write_policies),
+            scope_tree=scope_tree,
+            ctx=ctx,
         )
 
 
@@ -1367,8 +1371,6 @@ def __infer_tuple(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    if not ir.elements:
-        return ONE
     return _common_cardinality(
         [el.val for el in ir.elements], scope_tree=scope_tree, ctx=ctx
     )

@@ -60,6 +60,12 @@ class Migration(
         allow_ddl_set=True,
     )
 
+    generated_by = so.SchemaField(
+        str,
+        default=None,
+        allow_ddl_set=True,
+    )
+
     script = so.SchemaField(
         str,
     )

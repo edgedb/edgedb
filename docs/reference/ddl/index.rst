@@ -20,6 +20,7 @@ DDL
     access_policies
     functions
     extensions
+    future
     migrations
 
 :edb-alt-title: Data Definition Language

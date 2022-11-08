@@ -165,6 +165,8 @@ def _compile_group(
         ctx: context.CompilerContextLevel,
         parent_ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
+    clauses.compile_dml_bindings(stmt, ctx=ctx)
+
     query = ctx.stmt
 
     # Compile a GROUP BY into a subquery, along with all the aggregations
@@ -231,7 +233,7 @@ def _compile_group(
                 hoistctx.skippable_sources |= skippable
 
                 relgen.process_set_as_agg_expr_inner(
-                    group_use, hoistctx.rel,
+                    group_use,
                     aspect='value', wrapper=None, for_group_by=True,
                     ctx=hoistctx)
                 pathctx.get_path_value_output(

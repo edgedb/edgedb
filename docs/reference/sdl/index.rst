@@ -84,3 +84,4 @@ to the previous migration:
     access_policies
     functions
     extensions
+    future

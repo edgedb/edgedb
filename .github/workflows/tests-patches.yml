@@ -27,14 +27,14 @@ jobs:
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: '3.10.0'
 
     # Build virtualenv
 
     - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.2
+      uses: syphar/restore-virtualenv@v1
       id: venv-cache
       with:
         requirement_files: |
@@ -81,14 +81,14 @@ jobs:
     # Restore binary cache
 
     - name: Handle cached EdgeDB CLI binaries
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Handle cached Rust extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: rust-cache
       with:
         path: build/rust_extensions
@@ -97,23 +97,21 @@ jobs:
           edb-rust-v3-
 
     - name: Handle cached Cython extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
-        restore-keys: |
-          edb-ext-v4-
 
     - name: Handle cached PostgreSQL build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Handle cached Stolon build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: stolon-cache
       with:
         path: build/stolon/bin
@@ -145,7 +143,7 @@ jobs:
     # Build EdgeDB CLI
 
     - name: Handle EdgeDB CLI build cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       if: steps.cli-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/cli
@@ -167,7 +165,7 @@ jobs:
     # Build Rust extensions
 
     - name: Handle Rust extensions build cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       if: steps.rust-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/extensions
@@ -190,16 +188,20 @@ jobs:
         fi
         rsync -av ./build/rust_extensions/edb/ ./edb/
 
+    # Build libpg_query
+
+    - name: Build libpg_query
+      run: |
+        python setup.py build_libpg_query
+
     # Build extensions
 
     - name: Handle Cython extensions build cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       if: steps.ext-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/edb
         key: edb-ext-build-v3-${{ hashFiles('.tmp/ext_cache_key.txt') }}
-        restore-keys: |
-          edb-ext-build-v3-
 
     - name: Build Cython extensions
       env:
@@ -219,7 +221,7 @@ jobs:
     # Build parsers
 
     - name: Handle compiled parsers cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: parsers-cache
       with:
         path: build/lib
@@ -293,7 +295,7 @@ jobs:
     # Refresh the bootstrap cache
 
     - name: Handle bootstrap cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: bootstrap-cache
       with:
         path: build/cache
@@ -338,7 +340,8 @@ jobs:
         matrix = {"edgedb-version": versions, "make-dbs": [True, False]}
 
         print("matrix:", matrix)
-        print(f'::set-output name=matrix::{json.dumps(matrix)}')
+        with open(os.getenv('GITHUB_OUTPUT'), 'a') as f:
+            print(f'matrix={json.dumps(matrix)}', file=f)
 
   test:
     runs-on: ubuntu-latest
@@ -359,12 +362,12 @@ jobs:
         submodules: true
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: '3.10.0'
 
     - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.2
+      uses: syphar/restore-virtualenv@v1
       id: venv-cache
       with:
         requirement_files: |
@@ -375,7 +378,7 @@ jobs:
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v3
       with:
         name: shared-artifacts
         path: .tmp
@@ -391,49 +394,49 @@ jobs:
     # Restore build cache
 
     - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: cli-cache
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: rust-cache
       with:
         path: build/rust_extensions
         key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: ext-cache
       with:
         path: build/extensions
         key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: parsers-cache
       with:
         path: build/lib
         key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: postgres-cache
       with:
         path: build/postgres/install
         key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: stolon-cache
       with:
         path: build/stolon/bin
         key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
 
     - name: Restore bootstrap cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       id: bootstrap-cache
       with:
         path: build/cache
@@ -492,7 +495,7 @@ jobs:
         db = edgedb.create_client(
             host='localhost', port=10000, tls_security='insecure'
         )
-        for name in ['json', 'functions', 'expressions', 'casts']:
+        for name in ['json', 'functions', 'expressions', 'casts', 'policies']:
             db.execute(f'create database {name};')
 
         proc.terminate()
@@ -501,4 +504,43 @@ jobs:
     - name: Run tests with instance created on an older version
       run: |
         # Should we run *all* the tests?
-        edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py
+        edb test -j2 -v --data-dir test-dir tests/test_edgeql_json.py tests/test_edgeql_casts.py tests/test_edgeql_functions.py tests/test_edgeql_expressions.py tests/test_edgeql_policies.py
+
+    - name: Test downgrading a database after an upgrade
+      env:
+        EDGEDB_VERSION: ${{ matrix.edgedb-version }}
+      shell: python
+      run: |
+          import edgedb
+          import os
+          import subprocess
+          import json
+
+          version = os.getenv('EDGEDB_VERSION')
+          cmd = [
+              f'edgedb-server-{version}/bin/edgedb-server', '-D' 'test-dir',
+              '--testmode', '--security', 'insecure_dev_mode', '--port', '10000',
+          ]
+          proc = subprocess.Popen(cmd)
+
+          db = edgedb.create_client(
+              host='localhost', port=10000, tls_security='insecure',
+              database='policies',
+          )
+
+          try:
+              # Test that a basic query works
+              res = json.loads(db.query_json('''
+                  select Issue { name, number, watchers: {name} }
+                  filter .number = "1"
+              '''))
+              expected = [{
+                  "name": "Release EdgeDB",
+                  "number": "1",
+                  "watchers": [{"name": "Yury"}],
+              }]
+
+              assert res == expected, res
+          finally:
+              proc.terminate()
+              proc.wait()

@@ -73,9 +73,8 @@ class ConstraintMech:
     @classmethod
     def _edgeql_tree_to_exprdata(cls, sql_expr, is_multicol=False, refs=None):
         if refs is None:
-            flt = (
-                lambda n: isinstance(n, pg_ast.ColumnRef) and len(n.name) == 1)
-            refs = set(ast.find_children(sql_expr, flt))
+            refs = set(ast.find_children(
+                sql_expr, pg_ast.ColumnRef, lambda n: len(n.name) == 1))
 
         plain_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
 
@@ -133,8 +132,8 @@ class ConstraintMech:
 
         # Find all field references
         #
-        flt = lambda n: isinstance(n, pg_ast.ColumnRef) and len(n.name) == 1
-        refs = set(ast.find_children(sql_expr, flt))
+        refs = set(ast.find_children(
+            sql_expr, pg_ast.ColumnRef, lambda n: len(n.name) == 1))
 
         if isinstance(subject, s_scalars.ScalarType):
             # Domain constraint, replace <scalar_name> with VALUE
