@@ -35,6 +35,14 @@ CLI on your machine. You may be asked for your password. Once the installation
 completes, you may need to **restart your terminal** before you can use the
 ``edgedb`` command.
 
+.. note::
+
+  You can also use the CLI through the Windows command prompt by installing it
+  manually. First, `download the CLI\
+  <https://packages.edgedb.com/dist/x86_64-pc-windows-msvc/edgedb-cli.exe>`_.
+  Navigate to the location of the file in the command prompt. Run this command
+  to install: ``edgedb-cli.exe _self_install``
+
 Now let's set up your EdgeDB project.
 
 .. _ref_quickstart_createdb:
