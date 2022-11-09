@@ -55,9 +55,10 @@ JSON
 Constructing JSON Values
 ------------------------
 
-JSON in EdgeDB is one of the :ref:`scalar types <ref_datamodel_scalar_types>`.
-This scalar doesn't have its own literal and instead can be obtained
-by casting a value into :eql:type:`json` or by using :eql:func:`to_json`:
+JSON in EdgeDB are one of the
+:ref:`scalar types <ref_datamodel_scalar_types>`. This scalar doesn't have its
+own literal and instead can be obtained by casting a value to
+:eql:type:`json`, or by using :eql:func:`to_json`:
 
 .. code-block:: edgeql-repl
 
@@ -66,7 +67,7 @@ by casting a value into :eql:type:`json` or by using :eql:func:`to_json`:
     db> select <json>'hello world';
     {'"hello world"'}
 
-Anything in EdgeDB can be cast into :eql:type:`json`:
+Anything in EdgeDB can be casted into :eql:type:`json` as such:
 
 .. code-block:: edgeql-repl
 
@@ -75,10 +76,10 @@ Anything in EdgeDB can be cast into :eql:type:`json`:
     db> select <json>cal::to_local_date(datetime_current(), 'UTC');
     {'"2019-04-02"'}
 
-Any :eql:type:`Object` can be cast into :eql:type:`json`. This
-produces the same JSON value as the JSON serialization of that object.
-That is, the result is the same as the output of :eql:stmt:`select
-expression <select>` in *JSON mode*, including the type shape.
+Subsequently, any :eql:type:`Object` can be casted as :eql:type:`json`. This
+will produce the same JSON value as the serialized JSON of that object.
+Furthermore, this result is the same as the output of a :eql:stmt:`select
+expression <select>` in *JSON mode*, including the shape of the type:
 
 .. code-block:: edgeql-repl
 
@@ -91,29 +92,30 @@ expression <select>` in *JSON mode*, including the type shape.
     ...     filter .name = 'std::bool');
     {'{"name": "std::bool", "timestamp": "2019-04-02"}'}
 
-JSON values can also be cast back into scalars. This casting is
-symmetrical meaning that if a scalar can be cast into JSON, only that
-particular JSON type can be cast back into that scalar:
+JSON values can also be casted back into scalars. Casting JSON is
+symmetrical: if a scalar type can be casted back into JSON, only that
+particular JSON type can be casted back into that scalar. Some scalars have
+specific conditions:
 
-- JSON *string* can be cast into :eql:type:`str`. Casting
-  :eql:type:`uuid` and :ref:`date and time types
-  <ref_std_datetime>` to JSON results in a JSON
-  *string* representing the original value. This means that it is
-  also possible to cast a JSON *string* back into these types. The
-  string value has to be properly formatted (much like in case of
-  a :eql:type:`str` value being cast) or else the cast will raise an
-  exception.
-- JSON *number* can be cast into any of
-  the :ref:`numeric types <ref_std_numeric>`
-- JSON *boolean* can be cast into :eql:type:`bool`
-- JSON *null* is special since it can be cast into an ``{}`` of any type
-- JSON *array* can be cast into any valid EdgeDB array, so it must be
-  homogeneous, and must not contain *null*
+- JSON *strings* can be casted as a :eql:type:`str`. Casting
+  :eql:type:`uuid`, :ref:`date and time types
+  <ref_std_datetime>` to JSON; results in a JSON
+  string representing its original value. This means that it is
+  also possible to cast a JSON string back to its original type. The
+  value of the string must also be properly formatted, otherwise an
+  exception will be raised.
+- JSON *numbers* can be casted to any :ref:`numeric type <ref_std_numeric>`.
+- JSON *booleans* can be casted as a :eql:type:`bool`.
+- Nullified JSON is special as it can be casted as an empty set or ``{}`` of
+  :eql:type:`anytype`.
+- JSON *arrays* can be casted to any valid EdgeDB array, as long as it's
+  homogeneous and do not contain *null* as a value.
 
-A *regular* :eql:type:`tuple` is converted into a JSON *array* when cast
-into :eql:type:`json`, whereas a *named* :eql:type:`tuple` is converted
-into a JSON *object*. These casts are not reversible, i.e. it is not
-possible to cast a JSON value directly into a :eql:type:`tuple`.
+A *regular* :eql:type:`tuple` is converted into a JSON array when casted
+as a :eql:type:`json`, unlike a *named* :eql:type:`tuple` where it is
+converted into a JSON *object*. These casts are not reversible, however,
+i.e. it is not possible to cast a JSON value directly into a
+:eql:type:`tuple`.
 
 
 ----------
@@ -121,9 +123,7 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
 
 .. eql:type:: std::json
 
-    Arbitrary JSON data.
-
-    Any other type can be :eql:op:`cast <cast>` to and from JSON:
+    Represents any arbitrary JSON data:
 
     .. code-block:: edgeql-repl
 
@@ -132,17 +132,16 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
         db> select <bool>to_json('true');
         {true}
 
-    Note that a :eql:type:`json` value can be cast into a :eql:type:`str`
-    only when it is a JSON string.  Therefore, while the following will work
-    as expected:
+    A :eql:type:`json` value can also be casted as a :eql:type:`str`,
+    only when recognised as a JSON-serialized string.
 
     .. code-block:: edgeql-repl
 
         db> select <str>to_json('"something"');
         {'something'}
 
-    The operation below (casting a JSON array of
-    string ``["a", "b", "c"]`` to a *str*) will result in an error:
+    Casting a string array of JSON (``["a", "b", "c"]``) to a :eql:type:`str`
+    will result in an error:
 
     .. code-block:: edgeql-repl
 
@@ -166,10 +165,11 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
 
 .. eql:operator:: jsonidx: json [ int64 ] -> json
 
-    JSON array/string indexing.
+    Indexes an array or string of :eql:type:`int64`.
 
-    The contents of JSON *arrays* and *strings* can also be
-    accessed via ``[]``:
+    This results in :eql:type:`json`. Contents of a JSON array or string can
+    also accessed through accessing an index from indices. (``[]``) Strings
+    are a set of :eql:type:`bytes` in this instance:
 
     .. code-block:: edgeql-repl
 
@@ -182,10 +182,9 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
         db> select to_json('[1, "a", null]')[-1];
         {'null'}
 
-    The element access operator ``[]`` will raise an exception if the
-    specified index is not valid for the base JSON value.  To access
-    potentially out of bound indexes use the :eql:func:`json_get`
-    function.
+    This may raise an exception if the specified index is not valid for the
+    base JSON value. To access potentially out-of-bound indexes, use
+    :eql:func:`json_get`.
 
 
 ----------
@@ -193,10 +192,10 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
 
 .. eql:operator:: jsonslice: json [ int64 : int64 ] -> json
 
-    JSON array/string slicing.
+    Indexes an array or string of :eql:type:`int64`.
 
-    JSON *arrays* and *strings* can be sliced in the same way as
-    regular arrays, producing a new JSON array or string:
+    This results in :eql:type:`json`. Arrays and strings of JSON can be sliced
+    in the same manner as a regular array, producing the JSON type:
 
     .. code-block:: edgeql-repl
 
@@ -219,15 +218,13 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
 
 .. eql:operator:: jsonplus: json ++ json -> json
 
-    JSON concatenation.
+    Concatenates given types of :eql:type:`json` and :eql:type:`Object`
+    into one.
 
-    JSON arrays, objects and strings can be concatenated with JSON values of
-    the same type into a new JSON value.
-
-    If you concatenate two JSON objects, you get a new object whose keys will
-    be a union of the keys of the input objects. If a key is present in both
-    objects, the value from the second object is taken.
-
+    This results in a reference of both array's elements conjoined together.
+    If there are mutually given keys in the given JSON, the value of the
+    second one is used instead:
+    
     .. code-block:: edgeql-repl
 
         db> select to_json('[1, 2]') ++ to_json('[3]');
