@@ -694,8 +694,6 @@ class Compiler:
             source = pg_codegen.generate_source(resolved)
             sql_source += source + ';'
 
-        print(sql_source)
-
         # Compile the result as a query that just returns the string
         res_ql = edgeql.parse(f'SELECT {qlquote.quote_literal(sql_source)}')
         query = self._compile_ql_query(

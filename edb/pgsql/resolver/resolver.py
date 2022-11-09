@@ -1,4 +1,21 @@
-from calendar import c
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 from typing import *
 
 from edb import errors
@@ -8,11 +25,7 @@ from edb.pgsql import ast as pgast
 from edb.pgsql import common as pgcommon
 from edb.pgsql.compiler import astutils as pgastutils
 
-from edb.schema import name as s_name
-from edb.schema import schema as s_schema
 from edb.schema import objtypes as s_objtypes
-from edb.schema import pointers as s_pointers
-from edb.schema import properties as s_prop
 from edb.schema import links as s_links
 
 from . import dispatch
@@ -23,8 +36,6 @@ from . import context
 def resolve_SelectStmt(
     stmt: pgast.SelectStmt, *, ctx: context.ResolverContextLevel
 ) -> pgast.SelectStmt:
-
-    stmt.dump()
 
     # UNION
     if stmt.larg:
@@ -44,8 +55,6 @@ def resolve_SelectStmt(
     # FROM
     from_clause: List[pgast.BaseRangeVar] = []
     for clause in stmt.from_clause:
-
-        clause.dump()
 
         with ctx.empty() as subctx:
             from_clause.append(dispatch.resolve(clause, ctx=subctx))
@@ -289,6 +298,7 @@ def resolve_Relation(
     # extract table columns
     pointers = obj.get_pointers(ctx.schema).objects(ctx.schema)
 
+    columns: List[context.Column] = []
     for p in pointers:
         if p.is_protected_pointer(ctx.schema):
             continue
@@ -307,7 +317,7 @@ def resolve_Relation(
                 )
                 col.reference_as = dbname
 
-            ctx.scope.rel.columns.append(col)
+            columns.append(col)
 
         if isinstance(p, s_links.Link):
             col = context.Column()
@@ -318,7 +328,12 @@ def resolve_Relation(
             )
             col.reference_as = dbname
 
-            ctx.scope.rel.columns.append(col)
+            columns.append(col)
+
+    # sort by name but put `id` first
+    columns.sort(key=lambda c: '!' if c.name == 'id' else c.name or '')
+
+    ctx.scope.rel.columns.extend(columns)
 
     # compile
     aspect = 'inhview' if ctx.include_inherited else 'table'

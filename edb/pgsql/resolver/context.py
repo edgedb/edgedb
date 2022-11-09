@@ -18,8 +18,6 @@
 
 from __future__ import annotations
 
-from edb.common import ast
-
 from copy import deepcopy
 from typing import *
 import enum

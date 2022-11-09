@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2020-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,21 +17,26 @@
 #
 
 
-import os.path
+type Person {
+    required property first_name -> str;
+    property last_name -> str;
+}
 
-from edb.testbase import server as tb
+type Genre {
+    required property name -> str;
+}
 
+type Content {
+    required property title -> str;
+    link genre -> Genre;
+}
 
-class TestSQL(tb.SQLQueryTestCase):
+type Movie extending Content {
+    property release_year -> int64;
+    multi link actors -> Person;
+    link director -> Person;
+}
 
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'issues.esdl')
-
-    async def test_sql_01(self):
-        res = await self.squery('''
-            select 1, 2, 3
-        ''')
-        self.assertEqual(
-            res,
-            [(1, 2, 3)],
-        )
+type Book extending Content {
+    required property pages -> int16;
+}

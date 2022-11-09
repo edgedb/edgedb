@@ -1260,6 +1260,17 @@ class SQLQueryTestCase(BaseQueryTestCase):
         ''')
         return await self.scon.fetch(rewritten)
 
+    async def squery_values(self, query):
+        res = await self.squery(query)
+        return [list(r.values()) for r in res]
+
+    def assertShape(self, res, rows, cols, column_names=None):
+        self.assertEqual(len(res), rows)
+        if rows > 0:
+            self.assertEqual(len(res[0]), cols)
+        if column_names:
+            self.assertListEqual(column_names, list(res[0].keys()))
+
 
 class DumpCompatTestCaseMeta(TestCaseMeta):
 
