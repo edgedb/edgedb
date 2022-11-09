@@ -231,8 +231,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_pgsql_parse_select_24(self):
         """
         SELECT * FROM table_one, public.table_one
-% OK %
-        SELECT * FROM table_one, table_one
         """
 
     def test_pgsql_parse_select_25(self):
