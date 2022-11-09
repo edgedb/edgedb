@@ -1219,6 +1219,45 @@ class QueryTestCase(BaseQueryTestCase):
     BASE_TEST_CLASS = True
 
 
+class SQLQueryTestCase(BaseQueryTestCase):
+    BASE_TEST_CLASS = True
+
+    @classmethod
+    def setUpClass(cls):
+        import asyncpg
+
+        super().setUpClass()
+        settings = cls.con.get_settings()
+        pgaddr = settings.get('pgaddr')
+        if pgaddr is None:
+            raise unittest.SkipTest('SQL tests requires devmode')
+        pgaddr = json.loads(pgaddr)
+        pgdsn = (
+            f'postgres:///{pgaddr["database"]}?user={pgaddr["user"]}'
+            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
+        )
+
+        cls.scon = cls.loop.run_until_complete(
+            asyncpg.connect(pgdsn))
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls.loop.run_until_complete(cls.scon.close())
+            # Give event loop another iteration so that connection
+            # transport has a chance to properly close.
+            cls.loop.run_until_complete(asyncio.sleep(0))
+            cls.scon = None
+        finally:
+            super().tearDownClass()
+
+    async def squery(self, query):
+        rewritten = await self.con.query_single(f'''
+           describe alter {qlquote.quote_literal(query)}
+        ''')
+        return await self.scon.fetch(rewritten)
+
+
 class DumpCompatTestCaseMeta(TestCaseMeta):
 
     def __new__(

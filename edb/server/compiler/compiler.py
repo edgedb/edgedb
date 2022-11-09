@@ -671,6 +671,30 @@ class Compiler:
             devmode=self._is_dev_instance(),
         )
 
+    def _compile_ql_debug_sql(
+        self,
+        ctx: CompileContext,
+        ql: qlast.Base,
+    ) -> dbstate.BaseQuery:
+        # XXX: DEBUG HACK Implement DESCRIBE ALTER <STRING> by
+        # (eventually) rewriting <STRING> and returning it
+        assert self._is_dev_instance()
+
+        # TODO: Translate the SQL source code here
+        # current_tx = ctx.state.current_tx()
+        # schema = current_tx.get_schema(self._std_schema)
+        sql_source = ql.source + ';'
+
+        # Compile the result as a query that just returns the string
+        res_ql = edgeql.parse(f'SELECT {qlquote.quote_literal(sql_source)}')
+        query = self._compile_ql_query(
+            ctx,
+            res_ql,
+            cacheable=False,
+            migration_block_query=True,
+        )
+        return query
+
     def _compile_ql_query(
         self,
         ctx: CompileContext,
@@ -2008,6 +2032,12 @@ class Compiler:
         elif isinstance(ql, (qlast.BaseSessionSet, qlast.BaseSessionReset)):
             return (
                 self._compile_ql_sess_state(ctx, ql),
+                enums.Capability.SESSION_CONFIG,
+            )
+
+        elif isinstance(ql, qlast.SQLDebugStmt):
+            return (
+                self._compile_ql_debug_sql(ctx, ql),
                 enums.Capability.SESSION_CONFIG,
             )
 

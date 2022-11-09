@@ -189,3 +189,8 @@ def _describe(ql):
 @get_status.register(qlast.Rename)
 def _rename(ql):
     return f'RENAME'.encode()
+
+
+@get_status.register(qlast.SQLDebugStmt)
+def _sql_hack(ql):
+    return f'SQL'.encode()
