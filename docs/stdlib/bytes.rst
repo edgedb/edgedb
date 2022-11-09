@@ -48,7 +48,7 @@ Bytes
 
     .. note::
 
-      Bytes also have a special byte literal.
+      Bytes also have a special byte literal, ``b''``.
 
     .. code-block:: edgeql-repl
 
@@ -80,9 +80,9 @@ Bytes
 
 .. eql:operator:: bytesidx: bytes [ int64 ] -> bytes
 
-    Indexes a set of bytes of :eql:type:`int64`.
+    Indexes a set of bytes.
 
-    This results in a representable reference of the byte with a given
+    This results in a representable reference of the byte from the specified
     index:
 
     .. code-block:: edgeql-repl
@@ -96,7 +96,7 @@ Bytes
 
 .. eql:operator:: bytesslice: bytes [ int64 : int64 ] -> bytes
 
-    Slices a set of bytes of :eql:type:`int64`.
+    Slices a set of bytes between an :eql:type:`int64` range.
 
     This results in a representable reference of bytes chosen in a given
     range:
@@ -114,7 +114,7 @@ Bytes
 
 .. eql:operator:: bytesplus: bytes ++ bytes -> bytes
 
-    Concatenates given sets of :eql:type:`bytes` into one.
+    Concatenates two given sets of :eql:type:`bytes` into one.
 
     This results in a reference of both bytesets conjoined together:
 
@@ -132,7 +132,7 @@ Bytes
     Returns the ``nth`` bit of ``bytes`` as a value of :eql:type:`int64`.
 
     When looking for the ``nth`` bit, this function will enumerate bits from
-    least to most significant with each byte:
+    least-to-most significant with each byte:
 
     .. code-block:: edgeql-repl
 

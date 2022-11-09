@@ -21,7 +21,7 @@ Constraints
         }
 
     You may also use this constraint based on a couple of object properties to
-    further restrict, for instance, the maximum magnitude of a ``Vector``:
+    further restrict how a value may be stored:
 
     .. code-block:: sdl
 
@@ -35,7 +35,8 @@ Constraints
 
 .. eql:constraint:: std::one_of(variadic members: anytype)
 
-    Specifies a list of allowed :eql:type:`anytype` values directly:
+    Specifies a list of :eql:type:`anytype` as one allowed value of
+    ``members``:
 
     .. code-block:: sdl
 
@@ -45,7 +46,7 @@ Constraints
 
 .. eql:constraint:: std::max_value(max: anytype)
 
-    Specifies the maximum value of :eql:type:`anytype`:
+    Specifies the maximum allowed value of :eql:type:`anytype`:
 
     .. code-block:: sdl
 
@@ -55,7 +56,8 @@ Constraints
 
 .. eql:constraint:: std::max_ex_value(max: anytype)
 
-    Specifies the maximum value of :eql:type:`anytype` as an open interval:
+    Specifies the maximum allowed value of :eql:type:`anytype` as an open
+    interval:
 
     .. code-block:: sdl
 
@@ -65,8 +67,7 @@ Constraints
 
 .. eql:constraint:: std::max_len_value(max: int64)
 
-    Specifies the maximum length of :eql:type:`int64` in string
-    representation:
+    Specifies the maximum allowed length of a value from an :eql:type:`int64`:
 
     .. code-block:: sdl
 
@@ -76,7 +77,7 @@ Constraints
 
 .. eql:constraint:: std::min_value(min: anytype)
 
-    Specifies the minimum value of :eql:type:`anytype`:
+    Specifies the minimum allowed value of :eql:type:`anytype`:
 
     .. code-block:: sdl
 
@@ -86,7 +87,8 @@ Constraints
 
 .. eql:constraint:: std::min_ex_value(min: anytype)
 
-    Specifies the minimum value of :eql:type:`anytype` as an open interval:
+    Specifies the minimum allowed value of :eql:type:`anytype` as an open
+    interval:
 
     .. code-block:: sdl
 
@@ -96,8 +98,7 @@ Constraints
 
 .. eql:constraint:: std::min_len_value(min: int64)
 
-    Specifies the minimum length of :eql:type:`int64` as a string
-    representation:
+    Specifies the minimum allowed length of a value from an :eql:type:`int64`:
 
     .. code-block:: sdl
 
@@ -109,8 +110,8 @@ Constraints
 
     :index: regex regexp regular
 
-    Specifies that the string representation of a subject must match a
-    pattern.
+    Specifies the allowed representation of a type by matching a given
+    ``pattern``:
 
     .. code-block:: sdl
 
@@ -119,7 +120,7 @@ Constraints
         }
 
     See :ref:`regular expression patterns <string_regexp>` for details
-    covering further usage.
+    regarding further usage.
 
 .. eql:constraint:: std::exclusive
 

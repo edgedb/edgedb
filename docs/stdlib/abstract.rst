@@ -4,8 +4,8 @@
 Abstract Types
 ==============
 
-An abstract type is used when describing a polymorphic (generic) function
-applicable to a broad range of types.
+Abstract types are used to describe a polymorphic, otherwise known as
+generic function to be applicable over a broad range of types.
 
 
 ----------
@@ -17,9 +17,9 @@ applicable to a broad range of types.
 
     Represents a generic type.
 
-    This type is a placeholder used in cases where no specific type
-    requirements are necessary, such as defining polymorphic parameters
-    in functions and operators.
+    This type is used as a placeholder in cases where there isn't a specific
+    set of type requirements, or are not necessary, such as defining
+    polymorphic parameters in functions and operators.
 
 
 ----------
@@ -55,22 +55,23 @@ applicable to a broad range of types.
 
     Represents a generic tuple.
 
-    Similarly to ``anytype``, this type denotes a generic tuple without
-    going into the details of what the components are. This is useful
-    when defining polymorphic parameters in functions and operators.
+    Similar to :eql:type:`anytype`, this type is used to denote a generic
+    tuple without going into detail of which components there are. This is
+    useful when defining polymorphic parameters in functions and operators.
 
 
 Abstract Numeric Types
 ======================
 
-There are a number of abstract numeric types extending ``anyscalar``:
+Abstract numeric types are used when wanting to extend off of
+:eql:type:`anyscalar`.
 
 .. eql:type:: std::anyint
 
     :index: any anytype int
 
     Represents an abstract base scalar type for
-    :eql:type:`int16`, :eql:type:`int32` and :eql:type:`int64`.
+    :eql:type:`int16`, :eql:type:`int32` and :eql:type:`int64` types.
 
 
 ----------
@@ -81,7 +82,7 @@ There are a number of abstract numeric types extending ``anyscalar``:
     :index: any anytype float
 
     Represents an abstract base scalar type for
-    :eql:type:`float32` and :eql:type:`float64`.
+    :eql:type:`float32` and :eql:type:`float64` types.
 
 
 ----------
@@ -92,14 +93,14 @@ There are a number of abstract numeric types extending ``anyscalar``:
     :index: any anytype
 
     Represents an abstract base scalar type for
-    :eql:type:`anyint`, :eql:type:`anyfloat` and :eql:type:`decimal`.
+    :eql:type:`anyint`, :eql:type:`anyfloat` and :eql:type:`decimal` types.
 
 
 Abstract Range Types
 ====================
 
-Like abstract types, you may also specify :ref:`ranges <ref_std_range>`.
-These types are distinguished by the following:
+Like abstract numeric types, :ref:`ranges <ref_std_range>` can also be
+specified.
 
 .. eql:type:: std::anypoint
 
@@ -111,7 +112,7 @@ These types are distinguished by the following:
     :eql:type:`int32`, :eql:type:`int64`,
     :eql:type:`float32`, :eql:type:`float64`, :eql:type:`decimal`,
     :eql:type:`datetime`, :eql:type:`cal::local_datetime` and
-    :eql:type:`cal::local_date`.
+    :eql:type:`cal::local_date` types.
 
 
 ----------
@@ -124,7 +125,7 @@ These types are distinguished by the following:
     Represents an abstract base type for all valid *discrete* ranges.
 
     This is also an abstract base scalar type for :eql:type:`int32`,
-    :eql:type:`int64` and :eql:type:`cal::local_date`.
+    :eql:type:`int64` and :eql:type:`cal::local_date` types.
 
 
 ----------
@@ -138,4 +139,4 @@ These types are distinguished by the following:
 
     This is also an abstract base scalar type for :eql:type:`float32`,
     :eql:type:`float64`, :eql:type:`decimal`, :eql:type:`datetime` and
-    :eql:type:`cal::local_datetime`.
+    :eql:type:`cal::local_datetime` types.

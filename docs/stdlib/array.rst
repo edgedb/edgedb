@@ -127,12 +127,9 @@ Reference
 
 .. eql:operator:: arrayidx: array<anytype> [ int64 ] -> anytype
 
-    Indexes an array of :eql:type:`anytype` containing :eql:type:`int64`.
+    Indexes an array of :eql:type:`anytype`.
 
-    This results in a representable reference of the array element specified.
-
-    Below is an example of selecting an array with an index of zero and
-    one:
+    This results in a representable reference of the array element specified:
 
     .. code-block:: edgeql-repl
 
@@ -141,7 +138,7 @@ Reference
         db> select [(x := 1, y := 1), (x := 2, y := 3.3)][1];
         {(x := 2, y := 3.3)}
 
-    This operator may also be used when negatively index elements.
+    This operator also allows accessing elements through negation.
 
     .. code-block:: edgeql-repl
 
@@ -168,12 +165,7 @@ Reference
 
     Omitting the lower bound an array will default the result to zero.
     Doing so to the upper bound will also default to the current size of the
-    array.
-
-    The upper bound of an array is non-inclusive.
-
-    Below is an example of selecting indices of an array between slices and
-    given ranges:
+    array. The upper bound of an array is non-inclusive:
 
     .. code-block:: edgeql-repl
 
@@ -186,8 +178,8 @@ Reference
         db> select [1, 2, 3][:-2];
         {[1]}
 
-    Referencing an array slice beyond the array's boundaries will result in
-    an empty array, unlike a direct reference to a specific index:
+    Referencing an array slice outside of the array's boundaries will result
+    in an empty array, unlike accessing an element with a direct index:
 
     .. code-block:: edgeql-repl
 
@@ -221,7 +213,7 @@ Reference
 
     Returns an array made from all of the input set elements.
 
-    The ordering of the input set will be preserved if specified.
+    The ordering of the inputted set will be preserved if specified:
 
     .. code-block:: edgeql-repl
 
@@ -247,10 +239,9 @@ Reference
     If the index is out of the array's bounds, the ``default`` argument
     or ``{}`` (empty set) will be returned.
 
-    This works the same as :eql:op:`array indexing operator <arrayidx>`,
+    This works the same as the :eql:op:`array indexing operator <arrayidx>`,
     except that if the index is out of boundaries, an empty set of the array
-    element's type is returned instead of raising an exception. Below
-    exemplifies this:
+    element's type is returned instead of raising an exception:
 
     .. code-block:: edgeql-repl
 
@@ -269,16 +260,16 @@ Reference
 
     :index: set array unpack
 
-    Returns the elements of an array as a set.
-
-    .. note::
-
-        The returned set is not guaranteed to be ordered.
+    Returns the elements of an array as a set:
 
     .. code-block:: edgeql-repl
 
         db> select array_unpack([2, 3, 5]);
         {3, 2, 5}
+
+    .. note::
+
+        The returned set is not guaranteed to be ordered.
 
 
 ----------
@@ -288,10 +279,7 @@ Reference
 
     :index: join array_to_string implode
 
-    Returns the elements of an array joined together in string-form.
-
-    This subsequently returns back a string with ``delimiter`` separating
-    each element:
+    Returns the elements of an ``array`` joined together with a ``delimiter``:
 
     .. code-block:: edgeql-repl
 
@@ -306,7 +294,7 @@ Reference
 
     :index: fill
 
-    Returns a new array of size ``n`` with the specified value ``val``:
+    Returns a new array of size ``n`` with the specified ``val``:
 
     .. code-block:: edgeql-repl
 

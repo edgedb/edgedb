@@ -51,10 +51,9 @@ Booleans
         db> select (False, false, FALSE);
         {(false, false, false)}
 
-    A boolean value may arise as a result of :ref:`logical
-    <ref_std_logical>` or :eql:op:`comparison <eq>`
-    operations, as well as :eql:op:`in`
-    and :eql:op:`not in <in>` operators.
+    Boolean values may arise as a result of :ref:`logical <ref_std_logical>`
+    or :eql:op`comparison <eq>` checks, as well as :eql:op`in` and
+    :eql:op`not in <in>` operations:
 
     .. code-block:: edgeql-repl
 
@@ -63,8 +62,8 @@ Booleans
         db> select '!' IN {'hello', 'world'};
         {false}
 
-    It is also possible to :eql:op:`cast <cast>` between
-    a :eql:type:`bool`, :eql:type:`str` or :eql:type:`json` type:
+    It is also possible to :eql:op:`cast <cast>` between a :eql:type:`bool`,
+    :eql:type:`str` or :eql:type:`json` type:
 
     .. code-block:: edgeql-repl
 
@@ -73,8 +72,8 @@ Booleans
         db> select <bool>'True';
         {true}
 
-    A :ref:`filter <ref_eql_statements_select_filter>` clause must
-    always evaluate to a boolean.
+    :ref:`Filter clauses <ref_eql_statements_select_filter>` must always
+    evaluate to a boolean.
 
     .. code-block:: edgeql
 
@@ -87,7 +86,7 @@ Booleans
 
 .. eql:operator:: or: bool or bool -> bool
 
-    Logically differentiates truthfulness between two boolean values:
+    Logically differentiates the truthfulness between two booleans:
 
     .. code-block:: edgeql-repl
 
@@ -100,7 +99,7 @@ Booleans
 
 .. eql:operator:: and: bool and bool -> bool
 
-    Performs a logical coexistence check of two booleans:
+    Performs a logical coexistence check between two booleans:
 
     .. code-block:: edgeql-repl
 
