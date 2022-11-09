@@ -369,19 +369,19 @@ Generate the query builder with the following command.
 
 .. code-block:: bash
 
-  $ npx edgeql-js
+  $ npx @edgedb/generate edgeql-js
+  Generating query builder...
   Detected tsconfig.json, generating TypeScript files.
-    To override this, use the --target flag.
-    Run `npx edgeql-js --help` for details.
-  Generating query builder into ./dbschema/edgeql-js
-  Connecting to EdgeDB instance...
+     To override this, use the --target flag.
+     Run `npx @edgedb/generate --help` for full options.
   Introspecting database schema...
-  Generation successful!
+  Writing files to ./dbschema/edgeql-js
+  Generation complete! 🤘
   Checking the generated query builder into version control
-  is NOT RECOMMENDED. Would you like to update .gitignore to ignore
+  is not recommended. Would you like to update .gitignore to ignore
   the query builder directory? The following line will be added:
 
-    dbschema/edgeql-js
+     dbschema/edgeql-js
 
   [y/n] (leave blank for "y")
   > y
@@ -499,7 +499,11 @@ loading spinners and ensure the page loads fast.
         id: true,
         title: true,
         content: true,
-        filter: e.op(post.id, '=', e.uuid(context!.params!.id as string)),
+        filter_single: e.op(
+          post.id,
+          '=',
+          e.uuid(context!.params!.id as string)
+        ),
       }))
       .run(client);
     return {props: {post: post!}};
