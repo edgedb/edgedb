@@ -158,7 +158,7 @@ def _build_select_stmt(n: Node, c: Context) -> pgast.SelectStmt:
         if op == "NONE":
             op = None
     return pgast.SelectStmt(
-        distinct_clause=_maybe_list(n, c, "distinct_clause", _build_any),
+        distinct_clause=_maybe(n, c, "distinctClause", _build_distinct),
         target_list=_maybe_list(n, c, "targetList", _build_res_target) or [],
         from_clause=_maybe_list(n, c, "fromClause", _build_base_range_var)
         or [],
@@ -230,6 +230,7 @@ def _build_base_expr(node: Node, c: Context) -> pgast.BaseExpr:
         {
             "ResTarget": _build_res_target,
             "FuncCall": _build_func_call,
+            "CoalesceExpr": _build_coalesce,
             "List": _build_implicit_row,
             "A_Expr": _build_a_expr,
             "A_ArrayExpr": _build_array_expr,
@@ -246,6 +247,14 @@ def _build_base_expr(node: Node, c: Context) -> pgast.BaseExpr:
         },
         [_build_base_range_var, _build_indirection_op],  # type: ignore
     )
+
+
+def _build_distinct(nodes: List[Node], c: Context) -> List[pgast.Base]:
+    # For some reason, plain DISTINCT is parsed as [{}]
+    # In our AST this is represented by [pgast.Star()]
+    if len(nodes) == 1 and len(nodes[0]) == 0:
+        return [pgast.Star()]
+    return [_build_base_expr(n, c) for n in nodes]
 
 
 def _build_indirection_op(n: Node, c: Context) -> pgast.IndirectionOp:
@@ -480,6 +489,8 @@ def _build_alias(n: Node, c: Context) -> pgast.Alias:
 def _build_base_relation(n: Node, c: Context) -> pgast.BaseRelation:
     return pgast.Relation(
         name=_maybe(n, c, "relname", _build_str),
+        catalogname=_maybe(n, c, "catalogname", _build_str),
+        schemaname=_maybe(n, c, "schemaname", _build_str),
         context=_build_context(n, c),
     )
 
@@ -539,6 +550,12 @@ def _build_func_call(n: Node, c: Context) -> pgast.FuncCall:
         over=_maybe(n, c, "over", _build_window_def),
         with_ordinality=_bool_or_false(n, "withOrdinality"),
         context=_build_context(n, c),
+    )
+
+
+def _build_coalesce(n: Node, c: Context) -> pgast.CoalesceExpr:
+    return pgast.CoalesceExpr(
+        args=_list(n, c, "args", _build_base_expr),
     )
 
 

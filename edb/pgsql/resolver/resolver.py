@@ -1,10 +1,12 @@
 from calendar import c
 from typing import *
 
+from edb import errors
 from edb.edgeql import qltypes
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common as pgcommon
+from edb.pgsql.compiler import astutils as pgastutils
 
 from edb.schema import name as s_name
 from edb.schema import schema as s_schema
@@ -22,6 +24,9 @@ def resolve_SelectStmt(
     stmt: pgast.SelectStmt, *, ctx: context.ResolverContextLevel
 ) -> pgast.SelectStmt:
 
+    stmt.dump()
+
+    # UNION
     if stmt.larg:
         with ctx.isolated() as subctx:
             stmt.larg = dispatch.resolve(stmt.larg, ctx=subctx)
@@ -31,21 +36,102 @@ def resolve_SelectStmt(
     if stmt.larg or stmt.rarg:
         return stmt
 
+    # CTEs
+    ctes = None
+    if stmt.ctes:
+        ctes = [dispatch.resolve(cte, ctx=ctx) for cte in stmt.ctes]
+
+    # FROM
     from_clause: List[pgast.BaseRangeVar] = []
     for clause in stmt.from_clause:
+
+        clause.dump()
+
         with ctx.empty() as subctx:
             from_clause.append(dispatch.resolve(clause, ctx=subctx))
 
-            if subctx.rel.columns:
-                ctx.scope.tables.append(subctx.rel)
-            if subctx.scope.tables:
-                ctx.scope.tables.extend(subctx.scope.tables)
+            # pull result relation of inner scope into own scope
+            if subctx.scope.rel.columns:
+                ctx.scope.tables.append(subctx.scope.rel)
+            if subctx.scope.join_relations:
+                ctx.scope.tables.extend(subctx.scope.join_relations)
 
-    return pgast.SelectStmt(
+    where = dispatch.resolve_opt(stmt.where_clause, ctx=ctx)
+    target_list = [
+        c for t in stmt.target_list for c in resolve_ResTarget(t, ctx=ctx)
+    ]
+
+    distinct_clause = None
+    if stmt.distinct_clause:
+        distinct_clause = [
+            (c if isinstance(c, pgast.Star) else dispatch.resolve(c, ctx=ctx))
+            for c in stmt.distinct_clause
+        ]
+
+    sort_clause = dispatch.resolve_opt_list(stmt.sort_clause, ctx=ctx)
+    limit_offset = dispatch.resolve_opt(stmt.limit_offset, ctx=ctx)
+    limit_count = dispatch.resolve_opt(stmt.limit_count, ctx=ctx)
+
+    res = pgast.SelectStmt(
+        distinct_clause=distinct_clause,
         from_clause=from_clause,
-        target_list=[
-            c for t in stmt.target_list for c in resolve_ResTarget(t, ctx=ctx)
-        ],
+        target_list=target_list,
+        where_clause=where,
+        sort_clause=sort_clause,
+        limit_offset=limit_offset,
+        limit_count=limit_count,
+        ctes=ctes,
+    )
+    return res
+
+
+@dispatch._resolve.register(pgast.DMLQuery)
+def resolve_DMLQuery(
+    cte: pgast.DMLQuery, *, ctx: context.ResolverContextLevel
+) -> pgast.DMLQuery:
+    raise errors.UnsupportedFeatureError(
+        'DML queries (INSERT/UPDATE/DELETE) are not supported'
+    )
+
+
+@dispatch._resolve.register(pgast.CommonTableExpr)
+def resolve_CommonTableExpr(
+    cte: pgast.CommonTableExpr, *, ctx: context.ResolverContextLevel
+) -> pgast.CommonTableExpr:
+    with ctx.isolated() as subctx:
+
+        query = dispatch.resolve(cte.query, ctx=subctx)
+
+        result = context.CTE()
+        result.name = cte.name
+        result.columns = []
+
+        cols_query = subctx.scope.rel.columns
+        cols_names = cte.aliascolnames
+
+        if cols_names and len(cols_query) != len(cols_names):
+            raise errors.QueryError(
+                f'CTE alias for `{cte.name}` contains {len(cols_names)} '
+                f'columns, but the query resolves to `{len(cols_query)}` '
+                f'columns'
+            )
+        for index, col in enumerate(cols_query):
+            res_col = context.Column()
+            if cols_names:
+                res_col.name = cols_names[index]
+            else:
+                res_col.name = col.name
+            res_col.reference_as = col.name
+            result.columns.append(res_col)
+
+        ctx.scope.ctes.append(result)
+
+    return pgast.CommonTableExpr(
+        name=cte.name,
+        aliascolnames=None,
+        query=query,
+        recursive=cte.recursive,
+        materialized=cte.materialized,
     )
 
 
@@ -55,11 +141,11 @@ def resolve_BaseRangeVar(
 ) -> pgast.BaseRangeVar:
     # store public alias
     if range_var.alias:
-        ctx.rel.alias = range_var.alias.aliasname
+        ctx.scope.rel.alias = range_var.alias.aliasname
 
     # generate internal alias
     aliasname = ctx.names.generate_relation()
-    ctx.rel.reference_as = aliasname
+    ctx.scope.rel.reference_as = aliasname
     alias = pgast.Alias(aliasname=aliasname)
     return dispatch.resolve_range_var(range_var, alias, ctx=ctx)
 
@@ -71,7 +157,19 @@ def resolve_RangeSubselect(
     *,
     ctx: context.ResolverContextLevel,
 ) -> pgast.RangeSubselect:
-    subquery = dispatch.resolve(range_var.subquery, ctx=ctx)
+    with ctx.empty() as subctx:
+        subquery = dispatch.resolve(range_var.subquery, ctx=subctx)
+
+        result = context.Table()
+        result.name = range_var.alias.aliasname
+        result.reference_as = alias.aliasname
+        result.columns = [
+            context.Column(name=col.name, reference_as=col.name)
+            for col in subctx.scope.rel.columns
+        ]
+
+        ctx.scope.rel = result
+
     return pgast.RangeSubselect(
         subquery=subquery,
         alias=alias,
@@ -93,6 +191,16 @@ def resolve_RelRangeVar(
     )
 
 
+@dispatch.resolve_range_var.register(pgast.RangeFunction)
+def resolve_RangeFunction(
+    range_var: pgast.RangeFunction,
+    alias: pgast.Alias,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.RangeFunction:
+    raise errors.UnsupportedFeatureError('range functions are not supported')
+
+
 @dispatch.resolve_range_var.register(pgast.JoinExpr)
 def resolve_JoinExpr(
     range_var: pgast.JoinExpr,
@@ -103,53 +211,80 @@ def resolve_JoinExpr(
 
     with ctx.empty() as subctx:
         larg = dispatch.resolve(range_var.larg, ctx=subctx)
-        ctx.scope.tables.append(subctx.rel)
+        l_rel = subctx.scope.rel
 
     with ctx.empty() as subctx:
         rarg = dispatch.resolve(range_var.rarg, ctx=subctx)
-        ctx.scope.tables.append(subctx.rel)
+        r_rel = subctx.scope.rel
 
-    using_clause = None
-    if range_var.using_clause:
-        using_clause = [
-            dispatch.resolve(c, ctx=ctx) for c in range_var.using_clause
-        ]
+    ctx.scope.join_relations.extend((l_rel, r_rel))
+    ctx.scope.tables.extend((l_rel, r_rel))
 
-    quals = None
+    quals: Optional[pgast.BaseExpr] = None
     if range_var.quals:
         quals = dispatch.resolve(range_var.quals, ctx=ctx)
+
+    if range_var.using_clause:
+        for c in range_var.using_clause:
+            with ctx.empty() as subctx:
+                subctx.scope.tables = [l_rel]
+                l_expr = dispatch.resolve(c, ctx=subctx)
+            with ctx.empty() as subctx:
+                subctx.scope.tables = [r_rel]
+                r_expr = dispatch.resolve(c, ctx=subctx)
+            quals = pgastutils.extend_binop(
+                quals,
+                pgast.Expr(
+                    kind=pgast.ExprKind.OP,
+                    name='=',
+                    lexpr=l_expr,
+                    rexpr=r_expr,
+                ),
+            )
 
     return pgast.JoinExpr(
         type=range_var.type,
         larg=larg,
         rarg=rarg,
-        using_clause=using_clause,
         quals=quals,
         alias=alias,
     )
 
 
 @dispatch._resolve.register(pgast.Relation)
-def resolve_Query(
+def resolve_Relation(
     relation: pgast.Relation, *, ctx: context.ResolverContextLevel
 ) -> pgast.Relation:
     assert relation.name
 
+    # try a CTE
+    cte = next((t for t in ctx.scope.ctes if t.name == relation.name), None)
+    if cte:
+        ctx.scope.rel.name = cte.name
+        ctx.scope.rel.columns = cte.columns.copy()
+        return pgast.Relation(name=cte.name, schemaname=None)
+
     # lookup the object in schema
-    object_type_name = relation.name[0].upper() + relation.name[1:]
+    obj: Optional[s_objtypes.ObjectType] = None
+    if (relation.schemaname or 'public') == 'public':
+        object_type_name = relation.name[0].upper() + relation.name[1:]
 
-    obj: s_objtypes.ObjectType = ctx.schema.get(  # type: ignore
-        object_type_name,
-        None,
-        module_aliases={None: 'default'},
-        type=s_objtypes.ObjectType,
-    )
+        obj = ctx.schema.get(  # type: ignore
+            object_type_name,
+            None,
+            module_aliases={None: 'default'},
+            type=s_objtypes.ObjectType,
+        )
 
-    if not obj:
-        raise BaseException(f'unknown object `{object_type_name}`')
+        if not obj:
+            raise errors.QueryError(f'unknown object `{object_type_name}`')
+    else:
+        raise errors.QueryError(
+            f'unknown relation `{relation.schemaname}.{relation.name}`'
+        )
 
     # extract table name
-    ctx.rel.name = obj.get_shortname(ctx.schema).name.lower()
+    ctx.scope.rel.name = obj.get_shortname(ctx.schema).name.lower()
 
     # extract table columns
     pointers = obj.get_pointers(ctx.schema).objects(ctx.schema)
@@ -172,7 +307,7 @@ def resolve_Query(
                 )
                 col.reference_as = dbname
 
-            ctx.rel.columns.append(col)
+            ctx.scope.rel.columns.append(col)
 
         if isinstance(p, s_links.Link):
             col = context.Column()
@@ -183,7 +318,7 @@ def resolve_Query(
             )
             col.reference_as = dbname
 
-            ctx.rel.columns.append(col)
+            ctx.scope.rel.columns.append(col)
 
     # compile
     aspect = 'inhview' if ctx.include_inherited else 'table'
@@ -195,13 +330,56 @@ def resolve_Query(
     return pgast.Relation(name=dbname, schemaname=schemaname)
 
 
+# this function cannot go though dispatch,
+# because it may return multiple nodes, due to * notation
+def resolve_ResTarget(
+    res_target: pgast.ResTarget, *, ctx: context.ResolverContextLevel
+) -> Sequence[pgast.ResTarget]:
+
+    alias = res_target.name
+
+    # if just name has been selected, use it as the alias
+    if not alias and isinstance(res_target.val, pgast.ColumnRef):
+        name = res_target.val.name
+        last_name_part = name[len(name) - 1]
+        if isinstance(last_name_part, str):
+            alias = last_name_part
+
+    # special case for ColumnRef for handing wildcards
+    if not alias and isinstance(res_target.val, pgast.ColumnRef):
+        col_res = _lookup_column(res_target.val.name, ctx)
+
+        res = []
+        for table, column in col_res:
+            ctx.scope.rel.columns.append(column)
+
+            assert table.reference_as
+            assert column.reference_as
+            res.append(
+                pgast.ResTarget(
+                    val=pgast.ColumnRef(
+                        name=(table.reference_as, column.reference_as)
+                    ),
+                    name=column.name,
+                )
+            )
+        return res
+
+    # base case
+    val = dispatch.resolve(res_target.val, ctx=ctx)
+
+    col = context.Column(name=alias, reference_as=alias)
+    ctx.scope.rel.columns.append(col)
+    return (pgast.ResTarget(val=val, name=alias),)
+
+
 @dispatch._resolve.register(pgast.ColumnRef)
 def resolve_ColumnRef(
     column_ref: pgast.ColumnRef, *, ctx: context.ResolverContextLevel
 ) -> pgast.ColumnRef:
     res = _lookup_column(column_ref.name, ctx)
     if len(res) != 1:
-        raise BaseException(f'bad use of `*` column name')
+        raise errors.QueryError(f'bad use of `*` column name')
     table, column = res[0]
     assert table.reference_as
     assert column.reference_as
@@ -221,7 +399,7 @@ def _lookup_column(
         col_name = name[0]
 
         if isinstance(col_name, pgast.Star):
-            return [(t, c) for c in table.columns for t in ctx.tables]
+            return [(t, c) for t in ctx.scope.tables for c in t.columns]
         else:
             for table in ctx.scope.tables:
                 matched_columns.extend(_lookup_in_table(col_name, table))
@@ -231,7 +409,7 @@ def _lookup_column(
         tab_name = name[0]
         col_name = name[1]
 
-        table = _lookup_table(ctx, tab_name)
+        table = _lookup_table(ctx, cast(str, tab_name))
 
         if isinstance(col_name, pgast.Star):
             return [(table, c) for c in table.columns]
@@ -239,15 +417,13 @@ def _lookup_column(
             matched_columns.extend(_lookup_in_table(col_name, table))
 
     if not matched_columns:
-        for table in ctx.scope.tables:
-            print(table.name, [col.name for col in table.columns])
+        raise errors.QueryError(f'cannot find column `{col_name}`')
 
-        raise BaseException(f'cannot find column `{col_name}`')
     elif len(matched_columns) > 1:
         potential_tables = ', '.join(
             [t.name or '' for t, _ in matched_columns]
         )
-        raise BaseException(
+        raise errors.QueryError(
             f'ambiguous column `{col_name}` could belong to '
             f'following tables: {potential_tables}'
         )
@@ -272,55 +448,28 @@ def _lookup_table(
             matched_tables.append(t)
 
     if not matched_tables:
-        raise BaseException(f'cannot find table `{tab_name}`')
+        raise errors.QueryError(f'cannot find table `{tab_name}`')
     elif len(matched_tables) > 1:
-        raise BaseException(f'ambiguous table `{tab_name}`')
+        raise errors.QueryError(f'ambiguous table `{tab_name}`')
 
     table = matched_tables[0]
     return table
 
 
-# this function cannot go though dispatch,
-# because it may return multiple nodes, due to * notation
-def resolve_ResTarget(
-    res_target: pgast.ResTarget, *, ctx: context.ResolverContextLevel
-) -> Sequence[pgast.ResTarget]:
+@dispatch._resolve.register(pgast.SubLink)
+def resolve_SubLink(
+    sub_link: pgast.SubLink,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.SubLink:
+    with ctx.empty() as subctx:
+        expr = dispatch.resolve(sub_link.expr, ctx=subctx)
 
-    alias = res_target.name
-
-    # if just name has been selected, use it as the alias
-    if not alias and isinstance(res_target.val, pgast.ColumnRef):
-        name = res_target.val.name
-        last_name_part = name[len(name) - 1]
-        if isinstance(last_name_part, str):
-            alias = last_name_part
-
-    # special case ColumnRef for handing *
-    if isinstance(res_target.val, pgast.ColumnRef):
-        val = _lookup_column(res_target.val.name, ctx)
-
-        res = []
-        for table, column in val:
-            ctx.rel.columns.append(column)
-            res.append(
-                pgast.ResTarget(
-                    val=pgast.ColumnRef(
-                        name=(table.reference_as, column.reference_as)
-                    ),
-                    name=column.name,
-                )
-            )
-        return res
-
-    # base case
-    val = dispatch.resolve(res_target.val, ctx=ctx)
-
-    col = context.Column()
-    col.name = alias
-    col.reference_as = alias
-
-    ctx.rel.columns.append(col)
-    return (pgast.ResTarget(val=val, name=alias),)
+    return pgast.SubLink(
+        type=sub_link.type,
+        expr=expr,
+        test_expr=dispatch.resolve_opt(sub_link.test_expr, ctx=ctx),
+    )
 
 
 @dispatch._resolve.register(pgast.Expr)
@@ -333,3 +482,150 @@ def resolve_Expr(
         lexpr=dispatch.resolve(expr.lexpr, ctx=ctx) if expr.lexpr else None,
         rexpr=dispatch.resolve(expr.rexpr, ctx=ctx) if expr.rexpr else None,
     )
+
+
+@dispatch._resolve.register(pgast.TypeCast)
+def resolve_TypeCast(
+    expr: pgast.TypeCast,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.TypeCast:
+    return pgast.TypeCast(
+        arg=dispatch.resolve(expr.arg, ctx=ctx),
+        type_name=expr.type_name,
+    )
+
+
+@dispatch._resolve.register(pgast.BaseConstant)
+def resolve_BaseConstant(
+    expr: pgast.BaseConstant,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.BaseConstant:
+    return expr
+
+
+@dispatch._resolve.register(pgast.CaseExpr)
+def resolve_CaseExpr(
+    expr: pgast.CaseExpr,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.CaseExpr:
+    return pgast.CaseExpr(
+        arg=dispatch.resolve_opt(expr.arg, ctx=ctx),
+        args=dispatch.resolve_list(expr.args, ctx=ctx),
+        defresult=dispatch.resolve_opt(expr.defresult, ctx=ctx),
+    )
+
+
+@dispatch._resolve.register(pgast.CaseWhen)
+def resolve_CaseWhen(
+    expr: pgast.CaseWhen,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.CaseWhen:
+    return pgast.CaseWhen(
+        expr=dispatch.resolve(expr.expr, ctx=ctx),
+        result=dispatch.resolve(expr.result, ctx=ctx),
+    )
+
+
+@dispatch._resolve.register(pgast.SortBy)
+def resolve_SortBy(
+    expr: pgast.SortBy,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.SortBy:
+    return pgast.SortBy(
+        node=dispatch.resolve(expr.node, ctx=ctx),
+        dir=expr.dir,
+        nulls=expr.nulls,
+    )
+
+
+@dispatch._resolve.register(pgast.FuncCall)
+def resolve_FuncCall(
+    expr: pgast.FuncCall,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.FuncCall:
+    # TODO: which functions do we want to expose on the outside?
+    return pgast.FuncCall(
+        name=expr.name,
+        args=dispatch.resolve_list(expr.args, ctx=ctx),
+        agg_order=dispatch.resolve_opt_list(expr.agg_order, ctx=ctx),
+        agg_filter=dispatch.resolve_opt(expr.agg_filter, ctx=ctx),
+        agg_star=expr.agg_star,
+        agg_distinct=expr.agg_distinct,
+        over=dispatch.resolve_opt(expr.over, ctx=ctx),
+        with_ordinality=expr.with_ordinality,
+    )
+
+
+@dispatch._resolve.register(pgast.WindowDef)
+def resolve_WindowDef(
+    expr: pgast.WindowDef,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.WindowDef:
+    return pgast.WindowDef(
+        partition_clause=dispatch.resolve_opt_list(
+            expr.partition_clause, ctx=ctx
+        ),
+        order_clause=dispatch.resolve_opt_list(expr.order_clause, ctx=ctx),
+        start_offset=dispatch.resolve_opt(expr.start_offset, ctx=ctx),
+        end_offset=dispatch.resolve_opt(expr.end_offset, ctx=ctx),
+    )
+
+
+@dispatch._resolve.register(pgast.CoalesceExpr)
+def resolve_CoalesceExpr(
+    expr: pgast.CoalesceExpr,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.CoalesceExpr:
+    return pgast.CoalesceExpr(args=dispatch.resolve_list(expr.args, ctx=ctx))
+
+
+@dispatch._resolve.register(pgast.NullTest)
+def resolve_NullTest(
+    expr: pgast.NullTest,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.NullTest:
+    return pgast.NullTest(
+        arg=dispatch.resolve(expr.arg, ctx=ctx), negated=expr.negated
+    )
+
+
+@dispatch._resolve.register(pgast.BooleanTest)
+def resolve_BooleanTest(
+    expr: pgast.BooleanTest,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.BooleanTest:
+    return pgast.BooleanTest(
+        arg=dispatch.resolve(expr.arg, ctx=ctx),
+        negated=expr.negated,
+        is_true=expr.is_true,
+    )
+
+
+@dispatch._resolve.register(pgast.ImplicitRowExpr)
+def resolve_ImplicitRowExpr(
+    expr: pgast.ImplicitRowExpr,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.ImplicitRowExpr:
+    return pgast.ImplicitRowExpr(
+        args=dispatch.resolve_list(expr.args, ctx=ctx),
+    )
+
+
+@dispatch._resolve.register(pgast.ParamRef)
+def resolve_ParamRef(
+    expr: pgast.ParamRef,
+    *,
+    ctx: context.ResolverContextLevel,
+) -> pgast.ParamRef:
+    return pgast.ParamRef(number=expr.number)

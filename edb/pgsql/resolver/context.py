@@ -26,8 +26,6 @@ import enum
 
 from edb.common import compiler
 from edb.schema import schema as s_schema
-from edb.schema import objtypes as s_objtypes
-from edb.schema import pointers as s_pointers
 
 
 class ContextSwitchMode(enum.Enum):
@@ -36,10 +34,24 @@ class ContextSwitchMode(enum.Enum):
 
 
 class Scope:
+    """Current relation where ResTargets are added to"""
+
+    rel: Table
+
+    """Current relation where Join relations are added to"""
+    join_relations: List[Table]
+
+    """Tables visible in this scope"""
     tables: List[Table]
+
+    """Common Table Expressions"""
+    ctes: List[CTE]
 
     def __init__(self):
         self.tables = []
+        self.rel = Table()
+        self.join_relations = []
+        self.ctes = []
 
 
 class Table:
@@ -56,6 +68,11 @@ class Table:
     def __init__(self):
         self.columns = []
 
+    def __str__(self) -> str:
+        columns = ', '.join(str(c) for c in self.columns)
+        alias = f'{self.alias} = ' if self.alias else ''
+        return f'{alias}{self.name or "<unnamed>"}({columns})'
+
 
 class Column:
     """Public SQL"""
@@ -64,6 +81,23 @@ class Column:
 
     """Internal SQL"""
     reference_as: Optional[str] = None
+
+    def __init__(
+        self, name: Optional[str] = None, reference_as: Optional[str] = None
+    ):
+        self.name = name
+        self.reference_as = reference_as
+
+    def __str__(self) -> str:
+        return self.name or '<unnamed>'
+
+
+class CTE:
+    name: Optional[str] = None
+    columns: List[Column]
+
+    def __init__(self):
+        self.columns = []
 
 
 class NameGenerator:
@@ -83,7 +117,6 @@ class ResolverContextLevel(compiler.ContextLevel):
     scope: Scope
 
     """Current table"""
-    rel: Table
     include_inherited: bool
 
     def __init__(
@@ -98,7 +131,6 @@ class ResolverContextLevel(compiler.ContextLevel):
 
             self.schema = schema
             self.scope = Scope()
-            self.rel = Table()
             self.include_inherited = True
             self.names = NameGenerator()
 
@@ -110,10 +142,9 @@ class ResolverContextLevel(compiler.ContextLevel):
 
             if mode == ContextSwitchMode.EMPTY:
                 self.scope = Scope()
-                self.rel = Table()
+                self.scope.ctes = prevlevel.scope.ctes
             elif mode == ContextSwitchMode.ISOLATED:
                 self.scope = deepcopy(prevlevel.scope)
-                self.rel = deepcopy(prevlevel.rel)
 
     def empty(
         self,

@@ -574,7 +574,7 @@ class DeleteStmt(DMLQuery):
 class SelectStmt(Query):
 
     # List of DISTINCT ON expressions, empty list for DISTINCT ALL
-    distinct_clause: typing.Optional[list] = None
+    distinct_clause: typing.Optional[typing.List[OutputVar]] = None
     # The target list
     target_list: typing.List[ResTarget] = ast.field(factory=list)
     # The FROM clause
@@ -711,9 +711,9 @@ class FuncCall(ImmutableBaseExpr):
     # List of arguments
     args: typing.List[BaseExpr]
     # ORDER BY
-    agg_order: typing.List[SortBy]
+    agg_order: typing.Optional[typing.List[SortBy]]
     # FILTER clause
-    agg_filter: BaseExpr
+    agg_filter: typing.Optional[BaseExpr]
     # Argument list is '*'
     agg_star: bool
     # Arguments were labeled DISTINCT

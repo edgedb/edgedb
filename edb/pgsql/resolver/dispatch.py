@@ -22,6 +22,7 @@ from __future__ import annotations
 import functools
 import typing
 
+from edb import errors
 from edb.pgsql import ast as pgast
 
 from . import context
@@ -33,7 +34,9 @@ Base_T = typing.TypeVar('Base_T', bound=pgast.Base)
 def _resolve(
     ir: pgast.Base, *, ctx: context.ResolverContextLevel
 ) -> pgast.Base:
-    raise NotImplementedError(f'no SQL resolve handler for {ir.__class__}')
+    raise errors.UnsupportedFeatureError(
+        f'no SQL resolve handler for {ir.__class__}'
+    )
 
 
 def resolve(ir: Base_T, *, ctx: context.ResolverContextLevel) -> Base_T:
@@ -41,10 +44,28 @@ def resolve(ir: Base_T, *, ctx: context.ResolverContextLevel) -> Base_T:
     return typing.cast(Base_T, res)
 
 
+def resolve_opt(
+    ir: typing.Optional[Base_T], *, ctx: context.ResolverContextLevel
+) -> typing.Optional[Base_T]:
+    if not ir:
+        return None
+    return resolve(ir, ctx=ctx)
+
+
 def resolve_list(
-    exprs: typing.List[Base_T], *, ctx: context.ResolverContextLevel
+    exprs: typing.Sequence[Base_T], *, ctx: context.ResolverContextLevel
 ) -> typing.List[Base_T]:
     return [resolve(e, ctx=ctx) for e in exprs]
+
+
+def resolve_opt_list(
+    exprs: typing.Optional[typing.List[Base_T]],
+    *,
+    ctx: context.ResolverContextLevel,
+) -> typing.Optional[typing.List[Base_T]]:
+    if not exprs:
+        return None
+    return resolve_list(exprs, ctx=ctx)
 
 
 @functools.singledispatch
@@ -54,4 +75,6 @@ def resolve_range_var(
     *,
     ctx: context.ResolverContextLevel,
 ) -> pgast.BaseRangeVar:
-    raise NotImplementedError(f'no SQL resolve handler for {ir.__class__}')
+    raise errors.UnsupportedFeatureError(
+        f'no SQL resolve handler for {ir.__class__}'
+    )
