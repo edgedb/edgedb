@@ -1088,6 +1088,14 @@ def trace_DescribeStmt(
 
 
 @trace.register
+def trace_SQLDebugStmt(
+    node: qlast.SQLDebugStmt, *,
+    ctx: TracerContext,
+) -> None:
+    pass
+
+
+@trace.register
 def trace_Placeholder(
     node: qlast.Placeholder,
     *,

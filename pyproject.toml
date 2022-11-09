@@ -28,6 +28,7 @@ test = [
     'flake8-bugbear~=21.4.3',
     'pycodestyle~=2.7.0',
     'pyflakes~=2.3.1',
+    'asyncpg~=0.25.0',
 
     # Needed for test_docs_sphinx_ext
     'requests-xml~=0.2.3',
