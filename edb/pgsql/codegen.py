@@ -18,7 +18,6 @@
 
 
 from __future__ import annotations
-from typing import Sequence
 
 from typing import *
 
@@ -26,6 +25,7 @@ from edb import errors
 
 from edb.pgsql import common
 from edb.pgsql import ast as pgast
+from edb.pgsql.compiler import astutils
 from edb.common.ast import codegen
 from edb.common import exceptions
 from edb.common import markup
@@ -82,11 +82,27 @@ class SQLSourceGeneratorError(errors.InternalServerError):
             exceptions.add_context(self, ctx)
 
 
+class AttrFlagManager:
+    gen: SQLSourceGenerator
+    attr: str
+
+    def __init__(self, gen: SQLSourceGenerator, attr: str):
+        self.gen = gen
+        self.attr = attr
+
+    def __enter__(self) -> None:
+        setattr(self.gen, self.attr, True)
+
+    def __exit__(self, _a: Any, _b: Any, _c: Any) -> None:
+        setattr(self.gen, self.attr, False)
+
+
 class SQLSourceGenerator(codegen.SourceGenerator):
     def __init__(self, *args, reordered=False, **kwargs):  # type: ignore
         super().__init__(*args, **kwargs)
         self.param_index: dict[object, int] = {}
         self.reordered = reordered
+        self.as_scalar = False
 
     @classmethod
     def to_source(  # type: ignore
@@ -106,6 +122,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             ctx = SQLSourceGeneratorContext(node)
             exceptions.add_context(e, ctx)
             raise
+
+    def expect_scalar(self) -> AttrFlagManager:
+        return AttrFlagManager(self, 'as_scalar')
 
     def generic_visit(self, node):  # type: ignore
         raise SQLSourceGeneratorError(
@@ -176,6 +195,56 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.values:
             self._visit_values_expr(node)
             return
+
+        # inline trivial SELECT statements
+        if len(node.target_list) == 1 and astutils.select_is_trivial(node):
+            target = node.target_list[0]
+            if not target.indirection and (self.as_scalar or not target.name):
+                self.visit(target.val)
+                return
+
+        # inline SELECT that merely rename columns
+        if len(node.from_clause) == 1 and astutils.select_is_simple(node):
+            simple_targets = all(
+                not t.indirection and isinstance(t.val, pgast.ColumnRef)
+                for t in node.target_list
+            )
+            if simple_targets:
+                name_mapping = {}
+                for t in node.target_list:
+                    col = cast(pgast.ColumnRef, t.val)
+                    name_mapping[col.name[len(col.name) - 1]] = t.name
+
+                inner = node.from_clause[0]
+                if isinstance(inner, pgast.RangeSubselect):
+                    if isinstance(inner.subquery, pgast.SelectStmt):
+                        if not inner.subquery.op:
+
+                            instead = pgast.SelectStmt(
+                                distinct_clause=inner.subquery.distinct_clause,
+                                target_list=[
+                                    pgast.ResTarget(
+                                        name=name_mapping[t.name],
+                                        val=t.val,
+                                        indirection=t.indirection,
+                                    )
+                                    for t in inner.subquery.target_list
+                                    if t.name in name_mapping
+                                ],
+                                from_clause=inner.subquery.from_clause,
+                                where_clause=inner.subquery.where_clause,
+                                group_clause=inner.subquery.group_clause,
+                                having=inner.subquery.having,
+                                window_clause=inner.subquery.window_clause,
+                                values=inner.subquery.values,
+                                sort_clause=inner.subquery.sort_clause,
+                                limit_offset=inner.subquery.limit_offset,
+                                limit_count=inner.subquery.limit_count,
+                                locking_clause=inner.subquery.locking_clause,
+                            )
+
+                            self.visit(instead)
+                            return
 
         # This is a very crude detection of whether this SELECT is
         # a top level statement.
@@ -296,14 +365,16 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.indentation += 1
             self.new_lines = 1
             self.write('OFFSET ')
-            self.visit(node.limit_offset)
+            with self.expect_scalar():
+                self.visit(node.limit_offset)
             self.indentation -= 1
 
         if node.limit_count:
             self.indentation += 1
             self.new_lines = 1
             self.write('LIMIT ')
-            self.visit(node.limit_count)
+            with self.expect_scalar():
+                self.visit(node.limit_count)
             self.indentation -= 1
 
         if self.reordered and not node.op:

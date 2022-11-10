@@ -449,6 +449,10 @@ def select_is_simple(stmt: pgast.SelectStmt) -> bool:
     )
 
 
+def select_is_trivial(stmt: pgast.SelectStmt) -> bool:
+    return not stmt.from_clause and select_is_simple(stmt)
+
+
 def is_row_expr(expr: pgast.BaseExpr) -> bool:
     while True:
         if isinstance(expr, (pgast.RowExpr, pgast.ImplicitRowExpr)):
