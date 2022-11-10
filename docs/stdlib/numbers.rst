@@ -142,9 +142,10 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: int integer
 
-    A 16-bit signed integer.
+    Represents a 16-bit signed integer.
 
-    An integer value in range from ``-32768`` to ``+32767`` (inclusive).
+    The value of an :eql:type:`int16` ranges from ``-32768`` to ``+32767``
+    (inclusive).
 
 
 ----------
@@ -154,10 +155,10 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: int integer
 
-    A 32-bit signed integer.
+    Represents a 32-bit signed integer.
 
-    An integer value in range from ``-2147483648`` to ``+2147483647``
-    (inclusive).
+    The value of an :eql:type:`int32` ranges from ``-2147483648`` to
+    ``+2147483647`` (inclusive).
 
 
 ----------
@@ -167,7 +168,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: int integer
 
-    A 64-bit signed integer.
+    Represents a 64-bit signed integer.
 
     An integer value in range from ``-9223372036854775808`` to
     ``+9223372036854775807`` (inclusive).
@@ -180,10 +181,10 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: float
 
-    A variable precision, inexact number.
+    Represents a variable precision, inexact number.
 
-    Minimal guaranteed precision is at least 6 decimal digits. The
-    approximate range of a ``float32`` is ``-3.4e+38`` to
+    The minimal guaranteed precision is at least 6 decimal digits. The
+    approximate range of a :eql:type:`float32` ranges from ``-3.4e+38`` to
     ``+3.4e+38``.
 
 
@@ -194,10 +195,12 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: float double
 
-    A variable precision, inexact number.
+    Represents a variable precision, inexact number. Also see
+    :eql:type:`float32`.
 
-    Minimal guaranteed precision is at least 15 decimal digits. The
-    approximate range of a ``float64`` is ``-1.7e+308`` to ``+1.7e+308``.
+    The minimal guaranteed precision is at least 15 decimal digits. The
+    approximate range of a :eql:type:`float64` ranges from ``-1.7e+308`` to
+    ``+1.7e+308``.
 
 
 ----------
@@ -207,31 +210,40 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: numeric bigint
 
-    Arbitrary precision integer.
+    Represents an arbitrary precision integer.
 
-    The EdgeDB philosophy is that using bigint type should be an
-    explicit opt-in, but once used, the values should not be
-    accidentally cast into a numeric type with less precision.
+    In EdgeDB, the philosophy of :eql:type:`bigint` is that using this type
+    should be an explicit opt-in and not implicit. Once used, these values
+    should not be accidentally casted to a different numerical type that gives
+    less precision.
 
-    In accordance with this :ref:`the mathematical functions
-    <ref_std_math>` are designed to keep the separation
-    between bigint values and the rest of the numeric types.
+    In addition with this, :ref:`our mathematical functions <ref_std_math>`
+    are designed to keep the separation between bigint values and the rest of
+    our numerical types.
 
-    All of the following types can be explicitly cast into bigint:
-    :eql:type:`str`, :eql:type:`json`, :eql:type:`int16`,
-    :eql:type:`int32`, :eql:type:`int64`, :eql:type:`float32`,
-    :eql:type:`float64`, and :eql:type:`decimal`.
+    All of the following types can be explicitly cast into a
+    :eql:type:`bigint` type:
 
-    A bigint literal is an integer literal followed by 'n':
+    - :eql:type:`str`
+    - :eql:type:`json`
+    - :eql:type:`int16`
+    - :eql:type:`int32`
+    - :eql:type:`int64`
+    - :eql:type:`float32`
+    - :eql:type:`float64`
+    - :eql:type:`decimal`
+
+    A :eql:type:`bigint` literal is also an integer literal, followed by
+    ``n``:
 
     .. code-block:: edgeql-repl
 
         db> select 42n is bigint;
         {true}
 
-    To represent really big integers it is possible to use the
+    To represent really big integers, it is possible to use the
     exponent notation (e.g. ``1e20n`` instead of ``100000000000000000000n``)
-    as long as the exponent is positive and there is no dot anywhere.
+    so as long as the exponent is positive and there is no dot anywhere:
 
     .. code-block:: edgeql-repl
 

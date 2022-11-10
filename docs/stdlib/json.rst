@@ -55,10 +55,10 @@ JSON
 Constructing JSON Values
 ------------------------
 
-JSON in EdgeDB are one of the
-:ref:`scalar types <ref_datamodel_scalar_types>`. This scalar doesn't have its
-own literal and instead can be obtained by casting a value to
-:eql:type:`json`, or by using :eql:func:`to_json`:
+JSON in EdgeDB is a variation of
+:ref:`scalar types <ref_datamodel_scalar_types>`. This type doesn't have its
+own literal, and instead can be obtained by either casting a value to the
+:eql:type:`json` type, or by using the :eql:func:`to_json` function:
 
 .. code-block:: edgeql-repl
 
@@ -67,7 +67,7 @@ own literal and instead can be obtained by casting a value to
     db> select <json>'hello world';
     {'"hello world"'}
 
-Anything in EdgeDB can be casted into :eql:type:`json` as such:
+Any value in EdgeDB can be casted to an :eql:type:`json` type as well:
 
 .. code-block:: edgeql-repl
 
@@ -76,10 +76,11 @@ Anything in EdgeDB can be casted into :eql:type:`json` as such:
     db> select <json>cal::to_local_date(datetime_current(), 'UTC');
     {'"2019-04-02"'}
 
-Subsequently, any :eql:type:`Object` can be casted as :eql:type:`json`. This
-will produce the same JSON value as the serialized JSON of that object.
-Furthermore, this result is the same as the output of a :eql:stmt:`select
-expression <select>` in *JSON mode*, including the shape of the type:
+Additionally, any :eql:type:`Object` in EdgeDB can be casted as a
+:eql:type:`json` type. This produces the same JSON value as the
+JSON-serialized result of that said object. Furthermore, this result will
+be the same as the output of a :eql:stmt:`select expression <select>` in
+*JSOM mode*, including the shape of that type:
 
 .. code-block:: edgeql-repl
 
@@ -92,18 +93,17 @@ expression <select>` in *JSON mode*, including the shape of the type:
     ...     filter .name = 'std::bool');
     {'{"name": "std::bool", "timestamp": "2019-04-02"}'}
 
-JSON values can also be casted back into scalars. Casting JSON is
+JSON values can also be casted back as a scalar type. Casting JSON is
 symmetrical: if a scalar type can be casted back into JSON, only that
-particular JSON type can be casted back into that scalar. Some scalars have
-specific conditions:
+particular JSON type can be casted back into that scalar. Some scalar types
+will have specific conditions:
 
-- JSON *strings* can be casted as a :eql:type:`str`. Casting
-  :eql:type:`uuid`, :ref:`date and time types
-  <ref_std_datetime>` to JSON; results in a JSON
-  string representing its original value. This means that it is
-  also possible to cast a JSON string back to its original type. The
-  value of the string must also be properly formatted, otherwise an
-  exception will be raised.
+- JSON *strings* can be casted as a :eql:type:`str` type. Casting
+  :eql:type:`uuid` and :ref:`date/time types
+  <ref_std_datetime>` to JSON results in a JSON
+  string representing its original value. This means it is also possible to
+  cast a JSON string back to its original type. The value of the string must
+  also be properly formatted, otherwise an exception will be raised.
 - JSON *numbers* can be casted to any :ref:`numeric type <ref_std_numeric>`.
 - JSON *booleans* can be casted as a :eql:type:`bool`.
 - Nullified JSON is special as it can be casted as an empty set or ``{}`` of
@@ -132,8 +132,8 @@ i.e. it is not possible to cast a JSON value directly into a
         db> select <bool>to_json('true');
         {true}
 
-    A :eql:type:`json` value can also be casted as a :eql:type:`str`,
-    only when recognised as a JSON-serialized string.
+    A :eql:type:`json` type can also be casted as a :eql:type:`str` type,
+    but only when recognised as a JSON string:
 
     .. code-block:: edgeql-repl
 
@@ -141,16 +141,15 @@ i.e. it is not possible to cast a JSON value directly into a
         {'something'}
 
     Casting a string array of JSON (``["a", "b", "c"]``) to a :eql:type:`str`
-    will result in an error:
+    type will result in an error:
 
     .. code-block:: edgeql-repl
 
         db> select <str>to_json('["a", "b", "c"]');
         InvalidValueError: expected json string or null; got JSON array
 
-    Use the :eql:func:`to_json` and :eql:func:`to_str`
-    functions to dump or parse a :eql:type:`json` value to or
-    from a :eql:type:`str`:
+    For dumping or parsing the value of a :eql:type:`json` or :eql:type:`str`
+    type, use the :eql:func`to_json` or :eql:func:`to_str` functions:
 
     .. code-block:: edgeql-repl
 
@@ -165,11 +164,10 @@ i.e. it is not possible to cast a JSON value directly into a
 
 .. eql:operator:: jsonidx: json [ int64 ] -> json
 
-    Indexes an array or string of :eql:type:`int64`.
+    Indexes an array or string of :eql:type:`json`.
 
     This results in :eql:type:`json`. Contents of a JSON array or string can
-    also accessed through accessing an index from indices. (``[]``) Strings
-    are a set of :eql:type:`bytes` in this instance:
+    also accessed through accessing an index from indices: (``[ int64 ]``)
 
     .. code-block:: edgeql-repl
 
@@ -183,8 +181,8 @@ i.e. it is not possible to cast a JSON value directly into a
         {'null'}
 
     This may raise an exception if the specified index is not valid for the
-    base JSON value. To access potentially out-of-bound indexes, use
-    :eql:func:`json_get`.
+    base JSON value. To access an element that is potentially out of
+    boundaries, use :eql:func:`json_get`.
 
 
 ----------
@@ -192,10 +190,10 @@ i.e. it is not possible to cast a JSON value directly into a
 
 .. eql:operator:: jsonslice: json [ int64 : int64 ] -> json
 
-    Indexes an array or string of :eql:type:`int64`.
+    Indexes an array or string of :eql:type:`json`.
 
     This results in :eql:type:`json`. Arrays and strings of JSON can be sliced
-    in the same manner as a regular array, producing the JSON type:
+    in the same manner as an :eql:type:`array`, producing a JSON type:
 
     .. code-block:: edgeql-repl
 
@@ -222,8 +220,8 @@ i.e. it is not possible to cast a JSON value directly into a
     into one.
 
     This results in a reference of both array's elements conjoined together.
-    If there are mutually given keys in the given JSON, the value of the
-    second one is used instead:
+    If there are mutual keys in the given :eql:type:`json`, the value of the
+    second one will be used instead:
     
     .. code-block:: edgeql-repl
 
@@ -242,9 +240,10 @@ i.e. it is not possible to cast a JSON value directly into a
 
 .. eql:operator:: jsonobjdest: json [ str ] -> json
 
-    JSON object property access.
+    Accesses the value of a :eql:type:`json` from its :eql:type:`str` key:
 
-    The fields of JSON *objects* can also be accessed via ``[]``:
+    This results in a :eql:type:`json` type. The fields of any JSON object may
+    also be accessed via ``[]``:
 
     .. code-block:: edgeql-repl
 
@@ -259,7 +258,7 @@ i.e. it is not possible to cast a JSON value directly into a
 
     The field access operator ``[]`` will raise an exception if the
     specified field does not exist for the base JSON value. To access
-    potentially non-existent fields use the :eql:func:`json_get` function.
+    potentially non-existent fields, use the :eql:func:`json_get` function.
 
 
 ----------
@@ -269,7 +268,7 @@ i.e. it is not possible to cast a JSON value directly into a
 
     :index: json parse loads
 
-    Return JSON value represented by the input *string*.
+    Returns the value of the inputted :eql:type:`str` from a :eql:type:`json`:
 
     .. code-block:: edgeql-repl
 
@@ -286,19 +285,19 @@ i.e. it is not possible to cast a JSON value directly into a
 
     :index: array unpack
 
-    Return elements of JSON array as a set of :eql:type:`json`.
+    Returns the elements of a JSON array as a set of :eql:type:`json`.
 
-    Calling this function on anything other than a JSON array will
-    cause a runtime error.
-
-    This function should be used if the ordering of elements is not
-    important or when set ordering is preserved (such as an immediate
-    input to an aggregate function).
+    Calling this function on anything other than an array of :eql:type:`json`
+    will result in a runtime error:
 
     .. code-block:: edgeql-repl
 
         db> select json_array_unpack(to_json('[1, "a"]'));
         {'1', '"a"'}
+
+    This function should be only used if the ordering of elements are not
+    deemed important, or when the ordering of the set is preserved (such as an
+    immediate input to an aggregate function)
 
 
 ----------
@@ -309,12 +308,14 @@ i.e. it is not possible to cast a JSON value directly into a
 
     :index: safe navigation
 
-    Return the JSON value at the end of the specified path or an empty set.
+    Returns the value of a :eql:type:`json` at the end of the specified path.
+
+    This will otherwise provide an empty set containing no JSON.
 
     This function provides "safe" navigation of a JSON value. If the
     input path is a valid path for the input JSON object/array, the
     JSON value at the end of that path is returned. If the path cannot
-    be followed for any reason, the empty set is returned.
+    be followed for any reason, the empty set is returned:
 
     .. code-block:: edgeql-repl
 
@@ -338,7 +339,7 @@ i.e. it is not possible to cast a JSON value directly into a
         {}
 
     Also, a default value can be supplied by using the
-    :eql:op:`coalescing <coalesce>` operator:
+    :eql:op:`coalescence <coalesce>` operator:
 
     .. code-block:: edgeql-repl
 
@@ -362,7 +363,7 @@ i.e. it is not possible to cast a JSON value directly into a
                       JsonEmpty.ReturnEmpty) \
                   -> optional json
 
-    Return an updated JSON target with a new value.
+    Returns an updated :eql:type:`json` target with a new value.
 
     .. note::
 
@@ -384,7 +385,7 @@ i.e. it is not possible to cast a JSON value directly into a
         {'{"a": {"b": {"c": 42}}}'}
 
     If ``create_if_missing`` is set to ``false``, a new path for the value
-    won't be created.
+    won't be created:
 
     .. code-block:: edgeql-repl
 
@@ -402,9 +403,9 @@ i.e. it is not possible to cast a JSON value directly into a
         ... );
         {'{"a": 10, "b": 20}'}
 
-    ``empty_treatment`` is an enumeration responsible for the behavior of the
-    function if an empty set is passed to ``new_value``. It contains one of
-    the following values:
+    ``empty_treatment`` is an enumerable responsible for the behavior of the
+    function if an empty set is passed to ``new_value``. This will contain one
+    of the following values:
 
     - ``ReturnEmpty``: return empty set, default
     - ``ReturnTarget``: return ``target`` unmodified
@@ -455,10 +456,11 @@ i.e. it is not possible to cast a JSON value directly into a
 .. eql:function:: std::json_object_unpack(json: json) -> \
                   set of tuple<str, json>
 
-    Return set of key/value tuples that make up the JSON object.
+    Returns a set of key/value tuples that make up a :eql:type:`json`
+    object.
 
     Calling this function on anything other than a JSON object will
-    cause a runtime error.
+    result in a runtime error.
 
     .. code-block:: edgeql-repl
 
@@ -477,10 +479,11 @@ i.e. it is not possible to cast a JSON value directly into a
 
     :index: type
 
-    Return the type of the outermost JSON value as a string.
+    Returns the type of the outermost :eql:type:`json` value as a
+    :eql:type:`str`.
 
     Possible return values are: ``'object'``, ``'array'``,
-    ``'string'``, ``'number'``, ``'boolean'``, ``'null'``.
+    ``'string'``, ``'number'``, ``'boolean'`` and ``'null'``:
 
     .. code-block:: edgeql-repl
 
