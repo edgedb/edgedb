@@ -218,8 +218,8 @@ from :eql:type:`str` and :eql:type:`json`.
     less precision.
 
     In addition with this, :ref:`our mathematical functions <ref_std_math>`
-    are designed to keep the separation between bigint values and the rest of
-    our numerical types.
+    are designed to keep separation between big integer values and the
+    rest of our numerical types.
 
     All of the following types can be explicitly cast into a
     :eql:type:`bigint` type:
@@ -250,8 +250,8 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select 1e+100n is bigint;
         {true}
 
-    When a float literal is followed by ‘n’ it produces a
-    :eql:type:`decimal` instead:
+    When a float literal is followed by ``n``, it will produce a
+    :eql:type:`decimal` value instead:
 
     .. code-block:: edgeql-repl
 
@@ -263,14 +263,14 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. note::
 
-        Caution is advised when casting ``bigint`` values into
-        ``json``. The JSON specification does not have a limit on
-        significant digits, so a ``bigint`` number can be losslessly
+        Caution is advised when casting :eql:type:`bigint` values into
+        :eql:type:`json`. The JSON specification does not have a limit on
+        significant digits, so a big integer number can be losslessly
         represented in JSON. However, JSON decoders in many languages
-        will read all such numbers as some kind of 32- or 64-bit
+        will read all such numbers as some kind of 32 or 64-bit
         number type, which may result in errors or precision loss. If
         such loss is unacceptable, then consider casting the value
-        into ``str`` and decoding it on the client side into a more
+        into a :eql:type:`str` and decoding it on the client side into a more
         appropriate type.
 
 
@@ -281,22 +281,28 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: numeric float
 
-    Any number of arbitrary precision.
+    Represents any number of arbitrary precision.
 
-    The EdgeDB philosophy is that using a decimal type should be an
-    explicit opt-in, but once used, the values should not be
-    accidentally cast into a numeric type with less precision.
+    In EdgeDB, the philosophy of :eql:type:`bigint` is that using this type
+    should be an explicit opt-in and not implicit. Once used, these values
+    should not be accidentally casted to a different numerical type that gives
+    less precision.
 
-    In accordance with this :ref:`the mathematical functions
-    <ref_std_math>` are designed to keep the separation
-    between decimal values and the rest of the numeric types.
+    In addition to this, :ref:`our mathematical functions <ref_std_math>`
+    are designed to keep separation between decimal values and the rest of
+    our numerical types.
 
     All of the following types can be explicitly cast into decimal:
-    :eql:type:`str`, :eql:type:`json`, :eql:type:`int16`,
-    :eql:type:`int32`, :eql:type:`int64`, :eql:type:`float32`,
-    :eql:type:`float64`, and :eql:type:`bigint`.
+    - :eql:type:`str`
+    - :eql:type:`json`
+    - :eql:type:`int16`
+    - :eql:type:`int32`
+    - :eql:type:`int64`
+    - :eql:type:`float32`
+    - :eql:type:`float64`
+    - :eql:type:`bigint`
 
-    A decimal literal is a float literal followed by 'n':
+    A decimal literal is a float literal, followed by ``n``:
 
     .. code-block:: edgeql-repl
 
@@ -307,8 +313,8 @@ from :eql:type:`str` and :eql:type:`json`.
         {true}
 
     Note that an integer literal (without a dot or exponent) followed
-    by ‘n’ produces a :eql:type:`bigint`. A literal without a dot
-    and with a positive exponent makes a :eql:type:`bigint`, too:
+    by ``n`` produces a :eql:type:`bigint` value. A literal without a dot
+    and with a positive exponent makes a :eql:type:`bigint` too:
 
     .. code-block:: edgeql-repl
 
@@ -320,14 +326,14 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. note::
 
-        Caution is advised when casting ``decimal`` values into
-        ``json``. The JSON specification does not have a limit on
-        significant digits, so a ``decimal`` number can be losslessly
+        Caution is advised when casting :eql:type:`decimal` values into
+        :eql:type:`json`. The JSON specification does not have a limit on
+        significant digits, so a decimal number can be losslessly
         represented in JSON. However, JSON decoders in many languages
         will read all such numbers as some kind of floating point
         values, which may result in precision loss. If such loss is
-        unacceptable, then consider casting the value into ``str`` and
-        decoding it on the client side into a more appropriate type.
+        unacceptable, then consider casting the value into a :eql:type:`str`
+        and decoding it on the client side into a more appropriate type.
 
 
 ----------
@@ -337,7 +343,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: plus add
 
-    Arithmetic addition.
+    Performs arithmetic addition between two arbitrary numbers:
 
     .. code-block:: edgeql-repl
 
@@ -352,7 +358,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: minus subtract
 
-    Arithmetic subtraction.
+    Performs arithmetic subtraction between two arbitrary numbers:
 
     .. code-block:: edgeql-repl
 
@@ -367,7 +373,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: unary minus subtract
 
-    Arithmetic negation.
+    Performs a logical negation of an arthimetic, arbitrarily numerical value:
 
     .. code-block:: edgeql-repl
 
@@ -382,7 +388,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: multiply multiplication
 
-    Arithmetic multiplication.
+    Performs arithmetic multiplication between two arbitrary numbers:
 
     .. code-block:: edgeql-repl
 
@@ -397,14 +403,14 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: divide division
 
-    Arithmetic division.
+    Performs arithmetic division between two arbitrary numbers:
 
     .. code-block:: edgeql-repl
 
         db> select 10 / 4;
         {2.5}
 
-    Division by zero results in an error:
+    Dividing a value by zero will result in an exception:
 
     .. code-block:: edgeql-repl
 
@@ -419,11 +425,11 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: floor divide division
 
-    Floor division.
+    Performs a floor based divison between two arbitrary numbers.
 
-    The result is rounded down to the nearest integer. It is
-    equivalent to using regular division and the applying
-    :eql:func:`math::floor` to the result.
+    The result of this operation is rounded down to its nearest integer.
+    It is the equivalent to using regular division and then applying
+    :eql:func:`math::floor` to the result:
 
     .. code-block:: edgeql-repl
 
@@ -434,9 +440,9 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select -10 // 4;
         {-3}
 
-    It also works on :eql:type:`float <anyfloat>`, :eql:type:`bigint`, and
+    This also works on :eql:type:`float <anyfloat>`, :eql:type:`bigint` and
     :eql:type:`decimal` types. The type of the result corresponds to
-    the type of the operands:
+    the type of its operands:
 
     .. code-block:: edgeql-repl
 
@@ -447,7 +453,7 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select 37 // 11;
         {3}
 
-    Regular division, floor division, and :eql:op:`%<mod>` are
+    Regular division, floor division and :eql:op:`%<mod>` operations are
     related in the following way: ``A // B  =  (A - (A % B)) / B``.
 
 
@@ -458,11 +464,11 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: modulo mod division
 
-    Remainder from division (modulo).
+    Retrieves the remainder from a division operation. (modulo)
 
-    This is the remainder from floor division. Just as is
-    the case with :eql:op:`//<floordiv>` the result type of the
-    remainder operator corresponds to the operand type:
+    This is also the remainder from floor division. Just as is
+    the case with the :eql:op:`//<floordiv>` operator, the resulting type of
+    the remainder operator corresponds to the left operand's type:
 
     .. code-block:: edgeql-repl
 
@@ -481,10 +487,11 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select 37 % 11;
         {4}
 
-    Regular division, :eql:op:`//<floordiv>` and :eql:op:`%<mod>` are
-    related in the following way: ``A // B  =  (A - (A % B)) / B``.
+    In regular division, the :eql:op:`//<floordiv>` and :eql:op:`%<mod>`
+    operators are related in the following way:
+    ``A // B  =  (A - (A % B)) / B``.
 
-    Modulo division by zero results in an error:
+    Modulo division by zero will result in an exception:
 
     .. code-block:: edgeql-repl
 
@@ -499,7 +506,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: power pow
 
-    Power operation.
+    Performs a power (exponential) operation by two arbitrary numbers:
 
     .. code-block:: edgeql-repl
 
@@ -516,12 +523,12 @@ from :eql:type:`str` and :eql:type:`json`.
                   std::round(value: decimal) -> decimal
                   std::round(value: decimal, d: int64) -> decimal
 
-    Round to the nearest value.
+    Returns a number from ``value`` rounded by its nearest integer.
 
     There's a difference in how ties (which way ``0.5`` is rounded)
-    are handled depending on the type of the input *value*.
+    are handled depending on the type of the inputted ``value``.
 
-    :eql:type:`float64` tie is rounded to the nearest even number:
+    The :eql:type:`float64` tie is rounded to the nearest even number:
 
     .. code-block:: edgeql-repl
 
@@ -534,7 +541,7 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select round(2.5);
         {2}
 
-    :eql:type:`decimal` tie is rounded away from 0:
+    But the :eql:type:`decimal` tie is rounded away from zero:
 
     .. code-block:: edgeql-repl
 
@@ -547,9 +554,9 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select round(2.5n);
         {3n}
 
-    Additionally, when rounding a :eql:type:`decimal` *value* an
-    optional argument *d* can be provided to specify to what decimal
-    point the *value* must to be rounded.
+    Additionally, when rounding a :eql:type:`decimal` value, an
+    optional argument ``d`` may be provided to further specify what decimal
+    point the value must to be rounded to:
 
     .. code-block:: edgeql-repl
 
@@ -574,7 +581,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
 .. eql:function:: std::random() -> float64
 
-    Return a pseudo-random number in the range ``0.0 <= x < 1.0``.
+    Returns a pseudo-random number in the range of ``0.0 <= x < 1.0``:
 
     .. code-block:: edgeql-repl
 
@@ -589,7 +596,7 @@ from :eql:type:`str` and :eql:type:`json`.
                   std::bit_and(l: int32, r: int32) -> int32
                   std::bit_and(l: int64, r: int64) -> int64
 
-    Bitwise AND operator for 2 intergers.
+    Returns the result of a bitwise AND operator for two integers:
 
     .. code-block:: edgeql-repl
 
@@ -604,7 +611,7 @@ from :eql:type:`str` and :eql:type:`json`.
                   std::bit_or(l: int32, r: int32) -> int32
                   std::bit_or(l: int64, r: int64) -> int64
 
-    Bitwise OR operator for 2 intergers.
+    Returns the result of a bitwise OR operator for two integers.
 
     .. code-block:: edgeql-repl
 
@@ -619,7 +626,7 @@ from :eql:type:`str` and :eql:type:`json`.
                   std::bit_xor(l: int32, r: int32) -> int32
                   std::bit_xor(l: int64, r: int64) -> int64
 
-    Bitwise exclusive OR operator for 2 intergers.
+    Returns the result of an exclusive, bitwise OR operator for two integers:
 
     .. code-block:: edgeql-repl
 
@@ -634,7 +641,7 @@ from :eql:type:`str` and :eql:type:`json`.
                   std::bit_not(r: int32) -> int32
                   std::bit_not(r: int64) -> int64
 
-    Bitwise negation operator for 2 intergers.
+    Returns the result of a bitwise negation operator for two integers.
 
     Bitwise negation for integers ends up similar to mathematical negation
     because typically the signed integers use "two's complement"
@@ -656,12 +663,11 @@ from :eql:type:`str` and :eql:type:`json`.
                   std::bit_lshift(val: int32, n: int64) -> int32
                   std::bit_lshift(val: int64, n: int64) -> int64
 
-    Bitwise left-shift operator for intergers.
+    Returns the result of a bitwise left-shift operator for two integers.
 
-    The integer *val* is shifted by *n* bits to the left. The rightmost added
-    bits are all ``0``. Shifting an integer by a number of bits larger than
-    the bit size of the integer results in ``0``.
-
+    The integer of ``val`` is shifted by ``n`` bits to the left. The rightmost
+    added bits are all ``0``. Shifting an integer by a number of bits larger
+    than the bit size of the integer results in ``0``:
 
     .. code-block:: edgeql-repl
 
@@ -670,15 +676,15 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select bit_lshift(123, 65);
         {0}
 
-    It is possible to affect the sign bit by left-shifting an integer.
+    It is possible to affect the sign bit by left-shifting an integer:
 
     .. code-block:: edgeql-repl
 
         db> select bit_lshift(123, 60);
         {-5764607523034234880}
 
-    In general left-shifting an integer in small increments produces the same
-    result as shifting it in one step.
+    In general, left-shifting an integer in small increments produces the same
+    result as shifting it in one step:
 
     .. code-block:: edgeql-repl
 
@@ -687,7 +693,8 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select bit_lshift(123, 4);
         {1968}
 
-    It is an error to attempt to shift by a negative number of bits.
+    An exception will be raised when attempting to shift by a negative number
+    of bits:
 
     .. code-block:: edgeql-repl
 
@@ -703,13 +710,15 @@ from :eql:type:`str` and :eql:type:`json`.
                   std::bit_rshift(val: int32, n: int64) -> int32
                   std::bit_rshift(val: int64, n: int64) -> int64
 
-    Bitwise arithemtic right-shift operator for intergers.
+    Returns the result of a bitwise, arithemtic right-shift operator for
+    two integers.
 
-    The integer *val* is shifted by *n* bits to the right. In the arithmetic
-    right-shift the sign is preserved. This means that the leftmost added bits
-    are ``1`` or ``0`` depending on the sign bit. Shifting an integer by a
-    number of bits larger than the bit size of the integer results in ``0``
-    for positive numbers and ``-1`` for negative numbers.
+    The integer of ``val`` is shifted by ``n`` bits to the right. In the
+    arithmetic, right-shifting the sign is preserved. This means that the
+    leftmost added bits are ``1`` or ``0`` depending on the sign bit.
+    Shifting an integer by a number of bits larger than the bit size of the
+    integer results in ``0`` for positive numbers and ``-1`` for negative
+    numbers:
 
     .. code-block:: edgeql-repl
 
@@ -722,8 +731,8 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select bit_rshift(-123, 65);
         {-1}
 
-    In general right-shifting an integer in small increments produces the same
-    result as shifting it in one step.
+    In general, right-shifting an integer in small increments produces the same
+    result as shifting it in one step:
 
     .. code-block:: edgeql-repl
 
@@ -736,7 +745,8 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select bit_rshift(-123, 4);
         {-8}
 
-    It is an error to attempt to shift by a negative number of bits.
+    An exception will be raised when attempting to shift by a negative number
+    of bits:
 
     .. code-block:: edgeql-repl
 
@@ -752,10 +762,8 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: parse bigint
 
-    Create a :eql:type:`bigint` value.
-
-    Parse a :eql:type:`bigint` from the input *s* and optional format
-    specification *fmt*.
+    Returns a :eql:type:`bigint` value from ``s`` with a possible format of
+    ``fmt``:
 
     .. code-block:: edgeql-repl
 
@@ -771,15 +779,12 @@ from :eql:type:`str` and :eql:type:`json`.
 ------------
 
 
-
 .. eql:function:: std::to_decimal(s: str, fmt: optional str={}) -> decimal
 
     :index: parse decimal
 
-    Create a :eql:type:`decimal` value.
-
-    Parse a :eql:type:`decimal` from the input *s* and optional format
-    specification *fmt*.
+    Returns a :eql:type:`decimal` value from ``s`` with possible format of
+    ``fmt``:
 
     .. code-block:: edgeql-repl
 
@@ -801,10 +806,8 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: parse int16
 
-    Create an :eql:type:`int16` value.
-
-    Parse an :eql:type:`int16` from the input *s* and optional format
-    specification *fmt*.
+    Returns an :eql:type:`int16` value from ``s`` with possible format of
+    ``fmt``:
 
     For more details on formatting see :ref:`here
     <ref_std_converters_number_fmt>`.
@@ -817,10 +820,8 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: parse int32
 
-    Create an :eql:type:`int32` value.
-
-    Parse an :eql:type:`int32` from the input *s* and optional format
-    specification *fmt*.
+    Returns an :eql:type:`int32` value from ``s`` with possible format of
+    ``fmt``:
 
     For more details on formatting see :ref:`here
     <ref_std_converters_number_fmt>`.
@@ -833,10 +834,8 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: parse int64
 
-    Create an :eql:type:`int64` value.
-
-    Parse an :eql:type:`int64` from the input *s* and optional format
-    specification *fmt*.
+    Returns an :eql:type:`int64` value from ``s`` with possible format of
+    ``fmt``:
 
     For more details on formatting see :ref:`here
     <ref_std_converters_number_fmt>`.
@@ -849,10 +848,8 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: parse float32
 
-    Create a :eql:type:`float32` value.
-
-    Parse a :eql:type:`float32` from the input *s* and optional format
-    specification *fmt*.
+    Returns a :eql:type:`float32` value from ``s`` with possible format of
+    ``fmt``:
 
     For more details on formatting see :ref:`here
     <ref_std_converters_number_fmt>`.
@@ -865,10 +862,8 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: parse float64
 
-    Create a :eql:type:`float64` value.
-
-    Parse a :eql:type:`float64` from the input *s* and optional format
-    specification *fmt*.
+    Returns a :eql:type:`float64` value from ``s`` with possible format of
+    ``fmt``:
 
     For more details on formatting see :ref:`here
     <ref_std_converters_number_fmt>`.
