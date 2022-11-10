@@ -843,20 +843,20 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     - ``'month'`` - number of months left over after whole years are
       accounted for
     - ``'day'`` - number of days recorded in the duration
-    - ``'hour'`` - duration hours
-    - ``'minutes'`` - duration minutes (0-59)
-    - ``'seconds'`` - duration seconds, including fractional value from 0 up
-      to and not including 60
-    - ``'milliseconds'`` - seconds including fractional value expressed as
-      milliseconds
-    - ``'microseconds'`` - seconds including fractional value expressed as
-      microseconds
+    - ``'hour'`` - number of hours
+    - ``'minutes'`` - remaining minutes after whole hours are accounted for
+    - ``'seconds'`` - remaining seconds, including fractional value after whole
+      minutes are accounted for
+    - ``'milliseconds'`` - remaining seconds including fractional value
+      expressed as milliseconds
+    - ``'microseconds'`` - remaining seconds including fractional value
+      expressed as microseconds
 
     .. note ::
 
-      Only for units ``'month'`` or larger will you receive a total across
-      multiple units expressed in the original duration. See *Gotchas* below
-      for details.
+      Only for units ``'month'`` or larger or for units ``'hour'`` or smaller
+      will you receive a total across multiple units expressed in the original
+      duration. See *Gotchas* below for details.
 
     Additionally, it's possible to convert a given duration into seconds:
 
@@ -905,21 +905,29 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     .. rubric:: Gotchas
 
-    When you use this function to return an element of a duration, the value
-    will be returned only as the number of that specific unit defined in the
-    duration, except for units ``'month'`` and larger. Otherwise, the function
-    will not "reach across" units to return an overall total in terms of the
-    desired unit (i.e., the unit passed as ``el``).
+    This function will provide you with a calculated total for the unit passed
+    as ``el``, but only within the given "size class" of the unit. The size
+    classes are as follows:
+
+    - ``'month'`` and larger
+    - ``'day'``
+    - ``'hour'`` and smaller
 
     For example, if you specify ``'day'`` as your ``el`` argument, the function
-    will only return the number of days defined as ``N days`` in your duration.
-    It will not add another day to the returned count for every 24 hours
-    (defined as ``24 hours``) in the duration, nor will it consider the months'
-    constituent day counts in the returned value.
+    will return only the number of days expressed as ``N days`` in your
+    duration. It will not add another day to the returned count for every 24
+    hours (defined as ``24 hours``) in the duration, nor will it consider the
+    months' constituent day counts in the returned value.
+
+    Specifying ``'decade'`` for ``el`` will total up all decades represented in
+    units ``'month'`` and larger, but it will not add a decade's worth of days
+    to the returned value as an additional decade. On the other end of the unit
+    spectrum, passing ``'hour'`` for ``el`` will not add a day's worth of hours
+    for each day in your duration.
 
     In this example, the duration represents more than a day's time, but since
-    ``'day'`` and ``'hour'`` are different units, the extra day stemming from
-    the duration's hours is not added.
+    ``'day'`` and ``'hour'`` are in different size classes, the extra day
+    stemming from the duration's hours is not added.
 
     .. code-block:: edgeql-repl
 
@@ -928,7 +936,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         {1}
 
     In this counter example, both the decades and months are pooled together
-    since they are ``'month'`` or larger. The return value is 5: the 2
+    since they are in the same size class. The return value is 5: the 2
     ``'decades'`` and the 3 decades in ``'400 months'``.
 
     .. code-block:: edgeql-repl
@@ -937,14 +945,35 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         ...   <cal::relative_duration>'2 decades 400 months', 'decade');
         {5}
 
-    If a unit smaller than months would contribute to your desired unit's total,
-    it is not added.
+    If a unit from a smaller size class would contribute to your desired unit's
+    total, it is not added.
 
     .. code-block:: edgeql-repl
 
         db> select duration_get(
         ...   <cal::relative_duration>'1 year 400 days', 'year');
         {1}
+
+    When you request a unit in the smallest size class, it will be pooled with
+    other durations in the same size class.
+
+    .. code-block:: edgeql-repl
+
+        db> select duration_get(
+        ...   <cal::relative_duration>''20 hours 3600 seconds', 'hour');
+        {21}
+
+    Seconds and smaller units always return remaining time in that unit after
+    accounting for the next larger unit.
+
+    .. code-block:: edgeql-repl
+
+        db> select duration_get(
+        ...   <cal::relative_duration>''20 hours 3600 seconds', 'seconds');
+        {0}
+        db> select duration_get(
+        ...   <cal::relative_duration>''20 hours 3630 seconds', 'seconds');
+        {30}
 
 ----------
 
