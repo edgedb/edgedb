@@ -123,7 +123,8 @@ Generic
 
 .. eql:operator:: coalneq: optional anytype ?!= optional anytype -> bool
 
-    Compares two potentially empty values for inequality.
+    Compares two potentially empty values of :eql:type:`anytype` for
+    inequality.
 
     This works the same as a negated :eql:op:`\!= <neq>` operator, but also
     allows comparing an empty ``{}`` set. Two empty sets are considered equal.
@@ -145,7 +146,7 @@ Generic
 
 .. eql:operator:: lt: anytype < anytype -> bool
 
-    Performs a less than value comparison with operands of
+    Performs a less than value comparison with two valeues of
     :eql:type:`anytype`.
 
     This results in a :eql:type:`bool` of ``true`` if the left operand
@@ -167,7 +168,7 @@ Generic
 
 .. eql:operator:: gt: anytype > anytype -> bool
 
-    Performs a greater than value comparison with operands of
+    Performs a greater than value comparison with two values of
     :eql:type:`anytype`.
 
     This results in a :eql:type:`bool` of ``true`` if the left operand
@@ -190,7 +191,7 @@ Generic
 
 .. eql:operator:: lteq: anytype <= anytype -> bool
 
-    Performs a less than/equals comparison with operands of
+    Performs a less than/equals comparison with two values of
     :eql:type:`anytype`.
 
     This results in a :eql:type:`bool` of ``true`` if the left operand
@@ -215,7 +216,7 @@ Generic
 
 .. eql:operator:: gteq: anytype >= anytype -> bool
 
-    Performs a greater than/equals comparison with operands of
+    Performs a greater than/equals comparison with two values of
     :eql:type:`anytype`.
 
     This results in a :eql:type:`bool` of ``true`` if the left operand
@@ -244,11 +245,10 @@ Generic
 
     :index: length count array
 
-    Returns the number of values within a type as its "length."
+    Returns an :eql:type:`int64` of counted values within a type.
 
-    This is a polymorphic function to determine the number of characters
-    within a :eql:type:`str`, number of :eql:type:`bytes` or number of
-    elements in an :eql:type:`array`:
+    This function works with the :eql:type:`str`, :eql:type:`bytes` and
+    :eql:type:`array` types. Strings and bytes will return a scalar value:
 
     .. code-block:: edgeql-repl
 
@@ -278,11 +278,12 @@ Generic
 
     :index: find strpos strstr position array
 
-    A polymorphic function to test if the *haystack* contains the *needle*.
+    Returns :eql:type:`bool` for whether a ``haystack`` set has a ``needle``
+    value.
 
-    When the *haystack* is :eql:type:`str` or :eql:type:`bytes`,
-    return ``true`` if *needle* is contained as a subsequence in it
-    and ``false`` otherwise.
+    When the ``haystack`` is a :eql:type:`str` or :eql:type:`bytes` type,
+    this function will return ``true`` if it contains ``needle`` as a
+    subsequence within it, and ``false`` otherwise:
 
     .. code-block:: edgeql-repl
 
@@ -292,17 +293,17 @@ Generic
         db> select contains(b'qwerty', b'42');
         {false}
 
-    When the *haystack* is an :eql:type:`array`, return ``true`` if
-    the array contains the specified element and ``false`` otherwise.
+    When ``haystack`` is an :eql:type:`array` type, this will return ``true``
+    if the array contains the specified element and ``false`` otherwise:
 
     .. code-block:: edgeql-repl
 
         db> select contains([2, 5, 7, 2, 100], 2);
         {true}
 
-    When the *haystack* is a :ref:`range <ref_std_range>`, return ``true`` if
-    it contains either the specified sub-range or element and ``false``
-    otherwise.
+    When ``haystack`` is a :ref:`range <ref_std_range>`, this will return
+    ``true`` if it contains either the specified sub-range or element, and
+    ``false`` otherwise.
 
     .. code-block:: edgeql-repl
 
@@ -329,12 +330,14 @@ Generic
 
     :index: find strpos strstr position array
 
-    A polymorphic function to find index of an element in a sequence.
+    Returns the index of an element in a ``haystack`` set by the ``needle``
+    value.
 
-    When the *haystack* is :eql:type:`str` or :eql:type:`bytes`,
-    return the index of the first occurrence of *needle* in it.
+    When ``haystack`` is a :eql:type:`str` or :eql:type:`bytes` type, this
+    will return the index of the first (as well as only) occurring ``needle``
+    in it.
 
-    When the *haystack* is an :eql:type:`array`, return the index of
+    When ``haystack`` is an :eql:type:`array`, return the index of
     the first occurrence of the specific *needle* element. For
     :eql:type:`array` inputs it is also possible to provide an
     optional *from_pos* argument to specify the position from
