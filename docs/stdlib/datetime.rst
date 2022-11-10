@@ -410,7 +410,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
       ...        <cal::relative_duration>"1 month";
       {<cal::local_datetime>'2021-06-01T15:00:00'}
 
-    **Gotchas**
+    .. rubric:: Gotchas
 
     Due to the implementation of ``relative_duration`` logic, arithmetic
     operations may behave counterintuitively.
@@ -903,7 +903,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         ...   <duration>'30 hours', 'totalseconds');
         {108000}
 
-    **Gotchas**
+    .. rubric:: Gotchas
 
     When you use this function to return an element of a duration, the value
     will be returned only as the number of that specific unit defined in the
