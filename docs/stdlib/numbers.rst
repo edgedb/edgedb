@@ -710,7 +710,7 @@ from :eql:type:`str` and :eql:type:`json`.
                   std::bit_rshift(val: int32, n: int64) -> int32
                   std::bit_rshift(val: int64, n: int64) -> int64
 
-    Returns the result of a bitwise, arithemtic right-shift operator for
+    Returns the result of a bitwise right-shift operator for
     two integers.
 
     The integer of ``val`` is shifted by ``n`` bits to the right. In the
