@@ -26,24 +26,29 @@ from edb.common import compiler
 from edb.schema import schema as s_schema
 
 
-class ContextSwitchMode(enum.Enum):
-    EMPTY = enum.auto()
-    ISOLATED = enum.auto()
-
-
 class Scope:
-    """Current relation where ResTargets are added to"""
+    """
+    Information about that objects are visible at a specific point in an
+    SQL query.
+
+    Scope is modified during resolving of a query, when new tables are
+    discovered in FROM or JOIN or new columns declared in SELECT's projection.
+
+    After a query is done resolving, resulting relations are extracted from its
+    scope and inserted into parent scope.
+    """
 
     rel: Table
+    "Current relation where ResTargets are added to"
 
-    """Current relation where Join relations are added to"""
     join_relations: List[Table]
+    "Current relation where Join relations are added to"
 
-    """Tables visible in this scope"""
     tables: List[Table]
+    """Tables visible in this scope"""
 
-    """Common Table Expressions"""
     ctes: List[CTE]
+    """Common Table Expressions"""
 
     def __init__(self):
         self.tables = []
@@ -53,14 +58,14 @@ class Scope:
 
 
 class Table:
-    """Public SQL"""
 
+    # Public SQL
     name: Optional[str] = None
     alias: Optional[str] = None
 
     columns: List[Column]
 
-    """Internal SQL"""
+    # Internal SQL
     reference_as: Optional[str] = None
 
     def __init__(self):
@@ -73,11 +78,10 @@ class Table:
 
 
 class Column:
-    """Public SQL"""
-
+    # Public SQL
     name: Optional[str] = None
 
-    """Internal SQL"""
+    # Internal SQL
     reference_as: Optional[str] = None
 
     def __init__(
@@ -107,15 +111,23 @@ class NameGenerator:
         return name
 
 
+class ContextSwitchMode(enum.Enum):
+    EMPTY = enum.auto()
+    ISOLATED = enum.auto()
+
+
 class ResolverContextLevel(compiler.ContextLevel):
     schema: s_schema.Schema
     names: NameGenerator
 
-    """Visible names in scope"""
     scope: Scope
+    """Visible names in scope"""
 
-    """Current table"""
     include_inherited: bool
+    """
+    True iff relation currently resolving should also include instances of
+    child objects.
+    """
 
     def __init__(
         self,

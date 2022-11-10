@@ -16,6 +16,9 @@
 # limitations under the License.
 #
 
+"""SQL resolver that compiles public SQL to internal SQL which is executable
+in our internal Postgres instance."""
+
 from typing import *
 
 from edb import errors
@@ -31,10 +34,12 @@ from edb.schema import links as s_links
 from . import dispatch
 from . import context
 
+Context = context.ResolverContextLevel
 
-@dispatch._resolve.register(pgast.SelectStmt)
+
+@dispatch._resolve.register
 def resolve_SelectStmt(
-    stmt: pgast.SelectStmt, *, ctx: context.ResolverContextLevel
+    stmt: pgast.SelectStmt, *, ctx: Context
 ) -> pgast.SelectStmt:
 
     # UNION
@@ -94,18 +99,16 @@ def resolve_SelectStmt(
     return res
 
 
-@dispatch._resolve.register(pgast.DMLQuery)
-def resolve_DMLQuery(
-    cte: pgast.DMLQuery, *, ctx: context.ResolverContextLevel
-) -> pgast.DMLQuery:
+@dispatch._resolve.register
+def resolve_DMLQuery(cte: pgast.DMLQuery, *, ctx: Context) -> pgast.DMLQuery:
     raise errors.UnsupportedFeatureError(
         'DML queries (INSERT/UPDATE/DELETE) are not supported'
     )
 
 
-@dispatch._resolve.register(pgast.CommonTableExpr)
+@dispatch._resolve.register
 def resolve_CommonTableExpr(
-    cte: pgast.CommonTableExpr, *, ctx: context.ResolverContextLevel
+    cte: pgast.CommonTableExpr, *, ctx: Context
 ) -> pgast.CommonTableExpr:
     with ctx.isolated() as subctx:
 
@@ -144,9 +147,9 @@ def resolve_CommonTableExpr(
     )
 
 
-@dispatch._resolve.register(pgast.BaseRangeVar)
+@dispatch._resolve.register
 def resolve_BaseRangeVar(
-    range_var: pgast.BaseRangeVar, *, ctx: context.ResolverContextLevel
+    range_var: pgast.BaseRangeVar, *, ctx: Context
 ) -> pgast.BaseRangeVar:
     # store public alias
     if range_var.alias:
@@ -159,12 +162,12 @@ def resolve_BaseRangeVar(
     return dispatch.resolve_range_var(range_var, alias, ctx=ctx)
 
 
-@dispatch.resolve_range_var.register(pgast.RangeSubselect)
+@dispatch.resolve_range_var.register
 def resolve_RangeSubselect(
     range_var: pgast.RangeSubselect,
     alias: pgast.Alias,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.RangeSubselect:
     with ctx.empty() as subctx:
         subquery = dispatch.resolve(range_var.subquery, ctx=subctx)
@@ -185,12 +188,12 @@ def resolve_RangeSubselect(
     )
 
 
-@dispatch.resolve_range_var.register(pgast.RelRangeVar)
+@dispatch.resolve_range_var.register
 def resolve_RelRangeVar(
     range_var: pgast.RelRangeVar,
     alias: pgast.Alias,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.RelRangeVar:
     ctx.include_inherited = range_var.include_inherited
 
@@ -200,22 +203,22 @@ def resolve_RelRangeVar(
     )
 
 
-@dispatch.resolve_range_var.register(pgast.RangeFunction)
+@dispatch.resolve_range_var.register
 def resolve_RangeFunction(
     range_var: pgast.RangeFunction,
     alias: pgast.Alias,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.RangeFunction:
     raise errors.UnsupportedFeatureError('range functions are not supported')
 
 
-@dispatch.resolve_range_var.register(pgast.JoinExpr)
+@dispatch.resolve_range_var.register
 def resolve_JoinExpr(
     range_var: pgast.JoinExpr,
     alias: pgast.Alias,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.JoinExpr:
 
     with ctx.empty() as subctx:
@@ -260,9 +263,9 @@ def resolve_JoinExpr(
     )
 
 
-@dispatch._resolve.register(pgast.Relation)
+@dispatch._resolve.register
 def resolve_Relation(
-    relation: pgast.Relation, *, ctx: context.ResolverContextLevel
+    relation: pgast.Relation, *, ctx: Context
 ) -> pgast.Relation:
     assert relation.name
 
@@ -348,7 +351,7 @@ def resolve_Relation(
 # this function cannot go though dispatch,
 # because it may return multiple nodes, due to * notation
 def resolve_ResTarget(
-    res_target: pgast.ResTarget, *, ctx: context.ResolverContextLevel
+    res_target: pgast.ResTarget, *, ctx: Context
 ) -> Sequence[pgast.ResTarget]:
 
     alias = res_target.name
@@ -388,9 +391,9 @@ def resolve_ResTarget(
     return (pgast.ResTarget(val=val, name=alias),)
 
 
-@dispatch._resolve.register(pgast.ColumnRef)
+@dispatch._resolve.register
 def resolve_ColumnRef(
-    column_ref: pgast.ColumnRef, *, ctx: context.ResolverContextLevel
+    column_ref: pgast.ColumnRef, *, ctx: Context
 ) -> pgast.ColumnRef:
     res = _lookup_column(column_ref.name, ctx)
     if len(res) != 1:
@@ -403,7 +406,7 @@ def resolve_ColumnRef(
 
 
 def _lookup_column(
-    name: Sequence[str | pgast.Star], ctx: context.ResolverContextLevel
+    name: Sequence[str | pgast.Star], ctx: Context
 ) -> Sequence[Tuple[context.Table, context.Column]]:
     matched_columns: List[Tuple[context.Table, context.Column]] = []
 
@@ -454,9 +457,7 @@ def _lookup_in_table(
             yield (table, column)
 
 
-def _lookup_table(
-    ctx: context.ResolverContextLevel, tab_name: str
-) -> context.Table:
+def _lookup_table(ctx: Context, tab_name: str) -> context.Table:
     matched_tables = []
     for t in ctx.scope.tables:
         if t.name == tab_name or t.alias == tab_name:
@@ -471,11 +472,11 @@ def _lookup_table(
     return table
 
 
-@dispatch._resolve.register(pgast.SubLink)
+@dispatch._resolve.register
 def resolve_SubLink(
     sub_link: pgast.SubLink,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.SubLink:
     with ctx.empty() as subctx:
         expr = dispatch.resolve(sub_link.expr, ctx=subctx)
@@ -487,10 +488,8 @@ def resolve_SubLink(
     )
 
 
-@dispatch._resolve.register(pgast.Expr)
-def resolve_Expr(
-    expr: pgast.Expr, *, ctx: context.ResolverContextLevel
-) -> pgast.Expr:
+@dispatch._resolve.register
+def resolve_Expr(expr: pgast.Expr, *, ctx: Context) -> pgast.Expr:
     return pgast.Expr(
         kind=expr.kind,
         name=expr.name,
@@ -499,11 +498,11 @@ def resolve_Expr(
     )
 
 
-@dispatch._resolve.register(pgast.TypeCast)
+@dispatch._resolve.register
 def resolve_TypeCast(
     expr: pgast.TypeCast,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.TypeCast:
     return pgast.TypeCast(
         arg=dispatch.resolve(expr.arg, ctx=ctx),
@@ -511,20 +510,20 @@ def resolve_TypeCast(
     )
 
 
-@dispatch._resolve.register(pgast.BaseConstant)
+@dispatch._resolve.register
 def resolve_BaseConstant(
     expr: pgast.BaseConstant,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.BaseConstant:
     return expr
 
 
-@dispatch._resolve.register(pgast.CaseExpr)
+@dispatch._resolve.register
 def resolve_CaseExpr(
     expr: pgast.CaseExpr,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.CaseExpr:
     return pgast.CaseExpr(
         arg=dispatch.resolve_opt(expr.arg, ctx=ctx),
@@ -533,11 +532,11 @@ def resolve_CaseExpr(
     )
 
 
-@dispatch._resolve.register(pgast.CaseWhen)
+@dispatch._resolve.register
 def resolve_CaseWhen(
     expr: pgast.CaseWhen,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.CaseWhen:
     return pgast.CaseWhen(
         expr=dispatch.resolve(expr.expr, ctx=ctx),
@@ -545,11 +544,11 @@ def resolve_CaseWhen(
     )
 
 
-@dispatch._resolve.register(pgast.SortBy)
+@dispatch._resolve.register
 def resolve_SortBy(
     expr: pgast.SortBy,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.SortBy:
     return pgast.SortBy(
         node=dispatch.resolve(expr.node, ctx=ctx),
@@ -558,11 +557,11 @@ def resolve_SortBy(
     )
 
 
-@dispatch._resolve.register(pgast.FuncCall)
+@dispatch._resolve.register
 def resolve_FuncCall(
     expr: pgast.FuncCall,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.FuncCall:
     # TODO: which functions do we want to expose on the outside?
     return pgast.FuncCall(
@@ -577,11 +576,11 @@ def resolve_FuncCall(
     )
 
 
-@dispatch._resolve.register(pgast.WindowDef)
+@dispatch._resolve.register
 def resolve_WindowDef(
     expr: pgast.WindowDef,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.WindowDef:
     return pgast.WindowDef(
         partition_clause=dispatch.resolve_opt_list(
@@ -593,31 +592,31 @@ def resolve_WindowDef(
     )
 
 
-@dispatch._resolve.register(pgast.CoalesceExpr)
+@dispatch._resolve.register
 def resolve_CoalesceExpr(
     expr: pgast.CoalesceExpr,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.CoalesceExpr:
     return pgast.CoalesceExpr(args=dispatch.resolve_list(expr.args, ctx=ctx))
 
 
-@dispatch._resolve.register(pgast.NullTest)
+@dispatch._resolve.register
 def resolve_NullTest(
     expr: pgast.NullTest,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.NullTest:
     return pgast.NullTest(
         arg=dispatch.resolve(expr.arg, ctx=ctx), negated=expr.negated
     )
 
 
-@dispatch._resolve.register(pgast.BooleanTest)
+@dispatch._resolve.register
 def resolve_BooleanTest(
     expr: pgast.BooleanTest,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.BooleanTest:
     return pgast.BooleanTest(
         arg=dispatch.resolve(expr.arg, ctx=ctx),
@@ -626,21 +625,21 @@ def resolve_BooleanTest(
     )
 
 
-@dispatch._resolve.register(pgast.ImplicitRowExpr)
+@dispatch._resolve.register
 def resolve_ImplicitRowExpr(
     expr: pgast.ImplicitRowExpr,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.ImplicitRowExpr:
     return pgast.ImplicitRowExpr(
         args=dispatch.resolve_list(expr.args, ctx=ctx),
     )
 
 
-@dispatch._resolve.register(pgast.ParamRef)
+@dispatch._resolve.register
 def resolve_ParamRef(
     expr: pgast.ParamRef,
     *,
-    ctx: context.ResolverContextLevel,
+    ctx: Context,
 ) -> pgast.ParamRef:
     return pgast.ParamRef(number=expr.number)

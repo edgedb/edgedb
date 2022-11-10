@@ -45,7 +45,7 @@ class TestSQL(tb.SQLQueryTestCase):
             select mve.title, mve.release_year, director_id FROM Movie as mve
             '''
         )
-        self.assertShape(res, 2, 3)
+        self.assert_shape(res, 2, 3)
 
     async def test_sql_query_02(self):
         # select from parent type
@@ -54,7 +54,7 @@ class TestSQL(tb.SQLQueryTestCase):
             select * FROM Content
             '''
         )
-        self.assertShape(res, 5, 3, ['id', 'genre_id', 'title'])
+        self.assert_shape(res, 5, 3, ['id', 'genre_id', 'title'])
 
     async def test_sql_query_03(self):
         # select from parent type only
@@ -63,7 +63,7 @@ class TestSQL(tb.SQLQueryTestCase):
             select * FROM ONLY Content -- should have only one result
             '''
         )
-        self.assertShape(res, 1, 3, ['id', 'genre_id', 'title'])
+        self.assert_shape(res, 1, 3, ['id', 'genre_id', 'title'])
 
     async def test_sql_query_04(self):
         # multiple FROMs
@@ -73,7 +73,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM Movie mve, Person WHERE mve.director_id = person.id
             '''
         )
-        self.assertShape(res, 1, 2, ['title', 'first_name'])
+        self.assert_shape(res, 1, 2, ['title', 'first_name'])
 
     async def test_sql_query_05(self):
         # case insensitive
@@ -83,7 +83,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM Movie mve, Person
             '''
         )
-        self.assertShape(res, 6, 2, ['tit', 'first_name'])
+        self.assert_shape(res, 6, 2, ['tit', 'first_name'])
 
     async def test_sql_query_06(self):
         # sub relations
@@ -93,7 +93,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM Movie mve, (select first_name FROM Person) prs
             '''
         )
-        self.assertShape(res, 6, 3, ['id', 'title', 'first_name'])
+        self.assert_shape(res, 6, 3, ['id', 'title', 'first_name'])
 
     async def test_sql_query_07(self):
         # quoted case sensitive
@@ -102,7 +102,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT tItLe, release_year "RL year" FROM "movie" ORDER BY titLe;
             '''
         )
-        self.assertShape(res, 2, 2, ['title', 'RL year'])
+        self.assert_shape(res, 2, 2, ['title', 'RL year'])
 
     async def test_sql_query_08(self):
         # JOIN
@@ -112,7 +112,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM Movie JOIN Genre ON Movie.genre_id = Genre.id
             '''
         )
-        self.assertShape(res, 2, 2, ['id', 'id'])
+        self.assert_shape(res, 2, 2, ['id', 'id'])
 
     async def test_sql_query_09(self):
         # resolve columns without table names
@@ -122,7 +122,7 @@ class TestSQL(tb.SQLQueryTestCase):
             FROM Movie JOIN Genre ON Movie.genre_id = Genre.id
             '''
         )
-        self.assertShape(res, 2, 3, ['id', 'title', 'name'])
+        self.assert_shape(res, 2, 3, ['id', 'title', 'name'])
 
     async def test_sql_query_10(self):
         # wildcard select
@@ -131,7 +131,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT m.* FROM Movie m
             '''
         )
-        self.assertShape(
+        self.assert_shape(
             res,
             2,
             5,
@@ -145,7 +145,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM Movie JOIN Genre g ON Movie.genre_id = Genre.id
             '''
         )
-        self.assertShape(res, 2, 7)
+        self.assert_shape(res, 2, 7)
 
     async def test_sql_query_12(self):
         # JOIN USING
@@ -155,7 +155,7 @@ class TestSQL(tb.SQLQueryTestCase):
             JOIN (SELECT id as genre_id, name FROM Genre) g USING (genre_id)
             '''
         )
-        self.assertShape(res, 2, 7)
+        self.assert_shape(res, 2, 7)
 
     async def test_sql_query_13(self):
         # CTE
@@ -165,7 +165,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT * FROM Movie JOIN g USING (genre_id)
             '''
         )
-        self.assertShape(res, 2, 7)
+        self.assert_shape(res, 2, 7)
 
     async def test_sql_query_14(self):
         # CASE
@@ -191,7 +191,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT id, title FROM Movie UNION select id, title FROM Book
             '''
         )
-        self.assertShape(res, 4, 2)
+        self.assert_shape(res, 4, 2)
 
     async def test_sql_query_16(self):
         # casting
@@ -200,7 +200,7 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT 1::bigint, 'accbf276-705b-11e7-b8e4-0242ac120002'::UUID
             '''
         )
-        self.assertShape(res, 1, 2)
+        self.assert_shape(res, 1, 2)
 
     async def test_sql_query_17(self):
         # ORDER BY
@@ -293,14 +293,14 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT id FROM Person WHERE last_name IS NULL
             '''
         )
-        self.assertShape(res, 1, 1)
+        self.assert_shape(res, 1, 1)
 
         res = await self.squery(
             '''
             SELECT id FROM Person WHERE (last_name = 'Hanks') IS NOT TRUE
             '''
         )
-        self.assertShape(res, 2, 1)
+        self.assert_shape(res, 2, 1)
 
     async def test_sql_query_23(self):
         # ImplicitRow
@@ -312,7 +312,7 @@ class TestSQL(tb.SQLQueryTestCase):
             )
             '''
         )
-        self.assertShape(res, 2, 1)
+        self.assert_shape(res, 2, 1)
 
     async def test_sql_query_24(self):
         # SubLink

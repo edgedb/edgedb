@@ -1264,7 +1264,15 @@ class SQLQueryTestCase(BaseQueryTestCase):
         res = await self.squery(query)
         return [list(r.values()) for r in res]
 
-    def assertShape(self, res, rows, cols, column_names=None):
+    def assert_shape(self, res, rows, cols, column_names=None):
+        """
+        Fail if query result does not confront the specified shape, defined in
+        terms of:
+        - number of rows,
+        - number of columns (not checked if there are not rows)
+        - column names.
+        """
+
         self.assertEqual(len(res), rows)
         if rows > 0:
             self.assertEqual(len(res[0]), cols)
