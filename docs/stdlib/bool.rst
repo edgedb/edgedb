@@ -86,7 +86,7 @@ Booleans
 
 .. eql:operator:: or: bool or bool -> bool
 
-    Logically differentiates the truthfulness between two booleans:
+    Evaluates ``true`` if either boolean is ``true``:
 
     .. code-block:: edgeql-repl
 
@@ -99,7 +99,7 @@ Booleans
 
 .. eql:operator:: and: bool and bool -> bool
 
-    Performs a logical coexistence check between two booleans:
+    Evaluates ``true`` if both booleans are true:
 
     .. code-block:: edgeql-repl
 
