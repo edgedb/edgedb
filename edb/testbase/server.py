@@ -1232,9 +1232,12 @@ class SQLQueryTestCase(BaseQueryTestCase):
         if pgaddr is None:
             raise unittest.SkipTest('SQL tests requires devmode')
         pgaddr = json.loads(pgaddr)
+
+        password = (
+            f'&password={pgaddr["password"]}' if 'password' in pgaddr else '')
         pgdsn = (
             f'postgres:///{pgaddr["database"]}?user={pgaddr["user"]}'
-            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
+            f'&port={pgaddr["port"]}&host={pgaddr["host"]}{password}'
         )
 
         cls.scon = cls.loop.run_until_complete(
