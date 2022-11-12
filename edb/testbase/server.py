@@ -1232,10 +1232,13 @@ class SQLQueryTestCase(BaseQueryTestCase):
         if pgaddr is None:
             raise unittest.SkipTest('SQL tests requires devmode')
         pgaddr = json.loads(pgaddr)
-        pgdsn = (
-            f'postgres:///{pgaddr["database"]}?user={pgaddr["user"]}'
-            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
-        )
+
+        pgdsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
+        if not pgdsn:
+            pgdsn = (
+                f'postgres:///{pgaddr["database"]}?user={pgaddr["user"]}'
+                f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
+            )
 
         cls.scon = cls.loop.run_until_complete(
             asyncpg.connect(pgdsn))
