@@ -152,7 +152,7 @@ Partial constraints #New
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 Constraints on object types can be made partial, so that they don't apply
-when some condition holds.
+when some conditions hold.
 
 .. code-block:: sdl
 
@@ -171,7 +171,7 @@ Constraints on links
 --------------------
 
 When defining a constraint on a link, ``__subject__`` refers to the *link
-itself*. This is commonly used add constraints to :ref:`link properties
+itself*. This is commonly used to add constraints to :ref:`link properties
 <ref_datamodel_link_properties>`.
 
 .. code-block:: sdl
