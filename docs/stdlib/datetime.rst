@@ -906,8 +906,15 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     .. rubric:: Gotchas
 
     This function will provide you with a calculated total for the unit passed
-    as ``el``, but only within the given "size class" of the unit. The size
-    classes are as follows:
+    as ``el``, but only within the given "size class" of the unit. These size
+    classes exist because they are logical breakpoints that we can't reliably
+    convert values across. A month might be 30 days long, or it might be 28 or
+    29 or 31. A day is generally 24 hours, but with daylight savings, it might
+    be longer or shorter.
+
+    As a result, it's impossible to convert across these lines in a way that
+    works in every situation. For some use cases, assuming a 30 day month works
+    fine. For others, it might not. The size classes are as follows:
 
     - ``'month'`` and larger
     - ``'day'``
