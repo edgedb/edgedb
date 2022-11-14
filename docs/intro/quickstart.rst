@@ -37,10 +37,10 @@ completes, you may need to **restart your terminal** before you can use the
 
 .. note::
 
-  Check out our additional installation methods for various `Linux\
-  </install#linux-debianubuntults>`_ distros, via Homebrew on `macOS\
-  </install#macos-homebrew>`_, and for the `Windows\
-  </install#windows-commandprompt>`_ Command Prompt.
+  Check out our additional installation methods `for various Linux distros\
+  </install#linux-debianubuntults>`_, `via Homebrew on macOS\
+  </install#macos-homebrew>`_, and `for the Windows Command Prompt\
+  </install#windows-commandprompt>`_.
 
 Now let's set up your EdgeDB project.
 
