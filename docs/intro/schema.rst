@@ -12,7 +12,8 @@ linked pages for more in-depth documentation!
 Scalar types
 ------------
 
-EdgeDB implements a rigorous type system containing the following primitive types.
+EdgeDB implements a rigorous type system containing the following primitive
+types.
 
 .. list-table::
 
