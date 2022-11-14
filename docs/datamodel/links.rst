@@ -253,7 +253,7 @@ Link properties
 ---------------
 
 Like object types, links in EdgeDB can contain **properties**. Link properties
-can be used to store metadata about links, such as *when* it was created or
+can be used to store metadata about links, such as *when* they were created or
 the *nature/strength* of the relationship.
 
 .. code-block:: sdl
