@@ -49,7 +49,7 @@ Similar to :ref:`selecting fields <ref_eql_shapes>` in ``select``, ``insert``
 statements include a *shape* specified with ``curly braces``; the values of
 properties/links are assigned with the ``:=`` operator.
 
-Optional links or properties can be omitted entirely, as well as those with an
+Optional links or properties can be omitted entirely, as well as those with a
 ``default`` value (like ``id``).
 
 .. code-block:: edgeql-repl
@@ -147,7 +147,7 @@ execute *nested inserts*.
   {default::Villain {id: d47888a0-3e7b-11ec-af13-fb68c8777851}}
 
 
-Now lets write a nested insert for a ``multi`` link.
+Now let's write a nested insert for a ``multi`` link.
 
 .. code-block:: edgeql-repl
 
@@ -305,7 +305,7 @@ return an *empty set* if a conflict occurs. This is a common way to prevent
 Bulk inserts
 ------------
 
-Bulk inserts are performed by passing in a large JSON as a :ref:`query
+Bulk inserts are performed by passing in a JSON array as a :ref:`query
 parameter <ref_eql_params>`, :eql:func:`unpacking <json_array_unpack>` it, and
 using a :ref:`for loop <ref_eql_for>` to insert the objects.
 

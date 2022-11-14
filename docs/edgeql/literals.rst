@@ -375,7 +375,7 @@ EdgeQL supports a set of functions and operators on datetime types.
 Durations
 ---------
 
-EdgeDB's typesystem contains three duration types.
+EdgeDB's type system contains three duration types.
 
 
 .. list-table::
@@ -497,13 +497,18 @@ Create a range literal with the ``range`` constructor function.
     db> select range(2.2, 3.3);
     {range(2.2, 3.3, inc_lower := true, inc_upper := false)}
 
-Ranges can be *empty* or *unbounded*. An empty set is used to indicate the
-lack of a paricular bound.
+Ranges can be *empty*, when the upper and lower bounds are equal.
 
 .. code-block:: edgeql-repl
 
     db> select range(1, 1);
     {range({}, empty := true)}
+
+Ranges can be *unbounded*. An empty set is used to indicate the
+lack of a particular upper or lower bound.
+
+.. code-block:: edgeql-repl
+
     db> select range(4, <int64>{});
     {range(4, {})}
     db> select range(<int64>{}, 4);
@@ -512,15 +517,17 @@ lack of a paricular bound.
     {range({}, {})}
 
 To compute the set of concrete values defined by a range literal, use
-``range_unpack``.
+``range_unpack``. An empty range will unpack to the empty set. Unbounded
+ranges cannot be unpacked.
 
 .. code-block:: edgeql-repl
 
     db> select range_unpack(range(0, 10));
     {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+    db> select range_unpack(range(1, 1));
+    {}
     db> select range_unpack(range(0, <int64>{}));
     edgedb error: InvalidValueError: cannot unpack an unbounded range
-
 
 .. _ref_eql_literal_bytes:
 
@@ -593,7 +600,7 @@ Tuples
 
 A tuple is *fixed-length*, *ordered* collection of values, each of which may
 have a *different type*. The elements of a tuple can be of any type, including
-scalars, arrays, tuples, and object types.
+scalars, arrays, other tuples, and object types.
 
 .. code-block:: edgeql-repl
 
@@ -664,7 +671,8 @@ converted into JSON except :eql:type:`bytes`.
   db> select to_json('{"a": 2, "b": 5}');
   {'{"a": 2, "b": 5}'}
 
-JSON values support indexing operators. The resulting value is a ``json``.
+JSON values support indexing operators. The resulting value is also of type
+``json``.
 
 .. code-block:: edgeql-repl
 
@@ -676,7 +684,7 @@ JSON values support indexing operators. The resulting value is a ``json``.
 
 EdgeQL supports a set of functions and operators on ``json`` values. Refer to
 the :ref:`Standard Library > JSON <ref_std_json>` or click an item below for
-details documentation.
+detailed documentation.
 
 .. list-table::
 

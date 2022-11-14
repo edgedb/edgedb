@@ -195,7 +195,7 @@ schema.
 
   In the example above, the ``User`` object type was declared inside the
   ``default`` module. If it was in a non-``default`` module (say,
-  ``my_module``, we should need to use its *fully-qualified* name.
+  ``my_module``, we would need to use its *fully-qualified* name.
 
   .. code-block:: edgeql-repl
 
@@ -371,7 +371,7 @@ Element-wise operations are applied on *each element* of a set.
 
 When an *element-wise* operation accepts two or more inputs, the operation is
 applied to all possible combinations of inputs; in other words, the operation
-is applied to the *cartesian product* of the inputs.
+is applied to the *Cartesian product* of the inputs.
 
 .. code-block:: edgeql-repl
 

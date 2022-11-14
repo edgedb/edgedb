@@ -74,7 +74,7 @@ demonstration purposes, the queries below assume the following schema.
     }
   }
 
-Let's start by selecting all ``Villains`` objects in the database. In this
+Let's start by selecting all ``Villain`` objects in the database. In this
 example, there are only three. Remember, ``Villain`` is a :ref:`reference
 <ref_eql_set_references>` to the set of all Villain objects.
 
@@ -433,8 +433,8 @@ this, let's fetch a list of all movies starring a particular Hero.
 
 .. note::
 
-  The computed backlink ``villains`` is a combination of the *backlink
-  operator* ``.<`` and a type intersection ``[is Villain]``. For a full
+  The computed backlink ``movies`` is a combination of the *backlink
+  operator* ``.<`` and a type intersection ``[is Movie]``. For a full
   reference on backlink syntax, see :ref:`EdgeQL > Paths
   <ref_eql_paths_backlinks>`.
 
@@ -517,7 +517,7 @@ from which they inherit the ``name`` property.
 Polymorphic sets
 ^^^^^^^^^^^^^^^^
 
-It's possible to directly query all ``Person`` objects; the resulting set with
+It's possible to directly query all ``Person`` objects; the resulting set will
 be a mix of ``Hero`` and ``Villain`` objects (and possibly other subtypes of
 ``Person``, should they be declared).
 

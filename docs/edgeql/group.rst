@@ -7,7 +7,7 @@ Group #New
 
   The ``group`` statement is only available in EdgeDB 2.0 or later.
 
-EdgeQL supports a top-level ``group`` statement. These are used to partition
+EdgeQL supports a top-level ``group`` statement. This is used to partition
 sets into subsets based on some parameters. These subsets then can be
 additionally aggregated to provide some analytics.
 
@@ -61,7 +61,7 @@ Notice that the result of ``group`` is a set of :ref:`free objects
   names that also appear in the ``key`` free object.
 * ``elements``: the actual subset of values that match the ``key``.
 
-In the ``group`` statement referring to the property in the ``by`` clause
+In the ``group`` statement, referring to the property in the ``by`` clause
 **must** be done by using the leading dot shothand ``.release_year``. The
 property name then shows up in ``grouping`` and ``key`` to indicate the
 defining characteristics of the particular result. Alternatively, we can give
