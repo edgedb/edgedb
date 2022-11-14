@@ -827,7 +827,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
                   std::duration_get(dt: cal::date_duration, \
                                     el: str) -> float64
 
-    Return a specific element of input duration given a unit name.
+    Returns the element of a duration given a unit name.
 
     .. note::
 
