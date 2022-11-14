@@ -61,6 +61,7 @@ STD_MODULES = (
     sn.UnqualName('sys'),
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
+    sn.UnqualName('pg'),
 )
 
 # Specifies the order of processing of files and directories in lib/
@@ -72,6 +73,7 @@ STD_SOURCES = (
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
     sn.UnqualName('ext'),
+    sn.UnqualName('pg'),
 )
 
 Schema_T = TypeVar('Schema_T', bound='Schema')

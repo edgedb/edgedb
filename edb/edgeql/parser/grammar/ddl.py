@@ -207,6 +207,15 @@ class InnerDDLStmt(Nonterm):
     def reduce_FutureStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_CreateIndexStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_AlterIndexStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropIndexStmt(self, *kids):
+        self.val = kids[0].val
+
 
 class InnerDDLStmtBlock(parsing.ListNonterm, element=InnerDDLStmt,
                         separator=Semicolons):
@@ -536,7 +545,7 @@ class AlterAbstract(Nonterm):
         )
 
 
-class OptInheritPosition(Nonterm):
+class OptPosition(Nonterm):
     def reduce_BEFORE_NodeName(self, *kids):
         self.val = qlast.Position(ref=kids[1].val, position='BEFORE')
 
@@ -554,7 +563,7 @@ class OptInheritPosition(Nonterm):
 
 
 class AlterSimpleExtending(Nonterm):
-    def reduce_EXTENDING_SimpleTypeNameList_OptInheritPosition(self, *kids):
+    def reduce_EXTENDING_SimpleTypeNameList_OptPosition(self, *kids):
         self.val = qlast.AlterAddInherit(bases=kids[1].val,
                                          position=kids[2].val)
 
@@ -566,7 +575,7 @@ class AlterSimpleExtending(Nonterm):
 
 
 class AlterExtending(Nonterm):
-    def reduce_EXTENDING_TypeNameList_OptInheritPosition(self, *kids):
+    def reduce_EXTENDING_TypeNameList_OptPosition(self, *kids):
         self.val = qlast.AlterAddInherit(bases=kids[1].val,
                                          position=kids[2].val)
 
@@ -898,7 +907,7 @@ class CreateRoleStmt(Nonterm):
 # ALTER ROLE
 #
 class AlterRoleExtending(Nonterm):
-    def reduce_EXTENDING_ShortNodeNameList_OptInheritPosition(self, *kids):
+    def reduce_EXTENDING_ShortNodeNameList_OptPosition(self, *kids):
         self.val = qlast.AlterAddInherit(
             bases=[qlast.TypeName(maintype=b) for b in kids[1].val],
             position=kids[2].val)
@@ -1247,8 +1256,80 @@ class DropAnnotationStmt(Nonterm):
         )
 
 
+#
+# CREATE INDEX
+#
+commands_block(
+    'CreateIndex',
+    UsingStmt,
+    SetFieldStmt,
+    CreateAnnotationValueStmt,
+    AlterAnnotationValueStmt,
+)
+
+
 commands_block(
     'AlterIndex',
+    UsingStmt,
+    RenameStmt,
+    SetFieldStmt,
+    ResetFieldStmt,
+    CreateAnnotationValueStmt,
+    AlterAnnotationValueStmt,
+    DropAnnotationValueStmt,
+    opt=False)
+
+
+class CreateIndexStmt(
+    Nonterm,
+    commondl.ProcessFunctionParamsMixin,
+    commondl.ProcessIndexMixin,
+):
+    def reduce_CreateIndex(self, *kids):
+        r"""%reduce CREATE ABSTRACT INDEX NodeName \
+                    OptCreateIndexCommandsBlock"""
+        self.val = qlast.CreateIndex(
+            name=kids[3].val,
+            **self._process_sql_body(kids[4])
+        )
+
+    def reduce_CreateIndex_CreateFunctionArgs(self, *kids):
+        r"""%reduce CREATE ABSTRACT INDEX NodeName IndexExtArgList \
+                    OptCreateIndexCommandsBlock"""
+        self._validate_params(kids[4].val)
+        self.val = qlast.CreateIndex(
+            name=kids[3].val,
+            params=kids[4].val,
+            **self._process_sql_body(kids[5])
+        )
+
+
+#
+# ALTER INDEX
+#
+class AlterIndexStmt(Nonterm, commondl.ProcessIndexMixin):
+    def reduce_AlterIndex(self, *kids):
+        r"""%reduce ALTER ABSTRACT INDEX NodeName \
+                    AlterIndexCommandsBlock"""
+        self.val = qlast.AlterIndex(
+            name=kids[3].val,
+            **self._process_sql_body(kids[4])
+        )
+
+
+#
+# DROP INDEX
+#
+class DropIndexStmt(Nonterm):
+    def reduce_DropIndex(self, *kids):
+        r"""%reduce DROP ABSTRACT INDEX NodeName"""
+        self.val = qlast.DropIndex(
+            name=kids[3].val
+        )
+
+
+commands_block(
+    'AlterConcreteIndex',
     SetFieldStmt,
     ResetFieldStmt,
     AlterOwnedStmt,
@@ -1259,27 +1340,41 @@ commands_block(
 
 
 #
-# CREATE INDEX
+# CREATE CONCRETE INDEX
 #
-class CreateIndexStmt(Nonterm):
+class CreateConcreteIndexStmt(Nonterm, commondl.ProcessIndexMixin):
     def reduce_CREATE_INDEX_OnExpr_OptExceptExpr_OptCreateCommandsBlock(
             self, *kids):
-        self.val = qlast.CreateIndex(
-            name=qlast.ObjectRef(name='idx'),
+        self.val = qlast.CreateConcreteIndex(
+            name=qlast.ObjectRef(module='__', name='idx'),
             expr=kids[2].val,
             except_expr=kids[3].val,
             commands=kids[4].val,
         )
 
+    def reduce_CreateConcreteIndex(self, *kids):
+        r"""%reduce CREATE INDEX NodeName \
+                    OnExpr OptExceptExpr \
+                    OptCreateCommandsBlock \
+        """
+        self.val = qlast.CreateConcreteIndex(
+            name=kids[2].val,
+            expr=kids[3].val,
+            except_expr=kids[4].val,
+            commands=kids[5].val,
+        )
+
 
 #
-# ALTER INDEX
+# ALTER CONCRETE INDEX
 #
-class AlterIndexStmt(Nonterm):
-    def reduce_ALTER_INDEX_OnExpr_OptExceptExpr_AlterIndexCommandsBlock(
-            self, *kids):
-        self.val = qlast.AlterIndex(
-            name=qlast.ObjectRef(name='idx'),
+class AlterConcreteIndexStmt(Nonterm):
+    def reduce_AlterConcreteIndex(self, *kids):
+        r"""%reduce ALTER INDEX OnExpr OptExceptExpr \
+                    AlterConcreteIndexCommandsBlock \
+        """
+        self.val = qlast.AlterConcreteIndex(
+            name=qlast.ObjectRef(module='__', name='idx'),
             expr=kids[2].val,
             except_expr=kids[3].val,
             commands=kids[4].val,
@@ -1287,20 +1382,22 @@ class AlterIndexStmt(Nonterm):
 
 
 commands_block(
-    'DropIndex',
+    'DropConcreteIndex',
     SetFieldStmt,
     opt=True,
 )
 
 
 #
-# DROP INDEX
+# DROP CONCRETE INDEX
 #
-class DropIndexStmt(Nonterm):
-    def reduce_DROP_INDEX_OnExpr_OptExceptExpr_OptDropIndexCommandsBlock(
-            self, *kids):
-        self.val = qlast.DropIndex(
-            name=qlast.ObjectRef(name='idx'),
+class DropConcreteIndexStmt(Nonterm):
+    def reduce_DropConcreteIndex(self, *kids):
+        r"""%reduce DROP INDEX OnExpr OptExceptExpr \
+                    OptDropConcreteIndexCommandsBlock \
+        """
+        self.val = qlast.DropConcreteIndex(
+            name=qlast.ObjectRef(module='__', name='idx'),
             expr=kids[2].val,
             except_expr=kids[3].val,
             commands=kids[4].val,
@@ -1591,7 +1688,7 @@ commands_block(
     AlterAnnotationValueStmt,
     CreateConcreteConstraintStmt,
     CreateConcretePropertyStmt,
-    CreateIndexStmt,
+    CreateConcreteIndexStmt,
 )
 
 
@@ -1628,9 +1725,9 @@ commands_block(
     CreateConcretePropertyStmt,
     AlterConcretePropertyStmt,
     DropConcretePropertyStmt,
-    CreateIndexStmt,
-    AlterIndexStmt,
-    DropIndexStmt,
+    CreateConcreteIndexStmt,
+    AlterConcreteIndexStmt,
+    DropConcreteIndexStmt,
     opt=False
 )
 
@@ -1656,7 +1753,7 @@ commands_block(
     DropConcreteConstraintStmt,
     DropConcreteConstraintStmt,
     DropConcretePropertyStmt,
-    DropIndexStmt,
+    DropConcreteIndexStmt,
 )
 
 
@@ -1685,7 +1782,7 @@ commands_block(
     AlterAnnotationValueStmt,
     CreateConcreteConstraintStmt,
     CreateConcretePropertyStmt,
-    CreateIndexStmt,
+    CreateConcreteIndexStmt,
     commondl.OnTargetDeleteStmt,
     commondl.OnSourceDeleteStmt,
 )
@@ -1777,9 +1874,9 @@ commands_block(
     CreateConcretePropertyStmt,
     AlterConcretePropertyStmt,
     DropConcretePropertyStmt,
-    CreateIndexStmt,
-    AlterIndexStmt,
-    DropIndexStmt,
+    CreateConcreteIndexStmt,
+    AlterConcreteIndexStmt,
+    DropConcreteIndexStmt,
     commondl.OnTargetDeleteStmt,
     commondl.OnSourceDeleteStmt,
     OnTargetDeleteResetStmt,
@@ -1803,14 +1900,15 @@ commands_block(
     'DropConcreteLink',
     DropConcreteConstraintStmt,
     DropConcretePropertyStmt,
-    DropIndexStmt,
+    DropConcreteIndexStmt,
 )
 
 
 class DropConcreteLinkStmt(Nonterm):
     def reduce_DropLink(self, *kids):
         r"""%reduce \
-            DROP LINK UnqualifiedPointerName OptDropConcreteLinkCommandsBlock \
+            DROP LINK UnqualifiedPointerName \
+            OptDropConcreteLinkCommandsBlock \
         """
         self.val = qlast.DropConcreteLink(
             name=kids[2].val,
@@ -1938,8 +2036,8 @@ commands_block(
     AlterConcreteLinkStmt,
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
-    CreateIndexStmt,
-    AlterIndexStmt,
+    CreateConcreteIndexStmt,
+    AlterConcreteIndexStmt,
     CreateAccessPolicyStmt,
     AlterAccessPolicyStmt,
 )
@@ -1993,9 +2091,9 @@ commands_block(
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
     DropConcreteConstraintStmt,
-    CreateIndexStmt,
-    AlterIndexStmt,
-    DropIndexStmt,
+    CreateConcreteIndexStmt,
+    AlterConcreteIndexStmt,
+    DropConcreteIndexStmt,
     CreateAccessPolicyStmt,
     AlterAccessPolicyStmt,
     DropAccessPolicyStmt,
@@ -2024,7 +2122,7 @@ commands_block(
     DropConcretePropertyStmt,
     DropConcreteLinkStmt,
     DropConcreteConstraintStmt,
-    DropIndexStmt
+    DropConcreteIndexStmt
 )
 
 

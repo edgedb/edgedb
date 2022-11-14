@@ -199,7 +199,7 @@ class TraceContextBase:
 
             extra_name = '|'.join(qlcodegen.generate_source(e) for e in exprs)
 
-        elif isinstance(decl, qlast.CreateIndex):
+        elif isinstance(decl, qlast.CreateConcreteIndex):
             # Indexes are defined by what they are an index over, so we need
             # to add that to the "extra_name".
             extra_name = f'({qlcodegen.generate_source(decl.expr)})'
@@ -802,7 +802,7 @@ def trace_AccessPolicy(
 
 @trace_dependencies.register
 def trace_Index(
-    node: qlast.CreateIndex,
+    node: qlast.CreateConcreteIndex,
     *,
     ctx: DepTraceContext,
 ) -> None:
@@ -1037,8 +1037,8 @@ def _register_item(
             alter_cmd: qlast.ObjectDDL = alter_cls(name=decl.name)
 
             # indexes need to preserve their "on" expression
-            if isinstance(decl, qlast.CreateIndex):
-                assert isinstance(alter_cmd, qlast.IndexCommand)
+            if isinstance(decl, qlast.CreateConcreteIndex):
+                assert isinstance(alter_cmd, qlast.ConcreteIndexCommand)
                 alter_cmd.expr = decl.expr
 
             # constraints need to preserve their "on" expression

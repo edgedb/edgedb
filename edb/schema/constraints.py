@@ -196,20 +196,15 @@ class Constraint(
         self,
         schema: s_schema.Schema,
         *,
-        with_parent: bool=False
+        with_parent: bool = False
     ) -> str:
-        vn = super().get_verbosename(schema)
+        vn = super().get_verbosename(schema, with_parent=with_parent)
         if self.generic(schema):
             return f'abstract {vn}'
         else:
-            if with_parent:
-                subject = self.get_subject(schema)
-                assert subject is not None
-                pvn = subject.get_verbosename(
-                    schema, with_parent=True)
-                return f'{vn} of {pvn}'
-            else:
-                return vn
+            # concrete constraint must have a subject
+            assert self.get_subject(schema) is not None
+            return vn
 
     def generic(self, schema: s_schema.Schema) -> bool:
         return self.get_subject(schema) is None
