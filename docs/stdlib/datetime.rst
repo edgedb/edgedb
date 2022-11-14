@@ -865,14 +865,14 @@ EdgeDB stores and outputs timezone-aware values in UTC.
       and :eql:type:`cal::date_duration` for durations longer than a day,
       because a month is assumed to be 30 days exactly.
 
-    The :eql:type:`duration` scalar only has the smallest units available
-    for extraction.
+    The :eql:type:`duration` scalar has only ``'hour'`` and smaller units
+    available for extraction.
 
     The :eql:type:`cal::relative_duration` scalar has all of the units
     available for extraction.
 
-    The :eql:type:`cal::date_duration` scalar only has the largest and middle
-    size units available for extraction.
+    The :eql:type:`cal::date_duration` scalar only has ``'date'`` and larger
+    units available for extraction.
 
     .. code-block:: edgeql-repl
 
