@@ -73,7 +73,7 @@ Tuples
 ^^^^^^
 
 Like arrays, tuples are ordered sequences of primitive data. Unlike arrays,
-each element of a tuple can have a distinct type. Tuples elements can be *any
+each element of a tuple can have a distinct type. Tuple elements can be *any
 type*, including primitives, objects, arrays, and other tuples.
 
 .. code-block:: sdl

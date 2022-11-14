@@ -68,7 +68,9 @@ next time you try to :ref:`create a migration <ref_intro_migrations>`.
 
   type Person {
     property first_name -> str;
-    required property name_upper := str_upper(.name); # invalid
+
+    # this is invalid, because first_name is not a required property
+    required property first_name_upper := str_upper(.first_name);
   }
 
 Common use cases
@@ -84,7 +86,7 @@ queries, consider defining a computed field that encapsulates the filter.
 
   type Club {
     multi link members -> Person;
-    link active_members := (
+    multi link active_members := (
       select .members filter .is_active = true
     )
   }

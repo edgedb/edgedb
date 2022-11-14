@@ -4,8 +4,8 @@
 Object Types
 ============
 
-*Object types* are the primary components of EdgeDB schema. They are analogous
-to SQL *tables* or ORM *models*, and consist of :ref:`properties
+*Object types* are the primary components of an EdgeDB schema. They are
+analogous to SQL *tables* or ORM *models*, and consist of :ref:`properties
 <ref_datamodel_props>` and :ref:`links <ref_datamodel_links>`.
 
 Properties are used to attach primitive data to an object type. They are
@@ -43,7 +43,7 @@ Abstract types
 
 Object types can either be *abstract* or *non-abstract*. By default all object
 types are non-abstract. You can't create or store instances of abstract types,
-but they're a useful way to share functionality and structure across among
+but they're a useful way to share functionality and structure among
 other object types.
 
 .. code-block:: sdl

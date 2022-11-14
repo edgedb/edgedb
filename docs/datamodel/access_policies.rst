@@ -155,13 +155,13 @@ one else will be able to edit, delete, or view this post.
 
 - ``access policy``: The keyword used to declare a policy inside an object
   type.
-- ``own_posts``: The name of this policy; could be any string.
+- ``author_has_full_access``: The name of this policy; could be any string.
 - ``allow``: The kind of policy; could be ``allow`` or ``deny``
 - ``all``: The set of operations being allowed/denied; a comma-separated list
   of the following: ``all``, ``select``, ``insert``, ``delete``, ``update``,
   ``update read``, ``update write``.
 - ``using (<expr>)``: A boolean expression. Think of this as a ``filter``
-  expression that defined the set of objects to which the policy applies.
+  expression that defines the set of objects to which the policy applies.
 
 Let's do some experiments.
 
@@ -245,9 +245,8 @@ algorithm for resolving these policies.
 
   The access policy resolution algorithm, explained with Venn diagrams.
 
-1. When no policies are defined on a given object type, object-level security
-   is all objects of that type can be read or modified by any appropriately
-   authenticated connection.
+1. When no policies are defined on a given object type, all objects of that
+   type can be read or modified by any appropriately authenticated connection.
 
 2. EdgeDB then applies all ``allow`` policies. Each policy grants a
    *permission* that is scoped to a particular *set of objects* as defined by
@@ -399,9 +398,6 @@ the author.
 
 
 "Disappearing" posts that become invisible after 24 hours.
-
-Blog posts are publicly visible except to users that have been ``blocked`` by
-the author.
 
 .. code-block:: sdl-diff
 

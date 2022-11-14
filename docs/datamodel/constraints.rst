@@ -32,10 +32,6 @@ documentation.
 
 .. include:: ../stdlib/constraint_table.rst
 
-The ``expression`` constraint is used to define custom constraint logic. Inside
-custom constraints, the keyword ``__subject__`` can used to reference the
-*value* being constrained.
-
 .. _ref_datamodel_constraints_properties:
 
 Constraints on properties
@@ -82,7 +78,7 @@ constraint logic must reference multiple links or properties.
 
 .. important::
 
-  Inside an object type declaration, you can omit ``__subject__`` and simple
+  Inside an object type declaration, you can omit ``__subject__`` and simply
   refer to properties with the :ref:`leading dot notation <ref_dot_notation>`
   (e.g. ``.<name>``).
 

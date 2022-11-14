@@ -42,7 +42,7 @@ references multiple properties of the enclosing object type.
 .. important::
 
   A singleton expression is an expression that's guaranteed to return *at most
-  one* one element. As such, you can't index on a ``multi`` property.
+  one* element. As such, you can't index on a ``multi`` property.
 
 .. code-block:: sdl
 

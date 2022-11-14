@@ -83,7 +83,7 @@ instances can link to the same target(s).
   }
 
 In the ``GroupChat`` example, the ``GroupChat.members`` link is now
-``exclusive``. No multiple of ``GroupChat`` can link to the same ``Person``;
+``exclusive``. Two ``GroupChat`` objects cannot link to the same ``Person``;
 put differently, no ``Person`` can be a ``member`` of multiple ``GroupChat``.
 
 .. _ref_guide_modeling_relations:
@@ -252,9 +252,9 @@ people are automatically assigned three random friends.
 Link properties
 ---------------
 
-In EdgeDB, links can store *properties*. Like object types, links can contain
-**properties**. Link properties can be used to store metadata about links, such
-as *when* it was created or the *nature/strength* of the relationship.
+Like object types, links in EdgeDB can contain **properties**. Link properties
+can be used to store metadata about links, such as *when* they were created or
+the *nature/strength* of the relationship.
 
 .. code-block:: sdl
 
