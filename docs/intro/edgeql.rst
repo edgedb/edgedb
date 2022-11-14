@@ -396,7 +396,7 @@ The ``select`` statement can be augmented with ``filter``, ``order by``,
     // {id: string; title: number}[]
 
 Note that you reference properties of the object to include in your ``select``
-prepending the property name with a period: ``.release_year``. This is known
+by prepending the property name with a period: ``.release_year``. This is known
 as *leading dot notation*.
 
 Every new set of curly braces introduces a new scope. You can add ``filter``,
