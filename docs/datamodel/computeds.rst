@@ -68,7 +68,8 @@ next time you try to :ref:`create a migration <ref_intro_migrations>`.
 
   type Person {
     property first_name -> str;
-    # invalid, because first_name is not a required property
+
+    # this is invalid, because first_name is not a required property
     required property first_name_upper := str_upper(.first_name);
   }
 
