@@ -315,7 +315,7 @@ class NestedQLBlockStmt(Nonterm):
     def reduce_Stmt(self, *kids):
         self.val = kids[0].val
 
-    def reduce_InnerDDLStmt(self, *kids):
+    def reduce_OptWithDDLStmt(self, *kids):
         self.val = kids[0].val
 
     def reduce_SetFieldStmt(self, *kids):
