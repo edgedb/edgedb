@@ -45,7 +45,7 @@ and connect to its linked instance with no additional configuration.
 Initializing
 ^^^^^^^^^^^^
 
-To initialize one, create a new directory and run ``edgedb
+To initialize a project, create a new directory and run ``edgedb
 project init`` inside it. You'll see something like this:
 
 .. code-block:: bash

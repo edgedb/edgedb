@@ -22,7 +22,7 @@ execute them directly from the browser.
 Scalar literals
 ^^^^^^^^^^^^^^^
 
-EdgeDB has a rich primitive typesystem consisting of the following data types.
+EdgeDB has a rich primitive type system consisting of the following data types.
 
 .. list-table::
 
@@ -43,6 +43,10 @@ EdgeDB has a rich primitive typesystem consisting of the following data types.
     - ``duration`` ``cal::relative_duration`` ``cal::date_duration``
   * - Binary data
     - ``bytes``
+  * - Auto-incrementing counters
+    - ``sequence``
+  * - Enums
+    - ``enum<x, y, z>``
 
 Basic literals can be declared using familiar syntax.
 
@@ -140,7 +144,7 @@ nested.
 
 
 EdgeDB also supports a special ``json`` type for representing unstructured
-data. Primitive data structures can be converted to json using a type cast
+data. Primitive data structures can be converted to JSON using a type cast
 (``<json>``). Alternatively, a properly JSON-encoded string can be converted
 to ``json`` with the built-in ``to_json`` function. Indexing a ``json`` value
 returns another ``json`` value.
@@ -391,8 +395,8 @@ The ``select`` statement can be augmented with ``filter``, ``order by``,
     const result = await query.run(client);
     // {id: string; title: number}[]
 
-Note that you reference properties of the object being ``select``ed by
-prepending the property name with a period: ``.release_year``. This is known
+Note that you reference properties of the object to include in your ``select``
+by prepending the property name with a period: ``.release_year``. This is known
 as *leading dot notation*.
 
 Every new set of curly braces introduces a new scope. You can add ``filter``,
@@ -540,7 +544,7 @@ See :ref:`Docs > EdgeQL > Select > Computed <ref_eql_select>` and
 Update objects
 ^^^^^^^^^^^^^^
 
-The ``update`` statement accepts a ``filter`` clause upfront, followed by a
+The ``update`` statement accepts a ``filter`` clause up-front, followed by a
 ``set`` shape indicating how the matching objects should be updated.
 
 .. tabs::
@@ -566,7 +570,7 @@ The ``update`` statement accepts a ``filter`` clause upfront, followed by a
     // {id: string}
 
 When updating links, the set of linked objects can be added to with ``+=``,
-subtracted from with ``-=``, or overridden with ``:=``.
+subtracted from with ``-=``, or overwritten with ``:=``.
 
 .. tabs::
 

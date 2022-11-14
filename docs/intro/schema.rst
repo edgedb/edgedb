@@ -12,7 +12,8 @@ linked pages for more in-depth documentation!
 Scalar types
 ------------
 
-EdgeDB implements rigorous typesystem containing the following primitive types.
+EdgeDB implements a rigorous type system containing the following primitive
+types.
 
 .. list-table::
 
@@ -189,7 +190,7 @@ queries. The example below defines a backlink.
     required property title -> str;
     multi link actors -> Person;
 
-    # returns all movie with same title
+    # returns all movies with same title
     multi link same_title := (
       with t := .title
       select Movie filter .title = t
