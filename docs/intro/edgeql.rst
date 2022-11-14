@@ -395,7 +395,7 @@ The ``select`` statement can be augmented with ``filter``, ``order by``,
     const result = await query.run(client);
     // {id: string; title: number}[]
 
-Note that you reference properties of the object being ``select`` ed by
+Note that you reference properties of the object to include in your ``select``
 prepending the property name with a period: ``.release_year``. This is known
 as *leading dot notation*.
 
