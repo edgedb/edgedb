@@ -377,9 +377,9 @@ def object_type_to_python_type(
             pytype = scalar_type_to_python_type(ptype, schema)
 
         ptr_card: qltypes.SchemaCardinality = p.get_cardinality(schema)
-        try:
+        if ptr_card.is_known():
             is_multi = ptr_card.is_multi()
-        except ValueError:
+        else:
             raise UnsupportedExpressionError()
 
         if is_multi:
