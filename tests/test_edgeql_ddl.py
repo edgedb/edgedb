@@ -13811,6 +13811,17 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             [],
         )
 
+    async def test_edgeql_ddl_link_policy_implicit_01(self):
+        await self.con.execute("""
+            create type T;
+            create type X {
+                create link foo -> schema::ObjectType;
+            };
+        """)
+        await self.con.execute("""
+            drop type T;
+        """)
+
     async def test_edgeql_ddl_dupe_link_storage_01(self):
         await self.con.execute(r"""
 
