@@ -982,6 +982,15 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         ...   <cal::relative_duration>''20 hours 3630 seconds', 'seconds');
         {30}
 
+    Normalization and truncation may help you deal with this. If your use case
+    allows for making assumptions about the duration of a month or a day, you
+    can make those conversions for yourself using the
+    :eql:func:`cal::duration_normalize_hours` or
+    :eql:func:`cal::duration_normalize_days` functions. If you got back a
+    duration as a result of a datetime calculation and don't need the level of
+    granularity you have, you can truncate the value with
+    :eql:func:`duration_truncate`.
+
 ----------
 
 
