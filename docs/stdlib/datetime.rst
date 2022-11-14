@@ -967,7 +967,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     .. code-block:: edgeql-repl
 
         db> select duration_get(
-        ...   <cal::relative_duration>''20 hours 3600 seconds', 'hour');
+        ...   <cal::relative_duration>'20 hours 3600 seconds', 'hour');
         {21}
 
     Seconds and smaller units always return remaining time in that unit after
@@ -976,10 +976,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     .. code-block:: edgeql-repl
 
         db> select duration_get(
-        ...   <cal::relative_duration>''20 hours 3600 seconds', 'seconds');
+        ...   <cal::relative_duration>'20 hours 3600 seconds', 'seconds');
         {0}
         db> select duration_get(
-        ...   <cal::relative_duration>''20 hours 3630 seconds', 'seconds');
+        ...   <cal::relative_duration>'20 hours 3630 seconds', 'seconds');
         {30}
 
     Normalization and truncation may help you deal with this. If your use case
