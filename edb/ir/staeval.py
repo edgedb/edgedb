@@ -46,6 +46,7 @@ from edb.schema import types as s_types
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import constraints as s_constr
+from edb.schema import pointers as s_pointers
 
 from edb.server import config
 
@@ -352,6 +353,7 @@ def object_type_to_python_type(
     subclasses = []
 
     for pn, p in objtype.get_pointers(schema).items(schema):
+        assert isinstance(p, s_pointers.Pointer)
         str_pn = str(pn)
         if str_pn in ('id', '__type__'):
             continue
@@ -374,8 +376,12 @@ def object_type_to_python_type(
         else:
             pytype = scalar_type_to_python_type(ptype, schema)
 
-        ptr_card = p.get_cardinality(schema)
-        is_multi = ptr_card.is_multi()
+        ptr_card: qltypes.SchemaCardinality = p.get_cardinality(schema)
+        if ptr_card.is_known():
+            is_multi = ptr_card.is_multi()
+        else:
+            raise UnsupportedExpressionError()
+
         if is_multi:
             pytype = FrozenSet[pytype]  # type: ignore
 
