@@ -40,7 +40,7 @@ Booleans
 
 .. eql:type:: std::bool
 
-    Represents a logical boolean type of either ``true`` or ``false``.
+    A boolean type of either ``true`` or ``false``.
 
     EdgeQL has case-insensitive keywords, including boolean literals:
 
@@ -51,8 +51,18 @@ Booleans
         db> select (False, false, FALSE);
         {(false, false, false)}
 
-    Boolean values may arise as a result of :ref:`logical <ref_std_logical>`
-    or :eql:op`comparison <eq>` checks, as well as :eql:op`in` and
+    These basic operators will always result in a boolean value:
+    
+    - :eql:op:`= <eq>`
+    - :eql:op:`\!= <neq>`
+    - :eql:op:`?= <coaleq>`
+    - :eql:op:`?!= <coalneq>`
+    - :eql:op:`\< <lt>`
+    - :eql:op:`\> <gt>`
+    - :eql:op:`\<= <lteq>`
+    - :eql:op:`\>= <gteq>`
+
+Some examples:
     :eql:op`not in <in>` operations:
 
     .. code-block:: edgeql-repl
@@ -62,8 +72,8 @@ Booleans
         db> select '!' IN {'hello', 'world'};
         {false}
 
-    It is also possible to :eql:op:`cast <cast>` between a :eql:type:`bool`,
-    :eql:type:`str` or :eql:type:`json` type:
+    It's possible to get a boolean by casting a :eql:type:`str` or :eql:type:`json`
+    value into it:
 
     .. code-block:: edgeql-repl
 
@@ -182,5 +192,5 @@ To understand the last line in the above truth table it's useful to
 remember that ``all({a, b}) = all(a) and all(b)`` and ``any({a, b}) =
 any(a) or any(b)``.
 
-For more customized handling of ``{}``, the :eql:op:`?? <coalesce>` operator
-should be used.
+For more customized handling of ``{}``, use the :eql:op:`?? <coalesce>`
+operator.

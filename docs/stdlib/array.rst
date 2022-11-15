@@ -57,15 +57,13 @@ Arrays store expressions of the *same type* in an ordered list.
 Constructing arrays
 ^^^^^^^^^^^^^^^^^^^
 
-Array constructors are an expression that allow for a sequence of
-comma-separated expressions *of the same type* enclosed in square brackets.
-This will produce an array of the following:
+Arrays are constructed by placing multiple comma-separated expressions within
+square brackets. Here are a few examples:
 
 .. eql:synopsis::
 
     "[" <expr> [, ...] "]"
 
-You can then use these arrays in EdgeDB to access information.
 
 .. code-block:: edgeql-repl
 
@@ -77,8 +75,9 @@ You can then use these arrays in EdgeDB to access information.
 Empty arrays
 ^^^^^^^^^^^^
 
-An empty array can also be created, but it must be used with
-a type cast as EdgeDB cannot infer the type of an array with no elements:
+You can also create an empty array, but it must be done by providing the type
+information using type casting. EdgeDB cannot infer the type of an empty array
+created otherwise. Example:
 
 .. code-block:: edgeql-repl
 
@@ -100,7 +99,7 @@ Reference
 
     :index: array
 
-    Represents a one-dimensional array of an homogeneous ordered list.
+    Represents an ordered list of values of the same type.
 
     Array indexing will always start at zero. With the exception of other
     array types, any type may be used as the given element contained within.
@@ -159,13 +158,17 @@ Reference
 
 .. eql:operator:: arrayslice: array<anytype> [ int64 : int64 ] -> anytype
 
-    Slices an array of :eql:type:`anytype` containing :eql:type:`int64`.
+    Produces a sub-array from an existing array.
 
     This results in a representable reference of the array's elements.
 
-    Omitting the lower bound an array will default the result to zero.
-    Doing so to the upper bound will also default to the current size of the
-    array. The upper bound of an array is non-inclusive:
+    Omitting the lower bound of an array slice will default to a low bound of
+    zero.
+    Omitting the upper bound will default the upper bound to the length of the
+    array.
+    
+    The lower bound of an array slice is inclusive while the upper bound is
+    not.
 
     .. code-block:: edgeql-repl
 
@@ -178,8 +181,11 @@ Reference
         db> select [1, 2, 3][:-2];
         {[1]}
 
-    Referencing an array slice outside of the array's boundaries will result
-    in an empty array, unlike accessing an element with a direct index:
+    If your array slice boundaries do not include any valid index from the
+    array, the slice will produce an empty array. Slicing with a lower bound
+    less than the minimum index or a upper bound greater than the
+    maximum index are functionally equivalent to not specifying those bounds
+    for your slice.
 
     .. code-block:: edgeql-repl
 
@@ -194,7 +200,7 @@ Reference
 
 .. eql:operator:: arrayplus: array<anytype> ++ array<anytype> -> array<anytype>
 
-    Concatenates given arrays of :eql:type:`anytype` into one.
+    Concatenates two arrays of the same type into one.
 
     This results in a reference of both array's elements conjoined together:
 
@@ -240,7 +246,7 @@ Reference
     or ``{}`` (empty set) will be returned.
 
     This works the same as the :eql:op:`array indexing operator <arrayidx>`,
-    except that if the index is out of boundaries, an empty set of the array
+    except that if the index is out of bounds, an empty set of the array
     element's type is returned instead of raising an exception:
 
     .. code-block:: edgeql-repl
@@ -294,7 +300,9 @@ Reference
 
     :index: fill
 
-    Returns a new array of size ``n`` with the specified ``val``:
+    Returns a new array of a specified number of copies of the specified value.
+    
+    The new array will have *n* copies of the value passed for *val*.
 
     .. code-block:: edgeql-repl
 

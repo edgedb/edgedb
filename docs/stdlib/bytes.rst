@@ -30,10 +30,10 @@ Bytes
       - Returns the number of bytes.
 
     * - :eql:func:`contains`
-      - Checks if the byte sequence contains a subsequence.
+      - Checks if the byte sequence contains a given subsequence.
 
     * - :eql:func:`find`
-      - Finds the index of the first occurrence in a subsequence.
+      - Finds the index of the first occurrence of a subsequence.
 
     * - :eql:func:`bytes_get_bit`
       - :eql:func-desc:`bytes_get_bit`

@@ -67,7 +67,7 @@ own literal, and instead can be obtained by either casting a value to the
     db> select <json>'hello world';
     {'"hello world"'}
 
-Any value in EdgeDB can be casted to an :eql:type:`json` type as well:
+Any value in EdgeDB can be casted to a :eql:type:`json` type as well:
 
 .. code-block:: edgeql-repl
 

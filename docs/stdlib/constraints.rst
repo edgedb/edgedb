@@ -11,8 +11,8 @@ Constraints
 
     Represents an arbitrary constraint expression.
 
-    The ``expression`` constraint may be used to represent a custom scalar
-    type:
+    The ``expression`` constraint may be used as in this example to create a
+    custom scalar type:
 
     .. code-block:: sdl
 
@@ -20,8 +20,8 @@ Constraints
             constraint expression on (__subject__[0] = 'A');
         }
 
-    You may also use this constraint based on a couple of object properties to
-    further restrict how a value may be stored:
+    You may also use expression constraints across multiple object properties to
+    further restrict which values may be stored:
 
     .. code-block:: sdl
 
@@ -36,7 +36,6 @@ Constraints
 .. eql:constraint:: std::one_of(variadic members: anytype)
 
     Specifies a list of :eql:type:`anytype` as one allowed value of
-    ``members``:
 
     .. code-block:: sdl
 
@@ -56,8 +55,7 @@ Constraints
 
 .. eql:constraint:: std::max_ex_value(max: anytype)
 
-    Specifies the maximum allowed value of :eql:type:`anytype` as an open
-    interval:
+    Specifies a non-inclusive upper bound for the value.
 
     .. code-block:: sdl
 
@@ -87,8 +85,7 @@ Constraints
 
 .. eql:constraint:: std::min_ex_value(min: anytype)
 
-    Specifies the minimum allowed value of :eql:type:`anytype` as an open
-    interval:
+    Specifies a non-inclusive lower bound for the value.
 
     .. code-block:: sdl
 
@@ -110,7 +107,7 @@ Constraints
 
     :index: regex regexp regular
 
-    Specifies the allowed representation of a type by matching a given
+    Limits to values with string representations matching a regular expression.
     ``pattern``:
 
     .. code-block:: sdl

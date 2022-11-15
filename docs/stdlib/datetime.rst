@@ -101,13 +101,13 @@ Dates and Times
 
 .. _ref_std_datetime_intro:
 
-In EdgeDB, there are two types of date/time constructs:
+EdgeDB has two varieties of date/time constructs:
 
 * a timezone-aware :eql:type:`std::datetime` type;
 
 * a set of "local" date/time types, not attached to any particular
-  timezone, such as :eql:type:`cal::local_datetime`,
-  :eql:type:`cal::local_date` and :eql:type:`cal::local_time`.
+  timezone: :eql:type:`cal::local_datetime`, :eql:type:`cal::local_date`, and
+   :eql:type:`cal::local_time`.
 
 There are two different ways of measuring duration:
 
@@ -116,15 +116,15 @@ There are two different ways of measuring duration:
 * :eql:type:`cal::relative_duration` for using fuzzy units like years,
   months and days in addition to absolute units.
 
-All referrable operators, functions and type casts are designed to maintain a
+All related operators, functions, and type casts are designed to maintain a
 strict separation between timezone-aware and "local" date/time values.
 
 EdgeDB store and output timezone-aware values in UTC format.
 
 .. note::
 
-    All date/time types are stricted to years between 1 and 999, including
-    their end points.
+    All date/time types are restricted to years between 1 and 9999, including
+    the years 1 and 9999.
 
     Although many systems support the ISO8601 date/time formatting in theory,
     practical application of formatting before year 1 and after 9999 tends to

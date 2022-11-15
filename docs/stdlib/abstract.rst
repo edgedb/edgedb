@@ -56,8 +56,8 @@ generic function to be applicable over a broad range of types.
     Represents a generic tuple.
 
     Similar to :eql:type:`anytype`, this type is used to denote a generic
-    tuple without going into detail of which components there are. This is
-    useful when defining polymorphic parameters in functions and operators.
+    tuple without detailing its constituents. This is useful when defining
+    polymorphic parameters in functions and operators.
 
 
 Abstract Numeric Types
@@ -99,8 +99,7 @@ Abstract numeric types are used when wanting to extend off of
 Abstract Range Types
 ====================
 
-Like abstract numeric types, :ref:`ranges <ref_std_range>` can also be
-specified.
+These types serve as the base types for all :ref:`ranges <ref_std_range>`.
 
 .. eql:type:: std::anypoint
 
