@@ -3342,6 +3342,30 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_access_policy_parens_01(self):
+        schema = r'''
+        type Foo {
+            access policy test
+              when (with y := 1, select y = 1)
+              allow all
+              using (with x := 1, select x = 1)
+        };
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_access_policy_parens_02(self):
+        schema = r'''
+        type Foo {
+            access policy test
+              when ((with y := 1, select y = 1))
+              allow all
+              using ((with x := 1, select x = 1))
+        };
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""
             type Base;
