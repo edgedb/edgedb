@@ -139,7 +139,7 @@ When using a client library, pass the idiomatic null pointer for your language:
 
 
 What can be parameterized?
--------------------------
+--------------------------
 
 Any data manipulation language (DML) statement can be
 parameterized: ``select``, ``insert``, ``update``, and ``delete``.
