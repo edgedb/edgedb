@@ -32,6 +32,86 @@ std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
 };
 
 
+CREATE FUNCTION
+std::bytes_convert_from(bytes: std::bytes, src_encoding: std::str) -> std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Convert *bytes* to a string using *src_encoding*';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'convert_from';
+};
+
+
+CREATE FUNCTION
+std::bytes_convert_to(str: std::str, dest_encoding: std::str) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Convert *str* to bytes using *dest_encoding*';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'convert_to';
+};
+
+
+CREATE FUNCTION
+std::bytes_encode(bytes: std::bytes, format: std::str) -> std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Encode *bytes* into a textual representation';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'encode';
+};
+
+
+CREATE FUNCTION
+std::bytes_decode(str: std::str, format: std::str) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Decode a textual representation of a binary string';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'decode';
+};
+
+
+CREATE FUNCTION
+std::sha224(bytes: std::bytes) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Compute the SHA-224 hash of *bytes*';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'sha224';
+};
+
+
+CREATE FUNCTION
+std::sha256(bytes: std::bytes) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Compute the SHA-256 hash of *bytes*';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'sha256';
+};
+
+
+CREATE FUNCTION
+std::sha384(bytes: std::bytes) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Compute the SHA-384 hash of *bytes*';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'sha384';
+};
+
+
+
+CREATE FUNCTION
+std::sha512(bytes: std::bytes) -> std::bytes
+{
+    CREATE ANNOTATION std::description :=
+        'Compute the SHA-512 hash of *bytes*';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'sha512';
+};
+
 
 ## Byte string operators
 ## ---------------------
