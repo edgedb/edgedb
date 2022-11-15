@@ -117,8 +117,8 @@ Optional parameters
 -------------------
 
 By default, query parameters are ``required``; the query will fail if the
-parameter value is an empty set. You can use an ``optional`` modifier inside the
-type cast if the parameter is optional.
+parameter value is an empty set. You can use an ``optional`` modifier inside
+the type cast if the parameter is optional.
 
 .. code-block:: edgeql-repl
 
