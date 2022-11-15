@@ -596,6 +596,7 @@ class ScopeTreeNode:
                     and not self.is_visible(src_path)
                 )
             )
+            and not existing._node_paths_are_props()
         ):
             path_ancestor = descendant.path_ancestor
             if path_ancestor is not None:
@@ -621,6 +622,28 @@ class ScopeTreeNode:
                 f'elsewhere in the query',
                 context=context,
             )
+
+    def _node_paths_are_props(self) -> bool:
+        """
+        Check if all the pointers a path might be hoisted past are properties
+
+        If the node is a path_id node, return true if the rptrs on
+        all of the chain of parent nodes with path_ids are properties
+        (not links).
+
+        This is in support of allowing queries like
+          select Card.element filter Card.name = 'Imp'
+
+        No real change in interpretation happens here, since element
+        is a property and so doesn't get deduplicated.
+        """
+
+        node: ScopeTreeNode | None = self
+        while node and node.path_id:
+            if node.path_id.rptr() and node.path_id.is_objtype_path():
+                return False
+            node = node.parent
+        return True
 
     def fuse_subtree(
         self,
