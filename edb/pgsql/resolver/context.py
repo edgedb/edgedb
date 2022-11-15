@@ -118,7 +118,7 @@ class ContextSwitchMode(enum.Enum):
 
 class ResolverContextLevel(compiler.ContextLevel):
     schema: s_schema.Schema
-    names: NameGenerator
+    names: compiler.AliasGenerator
 
     scope: Scope
     """Visible names in scope"""
@@ -142,7 +142,7 @@ class ResolverContextLevel(compiler.ContextLevel):
             self.schema = schema
             self.scope = Scope()
             self.include_inherited = True
-            self.names = NameGenerator()
+            self.names = compiler.AliasGenerator()
 
         else:
             self.schema = prevlevel.schema

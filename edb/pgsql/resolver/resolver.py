@@ -100,9 +100,10 @@ def resolve_SelectStmt(
 
 
 @dispatch._resolve.register
-def resolve_DMLQuery(cte: pgast.DMLQuery, *, ctx: Context) -> pgast.DMLQuery:
+def resolve_DMLQuery(query: pgast.DMLQuery, *, ctx: Context) -> pgast.DMLQuery:
     raise errors.UnsupportedFeatureError(
-        'DML queries (INSERT/UPDATE/DELETE) are not supported'
+        'DML queries (INSERT/UPDATE/DELETE) are not supported',
+        context=query.context,
     )
 
 
@@ -125,7 +126,8 @@ def resolve_CommonTableExpr(
             raise errors.QueryError(
                 f'CTE alias for `{cte.name}` contains {len(cols_names)} '
                 f'columns, but the query resolves to `{len(cols_query)}` '
-                f'columns'
+                f'columns',
+                context=cte.context,
             )
         for index, col in enumerate(cols_query):
             res_col = context.Column()
@@ -156,7 +158,7 @@ def resolve_BaseRangeVar(
         ctx.scope.rel.alias = range_var.alias.aliasname
 
     # generate internal alias
-    aliasname = ctx.names.generate_relation()
+    aliasname = ctx.names.get('relation')
     ctx.scope.rel.reference_as = aliasname
     alias = pgast.Alias(aliasname=aliasname)
     return dispatch.resolve_range_var(range_var, alias, ctx=ctx)
@@ -197,8 +199,14 @@ def resolve_RelRangeVar(
 ) -> pgast.RelRangeVar:
     ctx.include_inherited = range_var.include_inherited
 
+    relation: Union[pgast.BaseRelation, pgast.CommonTableExpr]
+    if isinstance(range_var.relation, pgast.Relation):
+        relation = resolve_relation(range_var.relation, ctx=ctx)
+    else:
+        relation = dispatch.resolve(range_var.relation, ctx=ctx)
+
     return pgast.RelRangeVar(
-        relation=dispatch.resolve(range_var.relation, ctx=ctx),
+        relation=relation,
         alias=alias,
     )
 
@@ -210,7 +218,9 @@ def resolve_RangeFunction(
     *,
     ctx: Context,
 ) -> pgast.RangeFunction:
-    raise errors.UnsupportedFeatureError('range functions are not supported')
+    raise errors.UnsupportedFeatureError(
+        'range functions are not supported', context=range_var.context
+    )
 
 
 @dispatch.resolve_range_var.register
@@ -263,11 +273,11 @@ def resolve_JoinExpr(
     )
 
 
-@dispatch._resolve.register
-def resolve_Relation(
+def resolve_relation(
     relation: pgast.Relation, *, ctx: Context
 ) -> pgast.Relation:
     assert relation.name
+    schema_name = relation.schemaname or 'public'
 
     # try a CTE
     cte = next((t for t in ctx.scope.ctes if t.name == relation.name), None)
@@ -278,7 +288,7 @@ def resolve_Relation(
 
     # lookup the object in schema
     obj: Optional[s_objtypes.ObjectType] = None
-    if (relation.schemaname or 'public') == 'public':
+    if schema_name == 'public':
         object_type_name = relation.name[0].upper() + relation.name[1:]
 
         obj = ctx.schema.get(  # type: ignore
@@ -289,10 +299,14 @@ def resolve_Relation(
         )
 
         if not obj:
-            raise errors.QueryError(f'unknown object `{object_type_name}`')
+            raise errors.QueryError(
+                f'unknown object `{object_type_name}`',
+                context=relation.context,
+            )
     else:
         raise errors.QueryError(
-            f'unknown relation `{relation.schemaname}.{relation.name}`'
+            f'unknown relation `{relation.schemaname}.{relation.name}`',
+            context=relation.context,
         )
 
     # extract table name
@@ -334,7 +348,7 @@ def resolve_Relation(
             columns.append(col)
 
     # sort by name but put `id` first
-    columns.sort(key=lambda c: '!' if c.name == 'id' else c.name or '')
+    columns.sort(key=lambda c: () if c.name == 'id' else (c.name or '',))
 
     ctx.scope.rel.columns.extend(columns)
 
@@ -365,7 +379,7 @@ def resolve_ResTarget(
 
     # special case for ColumnRef for handing wildcards
     if not alias and isinstance(res_target.val, pgast.ColumnRef):
-        col_res = _lookup_column(res_target.val.name, ctx)
+        col_res = _lookup_column(res_target.val, ctx)
 
         res = []
         for table, column in col_res:
@@ -395,9 +409,11 @@ def resolve_ResTarget(
 def resolve_ColumnRef(
     column_ref: pgast.ColumnRef, *, ctx: Context
 ) -> pgast.ColumnRef:
-    res = _lookup_column(column_ref.name, ctx)
+    res = _lookup_column(column_ref, ctx)
     if len(res) != 1:
-        raise errors.QueryError(f'bad use of `*` column name')
+        raise errors.QueryError(
+            f'bad use of `*` column name', context=column_ref.context
+        )
     table, column = res[0]
     assert table.reference_as
     assert column.reference_as
@@ -406,10 +422,12 @@ def resolve_ColumnRef(
 
 
 def _lookup_column(
-    name: Sequence[str | pgast.Star], ctx: Context
+    column_ref: pgast.ColumnRef,
+    ctx: Context,
 ) -> Sequence[Tuple[context.Table, context.Column]]:
     matched_columns: List[Tuple[context.Table, context.Column]] = []
 
+    name = column_ref.name
     col_name: str | pgast.Star
 
     if len(name) == 1:
@@ -427,7 +445,11 @@ def _lookup_column(
         tab_name = name[0]
         col_name = name[1]
 
-        table = _lookup_table(ctx, cast(str, tab_name))
+        try:
+            table = _lookup_table(cast(str, tab_name), ctx)
+        except errors.QueryError as e:
+            e.set_source_context(column_ref.context)
+            raise
 
         if isinstance(col_name, pgast.Star):
             return [(table, c) for c in table.columns]
@@ -435,7 +457,9 @@ def _lookup_column(
             matched_columns.extend(_lookup_in_table(col_name, table))
 
     if not matched_columns:
-        raise errors.QueryError(f'cannot find column `{col_name}`')
+        raise errors.QueryError(
+            f'cannot find column `{col_name}`', context=column_ref.context
+        )
 
     elif len(matched_columns) > 1:
         potential_tables = ', '.join(
@@ -443,7 +467,8 @@ def _lookup_column(
         )
         raise errors.QueryError(
             f'ambiguous column `{col_name}` could belong to '
-            f'following tables: {potential_tables}'
+            f'following tables: {potential_tables}',
+            context=column_ref.context,
         )
 
     return (matched_columns[0],)
@@ -457,7 +482,7 @@ def _lookup_in_table(
             yield (table, column)
 
 
-def _lookup_table(ctx: Context, tab_name: str) -> context.Table:
+def _lookup_table(tab_name: str, ctx: Context) -> context.Table:
     matched_tables = []
     for t in ctx.scope.tables:
         if t.name == tab_name or t.alias == tab_name:
