@@ -15,7 +15,7 @@ results into a single output set.
   ... );
   {0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5}
 
-This statements iterates through each number in the set. Inside the loop, the
+This statement iterates through each number in the set. Inside the loop, the
 ``number`` variable is bound to a singleton set. The inner expression is
 executed for every element of the input set, and the results of each execution
 are merged into a single output set.
@@ -43,7 +43,7 @@ The ``for`` statement is commonly used for bulk inserts.
     default::Hero {id: d7d7f8c0-40ae-11ec-87b1-6b8685d56610}
   }
 
-This statements iterates through each name in the list of names. Inside the
+This statement iterates through each name in the list of names. Inside the
 loop, ``hero_name`` is bound to a ``str`` singleton, so it can be assigned to
 ``Hero.name``.
 

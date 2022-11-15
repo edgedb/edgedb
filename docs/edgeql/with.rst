@@ -4,7 +4,7 @@ With
 ====
 
 All top-level EdgeQL statements (``select``, ``insert``, ``update``, and
-``delete``) can be prefixed with a ``with`` block. These blocks contain
+``delete``) can be prefixed by a ``with`` block. These blocks contain
 declarations of standalone expressions that can be used in your query.
 
 .. code-block:: edgeql-repl
@@ -31,7 +31,7 @@ Subqueries
 ^^^^^^^^^^
 
 There's no limit to the complexity of computed expressions. EdgeQL is fully
-composable; queries can be embedded inside each other simply. The following
+composable; queries can simply be embedded inside each other. The following
 query fetches a list of all movies featuring at least one of the original six
 Avengers.
 

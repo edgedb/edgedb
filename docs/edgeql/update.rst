@@ -28,7 +28,7 @@ Syntax
 
 The structure of the ``update`` statement (``update...filter...set``) is an
 intentional inversion of SQL's ``UPDATE...SET...WHERE`` syntax. Curiously, in
-SQL, the ``where`` clauses typically occurs *last* despite being applied before
+SQL, the ``where`` clauses typically occur *last* despite being applied before
 the ``set`` statement. EdgeQL is structured to reflect this; first, a target
 set is specified, then filters are applied, then the data is updated.
 

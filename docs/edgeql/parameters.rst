@@ -116,9 +116,9 @@ properties.
 Optional parameters
 -------------------
 
-By default, query parameters are ``required``; the query would fail if
-parameter value is an empty set. You can use ``optional`` modifier inside the
-type cast if the parameter is optional.
+By default, query parameters are ``required``; the query will fail if the
+parameter value is an empty set. You can use an ``optional`` modifier inside
+the type cast if the parameter is optional.
 
 .. code-block:: edgeql-repl
 
@@ -138,14 +138,14 @@ When using a client library, pass the idiomatic null pointer for your language:
     select <required str>$name;
 
 
-What can be parametrized?
--------------------------
+What can be parameterized?
+--------------------------
 
 Any data manipulation language (DML) statement can be
-parametrized: ``select``, ``insert``, ``update``, and ``delete``.
+parameterized: ``select``, ``insert``, ``update``, and ``delete``.
 
 Schema definition language (SDL) and :ref:`configure
-<ref_eql_statements_configure>` statements **cannot** be parametrized. Data
+<ref_eql_statements_configure>` statements **cannot** be parameterized. Data
 definition language (DDL) has limited support for parameters, but it's not a
 recommended pattern. Some of the limitations might be lifted in the future
 versions.
