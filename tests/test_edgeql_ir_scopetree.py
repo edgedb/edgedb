@@ -86,9 +86,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         UPDATE User.deck SET { name := User.name }
         """
 
-    @tb.must_fail(errors.QueryError,
-                  "reference to 'U.r' changes the interpretation",
-                  line=6, col=58)
     def test_edgeql_ir_scope_tree_bad_05(self):
         """
         WITH
@@ -98,3 +95,4 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 users := array_agg((SELECT U.id ORDER BY U.r LIMIT 10))
             )
         """
+        # This one is fine now, since it is a property

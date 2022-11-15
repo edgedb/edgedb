@@ -2639,16 +2639,11 @@ class TestExpressions(tb.QueryTestCase):
             """)
 
     async def test_edgeql_expr_paths_05(self):
-        # `Issue.number` in FILTER is illegal because it shares a
-        # prefix `Issue` with `Issue.id` which is defined in an outer
-        # scope.
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"'Issue.number' changes the interpretation of 'Issue'"):
-            await self.con.execute(r"""
-                SELECT Issue.id
-                FILTER Issue.number > '2';
-            """)
+        # This is OK because Issue.id is a property, not a link
+        await self.con.execute(r"""
+            SELECT Issue.id
+            FILTER Issue.number > '2';
+        """)
 
     async def test_edgeql_expr_paths_06(self):
         # `Issue.number` in the shape is illegal because it shares a
