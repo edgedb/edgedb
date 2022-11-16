@@ -1126,6 +1126,7 @@ def parse_args(**kwargs: Any):
                 exit_code=11,
             )
         kwargs['jws_key_file'] = jws_key_file
+    del kwargs['jwe_key_file']
 
     if not kwargs['bootstrap_only'] and not generate_jose:
         if not kwargs['jws_key_file'].exists():

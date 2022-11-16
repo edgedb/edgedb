@@ -469,11 +469,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'message: "database"'
             )
 
-        # token in the HTTP header has higher priority than the ClientHandshake
-        # message, under the binary-protocol-over-HTTP scenario
-        if self._auth_data is None:
-            self._auth_data = params.get('token')
-
         logger.debug('received connection request by %s to database %s',
                      user, database)
 
@@ -496,7 +491,13 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if authmethod_name == 'SCRAM':
             await self._auth_scram(user)
         elif authmethod_name == 'JWT':
-            self._auth_jwt(user)
+            # token in the HTTP header has higher priority than
+            # the ClientHandshake message, under the scenario of
+            # binary protocol over HTTP
+            token = self._extract_token_in_auth_data()
+            if token is None:
+                token = params.get('token')
+            self._auth_jwt(user, token)
         elif authmethod_name == 'Trust':
             self._auth_trust(user)
         else:
@@ -617,11 +618,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if user not in roles:
             raise errors.AuthenticationError('authentication failed')
 
-    def _auth_jwt(self, user):
-        role = self.server.get_roles().get(user)
-        if role is None:
-            raise errors.AuthenticationError('authentication failed')
-
+    def _extract_token_in_auth_data(self):
         if not self._auth_data:
             raise errors.AuthenticationError(
                 'authentication failed: no authorization data provided')
@@ -632,10 +629,16 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise errors.AuthenticationError(
                 'authentication failed: unrecognized authentication scheme')
 
-        encoded_token = encoded_token.strip()
+        return encoded_token.strip()
+
+    def _auth_jwt(self, user, encoded_token):
         if not encoded_token:
             raise errors.AuthenticationError(
                 'authentication failed: malformed JWT')
+
+        role = self.server.get_roles().get(user)
+        if role is None:
+            raise errors.AuthenticationError('authentication failed')
 
         skey = self.server.get_jws_key()
 
