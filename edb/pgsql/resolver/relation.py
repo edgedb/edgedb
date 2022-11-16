@@ -152,18 +152,21 @@ def resolve_relation(
     # lookup the object in schema
     obj: Optional[s_objtypes.ObjectType] = None
     if schema_name == 'public':
-        object_type_name = relation.name[0].upper() + relation.name[1:]
-
-        obj = ctx.schema.get(  # type: ignore
-            object_type_name,
-            None,
-            module_aliases={None: 'default'},
+        objects = ctx.schema.get_objects(
+            exclude_stdlib=True,
+            exclude_global=True,
             type=s_objtypes.ObjectType,
         )
+        
+        for o in objects:
+            o_name = o.get_name(ctx.schema)
+            if o_name.name.lower() == relation.name:
+                obj = o
+                break
 
     if not obj:
         raise errors.QueryError(
-            f'unknown table `{relation.schemaname}.{relation.name}`',
+            f'unknown table `{schema_name}.{relation.name}`',
             context=relation.context,
         )
 
@@ -219,4 +222,3 @@ def resolve_relation(
     )
 
     return pgast.Relation(name=dbname, schemaname=schemaname), table
-

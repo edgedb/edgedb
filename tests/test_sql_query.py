@@ -18,6 +18,8 @@
 
 import os.path
 
+import edgedb
+
 from edb.testbase import server as tb
 
 
@@ -331,3 +333,14 @@ class TestSQL(tb.SQLQueryTestCase):
             '''
         )
         self.assertEqual(res, [['Forrest Gump']])
+
+    async def test_sql_query_25(self):
+        # lower case object name
+        await self.squery('SELECT title FROM novel ORDER BY title')
+
+        with self.assertRaisesRegex(edgedb.QueryError, "unknown table"):
+            await self.squery('SELECT title FROM "Novel" ORDER BY title')
+
+    async def test_sql_query_26(self):
+        with self.assertRaisesRegex(edgedb.QueryError, "unknown table"):
+            await self.squery('SELECT title FROM "Movie" ORDER BY title')

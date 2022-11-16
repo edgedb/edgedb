@@ -42,7 +42,7 @@ insert Movie {
     genre := (select Genre filter .name = 'Drama' limit 1),
 };
 
-insert Book {
+insert novel {
     title:='Hunger Games',
     pages := 374,
     genre:= (select Genre filter .name = 'Fiction' limit 1)
