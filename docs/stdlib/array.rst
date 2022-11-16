@@ -24,7 +24,7 @@ Arrays
       - Comparison operators
 
     * - :eql:func:`len`
-        - Returns the number of elements in the array.
+      - Returns the number of elements in the array.
 
     * - :eql:func:`contains`
       - Checks if an element is in the array.
