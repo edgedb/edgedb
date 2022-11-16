@@ -183,7 +183,11 @@ class EdgeQLPathInfo(Base):
 
 
 class BaseRangeVar(ImmutableBaseExpr):
-    """Range variable, used in FROM clauses."""
+    """
+    Range variable, used in FROM clauses.
+    
+    This can be though as a specific instance of a table within a query.
+    """
 
     __ast_meta__ = {'schema_object_id', 'tag'}
 
@@ -209,12 +213,16 @@ class BaseRangeVar(ImmutableBaseExpr):
 
 
 class BaseRelation(EdgeQLPathInfo, BaseExpr):
+    """
+    A relation-valued (table-valued) expression.
+    """
+
     name: typing.Optional[str] = None
     nullable: typing.Optional[bool] = None  # Whether the result can be NULL.
 
 
 class Relation(BaseRelation):
-    """Regular relation."""
+    """A reference to a table or a view."""
 
     catalogname: typing.Optional[str] = None
     schemaname: typing.Optional[str] = None
