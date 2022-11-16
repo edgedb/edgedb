@@ -66,10 +66,9 @@ Constraints
         scalar type maxex_100 extending int64 {
             constraint max_ex_value(100);
         }
-    .. note::
     
-    In the example above, in contrast to the ``max_value`` constraint, a value of
-    the ``maxex_100`` type cannot be ``100`` since the valid range of
+    In the example above, in contrast to the ``max_value`` constraint, a value
+    of the ``maxex_100`` type cannot be ``100`` since the valid range of
     ``max_ex_value`` does not include the value specified in the constraint.
 
 .. eql:constraint:: std::max_len_value(max: int64)

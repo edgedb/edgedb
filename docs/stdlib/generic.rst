@@ -188,7 +188,8 @@ Generic
 
 .. eql:operator:: lteq: anytype <= anytype -> bool
 
-    Produces true for two compatible values if the left one is equal or smaller.
+    Produces true for two compatible values if the left one is equal or
+    smaller.
 
     This results in a :eql:type:`bool`:
 
@@ -211,7 +212,8 @@ Generic
 
 .. eql:operator:: gteq: anytype >= anytype -> bool
 
-    Produces true for two compatible values if the left one is equal or greater.
+    Produces true for two compatible values if the left one is equal or
+    greater.
 
     This results in a :eql:type:`bool`:
 
