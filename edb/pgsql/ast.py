@@ -575,8 +575,6 @@ class SelectStmt(Query):
 
     # List of DISTINCT ON expressions, empty list for DISTINCT ALL
     distinct_clause: typing.Optional[typing.List[OutputVar]] = None
-    # The target list
-    target_list: typing.List[ResTarget] = ast.field(factory=list)
     # The FROM clause
     from_clause: typing.List[BaseRangeVar] = ast.field(factory=list)
     # The WHERE clause
