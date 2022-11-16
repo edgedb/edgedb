@@ -2662,6 +2662,148 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             {'1', '2', '3', '4'},
         )
 
+    async def test_edgeql_select_setops_24(self):
+        # Establish that EXCEPT and INTERSECT filter out the objects we'd
+        # expect.
+        await self.assert_query_result(
+            r"""
+            with A := Owned except {LogEntry, Comment}
+            select all(A in Issue) and all(Issue in A)
+            """,
+            {
+                True
+            },
+        )
+
+        await self.assert_query_result(
+            r"""
+            with A := Owned intersect Issue
+            select all(A in Owned[is Issue]) and all(Owned[is Issue] in A)
+            """,
+            {
+                True
+            },
+        )
+
+    async def test_edgeql_select_setops_25(self):
+        # Establish that EXCEPT and INTERSECT filter out the objects we'd
+        # expect.
+        await self.assert_query_result(
+            r"""
+            with
+              A := (select Issue filter .name ilike '%edgedb%'),
+              B := (select Issue filter .owner.name = 'Elvis')
+            select (B except A) {name};
+            """,
+            [
+                {'name': 'Regression.'},
+            ],
+        )
+
+        await self.assert_query_result(
+            r"""
+            with
+              A := (select Issue filter .name ilike '%edgedb%'),
+              B := (select Issue filter .owner.name = 'Elvis')
+            select (B intersect A) {name};
+            """,
+            [
+                {'name': 'Release EdgeDB'},
+            ],
+        )
+
+    async def test_edgeql_select_setops_26(self):
+        # Establish that EXCEPT and INTERSECT filter out the objects we'd
+        # expect.
+        await self.assert_query_result(
+            r"""
+            select (Issue except Named);
+            """,
+            [],
+        )
+
+        await self.assert_query_result(
+            r"""
+            select (Issue intersect <Named>{});
+            """,
+            [],
+        )
+
+    async def test_edgeql_select_setops_27(self):
+        await self.assert_query_result(
+            r"""
+            with
+                A := (select Issue filter .name not ilike '%edgedb%').body
+            select _ :=
+                str_lower(array_unpack(str_split(A, ' ')))
+                except
+                {'minor', 'fix', 'lexer'}
+            order by _
+            """,
+            [
+                "by",
+                "introduced",
+                "lexer",
+                "regression",
+                "tweak.",
+                "tweaks.",
+            ],
+        )
+
+        await self.assert_query_result(
+            r"""
+            with A := (select Issue filter .name not ilike '%edgedb%')
+            select _ :=
+              str_lower(array_unpack(str_split(A.body, ' ')))
+              except
+              str_lower(array_unpack(str_split(A.name, ' ')))
+            order by _
+            """,
+            [
+                "by",
+                "fix",
+                "introduced",
+                "lexer",
+                "lexer",
+                "minor",
+                "regression",
+                "tweaks.",
+            ],
+        )
+
+    async def test_edgeql_select_setops_28(self):
+        await self.assert_query_result(
+            r"""
+            select _ :=
+              len(array_unpack(str_split(Issue.body, ' ')))
+              intersect {1, 2, 2, 3, 3, 3, 7, 7, 7, 7, 7, 7, 7}
+            order by _
+            """,
+            [
+                2, 2, 3, 7, 7, 7, 7, 7, 7
+            ],
+        )
+
+        await self.assert_query_result(
+            r"""
+            select _ :=
+              str_lower(array_unpack(str_split(Issue.name, ' ')))
+              except
+              str_lower(array_unpack(str_split(Issue.body, ' ')))
+            order by _
+            """,
+            [
+                "edgedb",
+                "edgedb",
+                "improve",
+                "output",
+                "regression.",
+                "rendering.",
+                "repl",
+                "repl",
+            ],
+        )
+
     async def test_edgeql_select_order_01(self):
         await self.assert_query_result(
             r'''

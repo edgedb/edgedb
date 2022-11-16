@@ -35,6 +35,7 @@ py_module_initializer!(
             py_fn!(py, offset_of_line(text: &str, line: usize)))?;
         m.add(py, "Hasher", py.get_type::<hash::Hasher>())?;
         m.add(py, "unreserved_keywords", keywords.unreserved)?;
+        m.add(py, "partial_reserved_keywords", keywords.partial)?;
         m.add(py, "future_reserved_keywords", keywords.future)?;
         m.add(py, "current_reserved_keywords", keywords.current)?;
         Ok(())

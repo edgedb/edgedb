@@ -1999,6 +1999,26 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    def test_schema_computed_05(self):
+        """
+            type User {
+                required property name -> str;
+
+                property val_e := {'alice', 'billie'} except .name;
+                property val_i := {'alice', 'billie'} intersect .name;
+            }
+        """
+
+    def test_schema_alias_01(self):
+        """
+            type User {
+                required property name -> str;
+            }
+
+            alias val_e := {'alice', 'billie'} except User.name;
+            alias val_i := {'alice', 'billie'} intersect User.name;
+        """
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.

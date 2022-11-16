@@ -145,6 +145,17 @@ def max_cardinality(
     return _bounds_to_card(max(lower), max(upper))
 
 
+def min_cardinality(
+    args: Iterable[qltypes.Cardinality],
+) -> qltypes.Cardinality:
+    '''Minimum lower and upper bound of specified cardinalities.'''
+
+    card = list(zip(*(_card_to_bounds(a) for a in args)))
+    assert card, "cannot take max cardinality of no elements"
+    lower, upper = card
+    return _bounds_to_card(min(lower), min(upper))
+
+
 def _union_cardinality(
     args: Iterable[qltypes.Cardinality],
 ) -> qltypes.Cardinality:
@@ -754,6 +765,16 @@ def __infer_oper_call(
     if str(ir.func_shortname) == 'std::UNION':
         # UNION needs to "add up" cardinalities.
         return _union_cardinality(cards)
+    elif str(ir.func_shortname) == 'std::EXCEPT':
+        # EXCEPT cardinality cannot be greater than the first argument, but
+        # the lower bound can be ZERO.
+        lower, upper = _card_to_bounds(cards[0])
+        return _bounds_to_card(CB_ZERO, upper)
+    elif str(ir.func_shortname) == 'std::INTERSECT':
+        # INTERSECT takes the minimum of cardinalities and makes the lower
+        # bound ZERO.
+        lower, upper = _card_to_bounds(min_cardinality(cards))
+        return _bounds_to_card(CB_ZERO, upper)
     elif str(ir.func_shortname) == 'std::??':
         # Coalescing takes the maximum of both lower and upper bounds.
         return max_cardinality(cards)

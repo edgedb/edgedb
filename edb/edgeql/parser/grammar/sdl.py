@@ -575,7 +575,7 @@ class IndexDeclarationShort(Nonterm):
 #
 class PropertyDeclaration(Nonterm):
     def reduce_CreateProperty(self, *kids):
-        r"""%reduce ABSTRACT PROPERTY NodeName OptExtendingSimple \
+        r"""%reduce ABSTRACT PROPERTY PtrNodeName OptExtendingSimple \
                     CreateSDLCommandsBlock \
         """
         self.val = qlast.CreateProperty(
@@ -588,7 +588,7 @@ class PropertyDeclaration(Nonterm):
 
 class PropertyDeclarationShort(Nonterm):
     def reduce_CreateProperty(self, *kids):
-        r"""%reduce ABSTRACT PROPERTY NodeName OptExtendingSimple"""
+        r"""%reduce ABSTRACT PROPERTY PtrNodeName OptExtendingSimple"""
         self.val = qlast.CreateProperty(
             name=kids[2].val,
             bases=kids[3].val,
@@ -644,7 +644,7 @@ class ConcretePropertyBlock(Nonterm):
 
     def reduce_CreateRegularProperty(self, *kids):
         """%reduce
-            PROPERTY ShortNodeName OptExtendingSimple
+            PROPERTY PathNodeName OptExtendingSimple
             OptPtrTarget CreateConcretePropertySDLCommandsBlock
         """
         target, cmds = self._extract_target(
@@ -658,7 +658,7 @@ class ConcretePropertyBlock(Nonterm):
 
     def reduce_CreateRegularQualifiedProperty(self, *kids):
         """%reduce
-            PtrQuals PROPERTY ShortNodeName OptExtendingSimple
+            PtrQuals PROPERTY PathNodeName OptExtendingSimple
             OptPtrTarget CreateConcretePropertySDLCommandsBlock
         """
         target, cmds = self._extract_target(
@@ -674,7 +674,7 @@ class ConcretePropertyBlock(Nonterm):
 
     def reduce_CreateOverloadedProperty(self, *kids):
         """%reduce
-            OVERLOADED OptPtrQuals PROPERTY ShortNodeName OptExtendingSimple
+            OVERLOADED OptPtrQuals PROPERTY PathNodeName OptExtendingSimple
             OptPtrTarget CreateConcretePropertySDLCommandsBlock
         """
         target, cmds = self._extract_target(
@@ -693,7 +693,7 @@ class ConcretePropertyBlock(Nonterm):
 class ConcretePropertyShort(Nonterm):
     def reduce_CreateRegularProperty(self, *kids):
         """%reduce
-            PROPERTY ShortNodeName OptExtendingSimple PtrTarget
+            PROPERTY PathNodeName OptExtendingSimple PtrTarget
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[1].val,
@@ -703,7 +703,7 @@ class ConcretePropertyShort(Nonterm):
 
     def reduce_CreateRegularQualifiedProperty(self, *kids):
         """%reduce
-            PtrQuals PROPERTY ShortNodeName OptExtendingSimple PtrTarget
+            PtrQuals PROPERTY PathNodeName OptExtendingSimple PtrTarget
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[2].val,
@@ -715,7 +715,7 @@ class ConcretePropertyShort(Nonterm):
 
     def reduce_CreateOverloadedProperty(self, *kids):
         """%reduce
-            OVERLOADED OptPtrQuals PROPERTY ShortNodeName OptExtendingSimple
+            OVERLOADED OptPtrQuals PROPERTY PathNodeName OptExtendingSimple
             OptPtrTarget
         """
         self.val = qlast.CreateConcreteProperty(
@@ -729,7 +729,7 @@ class ConcretePropertyShort(Nonterm):
 
     def reduce_CreateComputableProperty(self, *kids):
         """%reduce
-            PROPERTY ShortNodeName ASSIGN Expr
+            PROPERTY PathNodeName ASSIGN Expr
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[1].val,
@@ -738,7 +738,7 @@ class ConcretePropertyShort(Nonterm):
 
     def reduce_CreateQualifiedComputableProperty(self, *kids):
         """%reduce
-            PtrQuals PROPERTY ShortNodeName ASSIGN Expr
+            PtrQuals PROPERTY PathNodeName ASSIGN Expr
         """
         self.val = qlast.CreateConcreteProperty(
             name=kids[2].val,
@@ -768,7 +768,7 @@ sdl_commands_block(
 class LinkDeclaration(Nonterm):
     def reduce_CreateLink(self, *kids):
         r"""%reduce \
-            ABSTRACT LINK NodeName OptExtendingSimple \
+            ABSTRACT LINK PtrNodeName OptExtendingSimple \
             CreateLinkSDLCommandsBlock \
         """
         self.val = qlast.CreateLink(
@@ -782,7 +782,7 @@ class LinkDeclaration(Nonterm):
 class LinkDeclarationShort(Nonterm):
     def reduce_CreateLink(self, *kids):
         r"""%reduce \
-            ABSTRACT LINK NodeName OptExtendingSimple"""
+            ABSTRACT LINK PtrNodeName OptExtendingSimple"""
         self.val = qlast.CreateLink(
             name=kids[2].val,
             bases=kids[3].val,
@@ -839,7 +839,7 @@ class ConcreteLinkBlock(Nonterm):
 
     def reduce_CreateRegularLink(self, *kids):
         """%reduce
-            LINK ShortNodeName OptExtendingSimple
+            LINK PathNodeName OptExtendingSimple
             OptPtrTarget CreateConcreteLinkSDLCommandsBlock
         """
         target, cmds = self._extract_target(
@@ -854,7 +854,7 @@ class ConcreteLinkBlock(Nonterm):
 
     def reduce_CreateRegularQualifiedLink(self, *kids):
         """%reduce
-            PtrQuals LINK ShortNodeName OptExtendingSimple
+            PtrQuals LINK PathNodeName OptExtendingSimple
             OptPtrTarget CreateConcreteLinkSDLCommandsBlock
         """
         target, cmds = self._extract_target(
@@ -871,7 +871,7 @@ class ConcreteLinkBlock(Nonterm):
 
     def reduce_CreateOverloadedLink(self, *kids):
         """%reduce
-            OVERLOADED OptPtrQuals LINK ShortNodeName OptExtendingSimple
+            OVERLOADED OptPtrQuals LINK PathNodeName OptExtendingSimple
             OptPtrTarget CreateConcreteLinkSDLCommandsBlock
         """
         target, cmds = self._extract_target(
@@ -892,7 +892,7 @@ class ConcreteLinkShort(Nonterm):
 
     def reduce_CreateRegularLink(self, *kids):
         """%reduce
-            LINK ShortNodeName OptExtendingSimple
+            LINK PathNodeName OptExtendingSimple
             PtrTarget
         """
         self.val = qlast.CreateConcreteLink(
@@ -903,7 +903,7 @@ class ConcreteLinkShort(Nonterm):
 
     def reduce_CreateRegularQualifiedLink(self, *kids):
         """%reduce
-            PtrQuals LINK ShortNodeName OptExtendingSimple
+            PtrQuals LINK PathNodeName OptExtendingSimple
             PtrTarget
         """
         self.val = qlast.CreateConcreteLink(
@@ -916,7 +916,7 @@ class ConcreteLinkShort(Nonterm):
 
     def reduce_CreateOverloadedLink(self, *kids):
         """%reduce
-            OVERLOADED OptPtrQuals LINK ShortNodeName OptExtendingSimple
+            OVERLOADED OptPtrQuals LINK PathNodeName OptExtendingSimple
             OptPtrTarget
         """
         self.val = qlast.CreateConcreteLink(
@@ -930,7 +930,7 @@ class ConcreteLinkShort(Nonterm):
 
     def reduce_CreateComputableLink(self, *kids):
         """%reduce
-            LINK ShortNodeName ASSIGN Expr
+            LINK PathNodeName ASSIGN Expr
         """
         self.val = qlast.CreateConcreteLink(
             name=kids[1].val,
@@ -939,7 +939,7 @@ class ConcreteLinkShort(Nonterm):
 
     def reduce_CreateQualifiedComputableLink(self, *kids):
         """%reduce
-            PtrQuals LINK ShortNodeName ASSIGN Expr
+            PtrQuals LINK PathNodeName ASSIGN Expr
         """
         self.val = qlast.CreateConcreteLink(
             is_required=kids[0].val.required,

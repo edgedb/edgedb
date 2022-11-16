@@ -77,6 +77,24 @@ std::`UNION` (s1: SET OF anytype, s2: SET OF anytype) -> SET OF anytype {
 
 
 CREATE INFIX OPERATOR
+std::`EXCEPT` (s1: SET OF anytype, s2: SET OF anytype) -> SET OF anytype {
+    CREATE ANNOTATION std::identifier := 'except';
+    CREATE ANNOTATION std::description := 'Multiset difference.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+
+CREATE INFIX OPERATOR
+std::`INTERSECT` (s1: SET OF anytype, s2: SET OF anytype) -> SET OF anytype {
+    CREATE ANNOTATION std::identifier := 'intersect';
+    CREATE ANNOTATION std::description := 'Multiset intersection.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+
+CREATE INFIX OPERATOR
 std::`??` (l: OPTIONAL anytype, r: SET OF anytype) -> SET OF anytype {
     CREATE ANNOTATION std::identifier := 'coalesce';
     CREATE ANNOTATION std::description := 'Coalesce.';

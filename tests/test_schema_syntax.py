@@ -617,6 +617,58 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
+    def test_eschema_syntax_type_33(self):
+        """
+        module default {
+            type Foo0 {
+                property union -> str;
+                link except -> Object;
+            };
+            type Foo1 {
+                required property union -> str;
+                required link except -> Object;
+            };
+            type Foo2 {
+                optional property union -> str;
+                optional link except -> Object;
+            };
+        };
+        """
+
+    def test_eschema_syntax_type_34(self):
+        """
+        module default {
+            type Foo1 {
+                multi property union -> str;
+                multi link except -> Object;
+            };
+            type Foo2 {
+                single property union -> str;
+                single link except -> Object;
+            };
+        };
+        """
+
+    def test_eschema_syntax_type_35(self):
+        """
+        module default {
+            type Foo {
+                property union extending except -> str;
+            };
+        };
+        """
+
+    def test_eschema_syntax_type_36(self):
+        """
+        module default {
+            type Foo {
+                link union extending except -> Object {
+                    property intersect -> str;
+                };
+            };
+        };
+        """
+
     def test_eschema_syntax_link_target_type_01(self):
         """
         module test {
@@ -1065,6 +1117,13 @@ abstract property test::foo {
         };
         """
 
+    def test_eschema_syntax_property_06(self):
+        """
+        module test {
+            abstract property union extending except;
+        };
+        """
+
     def test_eschema_syntax_link_01(self):
         """
         module test {
@@ -1204,6 +1263,22 @@ abstract property test::foo {
             type Foo {
                 link mod::name to std::str;
             }
+        };
+        """
+
+    def test_eschema_syntax_property_13(self):
+        """
+        module test {
+            abstract link union extending except;
+        };
+        """
+
+    def test_eschema_syntax_property_14(self):
+        """
+        module test {
+            abstract link union extending intersect {
+                property except -> str;
+            };
         };
         """
 

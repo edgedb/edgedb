@@ -998,3 +998,52 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         ONE
         """
+
+    def test_edgeql_ir_card_inference_114(self):
+        """
+        select 1 + (2 intersect 3)
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_115(self):
+        """
+        select 1 + (2 intersect {3, 4})
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_116(self):
+        """
+        select 1 + ({2, 3} intersect {3, 4})
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_117(self):
+        """
+        select 1 + ({2, 3} intersect <int64>{})
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_118(self):
+        """
+        select 1 + (2 except 3)
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_119(self):
+        """
+        select 1 + (2 except {3, 4})
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_120(self):
+        """
+        select 1 + ({2, 3} except {3, 4})
+% OK %
+        MANY
+        """

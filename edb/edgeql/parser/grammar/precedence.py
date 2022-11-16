@@ -30,7 +30,11 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
-class P_UNION(Precedence, assoc='left', tokens=('UNION',)):
+class P_UNION(Precedence, assoc='left', tokens=('UNION', 'EXCEPT',)):
+    pass
+
+
+class P_INTERSECT(Precedence, assoc='left', tokens=('INTERSECT',)):
     pass
 
 
