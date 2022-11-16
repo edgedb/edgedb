@@ -23,7 +23,8 @@ from edb.schema import schema as s_schema
 
 from . import dispatch
 from . import context
-from . import resolver # NOQA
+from . import expr # NOQA
+from . import relation # NOQA
 
 
 def resolve(

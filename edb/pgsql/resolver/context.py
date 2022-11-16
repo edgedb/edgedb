@@ -38,22 +38,14 @@ class Scope:
     scope and inserted into parent scope.
     """
 
-    rel: Table
-    "Current relation where ResTargets are added to"
-
-    join_relations: List[Table]
-    "Current relation where Join relations are added to"
-
+    # RangeVars (table instances) in this query
     tables: List[Table]
-    """Tables visible in this scope"""
 
+    # Common Table Expressions 
     ctes: List[CTE]
-    """Common Table Expressions"""
 
     def __init__(self):
         self.tables = []
-        self.rel = Table()
-        self.join_relations = []
         self.ctes = []
 
 
@@ -77,6 +69,14 @@ class Table:
         return f'{alias}{self.name or "<unnamed>"}({columns})'
 
 
+class CTE:
+    name: Optional[str] = None
+    columns: List[Column]
+
+    def __init__(self):
+        self.columns = []
+
+
 class Column:
     # Public SQL
     name: Optional[str] = None
@@ -92,14 +92,6 @@ class Column:
 
     def __str__(self) -> str:
         return self.name or '<unnamed>'
-
-
-class CTE:
-    name: Optional[str] = None
-    columns: List[Column]
-
-    def __init__(self):
-        self.columns = []
 
 
 class NameGenerator:

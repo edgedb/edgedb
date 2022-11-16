@@ -22,21 +22,19 @@ from __future__ import annotations
 import functools
 import typing
 
-from edb import errors
 from edb.pgsql import ast as pgast
 
 from . import context
 
 Base_T = typing.TypeVar('Base_T', bound=pgast.Base)
+BaseRelation_T = typing.TypeVar('BaseRelation_T', bound=pgast.BaseRelation)
 
 
 @functools.singledispatch
 def _resolve(
     ir: pgast.Base, *, ctx: context.ResolverContextLevel
 ) -> pgast.Base:
-    raise errors.UnsupportedFeatureError(
-        f'no SQL resolve handler for {ir.__class__}'
-    )
+    raise ValueError(f'no SQL resolve handler for {ir.__class__}')
 
 
 def resolve(ir: Base_T, *, ctx: context.ResolverContextLevel) -> Base_T:
@@ -69,12 +67,22 @@ def resolve_opt_list(
 
 
 @functools.singledispatch
-def resolve_range_var(
-    ir: pgast.BaseRangeVar,
-    alias: pgast.Alias,
-    *,
-    ctx: context.ResolverContextLevel,
-) -> pgast.BaseRangeVar:
-    raise errors.UnsupportedFeatureError(
-        f'no SQL resolve handler for {ir.__class__}'
-    )
+def _resolve_relation(
+    ir: pgast.BaseRelation, *, ctx: context.ResolverContextLevel
+) -> typing.Tuple[pgast.BaseRelation, context.Table]:
+    raise ValueError(f'no SQL resolve handler for {ir.__class__}')
+
+
+def resolve_relation(
+    ir: BaseRelation_T, *, ctx: context.ResolverContextLevel
+) -> typing.Tuple[BaseRelation_T, context.Table]:
+    res, tab = _resolve_relation(ir, ctx=ctx)
+    return typing.cast(BaseRelation_T, res), tab
+
+
+@_resolve.register
+def _resolve_BaseRelation(
+    rel: pgast.BaseRelation, *, ctx: context.ResolverContextLevel
+) -> pgast.BaseRelation:
+    rel, _ = resolve_relation(rel, ctx=ctx)
+    return rel
