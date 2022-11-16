@@ -35,7 +35,9 @@ Constraints
 
 .. eql:constraint:: std::one_of(variadic members: anytype)
 
-    Specifies a list of :eql:type:`anytype` as one allowed value of
+    Specifies a list of allowed values.
+    
+    Example:
 
     .. code-block:: sdl
 
@@ -45,7 +47,9 @@ Constraints
 
 .. eql:constraint:: std::max_value(max: anytype)
 
-    Specifies the maximum allowed value of :eql:type:`anytype`:
+    Specifies the maximum allowed value.
+    
+    Example:
 
     .. code-block:: sdl
 
@@ -62,6 +66,11 @@ Constraints
         scalar type maxex_100 extending int64 {
             constraint max_ex_value(100);
         }
+    .. note::
+    
+    In the example above, in contrast to the ``max_value`` constraint, a value of
+    the ``maxex_100`` type cannot be ``100`` since the valid range of
+    ``max_ex_value`` does not include the value specified in the constraint.
 
 .. eql:constraint:: std::max_len_value(max: int64)
 

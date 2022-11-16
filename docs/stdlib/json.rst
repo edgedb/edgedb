@@ -80,7 +80,7 @@ Additionally, any :eql:type:`Object` in EdgeDB can be casted as a
 :eql:type:`json` type. This produces the same JSON value as the
 JSON-serialized result of that said object. Furthermore, this result will
 be the same as the output of a :eql:stmt:`select expression <select>` in
-*JSOM mode*, including the shape of that type:
+*JSON mode*, including the shape of that type:
 
 .. code-block:: edgeql-repl
 
@@ -133,16 +133,16 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         db> select <bool>to_json('true');
         {true}
 
-    A :eql:type:`json` type can also be casted as a :eql:type:`str` type,
-    but only when recognised as a JSON string:
+    A :eql:type:`json` value can also be cast as a :eql:type:`str` type, but
+    only when recognized as a JSON string:
 
     .. code-block:: edgeql-repl
 
         db> select <str>to_json('"something"');
         {'something'}
 
-    Casting a string array of JSON (``["a", "b", "c"]``) to a :eql:type:`str`
-    type will result in an error:
+    Casting a JSON array of strings (``["a", "b", "c"]``) to a :eql:type:`str`
+    will result in an error:
 
     .. code-block:: edgeql-repl
 
@@ -168,8 +168,9 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
     Indexes an array or string of :eql:type:`json`.
 
-    This results in :eql:type:`json`. Contents of a JSON array or string can
-    also accessed through accessing an index from indices: (``[ int64 ]``)
+    The operator produces the value at the given index as :eql:type:`json`.
+    
+    Examples:
 
     .. code-block:: edgeql-repl
 
@@ -183,8 +184,8 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         {'null'}
 
     This may raise an exception if the specified index is not valid for the
-    base JSON value. To access an element that is potentially out of
-    boundaries, use :eql:func:`json_get`.
+    base JSON value. To access an index that is potentially out of bounds, use
+    :eql:func:`json_get`.
 
 
 ----------
@@ -192,7 +193,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
 .. eql:operator:: jsonslice: json [ int64 : int64 ] -> json
 
-    Indexes an array or string of :eql:type:`json`.
+    Produces a JSON value comprising a portion of the existing JSON value.
 
     This results in :eql:type:`json`. Arrays and strings of JSON can be sliced
     in the same manner as an :eql:type:`array`, producing a JSON type:

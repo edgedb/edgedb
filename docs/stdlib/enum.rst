@@ -14,7 +14,7 @@ Enums
     Represents an enumeration of values within an ordered list.
 
     An enumerator type can be declared in a schema definition by using
-    the :ref:`following syntax <ref_datamodel_enums>`:
+    the following syntax:
 
     .. code-block:: sdl
 
