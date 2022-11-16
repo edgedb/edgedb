@@ -1196,6 +1196,13 @@ def _get_path_output(
             if alias is None:
                 alias = get_path_output_alias(path_id, aspect, env=env)
 
+            if isinstance(ref, pgast.NullConstant):
+                pg_type = pg_types.pg_type_from_ir_typeref(path_id.target)
+
+                ref = pgast.TypeCast(
+                    arg=ref, type_name=pgast.TypeName(name=pg_type)
+                )
+
             restarget = pgast.ResTarget(
                 name=alias, val=ref, ser_safe=getattr(ref, 'ser_safe', False))
             rel.target_list.append(restarget)

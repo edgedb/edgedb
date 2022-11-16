@@ -83,6 +83,13 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                     or (global cur_user in .name) ?? false
                 );
             };
+
+            create type Message {
+                create link attachment -> Issue;
+                create access policy has_attachment
+                    allow all
+                    using (count(.attachment) > 0);
+            };
         '''
     ]
 
@@ -471,6 +478,11 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                 insert X { name := "!" }
                 unless conflict on (.name) else (select X)
             ''')
+
+    async def test_edgeql_policies_10(self):
+        # see issue https://github.com/edgedb/edgedb/issues/4646
+        async with self.assertRaisesRegexTx(edgedb.InvalidValueError, ''):
+            await self.con.execute('insert Message {}')
 
     async def test_edgeql_policies_order_01(self):
         await self.con.execute('''
