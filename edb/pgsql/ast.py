@@ -296,6 +296,13 @@ class DynamicRangeVar(PathRangeVar):
     def query(self) -> BaseRelation:
         raise AssertionError('cannot retrieve query from a dynamic range var')
 
+    # pickling is broken here, oh well
+    def __getstate__(self) -> typing.Any:
+        return ()
+
+    def __setstate__(self, state: typing.Any) -> None:
+        self.dynamic_get_path = None  # type: ignore
+
 
 class TypeName(ImmutableBase):
     """Type in definitions and casts."""
