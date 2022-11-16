@@ -57,13 +57,13 @@ Booleans
     - :eql:op:`\!= <neq>`
     - :eql:op:`?= <coaleq>`
     - :eql:op:`?!= <coalneq>`
+    - :eql:op:`in` / :eql:op:`not in <in>`
     - :eql:op:`\< <lt>`
     - :eql:op:`\> <gt>`
     - :eql:op:`\<= <lteq>`
     - :eql:op:`\>= <gteq>`
 
-Some examples:
-    :eql:op`not in <in>` operations:
+    Some examples:
 
     .. code-block:: edgeql-repl
 
@@ -72,14 +72,14 @@ Some examples:
         db> select '!' IN {'hello', 'world'};
         {false}
 
-    It's possible to get a boolean by casting a :eql:type:`str` or :eql:type:`json`
-    value into it:
+    It's possible to get a boolean by casting a :eql:type:`str` or
+    :eql:type:`json` value into it:
 
     .. code-block:: edgeql-repl
 
-        db> select <json>true;
-        {'true'}
-        db> select <bool>'True';
+        db> select <bool>('true');
+        {true}
+        db> select <bool>to_json('true');
         {true}
 
     :ref:`Filter clauses <ref_eql_statements_select_filter>` must always

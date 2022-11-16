@@ -65,8 +65,8 @@ Bytes
         db> select contains(b'qwerty', b'42');
         {false}
 
-    It is possible to :eql:op:`cast <cast>` between bytes and
-    :eql:type:`json`. Bytes are represented as Base64-encoded strings in JSON.
+    You may :eql:op:`cast <cast>` a :eql:type:`json` value into bytes. Bytes
+    are represented as Base64-encoded strings in JSON.
 
     .. code-block:: edgeql-repl
 
@@ -80,10 +80,7 @@ Bytes
 
 .. eql:operator:: bytesidx: bytes [ int64 ] -> bytes
 
-    Indexes a set of bytes.
-
-    This results in a representable reference of the byte from the specified
-    index:
+    Accesses a byte at a given index from bytes:
 
     .. code-block:: edgeql-repl
 
@@ -96,10 +93,7 @@ Bytes
 
 .. eql:operator:: bytesslice: bytes [ int64 : int64 ] -> bytes
 
-    Slices a set of bytes between an :eql:type:`int64` range.
-
-    This results in a representable reference of bytes chosen in a given
-    range:
+    Produces a bytes value comprising a portion of the existing bytes value:
 
     .. code-block:: edgeql-repl
 
@@ -114,9 +108,9 @@ Bytes
 
 .. eql:operator:: bytesplus: bytes ++ bytes -> bytes
 
-    Concatenates two given sets of :eql:type:`bytes` into one.
+    Concatenates two bytes values into one.
 
-    This results in a reference of both bytesets conjoined together:
+    Example:
 
     .. code-block:: edgeql-repl
 
@@ -129,7 +123,7 @@ Bytes
 
 .. eql:function:: std::bytes_get_bit(bytes: bytes, nth: int64) -> int64
 
-    Returns the ``nth`` bit of ``bytes`` as a value of :eql:type:`int64`.
+    Returns the *nth* bit of ``bytes`` as a value of :eql:type:`int64`.
 
     When looking for the ``nth`` bit, this function will enumerate bits from
     least-to-most significant with each byte:

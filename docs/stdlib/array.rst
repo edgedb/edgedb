@@ -24,7 +24,7 @@ Arrays
       - Comparison operators
 
     * - :eql:func:`len`
-      - Returns a number of elements in the array.
+        - Returns the number of elements in the array.
 
     * - :eql:func:`contains`
       - Checks if an element is in the array.
@@ -101,8 +101,10 @@ Reference
 
     Represents an ordered list of values of the same type.
 
-    Array indexing will always start at zero. With the exception of other
-    array types, any type may be used as the given element contained within.
+    Array indexing will always start at zero.
+
+    An array can contain any type except another array. In EdgeDB, arrays are
+    always one-dimensional.
 
     Array types are implicitly created from :ref:`array
     constructors <ref_std_array_constructor>` as seen here:
@@ -112,13 +114,18 @@ Reference
         db> select [1, 2];
         {[1, 2]}
 
-    The syntax of an array type's declaration can be found from :ref:`this
-    section <ref_datamodel_arrays>`.
+    The declaration of an array type will follow this syntax:
+
+    .. code-block:: edgeql
+
+        type Person {
+            property str_array -> array<str>;
+            property json_array -> array<json>;
+        }
 
     Please see also the list of standard :ref:`array
-    functions <ref_std_array>`, as well as generic functions such as
-    :eql:func:`len`.
-
+    functions <ref_std_array>`, as well as :ref:`generic functions
+    <ref_std_generic>` such as :eql:func:`len`.
 
 
 ----------
@@ -126,9 +133,7 @@ Reference
 
 .. eql:operator:: arrayidx: array<anytype> [ int64 ] -> anytype
 
-    Indexes an array of :eql:type:`anytype`.
-
-    This results in a representable reference of the array element specified:
+    Indexes an array of :eql:type:`anytype`:
 
     .. code-block:: edgeql-repl
 
@@ -137,7 +142,8 @@ Reference
         db> select [(x := 1, y := 1), (x := 2, y := 3.3)][1];
         {(x := 2, y := 3.3)}
 
-    This operator also allows accessing elements through negation.
+    This operator also allows accessing elements from the end of the array
+    using a negative index.
 
     .. code-block:: edgeql-repl
 
@@ -202,7 +208,8 @@ Reference
 
     Concatenates two arrays of the same type into one.
 
-    This results in a reference of both array's elements conjoined together:
+    This results in an array containing the elements of both of the
+    concatenated arrays:
 
     .. code-block:: edgeql-repl
 
@@ -219,7 +226,7 @@ Reference
 
     Returns an array made from all of the input set elements.
 
-    The ordering of the inputted set will be preserved if specified:
+    The ordering of the input set will be preserved if specified:
 
     .. code-block:: edgeql-repl
 
@@ -266,16 +273,14 @@ Reference
 
     :index: set array unpack
 
-    Returns the elements of an array as a set:
+    Returns the elements of an array as a set.
+
+    The returned set is not guaranteed to be ordered:
 
     .. code-block:: edgeql-repl
 
         db> select array_unpack([2, 3, 5]);
         {3, 2, 5}
-
-    .. note::
-
-        The returned set is not guaranteed to be ordered.
 
 
 ----------
@@ -285,7 +290,7 @@ Reference
 
     :index: join array_to_string implode
 
-    Returns the elements of an ``array`` joined together with a ``delimiter``:
+    Returns the elements of an *array* joined together with a *delimiter*:
 
     .. code-block:: edgeql-repl
 
@@ -300,9 +305,9 @@ Reference
 
     :index: fill
 
-    Returns a new array of a specified number of copies of the specified value.
+    Returns *array* elements as a string joined by *delimiter*.
     
-    The new array will have *n* copies of the value passed for *val*.
+    The new array will have *n* copies of the value passed for *val*:
 
     .. code-block:: edgeql-repl
 
