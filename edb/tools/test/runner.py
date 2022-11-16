@@ -852,10 +852,7 @@ class ParallelTextTestRunner:
                 os.environ["EDGEDB_SERVER_TLS_CERT_FILE"] = str(cert_file)
                 os.environ["EDGEDB_SERVER_TLS_KEY_FILE"] = str(key_file)
 
-            if (
-                not os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE")
-                or not os.environ.get("EDGEDBV_SERVER_JWE_KEY_FILE")
-            ):
+            if not os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE"):
                 jwk_file = pathlib.Path(tempdir.name) / "jwk.pem"
                 if self.verbosity >= 1:
                     self._echo(
@@ -864,11 +861,7 @@ class ParallelTextTestRunner:
                     )
                 tb.generate_jwk(jwk_file)
 
-                if not os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE"):
-                    os.environ["EDGEDB_SERVER_JWS_KEY_FILE"] = str(jwk_file)
-
-                if not os.environ.get("EDGEDB_SERVER_JWE_KEY_FILE"):
-                    os.environ["EDGEDB_SERVER_JWE_KEY_FILE"] = str(jwk_file)
+                os.environ["EDGEDB_SERVER_JWS_KEY_FILE"] = str(jwk_file)
 
         if lang_setup:
             tb_lang.run_test_cases_setup(lang_setup, jobs=self.num_workers)

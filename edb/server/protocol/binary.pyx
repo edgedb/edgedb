@@ -469,7 +469,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'message: "database"'
             )
 
-        token = params.get('token')
+        # token in the HTTP header has higher priority than the ClientHandshake
+        # message, under the binary-protocol-over-HTTP scenario
+        if self._auth_data is None:
+            self._auth_data = params.get('token')
 
         logger.debug('received connection request by %s to database %s',
                      user, database)
@@ -493,7 +496,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if authmethod_name == 'SCRAM':
             await self._auth_scram(user)
         elif authmethod_name == 'JWT':
-            self._auth_jwt(user, token)
+            self._auth_jwt(user)
         elif authmethod_name == 'Trust':
             self._auth_trust(user)
         else:
@@ -614,51 +617,33 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if user not in roles:
             raise errors.AuthenticationError('authentication failed')
 
-    def _auth_jwt(self, user, encoded_token):
+    def _auth_jwt(self, user):
         role = self.server.get_roles().get(user)
         if role is None:
             raise errors.AuthenticationError('authentication failed')
 
-        decrypt = False
-        if not encoded_token:
-            decrypt = True  # token in binary protocol over HTTP is encrypted
-            if not self._auth_data:
-                raise errors.AuthenticationError(
-                    'authentication failed: no authorization data provided')
+        if not self._auth_data:
+            raise errors.AuthenticationError(
+                'authentication failed: no authorization data provided')
 
-            header_value = self._auth_data.decode("ascii")
-            scheme, _, encoded_token = header_value.partition(" ")
-            if scheme.lower() != "bearer":
-                raise errors.AuthenticationError(
-                    'authentication failed: unrecognized authentication scheme')
+        header_value = self._auth_data.decode("ascii")
+        scheme, _, encoded_token = header_value.partition(" ")
+        if scheme.lower() != "bearer":
+            raise errors.AuthenticationError(
+                'authentication failed: unrecognized authentication scheme')
 
         encoded_token = encoded_token.strip()
         if not encoded_token:
             raise errors.AuthenticationError(
                 'authentication failed: malformed JWT')
 
-        ekey = self.server.get_jwe_key()
         skey = self.server.get_jws_key()
 
         try:
-            if decrypt:
-                decrypted_token = jwt.JWT(
-                    key=ekey,
-                    algs=[
-                        "RSA-OAEP-256",
-                        "ECDH-ES",
-                        "A128GCM",
-                        "A192GCM",
-                        "A256GCM",
-                    ],
-                    jwt=encoded_token,
-                ).claims
-            else:
-                decrypted_token = encoded_token
             token = jwt.JWT(
                 key=skey,
                 algs=["RS256", "ES256"],
-                jwt=decrypted_token,
+                jwt=encoded_token,
             )
         except jwt.JWException as e:
             logger.debug('authentication failure', exc_info=True)
@@ -688,14 +673,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     f' expected mapping in "role_names"'
                 )
 
-            token_pw = token_roles.get(user)
-            if token_pw is None:
+            if user not in token_roles:
                 raise errors.AuthenticationError(
                     'authentication failed: role not authorized by this JWT')
-
-            if token_pw != role["password"]:
-                raise errors.AuthenticationError(
-                    'authentication failed: mismatched password in JWT')
 
     async def _auth_scram(self, user):
         # Tell the client that we require SASL SCRAM auth.

@@ -185,8 +185,6 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                 f'message: "database"'
             )
 
-        token = params.get('token')
-
         logger.debug('received connection request by %s to database %s',
                      user, database)
 
@@ -216,7 +214,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         if authmethod_name == 'SCRAM':
             await self._auth_scram(user)
         elif authmethod_name == 'JWT':
-            self._auth_jwt(user, token)
+            self._auth_jwt(user)
         elif authmethod_name == 'Trust':
             self._auth_trust(user)
         else:
