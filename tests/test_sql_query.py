@@ -35,7 +35,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # basic
         res = await self.squery_values(
             '''
-            select title from Movie order by title
+            select title from "Movie" order by title
             '''
         )
         self.assertEqual(res, [['Forrest Gump'], ['Saving Private Ryan']])
@@ -44,7 +44,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # table alias
         res = await self.squery(
             '''
-            select mve.title, mve.release_year, director_id FROM Movie as mve
+            select mve.title, mve.release_year, director_id FROM "Movie" as mve
             '''
         )
         self.assert_shape(res, 2, 3)
@@ -53,7 +53,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # select from parent type
         res = await self.squery(
             '''
-            select * FROM Content
+            select * FROM "Content"
             '''
         )
         self.assert_shape(res, 5, 3, ['id', 'genre_id', 'title'])
@@ -62,7 +62,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # select from parent type only
         res = await self.squery(
             '''
-            select * FROM ONLY Content -- should have only one result
+            select * FROM ONLY "Content" -- should have only one result
             '''
         )
         self.assert_shape(res, 1, 3, ['id', 'genre_id', 'title'])
@@ -71,18 +71,17 @@ class TestSQL(tb.SQLQueryTestCase):
         # multiple FROMs
         res = await self.squery(
             '''
-            select mve.title, Person.first_name
-            FROM Movie mve, Person WHERE mve.director_id = person.id
+            select mve.title, "Person".first_name
+            FROM "Movie" mve, "Person" WHERE mve.director_id = "Person".id
             '''
         )
         self.assert_shape(res, 1, 2, ['title', 'first_name'])
 
     async def test_sql_query_05(self):
-        # case insensitive
         res = await self.squery(
             '''
             SeLeCt mve.title as tiT, perSon.first_name
-            FROM Movie mve, Person
+            FROM "Movie" mve, "Person" person
             '''
         )
         self.assert_shape(res, 6, 2, ['tit', 'first_name'])
@@ -92,7 +91,7 @@ class TestSQL(tb.SQLQueryTestCase):
         res = await self.squery(
             '''
             select id, title, prS.first_name
-            FROM Movie mve, (select first_name FROM Person) prs
+            FROM "Movie" mve, (select first_name FROM "Person") prs
             '''
         )
         self.assert_shape(res, 6, 3, ['id', 'title', 'first_name'])
@@ -101,7 +100,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # quoted case sensitive
         res = await self.squery(
             '''
-            SELECT tItLe, release_year "RL year" FROM "movie" ORDER BY titLe;
+            SELECT tItLe, release_year "RL year" FROM "Movie" ORDER BY titLe;
             '''
         )
         self.assert_shape(res, 2, 2, ['title', 'RL year'])
@@ -110,8 +109,8 @@ class TestSQL(tb.SQLQueryTestCase):
         # JOIN
         res = await self.squery(
             '''
-            SELECT movie.id, genre.id
-            FROM Movie JOIN Genre ON Movie.genre_id = Genre.id
+            SELECT "Movie".id, "Genre".id
+            FROM "Movie" JOIN "Genre" ON "Movie".genre_id = "Genre".id
             '''
         )
         self.assert_shape(res, 2, 2, ['id', 'id'])
@@ -120,8 +119,8 @@ class TestSQL(tb.SQLQueryTestCase):
         # resolve columns without table names
         res = await self.squery(
             '''
-            SELECT movie.id, title, name
-            FROM Movie JOIN Genre ON Movie.genre_id = Genre.id
+            SELECT "Movie".id, title, name
+            FROM "Movie" JOIN "Genre" ON "Movie".genre_id = "Genre".id
             '''
         )
         self.assert_shape(res, 2, 3, ['id', 'title', 'name'])
@@ -130,7 +129,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # wildcard select
         res = await self.squery(
             '''
-            SELECT m.* FROM Movie m
+            SELECT m.* FROM "Movie" m
             '''
         )
         self.assert_shape(
@@ -144,7 +143,8 @@ class TestSQL(tb.SQLQueryTestCase):
         # multiple wildcard select
         res = await self.squery(
             '''
-            SELECT * FROM Movie JOIN Genre g ON Movie.genre_id = Genre.id
+            SELECT * FROM "Movie" 
+            JOIN "Genre" g ON "Movie".genre_id = "Genre".id
             '''
         )
         self.assert_shape(res, 2, 7)
@@ -153,8 +153,8 @@ class TestSQL(tb.SQLQueryTestCase):
         # JOIN USING
         res = await self.squery(
             '''
-            SELECT * FROM Movie
-            JOIN (SELECT id as genre_id, name FROM Genre) g USING (genre_id)
+            SELECT * FROM "Movie"
+            JOIN (SELECT id as genre_id, name FROM "Genre") g USING (genre_id)
             '''
         )
         self.assert_shape(res, 2, 7)
@@ -163,8 +163,8 @@ class TestSQL(tb.SQLQueryTestCase):
         # CTE
         res = await self.squery(
             '''
-            WITH g AS (SELECT id as genre_id, name FROM Genre)
-            SELECT * FROM Movie JOIN g USING (genre_id)
+            WITH g AS (SELECT id as genre_id, name FROM "Genre")
+            SELECT * FROM "Movie" JOIN g USING (genre_id)
             '''
         )
         self.assert_shape(res, 2, 7)
@@ -175,7 +175,7 @@ class TestSQL(tb.SQLQueryTestCase):
             '''
             SELECT title, CASE WHEN title='Forrest Gump' THEN 'forest'
             WHEN title='Saving Private Ryan' THEN 'the war film'
-            ELSE 'unknown' END AS nick_name FROM Movie
+            ELSE 'unknown' END AS nick_name FROM "Movie"
             '''
         )
         self.assertEqual(
@@ -190,7 +190,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # UNION
         res = await self.squery(
             '''
-            SELECT id, title FROM Movie UNION select id, title FROM Book
+            SELECT id, title FROM "Movie" UNION select id, title FROM "Book"
             '''
         )
         self.assert_shape(res, 4, 2)
@@ -209,7 +209,7 @@ class TestSQL(tb.SQLQueryTestCase):
         res = await self.squery_values(
             '''
             SELECT first_name, last_name
-            FROM Person ORDER BY last_name DESC NULLS FIRST
+            FROM "Person" ORDER BY last_name DESC NULLS FIRST
             '''
         )
         self.assertEqual(
@@ -219,7 +219,7 @@ class TestSQL(tb.SQLQueryTestCase):
         res = await self.squery_values(
             '''
             SELECT first_name, last_name
-            FROM Person ORDER BY last_name DESC NULLS LAST
+            FROM "Person" ORDER BY last_name DESC NULLS LAST
             '''
         )
         self.assertEqual(
@@ -230,7 +230,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # LIMIT & OFFSET
         res = await self.squery_values(
             '''
-            SELECT title FROM Content ORDER BY title OFFSET 1 LIMIT 2
+            SELECT title FROM "Content" ORDER BY title OFFSET 1 LIMIT 2
             '''
         )
         self.assertEqual(res, [['Forrest Gump'], ['Halo 3']])
@@ -240,7 +240,7 @@ class TestSQL(tb.SQLQueryTestCase):
         res = await self.squery_values(
             '''
             SELECT DISTINCT name
-            FROM Content c JOIN Genre g ON (c.genre_id = g.id)
+            FROM "Content" c JOIN "Genre" g ON (c.genre_id = g.id)
             ORDER BY name
             '''
         )
@@ -249,7 +249,7 @@ class TestSQL(tb.SQLQueryTestCase):
         res = await self.squery_values(
             '''
             SELECT DISTINCT ON (name) name, title
-            FROM Content c JOIN Genre g ON (c.genre_id = g.id)
+            FROM "Content" c JOIN "Genre" g ON (c.genre_id = g.id)
             ORDER BY name, title
             '''
         )
@@ -262,7 +262,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # WHERE
         res = await self.squery_values(
             '''
-            SELECT first_name FROM Person
+            SELECT first_name FROM "Person"
             WHERE last_name IS NOT NULL AND LENGTH(first_name) < 4
             '''
         )
@@ -274,7 +274,7 @@ class TestSQL(tb.SQLQueryTestCase):
             '''
             WITH content AS (
                 SELECT c.id, c.title, pages
-                FROM Content c LEFT JOIN Book USING(id)
+                FROM "Content" c LEFT JOIN "Book" USING(id)
             ),
             content2 AS (
                 SELECT id, COALESCE(pages, 0) as pages FROM content
@@ -292,14 +292,14 @@ class TestSQL(tb.SQLQueryTestCase):
         # IS NULL/true
         res = await self.squery(
             '''
-            SELECT id FROM Person WHERE last_name IS NULL
+            SELECT id FROM "Person" WHERE last_name IS NULL
             '''
         )
         self.assert_shape(res, 1, 1)
 
         res = await self.squery(
             '''
-            SELECT id FROM Person WHERE (last_name = 'Hanks') IS NOT TRUE
+            SELECT id FROM "Person" WHERE (last_name = 'Hanks') IS NOT TRUE
             '''
         )
         self.assert_shape(res, 2, 1)
@@ -308,7 +308,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # ImplicitRow
         res = await self.squery(
             '''
-            SELECT id FROM person
+            SELECT id FROM "Person"
             WHERE (first_name, last_name) IN (
                 ('Tom', 'Hanks'), ('Steven', 'Spielberg')
             )
@@ -320,8 +320,8 @@ class TestSQL(tb.SQLQueryTestCase):
         # SubLink
         res = await self.squery_values(
             '''
-            SELECT title FROM Movie WHERE id IN (
-                SELECT id FROM Movie ORDER BY title LIMIT 1
+            SELECT title FROM "Movie" WHERE id IN (
+                SELECT id FROM "Movie" ORDER BY title LIMIT 1
             )
             '''
         )
@@ -329,7 +329,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
         res = await self.squery_values(
             '''
-            SELECT (SELECT title FROM Movie ORDER BY title LIMIT 1)
+            SELECT (SELECT title FROM "Movie" ORDER BY title LIMIT 1)
             '''
         )
         self.assertEqual(res, [['Forrest Gump']])
@@ -338,9 +338,11 @@ class TestSQL(tb.SQLQueryTestCase):
         # lower case object name
         await self.squery('SELECT title FROM novel ORDER BY title')
 
+        await self.squery('SELECT title FROM "novel" ORDER BY title')
+
         with self.assertRaisesRegex(edgedb.QueryError, "unknown table"):
             await self.squery('SELECT title FROM "Novel" ORDER BY title')
 
     async def test_sql_query_26(self):
         with self.assertRaisesRegex(edgedb.QueryError, "unknown table"):
-            await self.squery('SELECT title FROM "Movie" ORDER BY title')
+            await self.squery('SELECT title FROM Movie ORDER BY title')

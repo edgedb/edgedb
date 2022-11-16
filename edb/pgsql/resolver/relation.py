@@ -152,17 +152,12 @@ def resolve_relation(
     # lookup the object in schema
     obj: Optional[s_objtypes.ObjectType] = None
     if schema_name == 'public':
-        objects = ctx.schema.get_objects(
-            exclude_stdlib=True,
-            exclude_global=True,
+        obj = ctx.schema.get(  # type: ignore
+            relation.name,
+            None,
+            module_aliases={None: 'default'},
             type=s_objtypes.ObjectType,
         )
-        
-        for o in objects:
-            o_name = o.get_name(ctx.schema)
-            if o_name.name.lower() == relation.name:
-                obj = o
-                break
 
     if not obj:
         raise errors.QueryError(
@@ -172,7 +167,7 @@ def resolve_relation(
 
     # extract table name
     table = context.Table()
-    table.name = obj.get_shortname(ctx.schema).name.lower()
+    table.name = obj.get_shortname(ctx.schema).name
 
     # extract table columns
     pointers = obj.get_pointers(ctx.schema).objects(ctx.schema)
