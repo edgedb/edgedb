@@ -39,8 +39,8 @@ Sequences
 
     A sequence is bound to the scalar type, not to the property, so
     if multiple properties use the same sequence, they will share the same
-    counter. For each distinct counter, a separate scalar type that is extending
-    :eql:type:`sequence` should be used.
+    counter. For each distinct counter, a separate scalar type that is
+    extending :eql:type:`sequence` should be used.
 
 
 ---------
