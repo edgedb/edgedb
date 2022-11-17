@@ -765,8 +765,8 @@ from :eql:type:`str` and :eql:type:`json`.
     :index: parse bigint
 
     Returns a :eql:type:`bigint` value parsed from the given string.
-    
-    The function will use an optional format string passed as *fmt*. See the 
+
+    The function will use an optional format string passed as *fmt*. See the
     :ref:`number formatting options <ref_std_converters_number_fmt>` for help
     writing a format string.
 
