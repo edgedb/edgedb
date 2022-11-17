@@ -296,14 +296,14 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
     Calling this function on anything other than an :eql:type:`json` array will
     result in a runtime error.
 
+    This function should be used only if the ordering of elements is not
+    important, or when the ordering of the set is preserved (such as an
+    immediate input to an aggregate function).
+
     .. code-block:: edgeql-repl
 
         db> select json_array_unpack(to_json('[1, "a"]'));
         {'1', '"a"'}
-
-    This function should be only used if the ordering of elements are not
-    deemed important, or when the ordering of the set is preserved (such as an
-    immediate input to an aggregate function)
 
 
 ----------
