@@ -55,10 +55,10 @@ JSON
 Constructing JSON Values
 ------------------------
 
-JSON in EdgeDB is a variation of
-:ref:`scalar types <ref_datamodel_scalar_types>`. This type doesn't have its
-own literal, and instead can be obtained by either casting a value to the
-:eql:type:`json` type, or by using the :eql:func:`to_json` function:
+JSON in EdgeDB is a :ref:`scalar type <ref_datamodel_scalar_types>`. This type
+doesn't have its own literal, and instead can be obtained by either casting a
+value to the :eql:type:`json` type, or by using the :eql:func:`to_json`
+function:
 
 .. code-block:: edgeql-repl
 
