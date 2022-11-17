@@ -15,7 +15,7 @@ Abstract types are used to describe polymorphic functions, otherwise known as
 
     :index: any anytype
 
-    Represents a generic type.
+    A generic type.
 
     This type is used as a placeholder in cases where there aren't specific
     type requirements such as when defining polymorphic parameters in functions
@@ -29,7 +29,7 @@ Abstract types are used to describe polymorphic functions, otherwise known as
 
     :index: any anytype scalar
 
-    Represents an abstract base scalar type.
+    An abstract base scalar type.
 
     All scalar types are derived from this type.
 
@@ -41,7 +41,7 @@ Abstract types are used to describe polymorphic functions, otherwise known as
 
     :index: any anytype enum
 
-    Represents an abstract base enumerator type.
+    An abstract base enumerator type.
 
     All :eql:type:`enum` types are derived from this type.
 
@@ -53,7 +53,7 @@ Abstract types are used to describe polymorphic functions, otherwise known as
 
     :index: any anytype anytuple
 
-    Represents a generic tuple.
+    A generic tuple.
 
     Similar to :eql:type:`anytype`, this type is used to denote a generic
     tuple without detailing its constituents. This is useful when defining
@@ -70,7 +70,7 @@ Abstract numeric types are used when wanting to extend off of
 
     :index: any anytype int
 
-    Represents an abstract base scalar type for
+    An abstract base scalar type for
     :eql:type:`int16`, :eql:type:`int32` and :eql:type:`int64` types.
 
 
@@ -81,7 +81,7 @@ Abstract numeric types are used when wanting to extend off of
 
     :index: any anytype float
 
-    Represents an abstract base scalar type for
+    An abstract base scalar type for
     :eql:type:`float32` and :eql:type:`float64` types.
 
 
@@ -92,7 +92,7 @@ Abstract numeric types are used when wanting to extend off of
 
     :index: any anytype
 
-    Represents an abstract base scalar type for
+    An abstract base scalar type for
     :eql:type:`anyint`, :eql:type:`anyfloat` and :eql:type:`decimal` types.
 
 
@@ -105,7 +105,7 @@ These types serve as the base types for all :ref:`ranges <ref_std_range>`.
 
     :index: any anypoint anyrange
 
-    Represents an abstract base type for all valid ranges.
+    An abstract base type for all valid ranges.
 
     This is also an abstract base scalar type for
     :eql:type:`int32`, :eql:type:`int64`,
@@ -121,7 +121,7 @@ These types serve as the base types for all :ref:`ranges <ref_std_range>`.
 
     :index: any anydiscrete anyrange
 
-    Represents an abstract base type for all valid *discrete* ranges.
+    An abstract base type for all valid *discrete* ranges.
 
     This is also an abstract base scalar type for :eql:type:`int32`,
     :eql:type:`int64` and :eql:type:`cal::local_date` types.
@@ -134,7 +134,7 @@ These types serve as the base types for all :ref:`ranges <ref_std_range>`.
 
     :index: any anycontiguous anyrange
 
-    Represents an abstract base type for all valid *contiguous* ranges.
+    An abstract base type for all valid *contiguous* ranges.
 
     This is also an abstract base scalar type for :eql:type:`float32`,
     :eql:type:`float64`, :eql:type:`decimal`, :eql:type:`datetime` and
