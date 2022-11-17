@@ -278,10 +278,10 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
     .. code-block:: edgeql-repl
 
-        db> select to_json('[1, "hello", null]')[1];
-        {'"hello"'}
-        db> select to_json('{"hello": "world"}')['hello'];
-        {'"world"'}
+        db> select to_json('[1, "hello", null]');
+        {'[1, "hello", null]'}
+        db> select to_json('{"hello": "world"}');
+        {'{"hello": "world"}'}
 
 
 ----------
