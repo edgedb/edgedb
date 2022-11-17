@@ -16,7 +16,7 @@ Math
 
     :index: absolute
 
-    Returns the absolute value of ``x``:
+    Returns the absolute value of the given value.
 
     .. code-block:: edgeql-repl
 
