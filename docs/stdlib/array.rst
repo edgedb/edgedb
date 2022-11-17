@@ -128,7 +128,7 @@ Reference
 
 .. eql:operator:: arrayidx: array<anytype> [ int64 ] -> anytype
 
-    Indexes an array of :eql:type:`anytype`:
+    Accesses the element of the array at a given index.
 
     .. code-block:: edgeql-repl
 
