@@ -15,7 +15,7 @@ jobs:
     outputs:
       branch: ${{ steps.whichver.outputs.branch }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Determine package version
       shell: bash
@@ -47,7 +47,7 @@ jobs:
         PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
 <% endif %>
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -59,7 +59,7 @@ jobs:
     needs: prep
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -74,8 +74,10 @@ jobs:
         default: true
 
     - name: Set up Python
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
+      with:
+        python-version: "3.x"
 
     - name: Build
       env:
@@ -91,7 +93,7 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -127,7 +129,7 @@ jobs:
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -186,6 +188,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< plat_id >>@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
@@ -208,7 +211,7 @@ jobs:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -240,7 +243,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-docker
         ref: master
