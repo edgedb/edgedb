@@ -107,7 +107,7 @@ EdgeDB has two varieties of date/time constructs:
 
 * a set of "local" date/time types, not attached to any particular
   timezone: :eql:type:`cal::local_datetime`, :eql:type:`cal::local_date`, and
-   :eql:type:`cal::local_time`.
+  :eql:type:`cal::local_time`.
 
 There are two different ways of measuring duration:
 
