@@ -14,12 +14,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 50
         submodules: true
@@ -27,7 +27,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.10.0'
+        python-version: '3.10'
 
     # Build virtualenv
 
@@ -70,7 +70,7 @@ jobs:
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
     - name: Upload shared artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: shared-artifacts
         path: .tmp
@@ -251,7 +251,7 @@ jobs:
       with:
         go-version: 1.16
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       if: steps.stolon-cache.outputs.cache-hit != 'true'
       with:
         repository: sorintlab/stolon
@@ -309,7 +309,7 @@ jobs:
       run:
         working-directory: .github/aws-rds
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: false
@@ -336,7 +336,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds/terraform.tfstate
@@ -351,12 +351,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-aws-rds, build]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 50
         submodules: true
@@ -364,7 +364,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.10.0'
+        python-version: '3.10'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1.2
@@ -482,7 +482,7 @@ jobs:
       run:
         working-directory: .github/aws-rds
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: false
@@ -513,7 +513,7 @@ jobs:
           TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds/terraform.tfstate
@@ -526,7 +526,7 @@ jobs:
       run:
         working-directory: .github/do-database
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: false
@@ -545,7 +545,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: do-database-tfstate
           path: .github/do-database/terraform.tfstate
@@ -555,12 +555,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-do-database, build]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 50
         submodules: true
@@ -568,7 +568,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.10.0'
+        python-version: '3.10'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1.2
@@ -729,7 +729,7 @@ jobs:
       run:
         working-directory: .github/do-database
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: false
@@ -752,7 +752,7 @@ jobs:
           TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: do-database-tfstate
           path: .github/do-database/terraform.tfstate
@@ -767,7 +767,7 @@ jobs:
       run:
         working-directory: .github/gcp-cloud-sql
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: false
@@ -792,7 +792,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql/terraform.tfstate
@@ -807,12 +807,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-gcp-cloud-sql, build]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 50
         submodules: true
@@ -820,7 +820,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.10.0'
+        python-version: '3.10'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1.2
@@ -938,7 +938,7 @@ jobs:
       run:
         working-directory: .github/gcp-cloud-sql
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: false
@@ -967,7 +967,7 @@ jobs:
           TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql/terraform.tfstate
@@ -982,7 +982,7 @@ jobs:
       run:
         working-directory: .github/aws-aurora
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: false
@@ -1010,7 +1010,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora/terraform.tfstate
@@ -1025,12 +1025,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-aws-aurora, build]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 50
         submodules: true
@@ -1038,7 +1038,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.10.0'
+        python-version: '3.10'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1.2
@@ -1156,7 +1156,7 @@ jobs:
       run:
         working-directory: .github/aws-aurora
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: false
@@ -1188,7 +1188,7 @@ jobs:
           TF_VAR_vpc_id: ${{ secrets.AWS_VPC_ID }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora/terraform.tfstate
@@ -1201,7 +1201,7 @@ jobs:
       run:
         working-directory: .github/heroku-postgres
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: false
@@ -1221,7 +1221,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres/terraform.tfstate
@@ -1231,12 +1231,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [setup-heroku-postgres, build]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 50
         submodules: true
@@ -1244,7 +1244,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.10.0'
+        python-version: '3.10'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1.2
@@ -1382,7 +1382,7 @@ jobs:
       run:
         working-directory: .github/heroku-postgres
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
           submodules: false
@@ -1413,7 +1413,7 @@ jobs:
           HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres/terraform.tfstate
