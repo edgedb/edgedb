@@ -61,7 +61,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds/terraform.tfstate
@@ -112,7 +112,7 @@ jobs:
           TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: aws-rds-tfstate
           path: .github/aws-rds/terraform.tfstate
@@ -135,7 +135,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: do-database-tfstate
           path: .github/do-database/terraform.tfstate
@@ -221,7 +221,7 @@ jobs:
           TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: do-database-tfstate
           path: .github/do-database/terraform.tfstate
@@ -248,7 +248,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql/terraform.tfstate
@@ -298,7 +298,7 @@ jobs:
           TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql/terraform.tfstate
@@ -327,7 +327,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora/terraform.tfstate
@@ -379,7 +379,7 @@ jobs:
           TF_VAR_vpc_id: ${{ secrets.AWS_VPC_ID }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: aws-aurora-tfstate
           path: .github/aws-aurora/terraform.tfstate
@@ -403,7 +403,7 @@ jobs:
 
       - name: Store Terraform state
         if: ${{ always() }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres/terraform.tfstate
@@ -469,7 +469,7 @@ jobs:
           HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
 
       - name: Overwrite Terraform state
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: heroku-postgres-tfstate
           path: .github/heroku-postgres/terraform.tfstate

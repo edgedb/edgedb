@@ -15,7 +15,7 @@ jobs:
     outputs:
       branch: ${{ steps.whichver.outputs.branch }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Determine package version
       shell: bash
@@ -43,7 +43,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-debian-stretch-x86_64
         path: artifacts/debian-stretch
@@ -66,7 +66,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-debian-stretch-aarch64
         path: artifacts/debian-stretch
@@ -89,7 +89,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
@@ -112,7 +112,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
@@ -135,7 +135,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
@@ -158,7 +158,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
@@ -181,7 +181,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-xenial-x86_64
         path: artifacts/ubuntu-xenial
@@ -204,7 +204,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-xenial-aarch64
         path: artifacts/ubuntu-xenial
@@ -227,7 +227,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
@@ -250,7 +250,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
@@ -273,7 +273,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
@@ -296,7 +296,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
@@ -319,7 +319,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
@@ -342,7 +342,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
@@ -365,7 +365,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-centos-7-x86_64
         path: artifacts/centos-7
@@ -388,7 +388,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
@@ -411,7 +411,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
@@ -436,7 +436,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -461,7 +461,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -488,7 +488,7 @@ jobs:
         PKG_PLATFORM_LIBC: "musl"
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -515,7 +515,7 @@ jobs:
         PKG_PLATFORM_LIBC: "musl"
 
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -527,7 +527,7 @@ jobs:
     needs: prep
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -542,8 +542,10 @@ jobs:
         default: true
 
     - name: Set up Python
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       if: false
+      with:
+        python-version: "3.x"
 
     - name: Build
       env:
@@ -559,7 +561,7 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
@@ -570,7 +572,7 @@ jobs:
     needs: prep
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -585,8 +587,10 @@ jobs:
         default: true
 
     - name: Set up Python
-      uses: actions/setup-python@v1
+      uses: actions/setup-python@v4
       if: false
+      with:
+        python-version: "3.x"
 
     - name: Build
       env:
@@ -602,7 +606,7 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
@@ -1098,7 +1102,7 @@ jobs:
     runs-on: ['self-hosted', 'macOS', 'X64']
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -1123,7 +1127,7 @@ jobs:
     runs-on: ['self-hosted', 'macOS', 'ARM64']
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -1182,6 +1186,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-stretch@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
@@ -1231,6 +1236,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-stretch@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
@@ -1280,6 +1286,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
@@ -1329,6 +1336,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-buster@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
@@ -1378,6 +1386,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
@@ -1427,6 +1436,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
@@ -1476,6 +1486,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-xenial@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
@@ -1525,6 +1536,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-xenial@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
@@ -1574,6 +1586,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
@@ -1623,6 +1636,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-bionic@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
@@ -1672,6 +1686,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
@@ -1721,6 +1736,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-focal@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
@@ -1770,6 +1786,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
@@ -1819,6 +1836,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-jammy@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "jammy"
@@ -1868,6 +1886,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-7@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
@@ -1917,6 +1936,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
@@ -1966,6 +1986,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/centos-8@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
@@ -2015,6 +2036,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
@@ -2064,6 +2086,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-aarch64@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
@@ -2113,6 +2136,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-x86_64@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "x86_64"
@@ -2162,6 +2186,7 @@ jobs:
     - name: Test Published
       uses: edgedb/edgedb-pkg/integration/linux/testpublished/linuxmusl-aarch64@master
       env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "linux"
         PKG_PLATFORM_VERSION: "aarch64"
@@ -2184,7 +2209,7 @@ jobs:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -2216,7 +2241,7 @@ jobs:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -2242,15 +2267,15 @@ jobs:
 
   publish-docker:
     needs:
-      
+
       - check-published-debian-buster-x86_64
-      
+
       - check-published-debian-buster-aarch64
-      
+
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-docker
         ref: master
@@ -2272,4 +2297,3 @@ jobs:
         workdir: dockerfile
         buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},subdist=nightly
         platforms: linux/amd64,linux/arm64
-

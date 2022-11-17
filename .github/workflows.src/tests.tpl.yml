@@ -39,15 +39,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: false
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.10.0'
+        python-version: '3.10'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1.2
@@ -123,7 +123,7 @@ jobs:
         edb test -j2 -v -s ${SHARD} --running-times-log=.results/shard_${SHARD/\//_}.csv
 
     - name: Upload test results
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: python-test-results
         path: .results
@@ -144,7 +144,7 @@ jobs:
         edb test --list > .tmp/all_tests.txt
 
     - name: Update shared artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: shared-artifacts
         path: .tmp
@@ -155,9 +155,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.10.0'
+          python-version: '3.10'
 
       - name: Install Python deps
         run: |

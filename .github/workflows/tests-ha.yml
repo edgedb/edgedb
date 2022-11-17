@@ -14,12 +14,12 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 50
         submodules: true
@@ -27,7 +27,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10.0'
+        python-version: '3.10'
 
     # Build virtualenv
 
@@ -72,7 +72,7 @@ jobs:
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
 
     - name: Upload shared artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: shared-artifacts
         path: .tmp
@@ -259,7 +259,7 @@ jobs:
       with:
         go-version: 1.16
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       if: steps.stolon-cache.outputs.cache-hit != 'true'
       with:
         repository: sorintlab/stolon
@@ -313,12 +313,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 50
         submodules: true
@@ -326,7 +326,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10.0'
+        python-version: '3.10'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1
