@@ -63,8 +63,7 @@ Abstract types are used to describe polymorphic functions, otherwise known as
 Abstract Numeric Types
 ======================
 
-Abstract numeric types are used when wanting to extend off of
-:eql:type:`anyscalar`.
+These abstract numeric types extend :eql:type:`anyscalar`.
 
 .. eql:type:: std::anyint
 
