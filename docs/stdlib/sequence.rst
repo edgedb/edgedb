@@ -50,6 +50,10 @@ Sequences
 
     Increments the given sequence to its next value and returns that value.
 
+    See the note on :ref:`specifying your sequence
+    <ref_std_specifying_sequence>` for best practices on supplying the *seq*
+    parameter.
+
     Sequence advancement is done atomically; each concurrent session and
     transaction will receive a distinct sequence value.
 
@@ -67,6 +71,10 @@ Sequences
                     seq: schema::ScalarType, val: int64) -> int64
 
     Resets a sequence to initial state or a given value, returning the value.
+
+    See the note on :ref:`specifying your sequence
+    <ref_std_specifying_sequence>` for best practices on supplying the *seq*
+    parameter.
 
     The single-parameter form resets the sequence to its initial state, where
     the next :eql:func:`sequence_next` call will return the first value in
@@ -87,6 +95,8 @@ Sequences
 
 
 ---------
+
+.. _ref_std_specifying_sequence:
 
 .. note::
 
@@ -117,8 +127,7 @@ Sequences
             select schema::ScalarType
             filter .name = <str>$seq_type_name
         )
-        select
-        sequence_next(SeqType);
+        select sequence_next(SeqType);
 
 
 .. warning::
