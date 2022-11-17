@@ -30,6 +30,7 @@ from . import context
 
 Context = context.ResolverContextLevel
 
+
 # this function cannot go though dispatch,
 # because it may return multiple nodes, due to * notation
 def resolve_ResTarget(

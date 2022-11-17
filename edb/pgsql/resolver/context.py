@@ -41,7 +41,7 @@ class Scope:
     # RangeVars (table instances) in this query
     tables: List[Table]
 
-    # Common Table Expressions 
+    # Common Table Expressions
     ctes: List[CTE]
 
     def __init__(self):

@@ -185,7 +185,7 @@ class EdgeQLPathInfo(Base):
 class BaseRangeVar(ImmutableBaseExpr):
     """
     Range variable, used in FROM clauses.
-    
+
     This can be though as a specific instance of a table within a query.
     """
 
@@ -856,9 +856,9 @@ class JoinExpr(BaseRangeVar):
     type: str
 
     # Left subtree
-    larg: BaseExpr
+    larg: BaseRangeVar
     # Right subtree
-    rarg: BaseExpr
+    rarg: BaseRangeVar
     # USING clause, if any
     using_clause: typing.Optional[typing.List[ColumnRef]] = None
     # Qualifiers on join, if any

@@ -586,7 +586,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.larg)
         if node.rarg is not None:
             self.new_lines = 1
-            join_type = node.type.upper()
+            if node.quals:
+                join_type = node.type.upper()
+            else:
+                join_type = 'CROSS'
             if join_type == 'INNER':
                 self.write('JOIN ')
             else:

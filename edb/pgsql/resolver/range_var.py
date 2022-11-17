@@ -35,7 +35,7 @@ Context = context.ResolverContextLevel
 
 def resolve_BaseRangeVar(
     range_var: pgast.BaseRangeVar, *, ctx: Context
-) -> Tuple[pgast.BaseRangeVar, Sequence[context.Table]]:
+) -> pgast.BaseRangeVar:
     # handle join that returns multiple tables and does not use alias
     if isinstance(range_var, pgast.JoinExpr):
         return _resolve_JoinExpr(range_var, ctx=ctx)
@@ -51,7 +51,9 @@ def resolve_BaseRangeVar(
     table.alias = range_var.alias.aliasname
     table.reference_as = internal_alias
 
-    return node, (table,)
+    # pull result relation of inner scope into outer scope
+    ctx.scope.tables.append(table)
+    return node
 
 
 @functools.singledispatch
@@ -71,25 +73,25 @@ def _resolve_RelRangeVar(
     *,
     ctx: Context,
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
-    ctx.include_inherited = range_var.include_inherited
+    with ctx.empty() as subctx:
+        subctx.include_inherited = range_var.include_inherited
 
-    relation: Union[pgast.BaseRelation, pgast.CommonTableExpr]
-    if isinstance(range_var.relation, pgast.BaseRelation):
-        relation, table = dispatch.resolve_relation(range_var.relation, ctx=ctx)
-    else:
-        relation, cte = resolve_CommonTableExpr(range_var.relation, ctx=ctx)
-        table = context.Table()
-        table.name = cte.name
-        table.columns = cte.columns
-        table.reference_as = cte.name
+        relation: Union[pgast.BaseRelation, pgast.CommonTableExpr]
+        if isinstance(range_var.relation, pgast.BaseRelation):
+            relation, table = dispatch.resolve_relation(
+                range_var.relation, ctx=subctx
+            )
+        else:
+            relation, cte = resolve_CommonTableExpr(
+                range_var.relation, ctx=subctx
+            )
+            table = context.Table()
+            table.name = cte.name
+            table.columns = cte.columns
+            table.reference_as = cte.name
 
-    return (
-        pgast.RelRangeVar(
-            relation=relation,
-            alias=alias,
-        ),
-        table
-    )
+    rel = pgast.RelRangeVar(relation=relation, alias=alias)
+    return (rel, table)
 
 
 @_resolve_range_var.register
@@ -99,8 +101,10 @@ def _resolve_RangeSubselect(
     *,
     ctx: Context,
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
-    with ctx.empty() as subctx:
-        subquery, subtable = dispatch.resolve_relation(range_var.subquery, ctx=subctx)
+    with ctx.isolated() if range_var.lateral else ctx.empty() as subctx:
+        subquery, subtable = dispatch.resolve_relation(
+            range_var.subquery, ctx=subctx
+        )
 
         result = context.Table()
         result.name = range_var.alias.aliasname
@@ -110,13 +114,10 @@ def _resolve_RangeSubselect(
             for col in subtable.columns
         ]
 
-    return (
-        pgast.RangeSubselect(
-            subquery=subquery,
-            alias=alias,
-        ),
-        result,
+    node = pgast.RangeSubselect(
+        subquery=subquery, alias=alias, lateral=range_var.lateral
     )
+    return node, result
 
 
 @_resolve_range_var.register
@@ -126,34 +127,23 @@ def _resolve_RangeFunction(
     *,
     ctx: Context,
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
-    raise errors.UnsupportedFeatureError(
-        'range functions are not supported', context=range_var.context
-    )
+    with ctx.isolated() if range_var.lateral else ctx.empty() as _:
+        raise errors.UnsupportedFeatureError(
+            'range functions are not supported', context=range_var.context
+        )
 
 
 def _resolve_JoinExpr(
     range_var: pgast.JoinExpr,
     *,
     ctx: Context,
-) -> Tuple[pgast.BaseRangeVar, Sequence[context.Table]]:
-    
-    def resolve_arg(
-        arg: pgast.BaseExpr,
-    ) -> Tuple[pgast.BaseExpr, Sequence[context.Table]]:
-        with ctx.empty() as subctx:
-            if isinstance(arg, pgast.BaseRelation):
-                arg, table = dispatch.resolve_relation(arg, ctx=subctx)
-                return arg, (table,)
-            elif isinstance(arg, pgast.BaseRangeVar):
-                return resolve_BaseRangeVar(arg, ctx=subctx)
-            else:
-                raise ValueError()
+) -> pgast.BaseRangeVar:
 
-    larg, l_tables = resolve_arg(range_var.larg)
-    rarg, r_tables = resolve_arg(range_var.rarg)
+    larg = resolve_BaseRangeVar(range_var.larg, ctx=ctx)
+    ltable = ctx.scope.tables[len(ctx.scope.tables) - 1]
 
-    tables = list(l_tables) + list(r_tables)
-    ctx.scope.tables.extend(tables)
+    rarg = resolve_BaseRangeVar(range_var.rarg, ctx=ctx)
+    rtable = ctx.scope.tables[len(ctx.scope.tables) - 1]
 
     quals: Optional[pgast.BaseExpr] = None
     if range_var.quals:
@@ -162,10 +152,10 @@ def _resolve_JoinExpr(
     if range_var.using_clause:
         for c in range_var.using_clause:
             with ctx.empty() as subctx:
-                subctx.scope.tables = list(l_tables)
+                subctx.scope.tables = [ltable]
                 l_expr = dispatch.resolve(c, ctx=subctx)
             with ctx.empty() as subctx:
-                subctx.scope.tables = list(r_tables)
+                subctx.scope.tables = [rtable]
                 r_expr = dispatch.resolve(c, ctx=subctx)
             quals = pgastutils.extend_binop(
                 quals,
@@ -177,13 +167,12 @@ def _resolve_JoinExpr(
                 ),
             )
 
-    node = pgast.JoinExpr(
+    return pgast.JoinExpr(
         type=range_var.type,
         larg=larg,
         rarg=rarg,
         quals=quals,
     )
-    return (node, tables)
 
 
 def resolve_CommonTableExpr(
@@ -223,4 +212,3 @@ def resolve_CommonTableExpr(
         materialized=cte.materialized,
     )
     return node, result
-

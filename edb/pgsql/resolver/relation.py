@@ -80,13 +80,7 @@ def resolve_SelectStmt(
     # FROM
     from_clause: List[pgast.BaseRangeVar] = []
     for clause in stmt.from_clause:
-
-        with ctx.empty() as subctx:
-            node, tables = range_var.resolve_BaseRangeVar(clause, ctx=subctx)
-            from_clause.append(node)
-
-            # pull result relation of inner scope into own scope
-            ctx.scope.tables.extend(tables)
+        from_clause.append(range_var.resolve_BaseRangeVar(clause, ctx=ctx))
 
     where = dispatch.resolve_opt(stmt.where_clause, ctx=ctx)
 

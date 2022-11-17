@@ -461,8 +461,8 @@ def _build_join_expr(n: Node, c: Context) -> pgast.JoinExpr:
     return pgast.JoinExpr(
         alias=_maybe(n, c, "alias", _build_alias) or pgast.Alias(aliasname=""),
         type=n["jointype"][5:],
-        larg=_build_base_expr(n["larg"], c),
-        rarg=_build_base_expr(n["rarg"], c),
+        larg=_build_base_range_var(n["larg"], c),
+        rarg=_build_base_range_var(n["rarg"], c),
         using_clause=_maybe_list(
             n, c, "usingClause", _build_str, _as_column_ref
         ),

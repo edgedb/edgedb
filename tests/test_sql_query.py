@@ -143,7 +143,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # multiple wildcard select
         res = await self.squery(
             '''
-            SELECT * FROM "Movie" 
+            SELECT * FROM "Movie"
             JOIN "Genre" g ON "Movie".genre_id = "Genre".id
             '''
         )
@@ -346,3 +346,28 @@ class TestSQL(tb.SQLQueryTestCase):
     async def test_sql_query_26(self):
         with self.assertRaisesRegex(edgedb.QueryError, "unknown table"):
             await self.squery('SELECT title FROM Movie ORDER BY title')
+
+    async def test_sql_query_27(self):
+        # FROM LATERAL
+        await self.squery(
+            '''
+            SELECT name, title
+            FROM "Movie" m, LATERAL (
+                SELECT g.name FROM "Genre" g WHERE m.genre_id = g.id
+            ) t
+            ORDER BY title
+        '''
+        )
+
+    async def test_sql_query_28(self):
+        # JOIN LATERAL
+        res = await self.squery(
+            '''
+            SELECT name, title
+            FROM "Movie" m CROSS JOIN LATERAL (
+                SELECT g.name FROM "Genre" g WHERE m.genre_id = g.id
+            ) t
+            ORDER BY title
+        '''
+        )
+        self.assert_shape(res, 2, 2, ['name', 'title'])
