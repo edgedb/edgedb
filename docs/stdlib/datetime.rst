@@ -619,6 +619,25 @@ EdgeDB store and output timezone-aware values in UTC format.
         ...   <duration>'2 hours';
         {-3600s}
 
+    When subtracting a :eql:type:`cal::local_date` type from another, the
+    result is given as a whole number of days using the
+    :eql:type:`cal::date_duration` type:
+
+    .. code-block:: edgeql-repl
+
+      db> select <cal::local_date>'2022-06-25' -
+      ...   <cal::local_date>'2019-02-01';
+      {<cal::date_duration>'P1240D'}
+
+    .. note::
+
+        Subtraction doesn't make sense for some type combinations. You couldn't
+        subtract a point in time from a duration, so neither can EdgeDB
+        (although the inverse — subtracting a duration from a point in time —
+        is perfectly fine). You also couldn't subtract a timezone-aware
+        datetime from a local one or vice versa. If you attempt any of these,
+        EdgeDB will raise an exception as shown in these examples.
+
     When subtracting a date/time object from a time interval, an exception
     will be raised:
 
@@ -636,16 +655,6 @@ EdgeDB store and output timezone-aware values in UTC format.
         db> select <datetime>'2019-01-01T01:02:03+00' -
         ...   <cal::local_datetime>'2019-02-01T01:02:03';
         QueryError: operator '-' cannot be applied to operands ...
-
-    When subtracting a :eql:type:`cal::local_date` type from another, the
-    result is given as a whole number of days using the
-    :eql:type:`cal::date_duration` type:
-
-    .. code-block:: edgeql-repl
-
-      db> select <cal::local_date>'2022-06-25' -
-      ...   <cal::local_date>'2019-02-01';
-      {<cal::date_duration>'P1240D'}
 
 
 ----------
