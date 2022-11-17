@@ -1224,13 +1224,16 @@ class SQLQueryTestCase(BaseQueryTestCase):
 
     @classmethod
     def setUpClass(cls):
-        import asyncpg
+        try:
+            import asyncpg
+        except ImportError:
+            raise unittest.SkipTest('SQL tests skipped: asyncpg not installed')
 
         super().setUpClass()
         settings = cls.con.get_settings()
         pgaddr = settings.get('pgaddr')
         if pgaddr is None:
-            raise unittest.SkipTest('SQL tests requires devmode')
+            raise unittest.SkipTest('SQL tests skipped: not in devmode')
         pgaddr = json.loads(pgaddr)
 
         pgdsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
