@@ -1051,7 +1051,7 @@ EdgeDB store and output timezone-aware values in UTC format.
 
     Another way to construct a the :eql:type:`datetime` value
     is to specify it in terms of its component parts: *year*, *month*,
-    *day*, *hour*, *min*, *sec*, and *timezone*
+    *day*, *hour*, *min*, *sec*, and *timezone*.
 
     .. code-block:: edgeql-repl
 
