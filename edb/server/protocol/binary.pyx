@@ -670,7 +670,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         if not claims.get(f"{namespace}.any_role"):
             token_roles = claims.get(f"{namespace}.roles")
-            if not isinstance(token_roles, dict):
+            if not isinstance(token_roles, list):
                 raise errors.AuthenticationError(
                     f'authentication failed: malformed claims section in JWT'
                     f' expected mapping in "role_names"'
