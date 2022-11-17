@@ -300,10 +300,8 @@ Reference
 
     :index: fill
 
-    Returns *array* elements as a string joined by *delimiter*.
+    Returns an array of specified size, filled with specified value.
     
-    The new array will have *n* copies of the value passed for *val*:
-
     .. code-block:: edgeql-repl
 
         db> select array_fill(0, 5);

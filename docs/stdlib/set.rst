@@ -168,10 +168,10 @@ Sets
 
         <left_expr> if <condition> else <right_expr>
 
-    If :eql:synopsis:`<condition>` is ``true``, then the value of the
-    ``if..else`` expression is the value of the :eql:synopsis:`<left_expr>`;
-    if the :eql:synopsis:`<condition>` is ``false``, however, then the result
-    will be the value of the :eql:synopsis:`<right_expr>`.
+    If the :eql:synopsis:`<condition>` is ``true``, the ``if...else``
+    expression produces the value of the :eql:synopsis:`<left_expr>`. If the
+    :eql:synopsis:`<condition>` is ``false``, however, the ``if...else``
+    expression produces the value of the :eql:synopsis:`<right_expr>`.
 
     .. code-block:: edgeql-repl
 

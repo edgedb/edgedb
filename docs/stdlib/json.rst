@@ -93,10 +93,10 @@ be the same as the output of a :eql:stmt:`select expression <select>` in
     ...     filter .name = 'std::bool');
     {'{"name": "std::bool", "timestamp": "2019-04-02"}'}
 
-JSON values can also be cast back into scalars. Casting JSON is symmetrical:
-if a scalar value can be cast into JSON, a compatible JSON value can be cast
-into a scalar of that type. Some scalar types will have specific conditions
-for casting:
+JSON values can also be cast back into scalars. Casting JSON is symmetrical
+meaning that, if a scalar value can be cast into JSON, a compatible JSON value
+can be cast into a scalar of that type. Some scalar types will have specific
+conditions for casting:
 
 - JSON strings can be cast to a :eql:type:`str` type. Casting :eql:type:`uuid`
   and :ref:`date/time <ref_std_datetime>` types to JSON results in a JSON

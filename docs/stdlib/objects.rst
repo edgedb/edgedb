@@ -51,7 +51,7 @@ which is a subtype of ``std::BaseObject``.
 
 .. eql:type:: std::Object
 
-    Represents the root object of a type for all user-defined types:
+    The root object type for all user-defined types.
 
     .. code-block:: sdl
 

@@ -374,7 +374,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: unary minus subtract
 
-    Performs a logical negation of an arthimetic, arbitrarily numerical value:
+    Negates the value of a number.
 
     .. code-block:: edgeql-repl
 
