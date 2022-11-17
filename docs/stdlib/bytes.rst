@@ -48,7 +48,7 @@ Bytes
 
     .. note::
 
-      Bytes also have a special byte literal, ``b''``.
+      Bytes have a special byte literal, ``b''``.
 
     .. code-block:: edgeql-repl
 
@@ -123,10 +123,10 @@ Bytes
 
 .. eql:function:: std::bytes_get_bit(bytes: bytes, nth: int64) -> int64
 
-    Returns the *nth* bit of ``bytes`` as a value of :eql:type:`int64`.
+    Returns the specified bit of the bytes value.
 
-    When looking for the ``nth`` bit, this function will enumerate bits from
-    least-to-most significant with each byte:
+    When looking for the *nth* bit, this function will enumerate bits from
+    least-to-most significant in each byte.
 
     .. code-block:: edgeql-repl
 

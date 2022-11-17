@@ -109,7 +109,7 @@ Booleans
 
 .. eql:operator:: and: bool and bool -> bool
 
-    Evaluates ``true`` if both booleans are true:
+    Evaluates ``true`` if both booleans are ``true``.
 
     .. code-block:: edgeql-repl
 

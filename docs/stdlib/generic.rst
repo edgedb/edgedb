@@ -46,8 +46,8 @@ Generic
 
 .. note::
 
-    In EdgeQL, any value can be compared to another as long as they are
-    both the same type.
+    In EdgeQL, any value can be compared to another as long as their types are
+    compatible.
 
 .. eql:operator:: eq: anytype = anytype -> bool
 
@@ -76,7 +76,7 @@ Generic
 
 .. eql:operator:: neq: anytype != anytype -> bool
 
-    Compares two values of :eql:type:`anytype` for inequality.
+    Compares two values of compatible types for inequality.
 
     This results in a :eql:type:`bool`:
 
@@ -123,8 +123,7 @@ Generic
 
 .. eql:operator:: coalneq: optional anytype ?!= optional anytype -> bool
 
-    Compares two potentially empty values of :eql:type:`anytype` for
-    inequality.
+    Compares two compatible potentially empty values for inequality.
 
     This works the same as a negated :eql:op:`\!= <neq>` operator, but also
     allows comparing an empty set (``{}`` ). Two empty sets are considered
@@ -188,8 +187,7 @@ Generic
 
 .. eql:operator:: lteq: anytype <= anytype -> bool
 
-    Produces true for two compatible values if the left one is equal or
-    smaller.
+    Produces true for two compatible values if the left is equal or smaller.
 
     This results in a :eql:type:`bool`:
 
@@ -212,8 +210,7 @@ Generic
 
 .. eql:operator:: gteq: anytype >= anytype -> bool
 
-    Produces true for two compatible values if the left one is equal or
-    greater.
+    Produces true for two compatible values if the left is equal or greater.
 
     This results in a :eql:type:`bool`:
 

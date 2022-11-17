@@ -4,8 +4,8 @@
 Abstract Types
 ==============
 
-Abstract types are used to describe a polymorphic, otherwise known as
-generic function to be applicable over a broad range of types.
+Abstract types are used to describe polymorphic functions, otherwise known as
+"generic functions," which can be called on a broad range of value types.
 
 
 ----------
@@ -17,9 +17,9 @@ generic function to be applicable over a broad range of types.
 
     Represents a generic type.
 
-    This type is used as a placeholder in cases where there isn't a specific
-    set of type requirements, or are not necessary, such as defining
-    polymorphic parameters in functions and operators.
+    This type is used as a placeholder in cases where there aren't specific
+    type requirements such as when defining polymorphic parameters in functions
+    and operators.
 
 
 ----------
@@ -103,7 +103,7 @@ These types serve as the base types for all :ref:`ranges <ref_std_range>`.
 
 .. eql:type:: std::anypoint
 
-    :index: any anypoint anyrange point
+    :index: any anypoint anyrange
 
     Represents an abstract base type for all valid ranges.
 
@@ -119,7 +119,7 @@ These types serve as the base types for all :ref:`ranges <ref_std_range>`.
 
 .. eql:type:: std::anydiscrete
 
-    :index: any anydiscrete anyrange discrete
+    :index: any anydiscrete anyrange
 
     Represents an abstract base type for all valid *discrete* ranges.
 

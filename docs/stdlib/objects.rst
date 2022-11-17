@@ -14,10 +14,10 @@ Base Objects
       - Root for user-defined object types
 
 
-:eql:type:`BaseObject` is the root of the object type hierarchy and all
-object types in EdgeDB, including system types, whether extending it directly
-or indirectly. User-defined object types extend from the :eql:type:`Object`
-type, which is a subtype of ``std::BaseObject``.
+:eql:type:`BaseObject` is the root of the object type hierarchy and all object
+types in EdgeDB, including system types, extend it either directly or
+indirectly. User-defined object types extend from the :eql:type:`Object` type,
+which is a subtype of ``std::BaseObject``.
 
 
 ---------
@@ -25,7 +25,7 @@ type, which is a subtype of ``std::BaseObject``.
 
 .. eql:type:: std::BaseObject
 
-    Represents the root object of a type:
+    The root object type.
 
     .. code-block:: sdl
 
@@ -41,8 +41,8 @@ type, which is a subtype of ``std::BaseObject``.
             required readonly link __type__ -> schema::ObjectType;
         }
 
-    Some subtypes may override the ``id`` property, but only to validate
-    UUID generation functions. Currently, these include
+    Subtypes may override the ``id`` property, but only with a valid UUID
+    generation function. Currently, these are
     :eql:func:`uuid_generate_v1mc` and :eql:func:`uuid_generate_v4`.
 
 

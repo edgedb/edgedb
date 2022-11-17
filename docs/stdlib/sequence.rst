@@ -22,7 +22,7 @@ Sequences
 
 .. eql:type:: std::sequence
 
-    Represents an auto-incrementing sequence of the :eql:type:`int64` type.
+    An auto-incrementing sequence of :eql:type:`int64` values.
 
     This type can be used to create auto-incrementing :ref:`properties
     <ref_datamodel_props>`:
@@ -48,10 +48,10 @@ Sequences
 
 .. eql:function:: std::sequence_next(seq: schema::ScalarType) -> int64
 
-    Returns the next incrementation of a sequence to its next value.
+    Increments the given sequence to its next value and returns that value.
 
     Sequence advancement is done atomically; each concurrent session and
-    transaction will receive a distinct sequence value:
+    transaction will receive a distinct sequence value.
 
     .. code-block:: edgeql-repl
 
@@ -66,12 +66,13 @@ Sequences
                   std::sequence_reset( \
                     seq: schema::ScalarType, val: int64) -> int64
 
-    Returns the initial state of a sequence or a specified ``val``.
+    Resets a sequence to initial state or a given value, returning the value.
 
     The single-parameter form resets the sequence to its initial state, where
     the next :eql:func:`sequence_next` call will return the first value in
-    the sequence. The two-parameters form allows changing the last returned
-    value of the sequence:
+    the sequence. The two-parameter form allows you to set the current value of
+    the sequence. The next :eql:func:`sequence_next` call will return the value
+    after the one you passed to :eql:func:`sequence_reset`.
 
     .. code-block:: edgeql-repl
 
@@ -89,10 +90,10 @@ Sequences
 
 .. note::
 
-    Any sequence that can be called upon by either :eql:func:`sequence_next`
-    or :eql:func:`sequence_rest` functions are specified by a
+    To specify the sequence to be operated on by either
+    :eql:func:`sequence_next` or :eql:func:`sequence_reset`, you must pass a
     ``schema::ScalarType`` object. If the sequence argument is known ahead of
-    time and does not change, the recommended way to pass it is to use the
+    time and does not change, we recommend passing it by using the
     :eql:op:`introspect` operator:
 
     .. code-block:: edgeql
@@ -105,9 +106,9 @@ Sequences
     type from a given expression is tracked properly to guarantee schema
     referential integrity.
 
-    However, the operation of a sequence type is determined at runtime via. a
-    query argument. It must be queried from the ``schema::ScalarType`` object
-    directly:
+    It doesn't work in every use case, though. If in your use case, the
+    sequence type must be determined at run time via a query argument,
+    you will need to query it from the ``schema::ScalarType`` set directly:
 
     .. code-block:: edgeql
 

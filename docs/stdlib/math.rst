@@ -36,7 +36,7 @@ Math
 
     :index: round
 
-    Returns a numerical value of ``x`` rounded up to its nearest integer:
+    Returns the given numeric value rounded up to its nearest integer.
 
     .. code-block:: edgeql-repl
 
@@ -56,7 +56,7 @@ Math
 
     :index: round
 
-    Returns a numerical value with ``x`` rounded down to its nearest integer:
+    Returns the given numeric value rounded down to its nearest integer.
 
     .. code-block:: edgeql-repl
 
@@ -75,7 +75,7 @@ Math
 
     :index: logarithm
 
-    Returns the natural logarithm of ``x``:
+    Returns the natural logarithm of the given value.
 
     .. code-block:: edgeql-repl
 
@@ -92,7 +92,7 @@ Math
 
     :index: logarithm
 
-    Returns the base-10 logarithm of ``x``:
+    Returns the base-10 logarithm of the given value:
 
     .. code-block:: edgeql-repl
 
@@ -106,7 +106,7 @@ Math
 
     :index: logarithm
 
-    Returns the logarithm of ``x`` by the specified ``base``:
+    Returns the logarithm of the given value to the specified base.
 
     .. code-block:: edgeql-repl
 
@@ -123,7 +123,7 @@ Math
 
     :index: average avg
 
-    Returns the arithmetic average/mean value of ``x``:
+    Returns the arithmetic mean (i.e., average) of the input set.
 
     .. code-block:: edgeql-repl
 
@@ -140,7 +140,7 @@ Math
 
     :index: average
 
-    Returns the sample standard deviation of ``x``:
+    Returns the sample standard deviation of the input set.
 
     .. code-block:: edgeql-repl
 
@@ -153,7 +153,7 @@ Math
 
     :index: average
 
-    Returns the population standard deviation of ``x``:
+    Returns the population standard deviation of the input set.
 
     .. code-block:: edgeql-repl
 
@@ -170,7 +170,7 @@ Math
 
     :index: average
 
-    Returns the sample variance of ``x``:
+    Returns the sample variance of the input set.
 
     .. code-block:: edgeql-repl
 
@@ -187,7 +187,7 @@ Math
 
     :index: average
 
-    Returns the population variance of ``x``:
+    Returns the population variance of the input set.
 
     .. code-block:: edgeql-repl
 

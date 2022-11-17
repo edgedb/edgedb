@@ -89,7 +89,7 @@ Sets
 
 .. eql:operator:: distinct: distinct set of anytype -> set of anytype
 
-    Gives back a set without repeating any elements.
+    Produces a set of all unique elements in the given set.
 
     ``distinct`` is a set operator that returns a new set where
     no member is equal to any other member.
@@ -108,10 +108,12 @@ Sets
 
     :index: intersection
 
-    Performs a logical check of membership for an element in a set.
+    Checks if a given element is a member of a given set.
 
-    Set membership operators ``in`` and ``not in`` test for each
-    element of ``A`` whether it is present in ``B``.
+    Set membership operators ``in`` and ``not in`` test whether each element of
+    the left operand is present in the right operand. This means supplying a
+    set as the left operand will produce a set of boolean results, one for each
+    element in the left operand.
 
     .. code-block:: edgeql-repl
 
@@ -143,8 +145,7 @@ Sets
     Merges two sets of :eql:type:`anytype` together as one.
 
     Since EdgeDB sets are formally multisets, :eql:op:`union` is a *multiset
-    sum*, so effectively it merges two multisets while keeping all of their
-    members.
+    sum*, effectively merging two multisets while keeping all of their members.
 
     For example, applying ``union`` to ``{1, 2, 2}`` and
     ``{2}``, results in ``{1, 2, 2, 2}``.
@@ -161,7 +162,7 @@ Sets
 
     :index: if else ifelse elif ternary
 
-    Conditionally determines a logical action:
+    Produces one of two possible results based on the outcome of a condition.
 
     .. eql:synopsis::
 

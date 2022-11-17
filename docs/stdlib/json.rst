@@ -195,8 +195,8 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
     Produces a JSON value comprising a portion of the existing JSON value.
 
-    This results in :eql:type:`json`. Arrays and strings of JSON can be sliced
-    in the same manner as an :eql:type:`array`, producing a JSON type:
+    Arrays and strings of JSON can be sliced in the same manner as an
+    :eql:type:`array`, producing a :eql:type:`json` value:
 
     .. code-block:: edgeql-repl
 
@@ -219,12 +219,13 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
 .. eql:operator:: jsonplus: json ++ json -> json
 
-    Concatenates given types of :eql:type:`json` and :eql:type:`Object`
-    into one.
+    Concatenates two :eql:type:`json` arrays, objects, or string values into one.
 
-    This results in a reference of both array's elements conjoined together.
-    If there are mutual keys in the given :eql:type:`json`, the value of the
-    second one will be used instead:
+    The result is a new :eql:type:`json` value containing the elements of both
+    concatenated values. If concatenated objects have identical keys, the value
+    of the second one will be used.
+    
+    Examples:
     
     .. code-block:: edgeql-repl
 
@@ -243,7 +244,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
 .. eql:operator:: jsonobjdest: json [ str ] -> json
 
-    Accesses the value of a :eql:type:`json` from its :eql:type:`str` key:
+    Accesses an element of a :eql:type:`json` object given its key:
 
     This results in a :eql:type:`json` type. The fields of any JSON object may
     also be accessed via ``[]``:
@@ -271,7 +272,9 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
     :index: json parse loads
 
-    Returns the value of the inputted :eql:type:`str` from a :eql:type:`json`:
+    Returns a :eql:type:`json` value parsed from the given :eql:type:`str`.
+    
+    Examples:
 
     .. code-block:: edgeql-repl
 
@@ -290,8 +293,8 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
     Returns the elements of a JSON array as a set of :eql:type:`json`.
 
-    Calling this function on anything other than an array of :eql:type:`json`
-    will result in a runtime error:
+    Calling this function on anything other than an :eql:type:`json` array will
+    result in a runtime error.
 
     .. code-block:: edgeql-repl
 
@@ -311,9 +314,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
     :index: safe navigation
 
-    Returns the value of a :eql:type:`json` at the end of the specified path.
-
-    This will otherwise provide an empty set containing no JSON.
+    Returns a value from a :eql:type:`json` object or array given its path.
 
     This function provides "safe" navigation of a JSON value. If the
     input path is a valid path for the input JSON object/array, the
@@ -387,7 +388,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ... );
         {'{"a": {"b": {"c": 42}}}'}
 
-    If ``create_if_missing`` is set to ``false``, a new path for the value
+    If *create_if_missing* is set to ``false``, a new path for the value
     won't be created:
 
     .. code-block:: edgeql-repl
@@ -406,9 +407,9 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ... );
         {'{"a": 10, "b": 20}'}
 
-    ``empty_treatment`` is an enumerable responsible for the behavior of the
-    function if an empty set is passed to ``new_value``. This will contain one
-    of the following values:
+    *empty_treatment* can be any value from the `JsonEmpty` enumeration. It
+    defines the behavior of the function if an empty set is passed as
+    *new_value*. `JsonEmpty` contains these values:
 
     - ``ReturnEmpty``: return empty set, default
     - ``ReturnTarget``: return ``target`` unmodified
@@ -459,8 +460,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 .. eql:function:: std::json_object_unpack(json: json) -> \
                   set of tuple<str, json>
 
-    Returns a set of key/value tuples that make up a :eql:type:`json`
-    object.
+    Returns the data in a :eql:type:`json` object as a set of key/value tuples.
 
     Calling this function on anything other than a JSON object will
     result in a runtime error.
@@ -482,11 +482,10 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
     :index: type
 
-    Returns the type of the outermost :eql:type:`json` value as a
-    :eql:type:`str`.
+    Returns the :eql:type:`str` type of the outermost :eql:type:`json` value.
 
-    Possible return values are: ``'object'``, ``'array'``,
-    ``'string'``, ``'number'``, ``'boolean'`` and ``'null'``:
+    Possible return values are ``'object'``, ``'array'``,
+    ``'string'``, ``'number'``, ``'boolean'``, or ``'null'``:
 
     .. code-block:: edgeql-repl
 
