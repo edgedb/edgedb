@@ -166,7 +166,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
 .. eql:operator:: jsonidx: json [ int64 ] -> json
 
-    Indexes an array or string of :eql:type:`json`.
+    Accesses the element of the JSON string or array at a given index.
 
     The operator produces the value at the given index as :eql:type:`json`.
     
