@@ -300,7 +300,7 @@ EdgeDB store and output timezone-aware values in UTC format.
         db> select <cal::local_time>'22:00' + <duration>'1 hour';
         {<cal::local_time>'23:00:00'}
 
-    See functions :eql:func:`to_duration`, and :eql:func:`to_str` and
+    See functions :eql:func:`to_duration` and :eql:func:`to_str`, and
     date/time :eql:op:`operators <dtminus>` for more ways of working with
     :eql:type:`duration`.
 
