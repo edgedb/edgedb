@@ -36,7 +36,7 @@ Math
 
     :index: round
 
-    Returns the given numeric value rounded up to its nearest integer.
+    Returns the given value rounded up to its nearest integer.
 
     .. code-block:: edgeql-repl
 
@@ -56,7 +56,7 @@ Math
 
     :index: round
 
-    Returns the given numeric value rounded down to its nearest integer.
+    Returns the given value rounded down to its nearest integer.
 
     .. code-block:: edgeql-repl
 
