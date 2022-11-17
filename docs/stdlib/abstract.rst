@@ -71,7 +71,7 @@ Abstract numeric types are used when wanting to extend off of
     :index: any anytype int
 
     An abstract base scalar type for
-    :eql:type:`int16`, :eql:type:`int32` and :eql:type:`int64` types.
+    :eql:type:`int16`, :eql:type:`int32`, and :eql:type:`int64` types.
 
 
 ----------
@@ -93,7 +93,7 @@ Abstract numeric types are used when wanting to extend off of
     :index: any anytype
 
     An abstract base scalar type for
-    :eql:type:`anyint`, :eql:type:`anyfloat` and :eql:type:`decimal` types.
+    :eql:type:`anyint`, :eql:type:`anyfloat`, and :eql:type:`decimal` types.
 
 
 Abstract Range Types
@@ -124,7 +124,7 @@ These types serve as the base types for all :ref:`ranges <ref_std_range>`.
     An abstract base type for all valid *discrete* ranges.
 
     This is also an abstract base scalar type for :eql:type:`int32`,
-    :eql:type:`int64` and :eql:type:`cal::local_date` types.
+    :eql:type:`int64`, and :eql:type:`cal::local_date` types.
 
 
 ----------
