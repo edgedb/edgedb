@@ -142,7 +142,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: int integer
 
-    Represents a 16-bit signed integer.
+    A 16-bit signed integer.
 
     :eql:type:`int16` is capable of representing values from ``-32768`` to
     ``+32767``, inclusive.
@@ -155,7 +155,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: int integer
 
-    Represents a 32-bit signed integer.
+    A 32-bit signed integer.
 
     The value of an :eql:type:`int32` ranges from ``-2147483648`` to
     ``+2147483647`` (inclusive).
@@ -168,7 +168,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: int integer
 
-    Represents a 64-bit signed integer.
+    A 64-bit signed integer.
 
     An integer value in range from ``-9223372036854775808`` to
     ``+9223372036854775807`` (inclusive).
@@ -181,7 +181,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: float
 
-    Represents a variable precision, inexact number.
+    A variable precision, inexact number.
 
     The minimal guaranteed precision is at least 6 decimal digits. The
     approximate range of a :eql:type:`float32` ranges from ``-3.4e+38`` to
@@ -195,7 +195,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: float double
 
-    Represents a variable precision, inexact number. Also see
+    A variable precision, inexact number. Also see
     :eql:type:`float32`.
 
     The minimal guaranteed precision is at least 15 decimal digits. The
@@ -210,7 +210,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: numeric bigint
 
-    Represents an arbitrary precision integer.
+    An arbitrary precision integer.
 
     Our philosophy is that use of :eql:type:`bigint` should always be an
     explicit opt-in and should never be implicit. Once used, these values
@@ -281,7 +281,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: numeric float
 
-    Represents any number of arbitrary precision.
+    Any number of arbitrary precision.
 
     Our philosophy is that use of :eql:type:`decimal` should always be an
     explicit opt-in and should never be implicit. Once used, these values
