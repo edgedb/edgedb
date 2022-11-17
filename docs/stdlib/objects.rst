@@ -14,7 +14,7 @@ Base Objects
       - Root for user-defined object types
 
 
-:eql:type:`BaseObject` is the root of the object type hierarchy and all object
+:eql:type:`BaseObject` is the root of the object type hierarchy, and all object
 types in EdgeDB, including system types, extend it either directly or
 indirectly. User-defined object types extend from the :eql:type:`Object` type,
 which is a subtype of ``std::BaseObject``.
