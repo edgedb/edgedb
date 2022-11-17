@@ -13,22 +13,22 @@ Enums
 
     An enumeration of values within an ordered list.
 
-    An enumerator type can be declared in a schema definition by using
-    the following syntax:
+    An enum type can be declared in a schema definition by using the following
+    syntax:
 
     .. code-block:: sdl
 
         scalar type Color extending enum<Red, Green, Blue>;
 
-    Enumerated values can then be accessed directly:
+    Enum values can then be accessed directly:
 
     .. code-block:: edgeql-repl
 
         db> select Color.Red is Color;
         {true}
 
-    :eql:op:`Casting <cast>` can be used to obtain an
-    enumerable value in an expression:
+    :eql:op:`Casting <cast>` can be used to obtain an enum value in an
+    expression:
 
     .. code-block:: edgeql-repl
 
