@@ -214,7 +214,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         if authmethod_name == 'SCRAM':
             await self._auth_scram(user)
         elif authmethod_name == 'JWT':
-            token = self._extract_token_in_auth_data()
+            token = self._extract_token_from_auth_data()
             self._auth_jwt(user, token)
         elif authmethod_name == 'Trust':
             self._auth_trust(user)

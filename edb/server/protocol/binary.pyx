@@ -494,7 +494,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             # token in the HTTP header has higher priority than
             # the ClientHandshake message, under the scenario of
             # binary protocol over HTTP
-            token = self._extract_token_in_auth_data()
+            token = self._extract_token_from_auth_data()
             if token is None:
                 token = params.get('token')
             self._auth_jwt(user, token)
@@ -618,7 +618,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if user not in roles:
             raise errors.AuthenticationError('authentication failed')
 
-    def _extract_token_in_auth_data(self):
+    def _extract_token_from_auth_data(self):
         if not self._auth_data:
             raise errors.AuthenticationError(
                 'authentication failed: no authorization data provided')
