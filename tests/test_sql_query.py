@@ -371,3 +371,18 @@ class TestSQL(tb.SQLQueryTestCase):
         '''
         )
         self.assert_shape(res, 2, 2, ['name', 'title'])
+
+    async def test_sql_query_29(self):
+        # link tables
+
+        # multi
+        res = await self.squery('SELECT * FROM "Movie.actors"')
+        self.assert_shape(res, 3, 3, ['role', 'source', 'target'])
+
+        # single with properties
+        res = await self.squery('SELECT * FROM "Movie.director"')
+        self.assert_shape(res, 1, 3, ['bar', 'source', 'target'])
+
+        # single without properties
+        with self.assertRaisesRegex(edgedb.QueryError, "unknown table"):
+            await self.squery('SELECT * FROM "Movie.genre"')

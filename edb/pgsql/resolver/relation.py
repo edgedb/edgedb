@@ -22,13 +22,15 @@ in our internal Postgres instance."""
 from typing import *
 
 from edb import errors
-from edb.edgeql import qltypes
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common as pgcommon
 
 from edb.schema import objtypes as s_objtypes
 from edb.schema import links as s_links
+from edb.schema import properties as s_properties
+from edb.schema import pointers as s_pointers
+from edb.schema import sources as s_sources
 
 from . import dispatch
 from . import context
@@ -144,7 +146,7 @@ def resolve_relation(
         return pgast.Relation(name=cte.name, schemaname=None), table
 
     # lookup the object in schema
-    obj: Optional[s_objtypes.ObjectType] = None
+    obj: Optional[s_sources.Source] = None
     if schema_name == 'public':
         obj = ctx.schema.get(  # type: ignore
             relation.name,
@@ -152,6 +154,10 @@ def resolve_relation(
             module_aliases={None: 'default'},
             type=s_objtypes.ObjectType,
         )
+
+        # try multi link table
+        if not obj:
+            obj = _lookup_link_property(relation.name, ctx)
 
     if not obj:
         raise errors.QueryError(
@@ -161,7 +167,7 @@ def resolve_relation(
 
     # extract table name
     table = context.Table()
-    table.name = obj.get_shortname(ctx.schema).name
+    table.name = relation.name
 
     # extract table columns
     pointers = obj.get_pointers(ctx.schema).objects(ctx.schema)
@@ -170,33 +176,11 @@ def resolve_relation(
     for p in pointers:
         if p.is_protected_pointer(ctx.schema):
             continue
-        if p.get_cardinality(ctx.schema) != qltypes.SchemaCardinality.One:
+        card = p.get_cardinality(ctx.schema)
+        if card.is_multi():
             continue
 
-        if p.is_property(ctx.schema):
-            col = context.Column()
-            col.name = p.get_shortname(ctx.schema).name
-
-            if p.is_id_pointer(ctx.schema):
-                col.reference_as = 'id'
-            else:
-                _, dbname = pgcommon.get_backend_name(
-                    ctx.schema, p, catenate=False
-                )
-                col.reference_as = dbname
-
-            columns.append(col)
-
-        if isinstance(p, s_links.Link):
-            col = context.Column()
-            col.name = p.get_shortname(ctx.schema).name + '_id'
-
-            _, dbname = pgcommon.get_backend_name(
-                ctx.schema, p, catenate=False
-            )
-            col.reference_as = dbname
-
-            columns.append(col)
+        columns.append(_construct_column(p, ctx))
 
     # sort by name but put `id` first
     columns.sort(key=lambda c: () if c.name == 'id' else (c.name or '',))
@@ -211,3 +195,60 @@ def resolve_relation(
     )
 
     return pgast.Relation(name=dbname, schemaname=schemaname), table
+
+
+def _lookup_link_property(name: str, ctx: Context) -> Optional[s_links.Link]:
+    if '.' not in name:
+        return None
+    object_name, link_name = name.split('.')
+    parent = ctx.schema.get(  # type: ignore
+        object_name,
+        None,
+        module_aliases={None: 'default'},
+        type=s_objtypes.ObjectType,
+    )
+    if not parent:
+        return None
+
+    pointers = parent.get_pointers(ctx.schema).objects(ctx.schema)
+    for p in pointers:
+        if not isinstance(p, s_links.Link):
+            continue
+        if not p.get_shortname(ctx.schema).name == link_name:
+            continue
+
+        if p.get_cardinality(ctx.schema).is_single():
+            # single links only for tables with at least one property
+            # besides source and target
+            l_pointers = p.get_pointers(ctx.schema).objects(ctx.schema)
+            if len(l_pointers) <= 2:
+                continue
+        return p
+    return None
+
+
+def _construct_column(p: s_pointers.Pointer, ctx: Context) -> context.Column:
+    col = context.Column()
+
+    if isinstance(p, s_properties.Property):
+        col.name = p.get_shortname(ctx.schema).name
+
+        if p.is_link_source_property(ctx.schema):
+            col.reference_as = 'source'
+        elif p.is_link_target_property(ctx.schema):
+            col.reference_as = 'target'
+        elif p.is_id_pointer(ctx.schema):
+            col.reference_as = 'id'
+        else:
+            _, dbname = pgcommon.get_backend_name(
+                ctx.schema, p, catenate=False
+            )
+            col.reference_as = dbname
+
+    if isinstance(p, s_links.Link):
+        col.name = p.get_shortname(ctx.schema).name + '_id'
+
+        _, dbname = pgcommon.get_backend_name(ctx.schema, p, catenate=False)
+        col.reference_as = dbname
+
+    return col

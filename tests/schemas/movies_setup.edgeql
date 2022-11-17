@@ -35,9 +35,11 @@ insert Movie {
 insert Movie {
     title := 'Saving Private Ryan',
     release_year := 1998,
-    actors := (select Person filter .first_name = 'Tom'),
-    director := (select Person
-        filter .last_name = 'Spielberg' limit 1
+    actors := (
+        select Person { @role := 'Captain Miller' } filter .first_name = 'Tom'
+    ),
+    director := (
+        select Person filter .last_name = 'Spielberg' limit 1
     ),
     genre := (select Genre filter .name = 'Drama' limit 1),
 };

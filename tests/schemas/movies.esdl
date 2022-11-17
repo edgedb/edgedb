@@ -33,8 +33,12 @@ type Content {
 
 type Movie extending Content {
     property release_year -> int64;
-    multi link actors -> Person;
-    link director -> Person;
+    multi link actors -> Person {
+        property role -> str;
+    };
+    link director -> Person {
+        property bar -> str;
+    };
 }
 
 type Book extending Content {
