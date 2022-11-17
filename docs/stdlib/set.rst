@@ -465,7 +465,7 @@ Sets
 
     :index: aggregate
 
-    Returns the number of elements in a set:
+    Returns the number of elements in a set.
 
     .. code-block:: edgeql-repl
 
@@ -586,7 +586,7 @@ Sets
 
     :index: aggregate
 
-    Returns the smallest value of ``values``:
+    Returns the smallest value in the given set.
 
     .. code-block:: edgeql-repl
 
@@ -601,7 +601,7 @@ Sets
 
     :index: aggregate
 
-    Returns the greatest value of ``values``:
+    Returns the largest value in the given set.
 
     .. code-block:: edgeql-repl
 

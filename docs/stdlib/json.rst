@@ -244,7 +244,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
 .. eql:operator:: jsonobjdest: json [ str ] -> json
 
-    Accesses an element of a :eql:type:`json` object given its key:
+    Accesses an element of a :eql:type:`json` object given its key.
 
     This results in a :eql:type:`json` type. The fields of any JSON object may
     also be accessed via ``[]``:

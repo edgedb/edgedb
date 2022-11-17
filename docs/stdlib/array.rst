@@ -285,7 +285,7 @@ Reference
 
     :index: join array_to_string implode
 
-    Returns the elements of an *array* joined together with a *delimiter*:
+    Returns the elements of an array joined as a string by a delimiter.
 
     .. code-block:: edgeql-repl
 
@@ -320,7 +320,7 @@ Reference
                                      new: anytype) \
                   -> array<anytype>
 
-    Returns an array with all occurrences of ``old`` replaced by ``new``:
+    Returns an array with all occurrences of one value replaced by another.
 
     .. code-block:: edgeql-repl
 

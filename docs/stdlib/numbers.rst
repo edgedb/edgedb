@@ -344,7 +344,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: plus add
 
-    Performs arithmetic addition between two arbitrary numbers:
+    Performs arithmetic addition between two arbitrary numbers.
 
     .. code-block:: edgeql-repl
 
@@ -359,7 +359,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: minus subtract
 
-    Performs arithmetic subtraction between two arbitrary numbers:
+    Performs arithmetic subtraction between two arbitrary numbers.
 
     .. code-block:: edgeql-repl
 
@@ -389,7 +389,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: multiply multiplication
 
-    Performs arithmetic multiplication between two arbitrary numbers:
+    Performs arithmetic multiplication between two arbitrary numbers.
 
     .. code-block:: edgeql-repl
 
@@ -404,7 +404,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: divide division
 
-    Performs arithmetic division between two arbitrary numbers:
+    Performs arithmetic division between two arbitrary numbers.
 
     .. code-block:: edgeql-repl
 
@@ -585,7 +585,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
 .. eql:function:: std::random() -> float64
 
-    Returns a pseudo-random number in the range of ``0.0 <= x < 1.0``:
+    Returns a pseudo-random number in the range of ``0.0 <= x < 1.0``.
 
     .. code-block:: edgeql-repl
 

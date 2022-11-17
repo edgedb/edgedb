@@ -73,7 +73,7 @@ Constraints
 
 .. eql:constraint:: std::max_len_value(max: int64)
 
-    Specifies the maximum allowed length of a value from an :eql:type:`int64`:
+    Specifies the maximum allowed length of a value.
 
     .. code-block:: sdl
 
@@ -83,7 +83,7 @@ Constraints
 
 .. eql:constraint:: std::min_value(min: anytype)
 
-    Specifies the minimum allowed value of :eql:type:`anytype`:
+    Specifies the minimum allowed value.
 
     .. code-block:: sdl
 
@@ -103,7 +103,7 @@ Constraints
 
 .. eql:constraint:: std::min_len_value(min: int64)
 
-    Specifies the minimum allowed length of a value from an :eql:type:`int64`:
+    Specifies the minimum allowed length of a value.
 
     .. code-block:: sdl
 
