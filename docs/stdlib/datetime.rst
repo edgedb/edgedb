@@ -415,7 +415,7 @@ EdgeDB store and output timezone-aware values in UTC format.
       ...        <cal::relative_duration>"1 month";
       {<cal::local_datetime>'2021-06-01T15:00:00'}
 
-    **Gotchas**
+    .. rubric:: Gotchas
 
     Due to the implementation of :eql:type`cal::relative_duration` logic,
     arithmetic operations may behave counterintuitively.
