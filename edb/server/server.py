@@ -255,9 +255,7 @@ class Server(ha_base.ClusterProtocol):
         self._sslctx = None
 
         self._jws_key: jwk.JWK | None = None
-        self._jwe_key: jwk.JWK | None = None
         self._jws_keys_newly_generated = False
-        self._jwe_keys_newly_generated = False
 
         self._default_auth_method = default_auth_method
         self._binary_endpoint_security = binary_endpoint_security
@@ -1950,11 +1948,7 @@ class Server(ha_base.ClusterProtocol):
                 self.__loop._monitor_fs(str(tls_key_file), reload_tls)
             )
 
-    def load_jwcrypto(
-        self,
-        jws_key_file: pathlib.Path,
-        jwe_key_file: pathlib.Path,
-    ) -> None:
+    def load_jwcrypto(self, jws_key_file: pathlib.Path) -> None:
         try:
             with open(jws_key_file, 'rb') as kf:
                 self._jws_key = jwk.JWK.from_pem(kf.read())
@@ -1969,36 +1963,16 @@ class Server(ha_base.ClusterProtocol):
                 f"the provided JWS key file does not "
                 f"contain a valid RSA or EC public key")
 
-        try:
-            with open(jwe_key_file, 'rb') as kf:
-                self._jwe_key = jwk.JWK.from_pem(kf.read())
-        except Exception as e:
-            raise StartupError(f"cannot load JWE key: {e}") from e
-
-        if (
-            not self._jwe_key.has_private
-            or self._jwe_key['kty'] not in {"RSA", "EC"}
-        ):
-            raise StartupError(
-                f"the provided JWE key file does not "
-                f"contain a valid RSA or EC private key")
-
     def init_jwcrypto(
         self,
         jws_key_file: pathlib.Path,
-        jwe_key_file: pathlib.Path,
         jws_keys_newly_generated: bool,
-        jwe_keys_newly_generated: bool,
     ) -> None:
-        self.load_jwcrypto(jws_key_file, jwe_key_file)
+        self.load_jwcrypto(jws_key_file)
         self._jws_keys_newly_generated = jws_keys_newly_generated
-        self._jwe_keys_newly_generated = jwe_keys_newly_generated
 
     def get_jws_key(self) -> jwk.JWK | None:
         return self._jws_key
-
-    def get_jwe_key(self) -> jwk.JWK | None:
-        return self._jwe_key
 
     async def _stop_servers(self, servers):
         async with taskgroup.TaskGroup() as g:
@@ -2057,7 +2031,6 @@ class Server(ha_base.ClusterProtocol):
                 "tls_cert_file": self._tls_cert_file,
                 "tls_cert_newly_generated": self._tls_cert_newly_generated,
                 "jws_keys_newly_generated": self._jws_keys_newly_generated,
-                "jwe_keys_newly_generated": self._jwe_keys_newly_generated,
             }
             status_sink(f'READY={json.dumps(status)}')
 
