@@ -318,8 +318,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
     This function provides "safe" navigation of a JSON value. If the
     input path is a valid path for the input JSON object/array, the
-    JSON value at the end of that path is returned. If the path cannot
-    be followed for any reason, the empty set is returned:
+    JSON value at the end of that path is returned:
 
     .. code-block:: edgeql-repl
 
@@ -330,8 +329,9 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ... }'), 'w', '1');
         {'"foo"'}
 
-    This is useful when certain structure of JSON data is assumed, but
-    cannot be reliably guaranteed:
+    This is useful when certain structure of JSON data is assumed, but cannot
+    be reliably guaranteed. If the path cannot be followed for any reason, the
+    empty set is returned:
 
     .. code-block:: edgeql-repl
 
