@@ -785,8 +785,11 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: parse decimal
 
-    Returns a :eql:type:`decimal` value from ``s`` with possible format of
-    ``fmt``:
+    Returns a :eql:type:`decimal` value parsed from the given string.
+
+    The function will use an optional format string passed as *fmt*. See the
+    :ref:`number formatting options <ref_std_converters_number_fmt>` for help
+    writing a format string.
 
     .. code-block:: edgeql-repl
 
@@ -797,9 +800,6 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select to_decimal('31st', '999th');
         {31.0n}
 
-    For more details on formatting see :ref:`here
-    <ref_std_converters_number_fmt>`.
-
 
 ------------
 
@@ -808,11 +808,11 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: parse int16
 
-    Returns an :eql:type:`int16` value from ``s`` with possible format of
-    ``fmt``:
+    Returns a :eql:type:`int16`  value parsed from the given string.
 
-    For more details on formatting see :ref:`here
-    <ref_std_converters_number_fmt>`.
+    The function will use an optional format string passed as *fmt*. See the
+    :ref:`number formatting options <ref_std_converters_number_fmt>` for help
+    writing a format string.
 
 
 ------------
@@ -822,11 +822,11 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: parse int32
 
-    Returns an :eql:type:`int32` value from ``s`` with possible format of
-    ``fmt``:
+    Returns a :eql:type:`int32`  value parsed from the given string.
 
-    For more details on formatting see :ref:`here
-    <ref_std_converters_number_fmt>`.
+    The function will use an optional format string passed as *fmt*. See the
+    :ref:`number formatting options <ref_std_converters_number_fmt>` for help
+    writing a format string.
 
 
 ------------
@@ -836,11 +836,11 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: parse int64
 
-    Returns an :eql:type:`int64` value from ``s`` with possible format of
-    ``fmt``:
+    Returns a :eql:type:`int64`  value parsed from the given string.
 
-    For more details on formatting see :ref:`here
-    <ref_std_converters_number_fmt>`.
+    The function will use an optional format string passed as *fmt*. See the
+    :ref:`number formatting options <ref_std_converters_number_fmt>` for help
+    writing a format string.
 
 
 ------------
@@ -850,11 +850,11 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: parse float32
 
-    Returns a :eql:type:`float32` value from ``s`` with possible format of
-    ``fmt``:
+    Returns a :eql:type:`float32`  value parsed from the given string.
 
-    For more details on formatting see :ref:`here
-    <ref_std_converters_number_fmt>`.
+    The function will use an optional format string passed as *fmt*. See the
+    :ref:`number formatting options <ref_std_converters_number_fmt>` for help
+    writing a format string.
 
 
 ------------
@@ -864,8 +864,8 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: parse float64
 
-    Returns a :eql:type:`float64` value from ``s`` with possible format of
-    ``fmt``:
+    Returns a :eql:type:`float64`  value parsed from the given string.
 
-    For more details on formatting see :ref:`here
-    <ref_std_converters_number_fmt>`.
+    The function will use an optional format string passed as *fmt*. See the
+    :ref:`number formatting options <ref_std_converters_number_fmt>` for help
+    writing a format string.
