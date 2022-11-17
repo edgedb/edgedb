@@ -171,7 +171,7 @@ EdgeDB store and output timezone-aware values in UTC format.
     9999.
 
     For more information regarding interacting with this type, see
-    :eql:func:`datetime_get`, :eql:func:`to_datetime` and :eql:func:`to_str`.
+    :eql:func:`datetime_get`, :eql:func:`to_datetime`, and :eql:func:`to_str`.
 
 
 ----------
@@ -275,7 +275,7 @@ EdgeDB store and output timezone-aware values in UTC format.
     calculations.
 
     When converting from a string, only units of ``'microseconds'``,
-    ``'milliseconds'``, ``'seconds'``, ``'minutes'`` and ``'hours'`` are
+    ``'milliseconds'``, ``'seconds'``, ``'minutes'``, and ``'hours'`` are
     valid:
 
     .. code-block:: edgeql
@@ -299,7 +299,7 @@ EdgeDB store and output timezone-aware values in UTC format.
     :eql:type:`duration`.
 
     For more information regarding interacting with this type, see
-    :eql:func:`to_duration`, :eql:func:`to_str` and
+    :eql:func:`to_duration`, :eql:func:`to_str`, and
     :eql:op:`operators <dtminus>`.
 
 
@@ -461,7 +461,7 @@ EdgeDB store and output timezone-aware values in UTC format.
       {false}
 
     For more information regarding interacting with this type, see
-    :eql:func:`cal::to_relative_duration`, :eql:func:`to_str` and
+    :eql:func:`cal::to_relative_duration`, :eql:func:`to_str`, and
     :eql:op:`operators <dtminus>`.
 
 
@@ -851,7 +851,7 @@ EdgeDB store and output timezone-aware values in UTC format.
 
     - ``'day'`` - specifically the number of days recorded in the duration
 
-    The smallest category of time units, such as hours, minutes
+    The smallest category of time units, such as hours, minutes,
     and seconds:
 
     - ``'hour'`` - duration hours
