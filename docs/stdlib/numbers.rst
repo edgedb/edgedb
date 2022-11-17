@@ -530,8 +530,8 @@ from :eql:type:`str` and :eql:type:`json`.
 
     Returns the given number rounded to its nearest value.
 
-    There's a difference in how ties (which way ``0.5`` is rounded)
-    are handled depending on the type of the inputted ``value``.
+    The function will round a ``.5`` value differently depending on the type of
+    the parameter passed.
 
     The :eql:type:`float64` tie is rounded to the nearest even number:
 
