@@ -342,8 +342,8 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ... }'), 'w', '2');
         {}
 
-    Also, a default value can be supplied by using the
-    :eql:op:`coalescence <coalesce>` operator:
+    If you want to supply your own default for the case where the path cannot
+    be followed, you can do so using the :eql:op:`coalesce` operator:
 
     .. code-block:: edgeql-repl
 
