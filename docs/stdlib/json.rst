@@ -219,7 +219,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
 .. eql:operator:: jsonplus: json ++ json -> json
 
-    Concatenates two :eql:type:`json` arrays, objects, or string values into one.
+    Concatenates two :eql:type:`json` arrays, objects, or strings into one.
 
     The result is a new :eql:type:`json` value containing the elements of both
     concatenated values. If concatenated objects have identical keys, the value

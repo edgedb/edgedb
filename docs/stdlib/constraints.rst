@@ -20,8 +20,8 @@ Constraints
             constraint expression on (__subject__[0] = 'A');
         }
 
-    You may also use expression constraints across multiple object properties to
-    further restrict which values may be stored:
+    You may also use expression constraints across multiple object properties
+    to further restrict which values may be stored:
 
     .. code-block:: sdl
 

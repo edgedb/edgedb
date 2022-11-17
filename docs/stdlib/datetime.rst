@@ -127,8 +127,8 @@ EdgeDB store and output timezone-aware values in UTC format.
     the years 1 and 9999.
 
     Although many systems support the ISO8601 date/time formatting in theory,
-    practical application of formatting in-between years 1 through 9999 tends to
-    be inconsistent. As such, dates outside this range are not reliably
+    practical application of formatting in-between years 1 through 9999 tends
+    to be inconsistent. As such, dates outside this range are not reliably
     portable.
 
 
@@ -287,7 +287,8 @@ EdgeDB store and output timezone-aware values in UTC format.
         db> select <duration>'48 hours 45 minutes';
         {<duration>'48:45:00'}
         db> select <duration>'11 months';
-        edgedb error: InvalidValueError: invalid input syntax for type std::duration: '11 months'
+        edgedb error: InvalidValueError: invalid input syntax for type
+        std::duration: '11 months'
           Hint: Units bigger than hours cannot be used for std::duration.
 
     All date/time types support the ``+`` and ``-`` arithmetic operators
@@ -316,8 +317,8 @@ EdgeDB store and output timezone-aware values in UTC format.
 
     A type for representing a timespan relative to a given point in time.
 
-    Unlike :eql:type:`std::duration`, :eql:type:`cal::relative_duration`
-    is an imprecise form of measurement. When months and days are used, the same
+    Unlike :eql:type:`std::duration`, :eql:type:`cal::relative_duration` is an
+    imprecise form of measurement. When months and days are used, the same
     relative duration could have a different absolute duration depending on the
     date you're measuring from.
 
@@ -485,8 +486,9 @@ EdgeDB store and output timezone-aware values in UTC format.
     This type is similar to :eql:type:`cal::relative_duration`, except it only
     uses 2 units: months and days. It is the result of subtracting one
     :eql:type:`cal::local_date` from another. The purpose of this type is to
-    allow performing ``+`` and ``-`` operations on a :eql:type:`cal::local_date`
-    and to produce a :eql:type:`cal::local_date` as the result:
+    allow performing ``+`` and ``-`` operations on a
+    :eql:type:`cal::local_date` and to produce a :eql:type:`cal::local_date` as
+    the result:
 
     .. code-block:: edgeql-repl
 
