@@ -777,9 +777,6 @@ from :eql:type:`str` and :eql:type:`json`.
         db> select to_bigint('31st', '999th');
         {31n}
 
-    For more details on formatting see :ref:`here
-    <ref_std_converters_number_fmt>`.
-
 
 ------------
 
