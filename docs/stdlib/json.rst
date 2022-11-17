@@ -407,9 +407,9 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ... );
         {'{"a": 10, "b": 20}'}
 
-    *empty_treatment* can be any value from the `JsonEmpty` enumeration. It
+    *empty_treatment* can be any value from the ``JsonEmpty`` enumeration. It
     defines the behavior of the function if an empty set is passed as
-    *new_value*. `JsonEmpty` contains these values:
+    *new_value*. ``JsonEmpty``` contains these values:
 
     - ``ReturnEmpty``: return empty set, default
     - ``ReturnTarget``: return ``target`` unmodified
