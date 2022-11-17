@@ -136,5 +136,5 @@ These types serve as the base types for all :ref:`ranges <ref_std_range>`.
     An abstract base type for all valid *contiguous* ranges.
 
     This is also an abstract base scalar type for :eql:type:`float32`,
-    :eql:type:`float64`, :eql:type:`decimal`, :eql:type:`datetime` and
+    :eql:type:`float64`, :eql:type:`decimal`, :eql:type:`datetime`, and
     :eql:type:`cal::local_datetime` types.
