@@ -124,7 +124,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
 .. eql:type:: std::json
 
-    Represents any arbitrary JSON data:
+    Arbitrary JSON data.
 
     .. code-block:: edgeql-repl
 
