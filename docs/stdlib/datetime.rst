@@ -278,11 +278,17 @@ EdgeDB store and output timezone-aware values in UTC format.
     ``'milliseconds'``, ``'seconds'``, ``'minutes'``, and ``'hours'`` are
     valid:
 
-    .. code-block:: edgeql
+    .. code-block:: edgeql-repl
 
-        select <duration>'45.6 seconds';
-        select <duration>'15 milliseconds';
-        select <duration>'48 hours 45 minutes';
+        db> select <duration>'45.6 seconds';
+        {<duration>'0:00:45.6'}
+        db> select <duration>'15 milliseconds';
+        {<duration>'0:00:00.015'}
+        db> select <duration>'48 hours 45 minutes';
+        {<duration>'48:45:00'}
+        db> select <duration>'11 months';
+        edgedb error: InvalidValueError: invalid input syntax for type std::duration: '11 months'
+          Hint: Units bigger than hours cannot be used for std::duration.
 
     All date/time types support the ``+`` and ``-`` arithmetic operators
     with durations:
