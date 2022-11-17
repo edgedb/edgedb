@@ -116,7 +116,6 @@ Constraints
     :index: regex regexp regular
 
     Limits to values with string representations matching a regular expression.
-    ``pattern``:
 
     .. code-block:: sdl
 
