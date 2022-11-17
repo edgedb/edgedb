@@ -92,7 +92,7 @@ Math
 
     :index: logarithm
 
-    Returns the base-10 logarithm of the given value:
+    Returns the base-10 logarithm of the given value.
 
     .. code-block:: edgeql-repl
 
