@@ -40,7 +40,6 @@ from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import parser as qlparser
 
 from edb.common.ast import visitor as ast_visitor
 from edb.common import ordered
@@ -707,7 +706,7 @@ def _declare_view_from_schema(
         subctx.expr_exposed = context.Exposure.UNEXPOSED
         view_expr = viewcls.get_expr(ctx.env.schema)
         assert view_expr is not None
-        view_ql = qlparser.parse(view_expr.text)
+        view_ql = view_expr.qlast
         viewcls_name = viewcls.get_name(ctx.env.schema)
         assert isinstance(view_ql, qlast.Expr), 'expected qlast.Expr'
         view_set = declare_view(view_ql, alias=viewcls_name,

@@ -57,6 +57,13 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         frozen=True,
     )
 
+    # A string describing the provenance of the expression, used to
+    # help annotate the parser contexts. We don't store it explicitly
+    # in the database or explicitly populate it when creating
+    # Expressions, but instead populate it in resolve_attribute_value
+    # and when reading in the schema.
+    origin = struct.Field(str, default=None)
+
     def __init__(
         self,
         *args: Any,
@@ -79,12 +86,23 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
     @property
     def qlast(self) -> qlast_.Expr:
         if self._qlast is None:
-            self._qlast = qlparser.parse_fragment(self.text)
+            self._qlast = qlparser.parse_fragment(
+                self.text, filename=f'<{self.origin}>' if self.origin else "")
         return self._qlast
 
     @property
     def irast(self) -> Optional[irast_.Command]:
         return self._irast
+
+    def set_origin(self, id: uuid.UUID, field: str) -> None:
+        """
+        Set the origin of the expression based on field and enclosing object.
+
+        We base the origin on the id of the object, not on its name, because
+        these strings should be useful to a client, which can't do a lookup
+        based on the mangled internal names.
+        """
+        self.origin = f'{id} {field}'
 
     def is_compiled(self) -> bool:
         return self.refs is not None
@@ -151,7 +169,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
     @classmethod
     def not_compiled(cls: Type[Expression], expr: Expression) -> Expression:
-        return Expression(text=expr.text)
+        return Expression(text=expr.text, origin=expr.origin)
 
     @classmethod
     def compiled(
@@ -188,6 +206,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             refs=so.ObjectSet.create(schema, srefs),
             _qlast=expr.qlast,
             _irast=ir,
+            origin=expr.origin,
         )
 
     @classmethod
@@ -200,6 +219,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             refs=so.ObjectSet.create(schema, ir.schema_refs),
             _qlast=expr.qlast,
             _irast=ir,
+            origin=expr.origin,
         )
 
     @classmethod
@@ -214,6 +234,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             ),
             _qlast=expr._qlast,
             _irast=expr._irast,
+            origin=expr.origin,
         )
 
     def as_shell(self, schema: s_schema.Schema) -> ExpressionShell:
@@ -235,11 +256,13 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             Tuple[uuid.UUID, ...],
             Tuple[Tuple[str, Any], ...],
         ],
+        Optional[str],
     ]:
         assert self.refs is not None, 'expected expression to be compiled'
         return (
             self.text,
             self.refs.schema_reduce(),
+            self.origin,
         )
 
     @classmethod
@@ -253,12 +276,14 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
                 Tuple[uuid.UUID, ...],
                 Tuple[Tuple[str, Any], ...],
             ],
+            Optional[str],
         ],
     ) -> Expression:
-        text, refs_data = data
+        text, refs_data, origin = data
         return Expression(
             text=text,
             refs=so.ObjectCollection.schema_restore(refs_data),
+            origin=origin,
         )
 
     @classmethod

@@ -392,7 +392,7 @@ class Parser:
         """
         raise NotImplementedError
 
-    def reset_parser(self, input):
+    def reset_parser(self, input, filename=None):
         if not self.parser:
             self.lexer = self.get_lexer()
             self.parser = parsing.Lr(self.get_parser_spec())
@@ -400,15 +400,15 @@ class Parser:
             self.parser.verbose = self.get_debug()
 
         self.parser.reset()
-        self.lexer.setinputstr(input)
+        self.lexer.setinputstr(input, filename=filename)
 
     def process_lex_token(self, mod, tok):
         return mod.TokenMeta.for_lex_token(tok.kind())(
             self.parser, tok.text(), tok.value(), self.context(tok))
 
-    def parse(self, input):
+    def parse(self, input, filename=None):
         try:
-            self.reset_parser(input)
+            self.reset_parser(input, filename=filename)
             mod = self.get_parser_spec_module()
 
             tok = self.lexer.token()
