@@ -511,7 +511,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: power pow
 
-    Produces the value of the left operand raised to the power of the right one.
+    Produces the value of the left operand to the power of the right one.
 
     .. code-block:: edgeql-repl
 
@@ -670,8 +670,8 @@ from :eql:type:`str` and :eql:type:`json`.
     Returns the result of a bitwise left-shift operation on an integer.
 
     The integer *val* is shifted by *n* bits to the left. The rightmost added
-    bits are all ``0``. Shifting an integer by a number of bits greater than the
-    bit size of the integer results in ``0``.
+    bits are all ``0``. Shifting an integer by a number of bits greater than
+    the bit size of the integer results in ``0``.
 
     .. code-block:: edgeql-repl
 
