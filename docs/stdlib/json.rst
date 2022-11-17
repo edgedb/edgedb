@@ -67,7 +67,7 @@ function:
     db> select <json>'hello world';
     {'"hello world"'}
 
-Any value in EdgeDB can be casted to a :eql:type:`json` type as well:
+Any value in EdgeDB can be cast to a :eql:type:`json` type as well:
 
 .. code-block:: edgeql-repl
 
@@ -76,7 +76,7 @@ Any value in EdgeDB can be casted to a :eql:type:`json` type as well:
     db> select <json>cal::to_local_date(datetime_current(), 'UTC');
     {'"2019-04-02"'}
 
-Additionally, any :eql:type:`Object` in EdgeDB can be casted as a
+Additionally, any :eql:type:`Object` in EdgeDB can be cast as a
 :eql:type:`json` type. This produces the same JSON value as the
 JSON-serialized result of that said object. Furthermore, this result will
 be the same as the output of a :eql:stmt:`select expression <select>` in
