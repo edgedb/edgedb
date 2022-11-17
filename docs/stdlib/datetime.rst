@@ -142,8 +142,8 @@ EdgeDB store and output timezone-aware values in UTC format.
     All dates must correspond to dates that exist in the proleptic Gregorian
     calendar.
 
-    :eql:op:`Casting <cast>` is a simple way to obtain a value through an
-    expression:
+    :eql:op:`Casting <cast>` is a simple way to obtain a :eql:type:`datetime`
+    value in an expression:
 
     .. code-block:: edgeql
 
