@@ -94,7 +94,7 @@ Reference
 
     :index: array
 
-    Represents an ordered list of values of the same type.
+    An ordered list of values of the same type.
 
     Array indexing will always start at zero.
 
