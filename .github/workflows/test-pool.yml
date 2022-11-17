@@ -21,12 +21,12 @@ jobs:
     concurrency: pool-test
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       if: startsWith(github.ref, 'refs/heads')
       with:
         repository: edgedb/edgedb-pool-simulation
@@ -34,9 +34,9 @@ jobs:
         token: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.10.0'
+        python-version: '3.10'
 
     - name: Generate requirements.txt
       run: |

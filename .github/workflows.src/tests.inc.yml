@@ -1,10 +1,10 @@
 <% macro _init() -%>
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: false
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 50
         submodules: true
@@ -12,7 +12,7 @@
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10.0'
+        python-version: '3.10'
 <%- endmacro %>
 
 <% macro _init_venv() -%>
@@ -49,7 +49,7 @@
     << caller() >>
 
     - name: Upload shared artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: shared-artifacts
         path: .tmp
@@ -236,7 +236,7 @@
       with:
         go-version: 1.16
 
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       if: steps.stolon-cache.outputs.cache-hit != 'true'
       with:
         repository: sorintlab/stolon
@@ -399,7 +399,7 @@
 <%- endmacro %>
 
 <% macro setup_terraform() -%>
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
         submodules: false
