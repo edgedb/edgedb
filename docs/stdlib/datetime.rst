@@ -375,7 +375,7 @@ EdgeDB store and output timezone-aware values in UTC format.
         ...        <cal::relative_duration>'1 hour';
         {<cal::local_time>'23:00:00'}
 
-    If an arithmetic operation results in a day that is nonexistent in the
+    If an arithmetic operation results in a day that doesn't exist in the
     given month, the last day of the month will be used instead:
 
     .. code-block:: edgeql-repl
