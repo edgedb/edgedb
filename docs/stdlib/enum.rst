@@ -11,7 +11,7 @@ Enums
 
     :index: enum
 
-    Represents an enumeration of values within an ordered list.
+    An enumeration of values within an ordered list.
 
     An enumerator type can be declared in a schema definition by using
     the following syntax:
