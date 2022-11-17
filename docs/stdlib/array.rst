@@ -60,11 +60,6 @@ Constructing arrays
 Arrays are constructed by placing multiple comma-separated expressions within
 square brackets. Here are a few examples:
 
-.. eql:synopsis::
-
-    "[" <expr> [, ...] "]"
-
-
 .. code-block:: edgeql-repl
 
     db> select [1, 2, 3];
