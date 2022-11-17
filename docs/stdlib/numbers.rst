@@ -471,9 +471,9 @@ from :eql:type:`str` and :eql:type:`json`.
     This is commonly referred to as a "modulo" operation.
 
 
-    This is the remainder from floor division. Just as is
-    the case with the :eql:op:`//<floordiv>` operator, the result type of
-    the remainder operator corresponds to the left operand's type:
+    This is the remainder from floor division. As with the
+    :eql:op:`//<floordiv>` operator, the result type produced by the remainder
+    operator is derived from the types of its operands.
 
     .. code-block:: edgeql-repl
 
