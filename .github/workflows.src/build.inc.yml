@@ -261,6 +261,7 @@
     - env:
         VERSION_SLOT: "${{ << pub_outputs >>.version-slot }}"
         VERSION_CORE: "${{ << pub_outputs >>.version-core }}"
+        PKG_SUBDIST: "<< subdist >>"
       id: tags
       run: |
         set -e
@@ -286,10 +287,12 @@
           tags+=( "$VERSION_SLOT" )
         fi
 
-        top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
-              | sort --version-sort --reverse | head -n 1)
-        if [ "$top" == "$VERSION_CORE" ]; then
-          tags+=( "latest" )
+        if [ -z "$PKG_SUBDIST" ]; then
+          top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+                | sort --version-sort --reverse | head -n 1)
+          if [ "$top" == "$VERSION_CORE" ]; then
+            tags+=( "latest" )
+          fi
         fi
 
         IFS=,
