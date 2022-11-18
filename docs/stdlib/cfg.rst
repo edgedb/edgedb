@@ -208,7 +208,7 @@ Client connections
   .. code-block:: edgeql-repl
 
     edgedb> configure instance insert
-    .......   Auth {priority := 0, method := (insert Scram)};
+    .......   Auth {priority := 0, method := (insert SCRAM)};
     OK: CONFIGURE INSTANCE
 
 
