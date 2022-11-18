@@ -548,7 +548,7 @@ async def run_server(
 
             if (
                 not args.bootstrap_only
-                or args.bootstrap_script
+                or args.bootstrap_command_file
                 or args.bootstrap_command
                 or (
                     args.tls_cert_mode

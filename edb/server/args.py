@@ -162,7 +162,7 @@ class ServerConfig(NamedTuple):
     log_to: str
     bootstrap_only: bool
     bootstrap_command: str
-    bootstrap_script: pathlib.Path
+    bootstrap_command_file: pathlib.Path
     default_database: Optional[str]
     default_database_user: Optional[str]
     devmode: bool
@@ -1216,9 +1216,27 @@ def parse_args(**kwargs: Any):
     if kwargs['log_level']:
         kwargs['log_level'] = kwargs['log_level'].lower()[0]
 
-    bootstrap_script_text: Optional[str]
     if kwargs['bootstrap_script']:
-        with open(kwargs['bootstrap_script']) as f:
+        if not kwargs['bootstrap_command_file']:
+            warnings.warn(
+                "The `--bootstrap-script` option is deprecated, use "
+                "`--bootstrap-command-file` instead.",
+                DeprecationWarning,
+            )
+            kwargs['bootstrap_command_file'] = kwargs['bootstrap_script']
+        else:
+            warnings.warn(
+                "Both `--bootstrap-command-file` and `--bootstrap-script` "
+                "were specified, but are mutually exclusive. "
+                "Ignoring the deprecated `--bootstrap-script` option.",
+                DeprecationWarning,
+            )
+
+    del kwargs['bootstrap_script']
+
+    bootstrap_script_text: Optional[str]
+    if kwargs['bootstrap_command_file']:
+        with open(kwargs['bootstrap_command_file']) as f:
             bootstrap_script_text = f.read()
     elif kwargs['bootstrap_command']:
         bootstrap_script_text = kwargs['bootstrap_command']
