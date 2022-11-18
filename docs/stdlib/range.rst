@@ -42,8 +42,8 @@ For example:
 Broadly there are two kinds of ranges: :eql:type:`discrete <anydiscrete>` and
 :eql:type:`contiguous <anycontiguous>`. The discrete ranges are
 ``range<int32>``, ``range<int64>``, and ``range<cal::local_date>``. All ranges
-over discrete types get normalized in a way where the lower bound is included
-(if present) and the upper bound is excluded:
+over discrete types get normalized such that the lower bound is included (if
+present) and the upper bound is excluded:
 
 .. code-block:: edgeql-repl
 
