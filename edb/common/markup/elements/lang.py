@@ -116,6 +116,7 @@ class TracebackPoint(BaseObject):
     filename = Field(str)
     lineno = Field(int, default=None)
     colno = Field(int, default=None)
+    end_colno = Field(int, default=None)
     address = Field(str, default=None)
     context = Field(bool, default=False)
 

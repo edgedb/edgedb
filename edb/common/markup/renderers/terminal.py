@@ -503,6 +503,12 @@ class LangRenderer(BaseRenderer):
                                 self.buffer.write(
                                     _caret_indent + '^',
                                     style=self.styles.tb_pos_caret)
+                                if element.end_colno is not None:
+                                    cnt = element.end_colno - element.colno - 1
+                                    self.buffer.write(
+                                        '^' * cnt,
+                                        style=self.styles.tb_pos_caret)
+
                                 self.buffer.new_line()
                             if not element.context:
                                 break

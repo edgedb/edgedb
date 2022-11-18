@@ -95,6 +95,8 @@ class ParserContext(markup.MarkupExceptionContext):
         lines = []
         line_numbers = []
         start = self.start_point
+        # TODO: do more with end?
+        end = self.end_point
 
         buf_bytes = self.buffer.encode('utf-8')
         offset = 0
@@ -129,9 +131,11 @@ class ParserContext(markup.MarkupExceptionContext):
                 lines.append(ctx_line)
                 line_numbers.append(start.line + i)
 
+        endcol = end.column if start.line == end.line else None
         tbp = me.lang.TracebackPoint(
             name=self.name, filename=self.name, lineno=start.line,
-            colno=start.column, lines=lines, line_numbers=line_numbers,
+            colno=start.column, end_colno=endcol,
+            lines=lines, line_numbers=line_numbers,
             context=True)
 
         body.append(tbp)
