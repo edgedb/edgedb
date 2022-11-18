@@ -2,7 +2,8 @@
 
 ROOT = $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
-all: workflows/nightly.yml workflows/release.yml workflows/tests.yml \
+all: workflows/nightly.yml workflows/release.yml workflows/testing.yml \
+	workflows/tests.yml \
     workflows/tests-managed-pg.yml workflows/tests-ha.yml \
     workflows/tests-pg-versions.yml workflows/tests-patches.yml
 
