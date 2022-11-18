@@ -3,6 +3,11 @@ name: Bug report
 about: Create a report to help us improve
 ---
 <!-- Please search existing issues to avoid creating duplicates. -->
+
+<!--
+For the EdgeDB Version: run `edgedb` from your project directory copying the first line of output or query `select sys::get_version_as_str();`
+For the EdgeDB Client Version: Run `edgedb --version` from anywhere
+-->
 - EdgeDB Version:
 - EdgeDB CLI Version:
 - OS Version:
