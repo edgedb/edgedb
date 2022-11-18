@@ -99,6 +99,7 @@ std::max_ex_value(max: anytype) EXTENDING std::max_value
     CREATE ANNOTATION std::description :=
         'Specifies the maximum value (as an open interval) for the subject.';
     SET errmessage := '{__subject__} must be less than {max}.';
+    USING (__subject__ < max);
 };
 
 
