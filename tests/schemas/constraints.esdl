@@ -34,6 +34,11 @@ scalar type constraint_minmax extending str {
     constraint max_value("9999999989");
 }
 
+scalar type constraint_minmax_2 extending float64 {
+    constraint min_ex_value(13);
+    constraint max_ex_value(100);
+}
+
 scalar type constraint_strvalue extending str {
     constraint expression on (__subject__[-1:] = '9');
 
@@ -101,6 +106,7 @@ type Object {
     }
 
     property c_minmax -> constraint_minmax;
+    property c_ex_minmax -> constraint_minmax_2;
     property c_strvalue -> constraint_strvalue;
     property c_enum -> constraint_enum;
     property c_enum2 -> constraint_enum2 {

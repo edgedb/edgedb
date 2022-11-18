@@ -394,4 +394,9 @@ $function$
     ('edgeql+schema', '''
 CREATE TYPE schema::FutureBehavior EXTENDING schema::Object;
 '''),
+    ('edgeql', '''
+ALTER ABSTRACT CONSTRAINT
+std::max_ex_value
+USING (__subject__ < max);
+'''),
 ]
