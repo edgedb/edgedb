@@ -2303,6 +2303,7 @@ jobs:
     - env:
         VERSION_SLOT: "${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }}"
         VERSION_CORE: "${{ needs.check-published-debian-buster-x86_64.outputs.version-core }}"
+        PKG_SUBDIST: "nightly"
       id: tags
       run: |
         set -e
@@ -2328,10 +2329,12 @@ jobs:
           tags+=( "$VERSION_SLOT" )
         fi
 
-        top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
-              | sort --version-sort --reverse | head -n 1)
-        if [ "$top" == "$VERSION_CORE" ]; then
-          tags+=( "latest" )
+        if [ -z "$PKG_SUBDIST" ]; then
+          top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+                | sort --version-sort --reverse | head -n 1)
+          if [ "$top" == "$VERSION_CORE" ]; then
+            tags+=( "latest" )
+          fi
         fi
 
         IFS=,
