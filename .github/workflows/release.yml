@@ -2214,11 +2214,11 @@ jobs:
 
   publish-docker:
     needs:
-
+      
       - check-published-debian-buster-x86_64
-
+      
       - check-published-debian-buster-aarch64
-
+      
     runs-on: ubuntu-latest
 
     steps:
@@ -2281,3 +2281,4 @@ jobs:
         workdir: dockerfile
         buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }}
         platforms: linux/amd64,linux/arm64
+

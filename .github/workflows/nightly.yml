@@ -1195,6 +1195,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1245,6 +1246,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1295,6 +1297,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1345,6 +1348,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1395,6 +1399,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1445,6 +1450,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1495,6 +1501,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1545,6 +1552,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1595,6 +1603,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1645,6 +1654,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1695,6 +1705,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1745,6 +1756,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1795,6 +1807,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1845,6 +1858,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1895,6 +1909,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1945,6 +1960,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1995,6 +2011,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -2045,6 +2062,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -2095,6 +2113,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -2145,6 +2164,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -2195,6 +2215,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -2230,7 +2251,6 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
 
-
   publish-macos-aarch64:
     needs: [test-macos-aarch64]
     runs-on: ubuntu-latest
@@ -2264,14 +2284,13 @@ jobs:
 
 
 
-
   publish-docker:
     needs:
-
+      
       - check-published-debian-buster-x86_64
-
+      
       - check-published-debian-buster-aarch64
-
+      
     runs-on: ubuntu-latest
 
     steps:
@@ -2280,6 +2299,43 @@ jobs:
         repository: edgedb/edgedb-docker
         ref: master
         path: dockerfile
+
+    - env:
+        VERSION_SLOT: "${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }}"
+        VERSION_CORE: "${{ needs.check-published-debian-buster-x86_64.outputs.version-core }}"
+      id: tags
+      run: |
+        set -e
+
+        url='https://registry.hub.docker.com/v2/repositories/edgedb/edgedb/tags?page_size=100'
+        repo_tags=$(
+          while [ -n "$url" ]; do
+            resp=$(curl -L -s "$url")
+            url=$(echo "$resp" | jq -r ".next")
+            if [ "$url" = "null" ] || [ -z "$url" ]; then
+              break
+            fi
+            echo "$resp" | jq -r '."results"[]["name"]'
+          done | grep "^[[:digit:]]\+.*"
+        )
+
+        tags=( "$VERSION_CORE" )
+
+        top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+              | grep "^${VERSION_SLOT}[\.-]" \
+              | sort --version-sort --reverse | head -n 1)
+        if [ "$top" == "$VERSION_CORE" ]; then
+          tags+=( "$VERSION_SLOT" )
+        fi
+
+        top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+              | sort --version-sort --reverse | head -n 1)
+        if [ "$top" == "$VERSION_CORE" ]; then
+          tags+=( "latest" )
+        fi
+
+        IFS=,
+        echo "tags=${tags[*]}" >> $GITHUB_OUTPUT
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2
@@ -2295,5 +2351,6 @@ jobs:
         password: ${{ secrets.DOCKER_PASSWORD }}
         tags: "nightly,nightly_${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }}_cv${{ needs.check-published-debian-buster-x86_64.outputs.catalog-version }}"
         workdir: dockerfile
-        buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},subdist=nightly
+        buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }},subdist=nightly
         platforms: linux/amd64,linux/arm64
+
