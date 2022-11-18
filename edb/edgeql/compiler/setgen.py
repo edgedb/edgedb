@@ -850,7 +850,8 @@ def needs_rewrite_existence_assertion(
     """
 
     return bool(
-        ptrcls.get_required(ctx.env.schema)
+        not ctx.suppress_rewrites
+        and ptrcls.get_required(ctx.env.schema)
         and direction == PtrDir.Outbound
         and (target := ptrcls.get_target(ctx.env.schema))
         and ctx.env.type_rewrites.get((target, False))

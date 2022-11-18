@@ -223,7 +223,7 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             ])
         )
 
-    async def test_edgeql_policies_05(self):
+    async def test_edgeql_policies_05a(self):
         await self.con.execute('''
             CREATE TYPE Tgt {
                 CREATE REQUIRED PROPERTY b -> bool;
@@ -307,6 +307,39 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             r''' select Ptr.tgt.b''',
             [],
         )
+
+    async def test_edgeql_policies_05b(self):
+        await self.con.execute('''
+            CREATE TYPE Tgt {
+                CREATE REQUIRED PROPERTY b -> bool;
+
+                CREATE ACCESS POLICY redact
+                    ALLOW SELECT USING (not global filter_owned);
+                CREATE ACCESS POLICY dml_always
+                    ALLOW UPDATE, INSERT, DELETE;
+            };
+            CREATE TYPE Ptr {
+                CREATE REQUIRED LINK tgt -> Tgt;
+                CREATE PROPERTY tb := .tgt.b;
+                CREATE ACCESS POLICY redact
+                    ALLOW SELECT USING (.tgt.b);
+                CREATE ACCESS POLICY dml_always
+                    ALLOW UPDATE, INSERT, DELETE;
+            };
+        ''')
+        await self.con.query('''
+            insert Ptr { tgt := (insert Tgt { b := True }) };
+        ''')
+        await self.con.execute('''
+            set global filter_owned := True;
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.CardinalityViolationError,
+                r"is hidden by access policy"):
+            await self.con.query('''
+                select Ptr { tgt }
+            ''')
 
     async def test_edgeql_policies_06(self):
         await self.con.execute('''
