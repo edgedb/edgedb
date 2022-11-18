@@ -788,6 +788,9 @@ Other changes
   creating and then deleting a new link to ``schema::ObjectType``.
   (:eql:gh:`#4670`)
 
+* Don't insert unnecessary ``assert_exists`` calls on required links
+  inside access policies bodies in some cases.
+  (:eql:gh:`#4695`)
 
 .. lint-off
 
