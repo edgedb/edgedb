@@ -21,7 +21,7 @@ jobs:
       shell: bash
       run: |
         branch=${GITHUB_REF#refs/heads/}
-        echo ::set-output name=branch::"${branch}"
+        echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
 
@@ -618,7 +618,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-stretch-x86_64
         path: artifacts/debian-stretch
@@ -641,7 +641,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-stretch-aarch64
         path: artifacts/debian-stretch
@@ -664,7 +664,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
@@ -687,7 +687,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
@@ -710,7 +710,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
@@ -733,7 +733,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
@@ -756,7 +756,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-xenial-x86_64
         path: artifacts/ubuntu-xenial
@@ -779,7 +779,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-xenial-aarch64
         path: artifacts/ubuntu-xenial
@@ -802,7 +802,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
@@ -825,7 +825,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
@@ -848,7 +848,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
@@ -871,7 +871,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
@@ -894,7 +894,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
@@ -917,7 +917,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
@@ -940,7 +940,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-centos-7-x86_64
         path: artifacts/centos-7
@@ -963,7 +963,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
@@ -986,7 +986,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
@@ -1009,7 +1009,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -1032,7 +1032,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -1055,7 +1055,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -1078,7 +1078,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -1108,7 +1108,7 @@ jobs:
         ref: master
         path: edgedb-pkg
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
@@ -1133,7 +1133,7 @@ jobs:
         ref: master
         path: edgedb-pkg
 
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
@@ -1153,7 +1153,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-stretch-x86_64
         path: artifacts/debian-stretch
@@ -1172,7 +1172,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-stretch-x86_64
         path: artifacts/debian-stretch
@@ -1195,6 +1195,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1203,7 +1204,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-stretch-aarch64
         path: artifacts/debian-stretch
@@ -1222,7 +1223,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-stretch-aarch64
         path: artifacts/debian-stretch
@@ -1245,6 +1246,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1253,7 +1255,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
@@ -1272,7 +1274,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster
@@ -1295,6 +1297,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1303,7 +1306,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
@@ -1322,7 +1325,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster
@@ -1345,6 +1348,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1353,7 +1357,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
@@ -1372,7 +1376,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye
@@ -1395,6 +1399,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1403,7 +1408,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
@@ -1422,7 +1427,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye
@@ -1445,6 +1450,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1453,7 +1459,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-xenial-x86_64
         path: artifacts/ubuntu-xenial
@@ -1472,7 +1478,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-xenial-x86_64
         path: artifacts/ubuntu-xenial
@@ -1495,6 +1501,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1503,7 +1510,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-xenial-aarch64
         path: artifacts/ubuntu-xenial
@@ -1522,7 +1529,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-xenial-aarch64
         path: artifacts/ubuntu-xenial
@@ -1545,6 +1552,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1553,7 +1561,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
@@ -1572,7 +1580,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic
@@ -1595,6 +1603,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1603,7 +1612,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
@@ -1622,7 +1631,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic
@@ -1645,6 +1654,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1653,7 +1663,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
@@ -1672,7 +1682,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal
@@ -1695,6 +1705,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1703,7 +1714,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
@@ -1722,7 +1733,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal
@@ -1745,6 +1756,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1753,7 +1765,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
@@ -1772,7 +1784,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy
@@ -1795,6 +1807,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1803,7 +1816,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
@@ -1822,7 +1835,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy
@@ -1845,6 +1858,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1853,7 +1867,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-centos-7-x86_64
         path: artifacts/centos-7
@@ -1872,7 +1886,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-centos-7-x86_64
         path: artifacts/centos-7
@@ -1895,6 +1909,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1903,7 +1918,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
@@ -1922,7 +1937,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8
@@ -1945,6 +1960,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -1953,7 +1969,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
@@ -1972,7 +1988,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8
@@ -1995,6 +2011,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -2003,7 +2020,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -2022,7 +2039,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-linux-x86_64
         path: artifacts/linux-x86_64
@@ -2045,6 +2062,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -2053,7 +2071,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -2072,7 +2090,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-linux-aarch64
         path: artifacts/linux-aarch64
@@ -2095,6 +2113,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -2103,7 +2122,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -2122,7 +2141,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-linuxmusl-x86_64
         path: artifacts/linuxmusl-x86_64
@@ -2145,6 +2164,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -2153,7 +2173,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -2172,7 +2192,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-linuxmusl-aarch64
         path: artifacts/linuxmusl-aarch64
@@ -2195,6 +2215,7 @@ jobs:
 
     outputs:
       version-slot: ${{ steps.describe.outputs.version-slot }}
+      version-core: ${{ steps.describe.outputs.version-core }}
       catalog-version: ${{ steps.describe.outputs.catalog-version }}
 
 
@@ -2204,7 +2225,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
@@ -2230,13 +2251,12 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
 
-
   publish-macos-aarch64:
     needs: [test-macos-aarch64]
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
@@ -2264,14 +2284,13 @@ jobs:
 
 
 
-
   publish-docker:
     needs:
-
+      
       - check-published-debian-buster-x86_64
-
+      
       - check-published-debian-buster-aarch64
-
+      
     runs-on: ubuntu-latest
 
     steps:
@@ -2280,6 +2299,43 @@ jobs:
         repository: edgedb/edgedb-docker
         ref: master
         path: dockerfile
+
+    - env:
+        VERSION_SLOT: "${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }}"
+        VERSION_CORE: "${{ needs.check-published-debian-buster-x86_64.outputs.version-core }}"
+      id: tags
+      run: |
+        set -e
+
+        url='https://registry.hub.docker.com/v2/repositories/edgedb/edgedb/tags?page_size=100'
+        repo_tags=$(
+          while [ -n "$url" ]; do
+            resp=$(curl -L -s "$url")
+            url=$(echo "$resp" | jq -r ".next")
+            if [ "$url" = "null" ] || [ -z "$url" ]; then
+              break
+            fi
+            echo "$resp" | jq -r '."results"[]["name"]'
+          done | grep "^[[:digit:]]\+.*"
+        )
+
+        tags=( "$VERSION_CORE" )
+
+        top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+              | grep "^${VERSION_SLOT}[\.-]" \
+              | sort --version-sort --reverse | head -n 1)
+        if [ "$top" == "$VERSION_CORE" ]; then
+          tags+=( "$VERSION_SLOT" )
+        fi
+
+        top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+              | sort --version-sort --reverse | head -n 1)
+        if [ "$top" == "$VERSION_CORE" ]; then
+          tags+=( "latest" )
+        fi
+
+        IFS=,
+        echo "tags=${tags[*]}" >> $GITHUB_OUTPUT
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2
@@ -2295,5 +2351,6 @@ jobs:
         password: ${{ secrets.DOCKER_PASSWORD }}
         tags: "nightly,nightly_${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }}_cv${{ needs.check-published-debian-buster-x86_64.outputs.catalog-version }}"
         workdir: dockerfile
-        buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},subdist=nightly
+        buildargs: version=${{ needs.check-published-debian-buster-x86_64.outputs.version-slot }},exact_version=${{ needs.check-published-debian-buster-x86_64.outputs.version-core }},subdist=nightly
         platforms: linux/amd64,linux/arm64
+
