@@ -547,7 +547,7 @@ _server_options = [
              'database. May be used with or without `--bootstrap-only`.'),
     click.option(
         '--bootstrap-script', type=PathPath(), metavar="PATH",
-        envvar="EDGEDB_SERVER_BOOTSTRAP_SCRIPT",
+        envvar="EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE",
         help='run the script when initializing the database. '
              'Script run by default user within default database. '
              'May be used with or without `--bootstrap-only`.'),
