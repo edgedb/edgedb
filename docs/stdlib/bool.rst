@@ -96,7 +96,7 @@ Booleans
 
 .. eql:operator:: or: bool or bool -> bool
 
-    Evaluates ``true`` if either boolean is ``true``:
+    Evaluates ``true`` if either boolean is ``true``.
 
     .. code-block:: edgeql-repl
 
@@ -122,7 +122,7 @@ Booleans
 
 .. eql:operator:: not: not bool -> bool
 
-    Logically negates a given boolean value:
+    Logically negates a given boolean value.
 
     .. code-block:: edgeql-repl
 
