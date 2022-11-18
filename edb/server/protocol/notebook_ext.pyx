@@ -50,8 +50,7 @@ cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
 
 ALLOWED_CAPABILITIES = (
     enums.Capability.MODIFICATIONS |
-    enums.Capability.DDL |
-    enums.Capability.SET_GLOBAL
+    enums.Capability.DDL
 )
 
 
