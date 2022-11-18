@@ -45,6 +45,19 @@ def resolve_SelectStmt(
     stmt: pgast.SelectStmt, *, ctx: Context
 ) -> Tuple[pgast.SelectStmt, context.Table]:
 
+    # VALUES
+    if stmt.values:
+        values = dispatch.resolve_list(stmt.values, ctx=ctx)
+        relation = pgast.SelectStmt(values=values)
+
+        first_val = values[0]
+        assert isinstance(first_val, pgast.ImplicitRowExpr)
+        table = context.Table()
+        table.columns = [
+            context.Column(name=ctx.names.get('col')) for _ in first_val.args
+        ]
+        return relation, table
+
     # UNION
     if stmt.larg or stmt.rarg:
         assert stmt.larg and stmt.rarg
@@ -55,7 +68,7 @@ def resolve_SelectStmt(
         with ctx.isolated() as subctx:
             rarg, rtable = dispatch.resolve_relation(stmt.rarg, ctx=subctx)
 
-        # valudate equal columns from both sided
+        # validate equal columns from both sides
         if len(ltable.columns) != len(rtable.columns):
             raise errors.QueryError(
                 f'{stmt.op} requires equal number of columns in both sides',

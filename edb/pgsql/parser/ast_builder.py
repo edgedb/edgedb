@@ -286,9 +286,7 @@ def _build_cte(n: Node, c: Context) -> pgast.CommonTableExpr:
         name=n["ctename"],
         query=_build_query(n["ctequery"], c),
         recursive=_bool_or_false(n, "cterecursive"),
-        aliascolnames=_maybe_list(
-            n, c, "aliascolnames", _build_str  # type: ignore
-        ),
+        aliascolnames=_maybe_list(n, c, "aliascolnames", _build_str),
         materialized=materialized,
         context=_build_context(n, c),
     )
@@ -453,7 +451,11 @@ def _build_range_function(n: Node, c: Context) -> pgast.RangeFunction:
         lateral=_bool_or_false(n, "lateral"),
         with_ordinality=_bool_or_false(n, "with_ordinality"),
         is_rowsfrom=_bool_or_false(n, "is_rowsfrom"),
-        functions=_build_implicit_row(n["functions"], c).args,  # type: ignore
+        functions=[
+            _build_func_call(fn, c)
+            for fn in n["functions"][0]["List"]["items"]
+            if len(fn) > 0
+        ],
     )
 
 

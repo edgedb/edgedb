@@ -235,7 +235,7 @@ class CommonTableExpr(Base):
     # Whether the result can be NULL.
     nullable: typing.Optional[bool] = None
     # Optional list of column names
-    aliascolnames: typing.Optional[list] = None
+    aliascolnames: typing.Optional[typing.List[str]] = None
     # The CTE query
     query: Query
     # True if this CTE is recursive

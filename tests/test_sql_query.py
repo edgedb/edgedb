@@ -35,7 +35,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # basic
         res = await self.squery_values(
             '''
-            select title from "Movie" order by title
+            SELECT title FROM "Movie" order by title
             '''
         )
         self.assertEqual(res, [['Forrest Gump'], ['Saving Private Ryan']])
@@ -44,25 +44,25 @@ class TestSQL(tb.SQLQueryTestCase):
         # table alias
         res = await self.squery(
             '''
-            select mve.title, mve.release_year, director_id FROM "Movie" as mve
+            SELECT mve.title, mve.release_year, director_id FROM "Movie" as mve
             '''
         )
         self.assert_shape(res, 2, 3)
 
     async def test_sql_query_02(self):
-        # select from parent type
+        # SELECT FROM parent type
         res = await self.squery(
             '''
-            select * FROM "Content"
+            SELECT * FROM "Content"
             '''
         )
         self.assert_shape(res, 5, 3, ['id', 'genre_id', 'title'])
 
     async def test_sql_query_03(self):
-        # select from parent type only
+        # SELECT FROM parent type only
         res = await self.squery(
             '''
-            select * FROM ONLY "Content" -- should have only one result
+            SELECT * FROM ONLY "Content" -- should have only one result
             '''
         )
         self.assert_shape(res, 1, 3, ['id', 'genre_id', 'title'])
@@ -71,7 +71,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # multiple FROMs
         res = await self.squery(
             '''
-            select mve.title, "Person".first_name
+            SELECT mve.title, "Person".first_name
             FROM "Movie" mve, "Person" WHERE mve.director_id = "Person".id
             '''
         )
@@ -90,8 +90,8 @@ class TestSQL(tb.SQLQueryTestCase):
         # sub relations
         res = await self.squery(
             '''
-            select id, title, prS.first_name
-            FROM "Movie" mve, (select first_name FROM "Person") prs
+            SELECT id, title, prS.first_name
+            FROM "Movie" mve, (SELECT first_name FROM "Person") prs
             '''
         )
         self.assert_shape(res, 6, 3, ['id', 'title', 'first_name'])
@@ -126,7 +126,7 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assert_shape(res, 2, 3, ['id', 'title', 'name'])
 
     async def test_sql_query_10(self):
-        # wildcard select
+        # wildcard SELECT
         res = await self.squery(
             '''
             SELECT m.* FROM "Movie" m
@@ -140,7 +140,7 @@ class TestSQL(tb.SQLQueryTestCase):
         )
 
     async def test_sql_query_11(self):
-        # multiple wildcard select
+        # multiple wildcard SELECT
         res = await self.squery(
             '''
             SELECT * FROM "Movie"
@@ -190,7 +190,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # UNION
         res = await self.squery(
             '''
-            SELECT id, title FROM "Movie" UNION select id, title FROM "Book"
+            SELECT id, title FROM "Movie" UNION SELECT id, title FROM "Book"
             '''
         )
         self.assert_shape(res, 4, 2)
@@ -386,3 +386,93 @@ class TestSQL(tb.SQLQueryTestCase):
         # single without properties
         with self.assertRaisesRegex(edgedb.QueryError, "unknown table"):
             await self.squery('SELECT * FROM "Movie.genre"')
+
+    async def test_sql_query_30(self):
+        # VALUES
+
+        res = await self.squery(
+            '''
+            SELECT * FROM (VALUES (1, 2), (3, 4)) AS vals(c, d)
+            '''
+        )
+        self.assert_shape(res, 2, 2, ['c', 'd'])
+
+        with self.assertRaisesRegex(edgedb.QueryError, "query resolves to 2"):
+            await self.squery(
+                '''
+                SELECT * FROM (VALUES (1, 2), (3, 4)) AS vals(c, d, e)
+                '''
+            )
+
+    async def test_sql_query_31(self):
+        # column aliases in CTEs
+        res = await self.squery(
+            '''
+            with common as (SELECT 1 a, 2 b)
+            SELECT * FROM common
+            '''
+        )
+        self.assert_shape(res, 1, 2, ['a', 'b'])
+
+        res = await self.squery(
+            '''
+            with common(c, d) as (SELECT 1 a, 2 b)
+            SELECT * FROM common
+            '''
+        )
+        self.assert_shape(res, 1, 2, ['c', 'd'])
+
+        res = await self.squery(
+            '''
+            with common(c, d) as (SELECT 1 a, 2 b)
+            SELECT * FROM common as cmn(e, f)
+            '''
+        )
+        self.assert_shape(res, 1, 2, ['e', 'f'])
+
+        with self.assertRaisesRegex(edgedb.QueryError, "query resolves to 2"):
+            await self.squery(
+                '''
+                with common(c, d) as (SELECT 1 a, 2 b)
+                SELECT * FROM common as cmn(e, f, g)
+                '''
+            )
+
+    async def test_sql_query_32(self):
+        # range functions
+
+        res = await self.squery_values(
+            '''
+            SELECT *, '_' || value::text
+            FROM json_each_text('{"a":"foo", "b":"bar"}') t
+            '''
+        )
+        self.assertEqual(res, [["a", "foo", "_foo"], ["b", "bar", "_bar"]])
+
+        res = await self.squery(
+            '''
+            SELECT * FROM
+                (SELECT ARRAY[1, 2, 3] a, ARRAY[4, 5, 6] b) t,
+                LATERAL unnest(a, b)
+            '''
+        )
+        self.assert_shape(res, 3, 4, ['a', 'b', 'unnest', 'unnest'])
+
+        res = await self.squery(
+            '''
+            SELECT unnest(ARRAY[1, 2, 3]) a
+            '''
+        )
+        self.assert_shape(res, 3, 1, ['a'])
+
+        res = await self.squery(
+            '''
+            SELECT *, unnested_b + 1 computed
+            FROM
+                (SELECT ARRAY[1, 2, 3] a, ARRAY[4, 5, 6] b) t,
+                LATERAL unnest(a, b) awesome_table(unnested_a, unnested_b)
+            '''
+        )
+        self.assert_shape(
+            res, 3, 5, ['a', 'b', 'unnested_a', 'unnested_b', 'computed']
+        )

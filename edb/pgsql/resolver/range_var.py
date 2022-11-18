@@ -23,6 +23,7 @@ import functools
 from typing import *
 
 from edb import errors
+from edb.common.parsing import ParserContext
 
 from edb.pgsql import ast as pgast
 from edb.pgsql.compiler import astutils as pgastutils
@@ -42,7 +43,9 @@ def resolve_BaseRangeVar(
 
     # generate internal alias
     internal_alias = ctx.names.get('relation')
-    alias = pgast.Alias(aliasname=internal_alias)
+    alias = pgast.Alias(
+        aliasname=internal_alias, colnames=range_var.alias.colnames
+    )
 
     # general case
     node, table = _resolve_range_var(range_var, alias, ctx=ctx)
@@ -90,6 +93,16 @@ def _resolve_RelRangeVar(
             table.columns = cte.columns
             table.reference_as = cte.name
 
+    table.columns = [
+        context.Column(
+            name=alias or col.name,
+            reference_as=alias or col.reference_as,
+        )
+        for col, alias in _zip_column_alias(
+            table.columns, alias, ctx=range_var.context
+        )
+    ]
+
     rel = pgast.RelRangeVar(relation=relation, alias=alias)
     return (rel, table)
 
@@ -110,27 +123,23 @@ def _resolve_RangeSubselect(
         result.name = range_var.alias.aliasname
         result.reference_as = alias.aliasname
         result.columns = [
-            context.Column(name=col.name, reference_as=col.name)
-            for col in subtable.columns
+            context.Column(
+                name=alias or col.name,
+                reference_as=alias or col.name,
+            )
+            for col, alias in _zip_column_alias(
+                subtable.columns, alias, ctx=range_var.context
+            )
         ]
+        alias = pgast.Alias(
+            aliasname=alias.aliasname,
+            colnames=[cast(str, c.reference_as) for c in result.columns],
+        )
 
     node = pgast.RangeSubselect(
         subquery=subquery, alias=alias, lateral=range_var.lateral
     )
     return node, result
-
-
-@_resolve_range_var.register
-def _resolve_RangeFunction(
-    range_var: pgast.RangeFunction,
-    alias: pgast.Alias,
-    *,
-    ctx: Context,
-) -> Tuple[pgast.BaseRangeVar, context.Table]:
-    with ctx.isolated() if range_var.lateral else ctx.empty() as _:
-        raise errors.UnsupportedFeatureError(
-            'range functions are not supported', context=range_var.context
-        )
 
 
 def _resolve_JoinExpr(
@@ -186,23 +195,15 @@ def resolve_CommonTableExpr(
         result.name = cte.name
         result.columns = []
 
-        cols_query = table.columns
-        cols_names = cte.aliascolnames
-        if cols_names and len(cols_query) != len(cols_names):
-            raise errors.QueryError(
-                f'CTE alias for `{cte.name}` contains {len(cols_names)} '
-                f'columns, but the query resolves to `{len(cols_query)}` '
-                f'columns',
-                context=cte.context,
+        alias = pgast.Alias(aliasname=cte.name, colnames=cte.aliascolnames)
+
+        for col, al in _zip_column_alias(table.columns, alias, cte.context):
+            result.columns.append(
+                context.Column(
+                    name=al or col.name,
+                    reference_as=col.name,
+                )
             )
-        for index, col in enumerate(cols_query):
-            res_col = context.Column()
-            if cols_names:
-                res_col.name = cols_names[index]
-            else:
-                res_col.name = col.name
-            res_col.reference_as = col.name
-            result.columns.append(res_col)
 
     node = pgast.CommonTableExpr(
         name=cte.name,
@@ -212,3 +213,114 @@ def resolve_CommonTableExpr(
         materialized=cte.materialized,
     )
     return node, result
+
+
+RANGE_FUNCTIONS_COLS = {
+    'json_array_elements': ['value'],
+    'json_array_elements_text': ['value'],
+    'json_each': ['key', 'value'],
+    'json_each_text': ['key', 'value'],
+    'jsonb_array_elements': ['value'],
+    'jsonb_array_elements_text': ['value'],
+    'jsonb_each': ['key', 'value'],
+    'jsonb_each_text': ['key', 'value'],
+}
+
+# retieved with
+r'''
+WITH
+    procedures AS (
+        SELECT *
+        FROM pg_proc
+        WHERE proname NOT ILIKE 'pg\_%'
+          AND proname NOT ILIKE 'ts\_%'
+          AND proname NOT ILIKE '\_%'
+          AND proname != 'unnest'
+          AND proname != 'aclexplode'
+    ),
+    pro_args AS (
+        SELECT proname,
+            UNNEST(proargnames) AS argname,
+            UNNEST(proargmodes) AS argmode,
+            GENERATE_SERIES(0, 10, 1) AS argn
+        FROM procedures
+    ),
+    pro_outputs AS (
+        SELECT *
+        FROM pro_args
+        WHERE argmode = 'o'
+        ORDER BY proname, argn
+    )
+SELECT proname, ARRAY_AGG(argname)
+FROM pro_outputs
+GROUP BY proname;
+'''
+
+
+@_resolve_range_var.register
+def _resolve_RangeFunction(
+    range_var: pgast.RangeFunction,
+    alias: pgast.Alias,
+    *,
+    ctx: Context,
+) -> Tuple[pgast.BaseRangeVar, context.Table]:
+    with ctx.isolated() if range_var.lateral else ctx.empty() as subctx:
+
+        functions = []
+        col_names = []
+        for function in range_var.functions:
+
+            name = function.name[len(function.name) - 1]
+            if name in RANGE_FUNCTIONS_COLS:
+                col_names.extend(RANGE_FUNCTIONS_COLS[name])
+            elif name == 'unnest':
+                col_names.extend('unnest' for _ in function.args)
+            else:
+                col_names.append(name)
+
+            functions.append(dispatch.resolve(function, ctx=subctx))
+
+        infered_columns = [context.Column(name=name) for name in col_names]
+
+        table = context.Table()
+        table.columns = [
+            context.Column(
+                name=al or col.name,
+                reference_as=al or ctx.names.get('col'),
+            )
+            for col, al in _zip_column_alias(
+                infered_columns, alias, ctx=range_var.context
+            )
+        ]
+
+        alias = pgast.Alias(
+            aliasname=alias.aliasname,
+            colnames=[cast(str, c.reference_as) for c in table.columns],
+        )
+
+        node = pgast.RangeFunction(
+            lateral=range_var.lateral,
+            with_ordinality=range_var.with_ordinality,
+            is_rowsfrom=range_var.is_rowsfrom,
+            functions=functions,
+            alias=alias,
+        )
+        return node, table
+
+
+def _zip_column_alias(
+    columns: List[context.Column],
+    alias: pgast.Alias,
+    ctx: Optional[ParserContext],
+) -> Iterable[Tuple[context.Column, Optional[str]]]:
+    if not alias.colnames:
+        return map(lambda c: (c, None), columns)
+
+    if len(columns) != len(alias.colnames):
+        raise errors.QueryError(
+            f'Table alias for `{alias.aliasname}` contains '
+            f'{len(alias.colnames)} columns, but the query resolves to '
+            f'{len(columns)} columns',
+            context=ctx,
+        )
+    return zip(columns, alias.colnames)

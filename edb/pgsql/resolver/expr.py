@@ -337,3 +337,14 @@ def resolve_ParamRef(
     ctx: Context,
 ) -> pgast.ParamRef:
     return pgast.ParamRef(number=expr.number)
+
+
+@dispatch._resolve.register
+def resolve_ArrayExpr(
+    expr: pgast.ArrayExpr,
+    *,
+    ctx: Context,
+) -> pgast.ArrayExpr:
+    return pgast.ArrayExpr(
+        elements=dispatch.resolve_list(expr.elements, ctx=ctx)
+    )
