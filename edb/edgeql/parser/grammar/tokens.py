@@ -27,11 +27,10 @@ from edb.common import parsing
 
 from . import keywords
 from . import precedence
-from . import lexer
 
 
 clean_string = re.compile(r"'(?:\s|\n)+'")
-string_quote = re.compile(lexer.re_dquote)
+string_quote = re.compile(r'\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$')
 
 
 class TokenMeta(parsing.TokenMeta):

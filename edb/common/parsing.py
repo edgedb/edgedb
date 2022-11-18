@@ -31,7 +31,6 @@ import parsing
 
 from edb.common.exceptions import add_context, get_context
 from edb.common import context as pctx
-from edb.common import lexer
 from edb._edgeql_rust import TokenizerError
 from edb.errors import EdgeQLSyntaxError
 
@@ -435,9 +434,6 @@ class Parser:
 
         except ParserError as e:
             raise self.get_exception(e, context=e.context) from e
-
-        except lexer.LexError as e:
-            raise self.get_exception(e, context=self.context(None)) from e
 
         return self.parser.start[0].val
 
