@@ -101,7 +101,7 @@ each other (as long as the types are compatible):
 JSON representation
 ^^^^^^^^^^^^^^^^^^^
 
-Much like :ref:`arrays<ref_std_array>` and :ref:`tuples<ref_std_tuple>` the
+Much like :ref:`arrays<ref_std_array>` and :ref:`tuples<ref_std_tuple>`, the
 range types cannot be directly cast to a :eql:type:`str`, but instead can be
 cast into a :eql:type:`json` structure:
 
