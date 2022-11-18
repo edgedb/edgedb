@@ -29,18 +29,20 @@ class TestConstraintsSchema(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'constraints.esdl')
 
-    async def _run_link_tests(self, cases, objtype, link):
-        qry = """
+    async def _run_link_tests(self, cases, objtype, link, *,
+                              values_as_str=True):
+        qry = f"""
             INSERT {objtype} {{{{
-                {link} := {{value!r}}
+                {link} := {{value}}
             }}}};
-        """.format(
-            objtype=objtype, link=link
-        )
+        """
 
         for val, expected in cases:
             async with self._run_and_rollback():
-                expr = qry.format(value=str(val))
+                if values_as_str:
+                    expr = qry.format(value=f'{str(val)!r}')
+                else:
+                    expr = qry.format(value=val)
 
                 if expected == 'good':
                     try:
@@ -86,7 +88,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
 
         await self._run_link_tests(data, 'default::Object', 'c_length_3')
 
-    async def test_constraints_scalar_minmax(self):
+    async def test_constraints_scalar_minmax_01(self):
         data = {
             # max-value is "9999999989"
             (10 ** 9 - 1, "Maximum allowed value for .* is '9999999989'."),
@@ -99,6 +101,24 @@ class TestConstraintsSchema(tb.QueryTestCase):
         }
 
         await self._run_link_tests(data, 'default::Object', 'c_minmax')
+
+    async def test_constraints_scalar_minmax_02(self):
+        data = {
+            # exclusive max-value is "100"
+            (1000, ".* must be less than 100."),
+            (100, ".* must be less than 100."),
+            (99.9999, 'good'),
+            (99, 'good'),
+
+            # exclusive min-value is "13"
+            (56, 'good'),
+            (13.0001, "good"),
+            (13, ".* must be greater than 13."),
+            (0, ".* must be greater than 13."),
+        }
+
+        await self._run_link_tests(data, 'default::Object', 'c_ex_minmax',
+                                   values_as_str=False)
 
     async def test_constraints_scalar_strvalue(self):
         data = {
