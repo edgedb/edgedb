@@ -531,6 +531,7 @@ _server_options = [
         help='[DEPRECATED] bootstrap the database cluster and exit'),
     click.option(
         '--bootstrap-only', is_flag=True,
+        envvar="EDGEDB_SERVER_BOOTSTRAP_ONLY",
         help='bootstrap the database cluster and exit'),
     click.option(
         '--default-database', type=str, hidden=True,
@@ -540,11 +541,13 @@ _server_options = [
         help='[DEPRECATED] the name of the default database owner'),
     click.option(
         '--bootstrap-command', metavar="QUERIES",
+        envvar="EDGEDB_SERVER_BOOTSTRAP_COMMAND",
         help='run the commands when initializing the database. '
              'Queries are executed by default user within default '
              'database. May be used with or without `--bootstrap-only`.'),
     click.option(
         '--bootstrap-script', type=PathPath(), metavar="PATH",
+        envvar="EDGEDB_SERVER_BOOTSTRAP_SCRIPT",
         help='run the script when initializing the database. '
              'Script run by default user within default database. '
              'May be used with or without `--bootstrap-only`.'),
