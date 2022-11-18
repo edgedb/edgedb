@@ -747,6 +747,51 @@ Other changes
 * UI: Basic autocomplete now works for ``INSERT``, ``UPDATE``, and ``DELETE``
   queries.
 
+2.7
+===
+
+* Improve error messages when compiling pointer default
+  (:eql:gh:`#4624`)
+
+* Fix using WITH-bound DML from an UPDATE in an ELSE clause
+  (:eql:gh:`#4641`)
+
+* Allow WITH MODULE in ddl in CREATE MIGRATION
+  (:eql:gh:`#4668`)
+
+* Fix some broken casts from object types to JSON
+  (:eql:gh:`#4663`)
+
+* Fix putting a statement as the body of an access policy
+  (:eql:gh:`#4667`)
+
+* Loosen the rules on when we produce a "would change the
+  interpretation" error. It is not only produced when a link is being
+  used, not a property. (:eql:gh:`#4643`)
+
+* Fix certain errors involving default values in access policies
+  (:eql:gh:`#4679`)
+
+* Avoid ISE when pickling DynamicRangeVar
+  (:eql:gh:`#4681`)
+
+* Fix ``max_ex_value`` constraint.
+  (:eql:gh:`#4671`)
+
+* Fix SET GLOBAL capabilities to no longer break in the CLI.
+  (:eql:gh:`#4688`)
+
+* Fix links to ``schema::ObjectType`` breaking DROP TYPE.  If you have
+  a link in your schema to ``schema::ObjectType`` or one of its
+  ancestors and you encounter internal server errors when trying to
+  drop a type, it should be possible to repair your database by
+  creating and then deleting a new link to ``schema::ObjectType``.
+  (:eql:gh:`#4670`)
+
+* Don't insert unnecessary ``assert_exists`` calls on required links
+  inside access policies bodies in some cases.
+  (:eql:gh:`#4695`)
+
 .. lint-off
 
 .. _group:
