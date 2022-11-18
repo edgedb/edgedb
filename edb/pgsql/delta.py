@@ -5929,7 +5929,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 # actually process this for each link.
                 if (
                     (action is DA.Restrict or action is DA.DeferredRestrict)
-                    and link.field_is_inherited(schema, 'on_target_delete')
+                    and (
+                        link.field_is_inherited(schema, 'on_target_delete')
+                        or link.get_explicit_field_value(
+                            schema, 'on_target_delete', None) is None
+                    )
                     and link.get_implicit_bases(schema)
                 ):
                     continue
@@ -5950,12 +5954,20 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     else:
                         links.append(link)
 
+            # The ordering that we process links matters: Restrict
+            # must be processed *after* Allow and DeleteSource,
+            # because Restrict is applied (via views) to all
+            # descendant links regardless of whether they have been
+            # overridden, and so Allow and DeleteSource must be
+            # handled first.
+            ordering = (DA.Restrict, DA.Allow, DA.DeleteSource)
+
             links.sort(
-                key=lambda l: (l.get_on_target_delete(schema),
+                key=lambda l: (ordering.index(l.get_on_target_delete(schema)),
                                l.get_name(schema)))
 
             inline_links.sort(
-                key=lambda l: (l.get_on_target_delete(schema),
+                key=lambda l: (ordering.index(l.get_on_target_delete(schema)),
                                l.get_name(schema)))
 
             deferred_links.sort(
