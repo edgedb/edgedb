@@ -80,7 +80,7 @@ Bytes
 
 .. eql:operator:: bytesidx: bytes [ int64 ] -> bytes
 
-    Accesses a byte at a given index from bytes:
+    Accesses a byte at a given index of a bytes value.
 
     .. code-block:: edgeql-repl
 
@@ -93,7 +93,7 @@ Bytes
 
 .. eql:operator:: bytesslice: bytes [ int64 : int64 ] -> bytes
 
-    Produces a bytes value comprising a portion of the existing bytes value:
+    Produces a bytes value comprising a portion of the existing bytes value.
 
     .. code-block:: edgeql-repl
 
