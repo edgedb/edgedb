@@ -51,7 +51,8 @@ class Base(ast.AST):
 
     def dump_sql(self) -> None:
         from edb.common.debug import dump_sql
-        dump_sql(self, reordered=True, pretty=True)
+
+        dump_sql(self, reordered=True, pretty=True, inlining=False)
 
 
 class ImmutableBase(ast.ImmutableASTMixin, Base):

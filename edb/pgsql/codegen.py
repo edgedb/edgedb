@@ -29,6 +29,7 @@ from edb.pgsql.compiler import astutils
 from edb.common.ast import codegen
 from edb.common import exceptions
 from edb.common import markup
+from edb.common import debug
 
 
 class SQLSourceGeneratorContext(markup.MarkupExceptionContext):
@@ -101,10 +102,13 @@ class AttrFlagManager:
 
 
 class SQLSourceGenerator(codegen.SourceGenerator):
-    def __init__(self, *args, reordered=False, **kwargs):  # type: ignore
+    def __init__(  # type: ignore
+        self, *args, reordered=False, inlining=True, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.param_index: dict[object, int] = {}
         self.reordered = reordered
+        self.inlining = inlining
         self.as_scalar = False
 
     @classmethod
@@ -118,9 +122,13 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     ) -> str:
         try:
             return super().to_source(
-                node, indent_with=indent_with,
+                node,
+                indent_with=indent_with,
                 reordered=reordered,
-                add_line_information=add_line_information, pretty=pretty)
+                inlining=not debug.flags.edgeql_disable_sql_inlining,
+                add_line_information=add_line_information,
+                pretty=pretty,
+            )
         except SQLSourceGeneratorError as e:
             ctx = SQLSourceGeneratorContext(node)
             exceptions.add_context(e, ctx)
@@ -199,19 +207,22 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self._visit_values_expr(node)
             return
 
-        # inline trivial SELECT statements
-        if self.as_scalar:
-            if len(node.target_list) == 1 and astutils.select_is_trivial(node):
-                target = node.target_list[0]
-                if not target.indirection:
-                    self.visit(target.val)
-                    return
+        if self.inlining:
+            # inline trivial SELECT statements
+            if self.as_scalar:
+                if len(node.target_list) == 1 and astutils.select_is_trivial(
+                    node
+                ):
+                    target = node.target_list[0]
+                    if not target.indirection:
+                        self.visit(target.val)
+                        return
 
-        # inline SELECT that merely renames columns
-        inlined = try_inline_projection_select(node)
-        if inlined:
-            self.visit(inlined)
-            return
+            # inline SELECT that merely renames columns
+            inlined = try_inline_projection_select(node)
+            if inlined:
+                self.visit(inlined)
+                return
 
         # This is a very crude detection of whether this SELECT is
         # a top level statement.
