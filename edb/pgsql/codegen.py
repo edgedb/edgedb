@@ -85,16 +85,19 @@ class SQLSourceGeneratorError(errors.InternalServerError):
 class AttrFlagManager:
     gen: SQLSourceGenerator
     attr: str
+    val: bool
 
-    def __init__(self, gen: SQLSourceGenerator, attr: str):
+    def __init__(self, gen: SQLSourceGenerator, attr: str, val: bool = True):
         self.gen = gen
         self.attr = attr
+        self.val = val
 
     def __enter__(self) -> None:
+        self.prev_val = getattr(self.gen, self.attr)
         setattr(self.gen, self.attr, True)
 
     def __exit__(self, _a: Any, _b: Any, _c: Any) -> None:
-        setattr(self.gen, self.attr, False)
+        setattr(self.gen, self.attr, self.prev_val)
 
 
 class SQLSourceGenerator(codegen.SourceGenerator):
@@ -197,54 +200,18 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             return
 
         # inline trivial SELECT statements
-        if len(node.target_list) == 1 and astutils.select_is_trivial(node):
-            target = node.target_list[0]
-            if not target.indirection and (self.as_scalar or not target.name):
-                self.visit(target.val)
-                return
+        if self.as_scalar:
+            if len(node.target_list) == 1 and astutils.select_is_trivial(node):
+                target = node.target_list[0]
+                if not target.indirection:
+                    self.visit(target.val)
+                    return
 
-        # inline SELECT that merely rename columns
-        if len(node.from_clause) == 1 and astutils.select_is_simple(node):
-            simple_targets = all(
-                not t.indirection and isinstance(t.val, pgast.ColumnRef)
-                for t in node.target_list
-            )
-            if simple_targets:
-                name_mapping = {}
-                for t in node.target_list:
-                    col = cast(pgast.ColumnRef, t.val)
-                    name_mapping[col.name[len(col.name) - 1]] = t.name
-
-                inner = node.from_clause[0]
-                if isinstance(inner, pgast.RangeSubselect):
-                    if isinstance(inner.subquery, pgast.SelectStmt):
-                        if not inner.subquery.op:
-
-                            instead = pgast.SelectStmt(
-                                distinct_clause=inner.subquery.distinct_clause,
-                                target_list=[
-                                    pgast.ResTarget(
-                                        name=name_mapping[t.name],
-                                        val=t.val,
-                                        indirection=t.indirection,
-                                    )
-                                    for t in inner.subquery.target_list
-                                    if t.name in name_mapping
-                                ],
-                                from_clause=inner.subquery.from_clause,
-                                where_clause=inner.subquery.where_clause,
-                                group_clause=inner.subquery.group_clause,
-                                having=inner.subquery.having,
-                                window_clause=inner.subquery.window_clause,
-                                values=inner.subquery.values,
-                                sort_clause=inner.subquery.sort_clause,
-                                limit_offset=inner.subquery.limit_offset,
-                                limit_count=inner.subquery.limit_count,
-                                locking_clause=inner.subquery.locking_clause,
-                            )
-
-                            self.visit(instead)
-                            return
+        # inline SELECT that merely renames columns
+        inlined = try_inline_projection_select(node)
+        if inlined:
+            self.visit(inlined)
+            return
 
         # This is a very crude detection of whether this SELECT is
         # a top level statement.
@@ -964,6 +931,68 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write('RESET ')
             self.write(common.quote_ident(node.name))
+
+
+def try_inline_projection_select(
+    node: pgast.SelectStmt,
+) -> Optional[pgast.SelectStmt]:
+    if len(node.from_clause) != 1 or not astutils.select_is_simple(node):
+        return None
+
+    output_targets = []
+    for t in node.target_list:
+        if t.indirection or not isinstance(t.val, pgast.ColumnRef):
+            return None
+        inner_name = t.val.name[len(t.val.name) - 1]
+        if isinstance(inner_name, pgast.Star):
+            return None
+        output_targets.append((t.name, inner_name))
+
+    if len(output_targets) != len(node.target_list):
+        return None
+
+    inner = node.from_clause[0]
+    if not isinstance(inner, pgast.RangeSubselect):
+        return None
+
+    if not isinstance(inner.subquery, pgast.SelectStmt):
+        return None
+
+    if inner.subquery.op:
+        return None
+
+    input_values = {}
+    for t in inner.subquery.target_list:
+        if not t.name:
+            return None
+        input_values[t.name] = t.val
+
+    target_list = [
+        pgast.ResTarget(
+            name=res_name,
+            val=input_values[value_name],
+            indirection=t.indirection,
+        )
+        for res_name, value_name in output_targets
+        if value_name in input_values
+    ]
+    if len(target_list) != len(inner.subquery.target_list):
+        return None
+
+    return pgast.SelectStmt(
+        distinct_clause=inner.subquery.distinct_clause,
+        target_list=target_list,
+        from_clause=inner.subquery.from_clause,
+        where_clause=inner.subquery.where_clause,
+        group_clause=inner.subquery.group_clause,
+        having=inner.subquery.having,
+        window_clause=inner.subquery.window_clause,
+        values=inner.subquery.values,
+        sort_clause=inner.subquery.sort_clause,
+        limit_offset=inner.subquery.limit_offset,
+        limit_count=inner.subquery.limit_count,
+        locking_clause=inner.subquery.locking_clause,
+    )
 
 
 generate_source = SQLSourceGenerator.to_source
