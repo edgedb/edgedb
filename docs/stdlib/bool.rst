@@ -40,10 +40,9 @@ Booleans
 
 .. eql:type:: std::bool
 
-    A boolean type with possible values of ``true`` and ``false``.
+    A boolean type of either ``true`` or ``false``.
 
-    EdgeQL has case-insensitive keywords and that includes the boolean
-    literals:
+    EdgeQL has case-insensitive keywords, including boolean literals:
 
     .. code-block:: edgeql-repl
 
@@ -52,10 +51,19 @@ Booleans
         db> select (False, false, FALSE);
         {(false, false, false)}
 
-    A boolean value may arise as a result of a :ref:`logical
-    <ref_std_logical>` or :eql:op:`comparison <eq>`
-    operations as well as :eql:op:`in`
-    and :eql:op:`not in <in>`:
+    These basic operators will always result in a boolean value:
+    
+    - :eql:op:`= <eq>`
+    - :eql:op:`\!= <neq>`
+    - :eql:op:`?= <coaleq>`
+    - :eql:op:`?!= <coalneq>`
+    - :eql:op:`in` / :eql:op:`not in <in>`
+    - :eql:op:`\< <lt>`
+    - :eql:op:`\> <gt>`
+    - :eql:op:`\<= <lteq>`
+    - :eql:op:`\>= <gteq>`
+
+    Some examples:
 
     .. code-block:: edgeql-repl
 
@@ -64,18 +72,18 @@ Booleans
         db> select '!' IN {'hello', 'world'};
         {false}
 
-    It is also possible to :eql:op:`cast <cast>` between
-    :eql:type:`bool`, :eql:type:`str`, and :eql:type:`json`:
+    It's possible to get a boolean by casting a :eql:type:`str` or
+    :eql:type:`json` value into it:
 
     .. code-block:: edgeql-repl
 
-        db> select <json>true;
-        {'true'}
-        db> select <bool>'True';
+        db> select <bool>('true');
+        {true}
+        db> select <bool>to_json('true');
         {true}
 
-    :ref:`Filter <ref_eql_statements_select_filter>` clauses must
-    always evaluate to a boolean:
+    :ref:`Filter clauses <ref_eql_statements_select_filter>` must always
+    evaluate to a boolean.
 
     .. code-block:: edgeql
 
@@ -88,7 +96,7 @@ Booleans
 
 .. eql:operator:: or: bool or bool -> bool
 
-    Logical disjunction.
+    Evaluates ``true`` if either boolean is ``true``.
 
     .. code-block:: edgeql-repl
 
@@ -101,7 +109,7 @@ Booleans
 
 .. eql:operator:: and: bool and bool -> bool
 
-    Logical conjunction.
+    Evaluates ``true`` if both booleans are ``true``.
 
     .. code-block:: edgeql-repl
 
@@ -114,7 +122,7 @@ Booleans
 
 .. eql:operator:: not: not bool -> bool
 
-    Logical negation.
+    Logically negates a given boolean value.
 
     .. code-block:: edgeql-repl
 
@@ -145,15 +153,34 @@ The truth tables are as follows:
 ----------
 
 
-It is important to understand the difference between using
-``and``/``or`` vs :eql:func:`all`/:eql:func:`any`. This difference is
-in how they handle ``{}``. Both ``and`` and ``or`` operators apply to
-the cross-product of their operands. Thus if any of the operands are
-``{}``, the result is also ``{}`` for ``and`` and ``or``.
+``and``/``or`` and :eql:func:`all`/:eql:func:`any` differ in the way they
+handle an empty set (``{}``). Both ``and`` and ``or`` operators apply to the
+cross-product of their operands. If either operand is an empty set, the result
+will also be an empty set. For example:
 
-The :eql:func:`all` and :eql:func:`any` are generalized to apply to
-sets of values, including ``{}``. Thus they have the following truth
-table:
+.. code-block:: edgeql-repl
+
+    db> select {true, false} and <bool>{};
+    {}
+    db> select true and <bool>{};
+    {}
+
+Operating on an empty set with :eql:func:`all`/:eql:func:`any` does *not* return
+an empty set:
+
+.. code-block:: edgeql-repl
+
+    db> select all(<bool>{});
+    {true}
+    db> select any(<bool>{});
+    {false}
+
+:eql:func:`all` returns ``true`` because the empty set contains no false values.
+:eql:func:`any` returns ``false`` because the empty set contains no true
+values.
+
+The :eql:func:`all` and :eql:func:`any` functions are generalized to apply to
+sets of values, including ``{}``. They have the following truth table:
 
 +-------+-------+-----------------+-----------------+
 |   a   |   b   | ``all({a, b})`` | ``any({a, b})`` |
@@ -185,5 +212,5 @@ To understand the last line in the above truth table it's useful to
 remember that ``all({a, b}) = all(a) and all(b)`` and ``any({a, b}) =
 any(a) or any(b)``.
 
-For more customized handling of ``{}`` the :eql:op:`?? <coalesce>`
-should be used.
+For more customized handling of ``{}``, use the :eql:op:`?? <coalesce>`
+operator.

@@ -13,8 +13,8 @@ Enums
 
     An enumerated type is a data type consisting of an ordered list of values.
 
-    An enumerated type can be declared in a schema declaration using
-    the following :ref:`syntax <ref_datamodel_enums>`:
+    An enum type can be declared in a schema definition by using the following
+    syntax:
 
     .. code-block:: sdl
 
@@ -27,8 +27,8 @@ Enums
         db> select Color.Red is Color;
         {true}
 
-    :eql:op:`Casting <cast>` can be used to obtain an
-    enum value in an expression:
+    :eql:op:`Casting <cast>` can be used to obtain an enum value in an
+    expression:
 
     .. code-block:: edgeql-repl
 

@@ -44,10 +44,16 @@ Generic
 
 -----------
 
+.. note::
+
+    In EdgeQL, any value can be compared to another as long as their types are
+    compatible.
 
 .. eql:operator:: eq: anytype = anytype -> bool
 
-    Compare two values for equality.
+    Compares two values of compatible types for equality.
+
+    This results in a :eql:type:`bool`:
 
     .. code-block:: edgeql-repl
 
@@ -70,10 +76,11 @@ Generic
 
 .. eql:operator:: neq: anytype != anytype -> bool
 
-    Compare two values for inequality.
+    Compares two values of compatible types for inequality.
+
+    This results in a :eql:type:`bool`:
 
     .. code-block:: edgeql-repl
-
 
         db> select 3 != 3.0;
         {false}
@@ -94,10 +101,12 @@ Generic
 
 .. eql:operator:: coaleq: optional anytype ?= optional anytype -> bool
 
-    Compare two (potentially empty) values for equality.
+    Compares two compatible potentially empty values for equality.
 
-    Works the same as regular :eql:op:`=<eq>`, but also allows
-    comparing ``{}``.  Two ``{}`` are considered equal.
+    This works the same as a regular :eql:op:`=<eq>` operator, but also allows
+    comparing an empty ``{}`` set.  Two empty sets are considered equal.
+
+    This results in a :eql:type:`bool`:
 
     .. code-block:: edgeql-repl
 
@@ -114,10 +123,13 @@ Generic
 
 .. eql:operator:: coalneq: optional anytype ?!= optional anytype -> bool
 
-    Compare two (potentially empty) values for inequality.
+    Compares two compatible potentially empty values for inequality.
 
-    Works the same as regular :eql:op:`\!= <neq>`, but also allows
-    comparing ``{}``.  Two ``{}`` are considered equal.
+    This works the same as a regular :eql:op:`\!= <neq>` operator, but also
+    allows comparing an empty set (``{}`` ). Two empty sets are considered
+    equal.
+
+    This results in a :eql:type:`bool`:
 
     .. code-block:: edgeql-repl
 
@@ -134,11 +146,9 @@ Generic
 
 .. eql:operator:: lt: anytype < anytype -> bool
 
-    Less than operator.
+    Produces true for two compatible values if the left is the smaller value.
 
-    Return ``true`` if the value of the left expression is less than
-    the value of the right expression. In EdgeQL any values can be
-    compared to each other as long as they are of the same type:
+    This results in a :eql:type:`bool`:
 
     .. code-block:: edgeql-repl
 
@@ -156,11 +166,9 @@ Generic
 
 .. eql:operator:: gt: anytype > anytype -> bool
 
-    Greater than operator.
+    Produces true for two compatible values if the left is the larger value.
 
-    Return ``true`` if the value of the left expression is greater
-    than the value of the right expression. In EdgeQL any values can be
-    compared to each other as long as they are of the same type:
+    This results in a :eql:type:`bool`:
 
     .. code-block:: edgeql-repl
 
@@ -179,12 +187,9 @@ Generic
 
 .. eql:operator:: lteq: anytype <= anytype -> bool
 
-    Less or equal operator.
+    Produces true for two compatible values if the left is equal or smaller.
 
-    Return ``true`` if the value of the left expression is less than
-    or equal to the value of the right expression. In EdgeQL any
-    values can be compared to each other as long as they are of the
-    same type:
+    This results in a :eql:type:`bool`:
 
     .. code-block:: edgeql-repl
 
@@ -205,12 +210,9 @@ Generic
 
 .. eql:operator:: gteq: anytype >= anytype -> bool
 
-    Greater or equal operator.
+    Produces true for two compatible values if the left is equal or greater.
 
-    Return ``true`` if the value of the left expression is greater
-    than or equal to the value of the right expression. In EdgeQL any
-    values can be compared to each other as long as they are of the
-    same type:
+    This results in a :eql:type:`bool`:
 
     .. code-block:: edgeql-repl
 
@@ -235,12 +237,10 @@ Generic
 
     :index: length count array
 
-    A polymorphic function to calculate a "length" of its first
-    argument.
+    Returns a count of a given value's constituents.
 
-    Return the number of characters in a :eql:type:`str`, or the
-    number of bytes in :eql:type:`bytes`, or the number of elements in
-    an :eql:type:`array`.
+    This function works with the :eql:type:`str`, :eql:type:`bytes` and
+    :eql:type:`array` types:
 
     .. code-block:: edgeql-repl
 
@@ -270,11 +270,11 @@ Generic
 
     :index: find strpos strstr position array
 
-    A polymorphic function to test if the *haystack* contains the *needle*.
+    Returns true if the given sub-value exists within the given value.
 
-    When the *haystack* is :eql:type:`str` or :eql:type:`bytes`,
-    return ``true`` if *needle* is contained as a subsequence in it
-    and ``false`` otherwise.
+    When the *haystack* is a :eql:type:`str` or :eql:type:`bytes` value, this
+    function will return ``true`` if it contains *needle* as a subsequence
+    within it or ``false`` otherwise:
 
     .. code-block:: edgeql-repl
 
@@ -284,17 +284,18 @@ Generic
         db> select contains(b'qwerty', b'42');
         {false}
 
-    When the *haystack* is an :eql:type:`array`, return ``true`` if
-    the array contains the specified element and ``false`` otherwise.
+    When *haystack* is an :eql:type:`array`, the function will return ``true``
+    if the array contains the element specified as *needle* or ``false``
+    otherwise:
 
     .. code-block:: edgeql-repl
 
         db> select contains([2, 5, 7, 2, 100], 2);
         {true}
 
-    When the *haystack* is a :ref:`range <ref_std_range>`, return ``true`` if
-    it contains either the specified sub-range or element and ``false``
-    otherwise.
+    When *haystack* is a :ref:`range <ref_std_range>`, the function will return
+    ``true`` if it contains either the specified sub-range or element. The
+    function will return ``false`` otherwise.
 
     .. code-block:: edgeql-repl
 
@@ -321,13 +322,13 @@ Generic
 
     :index: find strpos strstr position array
 
-    A polymorphic function to find index of an element in a sequence.
+    Returns the index of a given sub-value in a given value.
 
-    When the *haystack* is :eql:type:`str` or :eql:type:`bytes`,
-    return the index of the first occurrence of *needle* in it.
+    When *haystack* is a :eql:type:`str` or :eql:type:`bytes` value, the
+    function will return the index of the first occurrence of *needle* in it.
 
-    When the *haystack* is an :eql:type:`array`, return the index of
-    the first occurrence of the specific *needle* element. For
+    When *haystack* is an :eql:type:`array`, this will return the index of the
+    the first occurrence of the element passed as *needle*. For
     :eql:type:`array` inputs it is also possible to provide an
     optional *from_pos* argument to specify the position from
     which to start the search.
