@@ -860,10 +860,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     Additionally, it's possible to convert a given duration into seconds:
 
-    - ``'totalseconds'`` - the number of seconds represented by the
-      duration. It will be approximate for :eql:type:`cal::relative_duration`
-      and :eql:type:`cal::date_duration` for durations longer than a day,
-      because a month is assumed to be 30 days exactly.
+    - ``'totalseconds'`` - the number of seconds represented by the duration.
+      It will be approximate for :eql:type:`cal::relative_duration` and
+      :eql:type:`cal::date_duration` for units ``'month'`` or larger because a
+      month is assumed to be 30 days exactly.
 
     The :eql:type:`duration` scalar has only ``'hour'`` and smaller units
     available for extraction.
