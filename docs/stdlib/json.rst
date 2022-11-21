@@ -108,9 +108,9 @@ conditions for casting:
 - JSON booleans can be cast to a :eql:type:`bool` type.
 - JSON ``null`` is unique because it can be cast to an empty set (``{}``) of
   any type.
-- JSON arrays can be cast to an array, as long as it's homogeneous, does not
-  contain ``null`` as an element of the array, and does not contain another
-  array., as long as it's homogeneous and do not contain *null* as a value.
+- JSON arrays can be cast to any valid array type, as long as the JSON array 
+  is homogeneous, does not contain ``null`` as an element of the array, and 
+  does not contain another array.
 
 A named :eql:type:`tuple` is converted into a JSON object when cast as a
 :eql:type:`json` unlike a standard :eql:type:`tuple` which is converted into a
@@ -195,7 +195,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
     Produces a JSON value comprising a portion of the existing JSON value.
 
-    Arrays and strings of JSON can be sliced in the same manner as an
+    JSON arrays and strings can be sliced in the same manner as an
     :eql:type:`array`, producing a :eql:type:`json` value:
 
     .. code-block:: edgeql-repl
@@ -293,7 +293,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
     Returns the elements of a JSON array as a set of :eql:type:`json`.
 
-    Calling this function on anything other than an :eql:type:`json` array will
+    Calling this function on anything other than a JSON array will
     result in a runtime error.
 
     This function should be used only if the ordering of elements is not
@@ -482,7 +482,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
 
     :index: type
 
-    Returns the :eql:type:`str` type of the outermost :eql:type:`json` value.
+    Returns the type of the outermost JSON value as a :eql:type:`str`.
 
     Possible return values are ``'object'``, ``'array'``,
     ``'string'``, ``'number'``, ``'boolean'``, or ``'null'``:

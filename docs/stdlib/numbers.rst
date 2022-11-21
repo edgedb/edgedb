@@ -145,7 +145,7 @@ from :eql:type:`str` and :eql:type:`json`.
     A 16-bit signed integer.
 
     :eql:type:`int16` is capable of representing values from ``-32768`` to
-    ``+32767``, inclusive.
+    ``+32767`` (inclusive).
 
 
 ----------
@@ -374,7 +374,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     :index: unary minus subtract
 
-    Negates the value of a number.
+    Produces the arithmetic negative of a number.
 
     .. code-block:: edgeql-repl
 

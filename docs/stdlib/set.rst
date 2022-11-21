@@ -275,7 +275,7 @@ Sets
 
     Determines whether a set is empty or not.
 
-    ``exists`` is an aggregate operator that returns a singleton set of
+    ``exists`` is an aggregate operator that returns a singleton set
     ``{true}`` if the input set is not empty, and returns ``{false}``
     otherwise:
 
@@ -292,7 +292,7 @@ Sets
 
     :index: is type intersection
 
-    Filters a set based on its type. Will return back :eql:type:`anytype`.
+    Filters a set based on its type. Will return back the specified type.
 
     The type intersection operator removes all elements from the input set
     that aren't of the specified type. Additionally, since it
@@ -353,16 +353,13 @@ Sets
     :index: multiplicity uniqueness
 
 
-    Returns :eql:type:`anytype` based on condition of if the set is distinct.
-
-    This checks the input set if it contains only unique elements, i.e a
-    *proper set*.
+    Checks that the input set contains only unique elements, i.e a *proper set*.
 
     If the input set contains duplicate elements, ``assert_distinct`` raises a
     ``ConstraintViolationError``. This function is useful as a runtime
     distinctness assertion in queries and computed expressions that should
     always return proper sets, but where static multiplicity inference is not
-    capable enough or outright impossible. An optional ``message`` named
+    capable enough or outright impossible. An optional *message* named
     argument can be used to customize the error message:
 
     .. code-block:: edgeql-repl
@@ -407,7 +404,7 @@ Sets
     as a runtime cardinality assertion in queries and computed
     expressions that should always return sets with at most a single
     element, but where static cardinality inference is not capable
-    enough or outright impossible. An optional ``message`` named argument
+    enough or outright impossible. An optional *message* named argument
     can be used to customize the error message.
 
     .. code-block:: edgeql-repl
@@ -440,7 +437,7 @@ Sets
     as a runtime existence assertion in queries and computed
     expressions that should always return sets with at least a single
     element, but where static cardinality inference is not capable
-    enough or outright impossible. An optional ``message`` named argument
+    enough or outright impossible. An optional *message* named argument
     can be used to customize the error message.
 
     .. code-block:: edgeql-repl
@@ -514,8 +511,8 @@ Sets
     Returns a :eql:type:`bool` value with :eql:op:`and` applied
     to all values.
 
-    The result is ``true`` if all of the ``values`` are ``true`` or the
-    set of ``values`` is ``{}``, with ``false`` returned otherwise.
+    The result is ``true`` if all of the *values* are ``true`` or the
+    set of *values* is ``{}``, with ``false`` returned otherwise.
 
     .. code-block:: edgeql-repl
 
@@ -536,7 +533,7 @@ Sets
     Returns a :eql:type:`bool` value with :eql:op:`or` applied to all
     values.
 
-    The result is ``true`` if any of the ``values`` are ``true``, with
+    The result is ``true`` if any of the *values* are ``true``, with
     ``false`` returned otherwise.
 
     .. code-block:: edgeql-repl

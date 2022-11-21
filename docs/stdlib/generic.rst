@@ -125,7 +125,7 @@ Generic
 
     Compares two compatible potentially empty values for inequality.
 
-    This works the same as a negated :eql:op:`\!= <neq>` operator, but also
+    This works the same as a regular :eql:op:`\!= <neq>` operator, but also
     allows comparing an empty set (``{}`` ). Two empty sets are considered
     equal.
 

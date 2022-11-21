@@ -406,7 +406,7 @@ EdgeDB store and output timezone-aware values in UTC format.
       ...        <cal::relative_duration>"1 day";
       {<cal::local_datetime>'2021-05-31T15:00:00'}
 
-    When the order of operations is reversed, the result may be different under
+    When the order of operations is reversed, the result may be different for
     some corner cases:
 
     .. code-block:: edgeql-repl

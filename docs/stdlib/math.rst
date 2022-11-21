@@ -36,7 +36,7 @@ Math
 
     :index: round
 
-    Returns the given value rounded up to its nearest integer.
+    Returns the given value rounded up to the nearest integer.
 
     .. code-block:: edgeql-repl
 
@@ -56,7 +56,7 @@ Math
 
     :index: round
 
-    Returns the given value rounded down to its nearest integer.
+    Returns the given value rounded down to the nearest integer.
 
     .. code-block:: edgeql-repl
 
@@ -106,7 +106,7 @@ Math
 
     :index: logarithm
 
-    Returns the logarithm of the given value to the specified base.
+    Returns the logarithm of the given value in the specified base.
 
     .. code-block:: edgeql-repl
 
@@ -123,7 +123,7 @@ Math
 
     :index: average avg
 
-    Returns the arithmetic mean (i.e., average) of the input set.
+    Returns the arithmetic mean of the input set.
 
     .. code-block:: edgeql-repl
 
