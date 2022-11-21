@@ -279,6 +279,9 @@ The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE
 ...................................
+Deprecated in image version 2.8: use ``EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE``
+instead.
+
 Run the script when initializing the database. The script is run by default
 user within default database.
 
