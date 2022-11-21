@@ -294,8 +294,8 @@ Generic
         {true}
 
     When *haystack* is a :ref:`range <ref_std_range>`, the function will return
-    ``true`` if it contains either the specified sub-range or element, or
-    ``false`` otherwise.
+    ``true`` if it contains either the specified sub-range or element. The
+    function will return ``false`` otherwise.
 
     .. code-block:: edgeql-repl
 

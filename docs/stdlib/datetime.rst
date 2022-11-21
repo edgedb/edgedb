@@ -101,7 +101,7 @@ Dates and Times
 
 .. _ref_std_datetime_intro:
 
-EdgeDB has two varieties of date/time constructs:
+EdgeDB offers two ways of represnting date/time values:
 
 * a timezone-aware :eql:type:`std::datetime` type;
 
@@ -182,7 +182,7 @@ EdgeDB store and output timezone-aware values in UTC format.
     A type for representing a date and time without a timezone.
 
     :eql:op:`Casting <cast>` is a simple way to obtain a
-    :eql:type:`cal::local_datetime` value through an expression:
+    :eql:type:`cal::local_datetime` value in an expression:
 
     .. code-block:: edgeql
 
@@ -253,7 +253,7 @@ EdgeDB store and output timezone-aware values in UTC format.
         select <cal::local_time>'15:01:22.306916';
         select <cal::local_time>'15:01:22';
 
-    When casting :eql:type:`cal::local_time` from strings, the string must be
+    When casting :eql:type:`cal::local_time` from strings, the string must
     follow the ISO8601 format.
 
     For more information regarding interacting with this type, see
@@ -557,7 +557,7 @@ EdgeDB store and output timezone-aware values in UTC format.
                               -> cal::local_datetime
                           cal::local_date + duration -> cal::local_datetime
 
-    Adds any two datetime or duration values.
+    Adds a duration and any other datetime value.
 
     This operator is commutative.
 
@@ -650,13 +650,18 @@ EdgeDB store and output timezone-aware values in UTC format.
         QueryError: operator '-' cannot be applied to operands ...
 
     An exception will also be raised when trying to subtract a timezone-aware
-    :eql:type:`std::datetime` type to or from :eql:type:`cal::local_datetime`:
+    :eql:type:`std::datetime` type from :eql:type:`cal::local_datetime` or vice
+    versa:
 
     .. code-block:: edgeql-repl
 
         db> select <datetime>'2019-01-01T01:02:03+00' -
         ...   <cal::local_datetime>'2019-02-01T01:02:03';
-        QueryError: operator '-' cannot be applied to operands ...
+        QueryError: operator '-' cannot be applied to operands...
+        db> select <cal::local_datetime>'2019-02-01T01:02:03' -
+        ...   <datetime>'2019-01-01T01:02:03+00';
+        QueryError: operator '-' cannot be applied to operands...
+
 
 
 ----------

@@ -247,7 +247,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
     Accesses an element of a :eql:type:`json` object given its key.
 
     This results in a :eql:type:`json` type. The fields of any JSON object may
-    also be accessed via ``[]``:
+    be accessed via ``[]``:
 
     .. code-block:: edgeql-repl
 

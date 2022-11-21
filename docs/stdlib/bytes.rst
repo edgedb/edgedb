@@ -44,11 +44,9 @@ Bytes
 
 .. eql:type:: std::bytes
 
-    Represents a sequence of bytes delineating raw data.
+    A sequence of bytes representing raw data.
 
-    .. note::
-
-      Bytes have a special byte literal, ``b''``.
+    Bytes can be represented as a literal using this syntax: ``b''``.
 
     .. code-block:: edgeql-repl
 
@@ -58,15 +56,17 @@ Bytes
         {b'Hello, world\x01'}
 
     Additionally, :ref:`generic <ref_std_generic>`
-    functions are able to act upon bytes:
+    functions are able to operate on bytes:
 
     .. code-block:: edgeql-repl
 
         db> select contains(b'qwerty', b'42');
         {false}
 
-    You may :eql:op:`cast <cast>` a :eql:type:`json` value into bytes. Bytes
-    are represented as Base64-encoded strings in JSON.
+    Bytes are represented as Base64-encoded strings in JSON. When you cast a
+    bytes value into JSON, that's what you'll get. In order to :eql:op:`cast
+    <cast>` a :eql:type:`json` value into bytes, it must be a Base64-encoded
+    string.
 
     .. code-block:: edgeql-repl
 

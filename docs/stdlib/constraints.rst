@@ -9,7 +9,7 @@ Constraints
 
 .. eql:constraint:: std::expression on (expr)
 
-    Represents an arbitrary constraint expression.
+    A constraint based on an arbitrary boolean expression.
 
     The ``expression`` constraint may be used as in this example to create a
     custom scalar type:
@@ -123,8 +123,8 @@ Constraints
             constraint regexp(r'[A-Za-z]*');
         }
 
-    See :ref:`regular expression patterns <string_regexp>` for details
-    regarding further usage.
+    See our documentation on :ref:`regular expression patterns <string_regexp>`
+    for more information on those.
 
 .. eql:constraint:: std::exclusive
 
