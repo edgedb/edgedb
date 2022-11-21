@@ -924,13 +924,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     will return only the number of days expressed as ``N days`` in your
     duration. It will not add another day to the returned count for every 24
     hours (defined as ``24 hours``) in the duration, nor will it consider the
-    months' constituent day counts in the returned value.
-
-    Specifying ``'decade'`` for ``el`` will total up all decades represented in
-    units ``'month'`` and larger, but it will not add a decade's worth of days
-    to the returned value as an additional decade. On the other end of the unit
-    spectrum, passing ``'hour'`` for ``el`` will not add a day's worth of hours
-    for each day in your duration.
+    months' constituent day counts in the returned value. Specifying
+    ``'decade'`` for ``el`` will total up all decades represented in units
+    ``'month'`` and larger, but it will not add a decade's worth of days to the
+    returned value as an additional decade.
 
     In this example, the duration represents more than a day's time, but since
     ``'day'`` and ``'hour'`` are in different size classes, the extra day
