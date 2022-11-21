@@ -101,7 +101,7 @@ Dates and Times
 
 .. _ref_std_datetime_intro:
 
-EdgeDB offers two ways of represnting date/time values:
+EdgeDB offers two ways of representing date/time values:
 
 * a timezone-aware :eql:type:`std::datetime` type;
 
