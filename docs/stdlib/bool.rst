@@ -153,11 +153,31 @@ The truth tables are as follows:
 ----------
 
 
-It is important to understand the difference between using
-``and``/``or`` and :eql:func:`all`/:eql:func:`any`. The difference is
-in how they handle ``{}``. Both ``and`` and ``or`` operators apply to
-the cross-product of their operands. Thus, if any of the operands are
-``{}``, the result will be that.
+``and``/``or`` and :eql:func:`all`/:eql:func:`any` differ in the way they
+handle an empty set (``{}``). Both ``and`` and ``or`` operators apply to the
+cross-product of their operands. If either operand is an empty set, the result
+will also be an empty set. For example:
+
+.. code-block:: edgeql-repl
+
+    db> select {true, false} and <bool>{};
+    {}
+    db> select true and <bool>{};
+    {}
+
+Operating on an empty set with :eql:func:`all`/:eql:func:`any` does *not* return
+an empty set:
+
+.. code-block:: edgeql-repl
+
+    db> select all(<bool>{});
+    {true}
+    db> select any(<bool>{});
+    {false}
+
+:eql:func:`all` returns ``true`` because the empty set contains no false values.
+:eql:func:`any` returns ``false`` because the empty set contains no true
+values.
 
 The :eql:func:`all` and :eql:func:`any` functions are generalized to apply to
 sets of values, including ``{}``. They have the following truth table:
