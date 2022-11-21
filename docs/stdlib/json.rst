@@ -63,18 +63,18 @@ function:
 .. code-block:: edgeql-repl
 
     db> select to_json('{"hello": "world"}');
-    {'{"hello": "world"}'}
+    {Json("{\"hello\": \"world\"}")}
     db> select <json>'hello world';
-    {'"hello world"'}
+    {Json("\"hello world\"")}
 
 Any value in EdgeDB can be cast to a :eql:type:`json` type as well:
 
 .. code-block:: edgeql-repl
 
     db> select <json>2019;
-    {'2019'}
+    {Json("2019")}
     db> select <json>cal::to_local_date(datetime_current(), 'UTC');
-    {'"2019-04-02"'}
+    {Json("\"2022-11-21\"")}
 
 Additionally, any :eql:type:`Object` in EdgeDB can be cast as a
 :eql:type:`json` type. This produces the same JSON value as the
@@ -91,7 +91,7 @@ be the same as the output of a :eql:stmt:`select expression <select>` in
     ...             datetime_current(), 'UTC')
     ...     }
     ...     filter .name = 'std::bool');
-    {'{"name": "std::bool", "timestamp": "2019-04-02"}'}
+    {Json("{\"name\": \"std::bool\", \"timestamp\": \"2022-11-21\"}")}
 
 JSON values can also be cast back into scalars. Casting JSON is symmetrical
 meaning that, if a scalar value can be cast into JSON, a compatible JSON value
@@ -129,7 +129,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
     .. code-block:: edgeql-repl
 
         db> select <json>42;
-        {'42'}
+        {Json("42")}
         db> select <bool>to_json('true');
         {true}
 
@@ -156,7 +156,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
     .. code-block:: edgeql-repl
 
         db> select to_json('[1, "a"]');
-        {'[1, "a"]'}
+        {Json("[1, \"a\"]")}
         db> select to_str(<json>[1, 2]);
         {'[1, 2]'}
 
@@ -175,13 +175,13 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
     .. code-block:: edgeql-repl
 
         db> select <json>'hello'[1];
-        {'"e"'}
+        {Json("\"e\"")}
         db> select <json>'hello'[-1];
-        {'"o"'}
+        {Json("\"o\"")}
         db> select to_json('[1, "a", null]')[1];
-        {'"a"'}
+        {Json("\"a\"")}
         db> select to_json('[1, "a", null]')[-1];
-        {'null'}
+        {Json("null")}
 
     This may raise an exception if the specified index is not valid for the
     base JSON value. To access an index that is potentially out of bounds, use
@@ -201,17 +201,17 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
     .. code-block:: edgeql-repl
 
         db> select <json>'hello'[0:2];
-        {'"he"'}
+        {Json("\"he\"")}
         db> select <json>'hello'[2:];
-        {'"llo"'}
+        {Json("\"llo\"")}
         db> select to_json('[1, 2, 3]')[0:2];
-        {'[1, 2]'}
+        {Json("[1, 2]")}
         db> select to_json('[1, 2, 3]')[2:];
-        {'[3]'}
+        {Json("[3]")}
         db> select to_json('[1, 2, 3]')[:1];
-        {'[1]'}
+        {Json("[1]")}
         db> select to_json('[1, 2, 3]')[:-2];
-        {'[1]'}
+        {Json("[1]")}
 
 
 ----------
@@ -230,13 +230,13 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
     .. code-block:: edgeql-repl
 
         db> select to_json('[1, 2]') ++ to_json('[3]');
-        {'[1, 2, 3]'}
+        {Json("[1, 2, 3]")}
         db> select to_json('{"a": 1}') ++ to_json('{"b": 2}');
-        {'{"a": 1, "b": 2}'}
+        {Json("{\"a\": 1, \"b\": 2}")}
         db> select to_json('{"a": 1, "b": 2}') ++ to_json('{"b": 3}');
-        {'{"a": 1, "b": 3}'}
+        {Json("{\"a\": 1, \"b\": 3}")}
         db> select to_json('"123"') ++ to_json('"456"');
-        {'"123456"'}
+        {Json("\"123456\"")}
 
 
 ----------
@@ -252,13 +252,13 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
     .. code-block:: edgeql-repl
 
         db> select to_json('{"a": 2, "b": 5}')['b'];
-        {'5'}
+        {Json("5")}
         db> select j := <json>(schema::Type {
         ...     name,
         ...     timestamp := cal::to_local_date(datetime_current(), 'UTC')
         ... })
         ... filter j['name'] = <json>'std::bool';
-        {'{"name": "std::bool", "timestamp": "2019-04-02"}'}
+        {Json("{\"name\": \"std::bool\", \"timestamp\": \"2022-11-21\"}")}
 
     The field access operator ``[]`` will raise an exception if the
     specified field does not exist for the base JSON value. To access
@@ -279,9 +279,9 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
     .. code-block:: edgeql-repl
 
         db> select to_json('[1, "hello", null]');
-        {'[1, "hello", null]'}
+        {Json("[1, \"hello\", null]")}
         db> select to_json('{"hello": "world"}');
-        {'{"hello": "world"}'}
+        {Json("{\"hello\": \"world\"}")}
 
 
 ----------
@@ -303,7 +303,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
     .. code-block:: edgeql-repl
 
         db> select json_array_unpack(to_json('[1, "a"]'));
-        {'1', '"a"'}
+        {Json("1"), Json("\"a\"")}
 
 
 ----------
@@ -327,7 +327,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ...     "w": [2, "foo"],
         ...     "e": true
         ... }'), 'w', '1');
-        {'"foo"'}
+        {Json("\"foo\"")}
 
     This is useful when certain structure of JSON data is assumed, but cannot
     be reliably guaranteed. If the path cannot be followed for any reason, the
@@ -352,7 +352,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ...     "w": [2, "foo"],
         ...     "e": true
         ... }'), 'w', '2') ?? <json>'mydefault';
-        {'"mydefault"'}
+        {Json("\"mydefault\"")}
 
 
 ----------
@@ -380,13 +380,13 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ...   'a',
         ...   value := <json>true,
         ... );
-        {'{"a": true, "b": 20}'}
+        {Json("{\"a\": true, \"b\": 20}")}
         db> select json_set(
         ...   to_json('{"a": {"b": {}}}'),
         ...   'a', 'b', 'c',
         ...   value := <json>42,
         ... );
-        {'{"a": {"b": {"c": 42}}}'}
+        {Json("{\"a\": {\"b\": {\"c\": 42}}}")}
 
     If *create_if_missing* is set to ``false``, a new path for the value
     won't be created:
@@ -398,14 +398,14 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ...   'с',
         ...   value := <json>42,
         ... );
-        {'{"a": 10, "b": 20, "c": 42}'}
+        {Json("{\"a\": 10, \"b\": 20, \"с\": 42}")}
         db> select json_set(
         ...   to_json('{"a": 10, "b": 20}'),
         ...   'с',
         ...   value := <json>42,
         ...   create_if_missing := false,
         ... );
-        {'{"a": 10, "b": 20}'}
+        {Json("{\"a\": 10, \"b\": 20}")}
 
     *empty_treatment* can be any value from the ``JsonEmpty`` enumeration. It
     defines the behavior of the function if an empty set is passed as
@@ -431,7 +431,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ...   value := <json>{},
         ...   empty_treatment := JsonEmpty.ReturnTarget,
         ... );
-        {'{"a": 10, "b": 20}'}
+        {Json("{\"a\": 10, \"b\": 20}")}
         db> select json_set(
         ...   to_json('{"a": 10, "b": 20}'),
         ...   'a',
@@ -445,14 +445,14 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ...   value := <json>{},
         ...   empty_treatment := JsonEmpty.UseNull,
         ... );
-        {'{"a": null, "b": 20}'}
+        {Json("{\"a\": null, \"b\": 20}")}
         db> select json_set(
         ...   to_json('{"a": 10, "b": 20}'),
         ...   'a',
         ...   value := <json>{},
         ...   empty_treatment := JsonEmpty.DeleteKey,
         ... );
-        {'{"b": 20}'}
+        {Json("{\"b\": 20}")}
 
 ----------
 
@@ -472,8 +472,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ...     "w": [2, "foo"],
         ...     "e": true
         ... }'));
-        {('e', 'true'), ('q', '1'), ('w', '[2, "foo"]')}
-
+        {('e', Json("true")), ('q', Json("1")), ('w', Json("[2, \"foo\"]"))}
 
 ----------
 
