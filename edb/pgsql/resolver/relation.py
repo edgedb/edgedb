@@ -31,6 +31,7 @@ from edb.schema import links as s_links
 from edb.schema import properties as s_properties
 from edb.schema import pointers as s_pointers
 from edb.schema import sources as s_sources
+from edb.schema import name as sn
 
 from . import dispatch
 from . import context
@@ -214,7 +215,7 @@ def _lookup_link_property(name: str, ctx: Context) -> Optional[s_links.Link]:
     if '.' not in name:
         return None
     object_name, link_name = name.split('.')
-    parent = ctx.schema.get(  # type: ignore
+    parent: s_objtypes.ObjectType = ctx.schema.get(  # type: ignore
         object_name,
         None,
         module_aliases={None: 'default'},
@@ -223,21 +224,21 @@ def _lookup_link_property(name: str, ctx: Context) -> Optional[s_links.Link]:
     if not parent:
         return None
 
-    pointers = parent.get_pointers(ctx.schema).objects(ctx.schema)
-    for p in pointers:
-        if not isinstance(p, s_links.Link):
-            continue
-        if not p.get_shortname(ctx.schema).name == link_name:
-            continue
+    link = parent.maybe_get_ptr(
+        ctx.schema, sn.UnqualName.from_string(link_name)
+    )
 
-        if p.get_cardinality(ctx.schema).is_single():
-            # single links only for tables with at least one property
-            # besides source and target
-            l_pointers = p.get_pointers(ctx.schema).objects(ctx.schema)
-            if len(l_pointers) <= 2:
-                continue
-        return p
-    return None
+    if not isinstance(link, s_links.Link):
+        return None
+
+    if link.get_cardinality(ctx.schema).is_single():
+        # single links only for tables with at least one property
+        # besides source and target
+        l_pointers = link.get_pointers(ctx.schema).objects(ctx.schema)
+        if len(l_pointers) <= 2:
+            return None
+
+    return link
 
 
 def _construct_column(p: s_pointers.Pointer, ctx: Context) -> context.Column:
