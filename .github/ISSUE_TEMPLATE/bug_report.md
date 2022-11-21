@@ -6,8 +6,8 @@ about: Create a report to help us improve
 <!-- Please search existing issues to avoid creating duplicates. -->
 
 <!--
-For the EdgeDB Version: run `edgedb query 'select sys::get_version_as_str()'` from your project directory or query `select sys::get_version_as_str();`
-For the EdgeDB Client Version: Run `edgedb --version` from anywhere
+For the EdgeDB Version: run `edgedb query 'select sys::get_version_as_str()'` from your project directory (or run `select sys::get_version_as_str();` in the EdgeDB interactive shell).
+For the EdgeDB CLI Version: Run `edgedb --version` from anywhere
 -->
 
 - EdgeDB Version:
