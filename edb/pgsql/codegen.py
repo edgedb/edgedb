@@ -103,12 +103,12 @@ class AttrFlagManager:
 
 class SQLSourceGenerator(codegen.SourceGenerator):
     def __init__(  # type: ignore
-        self, *args, reordered=False, inlining=True, **kwargs
+        self, *args, reordered=False, **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.param_index: dict[object, int] = {}
         self.reordered = reordered
-        self.inlining = inlining
+        self.inlining = not debug.flags.edgeql_disable_sql_inlining
         self.as_scalar = False
 
     @classmethod
@@ -125,7 +125,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 node,
                 indent_with=indent_with,
                 reordered=reordered,
-                inlining=not debug.flags.edgeql_disable_sql_inlining,
                 add_line_information=add_line_information,
                 pretty=pretty,
             )
