@@ -410,7 +410,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
       ...        <cal::relative_duration>"1 month";
       {<cal::local_datetime>'2021-06-01T15:00:00'}
 
-    **Gotchas**
+    .. rubric:: Gotchas
 
     Due to the implementation of ``relative_duration`` logic, arithmetic
     operations may behave counterintuitively.
@@ -827,54 +827,52 @@ EdgeDB stores and outputs timezone-aware values in UTC.
                   std::duration_get(dt: cal::date_duration, \
                                     el: str) -> float64
 
-    Extract a specific element of input duration by name.
+    Returns the element of a duration given a unit name.
 
     .. note::
 
       Only available in EdgeDB 2.0 or later.
 
-    There units avaialble for extraction are grouped into 3 categories. The
-    largest units category of months or greater:
+    You may pass any of these unit names as ``el``:
 
     - ``'millennium'`` - number of 1000-year chunks rounded down
-    - ``'century'`` - the number of centiries rounded down
-    - ``'decade'`` - the number of decades rounded down
-    - ``'year'`` - the numbder of years rounded down
-    - ``'quarter'``- the quarter left over after whole years are
+    - ``'century'`` - number of centuries rounded down
+    - ``'decade'`` - number of decades rounded down
+    - ``'year'`` - number of years rounded down
+    - ``'quarter'``- remaining quarters after whole years are accounted for
+    - ``'month'`` - number of months left over after whole years are
       accounted for
-    - ``'month'`` - the number of months left over after whole years are
-      accounted for
+    - ``'day'`` - number of days recorded in the duration
+    - ``'hour'`` - number of hours
+    - ``'minutes'`` - remaining minutes after whole hours are accounted for
+    - ``'seconds'`` - remaining seconds, including fractional value after whole
+      minutes are accounted for
+    - ``'milliseconds'`` - remaining seconds including fractional value
+      expressed as milliseconds
+    - ``'microseconds'`` - remaining seconds including fractional value
+      expressed as microseconds
 
-    The middle size units of days:
+    .. note ::
 
-    - ``'day'`` - specifically the number of days recorded in the duration
-
-    The smallest unit category of hours, minutes, seconds, etc.:
-
-    - ``'hour'`` - duration hours
-    - ``'minutes'`` - duration minutes (0-59)
-    - ``'seconds'`` - duration seconds, including fractional value from 0 up
-      to and not including 60
-    - ``'milliseconds'`` - the seconds including fractional value expressed
-      as milliseconds
-    - ``'microseconds'`` - the seconds including fractional value expressed
-      as microseconds
+      Only for units ``'month'`` or larger or for units ``'hour'`` or smaller
+      will you receive a total across multiple units expressed in the original
+      duration. See *Gotchas* below for details.
 
     Additionally, it's possible to convert a given duration into seconds:
 
-    - ``'totalseconds'`` - the number of seconds represented by the
-      duration. It will be approximate for :eql:type:`cal::relative_duration`
-      and :eql:type:`cal::date_duration` with usints larger than a day,
-      because a month is assumed to be 30 days exactly.
+    - ``'totalseconds'`` - the number of seconds represented by the duration.
+      It will be approximate for :eql:type:`cal::relative_duration` and
+      :eql:type:`cal::date_duration` for units ``'month'`` or larger because a
+      month is assumed to be 30 days exactly.
 
-    The :eql:type:`duration` scalar only has the smallest units avaialbe
-    for extraction.
+    The :eql:type:`duration` scalar has only ``'hour'`` and smaller units
+    available for extraction.
 
     The :eql:type:`cal::relative_duration` scalar has all of the units
-    avaialbe for extraction.
+    available for extraction.
 
-    The :eql:type:`cal::date_duration` scalar only has the largest and middle
-    size units avaialbe for extraction.
+    The :eql:type:`cal::date_duration` scalar only has ``'date'`` and larger
+    units available for extraction.
 
     .. code-block:: edgeql-repl
 
@@ -905,6 +903,90 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         ...   <duration>'30 hours', 'totalseconds');
         {108000}
 
+    .. rubric:: Gotchas
+
+    This function will provide you with a calculated total for the unit passed
+    as ``el``, but only within the given "size class" of the unit. These size
+    classes exist because they are logical breakpoints that we can't reliably
+    convert values across. A month might be 30 days long, or it might be 28 or
+    29 or 31. A day is generally 24 hours, but with daylight savings, it might
+    be longer or shorter.
+
+    As a result, it's impossible to convert across these lines in a way that
+    works in every situation. For some use cases, assuming a 30 day month works
+    fine. For others, it might not. The size classes are as follows:
+
+    - ``'month'`` and larger
+    - ``'day'``
+    - ``'hour'`` and smaller
+
+    For example, if you specify ``'day'`` as your ``el`` argument, the function
+    will return only the number of days expressed as ``N days`` in your
+    duration. It will not add another day to the returned count for every 24
+    hours (defined as ``24 hours``) in the duration, nor will it consider the
+    months' constituent day counts in the returned value. Specifying
+    ``'decade'`` for ``el`` will total up all decades represented in units
+    ``'month'`` and larger, but it will not add a decade's worth of days to the
+    returned value as an additional decade.
+
+    In this example, the duration represents more than a day's time, but since
+    ``'day'`` and ``'hour'`` are in different size classes, the extra day
+    stemming from the duration's hours is not added.
+
+    .. code-block:: edgeql-repl
+
+        db> select duration_get(
+        ...   <cal::relative_duration>'1 day 36 hours', 'day');
+        {1}
+
+    In this counter example, both the decades and months are pooled together
+    since they are in the same size class. The return value is 5: the 2
+    ``'decades'`` and the 3 decades in ``'400 months'``.
+
+    .. code-block:: edgeql-repl
+
+        db> select duration_get(
+        ...   <cal::relative_duration>'2 decades 400 months', 'decade');
+        {5}
+
+    If a unit from a smaller size class would contribute to your desired unit's
+    total, it is not added.
+
+    .. code-block:: edgeql-repl
+
+        db> select duration_get(
+        ...   <cal::relative_duration>'1 year 400 days', 'year');
+        {1}
+
+    When you request a unit in the smallest size class, it will be pooled with
+    other durations in the same size class.
+
+    .. code-block:: edgeql-repl
+
+        db> select duration_get(
+        ...   <cal::relative_duration>'20 hours 3600 seconds', 'hour');
+        {21}
+
+    Seconds and smaller units always return remaining time in that unit after
+    accounting for the next larger unit.
+
+    .. code-block:: edgeql-repl
+
+        db> select duration_get(
+        ...   <cal::relative_duration>'20 hours 3600 seconds', 'seconds');
+        {0}
+        db> select duration_get(
+        ...   <cal::relative_duration>'20 hours 3630 seconds', 'seconds');
+        {30}
+
+    Normalization and truncation may help you deal with this. If your use case
+    allows for making assumptions about the duration of a month or a day, you
+    can make those conversions for yourself using the
+    :eql:func:`cal::duration_normalize_hours` or
+    :eql:func:`cal::duration_normalize_days` functions. If you got back a
+    duration as a result of a datetime calculation and don't need the level of
+    granularity you have, you can truncate the value with
+    :eql:func:`duration_truncate`.
 
 ----------
 
