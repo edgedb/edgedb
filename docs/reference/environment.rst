@@ -16,9 +16,8 @@ Variants
 Some environment variables (noted below) support ``*_FILE`` and ``*_ENV``
 variants.
 
-- The ``*_FILE`` variant expects its value to be a file name.  The
-  file's contents will be read and used as the value. This is useful for
-  referencing files that are mounted in the container.
+- The ``*_FILE`` variant expects its value to be a file name.  The file's
+  contents will be read and used as the value.
 - The ``*_ENV`` variant expects its value to be the name of another
   environment variable. The value of the other environment variable is then
   used as the final value. This is convenient in deployment scenarios where
@@ -102,9 +101,8 @@ Maps directly to the ``edgedb-server`` flag ``--security``.
 EDGEDB_SERVER_PORT
 ..................
 
-Specifies the network port on which EdgeDB will listen inside the container.
-The default is ``5656``.  This usually doesn't need to be changed unless you
-run in ``host`` networking mode.
+Specifies the network port on which EdgeDB will listen.  The default is
+``5656``.
 
 Maps directly to the ``edgedb-server`` flag ``--port``. The ``*_FILE`` and
 ``*_ENV`` variants are also supported.
@@ -113,9 +111,7 @@ Maps directly to the ``edgedb-server`` flag ``--port``. The ``*_FILE`` and
 EDGEDB_SERVER_BIND_ADDRESS
 ..........................
 
-Specifies the network interface on which EdgeDB will listen inside the
-container.  The default is ``0.0.0.0``, which means all interfaces.  This
-usually doesn't need to be changed unless you run in ``host`` networking mode.
+Specifies the network interface on which EdgeDB will listen.
 
 Maps directly to the ``edgedb-server`` flag ``--bind-address``. The ``*_FILE``
 and ``*_ENV`` variants are also supported.
@@ -127,10 +123,9 @@ and ``*_ENV`` variants are also supported.
 EDGEDB_SERVER_DATADIR
 .....................
 
-Specifies a path within the container in which the database files are located.
-Defaults to ``/var/lib/edgedb/data``.  The container needs to be able to change
-the ownership of the mounted directory to ``edgedb``.  Cannot be specified at
-the same time with ``EDGEDB_SERVER_BACKEND_DSN``.
+Specifies a path where the database files are located.  Defaults to
+``/var/lib/edgedb/data``.  Cannot be specified at the same time with
+``EDGEDB_SERVER_BACKEND_DSN``.
 
 Maps directly to the ``edgedb-server`` flag ``--data-dir``.
 
@@ -156,8 +151,8 @@ and ``*_ENV`` variants are also supported.
 EDGEDB_SERVER_RUNSTATE_DIR
 ..........................
 
-Specifies a path within the container in which EdgeDB will place its Unix
-socket and other transient files.
+Specifies a path where EdgeDB will place its Unix socket and other transient
+files.
 
 Maps directly to the ``edgedb-server`` flag ``--runstate-dir``.
 
