@@ -15,6 +15,7 @@ Reference
     sdl/index
     ddl/index
     connection
+    environment
     projects
     dsn
     observability

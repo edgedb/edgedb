@@ -75,12 +75,35 @@ default. You can start the server by enabling the unit.
    $ sudo systemctl enable --now edgedb-server-2
 
 This will start the server on port 5656, and the data directory will be
-``/var/lib/edgedb/1/data``. You can edit the unit to specify server arguments
-via the environment. The variables are largely the same as :ref:`those
-documented for Docker <ref_guides_deployment_docker_customization>`.
+``/var/lib/edgedb/1/data``.
+
+Set environment variables
+=========================
+
+To set environment variables when running EdgeDB with ``systemctl``,
+
+.. code-block:: bash
+
+   $ systemctl edit --full edgedb-server-2
+
+This opens a ``systemd`` unit file. Set the desired environment variables
+under the ``[Service]`` section. View the supported environment variables at
+:ref:`Reference > Environment Variables <ref_reference_environment>`.
+
+.. code-block:: toml
+
+   [Service]
+   Environment="EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed"
+   Environment="EDGEDB_SERVER_ADMIN_UI=enabled"
+
+Save the file and exit, then restart the service.
+
+.. code-block:: bash
+
+   $ systemctl restart edgedb-server-2
 
 
-Set a Password
+Set a password
 ==============
 There is no default password. Set a password by connecting from localhost.
 
@@ -112,11 +135,12 @@ You may need to restart the server after changing the listen port or addresses.
    $ sudo systemctl restart edgedb-server-2
 
 
-Linking a Bare Metal Instance
-=============================
+Link the instance with the CLI
+==============================
 
 The following is an example of linking a bare metal instance that is running on
-``localhost``.
+``localhost``. This command assigns a name to the instance, to make it more
+convenient to refer to when running CLI commands.
 
 .. code-block:: bash
 
@@ -128,7 +152,7 @@ The following is an example of linking a bare metal instance that is running on
       --trust-tls-cert \
       bare_metal_instance
 
-This allows connecting to the instance with it's name.
+This allows connecting to the instance with its name.
 
 .. code-block:: bash
 
