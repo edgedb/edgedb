@@ -525,7 +525,7 @@ class EnvvarResolver(click.Option):
 _server_options = [
     click.option(
         '-D', '--data-dir', type=PathPath(),
-        envvar="EDGEDB_SERVER_DATADIR",
+        envvar="EDGEDB_SERVER_DATADIR", cls=EnvvarResolver,
         help='database cluster directory'),
     click.option(
         '--postgres-dsn', type=str, hidden=True,
