@@ -31,10 +31,7 @@ EDGEDB_SERVER_BOOTSTRAP_COMMAND
 ...............................
 
 Useful to fine-tune initial user and database creation, and other initial
-setup. If neither the ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` variable or the
-``EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE`` are explicitly specified, the container
-will look for the presence of ``/edgedb-bootstrap.edgeql`` in the container
-(which can be placed in a derived image).
+setup.
 
 Maps directly to the ``edgedb-server`` flag ``--default-auth-method``. The
 ``*_FILE`` and ``*_ENV`` variants are also supported.

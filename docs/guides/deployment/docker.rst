@@ -157,6 +157,28 @@ The following environment variables affect the bootstrap only and have no
 effect on subsequent container runs.
 
 
+EDGEDB_SERVER_BOOTSTRAP_COMMAND
+...............................
+
+Useful to fine-tune initial user and database creation, and other initial
+setup. If neither the ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` variable or the
+``EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE`` are explicitly specified, the container
+will look for the presence of ``/edgedb-bootstrap.edgeql`` in the container
+(which can be placed in a derived image).
+
+Maps directly to the ``edgedb-server`` flag ``--default-auth-method``. The
+``*_FILE`` and ``*_ENV`` variants are also supported.
+
+
+EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE
+...................................
+Deprecated in image version 2.8: use ``EDGEDB_SERVER_BOOTSTRAP_COMMAND_FILE``
+instead.
+
+Run the script when initializing the database. The script is run by default
+user within default database.
+
+
 EDGEDB_SERVER_PASSWORD
 ......................
 
