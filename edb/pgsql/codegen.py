@@ -209,9 +209,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if self.inlining:
             # inline trivial SELECT statements
             if self.as_scalar:
-                if len(node.target_list) == 1 and astutils.select_is_trivial(
-                    node
-                ):
+                single_target = len(node.target_list) == 1
+                if single_target and astutils.select_is_trivial(node):
                     target = node.target_list[0]
                     if not target.indirection:
                         self.visit(target.val)
@@ -987,6 +986,8 @@ def try_inline_projection_select(
         if value_name in input_values
     ]
     if len(target_list) != len(inner.subquery.target_list):
+        return None
+    if len(target_list) != len(output_targets):
         return None
 
     return pgast.SelectStmt(
