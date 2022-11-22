@@ -474,7 +474,7 @@ def _validate_default_auth_method(
 
 
 class EnvvarResolver(click.Option):
-    def resolve_envvar_value(self, ctx: click.Context) -> Optional[str]:
+    def resolve_envvar_value(self, ctx: click.Context):
         if self.envvar is None:
             return None
 
@@ -491,18 +491,18 @@ class EnvvarResolver(click.Option):
 
         if var_val and file_var_val:
             raise click.BadParameter(
-                    f'{self.envvar} and ${file_var} are exclusive, '
-                    f'but both are set.')
+                f'{self.envvar} and ${file_var} are exclusive, '
+                f'but both are set.')
 
         if var_val and alt_var_val:
             raise click.BadParameter(
-                    f'{self.envvar} and ${alt_var} are exclusive, '
-                    f'but both are set.')
+                f'{self.envvar} and ${alt_var} are exclusive, '
+                f'but both are set.')
 
         if file_var_val and alt_var_val:
             raise click.BadParameter(
-                    f'{file_var} and ${alt_var} are exclusive, '
-                    f'but both are set.')
+                f'{file_var} and ${alt_var} are exclusive, '
+                f'but both are set.')
 
         if alt_var_val:
             var_val = os.environ.get(alt_var_val)

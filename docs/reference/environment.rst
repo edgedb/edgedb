@@ -79,7 +79,7 @@ and ``*_ENV`` variants are also supported.
 
 
 EDGEDB_SERVER_TLS_CERT_FILE/EDGEDB_SERVER_TLS_KEY_FILE
-............................................
+......................................................
 
 The TLS certificate and private key files, exclusive with
 ``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``.
