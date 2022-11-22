@@ -237,7 +237,7 @@ def handle_request(scheme, auth_str, response, server):
         ).decode("ascii")
 
         try:
-            response.body = generate_jwt_token(username, server)
+            response.body = b"edbt_" + generate_jwt_token(username, server)
         except ValueError as ex:
             if debug.flags.server:
                 markup.dump(ex)
