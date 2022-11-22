@@ -25,6 +25,7 @@ import hashlib
 import base64
 import re
 from typing import *
+import uuid
 
 from edb.common import uuidgen
 from edb.schema import abc as s_abc
@@ -96,7 +97,7 @@ def needs_quoting(string: str) -> bool:
     )
 
 
-def qname(*parts: str | pgast.Star):
+def qname(*parts: str | pgast.Star) -> str:
     assert len(parts) <= 3, parts
     return '.'.join([quote_ident(q) for q in parts])
 
@@ -176,7 +177,7 @@ def edgedb_name_to_pg_name(name: str, prefix_length: int = 0) -> str:
     return _edgedb_name_to_pg_name(name, prefix_length)
 
 
-def convert_name(name, suffix='', catenate=True):
+def convert_name(name: s_name.QualName, suffix='', catenate=True):
     schema = get_module_backend_name(name.get_module_name())
     if suffix:
         sname = f'{name.name}_{suffix}'
@@ -233,7 +234,13 @@ def get_aspect_suffix(aspect):
         return aspect
 
 
-def get_objtype_backend_name(id, module_name, *, catenate=True, aspect=None):
+def get_objtype_backend_name(
+    id: uuid.UUID,
+    module_name: str,
+    *,
+    catenate: bool = True,
+    aspect: str = None,
+):
     if aspect is None:
         aspect = 'table'
     if aspect not in {'table', 'inhview'} and not re.match(

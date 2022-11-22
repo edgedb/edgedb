@@ -183,7 +183,11 @@ class EdgeQLPathInfo(Base):
 
 
 class BaseRangeVar(ImmutableBaseExpr):
-    """Range variable, used in FROM clauses."""
+    """
+    Range variable, used in FROM clauses.
+
+    This can be though as a specific instance of a table within a query.
+    """
 
     __ast_meta__ = {'schema_object_id', 'tag'}
 
@@ -209,12 +213,16 @@ class BaseRangeVar(ImmutableBaseExpr):
 
 
 class BaseRelation(EdgeQLPathInfo, BaseExpr):
+    """
+    A relation-valued (table-valued) expression.
+    """
+
     name: typing.Optional[str] = None
     nullable: typing.Optional[bool] = None  # Whether the result can be NULL.
 
 
 class Relation(BaseRelation):
-    """Regular relation."""
+    """A reference to a table or a view."""
 
     catalogname: typing.Optional[str] = None
     schemaname: typing.Optional[str] = None
@@ -227,7 +235,7 @@ class CommonTableExpr(Base):
     # Whether the result can be NULL.
     nullable: typing.Optional[bool] = None
     # Optional list of column names
-    aliascolnames: typing.Optional[list] = None
+    aliascolnames: typing.Optional[typing.List[str]] = None
     # The CTE query
     query: Query
     # True if this CTE is recursive
@@ -416,7 +424,7 @@ class ResTarget(ImmutableBaseExpr):
     # Column name (optional)
     name: typing.Optional[str] = None
     # subscripts, field names and '*'
-    indirection: typing.Optional[list] = None
+    indirection: typing.Optional[typing.List[IndirectionOp]] = None
     # value expression to compute
     val: BaseExpr
 
@@ -581,9 +589,7 @@ class DeleteStmt(DMLQuery):
 class SelectStmt(Query):
 
     # List of DISTINCT ON expressions, empty list for DISTINCT ALL
-    distinct_clause: typing.Optional[list] = None
-    # The target list
-    target_list: typing.List[ResTarget] = ast.field(factory=list)
+    distinct_clause: typing.Optional[typing.List[OutputVar]] = None
     # The FROM clause
     from_clause: typing.List[BaseRangeVar] = ast.field(factory=list)
     # The WHERE clause
@@ -718,9 +724,9 @@ class FuncCall(ImmutableBaseExpr):
     # List of arguments
     args: typing.List[BaseExpr]
     # ORDER BY
-    agg_order: typing.List[SortBy]
+    agg_order: typing.Optional[typing.List[SortBy]]
     # FILTER clause
-    agg_filter: BaseExpr
+    agg_filter: typing.Optional[BaseExpr]
     # Argument list is '*'
     agg_star: bool
     # Arguments were labeled DISTINCT
@@ -857,9 +863,9 @@ class JoinExpr(BaseRangeVar):
     type: str
 
     # Left subtree
-    larg: BaseExpr
+    larg: BaseRangeVar
     # Right subtree
-    rarg: BaseExpr
+    rarg: BaseRangeVar
     # USING clause, if any
     using_clause: typing.Optional[typing.List[ColumnRef]] = None
     # Qualifiers on join, if any

@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,22 +16,25 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
 
-import os.path
+from edb.pgsql import ast as pgast
+from edb.schema import schema as s_schema
 
-from edb.testbase import server as tb
+from . import dispatch
+from . import context
+from . import expr # NOQA
+from . import relation # NOQA
 
 
-class TestSQL(tb.SQLQueryTestCase):
+def resolve(
+    query: pgast.Base,
+    schema: s_schema.Schema,
+) -> pgast.Base:
+    ctx = context.ResolverContextLevel(
+        None, context.ContextSwitchMode.EMPTY, schema=schema
+    )
 
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'issues.esdl')
+    _ = context.ResolverContext(initial=ctx)
 
-    async def test_sql_01(self):
-        res = await self.squery('''
-            select 1, 2, 3
-        ''')
-        self.assertEqual(
-            res,
-            [(1, 2, 3)],
-        )
+    return dispatch.resolve(query, ctx=ctx)

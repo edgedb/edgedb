@@ -1263,6 +1263,25 @@ class SQLQueryTestCase(BaseQueryTestCase):
         ''')
         return await self.scon.fetch(rewritten)
 
+    async def squery_values(self, query):
+        res = await self.squery(query)
+        return [list(r.values()) for r in res]
+
+    def assert_shape(self, res, rows, cols, column_names=None):
+        """
+        Fail if query result does not confront the specified shape, defined in
+        terms of:
+        - number of rows,
+        - number of columns (not checked if there are not rows)
+        - column names.
+        """
+
+        self.assertEqual(len(res), rows)
+        if rows > 0:
+            self.assertEqual(len(res[0]), cols)
+        if column_names:
+            self.assertListEqual(column_names, list(res[0].keys()))
+
 
 class DumpCompatTestCaseMeta(TestCaseMeta):
 
