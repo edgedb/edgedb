@@ -180,6 +180,34 @@ If ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` is set, this variable will be ignored.
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
+EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT
+.......................................
+
+.. warning::
+
+   Deprecated: use ``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``
+   instead.
+
+Set this option to ``1`` to tell the server to automatically generate a
+self-signed certificate with key file in the ``EDGEDB_SERVER_DATADIR`` (if
+present, see below), and echo the certificate content in the logs. If the
+certificate file exists, the server will use it instead of generating a new
+one.
+
+Self-signed certificates are usually used in development and testing, you
+should likely provide your own certificate and key file with the variables
+below.
+
+
+EDGEDB_SERVER_TLS_CERT/EDGEDB_SERVER_TLS_KEY
+............................................
+
+The TLS certificate and private key data, exclusive with
+``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``.
+
+The ``*_FILE`` and ``*_ENV`` variants are also supported.
+
+
 Custom scripts in ``/docker-entrypoint.d/``
 ...........................................
 

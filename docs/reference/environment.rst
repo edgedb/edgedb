@@ -3,7 +3,7 @@
 Environment Variables
 =====================
 
-The behavior of EdgeDB can the configured with environment variables. The
+The behavior of EdgeDB can be configured with environment variables. The
 variables documented on this page are supported when using the
 ``edgedb-server`` tool and the official :ref:`Docker image
 <ref_guide_deployment_docker>`.
@@ -36,14 +36,8 @@ setup. If neither the ``EDGEDB_SERVER_BOOTSTRAP_COMMAND`` variable or the
 will look for the presence of ``/edgedb-bootstrap.edgeql`` in the container
 (which can be placed in a derived image).
 
-The ``*_FILE`` and ``*_ENV`` variants are also supported.
-
-
-EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE
-...................................
-
-Run the script when initializing the database. The script is run by default
-user within default database.
+Maps directly to the ``edgedb-server`` flag ``--default-auth-method``. The
+``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
 EDGEDB_SERVER_DEFAULT_AUTH_METHOD
@@ -58,6 +52,8 @@ This is often useful when setting an admin password on an instance that lacks
 one.
 
 Use at your own risk and only for development and testing.
+
+The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
 EDGEDB_SERVER_TLS_CERT_MODE
@@ -78,34 +74,19 @@ The default is ``generate_self_signed`` when
 ``EDGEDB_SERVER_SECURITY=insecure_dev_mode``. Otherwise the default is
 ``require_file``.
 
-The ``*_FILE`` and ``*_ENV`` variants are also supported.
-
-EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT
-.......................................
-
-.. warning::
-
-   Deprecated: use ``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``
-   instead.
-
-Set this option to ``1`` to tell the server to automatically generate a
-self-signed certificate with key file in the ``EDGEDB_SERVER_DATADIR`` (if
-present, see below), and echo the certificate content in the logs. If the
-certificate file exists, the server will use it instead of generating a new
-one.
-
-Self-signed certificates are usually used in development and testing, you
-should likely provide your own certificate and key file with the variables
-below.
+Maps directly to the ``edgedb-server`` flag ``--tls-cert-mode``. The ``*_FILE``
+and ``*_ENV`` variants are also supported.
 
 
-EDGEDB_SERVER_TLS_CERT/EDGEDB_SERVER_TLS_KEY
+EDGEDB_SERVER_TLS_CERT_FILE/EDGEDB_SERVER_TLS_KEY_FILE
 ............................................
 
-The TLS certificate and private key, exclusive with
+The TLS certificate and private key files, exclusive with
 ``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``.
 
-The ``*_FILE`` and ``*_ENV`` variants are also supported.
+Maps directly to the ``edgedb-server`` flags ``--tls-cert-file`` and
+``--tls-key-file``.
+
 
 EDGEDB_SERVER_SECURITY
 ......................
@@ -117,6 +98,8 @@ Finally, if this option is set, the server will accept plaintext HTTP
 connections.
 
 Use at your own risk and only for development and testing.
+
+Maps directly to the ``edgedb-server`` flag ``--security``.
 
 
 EDGEDB_SERVER_PORT
@@ -143,6 +126,7 @@ and ``*_ENV`` variants are also supported.
 
 .. _ref_reference_docer_edgedb_server_datadir:
 
+
 EDGEDB_SERVER_DATADIR
 .....................
 
@@ -155,6 +139,7 @@ Maps directly to the ``edgedb-server`` flag ``--data-dir``.
 
 
 .. _ref_reference_docker_edgedb_server_backend_dsn:
+
 
 EDGEDB_SERVER_BACKEND_DSN
 .........................
@@ -179,7 +164,10 @@ socket and other transient files.
 
 Maps directly to the ``edgedb-server`` flag ``--runstate-dir``.
 
+
 EDGEDB_SERVER_ADMIN_UI
 ......................
 
 Set to ``enabled`` to enable the web-based admininstrative UI for the instance.
+
+Maps directly to the ``edgedb-server`` flag ``--admin-ui``.

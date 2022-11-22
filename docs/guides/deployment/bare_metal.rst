@@ -86,7 +86,7 @@ To set environment variables when running EdgeDB with ``systemctl``,
 
    $ systemctl edit --full edgedb-server-2
 
-This opens a ``systemd`` unit file. Set the desireed environment variables
+This opens a ``systemd`` unit file. Set the desired environment variables
 under the ``[Service]`` section. View the supported environment variables at
 :ref:`Reference > Environment Variables <ref_reference_environment>`.
 
