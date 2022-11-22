@@ -618,15 +618,23 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 'authentication failed: no authorization data provided')
 
         header_value = self._auth_data.decode("ascii")
-        scheme, _, encoded_token = header_value.partition(" ")
+        scheme, _, prefixed_token = header_value.partition(" ")
         if scheme.lower() != "bearer":
             raise errors.AuthenticationError(
                 'authentication failed: unrecognized authentication scheme')
 
-        return encoded_token.strip()
+        return prefixed_token.strip()
 
-    def _auth_jwt(self, user, encoded_token):
-        if not encoded_token:
+    def _auth_jwt(self, user, prefixed_token):
+        if not prefixed_token:
+            raise errors.AuthenticationError(
+                'authentication failed: malformed JWT')
+
+        for prefix in ["nbwt_", "edbt_"]:
+            encoded_token = prefixed_token.removeprefix(prefix)
+            if encoded_token != prefixed_token:
+                break
+        else:
             raise errors.AuthenticationError(
                 'authentication failed: malformed JWT')
 
