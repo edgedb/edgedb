@@ -373,7 +373,7 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assert_shape(res, 2, 2, ['name', 'title'])
 
     async def test_sql_query_29(self):
-        # link tables<g
+        # link tables
 
         # multi
         res = await self.squery('SELECT * FROM "Movie.actors"')
@@ -477,7 +477,6 @@ class TestSQL(tb.SQLQueryTestCase):
             res, 3, 5, ['a', 'b', 'unnested_a', 'unnested_b', 'computed']
         )
 
-
     async def test_sql_query_introspection_00(self):
         res = await self.squery_values(
             '''
@@ -494,13 +493,14 @@ class TestSQL(tb.SQLQueryTestCase):
                 ['postgres', 'public', 'Genre'],
                 ['postgres', 'public', 'Movie'],
                 ['postgres', 'public', 'Person'],
+                ['postgres', 'public', 'novel'],
             ],
         )
 
     async def test_sql_query_introspection_01(self):
         res = await self.squery_values(
             '''
-            SELECT table_catalog, table_schema, table_name, column_name, 
+            SELECT table_catalog, table_schema, table_name, column_name,
                 ordinal_position, data_type
             FROM information_schema.columns
             ORDER BY table_name, column_name

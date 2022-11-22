@@ -57,6 +57,8 @@ from edb.server import compiler as edbcompiler
 from edb.server import config as edbconfig
 from edb.server import bootstrap as edbbootstrap
 
+from .resolver import information_schema
+
 from . import common
 from . import compiler
 from . import dbops
@@ -5018,34 +5020,12 @@ def _generate_schema_alias_view(
     )
 
 
-def _generate_sql_information_schema(
-    schema: s_schema.Schema,
-) -> List[dbops.View]:
-    ObjTy = schema.get('schema::ObjectType', type=s_objtypes.ObjectType)
-    obj_ty_name = common.get_backend_name(
-        schema, ObjTy, aspect='table', catenate=False,
-    )
-
-    Prop = schema.get('schema::Property', type=s_objtypes.ObjectType)
-    prop_name = common.get_backend_name(
-        schema, Prop, aspect='table', catenate=False,
-    )
-
-    Link = schema.get('schema::Link', type=s_objtypes.ObjectType)
-    link_name = common.get_backend_name(
-        schema, Link, aspect='table', catenate=False,
-    )
-
-    Ty = schema.get('schema::Type', type=s_objtypes.ObjectType)
-    ty_name = common.get_backend_name(
-        schema, Ty, aspect='table', catenate=False,
-    )
-
+def _generate_sql_information_schema() -> List[dbops.View]:
     sql_ident = 'information_schema.sql_identifier'
     sql_str = 'information_schema.character_data'
     sql_bool = 'information_schema.yes_or_no'
     sql_card = 'information_schema.cardinal_number'
-    return [
+    tables_and_columns = [
         dbops.View(
             name=('edgedbsql', 'tables'),
             query=(
@@ -5079,14 +5059,14 @@ def _generate_sql_information_schema(
             pointers.name::{sql_ident} AS column_name,
             ROW_NUMBER() OVER (
                 PARTITION BY obj_ty.name
-                ORDER BY 
+                ORDER BY
                     CASE WHEN pointers.name = 'id' THEN 0 ELSE 1 END,
                     pointers.name
             )::{sql_card} AS ordinal_position,
             NULL::{sql_str} AS column_default,
-            CASE 
-                WHEN required THEN 'YES' 
-                ELSE 'NO' 
+            CASE
+                WHEN required THEN 'YES'
+                ELSE 'NO'
             END::{sql_bool} AS is_nullable,
             CASE pointers.type_name
                 WHEN 'std::anyreal' THEN 'double precision'
@@ -5165,8 +5145,23 @@ def _generate_sql_information_schema(
         WHERE obj_ty.name LIKE 'default::%'
             '''
             ),
-        )
+        ),
     ]
+
+    return tables_and_columns + [
+        dbops.View(
+            name=('edgedbsql', table_name),
+            query='SELECT {} WHERE FALSE'.format(
+                ','.join(
+                    f'NULL::information_schema.{type} AS {name}'
+                    for name, type in columns
+                )
+            ),
+        )
+        for table_name, columns in information_schema.TABLES.items()
+        if table_name not in ['tables', 'columns']
+    ]
+
 
 def get_support_views(
     schema: s_schema.Schema,
@@ -5250,7 +5245,7 @@ def get_support_views(
     for alias_view in sys_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
-    for view in _generate_sql_information_schema(schema):
+    for view in _generate_sql_information_schema():
         commands.add_command(dbops.CreateView(view, or_replace=True))
 
     return commands
