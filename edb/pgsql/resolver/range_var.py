@@ -30,6 +30,7 @@ from edb.pgsql.compiler import astutils as pgastutils
 
 from . import dispatch
 from . import context
+from . import range_functions
 
 Context = context.ResolverContextLevel
 
@@ -215,48 +216,6 @@ def resolve_CommonTableExpr(
     return node, result
 
 
-RANGE_FUNCTIONS_COLS = {
-    'json_array_elements': ['value'],
-    'json_array_elements_text': ['value'],
-    'json_each': ['key', 'value'],
-    'json_each_text': ['key', 'value'],
-    'jsonb_array_elements': ['value'],
-    'jsonb_array_elements_text': ['value'],
-    'jsonb_each': ['key', 'value'],
-    'jsonb_each_text': ['key', 'value'],
-}
-
-# retieved with
-r'''
-WITH
-    procedures AS (
-        SELECT *
-        FROM pg_proc
-        WHERE proname NOT ILIKE 'pg\_%'
-          AND proname NOT ILIKE 'ts\_%'
-          AND proname NOT ILIKE '\_%'
-          AND proname != 'unnest'
-          AND proname != 'aclexplode'
-    ),
-    pro_args AS (
-        SELECT proname,
-            UNNEST(proargnames) AS argname,
-            UNNEST(proargmodes) AS argmode,
-            GENERATE_SERIES(0, 10, 1) AS argn
-        FROM procedures
-    ),
-    pro_outputs AS (
-        SELECT *
-        FROM pro_args
-        WHERE argmode = 'o'
-        ORDER BY proname, argn
-    )
-SELECT proname, ARRAY_AGG(argname)
-FROM pro_outputs
-GROUP BY proname;
-'''
-
-
 @_resolve_range_var.register
 def _resolve_RangeFunction(
     range_var: pgast.RangeFunction,
@@ -271,8 +230,8 @@ def _resolve_RangeFunction(
         for function in range_var.functions:
 
             name = function.name[len(function.name) - 1]
-            if name in RANGE_FUNCTIONS_COLS:
-                col_names.extend(RANGE_FUNCTIONS_COLS[name])
+            if name in range_functions.COLUMNS:
+                col_names.extend(range_functions.COLUMNS[name])
             elif name == 'unnest':
                 col_names.extend('unnest' for _ in function.args)
             else:

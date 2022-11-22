@@ -111,8 +111,7 @@ def _lookup_column(
 
     elif len(name) == 2:
         # look for the column in the specific table
-        tab_name = name[0]
-        col_name = name[1]
+        tab_name, col_name = name
 
         try:
             table = _lookup_table(cast(str, tab_name), ctx)
