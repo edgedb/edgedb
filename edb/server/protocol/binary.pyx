@@ -488,8 +488,9 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             # token in the HTTP header has higher priority than
             # the ClientHandshake message, under the scenario of
             # binary protocol over HTTP
-            token = self._extract_token_from_auth_data()
-            if token is None:
+            if self._auth_data:
+                token = self._extract_token_from_auth_data(self._auth_data)
+            else:
                 token = params.get('token')
             self._auth_jwt(user, token)
         elif authmethod_name == 'Trust':
@@ -612,12 +613,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if user not in roles:
             raise errors.AuthenticationError('authentication failed')
 
-    def _extract_token_from_auth_data(self):
-        if not self._auth_data:
-            raise errors.AuthenticationError(
-                'authentication failed: no authorization data provided')
-
-        header_value = self._auth_data.decode("ascii")
+    def _extract_token_from_auth_data(self, auth_data):
+        header_value = auth_data.decode("ascii")
         scheme, _, prefixed_token = header_value.partition(" ")
         if scheme.lower() != "bearer":
             raise errors.AuthenticationError(
@@ -628,7 +625,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     def _auth_jwt(self, user, prefixed_token):
         if not prefixed_token:
             raise errors.AuthenticationError(
-                'authentication failed: malformed JWT')
+                'authentication failed: no authorization data provided')
 
         for prefix in ["nbwt_", "edbt_"]:
             encoded_token = prefixed_token.removeprefix(prefix)
