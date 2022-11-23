@@ -89,10 +89,11 @@ def _resolve_RelRangeVar(
             relation, cte = resolve_CommonTableExpr(
                 range_var.relation, ctx=subctx
             )
-            table = context.Table()
-            table.name = cte.name
-            table.columns = cte.columns
-            table.reference_as = cte.name
+            table = context.Table(
+                name=cte.name,
+                columns=cte.columns,
+                reference_as=cte.name,
+            )
 
     table.columns = [
         context.Column(
@@ -120,18 +121,19 @@ def _resolve_RangeSubselect(
             range_var.subquery, ctx=subctx
         )
 
-        result = context.Table()
-        result.name = range_var.alias.aliasname
-        result.reference_as = alias.aliasname
-        result.columns = [
-            context.Column(
-                name=alias or col.name,
-                reference_as=alias or col.name,
-            )
-            for col, alias in _zip_column_alias(
-                subtable.columns, alias, ctx=range_var.context
-            )
-        ]
+        result = context.Table(
+            name=range_var.alias.aliasname,
+            reference_as=alias.aliasname,
+            columns=[
+                context.Column(
+                    name=alias or col.name,
+                    reference_as=alias or col.name,
+                )
+                for col, alias in _zip_column_alias(
+                    subtable.columns, alias, ctx=range_var.context
+                )
+            ],
+        )
         alias = pgast.Alias(
             aliasname=alias.aliasname,
             colnames=[cast(str, c.reference_as) for c in result.columns],
@@ -192,9 +194,7 @@ def resolve_CommonTableExpr(
 
         query, table = dispatch.resolve_relation(cte.query, ctx=subctx)
 
-        result = context.CTE()
-        result.name = cte.name
-        result.columns = []
+        result = context.CTE(name=cte.name, columns=[])
 
         alias = pgast.Alias(aliasname=cte.name, colnames=cte.aliascolnames)
 
@@ -241,16 +241,17 @@ def _resolve_RangeFunction(
 
         infered_columns = [context.Column(name=name) for name in col_names]
 
-        table = context.Table()
-        table.columns = [
-            context.Column(
-                name=al or col.name,
-                reference_as=al or ctx.names.get('col'),
-            )
-            for col, al in _zip_column_alias(
-                infered_columns, alias, ctx=range_var.context
-            )
-        ]
+        table = context.Table(
+            columns=[
+                context.Column(
+                    name=al or col.name,
+                    reference_as=al or ctx.names.get('col'),
+                )
+                for col, al in _zip_column_alias(
+                    infered_columns, alias, ctx=range_var.context
+                )
+            ]
+        )
 
         alias = pgast.Alias(
             aliasname=alias.aliasname,
