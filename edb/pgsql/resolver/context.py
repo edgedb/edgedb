@@ -27,7 +27,7 @@ from edb.common import compiler
 from edb.schema import schema as s_schema
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Scope:
     """
     Information about that objects are visible at a specific point in an
@@ -47,7 +47,7 @@ class Scope:
     ctes: List[CTE] = field(default_factory=lambda: [])
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Table:
 
     # Public SQL
@@ -65,13 +65,13 @@ class Table:
         return f'{alias}{self.name or "<unnamed>"}({columns})'
 
 
-@dataclass
+@dataclass(kw_only=True)
 class CTE:
     name: Optional[str] = None
     columns: List[Column] = field(default_factory=lambda: [])
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Column:
     # Public SQL
     name: Optional[str] = None
