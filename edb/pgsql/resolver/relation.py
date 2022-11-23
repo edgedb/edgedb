@@ -53,10 +53,12 @@ def resolve_SelectStmt(
 
         first_val = values[0]
         assert isinstance(first_val, pgast.ImplicitRowExpr)
-        table = context.Table()
-        table.columns = [
-            context.Column(name=ctx.names.get('col')) for _ in first_val.args
-        ]
+        table = context.Table(
+            columns=[
+                context.Column(name=ctx.names.get('col'))
+                for _ in first_val.args
+            ]
+        )
         return relation, table
 
     # UNION
@@ -154,9 +156,10 @@ def resolve_relation(
     # try a CTE
     cte = next((t for t in ctx.scope.ctes if t.name == relation.name), None)
     if cte:
-        table = context.Table()
-        table.name = cte.name
-        table.columns = cte.columns.copy()
+        table = context.Table(
+            name=cte.name,
+            columns=cte.columns.copy(),
+        )
         return pgast.Relation(name=cte.name, schemaname=None), table
 
     # lookup the object in schema
@@ -180,8 +183,7 @@ def resolve_relation(
         )
 
     # extract table name
-    table = context.Table()
-    table.name = relation.name
+    table = context.Table(name=relation.name)
 
     # extract table columns
     pointers = obj.get_pointers(ctx.schema).objects(ctx.schema)

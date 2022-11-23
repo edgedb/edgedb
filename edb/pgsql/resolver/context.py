@@ -20,12 +20,14 @@ from __future__ import annotations
 
 from copy import deepcopy
 from typing import *
+from dataclasses import dataclass, field
 import enum
 
 from edb.common import compiler
 from edb.schema import schema as s_schema
 
 
+@dataclass
 class Scope:
     """
     Information about that objects are visible at a specific point in an
@@ -39,29 +41,23 @@ class Scope:
     """
 
     # RangeVars (table instances) in this query
-    tables: List[Table]
+    tables: List[Table] = field(default_factory=lambda: [])
 
     # Common Table Expressions
-    ctes: List[CTE]
-
-    def __init__(self):
-        self.tables = []
-        self.ctes = []
+    ctes: List[CTE] = field(default_factory=lambda: [])
 
 
+@dataclass
 class Table:
 
     # Public SQL
     name: Optional[str] = None
     alias: Optional[str] = None
 
-    columns: List[Column]
+    columns: List[Column] = field(default_factory=lambda: [])
 
     # Internal SQL
     reference_as: Optional[str] = None
-
-    def __init__(self):
-        self.columns = []
 
     def __str__(self) -> str:
         columns = ', '.join(str(c) for c in self.columns)
@@ -69,14 +65,13 @@ class Table:
         return f'{alias}{self.name or "<unnamed>"}({columns})'
 
 
+@dataclass
 class CTE:
     name: Optional[str] = None
-    columns: List[Column]
-
-    def __init__(self):
-        self.columns = []
+    columns: List[Column] = field(default_factory=lambda: [])
 
 
+@dataclass
 class Column:
     # Public SQL
     name: Optional[str] = None
@@ -84,23 +79,8 @@ class Column:
     # Internal SQL
     reference_as: Optional[str] = None
 
-    def __init__(
-        self, name: Optional[str] = None, reference_as: Optional[str] = None
-    ):
-        self.name = name
-        self.reference_as = reference_as
-
     def __str__(self) -> str:
         return self.name or '<unnamed>'
-
-
-class NameGenerator:
-    next_rel_index = 0
-
-    def generate_relation(self) -> str:
-        name = f'_rel_{self.next_rel_index}'
-        self.next_rel_index += 1
-        return name
 
 
 class ContextSwitchMode(enum.Enum):
@@ -143,8 +123,7 @@ class ResolverContextLevel(compiler.ContextLevel):
             self.include_inherited = True
 
             if mode == ContextSwitchMode.EMPTY:
-                self.scope = Scope()
-                self.scope.ctes = prevlevel.scope.ctes
+                self.scope = Scope(ctes=prevlevel.scope.ctes)
             elif mode == ContextSwitchMode.ISOLATED:
                 self.scope = deepcopy(prevlevel.scope)
 
