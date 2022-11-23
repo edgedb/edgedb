@@ -74,10 +74,11 @@ Now, let's initialize an EdgeDB project. From the project's root directory:
 .. code-block:: bash
 
     $ edgedb project init
-    No `edgedb.toml` found in `/Users/raddevon/Documents/projects/edgedb/demos/fastapi-crud` or above
+    No `edgedb.toml` found in `<project-path>` or above
     Do you want to initialize a new project? [Y/n]
     > Y
-    Specify the name of EdgeDB instance to use with this project [default: fastapi_crud]:
+    Specify the name of EdgeDB instance to use with this project [default:
+    fastapi_crud]:
     > fastapi_crud
     Checking EdgeDB versions...
     Specify the version of EdgeDB to use with this project [default: 2.7]:
@@ -544,9 +545,9 @@ Create and open ``app/queries/create_user.edgeql`` and fill it with this query:
 
 .. note::
 
-    We're running our ``insert`` inside a ``select`` here so that we can return the
-    ``name`` and ``created_at`` properties. If we just ran the ``insert`` bare, it
-    would return only the ``id``.
+    We're running our ``insert`` inside a ``select`` here so that we can return
+    the ``name`` and ``created_at`` properties. If we just ran the ``insert``
+    bare, it would return only the ``id``.
 
 Save the file and run ``edgedb-py --file`` to generate the new function. Now,
 we're ready to open ``app/users.py`` again and add the POST endpoint:
@@ -565,7 +566,9 @@ we're ready to open ``app/users.py`` again and add the POST endpoint:
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={"error": f"Username '{user.name}' already exists."},
             )
-        response = ResponseData(name=created_user.name, created_at=created_user.created_at)
+        response = ResponseData(
+          name=created_user.name,
+          created_at=created_user.created_at)
         return response
 
 In the above snippet, we ingest data with the shape dictated by the
@@ -865,7 +868,8 @@ time to code up the endpoint to use that freshly generated query.
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={
                     "error": "Invalid datetime format. "
-                    "Datetime string must look like this: '2010-12-27T23:59:59-07:00'",
+                    "Datetime string must look like this: "
+                    "'2010-12-27T23:59:59-07:00'",
                 },
             )
 
