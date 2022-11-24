@@ -296,9 +296,9 @@ async def _get_all_tenants(
 async def _get_dbs_and_roles(
     pgconn: pgcon.PGConnection,
 ) -> Tuple[List[str], List[str]]:
-    compiler = edbcompiler.Compiler()
-    await compiler.initialize_from_pg(pgconn)
+    compiler = await edbcompiler.new_compiler_from_pg(pgconn)
     compilerctx = edbcompiler.new_compiler_context(
+        compiler_state=compiler.state,
         user_schema=s_schema.FlatSchema(),
         global_schema=s_schema.FlatSchema(),
         expected_cardinality_one=False,
@@ -307,7 +307,6 @@ async def _get_dbs_and_roles(
     )
 
     _, get_databases_sql = edbcompiler.compile_edgeql_script(
-        compiler,
         compilerctx,
         'SELECT sys::Database.name',
     )
@@ -320,7 +319,6 @@ async def _get_dbs_and_roles(
     ))
 
     _, get_roles_sql = edbcompiler.compile_edgeql_script(
-        compiler,
         compilerctx,
         '''SELECT sys::Role {
             name,

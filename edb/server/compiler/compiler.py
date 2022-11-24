@@ -35,6 +35,7 @@ import immutables
 from edb import errors
 
 from edb.server import defines
+from edb.server import config
 from edb.pgsql import compiler as pg_compiler
 
 from edb import edgeql
@@ -77,8 +78,6 @@ from edb.pgsql import params as pg_params
 from edb.pgsql import patches as pg_patches
 from edb.pgsql import types as pg_types
 
-from edb.server import config
-
 from . import dbstate
 from . import enums
 from . import sertypes
@@ -102,6 +101,7 @@ class CompilerDatabaseState:
 @dataclasses.dataclass(frozen=True)
 class CompileContext:
 
+    compiler_state: CompilerState
     state: dbstate.CompilerConnectionState
     output_format: enums.OutputFormat
     expected_cardinality_one: bool
@@ -124,40 +124,136 @@ class CompileContext:
     log_ddl_as_migrations: bool = True
     notebook: bool = False
 
+    def _assert_not_in_migration_block(
+        self,
+        ql: qlast.Base
+    ) -> None:
+        """Check that a START MIGRATION block is *not* active."""
+        current_tx = self.state.current_tx()
+        mstate = current_tx.get_migration_state()
+        if mstate is not None:
+            stmt = status.get_status(ql).decode()
+            raise errors.QueryError(
+                f'cannot execute {stmt} in a migration block',
+                context=ql.context,
+            )
+
+    def _assert_in_migration_block(
+        self,
+        ql: qlast.Base
+    ) -> dbstate.MigrationState:
+        """Check that a START MIGRATION block *is* active."""
+        current_tx = self.state.current_tx()
+        mstate = current_tx.get_migration_state()
+        if mstate is None:
+            stmt = status.get_status(ql).decode()
+            raise errors.QueryError(
+                f'cannot execute {stmt} outside of a migration block',
+                context=ql.context,
+            )
+        return mstate
+
+    def _assert_not_in_migration_rewrite_block(
+        self,
+        ql: qlast.Base
+    ) -> None:
+        """Check that a START MIGRATION REWRITE block is *not* active."""
+        current_tx = self.state.current_tx()
+        mstate = current_tx.get_migration_rewrite_state()
+        if mstate is not None:
+            stmt = status.get_status(ql).decode()
+            raise errors.QueryError(
+                f'cannot execute {stmt} in a migration rewrite block',
+                context=ql.context,
+            )
+
+    def _assert_in_migration_rewrite_block(
+        self,
+        ql: qlast.Base
+    ) -> dbstate.MigrationRewriteState:
+        """Check that a START MIGRATION REWRITE block *is* active."""
+        current_tx = self.state.current_tx()
+        mstate = current_tx.get_migration_rewrite_state()
+        if mstate is None:
+            stmt = status.get_status(ql).decode()
+            raise errors.QueryError(
+                f'cannot execute {stmt} outside of a migration rewrite block',
+                context=ql.context,
+            )
+        return mstate
+
 
 DEFAULT_MODULE_ALIASES_MAP = immutables.Map(
     {None: defines.DEFAULT_MODULE_ALIAS})
 
+
 def compile_edgeql_script(
-    compiler: Compiler,
     ctx: CompileContext,
     eql: str,
 ) -> Tuple[s_schema.Schema, str]:
 
-    sql = _compile_ql_script(compiler, ctx, eql)
-    new_schema = ctx.state.current_tx().get_schema(compiler._std_schema)
+    sql = _compile_ql_script(ctx, eql)
+    new_schema = ctx.state.current_tx().get_schema(
+        ctx.compiler_state.std_schema)
     assert isinstance(new_schema, s_schema.ChainedSchema)
     return new_schema.get_top_schema(), sql
 
 
 def new_compiler(
-    *,
     std_schema: s_schema.Schema,
     reflection_schema: s_schema.Schema,
-    schema_class_layout: Dict[Type[s_obj.Object], s_refl.SchemaClassLayout],
+    schema_class_layout: s_refl.SchemaClassLayout,
+    *,
+    backend_runtime_params: Optional[pg_params.BackendRuntimeParams] = None,
+    local_intro_query: Optional[str] = None,
+    global_intro_query: Optional[str] = None,
+    load_config: bool = False
 ) -> Compiler:
-    """Create and return an ad-hoc compiler instance."""
+    """Create and return a compiler instance."""
 
-    compiler = Compiler()
-    compiler._std_schema = std_schema
-    compiler._refl_schema = reflection_schema
-    compiler._schema_class_layout = schema_class_layout
+    if not backend_runtime_params:
+        backend_runtime_params = pg_params.get_default_runtime_params()
 
-    return compiler
+    config_spec = None
+    if load_config:
+        config_spec = config.load_spec_from_schema(std_schema)
+        config.set_settings(config_spec)
+
+    return Compiler(CompilerState(
+        std_schema=std_schema,
+        refl_schema=reflection_schema,
+        schema_class_layout=schema_class_layout,
+        backend_runtime_params=backend_runtime_params,
+        config_spec=config_spec,
+        local_intro_query=local_intro_query,
+        global_intro_query=global_intro_query,
+    ))
+
+
+async def new_compiler_from_pg(con: pgcon.PGConnection) -> Compiler:
+    num_patches = await get_patch_count(con)
+
+    return new_compiler(
+        std_schema=await load_cached_schema(con, num_patches, 'stdschema'),
+        reflection_schema=await load_cached_schema(
+            con, num_patches, 'reflschema'
+        ),
+        schema_class_layout=await load_schema_class_layout(
+            con, num_patches
+        ),
+        local_intro_query=await load_schema_intro_query(
+            con, num_patches, 'local_intro_query'
+        ),
+        global_intro_query=await load_schema_intro_query(
+            con, num_patches, 'global_intro_query'
+        ),
+        load_config=True
+    )
 
 
 def new_compiler_context(
     *,
+    compiler_state: CompilerState,
     user_schema: s_schema.Schema,
     global_schema: s_schema.Schema=s_schema.FlatSchema(),
     modaliases: Optional[Mapping[Optional[str], str]] = None,
@@ -182,6 +278,7 @@ def new_compiler_context(
     )
 
     ctx = CompileContext(
+        compiler_state=compiler_state,
         state=state,
         output_format=output_format,
         expected_cardinality_one=expected_cardinality_one,
@@ -193,6 +290,15 @@ def new_compiler_context(
     )
 
     return ctx
+
+
+def _new_delta_context(ctx: CompileContext):
+    return s_delta.CommandContext(
+        backend_runtime_params=ctx.compiler_state.backend_runtime_params,
+        stdmode=ctx.bootstrap_mode,
+        internal_schema_mode=ctx.internal_schema_mode,
+        **_get_delta_context_args(ctx),
+    )
 
 
 async def get_patch_count(backend_conn: pgcon.PGConnection) -> int:
@@ -268,149 +374,26 @@ async def load_schema_class_layout(
             'could not load schema class layout pickle') from e
 
 
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class CompilerState:
+
+    std_schema: s_schema.FlatSchema
+    refl_schema: s_schema.FlatSchema
+    schema_class_layout: s_refl.SchemaClassLayout
+
+    backend_runtime_params: pg_params.BackendRuntimeParams
+    config_spec: Optional[config.Spec]
+
+    local_intro_query: Optional[str]
+    global_intro_query: Optional[str]
+
+
 class Compiler:
 
-    _dbname: Optional[str]
-    _cached_db: Optional[CompilerDatabaseState]
+    state: CompilerState
 
-    def __init__(
-        self,
-        *,
-        backend_runtime_params: pg_params.BackendRuntimeParams=
-            pg_params.get_default_runtime_params(),
-    ):
-        self._dbname = None
-        self._cached_db = None
-        self._std_schema = None
-        self._refl_schema = None
-        self._config_spec = None
-        self._schema_class_layout = None
-        self._local_intro_query = None
-        self._global_intro_query = None
-        self._backend_runtime_params = backend_runtime_params
-
-    async def initialize_from_pg(self, con: pgcon.PGConnection) -> None:
-        num_patches = await get_patch_count(con)
-
-        if self._std_schema is None:
-            self._std_schema = await load_cached_schema(
-                con, num_patches, 'stdschema')
-
-        if self._refl_schema is None:
-            self._refl_schema = await load_cached_schema(
-                con, num_patches, 'reflschema')
-
-        if self._schema_class_layout is None:
-            self._schema_class_layout = await load_schema_class_layout(
-                con, num_patches)
-
-        if self._local_intro_query is None:
-            self._local_intro_query = await load_schema_intro_query(
-                con, num_patches, 'local_intro_query')
-
-        if self._global_intro_query is None:
-            self._global_intro_query = await load_schema_intro_query(
-                con, num_patches, 'global_intro_query')
-
-        if self._config_spec is None:
-            self._config_spec = config.load_spec_from_schema(
-                self._std_schema)
-            config.set_settings(self._config_spec)
-
-    def initialize(
-        self,
-        std_schema,
-        refl_schema,
-        schema_class_layout
-    ) -> None:
-        self._std_schema = std_schema
-        self._refl_schema = refl_schema
-        self._schema_class_layout = schema_class_layout
-        self._config_spec = config.load_spec_from_schema(
-            self._std_schema)
-        config.set_settings(self._config_spec)
-
-    def get_std_schema(self) -> s_schema.Schema:
-        if self._std_schema is None:
-            raise AssertionError('compiler is not initialized')
-        return self._std_schema
-
-    def _is_dev_instance(self) -> bool:
-        # Determine whether we are on a dev instance by the presence
-        # of a test schema element.
-        return bool(self._std_schema.get('cfg::TestSessionConfig', None))
-
-    def _new_delta_context(self, ctx: CompileContext):
-        return s_delta.CommandContext(
-            backend_runtime_params=self._backend_runtime_params,
-            stdmode=ctx.bootstrap_mode,
-            internal_schema_mode=ctx.internal_schema_mode,
-            **_get_delta_context_args(ctx),
-        )
-
-    def _assert_not_in_migration_block(
-        self,
-        ctx: CompileContext,
-        ql: qlast.Base
-    ) -> None:
-        """Check that a START MIGRATION block is *not* active."""
-        current_tx = ctx.state.current_tx()
-        mstate = current_tx.get_migration_state()
-        if mstate is not None:
-            stmt = status.get_status(ql).decode()
-            raise errors.QueryError(
-                f'cannot execute {stmt} in a migration block',
-                context=ql.context,
-            )
-
-    def _assert_in_migration_block(
-        self,
-        ctx: CompileContext,
-        ql: qlast.Base
-    ) -> dbstate.MigrationState:
-        """Check that a START MIGRATION block *is* active."""
-        current_tx = ctx.state.current_tx()
-        mstate = current_tx.get_migration_state()
-        if mstate is None:
-            stmt = status.get_status(ql).decode()
-            raise errors.QueryError(
-                f'cannot execute {stmt} outside of a migration block',
-                context=ql.context,
-            )
-        return mstate
-
-    def _assert_not_in_migration_rewrite_block(
-        self,
-        ctx: CompileContext,
-        ql: qlast.Base
-    ) -> None:
-        """Check that a START MIGRATION REWRITE block is *not* active."""
-        current_tx = ctx.state.current_tx()
-        mstate = current_tx.get_migration_rewrite_state()
-        if mstate is not None:
-            stmt = status.get_status(ql).decode()
-            raise errors.QueryError(
-                f'cannot execute {stmt} in a migration rewrite block',
-                context=ql.context,
-            )
-
-    def _assert_in_migration_rewrite_block(
-        self,
-        ctx: CompileContext,
-        ql: qlast.Base
-    ) -> dbstate.MigrationRewriteState:
-        """Check that a START MIGRATION REWRITE block *is* active."""
-        current_tx = ctx.state.current_tx()
-        mstate = current_tx.get_migration_rewrite_state()
-        if mstate is None:
-            stmt = status.get_status(ql).decode()
-            raise errors.QueryError(
-                f'cannot execute {stmt} outside of a migration rewrite block',
-                context=ql.context,
-            )
-        return mstate
-
-    # API
+    def __init__(self, state: CompilerState):
+        self.state = state
 
     @staticmethod
     def try_compile_rollback(
@@ -491,6 +474,7 @@ class Compiler:
                 source = edgeql.Source.from_string(query)
 
                 ctx = CompileContext(
+                    compiler_state=self.state,
                     state=state,
                     output_format=enums.OutputFormat.BINARY,
                     expected_cardinality_one=False,
@@ -504,7 +488,7 @@ class Compiler:
                 )
 
                 result.append(
-                    (False, compile(self, ctx=ctx, source=source)[0]))
+                    (False, compile(ctx=ctx, source=source)[0]))
             except Exception as ex:
                 fields = {}
                 typename = 'Error'
@@ -566,6 +550,7 @@ class Compiler:
         )
 
         ctx = CompileContext(
+            compiler_state=self.state,
             state=state,
             output_format=output_format,
             expected_cardinality_one=expect_one,
@@ -579,7 +564,7 @@ class Compiler:
             protocol_version=protocol_version,
         )
 
-        unit_group = compile(self, ctx=ctx, source=source)
+        unit_group = compile(ctx=ctx, source=source)
         tx_started = False
         for unit in unit_group:
             if unit.tx_id:
@@ -621,6 +606,7 @@ class Compiler:
             state.sync_tx(txid)
 
         ctx = CompileContext(
+            compiler_state=self.state,
             state=state,
             output_format=output_format,
             expected_cardinality_one=expect_one,
@@ -635,7 +621,7 @@ class Compiler:
             expect_rollback=expect_rollback,
         )
 
-        return compile(self, ctx=ctx, source=source), ctx.state
+        return compile(ctx=ctx, source=source), ctx.state
 
     def describe_database_dump(
         self,
@@ -645,7 +631,7 @@ class Compiler:
         protocol_version: Tuple[int, int],
     ) -> DumpDescriptor:
         schema = s_schema.ChainedSchema(
-            self._std_schema,
+            self.state.std_schema,
             user_schema,
             global_schema
         )
@@ -756,6 +742,7 @@ class Compiler:
         )
 
         ctx = CompileContext(
+            compiler_state=self.state,
             state=state,
             output_format=enums.OutputFormat.BINARY,
             expected_cardinality_one=False,
@@ -795,8 +782,9 @@ class Compiler:
             )
 
         ddl_source = edgeql.Source.from_string(schema_ddl_text)
-        units = compile(self, ctx=ctx, source=ddl_source).units
-        schema = ctx.state.current_tx().get_schema(self._std_schema)
+        units = compile(ctx=ctx, source=ddl_source).units
+        schema = ctx.state.current_tx().get_schema(
+            ctx.compiler_state.std_schema)
 
         if allow_dml_in_functions:
             # Check if any functions actually contained DML.
@@ -810,7 +798,7 @@ class Compiler:
                 ddl_source = edgeql.Source.from_string(
                     'CONFIGURE CURRENT DATABASE RESET allow_dml_in_functions;',
                 )
-                units += compile(self, ctx=ctx, source=ddl_source).units
+                units += compile(ctx=ctx, source=ddl_source).units
 
         restore_blocks = []
         tables = []
@@ -949,18 +937,18 @@ class Compiler:
         )
 
 
-def _process_delta(compiler: Compiler, ctx: CompileContext, delta):
+def _process_delta(ctx: CompileContext, delta):
     """Adapt and process the delta command."""
 
     current_tx = ctx.state.current_tx()
-    schema = current_tx.get_schema(compiler._std_schema)
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
     if debug.flags.delta_plan:
         debug.header('Canonical Delta Plan')
         debug.dump(delta, schema=schema)
 
     pgdelta = pg_delta.CommandMeta.adapt(delta)
-    context = compiler._new_delta_context(ctx)
+    context = _new_delta_context(ctx)
     schema = pgdelta.apply(schema, context)
     current_tx.update_schema(schema)
 
@@ -985,14 +973,12 @@ def _process_delta(compiler: Compiler, ctx: CompileContext, delta):
 
     # Generate schema storage SQL (DML into schema storage tables).
     subblock = block.add_block()
-    compile_schema_storage_in_delta(
-        compiler, ctx, pgdelta, subblock, context=context)
+    compile_schema_storage_in_delta(ctx, pgdelta, subblock, context=context)
 
     return block, new_types, pgdelta.config_ops
 
 
 def compile_schema_storage_in_delta(
-    self: Compiler,
     ctx: CompileContext,
     delta: s_delta.Command,
     block: pg_dbops.SQLBlock,
@@ -1000,7 +986,7 @@ def compile_schema_storage_in_delta(
 ):
 
     current_tx = ctx.state.current_tx()
-    schema = current_tx.get_schema(self._std_schema)
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
     meta_blocks: List[Tuple[str, Dict[str, Any]]] = []
 
@@ -1016,7 +1002,7 @@ def compile_schema_storage_in_delta(
 
     s_refl.write_meta(
         delta,
-        classlayout=self._schema_class_layout,
+        classlayout=ctx.compiler_state.schema_class_layout,
         schema=schema,
         context=context,
         blocks=meta_blocks,
@@ -1034,7 +1020,7 @@ def compile_schema_storage_in_delta(
             if eql_hash in cache_mm:
                 argnames = cache_mm[eql_hash]
             else:
-                sql, argmap = _compile_schema_storage_stmt(self, ctx, eql)
+                sql, argmap = _compile_schema_storage_stmt(ctx, eql)
                 argnames = tuple(arg.name for arg in argmap)
 
                 func = pg_dbops.Function(
@@ -1068,26 +1054,26 @@ def compile_schema_storage_in_delta(
 
 
 def _compile_schema_storage_stmt(
-    self: Compiler,
     ctx: CompileContext,
     eql: str,
 ) -> Tuple[str, Dict[str, int]]:
 
-    schema = ctx.state.current_tx().get_schema(self._std_schema)
+    schema = ctx.state.current_tx().get_schema(ctx.compiler_state.std_schema)
 
     try:
         # Switch to the shadow introspection/reflection schema.
         ctx.state.current_tx().update_schema(
             # Trick dbstate to set the effective schema
-            # to _refl_schema.
+            # to refl_schema.
             s_schema.ChainedSchema(
-                self._std_schema,
-                self._refl_schema,
+                ctx.compiler_state.std_schema,
+                ctx.compiler_state.refl_schema,
                 s_schema.FlatSchema()
             )
         )
 
         newctx = CompileContext(
+            compiler_state=ctx.compiler_state,
             state=ctx.state,
             json_parameters=True,
             schema_reflection_mode=True,
@@ -1098,7 +1084,7 @@ def _compile_schema_storage_stmt(
         )
 
         source = edgeql.Source.from_string(eql)
-        unit_group = compile(self, ctx=newctx, source=source)
+        unit_group = compile(ctx=newctx, source=source)
 
         sql_stmts = []
         for u in unit_group:
@@ -1128,13 +1114,12 @@ def _compile_schema_storage_stmt(
 
 
 def _compile_ql_script(
-    self: Compiler,
     ctx: CompileContext,
     eql: str,
 ) -> str:
 
     source = edgeql.Source.from_string(eql)
-    unit_group = compile(self, ctx=ctx, source=source)
+    unit_group = compile(ctx=ctx, source=source)
 
     sql_stmts = []
     for u in unit_group:
@@ -1149,7 +1134,6 @@ def _compile_ql_script(
 
 
 def _get_compile_options(
-    self: Compiler,
     ctx: CompileContext,
 ) -> qlcompiler.CompilerOptions:
     can_have_implicit_fields = (
@@ -1184,21 +1168,20 @@ def _get_compile_options(
         allow_user_specified_id=_get_config_val(
             ctx, 'allow_user_specified_id') or ctx.schema_reflection_mode,
         testmode=_get_config_val(ctx, '__internal_testmode'),
-        devmode=self._is_dev_instance(),
+        devmode=_is_dev_instance(ctx),
     )
 
 
 def _compile_ql_debug_sql(
-    self: Compiler,
     ctx: CompileContext,
     ql: qlast.Base,
 ) -> dbstate.BaseQuery:
     # XXX: DEBUG HACK Implement DESCRIBE ALTER <STRING> by
     # (eventually) rewriting <STRING> and returning it
-    assert self._is_dev_instance()
+    assert _is_dev_instance(ctx)
 
     current_tx = ctx.state.current_tx()
-    schema = current_tx.get_schema(self._std_schema)
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
     from edb.pgsql import parser as pg_parser
     from edb.pgsql import resolver as pg_resolver
@@ -1214,7 +1197,6 @@ def _compile_ql_debug_sql(
     # Compile the result as a query that just returns the string
     res_ql = edgeql.parse(f'SELECT {qlquote.quote_literal(sql_source)}')
     query = _compile_ql_query(
-        self,
         ctx,
         res_ql,
         cacheable=False,
@@ -1224,7 +1206,6 @@ def _compile_ql_debug_sql(
 
 
 def _compile_ql_query(
-    self: Compiler,
     ctx: CompileContext,
     ql: qlast.Base,
     *,
@@ -1235,12 +1216,12 @@ def _compile_ql_query(
 
     current_tx = ctx.state.current_tx()
 
-    schema = current_tx.get_schema(self._std_schema)
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
     ir = qlcompiler.compile_ast_to_ir(
         ql,
         schema=schema,
         script_info=script_info,
-        options=_get_compile_options(self, ctx),
+        options=_get_compile_options(ctx),
     )
 
     result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
@@ -1348,16 +1329,15 @@ def _compile_ql_query(
 
 
 def _compile_and_apply_ddl_stmt(
-    self: Compiler,
     ctx: CompileContext,
     stmt: qlast.DDLOperation,
     source: Optional[edgeql.Source] = None,
 ) -> dbstate.DDLQuery:
     if isinstance(stmt, qlast.GlobalObjectCommand):
-        self._assert_not_in_migration_block(ctx, stmt)
+        ctx._assert_not_in_migration_block(stmt)
 
     current_tx = ctx.state.current_tx()
-    schema = current_tx.get_schema(self._std_schema)
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
     mstate = current_tx.get_migration_state()
     if (
@@ -1400,7 +1380,7 @@ def _compile_and_apply_ddl_stmt(
                 ]),
             )],
         )
-        return _compile_and_apply_ddl_stmt(self, ctx, cm)
+        return _compile_and_apply_ddl_stmt(ctx, cm)
 
     delta = s_ddl.delta_from_ddl(
         stmt,
@@ -1418,7 +1398,7 @@ def _compile_and_apply_ddl_stmt(
             accepted_cmds=mstate.accepted_cmds + (stmt,),
         )
 
-        context = self._new_delta_context(ctx)
+        context = _new_delta_context(ctx)
         schema = delta.apply(schema, context=context)
 
         if mstate.last_proposed:
@@ -1463,14 +1443,14 @@ def _compile_and_apply_ddl_stmt(
     if mrstate := current_tx.get_migration_rewrite_state():
         if not isinstance(stmt, qlast.CreateMigration):
             # This will always fail, and gives us the error we need
-            self._assert_not_in_migration_rewrite_block(ctx, stmt)
+            ctx._assert_not_in_migration_rewrite_block(stmt)
 
         mrstate = mrstate._replace(accepted_migrations=(
             mrstate.accepted_migrations + (stmt,)
         ))
         current_tx.update_migration_rewrite_state(mrstate)
 
-        context = self._new_delta_context(ctx)
+        context = _new_delta_context(ctx)
         schema = delta.apply(schema, context=context)
 
         current_tx.update_schema(schema)
@@ -1484,14 +1464,14 @@ def _compile_and_apply_ddl_stmt(
 
     # Do a dry-run on test_schema to canonicalize
     # the schema delta-commands.
-    test_schema = current_tx.get_schema(self._std_schema)
-    context = self._new_delta_context(ctx)
+    test_schema = current_tx.get_schema(ctx.compiler_state.std_schema)
+    context = _new_delta_context(ctx)
     delta.apply(test_schema, context=context)
     delta.canonical = True
 
     # Apply and adapt delta, build native delta plan, which
     # will also update the schema.
-    block, new_types, config_ops = _process_delta(self, ctx, delta)
+    block, new_types, config_ops = _process_delta(ctx, delta)
 
     ddl_stmt_id: Optional[str] = None
 
@@ -1574,13 +1554,12 @@ def _compile_and_apply_ddl_stmt(
 
 
 def _compile_ql_migration(
-    self: Compiler,
     ctx: CompileContext,
     ql: qlast.MigrationCommand,
     in_script: bool,
 ):
     current_tx = ctx.state.current_tx()
-    schema = current_tx.get_schema(self._std_schema)
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
     if (
         ctx.expect_rollback
@@ -1598,17 +1577,17 @@ def _compile_ql_migration(
             )
 
     if isinstance(ql, qlast.CreateMigration):
-        self._assert_not_in_migration_block(ctx, ql)
+        ctx._assert_not_in_migration_block(ql)
 
-        query = _compile_and_apply_ddl_stmt(self, ctx, ql)
+        query = _compile_and_apply_ddl_stmt(ctx, ql)
 
     elif isinstance(ql, qlast.StartMigration):
-        self._assert_not_in_migration_block(ctx, ql)
+        ctx._assert_not_in_migration_block(ql)
 
         if current_tx.is_implicit() and not in_script:
             savepoint_name = None
             tx_cmd = qlast.StartTransaction()
-            tx_query = _compile_ql_transaction(self, ctx, tx_cmd)
+            tx_query = _compile_ql_transaction(ctx, tx_cmd)
             query = dbstate.MigrationControlQuery(
                 sql=tx_query.sql,
                 action=dbstate.MigrationAction.START,
@@ -1628,13 +1607,13 @@ def _compile_ql_migration(
             )
 
         if isinstance(ql.target, qlast.CommittedSchema):
-            mrstate = self._assert_in_migration_rewrite_block(ctx, ql)
+            mrstate = ctx._assert_in_migration_rewrite_block(ql)
             target_schema = mrstate.target_schema
 
         else:
-            assert self._std_schema is not None
+            assert ctx.compiler_state.std_schema is not None
             base_schema = s_schema.ChainedSchema(
-                self._std_schema,
+                ctx.compiler_state.std_schema,
                 s_schema.FlatSchema(),
                 current_tx.get_global_schema(),
             )
@@ -1661,7 +1640,7 @@ def _compile_ql_migration(
         )
 
     elif isinstance(ql, qlast.PopulateMigration):
-        mstate = self._assert_in_migration_block(ctx, ql)
+        mstate = ctx._assert_in_migration_block(ql)
 
         diff = s_ddl.delta_schemas(
             schema,
@@ -1695,7 +1674,7 @@ def _compile_ql_migration(
             debug.dump_code(';\n'.join(text) + ';')
         current_tx.update_migration_state(mstate)
 
-        delta_context = self._new_delta_context(ctx)
+        delta_context = _new_delta_context(ctx)
 
         # We want to make *certain* that the DDL we generate
         # produces the correct schema when applied, so we reload
@@ -1725,7 +1704,7 @@ def _compile_ql_migration(
         )
 
     elif isinstance(ql, qlast.DescribeCurrentMigration):
-        mstate = self._assert_in_migration_block(ctx, ql)
+        mstate = ctx._assert_in_migration_block(ql)
 
         if ql.language is qltypes.DescribeLanguage.DDL:
             text = []
@@ -1744,7 +1723,6 @@ def _compile_ql_migration(
                 f'SELECT {qlquote.quote_literal(description)}'
             )
             query = _compile_ql_query(
-                self,
                 ctx,
                 desc_ql,
                 cacheable=False,
@@ -1877,7 +1855,6 @@ def _compile_ql_migration(
                 f'SELECT to_json({qlquote.quote_literal(desc)})'
             )
             query = _compile_ql_query(
-                self,
                 ctx,
                 desc_ql,
                 cacheable=False,
@@ -1891,7 +1868,7 @@ def _compile_ql_migration(
             )
 
     elif isinstance(ql, qlast.AlterCurrentMigrationRejectProposed):
-        mstate = self._assert_in_migration_block(ctx, ql)
+        mstate = ctx._assert_in_migration_block(ql)
         if not mstate.last_proposed:
             # XXX: Or should we compute what the proposal would be?
             new_guidance = mstate.guidance
@@ -1937,7 +1914,7 @@ def _compile_ql_migration(
         )
 
     elif isinstance(ql, qlast.CommitMigration):
-        mstate = self._assert_in_migration_block(ctx, ql)
+        mstate = ctx._assert_in_migration_block(ql)
 
         diff = s_ddl.delta_schemas(schema, mstate.target_schema)
         if list(diff.get_subcommands()):
@@ -1999,7 +1976,6 @@ def _compile_ql_migration(
             current_tx.update_migration_state(None)
 
             ddl_query = _compile_and_apply_ddl_stmt(
-                self,
                 ctx,
                 create_migration,
             )
@@ -2010,7 +1986,7 @@ def _compile_ql_migration(
                 tx_action = None
             else:
                 tx_cmd = qlast.CommitTransaction()
-                tx_query = _compile_ql_transaction(self, ctx, tx_cmd)
+                tx_query = _compile_ql_transaction(ctx, tx_cmd)
                 sql = ddl_query.sql + tx_query.sql
                 tx_action = tx_query.action
 
@@ -2029,7 +2005,7 @@ def _compile_ql_migration(
             )
 
     elif isinstance(ql, qlast.AbortMigration):
-        mstate = self._assert_in_migration_block(ctx, ql)
+        mstate = ctx._assert_in_migration_block(ql)
 
         if mstate.initial_savepoint:
             current_tx.abort_migration(mstate.initial_savepoint)
@@ -2037,7 +2013,7 @@ def _compile_ql_migration(
             tx_action = None
         else:
             tx_cmd = qlast.RollbackTransaction()
-            tx_query = _compile_ql_transaction(self, ctx, tx_cmd)
+            tx_query = _compile_ql_transaction(ctx, tx_cmd)
             sql = tx_query.sql
             tx_action = tx_query.action
 
@@ -2052,19 +2028,19 @@ def _compile_ql_migration(
         )
 
     elif isinstance(ql, qlast.DropMigration):
-        self._assert_not_in_migration_block(ctx, ql)
+        ctx._assert_not_in_migration_block(ql)
 
-        query = _compile_and_apply_ddl_stmt(self, ctx, ql)
+        query = _compile_and_apply_ddl_stmt(ctx, ql)
 
     elif isinstance(ql, qlast.StartMigrationRewrite):
-        self._assert_not_in_migration_block(ctx, ql)
-        self._assert_not_in_migration_rewrite_block(ctx, ql)
+        ctx._assert_not_in_migration_block(ql)
+        ctx._assert_not_in_migration_rewrite_block(ql)
 
         # Start a transaction if we aren't in one already
         if current_tx.is_implicit() and not in_script:
             savepoint_name = None
             tx_cmd = qlast.StartTransaction()
-            tx_query = _compile_ql_transaction(self, ctx, tx_cmd)
+            tx_query = _compile_ql_transaction(ctx, tx_cmd)
             query = dbstate.MigrationControlQuery(
                 sql=tx_query.sql,
                 action=dbstate.MigrationAction.START,
@@ -2085,7 +2061,7 @@ def _compile_ql_migration(
 
         # Start from an empty schema except for `module default`
         base_schema = s_schema.ChainedSchema(
-            self._std_schema,
+            ctx.compiler_state.std_schema,
             s_schema.FlatSchema(),
             current_tx.get_global_schema(),
         )
@@ -2110,8 +2086,8 @@ def _compile_ql_migration(
             ),
         )
     elif isinstance(ql, qlast.CommitMigrationRewrite):
-        self._assert_not_in_migration_block(ctx, ql)
-        mrstate = self._assert_in_migration_rewrite_block(ctx, ql)
+        ctx._assert_not_in_migration_block(ql)
+        mrstate = ctx._assert_in_migration_rewrite_block(ql)
 
         diff = s_ddl.delta_schemas(schema, mrstate.target_schema)
         if list(diff.get_subcommands()):
@@ -2149,9 +2125,7 @@ def _compile_ql_migration(
 
         sqls = []
         for cmd in cmds:
-            ddl_query = _compile_and_apply_ddl_stmt(
-                self, ctx, cmd
-            )
+            ddl_query = _compile_and_apply_ddl_stmt(ctx, cmd)
             # We know nothing serious can be in that query
             # except for the SQL, so it's fine to just discard
             # it all.
@@ -2162,7 +2136,7 @@ def _compile_ql_migration(
             tx_action = None
         else:
             tx_cmd = qlast.CommitTransaction()
-            tx_query = _compile_ql_transaction(self, ctx, tx_cmd)
+            tx_query = _compile_ql_transaction(ctx, tx_cmd)
             sqls.extend(tx_query.sql)
             tx_action = tx_query.action
 
@@ -2180,7 +2154,7 @@ def _compile_ql_migration(
         )
 
     elif isinstance(ql, qlast.AbortMigrationRewrite):
-        mrstate = self._assert_in_migration_rewrite_block(ctx, ql)
+        mrstate = ctx._assert_in_migration_rewrite_block(ql)
 
         if mrstate.initial_savepoint:
             current_tx.abort_migration(mrstate.initial_savepoint)
@@ -2188,7 +2162,7 @@ def _compile_ql_migration(
             tx_action = None
         else:
             tx_cmd = qlast.RollbackTransaction()
-            tx_query = _compile_ql_transaction(self, ctx, tx_cmd)
+            tx_query = _compile_ql_transaction(ctx, tx_cmd)
             sql = tx_query.sql
             tx_action = tx_query.action
 
@@ -2210,8 +2184,8 @@ def _compile_ql_migration(
 
 
 def _compile_ql_transaction(
-        self: Compiler, ctx: CompileContext,
-        ql: qlast.Transaction) -> dbstate.Query:
+    ctx: CompileContext, ql: qlast.Transaction
+) -> dbstate.Query:
 
     cacheable = True
     single_unit = False
@@ -2231,7 +2205,7 @@ def _compile_ql_transaction(
         )
 
     if isinstance(ql, qlast.StartTransaction):
-        self._assert_not_in_migration_block(ctx, ql)
+        ctx._assert_not_in_migration_block(ql)
 
         ctx.state.start_tx()
 
@@ -2247,7 +2221,7 @@ def _compile_ql_transaction(
         cacheable = False
 
     elif isinstance(ql, qlast.CommitTransaction):
-        self._assert_not_in_migration_block(ctx, ql)
+        ctx._assert_not_in_migration_block(ql)
 
         cur_tx = ctx.state.current_tx()
         final_user_schema = cur_tx.get_user_schema_if_updated()
@@ -2320,10 +2294,10 @@ def _compile_ql_transaction(
     )
 
 
-def _compile_ql_sess_state(self: Compiler, ctx: CompileContext,
+def _compile_ql_sess_state(ctx: CompileContext,
                            ql: qlast.BaseSessionCommand):
     current_tx = ctx.state.current_tx()
-    schema = current_tx.get_schema(self._std_schema)
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
     aliases = ctx.state.current_tx().get_modaliases()
 
@@ -2356,17 +2330,17 @@ def _compile_ql_sess_state(self: Compiler, ctx: CompileContext,
     )
 
 
-def _compile_ql_config_op(self: Compiler, ctx: CompileContext, ql: qlast.Base):
+def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
 
     current_tx = ctx.state.current_tx()
-    schema = current_tx.get_schema(self._std_schema)
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
     modaliases = current_tx.get_modaliases()
     session_config = current_tx.get_session_config()
     database_config = current_tx.get_database_config()
 
     if ql.scope is not qltypes.ConfigScope.SESSION:
-        self._assert_not_in_migration_block(ctx, ql)
+        ctx._assert_not_in_migration_block(ql)
 
     if (
         ql.scope is qltypes.ConfigScope.INSTANCE
@@ -2446,7 +2420,6 @@ def _compile_ql_config_op(self: Compiler, ctx: CompileContext, ql: qlast.Base):
 
 
 def _compile_dispatch_ql(
-    self,
     ctx: CompileContext,
     ql: qlast.Base,
     source: Optional[edgeql.Source] = None,
@@ -2455,9 +2428,7 @@ def _compile_dispatch_ql(
     script_info: Optional[irast.ScriptInfo] = None,
 ) -> Tuple[dbstate.BaseQuery, enums.Capability]:
     if isinstance(ql, qlast.MigrationCommand):
-        query = _compile_ql_migration(
-            self, ctx, ql, in_script=in_script,
-        )
+        query = _compile_ql_migration(ctx, ql, in_script=in_script)
         if isinstance(query, dbstate.MigrationControlQuery):
             capability = enums.Capability.DDL
             if query.tx_action:
@@ -2470,25 +2441,25 @@ def _compile_dispatch_ql(
 
     elif isinstance(ql, (qlast.DatabaseCommand, qlast.DDL)):
         return (
-            _compile_and_apply_ddl_stmt(self, ctx, ql, source=source),
+            _compile_and_apply_ddl_stmt(ctx, ql, source=source),
             enums.Capability.DDL,
         )
 
     elif isinstance(ql, qlast.Transaction):
         return (
-            _compile_ql_transaction(self, ctx, ql),
+            _compile_ql_transaction(ctx, ql),
             enums.Capability.TRANSACTION,
         )
 
     elif isinstance(ql, (qlast.BaseSessionSet, qlast.BaseSessionReset)):
         return (
-            _compile_ql_sess_state(self, ctx, ql),
+            _compile_ql_sess_state(ctx, ql),
             enums.Capability.SESSION_CONFIG,
         )
 
     elif isinstance(ql, qlast.SQLDebugStmt):
         return (
-            _compile_ql_debug_sql(self, ctx, ql),
+            _compile_ql_debug_sql(ctx, ql),
             enums.Capability.SESSION_CONFIG,
         )
 
@@ -2508,12 +2479,12 @@ def _compile_dispatch_ql(
         else:
             capability = enums.Capability.PERSISTENT_CONFIG
         return (
-            _compile_ql_config_op(self, ctx, ql),
+            _compile_ql_config_op(ctx, ql),
             capability,
         )
 
     else:
-        query = _compile_ql_query(self, ctx, ql, script_info=script_info)
+        query = _compile_ql_query(ctx, ql, script_info=script_info)
         caps = enums.Capability(0)
         if (
             isinstance(query, (dbstate.Query, dbstate.SimpleQuery))
@@ -2524,7 +2495,6 @@ def _compile_dispatch_ql(
 
 
 def compile(
-    self,
     *,
     ctx: CompileContext,
     source: edgeql.Source,
@@ -2537,17 +2507,17 @@ def compile(
             source=original,
             implicit_limit=0,
         )
-        return _try_compile(self, ctx=ctx, source=original)
+        return _try_compile(ctx=ctx, source=original)
 
     try:
-        return _try_compile(self, ctx=ctx, source=source)
+        return _try_compile(ctx=ctx, source=source)
     except errors.EdgeQLSyntaxError as original_err:
         if isinstance(source, edgeql.NormalizedSource):
             # try non-normalized source
             try:
                 original = edgeql.Source.from_string(source.text())
                 ctx = dataclasses.replace(ctx, source=original)
-                _try_compile(self, ctx=ctx, source=original)
+                _try_compile(ctx=ctx, source=original)
             except errors.EdgeQLSyntaxError as denormalized_err:
                 raise denormalized_err
             except Exception:
@@ -2560,7 +2530,6 @@ def compile(
 
 
 def _try_compile(
-    self,
     *,
     ctx: CompileContext,
     source: edgeql.Source,
@@ -2596,8 +2565,9 @@ def _try_compile(
 
         script_info = qlcompiler.preprocess_script(
             statements,
-            schema=ctx.state.current_tx().get_schema(self._std_schema),
-            options=_get_compile_options(self, ctx)
+            schema=ctx.state.current_tx().get_schema(
+                ctx.compiler_state.std_schema),
+            options=_get_compile_options(ctx)
         )
         non_trailing_ctx = dataclasses.replace(
             ctx, output_format=enums.OutputFormat.NONE)
@@ -2606,7 +2576,6 @@ def _try_compile(
         is_trailing_stmt = i == statements_len - 1
         stmt_ctx = ctx if is_trailing_stmt else non_trailing_ctx
         comp, capabilities = _compile_dispatch_ql(
-            self,
             stmt_ctx,
             stmt,
             source=source if not is_script else None,
@@ -3119,6 +3088,13 @@ def _get_data_mending_desc(
                 and any(elements)
             )
         )
+
+
+def _is_dev_instance(ctx: CompileContext) -> bool:
+    # Determine whether we are on a dev instance by the presence
+    # of a test schema element.
+    std_schema = ctx.compiler_state.std_schema
+    return bool(std_schema.get('cfg::TestSessionConfig', None))
 
 
 def _get_config_val(

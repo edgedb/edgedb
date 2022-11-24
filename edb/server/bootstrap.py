@@ -461,6 +461,7 @@ def compile_bootstrap_script(
 ) -> Tuple[s_schema.Schema, str]:
 
     ctx = edbcompiler.new_compiler_context(
+        compiler_state=compiler.state,
         user_schema=schema,
         expected_cardinality_one=expected_cardinality_one,
         json_parameters=True,
@@ -468,18 +469,15 @@ def compile_bootstrap_script(
         bootstrap_mode=True,
     )
 
-    return edbcompiler.compile_edgeql_script(compiler, ctx, eql)
+    return edbcompiler.compile_edgeql_script(ctx, eql)
 
 
 def compile_single_query(
     eql: str,
-    compiler: edbcompiler.Compiler,
     compilerctx: edbcompiler.CompileContext,
 ) -> str:
     ql_source = edgeql.Source.from_string(eql)
-    units = edbcompiler.compile(
-        compiler, ctx=compilerctx, source=ql_source
-    ).units
+    units = edbcompiler.compile(ctx=compilerctx, source=ql_source).units
     assert len(units) == 1 and len(units[0].sql) == 1
     return units[0].sql[0].decode()
 
@@ -521,7 +519,7 @@ def prepare_patch(
     patch: str,
     schema: s_schema.Schema,
     reflschema: s_schema.Schema,
-    schema_class_layout: Dict[Type[s_obj.Object], s_refl.SchemaClassLayout],
+    schema_class_layout: s_refl.SchemaClassLayout,
     backend_params: params.BackendRuntimeParams
 ) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, Any]]:
     val = f'{pg_common.quote_literal(json.dumps(num + 1))}::jsonb'
@@ -625,13 +623,13 @@ def prepare_patch(
     )
 
     compilerctx = edbcompiler.new_compiler_context(
+        compiler_state=compiler.state,
         user_schema=reflschema,
         bootstrap_mode=True,
     )
 
     for std_plan in std_plans:
         edbcompiler.compile_schema_storage_in_delta(
-            compiler,
             ctx=compilerctx,
             delta=std_plan,
             block=subblock,
@@ -784,6 +782,7 @@ async def _make_stdlib(
     )
 
     compilerctx = edbcompiler.new_compiler_context(
+        compiler_state=compiler.state,
         user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
@@ -791,20 +790,19 @@ async def _make_stdlib(
 
     for std_plan in std_plans:
         edbcompiler.compile_schema_storage_in_delta(
-            compiler,
             ctx=compilerctx,
             delta=std_plan,
             block=subblock,
         )
 
     compilerctx = edbcompiler.new_compiler_context(
+        compiler_state=compiler.state,
         user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
         internal_schema_mode=True,
     )
     edbcompiler.compile_schema_storage_in_delta(
-        compiler,
         ctx=compilerctx,
         delta=reflection.intro_schema_delta,
         block=subblock,
@@ -868,11 +866,11 @@ async def _amend_stdlib(
     )
 
     compilerctx = edbcompiler.new_compiler_context(
+        compiler_state=compiler.state,
         user_schema=schema
     )
     for plan in plans:
         edbcompiler.compile_schema_storage_in_delta(
-            compiler,
             ctx=compilerctx,
             delta=plan,
             block=topblock,
@@ -891,6 +889,7 @@ def _compile_intro_queries_stdlib(
     reflection: s_refl.SchemaReflectionParts,
 ) -> Tuple[str, str]:
     compilerctx = edbcompiler.new_compiler_context(
+        compiler_state=compiler.state,
         user_schema=user_schema,
         global_schema=global_schema,
         schema_reflection_mode=True,
@@ -907,7 +906,6 @@ def _compile_intro_queries_stdlib(
         sql_intro_local_parts.append(
             compile_single_query(
                 intropart,
-                compiler=compiler,
                 compilerctx=compilerctx,
             ),
         )
@@ -916,7 +914,6 @@ def _compile_intro_queries_stdlib(
         sql_intro_global_parts.append(
             compile_single_query(
                 intropart,
-                compiler=compiler,
                 compilerctx=compilerctx,
             ),
         )
@@ -1374,8 +1371,8 @@ async def _compile_sys_queries(
     '''
 
     units = edbcompiler.compile(
-        compiler,
         ctx=edbcompiler.new_compiler_context(
+            compiler_state=compiler.state,
             user_schema=schema,
             expected_cardinality_one=True,
             json_parameters=False,
@@ -1704,13 +1701,7 @@ async def _start(ctx: BootstrapContext) -> None:
         ctx.cluster.overwrite_capabilities(struct.Struct('!Q').unpack(caps)[0])
         _check_capabilities(ctx)
 
-        compiler = edbcompiler.Compiler()
-        await compiler.initialize_from_pg(conn)
-        std_schema = compiler.get_std_schema()
-        config_spec = config.load_spec_from_schema(std_schema)
-
-        # Initialize global config
-        config.set_settings(config_spec)
+        await edbcompiler.new_compiler_from_pg(conn)
 
     finally:
         conn.terminate()
