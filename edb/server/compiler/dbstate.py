@@ -388,7 +388,7 @@ class ProposedMigrationStep(NamedTuple):
     prompt: str
     prompt_id: str
     data_safe: bool
-    required_user_input: Tuple[Tuple[str, str]]
+    required_user_input: Tuple[Tuple[str, str], ...]
     # This isn't part of the output data, but is used to figure out
     # what to prohibit when something is rejected.
     operation_key: s_delta.CommandKey
@@ -763,7 +763,7 @@ class CompilerConnectionState:
 
         return prior_state
 
-    def commit_tx(self):
+    def commit_tx(self) -> TransactionState:
         if self._current_tx.is_implicit():
             raise errors.TransactionError('cannot commit: not in transaction')
 
