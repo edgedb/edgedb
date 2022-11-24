@@ -106,6 +106,11 @@ def _ddl_migr_rw_abort(ql):
     return b'ABORT MIGRATION REWRITE'
 
 
+@get_status.register(qlast.ResetSchema)
+def _ddl_migr_reset_schema(ql):
+    return b'RESET SCHEMA'
+
+
 @get_status.register(qlast.SelectQuery)
 @get_status.register(qlast.GroupQuery)
 @get_status.register(qlast.ForQuery)
