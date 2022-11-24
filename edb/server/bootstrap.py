@@ -477,7 +477,9 @@ def compile_single_query(
     compilerctx: edbcompiler.CompileContext,
 ) -> str:
     ql_source = edgeql.Source.from_string(eql)
-    units = compiler._compile(ctx=compilerctx, source=ql_source).units
+    units = edbcompiler.compile(
+        compiler, ctx=compilerctx, source=ql_source
+    ).units
     assert len(units) == 1 and len(units[0].sql) == 1
     return units[0].sql[0].decode()
 
@@ -628,7 +630,8 @@ def prepare_patch(
     )
 
     for std_plan in std_plans:
-        compiler._compile_schema_storage_in_delta(
+        edbcompiler.compile_schema_storage_in_delta(
+            compiler,
             ctx=compilerctx,
             delta=std_plan,
             block=subblock,
@@ -787,7 +790,8 @@ async def _make_stdlib(
     )
 
     for std_plan in std_plans:
-        compiler._compile_schema_storage_in_delta(
+        edbcompiler.compile_schema_storage_in_delta(
+            compiler,
             ctx=compilerctx,
             delta=std_plan,
             block=subblock,
@@ -799,7 +803,8 @@ async def _make_stdlib(
         bootstrap_mode=True,
         internal_schema_mode=True,
     )
-    compiler._compile_schema_storage_in_delta(
+    edbcompiler.compile_schema_storage_in_delta(
+        compiler,
         ctx=compilerctx,
         delta=reflection.intro_schema_delta,
         block=subblock,
@@ -866,7 +871,8 @@ async def _amend_stdlib(
         user_schema=schema
     )
     for plan in plans:
-        compiler._compile_schema_storage_in_delta(
+        edbcompiler.compile_schema_storage_in_delta(
+            compiler,
             ctx=compilerctx,
             delta=plan,
             block=topblock,
@@ -1367,7 +1373,8 @@ async def _compile_sys_queries(
         }});
     '''
 
-    units = compiler._compile(
+    units = edbcompiler.compile(
+        compiler,
         ctx=edbcompiler.new_compiler_context(
             user_schema=schema,
             expected_cardinality_one=True,
