@@ -530,8 +530,7 @@ Sets
 
     :index: aggregate
 
-    Returns a :eql:type:`bool` value with :eql:op:`or` applied to all
-    values.
+    Returns ``true`` if any of the values in the given set is ``true``.
 
     The result is ``true`` if any of the *values* are ``true``, with
     ``false`` returned otherwise.
