@@ -1,5 +1,3 @@
-# mypy: ignore-errors
-
 #
 # This source file is part of the EdgeDB open source project.
 #
@@ -21,6 +19,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import decimal
 import functools
@@ -31,7 +30,7 @@ import edgedb
 
 @functools.singledispatch
 def serialize(o):
-    raise TypeError(f'cannot serialiaze type {type(o)}')
+    raise TypeError(f'cannot serialize type {type(o)}')
 
 
 @serialize.register
@@ -45,39 +44,13 @@ def _namedtuple(o: edgedb.NamedTuple):
 
 
 @serialize.register
-def _linkset(o: edgedb.LinkSet):
-    return [serialize(el) for el in o]
-
-
-@serialize.register
-def _link(o: edgedb.Link):
-    ret = {}
-
-    for lprop in dir(o):
-        if lprop in {'source', 'target'}:
-            continue
-        ret[f'@{lprop}'] = serialize(getattr(o, lprop))
-
-    ret.update(_object(o.target))
-    return ret
-
-
-@serialize.register
 def _object(o: edgedb.Object):
-    ret = {}
-
-    for attr in dir(o):
-        try:
-            link = o[attr]
-        except (KeyError, TypeError):
-            link = None
-
-        if link:
-            ret[attr] = serialize(link)
-        else:
-            ret[attr] = serialize(getattr(o, attr))
-
-    return ret
+    # We iterate over dataclasses.fields(o) (instead of dir(o))
+    # because it contains both regular pointers and link properties,
+    # and is I think the only current way to extract the names of all
+    # the link properties
+    attrs = [field.name for field in dataclasses.fields(o)]
+    return {attr: serialize(getattr(o, attr)) for attr in attrs}
 
 
 @serialize.register(edgedb.Set)
