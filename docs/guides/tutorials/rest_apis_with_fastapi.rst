@@ -944,7 +944,8 @@ The exception handling logic validates the shape of the incoming data. For
 example, just as before in the users API, the events API will complain if you
 try to create multiple events with the same name. Also, the field ``schedule``
 accepts data as an `ISO 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_
-timestamp string. Failing to do so will incur an HTTP 400 (bad request) error.
+timestamp string. Values not adhering to that will incur an HTTP 400 (bad
+request) error.
 
 It's almost time to test, but before we can do that, we need to expose this new
 API in ``app/main.py``. Open that file, and update the import on line 6 to also
