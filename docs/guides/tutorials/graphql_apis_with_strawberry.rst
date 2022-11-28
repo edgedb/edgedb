@@ -7,7 +7,7 @@ Strawberry
 EdgeDB allows you to query your database with GraphQL via the built-in GraphQL
 extension. It enables you to expose GraphQL-driven CRUD APIs for all object
 types, their properties, links, and aliases. This opens up the scope for
-creating backendless applications where the users will directly communicate
+creating backend-less applications where the users will directly communicate
 with the database. You can learn more about that in the
 `GraphQL <https://www.edgedb.com/docs/graphql/index>`_ section of the docs.
 
@@ -15,12 +15,12 @@ However, as of now, EdgeDB is not ready to be used as a standalone backend. You
 shouldn't expose your EdgeDB instance directly to the application’s frontend;
 this is insecure and will give all users full read/write access to your
 database. So, in this tutorial, we'll see how you can quickly create a simple
-GraphQL API without using the built-in extension and give the users restricted
-access to the database schema. Also, we'll implement HTTP basic authentication
-and demonstrate how you can write your own GraphQL validators and resolvers.
-This tutorial assumes you're already familiar with GraphQL terms like
-schema, query, mutation, resolver, validator, etc, and have used GraphQL with
-some other technology before.
+GraphQL API without using the built-in extension, which will give the users
+restricted access to the database schema. Also, we'll implement HTTP basic
+authentication and demonstrate how you can write your own GraphQL validators
+and resolvers. This tutorial assumes you're already familiar with GraphQL terms
+like schema, query, mutation, resolver, validator, etc, and have used GraphQL
+with some other technology before.
 
 We'll build the same movie organization system that we used in the Flask
 `tutorial <https://www.edgedb.com/docs/guides/tutorials/rest_apis_with_flask>`_
@@ -29,8 +29,8 @@ interface, you'll be able to fetch, create, update, and delete movie and actor
 objects in the database. `Strawberry <https://strawberry.rocks/>`_ is a Python
 library that takes a code-first approach where you'll write your object schema
 as Python classes. This allows us to focus more on how you can integrate EdgeDB
-into your workflow than the idiosyncrasies of GraphQL itself. We'll also use
-the EdgeDB client to communicate with the database,
+into your workflow and less on the idiosyncrasies of GraphQL itself. We'll also
+use the EdgeDB client to communicate with the database,
 `FastAPI <https://fastapi.tiangolo.com/>`_ to build the authentication layer,
 and Uvicorn as the webserver.
 
@@ -470,8 +470,8 @@ create an actor object in the database as follows:
 Creating a mutation also includes data validation. By type annotating the
 ``Mutation`` class, we're implicitly asking Strawberry to perform data
 validation on the incoming request payload. Strawberry will raise an HTTP 400
-if the validation fails. Let's create an actor. Submit the following graphql
-query in the GraphiQL interface:
+error if the validation fails. Let's create an actor. Submit the following
+GraphQL query in the GraphiQL interface:
 
 .. code-block:: graphql
 
@@ -523,7 +523,7 @@ You can also filter actors by their names. To do so, you'd leverage the
 
 This will only display the filtered results. Similarly, as shown above, you can
 write the mutations to update and delete actors. Their implementations can be
-found in the ``schema.py`` file. Checkout ``update_actors`` and
+found in the ``schema.py`` file. Check out ``update_actors`` and
 ``delete_resolvers`` to learn more about their implementation details. You can
 update one or more attributes of an actor with the following mutation:
 
@@ -680,7 +680,7 @@ to how we've constructed the create actor mutation. It looks like this:
 You can submit a request to this mutation to create a movie. While creating a
 movie, you must provide the name of the movie as it's a required field. Also,
 you can optionally provide the ``year`` the movie was released and an array
-containing the names of the casts. If the values of the ``actor_names`` field
+containing the names of the actors. If the values of the ``actor_names`` field
 match any existing actor in the database, the above snippet makes sure that the
 movie will be linked with the corresponding actors. In the GraphiQL explorer,
 run the following mutation to create a movie named ``Avengers`` and link the

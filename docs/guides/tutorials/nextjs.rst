@@ -7,7 +7,7 @@ Next.js
 :edb-alt-title: Building a simple blog application with EdgeDB and Next.js
 
 We're going to build a simple blog application with
-`Next.js <https://nextjs.org/>`_ and EdgeDB. Let's start by scaffolding out
+`Next.js <https://nextjs.org/>`_ and EdgeDB. Let's start by scaffolding our
 app with Next.js's ``create-next-app`` tool. We'll be using TypeScript for
 this tutorial.
 
@@ -81,7 +81,7 @@ static data. Replace the contents of ``pages/index.tsx`` with the following.
       {
         id: 'post2',
         title: 'How to build a blog with EdgeDB and Next.js',
-        content: "Let's start by scaffolding out app with `create-next-app`.",
+        content: "Let's start by scaffolding our app with `create-next-app`.",
       },
     ];
 
@@ -220,7 +220,7 @@ update the contents of ``default.esdl`` with the following simple blog schema.
 
 .. note::
 
-  EdgeDB let's you split up your schema into different ``modules`` but it's
+  EdgeDB lets you split up your schema into different ``modules`` but it's
   common to keep your entire schema in the ``default`` module.
 
 Save the file, then let's create our first migration.
@@ -232,7 +232,7 @@ Save the file, then let's create our first migration.
   > y
   Created ./dbschema/migrations/00001.edgeql
 
-The ``dbschema/migrations`` now contains a migration file called
+The ``dbschema/migrations`` directory now contains a migration file called
 ``00001.edgeql``. Currently though, we haven't applied this migration against
 our database. Let's do that.
 
@@ -310,7 +310,7 @@ the database and provides an API for executing queries. We're using the
 ``select`` statement.
 
 If you visit `localhost:3000/api/post <http://localhost:3000/api/post>`_ in
-your browser, you should be a plaintext JSON representation of the blog posts
+your browser, you should see a plaintext JSON representation of the blog posts
 we inserted earlier.
 
 To fetch these from the homepage, we'll use ``useState``, ``useEffect``, and
@@ -388,7 +388,7 @@ Generate the query builder with the following command.
 
 
 This command introspected the schema of our database and generated some code
-into the ``dbschema/edgeql-js`` directory. It also asked us if wanted to add
+in the ``dbschema/edgeql-js`` directory. It also asked us if we wanted to add
 the generated code to our ``.gitignore``; typically it's not good practice to
 include generated files in version control.
 
@@ -439,7 +439,7 @@ this query. In VSCode you can hover over ``Posts`` to see what this type is.
     :alt: Inferred type of posts query
     :width: 100%
 
-Back in ``pages/index.tsx``, lets update our code to use the inferred
+Back in ``pages/index.tsx``, let's update our code to use the inferred
 ``Posts`` type instead of our manual type declaration.
 
 .. code-block:: typescript-diff
@@ -584,7 +584,7 @@ Use the DSN to apply migrations against your remote instance.
   project.
 
 Once you've applied the migrations, consider creating some sample data in your
- database. Open a REPL and ``insert`` some blog posts:
+database. Open a REPL and ``insert`` some blog posts:
 
 .. code-block:: bash
 

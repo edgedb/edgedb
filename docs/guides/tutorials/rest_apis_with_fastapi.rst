@@ -39,7 +39,7 @@ directory.
     $ cd edgedb-examples/fastapi-crud
 
 Create a Python 3.10 virtual environment, activate it, and install
-the dependencies with this command. On Linux/macOS:
+the dependencies with these commands. On Linux/macOS:
 
 .. code-block:: bash
 
@@ -96,7 +96,7 @@ similar to this:
     edgedb>
 
 You can start writing queries here. However, the database is currently
-schemaless. Let's start designing out data model.
+schemaless. Let's start designing our data model.
 
 Schema design
 =============
@@ -410,7 +410,7 @@ It can be built like this:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={
-                "error": f"Username '{filter_name}' already exists."
+                "error": f"Username '{user.name}' already exists."
                 },
             )
         response = (
@@ -462,7 +462,7 @@ This returns:
     ...
     {
       "detail": {
-        "error": "Username 'Count Dracula' already exists."
+        "error": "Username 'Dr. Van Helsing' already exists."
       }
     }
 
@@ -614,9 +614,9 @@ Take a look at how the POST API is built:
         )
 
 Like the ``POST /users`` API, here, the incoming and outgoing shape of the data
-is defined by the ``RequestData`` and ``ResponseData``models respectively. The
-``post_events`` function asynchronously inserts the data into the database and
-returns the fields defined in the ``SELECT`` statement. EdgeQL allows us to
+is defined by the ``RequestData`` and ``ResponseData`` models respectively.
+The ``post_events`` function asynchronously inserts the data into the database
+and returns the fields defined in the ``SELECT`` statement. EdgeQL allows us to
 perform insertion and selection of data fields at the same time. The exception
 handling logic validates the shape of the incoming data. For example, just as
 before, this API will complain if you try to create multiple events with the
