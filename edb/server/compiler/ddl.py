@@ -1105,30 +1105,36 @@ def _reset_schema(
         s_schema.FlatSchema(),
         current_tx.get_global_schema(),
     )
-    
-    # diff, create migation and compile to ddl
+
+    sqls: List[bytes] = []
+
+    # diff and create migation that drops all objects
     diff = s_ddl.delta_schemas(schema, empty_schema)
     new_ddl: Tuple[qlast.DDLCommand, ...] = tuple(
         s_ddl.ddlast_from_delta(schema, empty_schema, diff),  # type: ignore
     )
-    create_migration = qlast.CreateMigration(  # type: ignore
+    create_mig = qlast.CreateMigration(  # type: ignore
         body=qlast.NestedQLBlock(commands=tuple(new_ddl)),  # type: ignore
     )
-    ddl_query = compile_and_apply_ddl_stmt(ctx, create_migration)
+    ddl_query = compile_and_apply_ddl_stmt(ctx, create_mig)
+    sqls.extend(ddl_query.sql)
 
     # delete all migrations
-    # XXX: how do I overrule access policies preventing me the delete?
-    source = edgeql.Source.from_string('delete schema::Migration;')
-    unit_group = compiler.compile(ctx=ctx, source=source)
-    delete_migrations = unit_group[0]
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
-    sql = ddl_query.sql + delete_migrations.sql
-
-    print(sql)
-    print(delete_migrations)
+    migrations = s_delta.sort_by_cross_refs(
+        schema,
+        schema.get_objects(type=s_migrations.Migration),
+    )
+    for mig in migrations:
+        drop_mig = qlast.DropMigration(  # type: ignore
+            name=qlast.ObjectRef(name=mig.get_name(schema).name),
+        )
+        ddl_query = compile_and_apply_ddl_stmt(ctx, drop_mig)
+        sqls.extend(ddl_query.sql)
 
     return dbstate.MigrationControlQuery(
-        sql=sql,
+        sql=tuple(sqls),
         ddl_stmt_id=ddl_query.ddl_stmt_id,
         action=dbstate.MigrationAction.COMMIT,
         tx_action=None,

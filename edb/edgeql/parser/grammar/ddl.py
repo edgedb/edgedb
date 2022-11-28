@@ -3019,6 +3019,7 @@ class DropMigrationStmt(Nonterm):
             name=kids[2].val,
         )
 
+
 class ResetSchemaStmt(Nonterm):
     def reduce_ResetSchemaTo(self, *kids):
         r"""%reduce RESET SCHEMA TO NodeName"""
