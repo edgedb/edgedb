@@ -76,15 +76,15 @@ It's often convenient to create an alias for the remote instance using
    $ edgedb instance link \
         --trust-tls-cert \
         --dsn edgedb://edgedb:<password>@<hostname>
-        aws_instance
+        my_aws_instance
 
-This aliases the remote instance to ``aws_instance`` (this can be
-anything). You can now use the ``-I aws_instance`` flag to run CLI commands
+This aliases the remote instance to ``my_aws_instance`` (this name can be
+anything). You can now use the ``-I my_aws_instance`` flag to run CLI commands
 against this instance, as with local instances.
 
 .. code-block:: bash
 
-  $ edgedb -I aws_instance
+  $ edgedb -I my_aws_instance
   EdgeDB 2.x
   Type \help for help, \quit to quit.
   edgedb>

@@ -10,7 +10,7 @@ In this guide we show how to deploy EdgeDB to Heroku using a Heroku PostgreSQL
 add-on as the backend.
 
 Because of Heroku's architecture EdgeDB must be deployed with a web app on
-Heroku. For this guide we will use a `todo app written in node <todo-repo_>`_.
+Heroku. For this guide we will use a `todo app written in Node <todo-repo_>`_.
 
 .. _todo-repo: https://github.com/edgedb/simpletodo/tree/main
 
@@ -44,7 +44,7 @@ First copy the code, initialize a new git repo, and create a new heroku app.
 
 If you are using the `JS query builder for EdgeDB <js-query-builder>`_ then you
 will need to check the ``dbschema/edgeql-js`` directory in to your git repo
-after running ``yarn edgeql-js``. The ``edgeql-js`` command can not be run
+after running ``yarn edgeql-js``. The ``edgeql-js`` command cannot be run
 during the build step on Heroku because it needs access to a running EdgeDB
 instance which is not available at build time on Heroku.
 

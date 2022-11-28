@@ -57,7 +57,7 @@ Data Persistence
 
 If you want the contents of the database to survive container restarts, you
 must mount a persistent volume at the path specified by
-``EDGEDB_SERVER_DATADIR`` (``/var/lib/edgedb/data``) by default.  For example:
+``EDGEDB_SERVER_DATADIR`` (``/var/lib/edgedb/data`` by default).  For example:
 
 .. code-block:: bash
 
@@ -119,7 +119,7 @@ migration can be created with:
 
    $ edgedb --tls-security=insecure -P 5656 migration create
 
-alternatively, if you don't have the EdgeDB CLI installed on your host
+Alternatively, if you don't have the EdgeDB CLI installed on your host
 machine, you can use the CLI bundled with the server container:
 
 .. code-block:: bash
@@ -253,9 +253,9 @@ Custom scripts in ``/edgedb-bootstrap.d/`` and ``/edgedb-bootstrap-late.d``
 ...........................................................................
 
 To perform additional initialization, a derived image may include one or more
-``*.edgeql``, or ``*.sh`` scripts, which are executed in addition to and
-_after_ the initialization specified by the environment variables above or the
+``*.edgeql`` or ``*.sh`` scripts, which are executed in addition to and
+*after* the initialization specified by the environment variables above or the
 ``/edgedb-bootstrap.edgeql`` script.  Parts in ``/edgedb-bootstrap.d`` are
-executed _before_ any schema migrations are applied, and parts in
-``/edgedb-bootstrap-late.d`` are executed _after_ the schema migration have
+executed *before* any schema migrations are applied, and parts in
+``/edgedb-bootstrap-late.d`` are executed *after* the schema migration have
 been applied.
