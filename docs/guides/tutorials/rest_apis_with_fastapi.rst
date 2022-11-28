@@ -397,65 +397,133 @@ bring in the queries:
 
 .. code-block:: python
 
+    # app/users.py
+    ...
     import generated_async_edgeql as db_queries
+    ...
 
-and replace the comments with calls to the functions:
+Get rid of the ``ResponseData`` dataclass and instead import the generated
+dataclass:
 
 .. code-block:: python
 
+    # app/users.py
+    ...
+    UserResult = db_queries.CreateUserResult
+    ...
+
+.. note::
+
+    In file mode, the code generator will reuse the same dataclass rather than
+    creating a new identical one for each function. That's cool because it
+    means even our generated code is DRY! The side effect of this, though, is
+    that the dataclass is named for the first function that is generated (the
+    first occurring one alphabetically — in our case, the ``create_user``
+    function). The dataclass's generated ``CreateUserResult`` name implies it's
+    only the type resulting from ``create_user``, but it's actually a more
+    general dataclass that refers to any kind of user result. That's why we
+    assign it to a new, more generically named variable here.
+
+Replace the ``get_users`` function's return type with the newly imported
+dataclass:
+
+.. code-block:: python
+
+    # app/users.py
+    ...
+    @router.get("/users")
+    async def get_users(
+        name: str = Query(None, max_length=50)
+    ) -> Iterable[UserResult] | UserResult:
+    ...
+
+And replace the comments with calls to the functions:
+
+.. code-block:: python
+
+    # app/users.py
+    ...
     if not name:
         users = await db_queries.get_users(client)
-        response = (
-            ResponseData(
-                name=user.name,
-                created_at=user.created_at
-            ) for user in users
-        )
+        return users
     else:
         user = await db_queries.get_user_by_name(client, name=name)
-        response = ResponseData(
-            name=user.name,
-            created_at=user.created_at
-        )
+        return user
+    ...
 
-This nearly gets us there but not quite. If your linter shows typing errors,
-you'll notice it's unhappy that we're trying to assign ``user.name`` to
-``name`` in the else case (the single-user query) because that query could
-return ``None`` which doesn't have a member ``name``.
+This nearly gets us there but not quite. We have one potential outcome not
+accounted for: a query for a user by name that returns no results. In that
+case, we'll want to return a 404 (not found).
 
-To get around this, we'll check in the else case whether we got anything back
+To fix it, we'll check in the else case whether we got anything back
 from the single user query. If not, we'll go ahead and raise an exception. This
-will send a 404 (not found) response to the user.
+will send the 404 (not found) response to the user.
 
 .. code-block:: python
 
+    # app/users.py
+    ...
     if not name:
         users = await db_queries.get_users(client)
-        response = (
-            ResponseData(
-                name=user.name,
-                created_at=user.created_at
-            ) for user in users
-        )
+        return users
     else:
         user = await db_queries.get_user_by_name(client, name=name)
         if not user:
             raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND, 
+                status_code=HTTPStatus.NOT_FOUND,
                 detail={"error": f"Username '{name}' does not exist."},
             )
-        response = ResponseData(
-            name=user.name,
-            created_at=user.created_at
-        )
+        return user
+    ...
 
 Let's break this down. In the ``get_users`` function, we use our generated code
-to perform asynchronous queries via the ``edgedb`` client and serialize the
-returned data with the ``ResponseData`` model. Then we aggregate the instances
-with a generator and return it. In the case of a name-filtered query, we don't
-need a generator and instead return the single result, still serialized with
-the ``ReponseData`` model. Afterward, the JSON serialization part is taken care
-of by FastAPI.
+to perform asynchronous queries via the ``edgedb`` client. Then we return the
+query results. Afterward, the JSON serialization part is taken care of by
+FastAPI.
+
+Here's what the entire ``users.py`` module looks like at this point:
+
+.. code-block:: python
+
+    # app/users.py
+    from __future__ import annotations
+
+    import datetime
+    from http import HTTPStatus
+    from typing import Iterable
+
+    import edgedb
+    from fastapi import APIRouter, HTTPException, Query
+    from pydantic import BaseModel
+
+    import generated_async_edgeql as db_queries
+
+    router = APIRouter()
+    client = edgedb.create_async_client()
+
+    UserResult = db_queries.CreateUserResult
+
+
+    class RequestData(BaseModel):
+        name: str
+
+
+    @router.get("/users")
+    async def get_users(
+        name: str = Query(None, max_length=50)
+    ) -> Iterable[UserResult] | UserResult:
+
+        if not name:
+            users = await db_queries.get_users(client)
+            return users
+        else:
+            user = await db_queries.get_user_by_name(client, name=name)
+            if not user:
+                raise HTTPException(
+                    status_code=HTTPStatus.NOT_FOUND,
+                    detail={"error": f"Username '{name}' does not exist."},
+                )
+            return user
 
 Before we can use this endpoint, we need to expose it to the server. We'll do
 that in the ``main.py`` module. Create ``app/main.py`` and open it in your
@@ -557,7 +625,7 @@ we're ready to open ``app/users.py`` again and add the POST endpoint:
     # app/users.py
     ...
     @router.post("/users", status_code=HTTPStatus.CREATED)
-    async def post_user(user: RequestData) -> ResponseData:
+    async def post_user(user: RequestData) -> UserResult:
 
         try:
             created_user = await db_queries.create_user(client, name=user.name)
@@ -566,17 +634,14 @@ we're ready to open ``app/users.py`` again and add the POST endpoint:
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={"error": f"Username '{user.name}' already exists."},
             )
-        response = ResponseData(
-          name=created_user.name,
-          created_at=created_user.created_at)
-        return response
+        return created_user
 
 In the above snippet, we ingest data with the shape dictated by the
-``RequestData`` model and return a payload with the shape defined in the
-``ResponseData`` model. The ``try...except`` block gracefully handles the
-situation where the API consumer might try to create multiple users with the
-same name. A successful request will yield the status code HTTP 201 (created)
-along with the new user's ``name`` and ``created_at`` as JSON.
+``RequestData`` model and return a payload of the query results. The
+``try...except`` block gracefully handles the situation where the API consumer
+might try to create multiple users with the same name. A successful request
+will yield the status code HTTP 201 (created) along with the new user's
+``id``, ``name``, and ``created_at`` as JSON.
 
 To test it out, make a request as follows:
 
@@ -585,7 +650,6 @@ To test it out, make a request as follows:
     $ httpx -m POST http://localhost:5000/users \
             --json '{"name" : "Jonathan Harker"}'
 
-
 The output should look similar to this:
 
 ::
@@ -593,9 +657,15 @@ The output should look similar to this:
     HTTP/1.1 201 Created
     ...
     {
+      "id": "53771f56-6f57-11ed-8729-572f5fba7ddc",
       "name": "Jonathan Harker",
       "created_at": "2022-04-16T23:09:30.929664+00:00"
     }
+
+.. note::
+
+    Since IDs are generated, your ``id`` values probably won't match the values
+    in this guide. This is not a problem.
 
 If you try to make the same request again, it'll throw an HTTP 400
 (bad request) error:
@@ -633,10 +703,10 @@ endpoint over in ``app/users.py``.
     # app/users.py
     ...
     @router.put("/users")
-    async def put_user(user: RequestData, current_name: str) -> ResponseData:
+    async def put_user(user: RequestData, current_name: str) -> UserResult:
         try:
             updated_user = await db_queries.update_user(
-                client, 
+                client,
                 new_name=user.name,
                 current_name=current_name,
             )
@@ -646,18 +716,12 @@ endpoint over in ``app/users.py``.
                 detail={"error": f"Username '{user.name}' already exists."},
             )
 
-        if updated_user:
-            response = \
-                ResponseData(
-                    name=updated_user.name,
-                    created_at=updated_user.created_at
-                )
-            return response
-        else:
+        if not updated_user:
             raise HTTPException(
                 status_code=HTTPStatus.NOT_FOUND,
-                detail={"error": f"User '{user.name}' was not found."},
+                detail={"error": f"User '{current_name}' was not found."},
             )
+        return updated_user
 
 Not much new happening here. We wrote our query with a ``current_name``
 parameter for finding the user to be updated. The only thing we can change
@@ -686,6 +750,7 @@ This will return:
     ...
     [
       {
+        "id": "53771f56-6f57-11ed-8729-572f5fba7ddc",
         "name": "Dr. Van Helsing",
         "created_at": "2022-04-16T23:09:30.929664+00:00"
       }
@@ -734,9 +799,9 @@ you've already written:
     # app/users.py
     ...
     @router.delete("/users")
-    async def delete_user(name: str) -> ResponseData:
+    async def delete_user(name: str) -> UserResult:
         try:
-            deleted_user = await db_queries.delete_users(
+            deleted_user = await db_queries.delete_user(
                 client,
                 name=name,
             )
@@ -746,21 +811,15 @@ you've already written:
                 detail={"error": "User attached to an event. Cannot delete."},
             )
 
-        if deleted_user:
-            response = \
-                ResponseData(
-                    name=deleted_user.name,
-                    created_at=deleted_user.created_at
-                )
-            return response
-        else:
+        if not deleted_user:
             raise HTTPException(
                 status_code=HTTPStatus.NOT_FOUND,
                 detail={"error": f"User '{name}' was not found."},
             )
+        return deleted_user
 
 This endpoint will simply delete the requested user if the user isn't attached
-to any event. If the targeted object is attached to an event, the API will
+to any event. If the targeted object *is* attached to an event, the API will
 throw an HTTP 400 (bad request) error and refuse to delete the object. To
 test it out by deleting ``Count Dracula``, on your console, run:
 
@@ -777,6 +836,7 @@ If it worked, you should see this result:
     ...
     [
       {
+        "id": "e6837562-6f55-11ed-8744-ff1b295ed864",
         "name": "Count Dracula",
         "created_at": "2022-04-16T23:23:56.630101+00:00"
       }
@@ -822,7 +882,6 @@ time to code up the endpoint to use that freshly generated query.
     # app/events.py
     from __future__ import annotations
 
-    import datetime
     from http import HTTPStatus
     from typing import Iterable, Optional
 
@@ -835,6 +894,8 @@ time to code up the endpoint to use that freshly generated query.
     router = APIRouter()
     client = edgedb.create_async_client()
 
+    EventResult = db_queries.CreateEventResult
+
 
     class RequestData(BaseModel):
         name: str
@@ -842,18 +903,9 @@ time to code up the endpoint to use that freshly generated query.
         schedule: str
         host_name: str
 
-    class Host(BaseModel):
-        name: Optional[str]
-
-    class ResponseData(BaseModel):
-        name: str
-        address: Optional[str]
-        schedule: Optional[datetime.datetime]
-        host: Optional[Host]
-
 
     @router.post("/events", status_code=HTTPStatus.CREATED)
-    async def post_event(event: RequestData) -> ResponseData:
+    async def post_event(event: RequestData) -> EventResult:
         try:
             created_event = await db_queries.create_event(
                 client,
@@ -879,20 +931,14 @@ time to code up the endpoint to use that freshly generated query.
                 detail=f"Event name '{event.name}' already exists,",
             )
 
-        return ResponseData(
-            name=created_event.name,
-            address=created_event.address,
-            schedule=created_event.schedule,
-            host=Host(name=created_event.host.name) \
-                if created_event.host else None,
-        )
+        return created_event
 
 Like the ``POST /users`` endpoint, the incoming and outgoing shape of the
-``POST /events`` endpoint's data is defined by the ``RequestData`` and
-``ResponseData`` models respectively. The ``ResponseData`` model has a nested
-``Host`` model to handle a linked user who is hosting the event. The
-``post_events`` function asynchronously inserts the data into the database and
-returns the fields defined in the ``select`` query we wrote earlier.
+``POST /events`` endpoint's data are defined by the ``RequestData`` model and
+the generated ``CreateEventResult`` model (renamed here to ``EventResult``)
+respectively. The ``post_events`` function asynchronously inserts the data into
+the database and returns the fields defined in the ``select`` query we wrote
+earlier, along with the new event's ``id``.
 
 The exception handling logic validates the shape of the incoming data. For
 example, just as before in the users API, the events API will complain if you
@@ -938,6 +984,7 @@ If everything worked, you'll see output like this:
     HTTP/1.1 200 OK
     ...
     {
+      "id": "0b1847f4-6f3d-11ed-9f27-6fcdf20ffe22",
       "name": "Resuscitation",
       "address": "Britain",
       "schedule": "1889-07-28T06:59:59+00:00",
@@ -1006,32 +1053,18 @@ coding GET. Add this to your ``events.py``:
     @router.get("/events")
     async def get_events(
         name: str = Query(None, max_length=50)
-    ) -> Iterable[ResponseData] | ResponseData:
+    ) -> Iterable[EventResult] | EventResult:
         if not name:
             events = await db_queries.get_events(client)
-            response = (
-                ResponseData(
-                    name=event.name,
-                    address=event.address,
-                    schedule=event.schedule,
-                    host=Host(name=event.host.name if event.host else None),
-                )
-                for event in events
-            )
+            return events
         else:
             event = await db_queries.get_event_by_name(client, name=name)
             if not event:
                 raise HTTPException(
-                    status_code=HTTPStatus.NOT_FOUND, 
+                    status_code=HTTPStatus.NOT_FOUND,
                     detail={"error": f"Event '{name}' does not exist."},
                 )
-            response = ResponseData(
-                name=event.name,
-                address=event.address,
-                schedule=event.schedule,
-                host=Host(name=event.host.name if event.host else None),
-            )
-        return response
+            return event
 
 Save that file and test it like this:
 
@@ -1048,6 +1081,7 @@ is just the one):
     ...
     [
         {
+            "id": "0b1847f4-6f3d-11ed-9f27-6fcdf20ffe22",
             "name": "Resuscitation",
             "address": "Britain",
             "schedule": "1889-07-28T06:59:59+00:00",
@@ -1074,6 +1108,7 @@ That'll return a result that looks like the response we just got without the
     HTTP/1.1 200 OK
     ...
     {
+      "id": "0b1847f4-6f3d-11ed-9f27-6fcdf20ffe22",
       "name": "Resuscitation",
       "address": "Britain",
       "schedule": "1889-07-28T06:59:59+00:00",
@@ -1093,7 +1128,7 @@ Let's finish off the events API with the PUT and DELETE endpoints. Open
     # app/events.py
     ...
     @router.put("/events")
-    async def put_event(event: RequestData, current_name: str) -> ResponseData:
+    async def put_event(event: RequestData, current_name: str) -> EventResult:
 
         try:
             updated_event = await db_queries.update_event(
@@ -1110,8 +1145,7 @@ Let's finish off the events API with the PUT and DELETE endpoints. Open
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={
                     "error": "Invalid datetime format. "
-                    "Datetime string must look like this: \
-                        '2010-12-27T23:59:59-07:00'",
+                    "Datetime string must look like this: '2010-12-27T23:59:59-07:00'",
                 },
             )
 
@@ -1121,40 +1155,26 @@ Let's finish off the events API with the PUT and DELETE endpoints. Open
                 detail={"error": f"Event name '{event.name}' already exists."},
             )
 
-        if updated_event:
-            response = ResponseData(
-                name=updated_event.name,
-                address=updated_event.address,
-                schedule=updated_event.schedule,
-                host=Host(name=updated_event.host.name) \
-                    if updated_event.host else None,
-            )
-            return response
-        else:
+        if not updated_event:
             raise HTTPException(
                 status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-                detail={"error": f"Update event '{event.name}' failed."}
+                detail={"error": f"Update event '{event.name}' failed."},
             )
+
+        return updated_event
 
 
     @router.delete("/events")
-    async def delete_event(name: str) -> ResponseData:
+    async def delete_event(name: str) -> EventResult:
         deleted_event = await db_queries.delete_event(client, name=name)
 
-        if deleted_event:
-            response = ResponseData(
-                    name=deleted_event.name,
-                    address=deleted_event.address,
-                    schedule=deleted_event.schedule,
-                    host=Host(name=deleted_event.host.name) \
-                        if deleted_event.host else None,
-                )
-            return response
-        else:
+        if not deleted_event:
             raise HTTPException(
                 status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
-                detail={"error": f"Delete event '{name}' failed."}
+                detail={"error": f"Delete event '{name}' failed."},
             )
+
+        return deleted_event
 
 
 The events API is now ready to handle updates and deletion. Let's try out a
