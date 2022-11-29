@@ -546,8 +546,9 @@ that will be used by ``EdgeDBEcto`` when generating query functions. The
 Information on all supported features can be found in the driver
 `documentation <https://hexdocs.pm/edgedb/EdgeDB.html#functions>`_.
 The ``mapper`` comment is used to define the module that will be used to map
-the result from EdgeDB to some other form. Our ``Ecto.Schema`` s support this
-with ``use EdgeDBEcto.Mapper`` expression at the top of the module definition.
+the result from EdgeDB to some other form. Our ``Ecto.Schema`` schemas support
+this with ``use EdgeDBEcto.Mapper`` expression at the top of the module
+definition.
 
 The queries for `getting the identity <get-identity-query_>`_ and
 `getting the user by ID <get-user-by-id-query_>`_ are quite similar to the
