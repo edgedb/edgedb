@@ -561,7 +561,7 @@ above, so we will omit them here. You can find these queries in the
 
 .. _get-user-by-id-query:
     https://github.com/edgedb/edgedb-examples/blob/main/
-  phoenix-github-oauth/priv/edgeql/accounts/get_user_by_id.edgeql
+    phoenix-github-oauth/priv/edgeql/accounts/get_user_by_id.edgeql
 
 Instead, let's look at how to update the user identity. This will be described
 in the ``priv/edgeql/accounts/update_identity_token.edgeql`` file.
