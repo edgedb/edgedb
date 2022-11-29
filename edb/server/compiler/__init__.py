@@ -23,7 +23,8 @@ from .compiler import Compiler
 from .compiler import CompileContext, CompilerDatabaseState
 from .compiler import compile_edgeql_script
 from .compiler import load_std_schema
-from .compiler import new_compiler, new_compiler_context
+from .compiler import new_compiler, new_compiler_from_pg, new_compiler_context
+from .compiler import compile, compile_schema_storage_in_delta
 from .dbstate import QueryUnit, QueryUnitGroup
 from .enums import Capability, Cardinality
 from .enums import InputFormat, OutputFormat
@@ -42,5 +43,8 @@ __all__ = (
     'compile_edgeql_script',
     'load_std_schema',
     'new_compiler',
+    'new_compiler_from_pg',
     'new_compiler_context',
+    'compile',
+    'compile_schema_storage_in_delta',
 )

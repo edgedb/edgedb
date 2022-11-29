@@ -377,7 +377,7 @@ def delta_schemas(
 
 
 def cmd_from_ddl(
-    stmt: qlast.DDLCommand,
+    stmt: qlast.DDLOperation,
     *,
     context: Optional[sd.CommandContext]=None,
     schema: s_schema.Schema,

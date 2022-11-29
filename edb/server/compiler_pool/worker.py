@@ -71,15 +71,16 @@ def __init_worker__(
     INITED = True
     DBS = dbs
     BACKEND_RUNTIME_PARAMS = backend_runtime_params
-    COMPILER = compiler.Compiler(
-        backend_runtime_params=BACKEND_RUNTIME_PARAMS,
-    )
     STD_SCHEMA = std_schema
     GLOBAL_SCHEMA = global_schema
     INSTANCE_CONFIG = system_config
 
-    COMPILER.initialize(
-        std_schema, refl_schema, schema_class_layout,
+    COMPILER = compiler.new_compiler(
+        std_schema,
+        refl_schema,
+        schema_class_layout,
+        backend_runtime_params=BACKEND_RUNTIME_PARAMS,
+        load_config=True,
     )
 
 
