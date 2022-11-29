@@ -66,7 +66,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         dbview.CompiledQuery _last_anon_compiled
         int _last_anon_compiled_hash
 
-        bint debug
         bint query_cache_enabled
 
         tuple protocol_version

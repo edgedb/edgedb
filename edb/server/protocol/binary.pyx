@@ -166,7 +166,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self._last_anon_compiled = None
 
-        self.debug = debug.flags.server_proto
         self.query_cache_enabled = not (debug.flags.disable_qcache or
                                         debug.flags.edgeql_compile)
 

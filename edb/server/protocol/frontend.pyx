@@ -21,6 +21,7 @@ import asyncio
 import time
 
 from edb import errors
+from edb.common import debug
 from edb.server.pgcon import errors as pgerror
 
 DEF FLUSH_BUFFER_AFTER = 100_000
@@ -60,6 +61,8 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         self._main_task = None
         self._cancelled = False
         self._stop_requested = False
+
+        self.debug = debug.flags.server_proto
 
     # I/O write methods, implements AbstractFrontendConnection
 

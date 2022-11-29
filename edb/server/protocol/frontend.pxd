@@ -49,6 +49,8 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         bint _cancelled
         bint _stop_requested
 
+        bint debug
+
     cdef _after_idling(self)
     cdef _main_task_created(self)
     cdef _main_task_stopped_normally(self)
