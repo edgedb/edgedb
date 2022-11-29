@@ -17,19 +17,33 @@
 #
 
 
+import logging
+import os
 import sys
 
-from libc.stdint cimport int16_t
+from libc.stdint cimport int32_t, int16_t, uint32_t
 
 from edb import errors
+from edb.server import args as srvargs
 from edb.server.pgproto.pgproto cimport WriteBuffer
 from edb.server.protocol cimport frontend
 
+cdef object logger = logging.getLogger('edb.server')
+
 
 cdef class PgConnection(frontend.FrontendConnection):
+    def __init__(self, server, **kwargs):
+        super().__init__(server, **kwargs)
+        self._id = str(<int32_t><uint32_t>(int(self._id) % (2 ** 32)))
+
     cdef _main_task_created(self):
+        self.server.on_pgext_client_connected(self)
         # complete the client initial message with a mocked type
         self.buffer.feed_data(b'\xff')
+
+    def connection_lost(self, exc):
+        self.server.on_pgext_client_disconnected(self)
+        super().connection_lost(exc)
 
     async def authenticate(self):
         cdef int16_t proto_ver_major, proto_ver_minor
@@ -71,14 +85,91 @@ cdef class PgConnection(frontend.FrontendConnection):
                 # StartupMessage with 3.0 protocol
                 if self.debug:
                     self.debug_print("StartupMessage")
-                raise NotImplementedError
+                await self._handle_startup_message()
+                break
 
             else:
                 raise NotImplementedError("Invalid protocol version")
 
     def debug_print(self, *args):
-        print("::PGEXT::", *args, file=sys.stderr)
+        print("::PGEXT::", f"id:{self._id}", *args, file=sys.stderr)
+
+    async def _handle_startup_message(self):
+        cdef:
+            WriteBuffer msg_buf
+            WriteBuffer buf
+
+        params = {}
+        while True:
+            name = self.buffer.read_null_str()
+            if not name:
+                break
+            value = self.buffer.read_null_str()
+            params[name.decode("utf-8")] = value.decode("utf-8")
+        if self.debug:
+            self.debug_print("StartupMessage params:", params)
+        if "user" not in params:
+            raise errors.ProtocolError("StartupMessage must have a \"user\"")
+        self.buffer.finish_message()
+
+        user = params["user"]
+        database = params.get("database", user)
+        logger.debug('received pg connection request by %s to database %s',
+                     user, database)
+
+        if not self.server.is_database_connectable(database):
+            raise errors.AccessError(
+                f'database {database!r} does not accept connections'
+            )
+
+        await self._authenticate(user, database, params)
+
+        buf = WriteBuffer()
+
+        msg_buf = WriteBuffer.new_message(b'R')
+        msg_buf.write_int32(0)
+        msg_buf.end_message()
+        buf.write_buffer(msg_buf)
+        if self.debug:
+            self.debug_print("AuthenticationOk")
+
+        self.secret = os.urandom(4)
+        msg_buf = WriteBuffer.new_message(b'K')
+        msg_buf.write_int32(int(self._id))
+        msg_buf.write_bytes(self.secret)
+        msg_buf.end_message()
+        buf.write_buffer(msg_buf)
+        if self.debug:
+            self.debug_print("BackendKeyData")
+
+        conn = await self.server.acquire_pgcon(database)
+        try:
+            for name, value in conn.parameter_status.items():
+                msg_buf = WriteBuffer.new_message(b'S')
+                msg_buf.write_str(name, "utf-8")
+                msg_buf.write_str(value, "utf-8")
+                msg_buf.end_message()
+                buf.write_buffer(msg_buf)
+                if self.debug:
+                    self.debug_print(f"ParameterStatus: {name}={value}")
+        finally:
+            self.server.release_pgcon(database, conn)
+
+        msg_buf = WriteBuffer.new_message(b'Z')
+        msg_buf.write_byte(b'I')
+        msg_buf.end_message()
+        buf.write_buffer(msg_buf)
+        if self.debug:
+            self.debug_print("ReadyForQuery")
+
+        self.write(buf)
+        self.flush()
 
 
 def new_pg_connection(server):
-    return PgConnection(server, passive=False)
+    return PgConnection(
+        server,
+        passive=False,
+        transport=srvargs.ServerConnTransport.TCP_PG,
+        external_auth=False,
+    )

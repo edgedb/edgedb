@@ -29,8 +29,10 @@ cdef class AbstractFrontendConnection:
 cdef class FrontendConnection(AbstractFrontendConnection):
 
     cdef:
+        str _id
         object server
         object loop
+        str dbname
 
         object _transport
         WriteBuffer _write_buf
@@ -50,6 +52,9 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         bint _stop_requested
 
         bint debug
+
+        object _transport_proto
+        bint _external_auth
 
     cdef _after_idling(self)
     cdef _main_task_created(self)

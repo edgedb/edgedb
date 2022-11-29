@@ -147,20 +147,15 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self,
         server,
         *,
-        external_auth: bool,
-        passive: bool,
-        transport: srvargs.ServerConnTransport,
         auth_data: bytes,
         conn_params: dict[str, str] | None,
         protocol_version: tuple[int, int] = CURRENT_PROTOCOL,
+        **kwargs,
     ):
-        super().__init__(server, passive=passive)
+        super().__init__(server, **kwargs)
         self._con_status = EDGECON_NEW
-        self._id = server.on_binary_client_created()
-        self._external_auth = external_auth
 
         self._dbview = None
-        self.dbname = None
 
         self._pgcon_released_in_connection_lost = False
 
@@ -181,8 +176,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self._in_dump_restore = False
 
-        self._transport_proto = transport
-
         # Authentication data supplied by the transport (e.g. the content
         # of an HTTP Authorization header).
         self._auth_data = auth_data
@@ -199,9 +192,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         if self._dbview is None:
             raise RuntimeError('Cannot access dbview while it is None')
         return self._dbview
-
-    def get_id(self):
-        return self._id
 
     async def get_pgcon(self) -> pgcon.PGConnection:
         cdef dbview.DatabaseConnectionView _dbview
@@ -387,34 +377,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         await self._start_connection(database)
 
-        # The user has already been authenticated by other means
-        # (such as the ability to write to a protected socket).
-        if self._external_auth:
-            authmethod_name = 'Trust'
-        else:
-            authmethod = await self.server.get_auth_method(
-                user, self._transport_proto)
-            authmethod_name = type(authmethod).__name__
-
-        if authmethod_name == 'SCRAM':
-            await self._auth_scram(user)
-        elif authmethod_name == 'JWT':
-            # token in the HTTP header has higher priority than
-            # the ClientHandshake message, under the scenario of
-            # binary protocol over HTTP
-            if self._auth_data:
-                token = self._extract_token_from_auth_data(self._auth_data)
-            else:
-                token = params.get('token')
-            self._auth_jwt(user, token)
-        elif authmethod_name == 'Trust':
-            self._auth_trust(user)
-        else:
-            raise errors.InternalServerError(
-                f'unimplemented auth method: {authmethod_name}')
-
-        logger.debug('successfully authenticated %s in database %s',
-                     user, database)
+        await self._authenticate(user, database, params)
 
         if self._transport_proto is srvargs.ServerConnTransport.HTTP:
             return
@@ -522,11 +485,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.server.remove_dbview(self._dbview)
             self._dbview = None
 
-    def _auth_trust(self, user):
-        roles = self.server.get_roles()
-        if user not in roles:
-            raise errors.AuthenticationError('authentication failed')
-
     def _extract_token_from_auth_data(self, auth_data):
         header_value = auth_data.decode("ascii")
         scheme, _, prefixed_token = header_value.partition(" ")
@@ -536,7 +494,17 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         return prefixed_token.strip()
 
-    def _auth_jwt(self, user, prefixed_token):
+    def _auth_jwt(self, user, params):
+        # token in the HTTP header has higher priority than
+        # the ClientHandshake message, under the scenario of
+        # binary protocol over HTTP
+        if self._auth_data:
+            prefixed_token = self._extract_token_from_auth_data(
+                self._auth_data
+            )
+        else:
+            prefixed_token = params.get('token')
+
         if not prefixed_token:
             raise errors.AuthenticationError(
                 'authentication failed: no authorization data provided')

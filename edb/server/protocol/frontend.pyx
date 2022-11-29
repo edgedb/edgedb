@@ -18,13 +18,16 @@
 
 
 import asyncio
+import logging
 import time
 
 from edb import errors
 from edb.common import debug
+from edb.server import args as srvargs
 from edb.server.pgcon import errors as pgerror
 
 DEF FLUSH_BUFFER_AFTER = 100_000
+cdef object logger = logging.getLogger('edb.server')
 
 
 cdef class AbstractFrontendConnection:
@@ -38,9 +41,18 @@ cdef class AbstractFrontendConnection:
 
 cdef class FrontendConnection(AbstractFrontendConnection):
 
-    def __init__(self, server, *, passive: bool):
+    def __init__(
+        self,
+        server,
+        *,
+        passive: bool,
+        transport: srvargs.ServerConnTransport,
+        external_auth: bool,
+    ):
+        self._id = server.on_binary_client_created()
         self.server = server
         self.loop = server.get_loop()
+        self.dbname = None
 
         self._transport = None
         self._write_buf = None
@@ -63,6 +75,12 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         self._stop_requested = False
 
         self.debug = debug.flags.server_proto
+
+        self._transport_proto = transport
+        self._external_auth = external_auth
+
+    def get_id(self):
+        return self._id
 
     # I/O write methods, implements AbstractFrontendConnection
 
@@ -162,10 +180,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
 
     # main skeleton
 
-    async def authenticate(self):
-        raise NotImplementedError
-
-    async def main_step(self):
+    async def main_step(self, char mtype):
         raise NotImplementedError
 
     cdef write_error(self, exc):
@@ -358,3 +373,44 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             # connection is already pretty much dead.  Nonetheless, call
             # abort() to make sure we've cleaned everything up properly.
             self.abort()
+
+    # Authentication
+
+    async def authenticate(self):
+        raise NotImplementedError
+
+    async def _auth_scram(self, user):
+        raise NotImplementedError
+
+    def _auth_jwt(self, user, params):
+        raise NotImplementedError
+
+    def _auth_trust(self, user):
+        roles = self.server.get_roles()
+        if user not in roles:
+            raise errors.AuthenticationError('authentication failed')
+
+    async def _authenticate(self, user, database, params):
+        self.dbname = database
+
+        # The user has already been authenticated by other means
+        # (such as the ability to write to a protected socket).
+        if self._external_auth:
+            authmethod_name = 'Trust'
+        else:
+            authmethod = await self.server.get_auth_method(
+                user, self._transport_proto)
+            authmethod_name = type(authmethod).__name__
+
+        if authmethod_name == 'SCRAM':
+            await self._auth_scram(user)
+        elif authmethod_name == 'JWT':
+            self._auth_jwt(user, params)
+        elif authmethod_name == 'Trust':
+            self._auth_trust(user)
+        else:
+            raise errors.InternalServerError(
+                f'unimplemented auth method: {authmethod_name}')
+
+        logger.debug('successfully authenticated %s in database %s',
+                     user, database)

@@ -62,6 +62,7 @@ from edb.server import protocol
 from edb.server.ha import base as ha_base
 from edb.server.ha import adaptive as adaptive_ha
 from edb.server.protocol import binary  # type: ignore
+from edb.server.protocol import pg_ext  # type: ignore
 from edb.server import metrics
 from edb.server import pgcon
 from edb.server.pgcon import errors as pgcon_errors
@@ -125,6 +126,7 @@ class Server(ha_base.ClusterProtocol):
     # every open connection. Also, this way, we can react to the
     # `session_idle_timeout` config setting changed mid-flight.
     _binary_conns: collections.OrderedDict[binary.EdgeConnection, bool]
+    _pgext_conns: dict[str, pg_ext.PgConnection]
     _idle_gc_handler: asyncio.TimerHandle | None = None
     _session_idle_timeout: int | None = None
 
@@ -238,6 +240,7 @@ class Server(ha_base.ClusterProtocol):
 
         self._binary_proto_id_counter = 0
         self._binary_conns = collections.OrderedDict()
+        self._pgext_conns = {}
         self._accepting_connections = False
 
         self._servers = {}
@@ -351,7 +354,9 @@ class Server(ha_base.ClusterProtocol):
         self._binary_conns.pop(conn, None)
         self._report_connections(event="closed")
         metrics.current_client_connections.dec()
+        self.maybe_auto_shutdown()
 
+    def maybe_auto_shutdown(self):
         if (
             not self._binary_conns
             and self._auto_shutdown_after >= 0
@@ -366,6 +371,13 @@ class Server(ha_base.ClusterProtocol):
             event,
             len(self._binary_conns),
         )
+
+    def on_pgext_client_connected(self, conn):
+        self._pgext_conns[conn.get_id()] = conn
+
+    def on_pgext_client_disconnected(self, conn):
+        self._pgext_conns.pop(conn.get_id(), None)
+        self.maybe_auto_shutdown()
 
     async def _pg_connect(self, dbname):
         ha_serial = self._ha_master_serial
@@ -2075,6 +2087,10 @@ class Server(ha_base.ClusterProtocol):
             for conn in self._binary_conns:
                 conn.stop()
             self._binary_conns.clear()
+
+            for conn in self._pgext_conns.values():
+                conn.stop()
+            self._pgext_conns.clear()
 
             if self._task_group is not None:
                 tg = self._task_group

@@ -54,11 +54,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     cdef:
         EdgeConnectionStatus _con_status
-        bint _external_auth
-        str _id
 
         readonly dbview.DatabaseConnectionView _dbview
-        str dbname
 
         object _startup_msg_waiter
 
@@ -84,7 +81,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         bint _in_dump_restore
 
-        object _transport_proto
         bytes _auth_data
         dict  _conn_params
 

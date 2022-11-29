@@ -20,4 +20,6 @@ from edb.server.protocol cimport frontend
 
 
 cdef class PgConnection(frontend.FrontendConnection):
-    pass
+
+    cdef:
+        bytes secret
