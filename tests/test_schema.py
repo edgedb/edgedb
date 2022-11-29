@@ -1615,6 +1615,34 @@ class TestSchema(tb.BaseSchemaLoadTest):
             )
         )
 
+    def test_schema_ast_contects_01(self):
+        schema = self.load_schema("")
+        schema = self.run_ddl(schema, """
+            create type test::Foo {
+                create property asdf := 1 + 2 + 3
+            };
+        """)
+
+        obj = schema.get('test::Foo')
+        asdf = obj.getptr(schema, s_name.UnqualName('asdf'))
+        expr_ast = asdf.get_expr(schema).qlast
+        self.assertEqual(
+            expr_ast.context.name,
+            f'<{asdf.id} expr>'
+        )
+
+        schema = self.run_ddl(schema, """
+            alter type test::Foo {
+                create property x -> str { set default := "test" };
+            }
+        """)
+        x = obj.getptr(schema, s_name.UnqualName('x'))
+        default_ast = x.get_default(schema).qlast
+        self.assertEqual(
+            default_ast.context.name,
+            f'<{x.id} default>'
+        )
+
     @tb.must_fail(errors.InvalidReferenceError,
                   "cannot follow backlink 'bar'",
                   line=4, col=27)

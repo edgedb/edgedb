@@ -35,11 +35,16 @@ class EdgeQLLexer(object):
     def __init__(self):
         self.filename = None  # TODO
 
-    def setinputstr(self, source: Union[str, tokenizer.Source]) -> None:
+    def setinputstr(
+        self,
+        source: Union[str, tokenizer.Source],
+        filename: Optional[str]=None,
+    ) -> None:
         if isinstance(source, str):
             source = tokenizer.Source.from_string(source)
 
         self.inputstr = source.text()
+        self.filename = filename
         self.tokens = deque(source.tokens())
         self.end_of_input = self.tokens[-1].end()
 

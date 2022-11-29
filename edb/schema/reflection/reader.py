@@ -167,13 +167,13 @@ def parse_into(
                     ftype = mcls.get_field(fn).type
                     if val is not None and type(val) is not ftype:
                         if issubclass(ftype, s_expr.Expression):
-                            val = _parse_expression(val)
+                            val = _parse_expression(val, objid, k)
                             for refid in val.refs.ids(schema):
                                 refs_to[refid][mcls, fn][objid] = None
                         elif issubclass(ftype, s_expr.ExpressionList):
                             exprs = []
                             for e_dict in val:
-                                e = _parse_expression(e_dict)
+                                e = _parse_expression(e_dict, objid, k)
                                 assert e.refs is not None
                                 for refid in e.refs.ids(schema):
                                     refs_to[refid][mcls, fn][objid] = None
@@ -263,17 +263,21 @@ def parse_into(
     return schema
 
 
-def _parse_expression(val: Dict[str, Any]) -> s_expr.Expression:
+def _parse_expression(
+    val: Dict[str, Any], id: uuid.UUID, field: str
+) -> s_expr.Expression:
     refids = frozenset(
         uuidgen.UUID(r) for r in val['refs']
     )
-    return s_expr.Expression(
+    expr = s_expr.Expression(
         text=val['text'],
         refs=s_obj.ObjectSet(
             refids,
             _private_init=True,
-        )
+        ),
     )
+    expr.set_origin(id, field)
+    return expr
 
 
 def _parse_version(val: Dict[str, Any]) -> verutils.Version:

@@ -2497,9 +2497,12 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         value = self._resolve_attr_value(
             raw_value, attr_name, field, schema)
 
-        if (isinstance(value, s_expr.Expression)
-                and not value.is_compiled()):
-            value = self.compile_expr_field(schema, context, field, value)
+        if isinstance(value, s_expr.Expression):
+            if not value.is_compiled():
+                value = self.compile_expr_field(schema, context, field, value)
+
+            if id := self.get_attribute_value('id'):
+                value.set_origin(id, attr_name)
 
         return value
 
@@ -2888,8 +2891,9 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             self.update_field_status(schema, context)
             self.validate_create(schema, context)
 
-        props = self.get_resolved_attributes(schema, context)
         metaclass = self.get_schema_metaclass()
+
+        props = self.get_resolved_attributes(schema, context)
         schema, self.scls = metaclass.create_in_schema(schema, **props)
 
         if not props.get('id'):
