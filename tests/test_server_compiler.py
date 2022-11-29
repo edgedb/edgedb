@@ -376,7 +376,7 @@ class TestCompilerPool(tbs.TestCase):
         result = tb._load_reflection_schema()
         cls._refl_schema, cls._schema_class_layout = result
 
-    async def test_server_compiler_pool_disconnect_queue(self):
+    async def _test_pool_disconnect_queue(self, pool_class):
         with tempfile.TemporaryDirectory() as td:
             pool_ = await pool.create_compiler_pool(
                 runstate_dir=td,
@@ -391,7 +391,14 @@ class TestCompilerPool(tbs.TestCase):
                 std_schema=self._std_schema,
                 refl_schema=self._refl_schema,
                 schema_class_layout=self._schema_class_layout,
+                pool_class=pool_class,
             )
+            # HACK: For adaptive pool, force the creation of a second
+            # worker. This is needed to work around issue #4680, where
+            # we won't scale up from a single connection.
+            if issubclass(pool_class, pool.SimpleAdaptivePool):
+                await pool_._create_worker()
+
             try:
                 w1 = await pool_._acquire_worker()
                 w2 = await pool_._acquire_worker()
@@ -421,3 +428,9 @@ class TestCompilerPool(tbs.TestCase):
                 ) for _ in range(4)))
             finally:
                 await pool_.stop()
+
+    async def test_server_compiler_pool_disconnect_queue_fixed(self):
+        await self._test_pool_disconnect_queue(pool.FixedPool)
+
+    async def test_server_compiler_pool_disconnect_queue_adaptive(self):
+        await self._test_pool_disconnect_queue(pool.SimpleAdaptivePool)

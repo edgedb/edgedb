@@ -835,6 +835,7 @@ class FixedPool(BaseLocalPool):
         if trans is not None:
             trans.terminate()
             await trans._wait()
+            trans.close()
 
 
 @srvargs.CompilerPoolMode.OnDemand.assign_implementation
@@ -857,6 +858,7 @@ class SimpleAdaptivePool(BaseLocalPool):
         transports, self._worker_transports = self._worker_transports, {}
         for transport in transports.values():
             await transport._wait()
+            transport.close()
 
     async def _acquire_worker(self, *, condition=None, weighter=None):
         if (
@@ -899,7 +901,9 @@ class SimpleAdaptivePool(BaseLocalPool):
     def worker_disconnected(self, pid):
         num_workers_before = len(self._workers)
         super().worker_disconnected(pid)
-        self._worker_transports.pop(pid, None)
+        trans = self._worker_transports.pop(pid, None)
+        if trans:
+            trans.close()
         if not self._running:
             return
         if len(self._workers) < self._pool_size:
