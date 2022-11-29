@@ -74,7 +74,7 @@ Then create a Postgres Flexible server.
 
 .. note::
 
-   If you get an error saying ``"Specified server name is already used.""``
+   If you get an error saying ``"Specified server name is already used."``
    change the value of ``PG_SERVER_NAME`` and rerun the command.
 
 Allow other Azure services access to the Postgres instance.
@@ -88,7 +88,7 @@ Allow other Azure services access to the Postgres instance.
        --start-ip-address 0.0.0.0 \
        --end-ip-address 0.0.0.0
 
-EdgeDB requires postgres' ``uuid-ossp`` extension which needs to be enabled.
+EdgeDB requires Postgres' ``uuid-ossp`` extension which needs to be enabled.
 
 .. code-block:: bash
 

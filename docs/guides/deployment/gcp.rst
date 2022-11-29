@@ -20,7 +20,7 @@ Prerequisites
 .. _gcloud-intsll: https://cloud.google.com/sdk/
 .. _kubectl-install: https://kubernetes.io/docs/tasks/tools/install-kubectl/
 
-Make sure you are logged into google cloud.
+Make sure you are logged into Google Cloud.
 
 .. code-block:: bash
 
@@ -93,7 +93,7 @@ Create an empty Kubernetes cluster inside your project.
 Configure service account
 =========================
 
-Create a new service account, configure it's permissions, and generate a
+Create a new service account, configure its permissions, and generate a
 ``credentials.json`` file.
 
 .. code-block:: bash
