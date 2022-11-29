@@ -639,8 +639,8 @@ Awesome! We're almost done with our application!
 
 As a final step in this tutorial, we will add 2 routes for the web
 application. The first will redirect the user to the GitHub OAuth page if
-they're not already logged in, and show their username otherwise. And the
-second one is for logging into the application through GitHub.
+they're not already logged in or will show their username otherwise. The second
+is for logging into the application through GitHub.
 
 Save the GitHub OAuth credentials from the `prerequisites <prerequisites_>`_
 step as ``GITHUB_CLIENT_ID`` and ``GITHUB_CLIENT_SECRET`` environment
