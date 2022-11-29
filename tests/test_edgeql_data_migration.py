@@ -11465,7 +11465,6 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         finally:
             await con2.aclose()
 
-    
     async def test_edgeql_migration_reset_schema(self):
         await self.migrate(r'''
             type Bar;
@@ -11486,13 +11485,8 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         ''')
         self.assertEqual(len(res), 2)
 
-        res = await self.con.query('''
-            select schema::Migration { script, name };
-        ''')
-        self.assertEqual(len(res), 3)
-
         await self.con.query('reset schema to initial')
-        
+
         res = await self.con.query('''
             select schema::ObjectType { name } filter .name ilike 'test::%'
         ''')
@@ -11502,7 +11496,6 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             select schema::Migration { script, name };
         ''')
         self.assertEqual(res, [])
-
 
 
 class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):
