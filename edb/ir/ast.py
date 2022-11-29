@@ -680,7 +680,6 @@ class Statement(Command):
         typing.Dict[so.Object, typing.Set[qlast.Base]]]
     new_coll_types: typing.FrozenSet[s_types.Collection]
     scope_tree: ScopeTreeNode
-    source_map: typing.Dict[s_pointers.Pointer, ComputableInfo]
     dml_exprs: typing.List[qlast.Base]
     type_rewrites: typing.Dict[typing.Tuple[uuid.UUID, bool], Set]
     singletons: typing.List[PathId]

@@ -322,7 +322,6 @@ def compile_ast_fragment_to_ir(
         schema_ref_exprs=None,
         new_coll_types=frozenset(),
         scope_tree=ctx.path_scope,
-        source_map={},
         type_rewrites={},
         singletons=[],
     )
