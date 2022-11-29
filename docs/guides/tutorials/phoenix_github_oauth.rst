@@ -20,7 +20,7 @@ of LiveBeats version on EdgeDB can also be found `on GitHub
 <https://github.com/nsidnev/edgedb-phoenix-example>`_
 
 .. _repository:
-    https://github.com/edgedb/edgedb-examples/tree/main/phoenix-github_oauth
+    https://github.com/edgedb/edgedb-examples/tree/main/phoenix-github-oauth
 
 .. _prerequisites:
 
@@ -38,11 +38,11 @@ For this tutorial we will need:
     https://docs.github.com/
     en/developers/apps/building-oauth-apps/creating-an-oauth-app
 
-Before discussing the project database schema, let's generate a sceleton for
+Before discussing the project database schema, let's generate a skeleton for
 our application. We will make sure that it will use binary IDs for the Ecto
 schemas because EdgeDB uses UUIDs as primary IDs, which in Elixir are
-represented as strings, and since it is basically a plain JSON API application
-, we will disable all the built-in Phoenix integrations.
+represented as strings, and since it is basically a plain JSON API application,
+we will disable all the built-in Phoenix integrations.
 
 .. code-block:: bash
 
@@ -251,9 +251,9 @@ generated migration.
 Ecto schemas
 ============
 
-In this tutorial we will define 2 ``Ecto.Schema``s: for ``default::User`` and
-``default::Identity`` types, so that we can work with EdgeDB in a more
-convenient and familiar to the world of Elixir.
+In this tutorial we will define 2 ``Ecto.Schema`` modules, for
+``default::User`` and ``default::Identity`` types, so that we can work with
+EdgeDB in a more convenient way that is familiar to the world of Elixir.
 
 Here is the definition for the user in the ``lib/accounts/user.ex`` file.
 
@@ -314,10 +314,10 @@ This part will be pretty big, as we'll talk about using ``Ecto.Changeset``
 with the EdgeDB driver, as well as modules and queries related to user
 registration via GitHub OAuth.
 
-``Ecto`` provides ``Ecto.Changeset``s, which are convenient to use when
-working with ``Ecto.Schema`` to validate external parameters and we can use
-them also using ``EdgeDBEcto``, though not quite as fully as we can with the
-full-featured adapters for ``Ecto``.
+``Ecto`` provides "changesets" (via ``Ecto.Changeset``), which are convenient
+to use when working with ``Ecto.Schema`` to validate external parameters. We
+could use them via ``EdgeDBEcto`` instead, though not quite as fully as we can
+with the full-featured adapters for ``Ecto``.
 
 First, we will update the ``GitHubOAuth.Accounts.Identity`` module so that it
 checks all the necessary parameters when we are creating a user via a GitHub
@@ -444,7 +444,7 @@ There are 5 queries that we will need:
 
 1. Search for a user by user ID.
 
-2. Search the user by email and by identity provider.
+2. Search for a user by email and by identity provider.
 
 3. Update the identity token if the user from the 1st query exists.
 
@@ -455,7 +455,7 @@ There are 5 queries that we will need:
 
 Before writing the queries themselves, let's create a context module
 ``lib/github_oauth/accounts.ex`` that will use these queries, and the module
-itself will already be used by Phoenix controllers.
+itself will be used by Phoenix controllers.
 
 .. code-block:: elixir
 
@@ -539,28 +539,29 @@ which defines a query to find an user with a specified email provider.
     str_lower(.email) = str_lower(<str>$email)
   limit 1
 
-It is worth noting to the ``# edgedb = :query_single!`` and
+It is worth noting the ``# edgedb = :query_single!`` and
 ``# mapper = GitHubOAuth.Accounts.User`` comments. Both are special comments
 that will be used by ``EdgeDBEcto`` when generating query functions. The
 ``edgedb`` comment defines the driver function for requesting data.
 Information on all supported features can be found in the driver
 `documentation <https://hexdocs.pm/edgedb/EdgeDB.html#functions>`_.
 The ``mapper`` comment is used to define the module that will be used to map
-the result from EdgeDB to some other form. Our ``Ecto.Shema``s supports this
-with ``use EdgeDBEcto.Mapper`` expression at the top of the module definition.
+the result from EdgeDB to some other form. Our ``Ecto.Schema`` schemas support
+this with ``use EdgeDBEcto.Mapper`` expression at the top of the module
+definition.
 
 The queries for `getting the identity <get-identity-query_>`_ and
-`the user by ID <get-user-by-id-query_>`_ are quite similar to the above, so
-we will omit them here, you can found these queries in the
+`getting the user by ID <get-user-by-id-query_>`_ are quite similar to the
+above, so we will omit them here. You can find these queries in the
 `example repository <repository_>`_.
 
 .. _get-identity-query:
     https://github.com/edgedb/edgedb-examples/blob/main/
-    phoenix-github_oauth/priv/edgeql/get_identity_for_user.edgeql
+    phoenix-github-oauth/priv/edgeql/accounts/get_identity_for_user.edgeql
 
 .. _get-user-by-id-query:
-  https://github.com/edgedb/edgedb-examples/blob/main/
-  phoenix-github_oauth/priv/edgeql/get_user_by_id.edgeql
+    https://github.com/edgedb/edgedb-examples/blob/main/
+    phoenix-github-oauth/priv/edgeql/accounts/get_user_by_id.edgeql
 
 Instead, let's look at how to update the user identity. This will be described
 in the ``priv/edgeql/accounts/update_identity_token.edgeql`` file.
@@ -600,7 +601,7 @@ will see in the next query, which is defined in the
     identities_params := params["identities"],
     user := (
       insert User {
-        email := <cistr>params["email"],
+        email := <str>params["email"],
         name := <str>params["name"],
         username := <str>params["username"],
         avatar_url := <optional str>json_get(params, "avatar_url"),
@@ -637,9 +638,9 @@ will see in the next query, which is defined in the
 Awesome! We're almost done with our application!
 
 As a final step in this tutorial, we will add 2 routes for the web
-application. 1st for redirecting the user to the GitHub OAuth page if it's not
-already logged in and show their username otherwise. And the 2nd one is for
-logging into the application through GitHub.
+application. The first will redirect the user to the GitHub OAuth page if
+they're not already logged in or will show their username otherwise. The second
+is for logging into the application through GitHub.
 
 Save the GitHub OAuth credentials from the `prerequisites <prerequisites_>`_
 step as ``GITHUB_CLIENT_ID`` and ``GITHUB_CLIENT_SECRET`` environment
@@ -692,7 +693,7 @@ GitHub <gh-client_>`_.
 
 .. _gh-client:
     https://github.com/edgedb/edgedb-examples/blob/main/
-    phoenix-github_oauth/lib/github_oauth/github.ex
+    phoenix-github-oauth/lib/github_oauth/github.ex
 
 Now add an authentication controller in
 ``lib/github_oauth_web/controllers/oauth_callback_controller.ex``.
@@ -803,7 +804,7 @@ works as expected.
 After going to http://localhost:4000, we will be greeted by the GitHub
 authentication page. And after confirming the login we will be automatically
 redirected back to our local server, which will save the received user in the
-session and return obtained user name in the JSON response.
+session and return the obtained user name in the JSON response.
 
 We can also verify that everything is saved correctly by manually checking
 the database data.

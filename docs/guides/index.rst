@@ -6,7 +6,7 @@
 Guides
 ======
 
-The guides contain tutorials introducing EdgeDB to newcomers and
+These guides contain tutorials introducing EdgeDB to newcomers and
 how-tos providing more experienced users with examples and advice for
 tackling some common tasks.
 

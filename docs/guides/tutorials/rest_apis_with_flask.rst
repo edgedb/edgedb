@@ -757,8 +757,8 @@ Additional movie endpoints
 The implementation of the ``GET /movie``, ``PATCH /movie`` and
 ``DELETE /movie`` endpoints are provided in the sample codebase in
 ``app/movies.py``. But try to write them on your own using the Actor endpoints
-as a starting point! Once you're down, you should be able to fetch a movie by
-it's title from your database by  the ``filter_name`` parameter with
+as a starting point! Once you're done, you should be able to fetch a movie by
+its title from your database with the ``filter_name`` parameter and
 the GET API as follows:
 
 .. code-block:: bash
@@ -796,7 +796,7 @@ That'll return:
 Conclusion
 ==========
 
-While builing REST APIs, the EdgeDB client allows you to leverage EdgeDB with
+While building REST APIs, the EdgeDB client allows you to leverage EdgeDB with
 any microframework of your choice. Whether it's
 `FastAPI <https://fastapi.tiangolo.com>`_,
 `Flask <https://flask.palletsprojects.com>`_,
