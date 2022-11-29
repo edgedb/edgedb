@@ -314,10 +314,10 @@ This part will be pretty big, as we'll talk about using ``Ecto.Changeset``
 with the EdgeDB driver, as well as modules and queries related to user
 registration via GitHub OAuth.
 
-``Ecto`` provides ``Ecto.Changeset`` s, which are convenient to use when
-working with ``Ecto.Schema`` to validate external parameters and we can use
-them also using ``EdgeDBEcto``, though not quite as fully as we can with the
-full-featured adapters for ``Ecto``.
+``Ecto`` provides "changesets" (via ``Ecto.Changeset``), which are convenient
+to use when working with ``Ecto.Schema`` to validate external parameters. We
+could use them via ``EdgeDBEcto`` instead, though not quite as fully as we can
+with the full-featured adapters for ``Ecto``.
 
 First, we will update the ``GitHubOAuth.Accounts.Identity`` module so that it
 checks all the necessary parameters when we are creating a user via a GitHub
