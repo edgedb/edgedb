@@ -20,7 +20,11 @@
 from edb.server.pgproto.pgproto cimport WriteBuffer
 
 
-cdef class FrontendConnection:
+cdef class AbstractFrontendConnection:
 
     cdef write(self, WriteBuffer buf)
     cdef flush(self)
+
+
+cdef class FrontendConnection(AbstractFrontendConnection):
+    pass

@@ -139,7 +139,7 @@ async def heartbeat_check(db, server):
         server.release_pgcon(db.name, pgcon)
 
 
-cdef class NotebookConnection(frontend.FrontendConnection):
+cdef class NotebookConnection(frontend.AbstractFrontendConnection):
     def __cinit__(self):
         self.buf = WriteBuffer.new()
 

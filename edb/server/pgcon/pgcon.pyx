@@ -779,7 +779,7 @@ cdef class PGConnection:
         self,
         *,
         bint ignore_data,
-        frontend.FrontendConnection fe_conn = None,
+        frontend.AbstractFrontendConnection fe_conn = None,
     ):
         cdef WriteBuffer buf = None
 
@@ -859,7 +859,7 @@ cdef class PGConnection:
     async def _parse_execute(
         self,
         query,
-        frontend.FrontendConnection fe_conn,
+        frontend.AbstractFrontendConnection fe_conn,
         WriteBuffer bind_data,
         bint use_prep_stmt,
         bytes state,
@@ -1065,7 +1065,7 @@ cdef class PGConnection:
         *,
         query,
         WriteBuffer bind_data,
-        frontend.FrontendConnection fe_conn = None,
+        frontend.AbstractFrontendConnection fe_conn = None,
         bint use_prep_stmt = False,
         bytes state = None,
         int dbver = 0,

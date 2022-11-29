@@ -17,10 +17,14 @@
 #
 
 
-cdef class FrontendConnection:
+cdef class AbstractFrontendConnection:
 
     cdef write(self, WriteBuffer buf):
         raise NotImplementedError
 
     cdef flush(self):
         raise NotImplementedError
+
+
+cdef class FrontendConnection(AbstractFrontendConnection):
+    pass

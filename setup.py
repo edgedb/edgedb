@@ -970,6 +970,14 @@ setuptools.setup(
         ),
 
         setuptools_extension.Extension(
+            "edb.server.protocol.pg_ext",
+            ["edb/server/protocol/pg_ext.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
+
+        setuptools_extension.Extension(
             "edb.server.protocol.args_ser",
             ["edb/server/protocol/args_ser.pyx"],
             extra_compile_args=EXT_CFLAGS,

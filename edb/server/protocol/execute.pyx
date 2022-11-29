@@ -53,7 +53,7 @@ async def execute(
     compiled: dbview.CompiledQuery,
     bind_args: bytes,
     *,
-    fe_conn: Optional[frontend.FrontendConnection] = None,
+    fe_conn: Optional[frontend.AbstractFrontendConnection] = None,
     use_prep_stmt: bint = False,
     # HACK: A hook from the notebook ext, telling us to skip dbview.start
     # so that it can handle things differently.
@@ -168,7 +168,7 @@ async def execute_script(
     compiled: dbview.CompiledQuery,
     bind_args: bytes,
     *,
-    fe_conn: Optional[frontend.FrontendConnection],
+    fe_conn: Optional[frontend.AbstractFrontendConnection],
 ):
     cdef:
         bytes state = None, orig_state = None
@@ -445,7 +445,7 @@ async def execute_json(
     variables: Mapping[str, Any] = immutables.Map(),
     globals_: Mapping[str, Any] = immutables.Map(),
     *,
-    fe_conn: Optional[frontend.FrontendConnection] = None,
+    fe_conn: Optional[frontend.AbstractFrontendConnection] = None,
     use_prep_stmt: bint = False,
 ) -> bytes:
     if globals_:
