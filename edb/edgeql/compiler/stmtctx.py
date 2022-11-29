@@ -267,8 +267,6 @@ def fini_expression(
     group.infer_group_aggregates(ir, ctx=ctx)
 
     assert isinstance(ir, irast.Set)
-    source_map = {k: v for k, v in ctx.env.source_map.items()
-                  if isinstance(k, s_pointers.Pointer)}
     lparams = [
         p for p in ctx.env.query_parameters.values()
         if not p.is_sub_param
@@ -288,7 +286,6 @@ def fini_expression(
         params=params,
         globals=list(ctx.env.query_globals.values()),
         views=ctx.view_nodes,
-        source_map=source_map,
         scope_tree=ctx.env.path_scope,
         cardinality=cardinality,
         volatility=volatility,
