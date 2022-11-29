@@ -43,7 +43,7 @@ RUST_VERSION = '1.59.0'  # Also update docs/internal/dev.rst
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 # This can be a branch, tag, or commit
-EDGEDBCLI_COMMIT = '166f6f064e1c602a7220c199081d83b38d3da9c2'
+EDGEDBCLI_COMMIT = 'master'
 
 EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
 # This can be a branch, tag, or commit
