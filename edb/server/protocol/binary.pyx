@@ -88,7 +88,6 @@ from edgedb import scram
 include "./consts.pxi"
 
 
-DEF FLUSH_BUFFER_AFTER = 100_000
 cdef bytes EMPTY_TUPLE_UUID = s_obj.get_known_type_id('empty-tuple').bytes
 
 cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
@@ -155,37 +154,27 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         conn_params: dict[str, str] | None,
         protocol_version: tuple[int, int] = CURRENT_PROTOCOL,
     ):
+        super().__init__(server, passive=passive)
         self._con_status = EDGECON_NEW
         self._id = server.on_binary_client_created()
-        self.server = server
         self._external_auth = external_auth
 
-        self.loop = server.get_loop()
         self._dbview = None
         self.dbname = None
-
-        self._transport = None
-        self.buffer = ReadBuffer()
 
         self._cancelled = False
         self._stop_requested = False
         self._pgcon_released_in_connection_lost = False
 
         self._main_task = None
-        self._msg_take_waiter = None
-        self._write_waiter = None
 
         self._last_anon_compiled = None
-
-        self._write_buf = None
 
         self.debug = debug.flags.server_proto
         self.query_cache_enabled = not (debug.flags.disable_qcache or
                                         debug.flags.edgeql_compile)
 
         self.authed = False
-        self.idling = False
-        self.started_idling_at = 0.0
 
         self.protocol_version = protocol_version
         self.min_protocol = MIN_PROTOCOL
@@ -198,11 +187,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self._get_pgcon_cc = 0
 
         self._in_dump_restore = False
-
-        # In "passive" mode the protocol is instantiated to parse and execute
-        # just what's in the buffer. It cannot "wait for message". This
-        # is used to implement binary protocol over http+fetch.
-        self._passive_mode = passive
 
         self._transport_proto = transport
 
@@ -320,15 +304,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 file=sys.stderr,
             )
 
-    cdef write(self, WriteBuffer buf):
-        # One rule for this method: don't write partial messages.
-        if self._write_buf is not None:
-            self._write_buf.write_buffer(buf)
-            if self._write_buf.len() >= FLUSH_BUFFER_AFTER:
-                self.flush()
-        else:
-            self._write_buf = buf
-
     cdef abort_pinned_pgcon(self):
         if self._pinned_pgcon is not None:
             self._pinned_pgcon.pinned_by = None
@@ -342,8 +317,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         # client for too long (even if it is in an open transaction!)
         return (
             self._con_status != EDGECON_BAD and
-            self.idling and
-            self.started_idling_at < expiry_time and
+            super().is_idle(expiry_time) and
             not self._in_dump_restore
         )
 
@@ -389,36 +363,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             if not self._msg_take_waiter.done():
                 self._msg_take_waiter.cancel()
 
-    cdef flush(self):
-        if self._transport is None:
-            # could be if the connection is lost and a coroutine
-            # method is finalizing.
-            raise ConnectionAbortedError
-        if self._write_buf is not None and self._write_buf.len():
-            buf = self._write_buf
-            self._write_buf = None
-            self._transport.write(memoryview(buf))
-
-    async def wait_for_message(self, *, bint report_idling):
-        if self.buffer.take_message():
-            return
-        if self._passive_mode:
-            raise RuntimeError('cannot wait for more messages in passive mode')
-        if self._transport is None:
-            # could be if the connection is lost and a coroutine
-            # method is finalizing.
-            raise ConnectionAbortedError
-
-        self._msg_take_waiter = self.loop.create_future()
-        if report_idling:
-            self.idling = True
-            self.started_idling_at = time.monotonic()
-
-        try:
-            await self._msg_take_waiter
-        finally:
-            self.idling = False
-
+    cdef _after_idling(self):
         self.server.on_binary_client_after_idling(self)
 
     async def do_handshake(self):
@@ -1765,25 +1710,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             # connection is already pretty much dead.  Nonetheless, call
             # abort() to make sure we've cleaned everything up properly.
             self.abort()
-
-    def data_received(self, data):
-        self.buffer.feed_data(data)
-        if self._msg_take_waiter is not None and self.buffer.take_message():
-            self._msg_take_waiter.set_result(True)
-            self._msg_take_waiter = None
-
-    def eof_received(self):
-        pass
-
-    def pause_writing(self):
-        if self._write_waiter and not self._write_waiter.done():
-            return
-        self._write_waiter = self.loop.create_future()
-
-    def resume_writing(self):
-        if not self._write_waiter or self._write_waiter.done():
-            return
-        self._write_waiter.set_result(True)
 
     async def dump(self):
         cdef:

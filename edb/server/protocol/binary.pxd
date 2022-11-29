@@ -25,7 +25,6 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 
 from edb.server.pgproto.pgproto cimport (
     WriteBuffer,
-    ReadBuffer,
 )
 
 from edb.server.dbview cimport dbview
@@ -57,25 +56,16 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         EdgeConnectionStatus _con_status
         bint _external_auth
         str _id
-        object _transport
 
-        object server
-
-        object loop
         readonly dbview.DatabaseConnectionView _dbview
         str dbname
 
-        ReadBuffer buffer
-
-        object _msg_take_waiter
         object _startup_msg_waiter
-        object _write_waiter
 
         object _main_task
 
         dbview.CompiledQuery _last_anon_compiled
         int _last_anon_compiled_hash
-        WriteBuffer _write_buf
 
         bint debug
         bint query_cache_enabled
@@ -98,11 +88,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         bint _stop_requested
         bint _pgcon_released_in_connection_lost
 
-        bint idling
-        object started_idling_at
-
         bint _in_dump_restore
-        bint _passive_mode
 
         object _transport_proto
         bytes _auth_data
@@ -116,9 +102,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     cdef parse_output_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
     cdef char render_cardinality(self, query_unit) except -1
-
-    cdef write(self, WriteBuffer buf)
-    cdef flush(self)
 
     cdef abort_pinned_pgcon(self)
 

@@ -17,7 +17,7 @@
 #
 
 
-from edb.server.pgproto.pgproto cimport WriteBuffer
+from edb.server.pgproto.pgproto cimport ReadBuffer, WriteBuffer
 
 
 cdef class AbstractFrontendConnection:
@@ -27,4 +27,21 @@ cdef class AbstractFrontendConnection:
 
 
 cdef class FrontendConnection(AbstractFrontendConnection):
-    pass
+
+    cdef:
+        object server
+        object loop
+
+        object _transport
+        WriteBuffer _write_buf
+        object _write_waiter
+
+        ReadBuffer buffer
+        object _msg_take_waiter
+
+        object started_idling_at
+        bint idling
+
+        bint _passive_mode
+
+    cdef _after_idling(self)
