@@ -162,19 +162,13 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self._dbview = None
         self.dbname = None
 
-        self._cancelled = False
-        self._stop_requested = False
         self._pgcon_released_in_connection_lost = False
-
-        self._main_task = None
 
         self._last_anon_compiled = None
 
         self.debug = debug.flags.server_proto
         self.query_cache_enabled = not (debug.flags.disable_qcache or
                                         debug.flags.edgeql_compile)
-
-        self.authed = False
 
         self.protocol_version = protocol_version
         self.min_protocol = MIN_PROTOCOL
@@ -209,10 +203,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
     def get_id(self):
         return self._id
-
-    @property
-    def cancelled(self) -> bool:
-        return self._cancelled
 
     async def get_pgcon(self) -> pgcon.PGConnection:
         cdef dbview.DatabaseConnectionView _dbview
@@ -322,19 +312,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         )
 
     def is_alive(self):
-        return (
-            self._con_status == EDGECON_STARTED and
-            self._transport is not None and
-            not self._cancelled
-        )
+        return self._con_status == EDGECON_STARTED and super().is_alive()
 
     def abort(self):
         self.abort_pinned_pgcon()
         self.stop_connection()
-
-        if self._transport is not None:
-            self._transport.abort()
-            self._transport = None
+        super().abort()
 
     def close_for_idling(self):
         try:
@@ -348,20 +331,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     def close(self):
         self.abort_pinned_pgcon()
         self.stop_connection()
-
-        if self._transport is not None:
-            self.flush()
-            self._transport.close()
-            self._transport = None
-
-    def stop(self):
-        # Actively stop a binary connection - this is used by the server
-        # when it's stopping.
-
-        self._stop_requested = True
-        if self._msg_take_waiter is not None:
-            if not self._msg_take_waiter.done():
-                self._msg_take_waiter.cancel()
+        super().close()
 
     cdef _after_idling(self):
         self.server.on_binary_client_after_idling(self)
@@ -1233,191 +1203,108 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     async def legacy_main(self, params):
         raise NotImplementedError
 
-    async def main(self):
+    async def authenticate(self):
         cdef:
-            char mtype
             bint is_legacy
 
-        try:
-            params = await self.do_handshake()
-            is_legacy = self.protocol_version <= MAX_LEGACY_PROTOCOL
-            if not is_legacy:
-                await self.auth(params)
-        except Exception as ex:
-            if self._transport is not None:
-                # If there's no transport it means that the connection
-                # was aborted, in which case we don't really care about
-                # reporting the exception.
-
-                self.write_error(ex)
-                self.close()
-
-                if not isinstance(ex, (errors.ProtocolError,
-                                        errors.AuthenticationError)):
-                    self.loop.call_exception_handler({
-                        'message': (
-                            'unhandled error in edgedb protocol while '
-                            'accepting new connection'
-                        ),
-                        'exception': ex,
-                        'protocol': self,
-                        'transport': self._transport,
-                        'task': self._main_task,
-                    })
-
-            return
+        params = await self.do_handshake()
+        is_legacy = self.protocol_version <= MAX_LEGACY_PROTOCOL
+        if not is_legacy:
+            await self.auth(params)
 
         if is_legacy:
-            return await self.legacy_main(params)
+            # GOTCHA: awaited outside
+            return self.legacy_main(params)
+        else:
+            self.server.on_binary_client_authed(self)
 
-        self.authed = True
-        self.server.on_binary_client_authed(self)
-
+    async def main_step(self, char mtype):
         try:
-            while True:
-                if self._cancelled:
-                    self.abort()
-                    return
+            if mtype == b'O':
+                await self.execute()
 
-                if self._stop_requested:
-                    break
+            elif mtype == b'P':
+                await self.parse()
 
-                if not self.buffer.take_message():
-                    if self._passive_mode:
-                        # In "passive" mode we only parse what's in the buffer
-                        # and return. If there's any unparsed (incomplete) data
-                        # in the buffer it's an error.
-                        if self.buffer._length:
-                            raise RuntimeError(
-                                'unparsed data in the read buffer')
-                        # Flush whatever data is in the internal buffer before
-                        # returning.
-                        self.flush()
-                        return
-                    await self.wait_for_message(report_idling=True)
+            elif mtype == b'S':
+                await self.sync()
 
-                mtype = self.buffer.get_message_type()
+            elif mtype == b'X':
+                self.close()
+                return True
 
-                try:
-                    if mtype == b'O':
-                        await self.execute()
+            elif mtype == b'>':
+                await self.dump()
 
-                    elif mtype == b'P':
-                        await self.parse()
+            elif mtype == b'<':
+                # The restore protocol cannot send SYNC beforehand,
+                # so if an error occurs the server should send an
+                # ERROR message immediately.
+                await self.restore()
 
-                    elif mtype == b'S':
-                        await self.sync()
+            elif mtype == b'D':
+                raise errors.BinaryProtocolError(
+                    "Describe message (D) is not supported in "
+                    "protocol versions greater than 0.13")
 
-                    elif mtype == b'X':
-                        self.close()
-                        break
+            elif mtype == b'E':
+                raise errors.BinaryProtocolError(
+                    "Legacy Execute message (E) is not supported in "
+                    "protocol versions greater than 0.13")
 
-                    elif mtype == b'>':
-                        await self.dump()
+            elif mtype == b'Q':
+                raise errors.BinaryProtocolError(
+                    "ExecuteScript message (Q) is not supported in "
+                    "protocol versions greater then 0.13")
 
-                    elif mtype == b'<':
-                        # The restore protocol cannot send SYNC beforehand,
-                        # so if an error occurs the server should send an
-                        # ERROR message immediately.
-                        await self.restore()
+            else:
+                self.fallthrough()
 
-                    elif mtype == b'D':
-                        raise errors.BinaryProtocolError(
-                            "Describe message (D) is not supported in "
-                            "protocol versions greater than 0.13")
-
-                    elif mtype == b'E':
-                        raise errors.BinaryProtocolError(
-                            "Legacy Execute message (E) is not supported in "
-                            "protocol versions greater than 0.13")
-
-                    elif mtype == b'Q':
-                        raise errors.BinaryProtocolError(
-                            "ExecuteScript message (Q) is not supported in "
-                            "protocol versions greater then 0.13")
-
-                    else:
-                        self.fallthrough()
-
-                except ConnectionError:
-                    raise
-
-                except asyncio.CancelledError:
-                    raise
-
-                except Exception as ex:
-                    if self._cancelled and \
-                            isinstance(ex, pgerror.BackendQueryCancelledError):
-                        # If we are cancelling the protocol (means that the
-                        # client side of the connection has dropped and we
-                        # need to gracefull cleanup and abort) we want to
-                        # propagate the BackendQueryCancelledError exception.
-                        #
-                        # If we're not cancelling, we'll treat it just like
-                        # any other error coming from Postgres (a query
-                        # might get cancelled due to a variety of reasons.)
-                        raise
-
-                    # The connection has been aborted; there's nothing
-                    # we can do except shutting this down.
-                    if self._con_status == EDGECON_BAD:
-                        return
-
-                    self.get_dbview().tx_error()
-                    self.buffer.finish_message()
-
-                    self.write_error(ex)
-                    self.flush()
-
-                    # The connection was aborted while we were
-                    # interpreting the error (via compiler/errmech.py).
-                    if self._con_status == EDGECON_BAD:
-                        return
-
-                    await self.recover_from_error()
-
-                else:
-                    self.buffer.finish_message()
+        except ConnectionError:
+            raise
 
         except asyncio.CancelledError:
-            # Happens when the connection is aborted, the backend is
-            # being closed and propagates CancelledError to all
-            # EdgeCon methods that await on, say, the compiler process.
-            # We shouldn't have CancelledErrors otherwise, therefore,
-            # in this situation we just silently exit.
-            pass
-
-        except (ConnectionError, pgerror.BackendQueryCancelledError):
-            pass
+            raise
 
         except Exception as ex:
-            # We can only be here if an exception occurred during
-            # handling another exception, in which case, the only
-            # sane option is to abort the connection.
+            if self._cancelled and \
+                    isinstance(ex, pgerror.BackendQueryCancelledError):
+                # If we are cancelling the protocol (means that the
+                # client side of the connection has dropped and we
+                # need to gracefull cleanup and abort) we want to
+                # propagate the BackendQueryCancelledError exception.
+                #
+                # If we're not cancelling, we'll treat it just like
+                # any other error coming from Postgres (a query
+                # might get cancelled due to a variety of reasons.)
+                raise
 
-            self.loop.call_exception_handler({
-                'message': (
-                    'unhandled error in edgedb protocol while '
-                    'handling an error'
-                ),
-                'exception': ex,
-                'protocol': self,
-                'transport': self._transport,
-                'task': self._main_task,
-            })
+            # The connection has been aborted; there's nothing
+            # we can do except shutting this down.
+            if self._con_status == EDGECON_BAD:
+                return True
 
-        finally:
-            if self._stop_requested:
-                self.write_log(
-                    EdgeSeverity.EDGE_SEVERITY_NOTICE,
-                    errors.LogMessage.get_code(),
-                    'server is stopped; disconnecting now')
-                self.close()
-            else:
-                # Abort the connection.
-                # It might have already been cleaned up, but abort() is
-                # safe to be called on a closed connection.
-                self.abort()
+            self.get_dbview().tx_error()
+            self.buffer.finish_message()
+
+            self.write_error(ex)
+            self.flush()
+
+            # The connection was aborted while we were
+            # interpreting the error (via compiler/errmech.py).
+            if self._con_status == EDGECON_BAD:
+                return True
+
+            await self.recover_from_error()
+
+        else:
+            self.buffer.finish_message()
+
+    cdef _main_task_stopped_normally(self):
+        self.write_log(
+            EdgeSeverity.EDGE_SEVERITY_NOTICE,
+            errors.LogMessage.get_code(),
+            'server is stopped; disconnecting now')
 
     async def recover_from_error(self):
         # Consume all messages until sync.
@@ -1604,112 +1491,49 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'unexpected message type {chr(mtype)!r}')
 
     def connection_made(self, transport):
-        if not self.server._accepting_connections:
-            transport.abort()
-            return
-
         if self._con_status != EDGECON_NEW:
             raise errors.BinaryProtocolError(
                 'invalid connection status while establishing the connection')
-        self._transport = transport
+        super().connection_made(transport)
 
-        if self.server._accept_new_tasks:
-            self._main_task = self.server.create_task(
-                self.main(), interruptable=False
-            )
-            self.server.on_binary_client_connected(self)
-        else:
-            transport.abort()
+    cdef _main_task_created(self):
+        self.server.on_binary_client_connected(self)
 
     def connection_lost(self, exc):
         self.server.on_binary_client_disconnected(self)
+        super().connection_lost(exc)
 
-        # Let's talk about cancellation.
-        #
-        # 1. Since we need to synchronize the state between Postgres and
-        #    EdgeDB, we need to make sure we never do straight asyncio
-        #    cancellation while some operation in pgcon is in flight.
-        #
-        #    Doing that can lead to the following few bad scenarios:
-        #
-        #       * pgcon connction being wrecked by asyncio.CancelledError;
-        #
-        #       * pgcon completing its operation and then, a rogue
-        #         CancelledError preventing us to apply the new state
-        #         to dbview/server config/etc.
-        #
-        # 2. It is safe to cancel `_msg_take_waiter` though. Cancelling it
-        #    would abort protocol parsing, but there's no global state that
-        #    needs syncing in protocol messages.
-        #
-        # 3. We can interrupt some operations like auth with a CancelledError.
-        #    Again, those operations don't mutate global state.
-
-        if (self._msg_take_waiter is not None and
-                not self._msg_take_waiter.done()):
-            # We're parsing the protocol. We can abort that.
-            self._msg_take_waiter.cancel()
-
+    cdef _cancel(self):
         if (
-            self._main_task is not None
-            and not self._main_task.done()
-            and not self._cancelled
+            self._pinned_pgcon is not None
+            and not self._pinned_pgcon.idle
         ):
-
-            # The main connection handling task is up and running.
-
-            # First, let's set a flag to signal that we should cancel soon;
-            # after all the client has already disconnected.
-            self._cancelled = True
-
-            if not self.authed:
-                # We must be still authenticating. We can abort that.
-                self._main_task.cancel()
-            else:
-                if (
-                    self._pinned_pgcon is not None
-                    and not self._pinned_pgcon.idle
-                ):
-                    # Looks like we have a Postgres connection acquired and
-                    # it's actively running some command for us.  To make
-                    # sure we're not leaving behind a heavy query, perform
-                    # an explicit Postgres cancellation because a mere
-                    # connection drop wouldn't necessarily abort the query
-                    # right away). Additionally, we must discard the connection
-                    # as we cannot be completely sure about its state. Postgres
-                    # cancellation is signal-based and is addressed to a whole
-                    # connection and not a concrete operation. The result is
-                    # that we might be racing with the currently running query
-                    # and if that completes before the cancellation signal
-                    # reaches the backend, we'll be setting a trap for the
-                    # _next_ query that is unlucky enough to pick up this
-                    # Postgres backend from the connection pool.
-                    # TODO(fantix): hold server shutdown to complete this task
-                    if self.server._accept_new_tasks:
-                        self.server.create_task(
-                            self.server._cancel_and_discard_pgcon(
-                                self._pinned_pgcon,
-                                self.get_dbview().dbname,
-                            ),
-                            interruptable=False,
-                        )
-                    # Prevent the main task from releasing the same connection
-                    # twice. This flag is for now only used in this case.
-                    self._pgcon_released_in_connection_lost = True
-
-                # In all other cases, we can just wait until the `main()`
-                # coroutine notices that `self._cancelled` was set.
-                # It would be a mistake to cancel the main task here, as it
-                # could be unpacking results from pgcon and applying them
-                # to the global state.
-                #
-                # Ultimately, the main() coroutine will be aborted, eventually,
-                # and will call `self.abort()` to shut all things down.
-        else:
-            # The `main()` coroutine isn't running, it means that the
-            # connection is already pretty much dead.  Nonetheless, call
-            # abort() to make sure we've cleaned everything up properly.
-            self.abort()
+            # Looks like we have a Postgres connection acquired and
+            # it's actively running some command for us.  To make
+            # sure we're not leaving behind a heavy query, perform
+            # an explicit Postgres cancellation because a mere
+            # connection drop wouldn't necessarily abort the query
+            # right away). Additionally, we must discard the connection
+            # as we cannot be completely sure about its state. Postgres
+            # cancellation is signal-based and is addressed to a whole
+            # connection and not a concrete operation. The result is
+            # that we might be racing with the currently running query
+            # and if that completes before the cancellation signal
+            # reaches the backend, we'll be setting a trap for the
+            # _next_ query that is unlucky enough to pick up this
+            # Postgres backend from the connection pool.
+            # TODO(fantix): hold server shutdown to complete this task
+            if self.server._accept_new_tasks:
+                self.server.create_task(
+                    self.server._cancel_and_discard_pgcon(
+                        self._pinned_pgcon,
+                        self.get_dbview().dbname,
+                    ),
+                    interruptable=False,
+                )
+            # Prevent the main task from releasing the same connection
+            # twice. This flag is for now only used in this case.
+            self._pgcon_released_in_connection_lost = True
 
     async def dump(self):
         cdef:

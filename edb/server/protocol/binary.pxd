@@ -62,15 +62,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         object _startup_msg_waiter
 
-        object _main_task
 
         dbview.CompiledQuery _last_anon_compiled
         int _last_anon_compiled_hash
 
         bint debug
         bint query_cache_enabled
-
-        bint authed
 
         tuple protocol_version
         tuple max_protocol
@@ -84,8 +81,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         int _get_pgcon_cc
 
-        bint _cancelled
-        bint _stop_requested
         bint _pgcon_released_in_connection_lost
 
         bint _in_dump_restore
@@ -123,7 +118,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     cdef dict parse_headers(self)
 
     cdef write_status(self, bytes name, bytes value)
-    cdef write_error(self, exc)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
 

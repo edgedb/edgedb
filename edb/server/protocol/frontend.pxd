@@ -44,4 +44,13 @@ cdef class FrontendConnection(AbstractFrontendConnection):
 
         bint _passive_mode
 
+        bint authed
+        object _main_task
+        bint _cancelled
+        bint _stop_requested
+
     cdef _after_idling(self)
+    cdef _main_task_created(self)
+    cdef _main_task_stopped_normally(self)
+    cdef write_error(self, exc)
+    cdef _cancel(self)
