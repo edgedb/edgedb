@@ -97,6 +97,8 @@ class Query(BaseQuery):
     has_dml: bool = False
     single_unit: bool = False
     cacheable: bool = True
+    is_explain: bool = False
+    query_asts: Any = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -302,6 +304,9 @@ class QueryUnit:
     # If present, represents the future global schema state
     # after the command is run. The schema is pickled.
     global_schema: Optional[bytes] = None
+
+    is_explain: bool = False
+    query_asts: Any = None
 
     @property
     def has_ddl(self) -> bool:

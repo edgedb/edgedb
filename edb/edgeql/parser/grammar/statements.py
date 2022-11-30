@@ -41,6 +41,10 @@ class Stmt(Nonterm):
         # DESCRIBE
         self.val = kids[0].val
 
+    def reduce_ExplainStmt(self, *kids):
+        # Explain
+        self.val = kids[0].val
+
     def reduce_ExprStmt(self, *kids):
         self.val = kids[0].val
 
@@ -250,4 +254,21 @@ class DescribeStmt(Nonterm):
 
         self.val = qlast.DescribeCurrentMigration(
             language=lang,
+        )
+
+
+class OptAnalyze(Nonterm):
+    def reduce_ANALYZE(self, *kids):
+        self.val = True
+
+    def reduce_empty(self, *kids):
+        self.val = False
+
+
+class ExplainStmt(Nonterm):
+
+    def reduce_EXPLAIN_OptAnalyze_ExprStmt(self, *kids):
+        self.val = qlast.ExplainStmt(
+            analyze=kids[1].val,
+            query=kids[2].val,
         )

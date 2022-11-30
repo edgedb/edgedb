@@ -131,6 +131,7 @@ module = [
     "edb.server.connpool.*",
     "edb.server.pgcluster",
     "edb.server.pgconnparams",
+    "edb.server.compiler.explain",
 ]
 # Equivalent of --strict on the command line,
 # but without disallow_untyped_calls:

@@ -132,13 +132,18 @@ class EdgeQLPathInfo(Base):
 
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {
-        'path_scope', 'path_outputs', 'path_id', 'is_distinct',
+        'path_id', 'path_scope_id',
+        'path_scope', 'path_outputs', 'is_distinct',
         'path_id_mask', 'path_namespace',
         'packed_path_outputs', 'packed_path_namespace',
     }
 
     # The path id represented by the node.
     path_id: typing.Optional[irast.PathId] = None
+
+    # The active path scope tree id for this node. This is purely to help
+    # map back to IR for EXPLAIN.
+    path_scope_id: typing.Optional[int] = None
 
     # Whether the node represents a distinct set.
     is_distinct: bool = True

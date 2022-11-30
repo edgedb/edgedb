@@ -1251,7 +1251,7 @@ def _compile_ql_script(
 
 
 def _get_compile_options(
-    ctx: CompileContext,
+    ctx: CompileContext, *, is_explain: bool = False,
 ) -> qlcompiler.CompilerOptions:
     can_have_implicit_fields = (
         ctx.output_format is enums.OutputFormat.BINARY)
@@ -1288,9 +1288,46 @@ def _get_compile_options(
             debug.flags.edgeql_expand_inhviews
             and not ctx.bootstrap_mode
             and not ctx.schema_reflection_mode
-        ),
+        ) or is_explain,
         testmode=_get_config_val(ctx, '__internal_testmode'),
         devmode=_is_dev_instance(ctx),
+    )
+
+
+def _compile_ql_explain(
+    ctx: CompileContext,
+    ql: qlast.Base,
+    *,
+    script_info: Optional[irast.ScriptInfo] = None,
+) -> dbstate.BaseQuery:
+    # TODO: more arguments for EXPLAIN
+    analyze = 'ANALYZE true, ' if ql.analyze else ''
+    exp_command = f'EXPLAIN ({analyze}FORMAT JSON, VERBOSE true)'
+
+    query = _compile_ql_query(
+        ctx, ql.query, script_info=script_info,
+        is_explain=True, cacheable=False)
+    assert len(query.sql) == 1
+
+    out_type_data, out_type_id = \
+        sertypes.TypeSerializer.describe_json()
+
+    sql_bytes = exp_command.encode('utf-8') + query.sql[0]
+    sql_hash = _hash_sql(
+        sql_bytes,
+        mode=str(ctx.output_format).encode(),
+        intype=query.in_type_id,
+        outtype=out_type_id.bytes)
+
+    return dataclasses.replace(
+        query,
+        is_explain=True,
+        cacheable=False,
+        sql=(sql_bytes,),
+        sql_hash=sql_hash,
+        # XXX: This is not right really
+        out_type_data=out_type_data,
+        out_type_id=out_type_id.bytes,
     )
 
 
@@ -1301,12 +1338,13 @@ def _compile_ql_query(
     script_info: Optional[irast.ScriptInfo] = None,
     cacheable: bool = True,
     migration_block_query: bool = False,
+    is_explain: bool = False,
 ) -> dbstate.BaseQuery:
 
     current_tx = ctx.state.current_tx()
 
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
-    options = _get_compile_options(ctx)
+    options = _get_compile_options(ctx, is_explain=is_explain)
     ir = qlcompiler.compile_ast_to_ir(
         ql,
         schema=schema,
@@ -1316,7 +1354,7 @@ def _compile_ql_query(
 
     result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
 
-    sql_text, argmap = pg_compiler.compile_ir_to_sql(
+    qtree, sql_text, argmap = pg_compiler.compile_ir_to_tree_and_sql(
         ir,
         pretty=(
             debug.flags.edgeql_compile
@@ -1416,6 +1454,7 @@ def _compile_ql_query(
         out_type_data=out_type_data,
         cacheable=cacheable,
         has_dml=ir.dml_exprs,
+        query_asts=(ql, ir, qtree),
     )
 
 
@@ -1715,6 +1754,16 @@ def _compile_dispatch_ql(
             capability,
         )
 
+    elif isinstance(ql, qlast.ExplainStmt):
+        query = _compile_ql_explain(ctx, ql, script_info=script_info)
+        caps = enums.Capability(0)
+        if (
+            isinstance(query, (dbstate.Query, dbstate.SimpleQuery))
+            and query.has_dml
+        ):
+            caps |= enums.Capability.MODIFICATIONS
+        return (query, caps)
+
     else:
         query = _compile_ql_query(ctx, ql, script_info=script_info)
         caps = enums.Capability(0)
@@ -1862,6 +1911,10 @@ def _try_compile(
             unit.in_type_id = comp.in_type_id
 
             unit.cacheable = comp.cacheable
+
+            if comp.is_explain:
+                unit.is_explain = True
+                unit.query_asts = comp.query_asts
 
             if is_trailing_stmt:
                 unit.cardinality = comp.cardinality

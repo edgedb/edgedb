@@ -345,6 +345,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                             view_scope_info.pinned_path_id_ns is None
                         ),
                         is_binding=view_scope_info.binding_kind,
+                        context=step.context,
                         ctx=ctx,
                     )
 
@@ -547,7 +548,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if not path_sets or path_sets[-1] != path_tip:
             path_sets.append(path_tip)
 
-    path_tip.context = expr.context
+    if expr.context:
+        path_tip.context = expr.context
     pathctx.register_set_in_scope(path_tip, ctx=ctx)
 
     for ir_set in computables:
@@ -566,7 +568,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         with ctx.new() as subctx:
             subctx.path_scope = scope
             assert ir_set.rptr is not None
-            comp_ir_set = computable_ptr_set(ir_set.rptr, ctx=subctx)
+            comp_ir_set = computable_ptr_set(
+                ir_set.rptr, srcctx=ir_set.context, ctx=subctx)
             i = path_sets.index(ir_set)
             if i != len(path_sets) - 1:
                 prptr = path_sets[i + 1].rptr
@@ -623,7 +626,8 @@ def ptr_step_set(
     return extend_path(
         path_tip, ptrcls, direction,
         path_id_ptrcls=path_id_ptrcls,
-        ignore_computable=ignore_computable, ctx=ctx)
+        ignore_computable=ignore_computable, srcctx=source_context,
+        ctx=ctx)
 
 
 def _add_target_schema_refs(

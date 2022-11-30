@@ -294,7 +294,8 @@ class CompilerContextLevel(compiler.ContextLevel):
                 if self.pending_query is not None:
                     self.rel = self.pending_query
                 else:
-                    self.rel = pgast.SelectStmt()
+                    self.rel = pgast.SelectStmt(
+                        path_scope_id=self.scope_tree.unique_id)
                     if prevlevel.parent_rel is not None:
                         parent_rel = prevlevel.parent_rel
                     else:
@@ -306,7 +307,8 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.parent_rel = None
 
             elif mode is ContextSwitchMode.SUBREL:
-                self.rel = pgast.SelectStmt()
+                self.rel = pgast.SelectStmt(
+                    path_scope_id=self.scope_tree.unique_id)
                 if prevlevel.parent_rel is not None:
                     parent_rel = prevlevel.parent_rel
                 else:

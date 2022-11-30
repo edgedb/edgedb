@@ -313,6 +313,10 @@ def _process_view(
                 ptrref=not_none(ptr_set.path_id.rptr()),
                 is_definition=True,
             )
+            # XXX: We would maybe like to *not* do this when it
+            # already has a context, since for explain output that
+            # seems nicer, but this is what we want for producing
+            # actual error messages.
             ptr_set.context = srcctx
 
             _setup_shape_source(ptr_set, ctx=ctx)
@@ -1178,6 +1182,9 @@ def _normalize_view_ptr_expr(
 
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.Unknown)
+
+    if irexpr and not irexpr.context:
+        irexpr.context = shape_el.context
 
     return ptrcls, irexpr
 
