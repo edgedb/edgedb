@@ -20,6 +20,7 @@ Using the migration tools is the recommended way to make schema changes.
     edgedb_migration_apply
     edgedb_migration_log
     edgedb_migration_status
+    edgedb_migration_edit
 
 Setup
 =====
@@ -44,3 +45,5 @@ and treat them as a single SDL document.
       - Show all migration versions
     * - :ref:`ref_cli_edgedb_migration_status`
       - Show current migration state
+    * - :ref:`ref_cli_edgedb_migration_edit`
+      - Edit migration file
