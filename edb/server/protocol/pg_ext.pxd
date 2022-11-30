@@ -23,3 +23,4 @@ cdef class PgConnection(frontend.FrontendConnection):
 
     cdef:
         bytes secret
+        str client_encoding

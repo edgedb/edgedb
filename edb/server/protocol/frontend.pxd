@@ -17,6 +17,7 @@
 #
 
 
+from edb.server.dbview cimport dbview
 from edb.server.pgproto.pgproto cimport ReadBuffer, WriteBuffer
 
 
@@ -33,6 +34,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         object server
         object loop
         str dbname
+        dbview.Database database
 
         object _transport
         WriteBuffer _write_buf

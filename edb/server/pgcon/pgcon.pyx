@@ -1276,6 +1276,38 @@ cdef class PGConnection:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
+    async def sql_simple_query(
+        self,
+        query: str,
+        frontend.AbstractFrontendConnection fe_conn,
+    ):
+        cdef:
+            char mtype
+            WriteBuffer buf
+
+        self.before_command()
+        try:
+            buf = WriteBuffer.new_message(b'Q')
+            buf.write_bytestring(query.encode("utf-8"))
+            self.write(buf.end_message())
+
+            buf = WriteBuffer.new()
+
+            while True:
+                if not self.buffer.take_message():
+                    fe_conn.write(buf)
+                    buf = WriteBuffer.new()
+                    fe_conn.flush()
+                    await self.wait_for_message()
+                mtype = self.buffer.get_message_type()
+                self.buffer.redirect_messages(buf, mtype, 0)
+                if mtype == b'Z':
+                    fe_conn.write(buf)
+                    fe_conn.flush()
+                    break
+        finally:
+            await self.after_command()
+
     async def run_ddl(
         self,
         object query_unit,

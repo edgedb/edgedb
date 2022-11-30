@@ -114,6 +114,7 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         user = params["user"]
         database = params.get("database", user)
+        self.client_encoding = params.get("client_encoding", "utf8")
         logger.debug('received pg connection request by %s to database %s',
                      user, database)
 
@@ -121,6 +122,9 @@ cdef class PgConnection(frontend.FrontendConnection):
             raise errors.AccessError(
                 f'database {database!r} does not accept connections'
             )
+
+        self.database = self.server.get_db(dbname=database)
+        await self.database.introspection()
 
         await self._authenticate(user, database, params)
 
@@ -164,6 +168,46 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         self.write(buf)
         self.flush()
+
+    async def main_step(self, char mtype):
+        if mtype == b'Q':
+            query_str = self.buffer.read_null_str().decode(
+                self.client_encoding
+            )
+            self.buffer.finish_message()
+            if self.debug:
+                self.debug_print("Query", query_str)
+
+            sql_list = await self.compile(query_str)
+            conn = await self.server.acquire_pgcon(self.dbname)
+            try:
+                await conn.sql_simple_query(";".join(sql_list), self)
+            finally:
+                self.server.release_pgcon(self.dbname, conn)
+
+        else:
+            if self.debug:
+                self.debug_print(
+                    "MESSAGE", chr(mtype), self.buffer.consume_message()
+                )
+            raise NotImplementedError
+
+    async def compile(self, query_str):
+        if self.debug:
+            self.debug_print("Compile", query_str)
+        compiler_pool = self.server.get_compiler_pool()
+        result = await compiler_pool.compile_sql(
+            self.dbname,
+            self.database.user_schema,
+            self.database._index._global_schema,
+            self.database.reflection_cache,
+            self.database.db_config,
+            self.database._index.get_compilation_system_config(),
+            query_str,
+        )
+        if self.debug:
+            self.debug_print("Compile result", result)
+        return result
 
 
 def new_pg_connection(server):

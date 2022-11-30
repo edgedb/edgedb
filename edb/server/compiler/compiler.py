@@ -487,6 +487,38 @@ class Compiler:
 
         return result
 
+    def compile_sql(
+        self,
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
+        reflection_cache: Mapping[str, Tuple[str, ...]],
+        database_config: Mapping[str, config.SettingValue],
+        system_config: Mapping[str, config.SettingValue],
+        query_str: str,
+    ) -> List[str]:
+        state = dbstate.CompilerConnectionState(
+            user_schema=user_schema,
+            global_schema=global_schema,
+            modaliases=DEFAULT_MODULE_ALIASES_MAP,
+            session_config=EMPTY_MAP,
+            database_config=database_config,
+            system_config=system_config,
+            cached_reflection=reflection_cache,
+        )
+        schema = state.current_tx().get_schema(self.state.std_schema)
+
+        from edb.pgsql import parser as pg_parser
+        from edb.pgsql import resolver as pg_resolver
+        from edb.pgsql import codegen as pg_codegen
+
+        stmts = pg_parser.parse(query_str)
+        sql_source = []
+        for stmt in stmts:
+            resolved = pg_resolver.resolve(stmt, schema)
+            source = pg_codegen.generate_source(resolved)
+            sql_source.append(source)
+        return sql_source
+
     def compile(
         self,
         user_schema: s_schema.Schema,
