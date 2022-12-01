@@ -101,8 +101,13 @@ def resolve_SelectStmt(
     for clause in stmt.from_clause:
         from_clause.append(range_var.resolve_BaseRangeVar(clause, ctx=ctx))
 
+    # WHERE
     where = dispatch.resolve_opt(stmt.where_clause, ctx=ctx)
 
+    # GROUP BY
+    group_clause = dispatch.resolve_opt_list(stmt.group_clause, ctx=ctx)
+
+    # SELECT projection
     table = context.Table()
     target_list: List[pgast.ResTarget] = []
     for t in stmt.target_list:
@@ -117,6 +122,22 @@ def resolve_SelectStmt(
             for c in stmt.distinct_clause
         ]
 
+    # order by can refer to columns in SELECT projection, so we need to add
+    # table.columns into scope
+    ctx.scope.tables.append(
+        context.Table(
+            columns=[
+                context.Column(name=c.name, reference_as=c.name)
+                for c, target in zip(table.columns, stmt.target_list)
+                if target.name
+                and (
+                    not isinstance(target.val, pgast.ColumnRef)
+                    or target.val.name[-1] != target.name
+                )
+            ]
+        )
+    )
+
     sort_clause = dispatch.resolve_opt_list(stmt.sort_clause, ctx=ctx)
     limit_offset = dispatch.resolve_opt(stmt.limit_offset, ctx=ctx)
     limit_count = dispatch.resolve_opt(stmt.limit_count, ctx=ctx)
@@ -125,6 +146,7 @@ def resolve_SelectStmt(
         distinct_clause=distinct_clause,
         from_clause=from_clause,
         target_list=target_list,
+        group_clause=group_clause,
         where_clause=where,
         sort_clause=sort_clause,
         limit_offset=limit_offset,

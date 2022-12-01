@@ -84,10 +84,14 @@ def resolve_ColumnRef(
             f'bad use of `*` column name', context=column_ref.context
         )
     table, column = res[0]
-    assert table.reference_as
     assert column.reference_as
 
-    return pgast.ColumnRef(name=(table.reference_as, column.reference_as))
+    if table.name:
+        assert table.reference_as
+        return pgast.ColumnRef(name=(table.reference_as, column.reference_as))
+    else:
+        # this is a reference to a local column, so it doesn't need table name
+        return pgast.ColumnRef(name=(column.reference_as,))
 
 
 def _lookup_column(
