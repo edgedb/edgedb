@@ -22,5 +22,6 @@ running EdgeDB `in Docker <https://github.com/edgedb/edgedb-docker>`_.
     digitalocean
     fly_io
     gcp
+    heroku
     docker
     bare_metal
