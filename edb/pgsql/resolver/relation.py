@@ -213,6 +213,8 @@ def resolve_relation(
         card = p.get_cardinality(ctx.schema)
         if card.is_multi():
             continue
+        if p.get_computable(ctx.schema):
+            continue
 
         columns.append(_construct_column(p, ctx))
 
@@ -249,6 +251,8 @@ def _lookup_link_property(name: str, ctx: Context) -> Optional[s_links.Link]:
     )
 
     if not isinstance(link, s_links.Link):
+        return None
+    if link.get_computable(ctx.schema):
         return None
 
     if link.get_cardinality(ctx.schema).is_single():

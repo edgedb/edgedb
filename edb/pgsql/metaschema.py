@@ -5044,6 +5044,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
                 SELECT link.id
                 FROM edgedb."_SchemaLink" link
                 JOIN edgedb."_SchemaProperty" AS prop ON link.id = prop.source
+                WHERE prop.computable IS NOT TRUE
                 GROUP BY link.id, link.cardinality
                 HAVING link.cardinality = 'Many' OR COUNT(*) > 2
             )
@@ -5093,14 +5094,16 @@ def _generate_sql_information_schema() -> List[dbops.View]:
                     ty.name
                 FROM edgedb."_SchemaProperty" AS prop
                 LEFT JOIN edgedb."_SchemaType" ty ON ty.id = prop.target
-                WHERE COALESCE(prop.cardinality = 'One', TRUE)
+                WHERE prop.computable IS NOT TRUE
+                    AND COALESCE(prop.cardinality = 'One', TRUE)
             ) UNION ALL ( -- link ids
                 SELECT 
                     source, name || '_id', COALESCE(required, FALSE), 
                     'std::uuid'
                 FROM edgedb."_SchemaLink"
-                WHERE name != '__type__'
-                AND COALESCE(cardinality = 'One', TRUE)
+                WHERE prop.computable IS NOT TRUE
+                    AND name != '__type__'
+                    AND COALESCE(cardinality = 'One', TRUE)
             )) pointers(source, name, required, type_name)
                 ON obj_ty.id = pointers.source
         ) UNION ALL (
@@ -5111,6 +5114,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
                 SELECT link.id
                 FROM edgedb."_SchemaLink" link
                 JOIN edgedb."_SchemaProperty" AS prop ON link.id = prop.source
+                WHERE prop.computable IS NOT TRUE
                 GROUP BY link.id, link.cardinality
                 HAVING link.cardinality = 'Many' OR COUNT(*) > 2
             ),
@@ -5133,6 +5137,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
             FROM edgedb."_SchemaProperty" AS prop
             JOIN links ON links.id = prop.source
             LEFT JOIN edgedb."_SchemaType" ty ON prop.target = ty.id
+            WHERE prop.computable IS NOT TRUE
         ))
         SELECT
             'postgres'::{sql_ident} AS table_catalog,
