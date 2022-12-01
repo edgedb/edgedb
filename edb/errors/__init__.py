@@ -63,6 +63,7 @@ __all__ = base.__all__ + (  # type: ignore
     'DuplicateFunctionDefinitionError',
     'DuplicateConstraintDefinitionError',
     'DuplicateCastDefinitionError',
+    'DuplicateMigrationError',
     'SessionTimeoutError',
     'IdleSessionTimeoutError',
     'QueryTimeoutError',
@@ -307,6 +308,10 @@ class DuplicateConstraintDefinitionError(DuplicateDefinitionError):
 
 class DuplicateCastDefinitionError(DuplicateDefinitionError):
     _code = 0x_04_05_02_0A
+
+
+class DuplicateMigrationError(DuplicateDefinitionError):
+    _code = 0x_04_05_02_0B
 
 
 class SessionTimeoutError(QueryError):

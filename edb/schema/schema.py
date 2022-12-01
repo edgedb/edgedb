@@ -429,6 +429,10 @@ class Schema(abc.ABC):
     def has_module(self, module: str) -> bool:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def has_migration(self, name: str) -> bool:
+        raise NotImplementedError
+
     def get_children(
         self,
         scls: so.Object_T,
@@ -1387,6 +1391,9 @@ class FlatSchema(Schema):
     def has_module(self, module: str) -> bool:
         return self.get_global(s_mod.Module, module, None) is not None
 
+    def has_migration(self, name: str) -> bool:
+        return self.get_global(s_migrations.Migration, name, None) is not None
+
     def get_objects(
         self,
         *,
@@ -1899,6 +1906,12 @@ class ChainedSchema(Schema):
         return (
             self._base_schema.has_module(module)
             or self._top_schema.has_module(module)
+        )
+
+    def has_migration(self, name: str) -> bool:
+        return (
+            self._base_schema.has_migration(name)
+            or self._top_schema.has_migration(name)
         )
 
     def get_objects(

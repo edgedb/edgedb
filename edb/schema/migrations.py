@@ -104,41 +104,17 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
 
         parent: Optional[so.ObjectShell[Migration]]
 
-        if astnode.parent is None:
-            if parent_migration is not None:
-                parent = parent_migration.as_shell(schema)
-            else:
-                parent = None
-        elif parent_migration is None:
-            if astnode.parent.name.lower() == 'initial':
-                parent = None
-            else:
-                raise errors.SchemaDefinitionError(
-                    f'specified migration parent does not exist',
-                    context=astnode.parent.context,
-                )
+        if parent_migration is not None:
+            parent = parent_migration.as_shell(schema)
+            parent_name = str(parent.name)
         else:
-            parent = s_utils.ast_objref_to_object_shell(
-                astnode.parent,
-                metaclass=Migration,
-                schema=schema,
-                modaliases={},
-            )
+            parent = None
+            parent_name = 'initial'
 
-            actual_parent_name = parent_migration.get_name(schema)
-            if parent.name != actual_parent_name:
-                raise errors.SchemaDefinitionError(
-                    f'specified migration parent is not the most '
-                    f'recent migration, expected {str(actual_parent_name)!r}',
-                    context=astnode.parent.context,
-                )
+        if astnode.parent is not None:
+            parent_name = astnode.parent.name
 
-        if parent is not None:
-            parent_name = parent.name
-        else:
-            parent_name = sn.UnqualName(name='initial')
-
-        hasher = qlhasher.Hasher.start_migration(str(parent_name))
+        hasher = qlhasher.Hasher.start_migration(parent_name)
         if astnode.body.text is not None:
             # This is an explicitly specified CREATE MIGRATION
             ddl_text = astnode.body.text
@@ -161,6 +137,38 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
                 f'{name!r}',
                 context=astnode.name.context,
             )
+
+        if specified_name is not None and schema.has_migration(specified_name):
+            # Note: it's not possible to have duplicate migration without
+            # `specified_name`. Because new one will be based onto the new
+            # parent (and you can't specify parent without a name).
+            raise errors.DuplicateMigrationError(
+                f'migration {name!r} is already applied',
+                context=astnode.name.context,
+            )
+
+        if astnode.parent is not None:
+            if parent_migration is None:
+                if astnode.parent.name.lower() != 'initial':
+                    raise errors.SchemaDefinitionError(
+                        f'specified migration parent does not exist',
+                        context=astnode.parent.context,
+                    )
+            else:
+                astnode_parent = s_utils.ast_objref_to_object_shell(
+                    astnode.parent,
+                    metaclass=Migration,
+                    schema=schema,
+                    modaliases={},
+                )
+
+                actual_parent_name = parent_migration.get_name(schema)
+                if astnode_parent.name != actual_parent_name:
+                    raise errors.SchemaDefinitionError(
+                        f'specified migration parent is not the most recent '
+                        f'migration, expected {str(actual_parent_name)!r}',
+                        context=astnode.parent.context,
+                    )
 
         cmd = cls(classname=sn.UnqualName(name))
         cmd.set_attribute_value('script', ddl_text)

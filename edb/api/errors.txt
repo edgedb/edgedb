@@ -95,6 +95,7 @@
 0x_04_05_02_08   DuplicateFunctionDefinitionError
 0x_04_05_02_09   DuplicateConstraintDefinitionError
 0x_04_05_02_0A   DuplicateCastDefinitionError
+0x_04_05_02_0B   DuplicateMigrationError
 
 ####
 
