@@ -1098,8 +1098,6 @@ def _reset_schema(
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 
-    current_tx.start_migration()
-
     empty_schema = s_schema.ChainedSchema(
         ctx.compiler_state.std_schema,
         s_schema.FlatSchema(),
