@@ -204,9 +204,13 @@ def resolve_relation(
 
     # lookup the object in schema
     obj: Optional[s_sources.Source] = None
-    if catalog == 'postgres' and schema_name == 'public':
+    if catalog == 'postgres':
+
+        module = 'default' if schema_name == 'public' else schema_name
+        object_name = sn.QualName(module, relation.name)
+
         obj = ctx.schema.get(  # type: ignore
-            relation.name,
+            object_name,
             None,
             module_aliases={None: 'default'},
             type=s_objtypes.ObjectType,
@@ -228,6 +232,7 @@ def resolve_relation(
     # extract table columns
     pointers = obj.get_pointers(ctx.schema).objects(ctx.schema)
 
+    # when changing this, make sure to update sql information_schema
     columns: List[context.Column] = []
     for p in pointers:
         if p.is_protected_pointer(ctx.schema):
