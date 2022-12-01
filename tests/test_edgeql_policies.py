@@ -517,6 +517,18 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(edgedb.InvalidValueError, ''):
             await self.con.execute('insert Message {}')
 
+    async def test_edgeql_policies_11(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on insert of default::Issue"):
+            await self.con.query('''
+            insert Issue {
+                name := '', body := '',
+                status := (select Status filter .name = 'Open'), number := '',
+                owner := (insert User { name := "???" }),
+            };
+            ''')
+
     async def test_edgeql_policies_order_01(self):
         await self.con.execute('''
             insert CurOnly { name := "!" }
