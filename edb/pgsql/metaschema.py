@@ -5025,10 +5025,38 @@ def _generate_sql_information_schema() -> List[dbops.View]:
             name=('edgedbsql', 'tables'),
             query=(
                 f'''
+        WITH obj_ty AS (
+            SELECT 
+                id,
+                CASE SPLIT_PART(name, '::', 1)
+                    WHEN 'default' THEN 'public'
+                    ELSE SPLIT_PART(name, '::', 1)
+                END AS schema_name,
+                SPLIT_PART(name, '::', 2) AS table_name
+            FROM edgedb."_SchemaObjectType"
+        ),
+        tables (id, schema_name, table_name) AS ((
+            SELECT * FROM obj_ty
+        ) UNION ALL (
+            WITH qualified_links AS (
+                -- multi links and links with at least one property
+                -- (besides source and target)
+                SELECT link.id
+                FROM edgedb."_SchemaLink" link
+                JOIN edgedb."_SchemaProperty" AS prop ON link.id = prop.source
+                GROUP BY link.id, link.cardinality
+                HAVING link.cardinality = 'Many' OR COUNT(*) > 2
+            )
+            SELECT link.id, obj_ty.schema_name,
+                CONCAT(obj_ty.table_name, '.', link.name) AS table_name
+            FROM edgedb."_SchemaLink" link
+            JOIN obj_ty ON obj_ty.id = link.source
+            WHERE link.id IN (SELECT * FROM qualified_links)
+        ))
         SELECT
             'postgres'::{sql_ident} AS table_catalog,
-            'public'::{sql_ident} AS table_schema,
-            substring(name from 10)::{sql_ident} AS table_name,
+            schema_name::{sql_ident} AS table_schema,
+            table_name::{sql_ident} AS table_name,
             'BASE TABLE'::{sql_str} AS table_type,
             NULL::{sql_ident} AS self_referencing_column_name,
             NULL::{sql_str} AS reference_generation,
@@ -5038,8 +5066,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
             'NO'::{sql_bool} AS is_insertable_into,
             'NO'::{sql_bool} AS is_typed,
             NULL::{sql_str} AS commit_action
-        FROM edgedb."_SchemaObjectType"
-        WHERE name ilike 'default::%'
+        FROM tables
             '''
             ),
         ),
@@ -5047,23 +5074,81 @@ def _generate_sql_information_schema() -> List[dbops.View]:
             name=('edgedbsql', 'columns'),
             query=(
                 f'''
+        WITH obj_ty AS (
+            SELECT id,
+                CASE SPLIT_PART(name, '::', 1)
+                    WHEN 'default' THEN 'public'
+                    ELSE SPLIT_PART(name, '::', 1) END AS schema_name,
+                SPLIT_PART(name, '::', 2) AS table_name
+            FROM edgedb."_SchemaObjectType"
+        ),
+        columns (schema_name, table_name, name, required, type_name) AS ((
+            -- pointers of objects
+            SELECT 
+                obj_ty.schema_name, obj_ty.table_name, pointers.name,
+                pointers.required, pointers.type_name
+            FROM obj_ty
+            JOIN (( -- properties
+                SELECT prop.source, prop.name, COALESCE(prop.required, FALSE),
+                    ty.name
+                FROM edgedb."_SchemaProperty" AS prop
+                LEFT JOIN edgedb."_SchemaType" ty ON ty.id = prop.target
+                WHERE COALESCE(prop.cardinality = 'One', TRUE)
+            ) UNION ALL ( -- link ids
+                SELECT 
+                    source, name || '_id', COALESCE(required, FALSE), 
+                    'std::uuid'
+                FROM edgedb."_SchemaLink"
+                WHERE name != '__type__'
+                AND COALESCE(cardinality = 'One', TRUE)
+            )) pointers(source, name, required, type_name)
+                ON obj_ty.id = pointers.source
+        ) UNION ALL (
+            -- properties of links
+            WITH qualified_links AS (
+                -- multi links and links with at least one property 
+                -- (besides source and target)
+                SELECT link.id
+                FROM edgedb."_SchemaLink" link
+                JOIN edgedb."_SchemaProperty" AS prop ON link.id = prop.source
+                GROUP BY link.id, link.cardinality
+                HAVING link.cardinality = 'Many' OR COUNT(*) > 2
+            ),
+            links AS (
+                SELECT link.id, obj_ty.schema_name,
+                    CONCAT(obj_ty.table_name, '.', link.name) AS table_name
+                FROM edgedb."_SchemaLink" link
+                JOIN obj_ty ON obj_ty.id = link.source
+                WHERE link.id IN (SELECT * FROM qualified_links)
+            )
+            SELECT links.schema_name,
+                links.table_name,
+                prop.name,
+                COALESCE(prop.required, FALSE),
+                CASE prop.name 
+                    WHEN 'source' THEN 'std::uuid' 
+                    WHEN 'target' THEN 'std::uuid'
+                    ELSE ty.name
+                END
+            FROM edgedb."_SchemaProperty" AS prop
+            JOIN links ON links.id = prop.source
+            LEFT JOIN edgedb."_SchemaType" ty ON prop.target = ty.id
+        ))
         SELECT
             'postgres'::{sql_ident} AS table_catalog,
-            'public'::{sql_ident} AS table_schema,
-            substring(obj_ty.name from 10)::{sql_ident} AS table_name,
-            pointers.name::{sql_ident} AS column_name,
+            schema_name::{sql_ident} AS table_schema,
+            table_name::{sql_ident} AS table_name,
+            name::{sql_ident} AS column_name,
             ROW_NUMBER() OVER (
-                PARTITION BY obj_ty.name
-                ORDER BY
-                    CASE WHEN pointers.name = 'id' THEN 0 ELSE 1 END,
-                    pointers.name
+                PARTITION BY schema_name, table_name
+                ORDER BY CASE WHEN name = 'id' THEN 0 ELSE 1 END, name
             )::{sql_card} AS ordinal_position,
             NULL::{sql_str} AS column_default,
             CASE
                 WHEN required THEN 'YES'
                 ELSE 'NO'
             END::{sql_bool} AS is_nullable,
-            CASE pointers.type_name
+            CASE type_name
                 WHEN 'std::anyreal' THEN 'double precision'
                 WHEN 'std::anyint' THEN 'bigint'
                 WHEN 'std::anyfloat' THEN 'double precision'
@@ -5126,18 +5211,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
             'NEVER'::{sql_str} AS is_generated,
             NULL::{sql_str} AS generation_expression,
             'YES'::{sql_bool} AS is_updatable
-        FROM edgedb."_SchemaObjectType" AS obj_ty
-        JOIN ((
-            SELECT prop.source, prop.name, prop.required, ty.name
-            FROM edgedb."_SchemaProperty" AS prop
-            LEFT JOIN edgedb."_SchemaType" ty ON ty.id = prop.target
-        ) UNION (
-            SELECT source, name || '_id',  required, 'std::uuid'
-            FROM edgedb."_SchemaLink"
-            WHERE name != '__type__'
-        )) pointers(source, name, required, type_name)
-            ON obj_ty.id = pointers.source
-        WHERE obj_ty.name LIKE 'default::%'
+        FROM columns
             '''
             ),
         ),
@@ -5146,7 +5220,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
     return tables_and_columns + [
         dbops.View(
             name=('edgedbsql', table_name),
-            query='SELECT {} WHERE FALSE'.format(
+            query='SELECT {} LIMIT 0'.format(
                 ','.join(
                     f'NULL::information_schema.{type} AS {name}'
                     for name, type in columns
