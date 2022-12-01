@@ -8959,7 +8959,7 @@ class TestCreateMigration(tb.BaseSchemaTest):
             errors.SchemaDefinitionError,
             "specified migration parent does not exist",
         ):
-            m1 = 'm1vrzjotjgjxhdratq7jz5vdxmhvg2yun2xobiddag4aqr3y4gavgq'
+            m1 = 'm1cfpoaozuh3gl3hzsckdzfyvf2q2p23zskal5sotmuhfkrsuqy43a'
             schema = self.run_ddl(
                 schema,
                 f'''
@@ -8992,13 +8992,43 @@ class TestCreateMigration(tb.BaseSchemaTest):
                 }};
             '''
         )
+        # This does not specify parent. So parent is computed as a last
+        # migration and then it is used to calculate hash. And we ensure that
+        # migration contexts match hash before checking if that revision is
+        # already applied.
+        with self.assertRaisesRegex(
+            errors.SchemaDefinitionError,
+            f"specified migration name does not match the name "
+            f"derived from the migration contents",
+        ):
+            schema = self.run_ddl(
+                schema,
+                f'''
+                    CREATE MIGRATION {m1} {{
+                        CREATE TYPE Bar;
+                    }};
+                '''
+            )
+
+        with self.assertRaisesRegex(
+            errors.DuplicateMigrationError,
+            f"migration {m2!r} is already applied",
+        ):
+            schema = self.run_ddl(
+                schema,
+                f'''
+                    CREATE MIGRATION {m2} ONTO {m1} {{
+                        CREATE TYPE Bar;
+                    }};
+                '''
+            )
 
         with self.assertRaisesRegex(
             errors.SchemaDefinitionError,
             f"specified migration parent is not the most recent migration, "
             f"expected {str(m2)!r}",
         ):
-            m3 = 'm1vrzjotjgjxhdratq7jz5vdxmhvg2yun2xobiddag4aqr3y4gavgq'
+            m3 = 'm1ehveozttov2emc33uh362ojjnenn6kd3secmi5el6y3euhifq5na'
             schema = self.run_ddl(
                 schema,
                 f'''
