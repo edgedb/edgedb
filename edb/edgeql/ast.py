@@ -800,6 +800,11 @@ class DropMigration(DropObject, MigrationCommand):
     pass
 
 
+class ResetSchema(DDLCommand, MigrationCommand):
+
+    target: ObjectRef
+
+
 class StartMigrationRewrite(DDLCommand, MigrationCommand):
     pass
 

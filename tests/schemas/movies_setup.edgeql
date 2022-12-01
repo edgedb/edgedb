@@ -26,7 +26,7 @@ insert Person { first_name:= 'Steven', last_name:= 'Spielberg' };
 insert Movie {
     title := 'Forrest Gump',
     release_year := 1994,
-    actors := (select Person 
+    actors := (select Person
         filter .first_name = 'Tom' or .first_name = 'Robin'
     ),
     genre := (select Genre filter .name = 'Drama' limit 1),

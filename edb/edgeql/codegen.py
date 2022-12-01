@@ -1181,6 +1181,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropMigration(self, node: qlast.DropMigration) -> None:
         self._visit_DropObject(node, 'MIGRATION')
 
+    def visit_ResetSchema(
+            self, node: qlast.ResetSchema) -> None:
+        self._write_keywords(f'RESET SCHEMA TO {node.target}')
+
     def visit_CreateModule(self, node: qlast.CreateModule) -> None:
         self._visit_CreateObject(node, 'MODULE')
         # Hack to handle the SDL version of this with an empty block.

@@ -408,6 +408,9 @@ def compile_dispatch_ql_migration(
         case qlast.AbortMigrationRewrite():
             return _abort_migration_rewrite(ctx, ql)
 
+        case qlast.ResetSchema():
+            return _reset_schema(ctx, ql)
+
         case _:
             raise AssertionError(f'unexpected migration command: {ql}')
 
@@ -1076,3 +1079,66 @@ def _abort_migration_rewrite(
     )
 
     return query
+
+
+def _reset_schema(
+    ctx: compiler.CompileContext,
+    ql: qlast.ResetSchema,
+) -> dbstate.BaseQuery:
+    ctx._assert_not_in_migration_block(ql)
+    ctx._assert_not_in_migration_rewrite_block(ql)
+
+    if ql.target.name != 'initial':
+        raise errors.QueryError(
+            f'Unknown schema version "{ql.target.name}". '
+            'Currently, only revision supported is "initial"',
+            context=ql.target.context,
+        )
+
+    current_tx = ctx.state.current_tx()
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
+
+    empty_schema = s_schema.ChainedSchema(
+        ctx.compiler_state.std_schema,
+        s_schema.FlatSchema(),
+        current_tx.get_global_schema(),
+    )
+
+    sqls: List[bytes] = []
+
+    # diff and create migation that drops all objects
+    diff = s_ddl.delta_schemas(schema, empty_schema)
+    new_ddl: Tuple[qlast.DDLCommand, ...] = tuple(
+        s_ddl.ddlast_from_delta(schema, empty_schema, diff),  # type: ignore
+    )
+    create_mig = qlast.CreateMigration(  # type: ignore
+        body=qlast.NestedQLBlock(commands=tuple(new_ddl)),  # type: ignore
+    )
+    ddl_query = compile_and_apply_ddl_stmt(ctx, create_mig)
+    sqls.extend(ddl_query.sql)
+
+    # delete all migrations
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
+
+    migrations = s_delta.sort_by_cross_refs(
+        schema,
+        schema.get_objects(type=s_migrations.Migration),
+    )
+    for mig in migrations:
+        drop_mig = qlast.DropMigration(  # type: ignore
+            name=qlast.ObjectRef(name=mig.get_name(schema).name),
+        )
+        ddl_query = compile_and_apply_ddl_stmt(ctx, drop_mig)
+        sqls.extend(ddl_query.sql)
+
+    return dbstate.MigrationControlQuery(
+        sql=tuple(sqls),
+        ddl_stmt_id=ddl_query.ddl_stmt_id,
+        action=dbstate.MigrationAction.COMMIT,
+        tx_action=None,
+        cacheable=False,
+        modaliases=None,
+        single_unit=True,
+        user_schema=empty_schema.get_top_schema(),
+        cached_reflection=(current_tx.get_cached_reflection_if_updated()),
+    )

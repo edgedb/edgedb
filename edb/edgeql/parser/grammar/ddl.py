@@ -2860,6 +2860,9 @@ class MigrationStmt(Nonterm):
     def reduce_DropMigrationStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_ResetSchemaStmt(self, *kids):
+        self.val = kids[0].val
+
 
 class MigrationBody(typing.NamedTuple):
 
@@ -3014,4 +3017,12 @@ class DropMigrationStmt(Nonterm):
     def reduce_DROP_MIGRATION_NodeName(self, *kids):
         self.val = qlast.DropMigration(
             name=kids[2].val,
+        )
+
+
+class ResetSchemaStmt(Nonterm):
+    def reduce_ResetSchemaTo(self, *kids):
+        r"""%reduce RESET SCHEMA TO NodeName"""
+        self.val = qlast.ResetSchema(
+            target=kids[3].val,
         )
