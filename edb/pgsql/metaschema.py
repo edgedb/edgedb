@@ -5026,7 +5026,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
             query=(
                 f'''
         WITH obj_ty AS (
-            SELECT 
+            SELECT
                 id,
                 CASE SPLIT_PART(name, '::', 1)
                     WHEN 'default' THEN 'public'
@@ -5085,7 +5085,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
         ),
         columns (schema_name, table_name, name, required, type_name) AS ((
             -- pointers of objects
-            SELECT 
+            SELECT
                 obj_ty.schema_name, obj_ty.table_name, pointers.name,
                 pointers.required, pointers.type_name
             FROM obj_ty
@@ -5097,11 +5097,11 @@ def _generate_sql_information_schema() -> List[dbops.View]:
                 WHERE prop.computable IS NOT TRUE
                     AND COALESCE(prop.cardinality = 'One', TRUE)
             ) UNION ALL ( -- link ids
-                SELECT 
-                    source, name || '_id', COALESCE(required, FALSE), 
+                SELECT
+                    source, name || '_id', COALESCE(required, FALSE),
                     'std::uuid'
                 FROM edgedb."_SchemaLink"
-                WHERE prop.computable IS NOT TRUE
+                WHERE computable IS NOT TRUE
                     AND name != '__type__'
                     AND COALESCE(cardinality = 'One', TRUE)
             )) pointers(source, name, required, type_name)
@@ -5109,7 +5109,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
         ) UNION ALL (
             -- properties of links
             WITH qualified_links AS (
-                -- multi links and links with at least one property 
+                -- multi links and links with at least one property
                 -- (besides source and target)
                 SELECT link.id
                 FROM edgedb."_SchemaLink" link
@@ -5129,8 +5129,8 @@ def _generate_sql_information_schema() -> List[dbops.View]:
                 links.table_name,
                 prop.name,
                 COALESCE(prop.required, FALSE),
-                CASE prop.name 
-                    WHEN 'source' THEN 'std::uuid' 
+                CASE prop.name
+                    WHEN 'source' THEN 'std::uuid'
                     WHEN 'target' THEN 'std::uuid'
                     ELSE ty.name
                 END
@@ -5150,8 +5150,8 @@ def _generate_sql_information_schema() -> List[dbops.View]:
             )::{sql_card} AS ordinal_position,
             NULL::{sql_str} AS column_default,
             CASE
-                WHEN required THEN 'YES'
-                ELSE 'NO'
+                WHEN required THEN 'NO'
+                ELSE 'YES'
             END::{sql_bool} AS is_nullable,
             CASE type_name
                 WHEN 'std::anyreal' THEN 'double precision'
