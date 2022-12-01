@@ -993,6 +993,12 @@ def trace_Function(
     # from types.
     _register_item(node, ctx=ctx, hard_dep_exprs=deps)
 
+    # Recursive functions are allowed, so delete the self dep if it
+    # exists.
+    _, fq_name = ctx.get_fq_name(node)
+    depnode = ctx.ddlgraph[fq_name]
+    depnode.deps.discard(fq_name)
+
 
 @trace_dependencies.register
 def trace_default(

@@ -11325,6 +11325,32 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             module `back``ticked` { type Test };
         """)
 
+    async def test_edgeql_migration_recursive_function_01(self):
+        await self.migrate(r"""
+            function fact(n: int64) -> set of int64 using (
+                1 if n = 0 else n*fact(n - 1)
+            );
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select test::fact(5)
+            """,
+            [120],
+        )
+
+        await self.migrate(r"""
+            function fact(n: int64) -> set of int64 using (
+                2 if n = 0 else n*fact(n - 1)
+            );
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select test::fact(5)
+            """,
+            [240],
+        )
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False

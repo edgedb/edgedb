@@ -1558,6 +1558,8 @@ class FunctionCommand(
         return_typemod = self._get_attribute_value(
             schema, context, 'return_typemod')
 
+        ignored_refs = {self.scls} if hasattr(self, 'scls') else frozenset()
+
         expr = compile_function(
             schema,
             context,
@@ -1567,6 +1569,7 @@ class FunctionCommand(
             return_type=return_type,
             return_typemod=return_typemod,
             track_schema_ref_exprs=track_schema_ref_exprs,
+            ignored_refs=ignored_refs,
         )
 
         ir = expr.irast
@@ -1633,6 +1636,8 @@ class FunctionCommand(
 class CreateFunction(CreateCallableObject[Function], FunctionCommand):
     astnode = qlast.CreateFunction
 
+    active_modaliases = struct.Field(Mapping[Optional[str], str], default=None)
+
     def _create_begin(
         self,
         schema: s_schema.Schema,
@@ -1678,10 +1683,21 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
             raise errors.SchemaError(
                 f'{other.get_verbosename(schema)} already exists')
 
+        # Make sure nativecode is set to None, since we are going to make sure
+        # *not* to compile it before we create the object, so that when we do
+        # compile it, it can recursively see itself.
+        nativecode: s_expr.Expression | None = (
+            self.get_attribute_value('nativecode'))
+        self.set_attribute_value('nativecode', None)
         schema = super()._create_begin(schema, context)
 
-        params: FuncParameterList = self.scls.get_params(schema)
+        # Now that we have inserted the function into the schema, we
+        # can compile it. (It needs to be present first to handle
+        # recursion.)
+        if nativecode:
+            self.compile_nativecode(nativecode, schema, context)
 
+        params: FuncParameterList = self.scls.get_params(schema)
         language = self.scls.get_language(schema)
         return_type = self.scls.get_return_type(schema)
         return_typemod = self.scls.get_return_typemod(schema)
@@ -1881,6 +1897,40 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
 
         return schema
 
+    def compile_nativecode(
+        self,
+        nativecode: s_expr.Expression,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        # In order to properly support recursion, we need to create the
+        # function object *before* we compile nativecode, so that
+        # it can call itself recursively.
+
+        # Rebuild and properly normalize the expression
+        params: FuncParameterList = self.scls.get_params(schema)
+        localnames = {
+            x.get_parameter_name(schema) for x in params.objects(schema)
+        }
+        nativecode = s_expr.Expression.from_ast(
+            nativecode.qlast,
+            schema,
+            self.active_modaliases,
+            localnames,
+        )
+
+        self.set_attribute_value('nativecode', nativecode)
+
+        # Force the recompilation
+        super().get_resolved_attribute_value(
+            'nativecode', schema=schema, context=context)
+
+        # Update the object
+        self.update_field_status(schema, context)
+        props = self.get_resolved_attributes(schema, context)
+        props.pop('id', None)
+        return self.scls.update(schema, props)
+
     @classmethod
     def _cmd_tree_from_ast(
         cls,
@@ -1910,17 +1960,15 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     assert astnode.code.code is not None
                     nativecode_expr = qlparser.parse(astnode.code.code)
 
+                # HACK :/
+                cmd.active_modaliases = dict(context.modaliases)
                 nativecode = s_expr.Expression.from_ast(
                     nativecode_expr,
                     schema,
-                    context.modaliases,
-                    context.localnames,
+                    as_fragment=True,
                 )
+                cmd.set_attribute_value('nativecode', nativecode)
 
-                cmd.set_attribute_value(
-                    'nativecode',
-                    nativecode,
-                )
             elif astnode.code.from_function is not None:
                 cmd.set_attribute_value(
                     'from_function',
@@ -2292,7 +2340,9 @@ def compile_function(
     return_type: s_types.Type,
     return_typemod: ft.TypeModifier,
     track_schema_ref_exprs: bool=False,
+    ignored_refs: AbstractSet[so.Object]=frozenset(),
 ) -> s_expr.CompiledExpression:
+
     assert language is qlast.Language.EdgeQL
 
     has_inlined_defaults = bool(params.find_named_only(schema))
@@ -2311,6 +2361,7 @@ def compile_function(
             apply_query_rewrites=not context.stdmode,
             track_schema_ref_exprs=track_schema_ref_exprs,
         ),
+        ignored_refs=ignored_refs,
     )
 
     ir = compiled.irast

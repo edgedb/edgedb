@@ -2228,6 +2228,9 @@ class ObjectCollection(
     def __hash__(self) -> int:
         return hash(self._ids)
 
+    def __contains__(self, other: Object) -> bool:
+        return other.id in self._ids
+
     def schema_reduce(
         self,
     ) -> Tuple[
