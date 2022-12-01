@@ -837,6 +837,11 @@ def compile_policy_check(
         ictx.ptr_rel_overlays[None].update(
             ictx.ptr_rel_overlays[ir_stmt])
 
+        ictx.type_rel_overlays = ctx.type_rel_overlays.copy()
+        ictx.type_rel_overlays[None] = ictx.type_rel_overlays[None].copy()
+        ictx.type_rel_overlays[None].update(
+            ictx.type_rel_overlays[ir_stmt])
+
         dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
         relctx.include_rvar(ictx.rel, dml_rvar, path_id=subject_id, ctx=ictx)
 
