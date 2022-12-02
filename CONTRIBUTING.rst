@@ -8,6 +8,28 @@ To make sure the project can continue to improve quickly, we have a few
 guidelines designed to make it easier for your contributions to make it into
 the project.
 
+All contributions
+-----------------
+
+- **Avoid making pull requests that do not have an associated Github Issue.**
+  This could be an already existing issue or one you create yourself when you
+  discover the problem. This will allow the team to help you scope your
+  solution, warn you of potential gotchas, or give you a heads-up on solutions
+  that are likely not feasible. It's a good idea to mention in the issue that
+  you'd like to contribute code to resolve the issue.  **If you're fixing
+  something trivial like a typo,** an associated issue isn't necessary.
+- **Write good commit messages.** The subject of your commit message — that's
+  the first line — should tell us *what* you did. The body of your message —
+  that's the rest of it — should tell us *why* you did it (unless that's
+  self-evident).
+
+Contributing code
+--------------------------
+
+- **Pull requests without thorough testing are not likely to be merged.** If
+  you're not sure if yours is well-tested enough, go ahead and submit. We can
+  help guide you to the finish line.
+
 Contributing documentation
 --------------------------
 
