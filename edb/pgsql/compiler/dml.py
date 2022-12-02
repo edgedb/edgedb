@@ -708,10 +708,11 @@ def process_insert_body(
         if iterator is not None:
             pathctx.put_path_bond(select, iterator.path_id)
 
-    pathctx._put_path_output_var(
-        select, ir_stmt.subject.path_id, aspect='identity',
-        var=pgast.ColumnRef(name=['id']), env=ctx.env,
-    )
+    for aspect in ('value', 'identity'):
+        pathctx._put_path_output_var(
+            select, ir_stmt.subject.path_id, aspect=aspect,
+            var=pgast.ColumnRef(name=['id']), env=ctx.env,
+        )
 
     # Put the select that builds the tuples to insert into its own CTE.
     # We do this for two reasons:
