@@ -9709,6 +9709,50 @@ type default::Foo {
                 };
             """)
 
+    async def test_edgeql_ddl_constraint_25(self):
+        await self.con.execute("""
+            create scalar type Status extending enum<open, closed>;
+            create type Order {
+                create required property status -> Status;
+            }
+        """)
+        async with self.assertRaisesRegexTx(
+                edgedb.UnsupportedFeatureError,
+                r"cannot cast to enum types or reference enum literals "
+                r"from constraint"):
+            await self.con.execute("""
+                alter type Order {
+                  create constraint exclusive on ((Status.open = .status));
+                };
+            """)
+        async with self.assertRaisesRegexTx(
+                edgedb.UnsupportedFeatureError,
+                r"cannot cast to enum types or reference enum literals "
+                r"from constraint"):
+            await self.con.execute("""
+                alter type Order {
+                  create constraint exclusive on ((<Status>'open' = .status));
+                };
+            """)
+        async with self.assertRaisesRegexTx(
+                edgedb.UnsupportedFeatureError,
+                r"cannot cast to enum types or reference enum literals "
+                r"from index"):
+            await self.con.execute("""
+                alter type Order {
+                  create index on ((Status.open = .status));
+                };
+            """)
+        async with self.assertRaisesRegexTx(
+                edgedb.UnsupportedFeatureError,
+                r"cannot cast to enum types or reference enum literals "
+                r"from index"):
+            await self.con.execute("""
+                alter type Order {
+                  create index on ((<Status>'open' = .status));
+                };
+            """)
+
     async def test_edgeql_ddl_constraint_check_01a(self):
         await self.con.execute(r"""
             create type Foo {
