@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import collections
 import textwrap
+from typing import *
 
 from edb.common import ordered
 
@@ -327,7 +328,11 @@ class CreateTable(ddl.SchemaObjectOperation):
 
 
 class AlterTableBaseMixin:
-    def __init__(self, name, contained=False, **kwargs):
+
+    name: Tuple[str, ...]
+    contained: bool
+
+    def __init__(self, name: Tuple[str, ...], contained=False, **kwargs):
         self.name = name
         self.contained = contained
 

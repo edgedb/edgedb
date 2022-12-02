@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import textwrap
+from typing import *
 
 from ..common import qname as qn
 from ..common import quote_ident as qi
@@ -77,7 +78,13 @@ class FunctionExists(base.Condition):
 
 
 class FunctionOperation:
-    def format_args(self, args, has_variadic, *, include_defaults=True):
+    def format_args(
+        self,
+        args: Sequence[str | Tuple[str, str, str]],
+        has_variadic: bool,
+        *,
+        include_defaults=True,
+    ):
         if not args:
             return ''
 
@@ -168,9 +175,15 @@ class CreateOrReplaceFunction(ddl.DDLOperation, FunctionOperation):
 
 class DropFunction(ddl.DDLOperation, FunctionOperation):
     def __init__(
-            self, name, args, *,
-            if_exists=False,
-            has_variadic=False, conditions=None, neg_conditions=None):
+        self,
+        name: Tuple[str, ...],
+        args: Sequence[str | Tuple[str, str, str]],
+        *,
+        if_exists=False,
+        has_variadic=False,
+        conditions: Optional[List[str | base.Condition]] = None,
+        neg_conditions: Optional[List[str | base.Condition]] = None,
+    ):
         self.conditional = if_exists
         if conditions:
             c = []

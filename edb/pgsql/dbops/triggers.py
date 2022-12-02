@@ -32,12 +32,13 @@ from . import tables
 
 
 class TriggerExists(base.Condition):
-    def __init__(self, trigger_name, table_name):
+    def __init__(self, trigger_name: str, table_name: Tuple[str, ...]):
         self.trigger_name = trigger_name
         self.table_name = table_name
 
     def code(self, block: base.PLBlock) -> str:
-        return textwrap.dedent(f'''\
+        return textwrap.dedent(
+            f'''\
             SELECT
                 tg.tgname
             FROM
@@ -50,14 +51,26 @@ class TriggerExists(base.Condition):
                 tab.relname = {ql(self.table_name[1])}
                 AND ns.nspname = {ql(self.table_name[0])}
                 AND tg.tgname = {ql(self.trigger_name)}
-        ''')
+        '''
+        )
 
 
 class Trigger(tables.InheritableTableObject):
     def __init__(
-            self, name, *, table_name, events, timing='after',
-            granularity='row', procedure, condition=None, is_constraint=False,
-            deferred=False, inherit=False, metadata=None):
+        self,
+        name,
+        *,
+        table_name: Tuple[str, ...],
+        events: Tuple[str, ...],
+        timing='after',
+        granularity='row',
+        procedure,
+        condition=None,
+        is_constraint=False,
+        deferred=False,
+        inherit=False,
+        metadata=None,
+    ):
         super().__init__(inherit=inherit, metadata=metadata)
 
         self.name = name
@@ -71,8 +84,9 @@ class Trigger(tables.InheritableTableObject):
         self.deferred = deferred
 
         if is_constraint and granularity != 'row':
-            msg = 'invalid granularity for ' \
-                  'constraint trigger: {}'.format(granularity)
+            msg = 'invalid granularity for ' 'constraint trigger: {}'.format(
+                granularity
+            )
             raise ValueError(msg)
 
         if deferred and not is_constraint:
@@ -85,7 +99,8 @@ class Trigger(tables.InheritableTableObject):
         return f'{qi(self.name)} ON {qn(*self.table_name)}'
 
     def get_oid(self):
-        qry = textwrap.dedent(f'''\
+        qry = textwrap.dedent(
+            f'''\
             SELECT
                 'pg_trigger'::regclass::oid AS classoid,
                 pg_trigger.oid AS objectoid,
@@ -98,27 +113,34 @@ class Trigger(tables.InheritableTableObject):
                 tgname = {ql(self.name)}
                 AND nspname = {ql(self.table_name[0])}
                 AND relname = {ql(self.table_name[1])}
-        ''')
+        '''
+        )
 
         return base.Query(text=qry)
 
     def copy(self):
         return self.__class__(
-            name=self.name, table_name=self.table_name, events=self.events,
-            timing=self.timing, granularity=self.granularity,
-            procedure=self.procedure, condition=self.condition,
-            is_constraint=self.is_constraint, deferred=self.deferred,
-            metadata=self.metadata.copy())
+            name=self.name,
+            table_name=self.table_name,
+            events=self.events,
+            timing=self.timing,
+            granularity=self.granularity,
+            procedure=self.procedure,
+            condition=self.condition,
+            is_constraint=self.is_constraint,
+            deferred=self.deferred,
+            metadata=self.metadata.copy(),
+        )
 
     def __repr__(self):
-        return \
-            '<{mod}.{cls} {name} ON {table_name} {timing} {events}>'.format(
-                mod=self.__class__.__module__,
-                cls=self.__class__.__name__,
-                name=self.name,
-                table_name=qn(*self.table_name),
-                timing=self.timing,
-                events=' OR '.join(self.events))
+        return '<{mod}.{cls} {name} ON {table_name} {timing} {events}>'.format(
+            mod=self.__class__.__module__,
+            cls=self.__class__.__name__,
+            name=self.name,
+            table_name=qn(*self.table_name),
+            timing=self.timing,
+            events=' OR '.join(self.events),
+        )
 
 
 class CreateTrigger(ddl.CreateObject):
@@ -127,27 +149,37 @@ class CreateTrigger(ddl.CreateObject):
         self.trigger = object
         if conditional:
             self.neg_conditions.add(
-                TriggerExists(self.trigger.name, self.trigger.table_name))
+                TriggerExists(self.trigger.name, self.trigger.table_name)
+            )
 
     def code(self, block: base.PLBlock) -> str:
-        return textwrap.dedent('''\
+        return textwrap.dedent(
+            '''\
             CREATE {constr}TRIGGER {trigger_name} {timing} {events}
                    ON {table_name}
                    {deferred}
                    FOR EACH {granularity} {condition}
                    EXECUTE PROCEDURE {procedure}
-        ''').format(
+        '''
+        ).format(
             constr='CONSTRAINT ' if self.trigger.is_constraint else '',
             trigger_name=qi(self.trigger.name),
             timing=self.trigger.timing,
             events=' OR '.join(self.trigger.events),
             table_name=qn(*self.trigger.table_name),
-            deferred=('DEFERRABLE INITIALLY DEFERRED'
-                      if self.trigger.deferred else ''),
-            granularity=self.trigger.granularity, condition=(
-                'WHEN ({})'.format(self.trigger.condition)
-                if self.trigger.condition else ''),
-            procedure='{}()'.format(qn(*self.trigger.procedure)))
+            deferred=(
+                'DEFERRABLE INITIALLY DEFERRED'
+                if self.trigger.deferred
+                else ''
+            ),
+            granularity=self.trigger.granularity,
+            condition=(
+                f'WHEN ({self.trigger.condition})'
+                if self.trigger.condition
+                else ''
+            ),
+            procedure=f'{qn(*self.trigger.procedure)}()',
+        )
 
 
 class DropTrigger(ddl.DropObject):
@@ -156,11 +188,14 @@ class DropTrigger(ddl.DropObject):
         self.trigger = object
         if conditional:
             self.conditions.add(
-                TriggerExists(self.trigger.name, self.trigger.table_name))
+                TriggerExists(self.trigger.name, self.trigger.table_name)
+            )
 
     def code(self, block: base.PLBlock) -> str:
-        return (f'DROP TRIGGER {qi(self.trigger.name)} '
-                f'ON {qn(*self.trigger.table_name)}')
+        return (
+            f'DROP TRIGGER {qi(self.trigger.name)} '
+            f'ON {qn(*self.trigger.table_name)}'
+        )
 
 
 class DisableTrigger(ddl.DDLOperation):
@@ -171,14 +206,17 @@ class DisableTrigger(ddl.DDLOperation):
 
     def code(self, block: base.PLBlock) -> str:
         only = ' ONLY' if self.self_only else ''
-        return (f'ALTER TABLE{only} {qn(*self.trigger.table_name)} '
-                f'DISABLE TRIGGER {qi(self.trigger.name)}')
+        return (
+            f'ALTER TABLE{only} {qn(*self.trigger.table_name)} '
+            f'DISABLE TRIGGER {qi(self.trigger.name)}'
+        )
 
     def __repr__(self):
         return '<{mod}.{cls} {trigger!r}>'.format(
             mod=self.__class__.__module__,
             cls=self.__class__.__name__,
-            trigger=self.trigger)
+            trigger=self.trigger,
+        )
 
 
 class EnableTrigger(ddl.DDLOperation):
@@ -187,11 +225,14 @@ class EnableTrigger(ddl.DDLOperation):
         self.trigger = trigger
 
     def code(self, block: base.PLBlock) -> str:
-        return (f'ALTER TABLE {qn(*self.trigger.table_name)} '
-                f'ENABLE TRIGGER {qi(self.trigger.name)}')
+        return (
+            f'ALTER TABLE {qn(*self.trigger.table_name)} '
+            f'ENABLE TRIGGER {qi(self.trigger.name)}'
+        )
 
     def __repr__(self):
         return '<{mod}.{cls} {trigger!r}>'.format(
             mod=self.__class__.__module__,
             cls=self.__class__.__name__,
-            trigger=self.trigger)
+            trigger=self.trigger,
+        )
