@@ -113,11 +113,13 @@ def compile_FunctionCall(
             # Skip any name colliding with kwargs.
             while f'arg{argnum}' in kwargs:
                 argnum += 1
+            ty = schemactx.get_material_type(argtype, ctx=ctx)
             sig.append(
-                f'arg{argnum}: {argtype.get_displayname(env.schema)}'
+                f'arg{argnum}: {ty.get_displayname(env.schema)}'
             )
             argnum += 1
         for kwname, (kwtype, _) in kwargs.items():
+            ty = schemactx.get_material_type(kwtype, ctx=ctx)
             sig.append(
                 f'NAMED ONLY {kwname}: {kwtype.get_displayname(env.schema)}'
             )
@@ -455,20 +457,13 @@ def compile_operator(
     if len(matched) == 1:
         matched_call = matched[0]
     else:
-        if len(args) == 2:
-            ltype = schemactx.get_material_type(args[0][0], ctx=ctx)
-            rtype = schemactx.get_material_type(args[1][0], ctx=ctx)
+        args_ty = [schemactx.get_material_type(a[0], ctx=ctx) for a in args]
+        args_dn = [repr(a.get_displayname(env.schema)) for a in args_ty]
 
-            types = (
-                f'{ltype.get_displayname(env.schema)!r} and '
-                f'{rtype.get_displayname(env.schema)!r}')
+        if len(args_dn) == 2:
+            types = f'{args_dn[0]} and {args_dn[1]}'
         else:
-            types = ', '.join(
-                repr(
-                    schemactx.get_material_type(
-                        a[0], ctx=ctx).get_displayname(env.schema)
-                ) for a in args
-            )
+            types = ', '.join(a for a in args_dn)
 
         if not matched:
             hint = ('Consider using an explicit type cast or a conversion '
@@ -484,11 +479,9 @@ def compile_operator(
                 bytes_t = cast(s_scalars.ScalarType,
                                env.schema.get('std::bytes'))
                 if (
-                    (ltype.issubclass(env.schema, str_t) and
-                        rtype.issubclass(env.schema, str_t)) or
-                    (ltype.issubclass(env.schema, bytes_t) and
-                        rtype.issubclass(env.schema, bytes_t)) or
-                    (ltype.is_array() and rtype.is_array())
+                    all(t.issubclass(env.schema, str_t) for t in args_ty) or
+                    all(t.issubclass(env.schema, bytes_t) for t in args_ty) or
+                    all(t.is_array() for t in args_ty)
                 ):
                     hint = 'Consider using the "++" operator for concatenation'
 
