@@ -32,7 +32,9 @@ from edb.ir import ast as irast
 from edb.ir import utils as irutils
 
 from edb.schema import casts as s_casts
+from edb.schema import constraints as s_constr
 from edb.schema import functions as s_func
+from edb.schema import indexes as s_indexes
 from edb.schema import name as sn
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
@@ -92,6 +94,16 @@ def compile_cast(
             f'to {new_stype.get_displayname(ctx.env.schema)!r}, use '
             f'`...[IS {new_stype.get_displayname(ctx.env.schema)}]` instead',
             context=srcctx)
+
+    if new_stype.is_enum(ctx.env.schema):
+        objctx = ctx.env.options.schema_object_context
+        if objctx in (s_constr.Constraint, s_indexes.Index):
+            typname = objctx.get_schema_class_displayname()
+            raise errors.UnsupportedFeatureError(
+                f'cannot cast to enum types or reference enum literals '
+                f'from {typname}',
+                hint='this is a bug, and will be fixed in 3.0',
+                context=srcctx)
 
     uuid_t = ctx.env.get_track_schema_type(sn.QualName('std', 'uuid'))
     if (
