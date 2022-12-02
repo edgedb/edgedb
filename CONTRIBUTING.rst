@@ -29,6 +29,10 @@ Contributing documentation
   possible without being bogged down by other changes that require more
   intensive review.
 
+Please see EdgeDB's guide for `building documentation
+<https://www.edgedb.com/docs/guides/contributing#writing-documentation>`_ from
+source.
+
 Documentation style
 ~~~~~~~~~~~~~~~~~~~
 
