@@ -529,6 +529,24 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             };
             ''')
 
+    async def test_edgeql_policies_12(self):
+        await self.con.query('''
+            create global cur_user_obj := (
+                select User filter .name = global cur_user);
+            alter type User {
+                create access policy allow_self_obj
+                   allow all
+                   using (__subject__ ?= global cur_user_obj);
+            }
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"access policy violation on insert of default::User"):
+            await self.con.query('''
+                insert User { name := 'whatever' }
+            ''')
+
     async def test_edgeql_policies_order_01(self):
         await self.con.execute('''
             insert CurOnly { name := "!" }
