@@ -13315,6 +13315,27 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             ]
         )
 
+    async def test_edgeql_ddl_adjust_computed_11(self):
+        await self.con.execute(r'''
+            CREATE TYPE default::Foo;
+            CREATE TYPE default::Bar {
+                CREATE LINK foos := (default::Foo);
+            };
+        ''')
+
+        # it's annoying that we need the using on the RESET CARDINALITY;
+        # maybe we should be able to know it isn't needed
+        await self.con.execute(r'''
+            ALTER TYPE default::Bar {
+                ALTER LINK foos {
+                    RESET EXPRESSION;
+                    RESET CARDINALITY using (<Foo>{});
+                    RESET OPTIONALITY;
+                    SET TYPE default::Foo;
+                };
+            }
+        ''')
+
     async def test_edgeql_ddl_captured_as_migration_01(self):
 
         await self.con.execute(r"""
