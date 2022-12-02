@@ -53,6 +53,7 @@ from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 from edb.server import main as edgedb_main
+from edb.server import pgconnparams
 
 from edb.common import assert_data_shape
 from edb.common import devmode
@@ -1236,12 +1237,22 @@ class SQLQueryTestCase(BaseQueryTestCase):
             raise unittest.SkipTest('SQL tests skipped: not in devmode')
         pgaddr = json.loads(pgaddr)
 
-        pgdsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
-        if not pgdsn:
-            pgdsn = (
-                f'postgres:///{pgaddr["database"]}?user={pgaddr["user"]}'
-                f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
-            )
+        # Try to grab a password from the specified DSN, if one is
+        # present, since the pgaddr won't have a real one. (The non
+        # specified DSN test suite setup doesn't have one, so it is
+        # fine.)
+        password = None
+        spec_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
+        if spec_dsn:
+            _, params = pgconnparams.parse_dsn(spec_dsn)
+            password = params.password
+
+        pgdsn = (
+            f'postgres:///{pgaddr["database"]}?user={pgaddr["user"]}'
+            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
+        )
+        if password is not None:
+            pgdsn += f'&password={password}'
 
         cls.scon = cls.loop.run_until_complete(
             asyncpg.connect(pgdsn))
