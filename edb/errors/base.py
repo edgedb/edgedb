@@ -74,10 +74,16 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     _code: Optional[int] = None
     _attrs: Dict[int, str]
 
-    def __init__(self, msg: str=None, *,
-                 hint: str=None, details: str=None,
-                 context=None, position: Optional[Tuple[int, int, int]] = None,
-                 token=None):
+    def __init__(
+        self,
+        msg: Optional[str] = None,
+        *,
+        hint: Optional[str] = None,
+        details: Optional[str] = None,
+        context=None,
+        position: Optional[Tuple[int, int, int]] = None,
+        token=None,
+    ):
         if type(self) is EdgeDBError:
             raise RuntimeError(
                 'EdgeDBError is not supposed to be instantiated directly')

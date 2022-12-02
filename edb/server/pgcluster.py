@@ -744,7 +744,7 @@ class RemoteCluster(BaseCluster):
     async def get_status(self) -> str:
         return 'running'
 
-    def init(self, **settings: str) -> str:
+    def init(self, **settings: str) -> Optional[str]:
         pass
 
     async def start(

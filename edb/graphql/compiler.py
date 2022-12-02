@@ -54,8 +54,8 @@ def compile_graphql(
     tokens: Optional[
         List[Tuple[gql_lexer.TokenKind, int, int, int, int, str]]],
     substitutions: Optional[Dict[str, Tuple[str, int, int]]],
-    operation_name: str=None,
-    variables: Optional[Mapping[str, object]]=None,
+    operation_name: Optional[str] = None,
+    variables: Optional[Mapping[str, object]] = None,
 ) -> graphql.TranspiledOperation:
     if tokens is None:
         ast = graphql.parse_text(gql)

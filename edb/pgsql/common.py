@@ -239,7 +239,7 @@ def get_objtype_backend_name(
     module_name: str,
     *,
     catenate: bool = True,
-    aspect: str = None,
+    aspect: Optional[str] = None,
 ):
     if aspect is None:
         aspect = 'table'

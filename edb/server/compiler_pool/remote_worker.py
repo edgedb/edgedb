@@ -80,7 +80,7 @@ def __init_worker__(
     )
 
 
-def __sync__(client_id, pickled_schema, invalidation):
+def __sync__(client_id, pickled_schema, invalidation) -> None:
     global clients
 
     for cid in invalidation:
@@ -89,7 +89,7 @@ def __sync__(client_id, pickled_schema, invalidation):
         except KeyError:
             pass
     try:
-        client_schema = clients.get(client_id)  # type: ClientSchema
+        client_schema: ClientSchema = clients.get(client_id)  # type: ignore
         if pickled_schema:
             if client_schema is None:
                 dbs = {
@@ -147,9 +147,10 @@ def __sync__(client_id, pickled_schema, invalidation):
                                     print(
                                         client_id, "DIFF SYNC UPDATE: ", dbname
                                     )
+                                val = dbs.get(dbname)
                                 dbs = dbs.set(
                                     dbname,
-                                    dbs.get(dbname)._replace(**db_updates),
+                                    val._replace(**db_updates),  # type: ignore
                                 )
                 if pickled_schema.dropped_dbs is not None:
                     for dbname in pickled_schema.dropped_dbs:
@@ -167,7 +168,9 @@ def __sync__(client_id, pickled_schema, invalidation):
                         pickled_schema.instance_config
                     )
                 if updates:
-                    client_schema = client_schema._replace(**updates)
+                    client_schema = client_schema._replace(
+                        **updates  # type: ignore
+                    )
                     clients = clients.set(client_id, client_schema)
         else:
             assert client_schema is not None

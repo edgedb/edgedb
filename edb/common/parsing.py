@@ -437,7 +437,7 @@ class Parser:
 
         return self.parser.start[0].val
 
-    def context(self, tok=None, pos: Tuple[int, int, int] = None):
+    def context(self, tok=None, pos: Optional[Tuple[int, int, int]] = None):
         lex = self.lexer
         name = lex.filename if lex.filename else '<string>'
 

@@ -190,7 +190,7 @@ class Registry:
         self._add_metric(hist)
         return hist
 
-    def generate(self):
+    def generate(self) -> str:
         buffer: list[str] = []
         for metric in self._metrics:
             metric._generate(buffer)

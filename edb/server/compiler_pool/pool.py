@@ -194,7 +194,7 @@ class AbstractPool:
         pickled_args = self._get_pickled_init_args(init_args)
         return init_args, pickled_args
 
-    def _get_init_args_uncached(self):
+    def _get_init_args_uncached(self) -> Any:
         dbs: state.DatabasesState = immutables.Map()
         for db in self._dbindex.iter_dbs():
             dbs = dbs.set(

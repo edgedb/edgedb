@@ -242,7 +242,7 @@ def _infer_set_inner(
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
     rptr = ir.rptr
-    new_scope = cardinality.inf_utils.get_set_scope(ir, scope_tree, ctx=ctx)
+    new_scope = inf_utils.get_set_scope(ir, scope_tree, ctx=ctx)
 
     if ir.expr is None:
         expr_mult = None

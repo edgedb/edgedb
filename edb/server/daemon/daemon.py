@@ -20,6 +20,7 @@
 """Implementation of PEP 3143."""
 
 from __future__ import annotations
+from typing import *
 
 import atexit
 import io
@@ -32,11 +33,21 @@ from .exceptions import DaemonError
 
 class DaemonContext:
     def __init__(
-            self, *, pidfile: os.PathLike, files_preserve: list=None,
-            working_directory: str='/', umask: int=0o022, uid: int=None,
-            gid: int=None, detach_process: bool=None, prevent_core: bool=True,
-            stdin: io.FileIO=None, stdout: io.FileIO=None, stderr:
-            io.FileIO=None, signal_map: dict=None):
+        self,
+        *,
+        pidfile: os.PathLike,
+        files_preserve: Optional[list] = None,
+        working_directory: str = '/',
+        umask: int = 0o022,
+        uid: Optional[int] = None,
+        gid: Optional[int] = None,
+        detach_process: Optional[bool] = None,
+        prevent_core: bool = True,
+        stdin: Optional[io.FileIO] = None,
+        stdout: Optional[io.FileIO] = None,
+        stderr: Optional[io.FileIO] = None,
+        signal_map: Optional[dict] = None
+    ):
 
         self.pidfile = os.fspath(pidfile)
         self.files_preserve = files_preserve

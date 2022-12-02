@@ -46,8 +46,8 @@ def _maybe(
     return None
 
 
-def _ident(t: T) -> U:
-    return t  # type: ignore
+def _ident(t: T) -> Any:
+    return t
 
 
 def _list(
@@ -71,6 +71,7 @@ def _maybe_list(
 
 
 def _enum(
+    _ty: Type[T],
     node: Node,
     ctx: Context,
     builders: dict[str, Builder],
@@ -140,6 +141,7 @@ def _build_context(n: Node, c: Context) -> Optional[ParserContext]:
 
 def _build_query(node: Node, c: Context) -> pgast.Query:
     return _enum(
+        pgast.Query,
         node,
         c,
         {
@@ -214,6 +216,7 @@ def _build_delete_stmt(n: Node, c: Context) -> pgast.DeleteStmt:
 
 def _build_base(n: Node, c: Context) -> pgast.Base:
     return _enum(
+        pgast.Base,
         n,
         c,
         {
@@ -225,6 +228,7 @@ def _build_base(n: Node, c: Context) -> pgast.Base:
 
 def _build_base_expr(node: Node, c: Context) -> pgast.BaseExpr:
     return _enum(
+        pgast.BaseExpr,
         node,
         c,
         {
@@ -259,6 +263,7 @@ def _build_distinct(nodes: List[Node], c: Context) -> List[pgast.Base]:
 
 def _build_indirection_op(n: Node, c: Context) -> pgast.IndirectionOp:
     return _enum(
+        pgast.IndirectionOp,  # type: ignore
         n,
         c,
         {
@@ -405,6 +410,7 @@ def _build_bool_expr(n: Node, c: Context) -> pgast.Expr:
 
 def _build_base_range_var(n: Node, c: Context) -> pgast.BaseRangeVar:
     return _enum(
+        pgast.BaseRangeVar,
         n,
         c,
         {
@@ -693,4 +699,9 @@ def _build_star(_n: Node, _c: Context) -> pgast.Star | str:
 
 
 def _build_string_or_star(node: Node, c: Context) -> pgast.Star | str:
-    return _enum(node, c, {"String": _build_str, "A_Star": _build_star})
+    return _enum(
+        Union[pgast.Star, str],  # type: ignore
+        node,
+        c,
+        {"String": _build_str, "A_Star": _build_star},
+    )
