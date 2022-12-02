@@ -3083,8 +3083,9 @@ class CompositeMetaCommand(MetaCommand):
                 k for k, _ in self.inhview_updates if k not in to_recreate}
 
             for s in to_recreate:
-                self.recreate_inhview(
-                    schema, context, s, alter_ancestors=False)
+                if has_table(s, schema):
+                    self.recreate_inhview(
+                        schema, context, s, alter_ancestors=False)
 
             for s in to_alter:
                 if has_table(s, schema):
