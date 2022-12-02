@@ -50,6 +50,7 @@ from edb.edgeql import ast as qlast
 from . import context as inference_context
 from . import utils as inf_utils
 from . import volatility
+from . import multiplicity
 
 from .. import context
 
@@ -1144,8 +1145,9 @@ def _infer_stmt_cardinality(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
+    result = ir.subject if isinstance(ir, irast.MutatingStmt) else ir.result
     result_card = infer_cardinality(
-        ir.subject if isinstance(ir, irast.MutatingStmt) else ir.result,
+        result,
         is_mutation=isinstance(ir, irast.MutatingStmt),
         scope_tree=scope_tree,
         ctx=ctx,
@@ -1158,8 +1160,15 @@ def _infer_stmt_cardinality(
         result_card = cartesian_cardinality([result_card, AT_MOST_ONE])
 
     if result_card.is_multi() and ir.where:
-        result_card = _analyse_filter_clause(
-            ir.result, result_card, ir.where, scope_tree, ctx)
+        result_mult = multiplicity.infer_multiplicity(
+            result, scope_tree=scope_tree, ctx=ctx)
+
+        # We can only apply filter clause restrictions when the result
+        # is a unique set, because if the set has duplicates we can
+        # also pick out duplicates.
+        if result_mult.is_unique():
+            result_card = _analyse_filter_clause(
+                ir.result, result_card, ir.where, scope_tree, ctx)
 
     _infer_matset_cardinality(
         ir.materialized_sets, scope_tree=scope_tree, ctx=ctx)
