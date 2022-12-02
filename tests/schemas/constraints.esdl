@@ -269,3 +269,10 @@ type Pair {
     required property y -> str;
     constraint exclusive on (( .x, .y ));
 }
+
+type Indexing {
+    required property x -> str;
+    required property y -> array<int16>;
+    constraint exclusive on ((.x[0]));
+    constraint exclusive on ((.y[0]));
+}
