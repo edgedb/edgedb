@@ -86,6 +86,7 @@
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_PLATFORM_ARCH: "<< tgt.platform_arch if tgt.platform_arch else '' >>"
+        METAPKG_GIT_CACHE: disabled
 <% if tgt.family == "generic" %>
         BUILD_GENERIC: true
 <% endif %>
