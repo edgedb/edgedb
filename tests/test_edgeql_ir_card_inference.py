@@ -998,3 +998,19 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         ONE
         """
+
+    def test_edgeql_ir_card_inference_121(self):
+        """
+        with X := {User, User},
+        select X filter .name = 'Alice'
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_122(self):
+        """
+        with X := {User, User},
+        update X filter .name = 'Alice' set { }
+% OK %
+        MANY
+        """
