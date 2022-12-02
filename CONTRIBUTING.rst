@@ -8,6 +8,10 @@ To make sure the project can continue to improve quickly, we have a few
 guidelines designed to make it easier for your contributions to make it into
 the project.
 
+These are guidelines rather than hard rules. If you want to submit a pull
+request that strays from these, it might be a good idea to start a discussion
+about it first. Otherwise, it's possible your pull request might not be merged.
+
 All contributions
 -----------------
 
