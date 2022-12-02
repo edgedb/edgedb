@@ -77,6 +77,10 @@ default. You can start the server by enabling the unit.
 This will start the server on port 5656, and the data directory will be
 ``/var/lib/edgedb/1/data``.
 
+.. warning::
+
+    ``edgedb-server`` cannot be run as root.
+
 Set environment variables
 =========================
 
