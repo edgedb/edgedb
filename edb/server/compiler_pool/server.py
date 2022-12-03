@@ -434,13 +434,13 @@ class MultiSchemaPool(pool_mod.FixedPool):
     async def handle_client_call(self, protocol, req_id, msg):
         client_id = protocol.client_id
         digest = msg[:32]
-        data = msg[32:]
+        msg = msg[32:]
         try:
-            expected_digest = hmac.digest(self._secret, data, "sha256")
+            expected_digest = hmac.digest(self._secret, msg, "sha256")
             if not hmac.compare_digest(digest, expected_digest):
                 raise AssertionError("message signature verification failed")
 
-            method_name, args = pickle.loads(msg[32:])
+            method_name, args = pickle.loads(msg)
             if method_name != "__init_server__":
                 await self._ready_evt.wait()
             if method_name == "__init_server__":
