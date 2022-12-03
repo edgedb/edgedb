@@ -11466,6 +11466,11 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             await con2.aclose()
 
     async def test_edgeql_migration_reset_schema(self):
+        self.skipTest('''
+            RESET SCHEMA TO INITIAL leaves database in broken state.
+            See #4766.
+        ''')
+
         await self.migrate(r'''
             type Bar;
 
