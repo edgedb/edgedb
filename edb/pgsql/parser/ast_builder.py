@@ -46,7 +46,7 @@ def _maybe(
     return None
 
 
-def _ident(t: T) -> Any:
+def _ident(t: Any) -> Any:
     return t
 
 
