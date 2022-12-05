@@ -216,12 +216,20 @@ def get_scalar_backend_name(id, module_name, catenate=True, *, aspect=None):
     if aspect is None:
         aspect = 'domain'
     if aspect not in (
-        'domain', 'sequence', 'enum',
-        'source-del-imm-otl-f', 'source-del-imm-otl-t',
+        "domain",
+        "sequence",
+        "enum",
+        "enum-cast",
+        "source-del-imm-otl-f",
+        "source-del-imm-otl-t",
     ):
         raise ValueError(
             f'unexpected aspect for scalar backend name: {aspect!r}')
     name = s_name.QualName(module=module_name, name=str(id))
+
+    if aspect == "enum-cast":
+        return get_cast_backend_name(name, catenate, aspect="function")
+
     return convert_name(name, aspect, catenate)
 
 
@@ -317,9 +325,11 @@ def get_operator_backend_name(name, catenate=False, *, aspect=None):
         return schema, oper_name
 
 
-def get_cast_backend_name(fullname, catenate=False, *, aspect=None):
-    if aspect == 'function':
-        return convert_name(fullname, 'f', catenate=catenate)
+def get_cast_backend_name(
+    fullname: s_name.QualName, catenate=False, *, aspect=None
+):
+    if aspect == "function":
+        return convert_name(fullname, "f", catenate=catenate)
     else:
         raise ValueError(
             f'unexpected aspect for cast backend name: {aspect!r}')

@@ -38,6 +38,7 @@ from edb.schema import indexes as s_indexes
 from edb.schema import name as sn
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
+from edb.schema import name as s_name
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
@@ -98,12 +99,15 @@ def compile_cast(
     if new_stype.is_enum(ctx.env.schema):
         objctx = ctx.env.options.schema_object_context
         if objctx in (s_constr.Constraint, s_indexes.Index):
-            typname = objctx.get_schema_class_displayname()
-            raise errors.UnsupportedFeatureError(
-                f'cannot cast to enum types or reference enum literals '
-                f'from {typname}',
-                hint='this is a bug, and will be fixed in 3.0',
-                context=srcctx)
+            pass
+            # this if statements was preventing all casts within constraints
+            # from using the _cast_enum_immutable
+            # it passed trough one call, but in the pg-compiler, I received
+            # three different TypeCasts none of which came from
+            # _cast_enum_immutable.
+        return _cast_enum_immutable(
+            ir_expr, orig_stype, new_stype, ctx=ctx
+        )
 
     uuid_t = ctx.env.get_track_schema_type(sn.QualName('std', 'uuid'))
     if (
@@ -937,6 +941,36 @@ def _cast_array_literal(
             sql_cast=True,
             sql_expr=False,
         )
+
+    return setgen.ensure_set(cast_ir, ctx=ctx)
+
+
+def _cast_enum_immutable(
+    ir_expr: Union[irast.Set, irast.Expr],
+    orig_stype: s_types.Type,
+    new_stype: s_types.Type,
+    *,
+    ctx: context.ContextLevel,
+) -> irast.Set:
+    orig_typeref = typegen.type_to_typeref(orig_stype, env=ctx.env)
+    new_typeref = typegen.type_to_typeref(new_stype, env=ctx.env)
+
+    name: s_name.Name = new_stype.get_name(ctx.env.schema)
+    name = cast(s_name.QualName, name)
+    cast_name = s_name.QualName(module=name.module, name=str(new_stype.id))
+
+    cast_ir = irast.TypeCast(
+        expr=setgen.ensure_set(ir_expr, ctx=ctx),
+        from_type=orig_typeref,
+        to_type=new_typeref,
+        cardinality_mod=None,
+        cast_name=cast_name,
+        sql_function=None,
+        sql_cast=False,
+        sql_expr=True,
+    )
+
+    cast_ir.dump()
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
 

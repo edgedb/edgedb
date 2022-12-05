@@ -212,23 +212,29 @@ def compile_TypeCast(
             )
         )
 
-    elif expr.sql_function or expr.sql_expr:
+    elif expr.sql_expr:
         # Cast implemented as a function.
+        assert expr.cast_name
 
-        if expr.sql_expr:
-            func_name = common.get_cast_backend_name(
-                expr.cast_name, aspect='function')
-        else:
-            assert expr.sql_function
-            func_name = tuple(expr.sql_function.split('.'))
-
+        func_name = common.get_cast_backend_name(
+            expr.cast_name, aspect="function"
+        )
         res = pgast.FuncCall(
             name=func_name,
             args=[pg_expr],
         )
 
+    elif expr.sql_function:
+        res = pgast.FuncCall(
+            name=tuple(expr.sql_function.split(".")),
+            args=[pg_expr],
+        )
+
     else:
         raise errors.UnsupportedFeatureError('cast not supported')
+
+    expr.dump()
+    res.dump()
 
     if expr.cardinality_mod is qlast.CardinalityModifier.Required:
         res = pgast.FuncCall(
