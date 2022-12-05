@@ -1282,13 +1282,13 @@ cdef class PGConnection:
         frontend.AbstractFrontendConnection fe_conn,
     ):
         cdef:
-            char mtype
-            WriteBuffer buf
+            char mtype, field_type
+            WriteBuffer buf, msg_buf
 
         self.before_command()
         try:
             buf = WriteBuffer.new_message(b'Q')
-            buf.write_bytestring(query.encode("utf-8"))
+            buf.write_str(query, "utf-8")
             self.write(buf.end_message())
 
             buf = WriteBuffer.new()
@@ -1300,11 +1300,27 @@ cdef class PGConnection:
                     fe_conn.flush()
                     await self.wait_for_message()
                 mtype = self.buffer.get_message_type()
-                self.buffer.redirect_messages(buf, mtype, 0)
-                if mtype == b'Z':
-                    fe_conn.write(buf)
-                    fe_conn.flush()
-                    break
+                if mtype == b'E':
+                    msg_buf = WriteBuffer.new_message(b'E')
+                    while True:
+                        field_type = self.buffer.read_byte()
+                        if field_type == b'P':  # Position
+                            msg_buf.write_byte(b'q')  # Internal query
+                            msg_buf.write_str(query, "utf-8")
+                            msg_buf.write_byte(b'p')  # Internal position
+                        else:
+                            msg_buf.write_byte(field_type)
+                            if field_type == b'\0':
+                                break
+                        msg_buf.write_bytestring(self.buffer.read_null_str())
+                    self.buffer.finish_message()
+                    buf.write_buffer(msg_buf.end_message())
+                else:
+                    self.buffer.redirect_messages(buf, mtype, 0)
+                    if mtype == b'Z':
+                        fe_conn.write(buf)
+                        fe_conn.flush()
+                        break
         finally:
             await self.after_command()
 
