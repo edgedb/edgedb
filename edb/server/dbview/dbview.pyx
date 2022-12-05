@@ -164,6 +164,8 @@ cdef class Database:
 
         self._eql_to_compiled = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE)
+        self._sql_to_compiled = lru.LRUMapping(
+            maxsize=defines._MAX_QUERIES_CACHE)
 
         self.db_config = db_config
         self.user_schema = user_schema
@@ -219,6 +221,7 @@ cdef class Database:
 
     cdef _invalidate_caches(self):
         self._eql_to_compiled.clear()
+        self._sql_to_compiled.clear()
         self._state_serializers.clear()
 
     cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnitGroup):
@@ -230,6 +233,20 @@ cdef class Database:
             return
 
         self._eql_to_compiled[key] = compiled, self.dbver
+
+    def cache_compiled_sql(self, key, compiled: list[str]):
+        existing, dbver = self._sql_to_compiled.get(key, DICTDEFAULT)
+        if existing is not None and dbver == self.dbver:
+            # We already have a cached query for a more recent DB version.
+            return
+
+        self._sql_to_compiled[key] = compiled, self.dbver
+
+    def lookup_compiled_sql(self, key):
+        rv, cached_dbver = self._sql_to_compiled.get(key, DICTDEFAULT)
+        if rv is not None and cached_dbver != self.dbver:
+            rv = None
+        return rv
 
     cdef _new_view(self, query_cache, protocol_version):
         view = DatabaseConnectionView(
@@ -254,7 +271,7 @@ cdef class Database:
         yield from self._views
 
     def get_query_cache_size(self):
-        return len(self._eql_to_compiled)
+        return len(self._eql_to_compiled) + len(self._sql_to_compiled)
 
     async def introspection(self):
         if self.user_schema is None:

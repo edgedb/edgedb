@@ -18,6 +18,7 @@
 
 
 import logging
+import hashlib
 import os
 import sys
 
@@ -271,6 +272,10 @@ cdef class PgConnection(frontend.FrontendConnection):
     async def compile(self, query_str):
         if self.debug:
             self.debug_print("Compile", query_str)
+        key = hashlib.sha1(query_str.encode("utf-8")).digest()
+        result = self.database.lookup_compiled_sql(key)
+        if result is not None:
+            return result
         compiler_pool = self.server.get_compiler_pool()
         result = await compiler_pool.compile_sql(
             self.dbname,
@@ -281,6 +286,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.database._index.get_compilation_system_config(),
             query_str,
         )
+        self.database.cache_compiled_sql(key, result)
         if self.debug:
             self.debug_print("Compile result", result)
         return result
