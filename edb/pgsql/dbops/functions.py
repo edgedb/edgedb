@@ -30,12 +30,26 @@ from ..common import quote_type as qt
 from . import base
 from . import ddl
 
+FunctionArgType = str | Tuple[str, ...]
+FunctionArgTyped = Tuple[str, FunctionArgType]
+FunctionArgDefaulted = Tuple[str, FunctionArgType, str]
+FunctionArg = str | FunctionArgTyped | FunctionArgDefaulted
+
 
 class Function(base.DBObject):
-    def __init__(self, name, *, args=None, returns, text,
-                 volatility='volatile', language='sql',
-                 has_variadic=None, strict=False,
-                 set_returning=False):
+    def __init__(
+        self,
+        name: Tuple[str, ...],
+        *,
+        args: Optional[Sequence[FunctionArg]] = None,
+        returns: str | Tuple[str, ...],
+        text: str,
+        volatility: str = "volatile",
+        language: str = "sql",
+        has_variadic: Optional[bool] = None,
+        strict: bool = False,
+        set_returning: bool = False,
+    ):
         self.name = name
         self.args = args
         self.returns = returns
@@ -80,8 +94,8 @@ class FunctionExists(base.Condition):
 class FunctionOperation:
     def format_args(
         self,
-        args: Sequence[str | Tuple[str, str, str]],
-        has_variadic: bool,
+        args: Optional[Sequence[FunctionArg]],
+        has_variadic: Optional[bool],
         *,
         include_defaults=True,
     ):
@@ -99,8 +113,10 @@ class FunctionOperation:
                 if len(arg) > 1:
                     arg_expr += ' ' + qt(arg[1])
                 if include_defaults:
-                    if len(arg) > 2 and arg[2] is not None:
-                        arg_expr += ' = ' + arg[2]
+                    if len(arg) > 2:
+                        arg_def = cast(FunctionArgDefaulted, arg)
+                        if arg_def[2] is not None:
+                            arg_expr += ' = ' + arg_def[2]
 
             else:
                 arg_expr = arg
@@ -111,7 +127,7 @@ class FunctionOperation:
 
 
 class CreateFunction(ddl.DDLOperation, FunctionOperation):
-    def __init__(self, function, *, or_replace=False, **kwargs):
+    def __init__(self, function: Function, *, or_replace=False, **kwargs):
         super().__init__(**kwargs)
         self.function = function
         self.or_replace = or_replace
