@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+
+from edb.server.pgproto.pgproto cimport WriteBuffer
 from edb.server.protocol cimport frontend
 
 
@@ -24,3 +26,5 @@ cdef class PgConnection(frontend.FrontendConnection):
     cdef:
         bytes secret
         str client_encoding
+
+    cdef inline WriteBuffer ready_for_query(self)

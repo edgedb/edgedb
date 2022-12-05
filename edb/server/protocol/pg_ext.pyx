@@ -24,8 +24,10 @@ import sys
 from libc.stdint cimport int32_t, int16_t, uint32_t
 
 from edb import errors
+from edb.common import debug
+from edb.pgsql.parser import exceptions as parser_errors
 from edb.server import args as srvargs
-from edb.server.pgproto.pgproto cimport WriteBuffer
+from edb.server.pgcon import errors as pgerror
 from edb.server.protocol cimport frontend
 
 cdef object logger = logging.getLogger('edb.server')
@@ -45,6 +47,62 @@ cdef class PgConnection(frontend.FrontendConnection):
         self.server.on_pgext_client_disconnected(self)
         super().connection_lost(exc)
 
+    cdef write_error(self, exc):
+        cdef WriteBuffer buf
+
+        if self.debug and not isinstance(exc, errors.BackendUnavailableError):
+            self.debug_print('EXCEPTION', type(exc).__name__, exc)
+            from edb.common.markup import dump
+            dump(exc)
+
+        if debug.flags.server and not isinstance(
+            exc, errors.BackendUnavailableError
+        ):
+            self.loop.call_exception_handler({
+                'message': (
+                    'an error in edgedb protocol'
+                ),
+                'exception': exc,
+                'protocol': self,
+                'transport': self._transport,
+            })
+
+        message = str(exc)
+
+        buf = WriteBuffer.new_message(b'E')
+
+        if isinstance(exc, pgerror.BackendError):
+            pass
+        elif isinstance(exc, parser_errors.PSqlUnsupportedError):
+            exc = pgerror.FeatureNotSupported(str(exc))
+        elif isinstance(exc, parser_errors.PSqlParseError):
+            exc = pgerror.new(
+                pgerror.ERROR_SYNTAX_ERROR,
+                str(exc),
+                L=str(exc.lineno),
+                P=str(exc.cursorpos),
+            )
+        elif isinstance(exc, errors.EdgeDBError):
+            exc = pgerror.new(
+                pgerror.ERROR_INTERNAL_ERROR,
+                str(exc),
+                hint=exc.hint,
+                detail=exc.details,
+            )
+        else:
+            exc = pgerror.new(
+                pgerror.ERROR_INTERNAL_ERROR,
+                str(exc),
+                severity="FATAL",
+            )
+
+        for k, v in exc.fields.items():
+            buf.write_byte(ord(k))
+            buf.write_str(v, "utf-8")
+        buf.write_byte(b'\0')
+
+        self.write(buf.end_message())
+
     async def authenticate(self):
         cdef int16_t proto_ver_major, proto_ver_minor
 
@@ -58,13 +116,17 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if proto_ver_minor == 5678:  # CancelRequest
                     if self.debug:
                         self.debug_print("CancelRequest")
-                    raise NotImplementedError
+                    raise pgerror.FeatureNotSupported(
+                        "CancelRequest is not supported"
+                    )
 
                 elif proto_ver_minor == 5679:  # SSLRequest
                     if self.debug:
                         self.debug_print("SSLRequest")
                     if not first:
-                        raise errors.ProtocolError("found multiple SSLRequest")
+                        raise pgerror.ProtocolViolation(
+                            "found multiple SSLRequest"
+                        )
 
                     self.buffer.finish_message()
                     if self._transport is None:
@@ -76,10 +138,12 @@ cdef class PgConnection(frontend.FrontendConnection):
                     self.buffer.feed_data(b'\xff')
 
                 elif proto_ver_minor == 5680:  # GSSENCRequest
-                    raise NotImplementedError("GSSAPI encryption unsupported")
+                    raise pgerror.FeatureNotSupported(
+                        "GSSENCRequest is not supported"
+                    )
 
                 else:
-                    raise NotImplementedError
+                    raise pgerror.FeatureNotSupported()
 
             elif proto_ver_major == 3 and proto_ver_minor == 0:
                 # StartupMessage with 3.0 protocol
@@ -89,7 +153,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 break
 
             else:
-                raise NotImplementedError("Invalid protocol version")
+                raise pgerror.ProtocolViolation("invalid protocol version")
 
     def debug_print(self, *args):
         print("::PGEXT::", f"id:{self._id}", *args, file=sys.stderr)
@@ -109,7 +173,9 @@ cdef class PgConnection(frontend.FrontendConnection):
         if self.debug:
             self.debug_print("StartupMessage params:", params)
         if "user" not in params:
-            raise errors.ProtocolError("StartupMessage must have a \"user\"")
+            raise pgerror.ProtocolViolation(
+                "StartupMessage must have a \"user\""
+            )
         self.buffer.finish_message()
 
         user = params["user"]
@@ -119,7 +185,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                      user, database)
 
         if not self.server.is_database_connectable(database):
-            raise errors.AccessError(
+            raise pgerror.InvalidAuthSpec(
                 f'database {database!r} does not accept connections'
             )
 
@@ -159,26 +225,36 @@ cdef class PgConnection(frontend.FrontendConnection):
         finally:
             self.maybe_release_pgcon(conn)
 
-        msg_buf = WriteBuffer.new_message(b'Z')
-        msg_buf.write_byte(b'I')
-        msg_buf.end_message()
-        buf.write_buffer(msg_buf)
+        buf.write_buffer(self.ready_for_query())
         if self.debug:
             self.debug_print("ReadyForQuery")
 
         self.write(buf)
         self.flush()
 
+    cdef inline WriteBuffer ready_for_query(self):
+        cdef WriteBuffer msg_buf
+        msg_buf = WriteBuffer.new_message(b'Z')
+        msg_buf.write_byte(b'I')
+        return msg_buf.end_message()
+
     async def main_step(self, char mtype):
         if mtype == b'Q':
-            query_str = self.buffer.read_null_str().decode(
-                self.client_encoding
-            )
-            self.buffer.finish_message()
-            if self.debug:
-                self.debug_print("Query", query_str)
+            try:
+                query_str = self.buffer.read_null_str().decode(
+                    self.client_encoding
+                )
+                self.buffer.finish_message()
+                if self.debug:
+                    self.debug_print("Query", query_str)
 
-            sql_list = await self.compile(query_str)
+                sql_list = await self.compile(query_str)
+            except Exception as ex:
+                self.write_error(ex)
+                self.write(self.ready_for_query())
+                self.flush()
+                return
+
             conn = await self.get_pgcon()
             try:
                 await conn.sql_simple_query(";".join(sql_list), self)
@@ -190,7 +266,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 self.debug_print(
                     "MESSAGE", chr(mtype), self.buffer.consume_message()
                 )
-            raise NotImplementedError
+            raise pgerror.FeatureNotSupported()
 
     async def compile(self, query_str):
         if self.debug:
