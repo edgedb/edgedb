@@ -269,3 +269,25 @@ type Pair {
     required property y -> str;
     constraint exclusive on (( .x, .y ));
 }
+
+type Indexing {
+    required property x -> str;
+    required property y -> array<int16>;
+    required property z -> json;
+    required property u -> bytes;
+    constraint exclusive on ((.x[0]));
+    constraint exclusive on ((.y[0]));
+    constraint exclusive on ((.z[0]));
+    constraint exclusive on ((.u[0]));
+}
+
+type Slicing {
+    required property x -> str;
+    required property y -> array<int16>;
+    required property z -> json;
+    required property u -> bytes;
+    constraint exclusive on ((.x[1:3]));
+    constraint exclusive on ((.y[1:3]));
+    constraint exclusive on ((.z[1:3]));
+    constraint exclusive on ((.u[1:3]));
+}
