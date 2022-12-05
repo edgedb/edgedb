@@ -1165,6 +1165,10 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
                 script += '\n' + setup
 
+            # If the SETUP script did a SET MODULE, make sure it is cleared
+            # (since in some modes we keep using the same connection)
+            script += '\nRESET MODULE;'
+
         # allow the setup script to also run in test mode
         if cls.INTERNAL_TESTMODE:
             script += '\nCONFIGURE SESSION SET __internal_testmode := false;'
