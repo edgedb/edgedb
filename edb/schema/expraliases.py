@@ -149,51 +149,6 @@ class AliasLikeCommand(
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
 
-    def _compile_alias_expr(
-        self,
-        expr: qlast.Expr,
-        classname: sn.QualName,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> irast.Statement:
-        cached: Optional[irast.Statement] = (
-            context.get_cached((expr, classname)))
-        if cached is not None:
-            return cached
-
-        if not isinstance(expr, qlast.Statement):
-            expr = qlast.SelectQuery(result=expr)
-
-        existing = schema.get(classname, type=s_types.Type, default=None)
-        if existing is not None:
-            drop_cmd = existing.init_delta_command(schema, sd.DeleteObject)
-            with context.suspend_dep_verification():
-                schema = drop_cmd.apply(schema, context)
-
-        ir = qlcompiler.compile_ast_to_ir(
-            expr,
-            schema,
-            options=qlcompiler.CompilerOptions(
-                derived_target_module=classname.module,
-                result_view_name=classname,
-                modaliases=context.modaliases,
-                schema_view_mode=True,
-                in_ddl_context_name='alias definition',
-            ),
-        )
-
-        if ir.volatility == qltypes.Volatility.Volatile:
-            srcctx = self.get_attribute_source_context('expr')
-            raise errors.SchemaDefinitionError(
-                f'volatile functions are not permitted in schema-defined '
-                f'computed expressions',
-                context=srcctx
-            )
-
-        context.cache_value((expr, classname), ir)
-
-        return ir  # type: ignore
-
     def _handle_alias_op(
         self,
         *,
