@@ -25,7 +25,7 @@ class ClusterProtocol:
         pass
 
     def get_active_pgcon_num(self) -> int:
-        pass
+        raise NotImplementedError()
 
 
 class HABackend:

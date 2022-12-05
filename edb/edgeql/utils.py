@@ -82,9 +82,10 @@ def index_parameters(
 
     e: qlast.Expr
     p: s_func.ParameterLike
-    for (i, e), p in itertools.zip_longest(enumerate(ql_args),
-                                           parameters.objects(schema),
-                                           fillvalue=None):
+    for iter in itertools.zip_longest(
+        enumerate(ql_args), parameters.objects(schema), fillvalue=None
+    ):
+        (i, e), p = iter  # type: ignore
         if isinstance(e, qlast.SelectQuery):
             e = e.result
 

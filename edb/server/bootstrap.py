@@ -483,7 +483,8 @@ def compile_single_query(
 
 
 def _get_all_subcommands(
-        cmd: sd.Command, type: Type[sd.Command]=None) -> list[sd.Command]:
+    cmd: sd.Command, type: Optional[Type[sd.Command]] = None
+) -> list[sd.Command]:
     cmds = []
 
     def go(cmd):

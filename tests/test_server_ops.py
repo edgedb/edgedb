@@ -96,7 +96,7 @@ class TestServerOps(tb.BaseHTTPTestCase):
                     (ConnectionError, edgedb.ClientConnectionError)):
                 await sd.connect(wait_until_available=0)
 
-    async def test_server_ops_bootstrap_script(self):
+    async def test_server_ops_bootstrap_script(self) -> None:
         # Test that "edgedb-server" works as expected with the
         # following arguments:
         #
@@ -116,7 +116,7 @@ class TestServerOps(tb.BaseHTTPTestCase):
         ]
 
         # Note: for debug comment "stderr=subprocess.PIPE".
-        proc: asyncio.Process = await asyncio.create_subprocess_exec(
+        proc = await asyncio.create_subprocess_exec(
             *cmd,
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -152,7 +152,7 @@ class TestServerOps(tb.BaseHTTPTestCase):
             finally:
                 await con.aclose()
 
-    async def test_server_ops_emit_server_status_to_file(self):
+    async def test_server_ops_emit_server_status_to_file(self) -> None:
         debug = False
 
         status_fd, status_file = tempfile.mkstemp()
@@ -174,7 +174,7 @@ class TestServerOps(tb.BaseHTTPTestCase):
             '--jose-key-mode=generate',
         ]
 
-        proc: Optional[asyncio.Process] = None
+        proc = None
 
         def _read(filename: str) -> str:
             with open(filename, 'r') as f:
@@ -199,7 +199,7 @@ class TestServerOps(tb.BaseHTTPTestCase):
         try:
             if debug:
                 print(*cmd)
-            proc: asyncio.Process = await asyncio.create_subprocess_exec(
+            proc = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=None if debug else subprocess.DEVNULL,
                 stderr=subprocess.STDOUT,
@@ -212,7 +212,8 @@ class TestServerOps(tb.BaseHTTPTestCase):
             self.assertIsNotNone(data.get('main_pid'))
 
         finally:
-            await self.kill_process(proc)
+            if proc:
+                await self.kill_process(proc)
             os.unlink(status_file)
 
     async def test_server_ops_generates_cert_to_specified_file(self):

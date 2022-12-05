@@ -885,7 +885,7 @@ class Command(
                 self._special_attrs[command._field] = command
             self.ops.append(command)
 
-    def update(self, commands: Iterable[Command]) -> None:  # type: ignore
+    def update(self, commands: Iterable[Command]) -> None:
         for command in commands:
             self.add(command)
 

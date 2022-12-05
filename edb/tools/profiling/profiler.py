@@ -492,7 +492,7 @@ class ScopeCache:
     (which is likely *inside* the function body).
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.recorder = ScopeRecorder()
         self.scopes: Dict[ModulePath, Dict[LineNo, str]] = {}
         self.cache: Dict[Tuple[ModulePath, LineNo], str] = {}

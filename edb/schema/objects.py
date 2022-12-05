@@ -993,8 +993,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
     @classmethod
     @functools.lru_cache(maxsize=10240)
-    # mypy hates lru_cache
-    def schema_restore(  # type: ignore
+    def schema_restore(
         cls,
         data: Tuple[str, uuid.UUID],
     ) -> Object:
@@ -2241,8 +2240,7 @@ class ObjectCollection(
 
     @classmethod
     @functools.lru_cache(maxsize=10240)
-    # mypy hates lru_cache
-    def schema_restore(  # type: ignore
+    def schema_restore(
         cls,
         data: Tuple[
             str,
