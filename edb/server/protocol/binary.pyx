@@ -157,8 +157,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self._dbview = None
 
-        self._pgcon_released_in_connection_lost = False
-
         self._last_anon_compiled = None
 
         self.query_cache_enabled = not (debug.flags.disable_qcache or
@@ -170,96 +168,19 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self._conn_params = conn_params
 
-        self._pinned_pgcon = None
-        self._pinned_pgcon_in_tx = False
-        self._get_pgcon_cc = 0
-
         self._in_dump_restore = False
 
         # Authentication data supplied by the transport (e.g. the content
         # of an HTTP Authorization header).
         self._auth_data = auth_data
 
-    def __del__(self):
-        # Should not ever happen, there's a strong ref to
-        # every client connection until it hits connection_lost().
-        if self._pinned_pgcon is not None:
-            # XXX/TODO: add test diagnostics for this and
-            # fail all tests if this ever happens.
-            self.abort_pinned_pgcon()
+    cdef is_in_tx(self):
+        return self.get_dbview().in_tx()
 
     cdef inline dbview.DatabaseConnectionView get_dbview(self):
         if self._dbview is None:
             raise RuntimeError('Cannot access dbview while it is None')
         return self._dbview
-
-    async def get_pgcon(self) -> pgcon.PGConnection:
-        cdef dbview.DatabaseConnectionView _dbview
-        if self._cancelled or self._pgcon_released_in_connection_lost:
-            raise RuntimeError(
-                'cannot acquire a pgconn; the connection is closed')
-        self._get_pgcon_cc += 1
-        try:
-            if self._get_pgcon_cc > 1:
-                raise RuntimeError('nested get_pgcon() calls are prohibited')
-            _dbview = self.get_dbview()
-            if _dbview.in_tx():
-                #  In transaction. We must have a working pinned connection.
-                if not self._pinned_pgcon_in_tx or self._pinned_pgcon is None:
-                    raise RuntimeError(
-                        'get_pgcon(): in dbview transaction, '
-                        'but `_pinned_pgcon` is None')
-                return self._pinned_pgcon
-            if self._pinned_pgcon is not None:
-                raise RuntimeError('there is already a pinned pgcon')
-            conn = await self.server.acquire_pgcon(self.dbname)
-            self._pinned_pgcon = conn
-            conn.pinned_by = self
-            return conn
-        except Exception:
-            self._get_pgcon_cc -= 1
-            raise
-
-    def maybe_release_pgcon(self, pgcon.PGConnection conn):
-        cdef dbview.DatabaseConnectionView _dbview
-        self._get_pgcon_cc -= 1
-        if self._get_pgcon_cc < 0:
-            raise RuntimeError(
-                'maybe_release_pgcon() called more times than get_pgcon()')
-        if self._pinned_pgcon is not conn:
-            raise RuntimeError('mismatched released connection')
-
-        _dbview = self.get_dbview()
-        if _dbview.in_tx():
-            if self._cancelled:
-                # There could be a situation where we cancel the protocol while
-                # it's in a transaction. In which case we want to immediately
-                # return the connection to the pool (where it would be
-                # discarded and re-opened.)
-                conn.pinned_by = None
-                self._pinned_pgcon = None
-                if not self._pgcon_released_in_connection_lost:
-                    self.server.release_pgcon(self.dbname, conn)
-            else:
-                self._pinned_pgcon_in_tx = True
-        else:
-            conn.pinned_by = None
-            self._pinned_pgcon_in_tx = False
-            self._pinned_pgcon = None
-            if not self._pgcon_released_in_connection_lost:
-                self.server.release_pgcon(self.dbname, conn)
-
-    def on_aborted_pgcon(self, pgcon.PGConnection conn):
-        try:
-            self._pinned_pgcon = None
-
-            if not self._pgcon_released_in_connection_lost:
-                self.server.release_pgcon(self.dbname, conn, discard=True)
-
-            if conn.aborted_with_error is not None:
-                self.write_error(conn.aborted_with_error)
-        finally:
-            self.close()  # will flush
 
     def debug_print(self, *args):
         if self._dbview is None:
@@ -283,14 +204,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 file=sys.stderr,
             )
 
-    cdef abort_pinned_pgcon(self):
-        if self._pinned_pgcon is not None:
-            self._pinned_pgcon.pinned_by = None
-            self._pinned_pgcon.abort()
-            self.server.release_pgcon(
-                self.dbname, self._pinned_pgcon, discard=True)
-            self._pinned_pgcon = None
-
     def is_idle(self, expiry_time: float):
         # A connection is idle if it awaits for the next message for
         # client for too long (even if it is in an open transaction!)
@@ -303,11 +216,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     def is_alive(self):
         return self._con_status == EDGECON_STARTED and super().is_alive()
 
-    def abort(self):
-        self.abort_pinned_pgcon()
-        self.stop_connection()
-        super().abort()
-
     def close_for_idling(self):
         try:
             self.write_error(
@@ -316,11 +224,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             )
         finally:
             self.close()  # will flush
-
-    def close(self):
-        self.abort_pinned_pgcon()
-        self.stop_connection()
-        super().close()
 
     cdef _after_idling(self):
         self.server.on_binary_client_after_idling(self)
@@ -478,7 +381,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self._con_status = EDGECON_STARTED
 
-    def stop_connection(self) -> None:
+    cdef stop_connection(self):
         self._con_status = EDGECON_BAD
 
         if self._dbview is not None:
@@ -1469,38 +1372,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     def connection_lost(self, exc):
         self.server.on_binary_client_disconnected(self)
         super().connection_lost(exc)
-
-    cdef _cancel(self):
-        if (
-            self._pinned_pgcon is not None
-            and not self._pinned_pgcon.idle
-        ):
-            # Looks like we have a Postgres connection acquired and
-            # it's actively running some command for us.  To make
-            # sure we're not leaving behind a heavy query, perform
-            # an explicit Postgres cancellation because a mere
-            # connection drop wouldn't necessarily abort the query
-            # right away). Additionally, we must discard the connection
-            # as we cannot be completely sure about its state. Postgres
-            # cancellation is signal-based and is addressed to a whole
-            # connection and not a concrete operation. The result is
-            # that we might be racing with the currently running query
-            # and if that completes before the cancellation signal
-            # reaches the backend, we'll be setting a trap for the
-            # _next_ query that is unlucky enough to pick up this
-            # Postgres backend from the connection pool.
-            # TODO(fantix): hold server shutdown to complete this task
-            if self.server._accept_new_tasks:
-                self.server.create_task(
-                    self.server._cancel_and_discard_pgcon(
-                        self._pinned_pgcon,
-                        self.get_dbview().dbname,
-                    ),
-                    interruptable=False,
-                )
-            # Prevent the main task from releasing the same connection
-            # twice. This flag is for now only used in this case.
-            self._pgcon_released_in_connection_lost = True
 
     async def dump(self):
         cdef:

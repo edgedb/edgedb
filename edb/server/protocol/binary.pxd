@@ -28,7 +28,6 @@ from edb.server.pgproto.pgproto cimport (
 )
 
 from edb.server.dbview cimport dbview
-from edb.server.pgcon cimport pgcon
 from edb.server.pgproto.debug cimport PG_DEBUG
 from edb.server.protocol cimport frontend
 
@@ -59,7 +58,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         object _startup_msg_waiter
 
-
         dbview.CompiledQuery _last_anon_compiled
         int _last_anon_compiled_hash
 
@@ -71,13 +69,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         object last_state
         int last_state_id
-
-        pgcon.PGConnection _pinned_pgcon
-        bint _pinned_pgcon_in_tx
-
-        int _get_pgcon_cc
-
-        bint _pgcon_released_in_connection_lost
 
         bint _in_dump_restore
 
@@ -92,8 +83,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     cdef parse_output_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
     cdef char render_cardinality(self, query_unit) except -1
-
-    cdef abort_pinned_pgcon(self)
 
     cdef fallthrough(self)
 

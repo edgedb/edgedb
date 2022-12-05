@@ -146,7 +146,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         if self.debug:
             self.debug_print("BackendKeyData")
 
-        conn = await self.server.acquire_pgcon(database)
+        conn = await self.get_pgcon()
         try:
             for name, value in conn.parameter_status.items():
                 msg_buf = WriteBuffer.new_message(b'S')
@@ -157,7 +157,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print(f"ParameterStatus: {name}={value}")
         finally:
-            self.server.release_pgcon(database, conn)
+            self.maybe_release_pgcon(conn)
 
         msg_buf = WriteBuffer.new_message(b'Z')
         msg_buf.write_byte(b'I')
@@ -179,11 +179,11 @@ cdef class PgConnection(frontend.FrontendConnection):
                 self.debug_print("Query", query_str)
 
             sql_list = await self.compile(query_str)
-            conn = await self.server.acquire_pgcon(self.dbname)
+            conn = await self.get_pgcon()
             try:
                 await conn.sql_simple_query(";".join(sql_list), self)
             finally:
-                self.server.release_pgcon(self.dbname, conn)
+                self.maybe_release_pgcon(conn)
 
         else:
             if self.debug:

@@ -18,6 +18,7 @@
 
 
 from edb.server.dbview cimport dbview
+from edb.server.pgcon cimport pgcon
 from edb.server.pgproto.pgproto cimport ReadBuffer, WriteBuffer
 
 
@@ -36,6 +37,10 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         str dbname
         dbview.Database database
 
+        pgcon.PGConnection _pinned_pgcon
+        bint _pinned_pgcon_in_tx
+        int _get_pgcon_cc
+
         object _transport
         WriteBuffer _write_buf
         object _write_waiter
@@ -52,6 +57,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         object _main_task
         bint _cancelled
         bint _stop_requested
+        bint _pgcon_released_in_connection_lost
 
         bint debug
 
@@ -62,4 +68,6 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     cdef _main_task_created(self)
     cdef _main_task_stopped_normally(self)
     cdef write_error(self, exc)
-    cdef _cancel(self)
+    cdef stop_connection(self)
+    cdef abort_pinned_pgcon(self)
+    cdef is_in_tx(self)
