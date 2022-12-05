@@ -2409,8 +2409,9 @@ class JSONSliceFunction(dbops.Function):
                 ("stop", ("bigint",)),
             ],
             returns=("jsonb",),
-            # Same volatility as to_jsonb (stable)
-            volatility="stable",
+            # Min volatility of to_jsonb is 'stable',
+            # but for all practical purposes, we can assume 'immutable'
+            volatility="immutable",
             text=self.text,
         )
 
