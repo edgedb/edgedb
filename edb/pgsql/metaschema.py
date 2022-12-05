@@ -1941,8 +1941,9 @@ class ArrayIndexWithBoundsFunction(dbops.Function):
             args=[('val', ('anyarray',)), ('index', ('bigint',)),
                   ('detail', ('text',))],
             returns=('anyelement',),
-            # Same volatility as raise()
-            volatility='stable',
+            # Min volatility of exception helpers and pg_typeof is 'stable',
+            # but for all practical purposes, we can assume 'immutable'
+            volatility='immutable',
             strict=True,
             text=self.text,
         )
@@ -1996,8 +1997,9 @@ class StringIndexWithBoundsFunction(dbops.Function):
                 ('typename', ('text',), "'string'"),
             ],
             returns=('text',),
-            # Same volatility as raise_on_empty
-            volatility='stable',
+            # Min volatility of exception helpers and pg_typeof is 'stable',
+            # but for all practical purposes, we can assume 'immutable'
+            volatility='immutable',
             strict=True,
             text=self.text,
         )
@@ -2027,8 +2029,9 @@ class BytesIndexWithBoundsFunction(dbops.Function):
                 ('detail', ('text',)),
             ],
             returns=('bytea',),
-            # Same volatility as raise_on_empty
-            volatility='stable',
+            # Min volatility of exception helpers and pg_typeof is 'stable',
+            # but for all practical purposes, we can assume 'immutable'
+            volatility='immutable',
             strict=True,
             text=self.text,
         )
@@ -2208,8 +2211,9 @@ class JSONIndexByTextFunction(dbops.Function):
                 ('detail', ('text',), "''"),
             ],
             returns=('jsonb',),
-            # Same volatility as exception helpers
-            volatility='stable',
+            # Min volatility of exception helpers 'stable',
+            # but for all practical purposes, we can assume 'immutable'
+            volatility='immutable',
             strict=True,
             text=self.text,
         )
@@ -2272,8 +2276,9 @@ class JSONIndexByIntFunction(dbops.Function):
                 ('detail', ('text',), "''"),
             ],
             returns=('jsonb',),
-            # Min volatility of exception helpers and pg_typeof (stable).
-            volatility='stable',
+            # Min volatility of exception helpers and pg_typeof is 'stable',
+            # but for all practical purposes, we can assume 'immutable'
+            volatility='immutable',
             strict=True,
             text=self.text,
         )
@@ -2323,8 +2328,9 @@ class JSONSliceFunction(dbops.Function):
                 ("stop", ("int",)),
             ],
             returns=("jsonb",),
-            # Same volatility as to_jsonb (stable)
-            volatility="stable",
+            # Min volatility of to_jsonb is 'stable',
+            # but for all practical purposes, we can assume 'immutable'
+            volatility="immutable",
             text=self.text,
         )
 
