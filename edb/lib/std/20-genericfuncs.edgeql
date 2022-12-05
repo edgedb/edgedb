@@ -547,11 +547,20 @@ std::contains(haystack: array<anytype>, needle: anytype) -> std::bool
         'A polymorphic function to test if a sequence contains a certain element.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT
-        CASE
-            WHEN "needle" IS NULL THEN NULL
-            ELSE array_position("haystack", "needle") IS NOT NULL
-        END;
+	SELECT "haystack" @> ARRAY["needle"]
+    $$;
+};
+
+
+CREATE FUNCTION
+std::contains(haystack: array<anytype>, needle: array<anytype>) -> std::bool
+{
+    CREATE ANNOTATION std::description :=
+        'A polymorphic function to test if a sequence contains all elements 
+		another sequence.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+	SELECT "haystack" @> "needle"
     $$;
 };
 
