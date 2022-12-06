@@ -565,10 +565,6 @@ class Command(
                 sequence = self.resolve_obj_collection(value, schema)
                 value = ftype.create(schema, sequence)
 
-            elif issubclass(ftype, s_expr.Expression):
-                if value is not None:
-                    value = ftype.from_expr(value, schema)
-
             else:
                 value = field.coerce_value(schema, value)
 
@@ -2607,7 +2603,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         field: so.Field[Any],
         value: Any,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         cdn = self.get_schema_metaclass().get_schema_class_displayname()
         raise errors.InternalServerError(
             f'uncompiled expression in the field {field.name!r} of '
@@ -3227,15 +3223,12 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         context: CommandContext,
         expr: s_expr.Expression,
     ) -> s_expr.Expression:
-        from edb.ir import ast as irast
-
         # Recompile the expression with reference tracking on so that we
         # can clean up the ast.
         field = cmd.get_schema_metaclass().get_field(fn)
         compiled = cmd.compile_expr_field(
             schema, context, field, expr,
             track_schema_ref_exprs=True)
-        assert isinstance(compiled.irast, irast.Statement)
         assert compiled.irast.schema_ref_exprs is not None
 
         # Now that the compilation is done, try to do the fixup.

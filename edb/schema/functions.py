@@ -419,8 +419,7 @@ class Parameter(
         fullname = self.get_name(schema)
         return self.paramname_from_fullname(fullname)
 
-    def get_ir_default(self, *, schema: s_schema.Schema) -> irast.Base:
-        from edb.ir import ast as irast
+    def get_ir_default(self, *, schema: s_schema.Schema) -> irast.Statement:
         from edb.ir import utils as irutils
 
         defexpr = self.get_default(schema)
@@ -428,7 +427,6 @@ class Parameter(
         defexpr = s_expr.Expression.compiled(
             defexpr, as_fragment=True, schema=schema)
         ir = defexpr.irast
-        assert isinstance(ir, (Function, irast.Statement))
         if not irutils.is_const(ir.expr):
             raise ValueError('expression not constant')
         return ir
@@ -1459,7 +1457,7 @@ class FunctionCommand(
         field: so.Field[Any],
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         if field.name == 'initial_value':
             return type(value).compiled(
                 value,
@@ -1552,9 +1550,7 @@ class FunctionCommand(
         context: sd.CommandContext,
         body: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
-        from edb.ir import ast as irast
-
+    ) -> s_expr.CompiledExpression:
         params = self._get_params(schema, context)
         language = self._get_attribute_value(schema, context, 'language')
         return_type = self._get_attribute_value(schema, context, 'return_type')
@@ -1573,7 +1569,6 @@ class FunctionCommand(
         )
 
         ir = expr.irast
-        assert isinstance(ir, irast.Statement)
 
         if ir.dml_exprs:
             if context.allow_dml_in_functions:
@@ -1642,7 +1637,6 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        from edb.ir import ast as irast
         from edb.ir import utils as irutils
 
         fullname = self.classname
@@ -1686,8 +1680,6 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         schema = super()._create_begin(schema, context)
 
         params: FuncParameterList = self.scls.get_params(schema)
-
-        assert isinstance(self.scls, (Function, irast.Statement))
 
         language = self.scls.get_language(schema)
         return_type = self.scls.get_return_type(schema)
@@ -1858,7 +1850,6 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'invalid default value {p_default.text!r} of parameter '
                     f'{p.get_displayname(schema)!r}: {ex}',
                     context=self.source_context)
-            assert isinstance(ir_default, irast.Statement)
 
             check_default_type = True
             if p_type.is_polymorphic(schema):
@@ -2300,9 +2291,7 @@ def compile_function(
     return_type: s_types.Type,
     return_typemod: ft.TypeModifier,
     track_schema_ref_exprs: bool=False,
-) -> s_expr.Expression:
-    from edb.ir import ast as irast
-
+) -> s_expr.CompiledExpression:
     assert language is qlast.Language.EdgeQL
 
     has_inlined_defaults = bool(params.find_named_only(schema))
@@ -2325,7 +2314,6 @@ def compile_function(
     )
 
     ir = compiled.irast
-    assert isinstance(ir, irast.Statement)
     schema = ir.schema
 
     if (not ir.stype.issubclass(schema, return_type)

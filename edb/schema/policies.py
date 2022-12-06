@@ -149,8 +149,6 @@ class AccessPolicyCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        from edb.ir import ast as irast
-
         schema = super().canonicalize_attributes(schema, context)
 
         parent_ctx = self.get_referrer_context_or_die(context)
@@ -168,7 +166,6 @@ class AccessPolicyCommand(
                 field=AccessPolicy.get_field(field),
                 value=expr,
             )
-            assert isinstance(expression.irast, irast.Statement)
 
             srcctx = self.get_attribute_source_context(field)
 
@@ -213,7 +210,7 @@ class AccessPolicyCommand(
         field: so.Field[Any],
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         if field.name in {'expr', 'condition'}:
             parent_ctx = self.get_referrer_context_or_die(context)
             source = parent_ctx.op.get_object(schema, context)

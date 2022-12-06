@@ -502,7 +502,7 @@ class ConstraintCommand(
         field: so.Field[Any],
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         from . import pointers as s_pointers
 
         base: Optional[so.Object] = None
@@ -528,7 +528,8 @@ class ConstraintCommand(
                         f'uncompiled expression in the {field.name!r} field of'
                         f' {dn} {self.classname!r}'
                     )
-                return value
+                # HACK: Not *really* compiled, but...
+                return value  # type: ignore
 
             elif field.name in {'subjectexpr', 'finalexpr', 'except_expr'}:
                 return s_expr.Expression.compiled(
@@ -820,7 +821,6 @@ class ConstraintCommand(
             ),
         )
 
-        assert isinstance(final_expr.irast, ir_ast.Statement)
         bool_t = schema.get('std::bool', type=s_scalars.ScalarType)
 
         expr_type = final_expr.irast.stype
@@ -853,7 +853,6 @@ class ConstraintCommand(
             final_subjectexpr = s_expr.Expression.compiled(
                 subjectexpr, schema=schema, options=options
             )
-            assert isinstance(final_subjectexpr.irast, ir_ast.Statement)
 
             refs = ir_utils.get_longest_paths(final_expr.irast)
 
@@ -862,7 +861,6 @@ class ConstraintCommand(
                 final_except_expr = s_expr.Expression.compiled(
                     except_expr, schema=schema, options=options
                 )
-                assert isinstance(final_except_expr.irast, ir_ast.Statement)
                 refs |= ir_utils.get_longest_paths(final_except_expr.irast)
 
             has_multi = False
@@ -927,7 +925,6 @@ class ConstraintCommand(
                 )
 
             if final_except_expr:
-                assert isinstance(final_except_expr.irast, ir_ast.Statement)
                 if (
                     final_except_expr.irast.volatility
                     != qltypes.Volatility.Immutable

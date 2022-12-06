@@ -291,7 +291,7 @@ class IndexCommand(
         field: so.Field[Any],
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         singletons: List[s_types.Type]
         if field.name in {'expr', 'except_expr'}:
             # type ignore below, for the class is used as mixin
@@ -318,8 +318,6 @@ class IndexCommand(
             )
 
             # Check that the inferred cardinality is no more than 1
-            from edb.ir import ast as ir_ast
-            assert isinstance(expr.irast, ir_ast.Statement)
             if expr.irast.cardinality.is_multi():
                 raise errors.ResultCardinalityMismatchError(
                     f'possibly more than one element returned by '
