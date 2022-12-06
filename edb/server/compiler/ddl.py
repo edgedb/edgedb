@@ -1103,10 +1103,22 @@ def _reset_schema(
         s_schema.FlatSchema(),
         current_tx.get_global_schema(),
     )
+    empty_schema = s_ddl.apply_sdl(  # type: ignore
+        qlast.Schema(
+            declarations=[
+                qlast.ModuleDeclaration(
+                    name=qlast.ObjectRef(name='default'),
+                    declarations=[],
+                )
+            ]
+        ),
+        base_schema=empty_schema,
+        current_schema=empty_schema,
+    )
 
     sqls: List[bytes] = []
 
-    # diff and create migation that drops all objects
+    # diff and create migration that drops all objects
     diff = s_ddl.delta_schemas(schema, empty_schema)
     new_ddl: Tuple[qlast.DDLCommand, ...] = tuple(
         s_ddl.ddlast_from_delta(schema, empty_schema, diff),  # type: ignore
@@ -1139,6 +1151,6 @@ def _reset_schema(
         cacheable=False,
         modaliases=None,
         single_unit=True,
-        user_schema=empty_schema.get_top_schema(),
+        user_schema=current_tx.get_user_schema(),
         cached_reflection=(current_tx.get_cached_reflection_if_updated()),
     )

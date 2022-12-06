@@ -11497,6 +11497,15 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         ''')
         self.assertEqual(res, [])
 
+        await self.migrate(r'''
+            type SomethingElse;
+        ''')
+
+        res = await self.con.query('''
+            select schema::Migration { script, name };
+        ''')
+        self.assertEqual(len(res), 1)
+
 
 class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):
     DEFAULT_MODULE = 'default'
