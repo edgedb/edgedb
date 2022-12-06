@@ -249,7 +249,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print("Query", query_str)
 
-                sql_list = await self.compile(query_str)
+                sql_source = await self.compile(query_str)
             except Exception as ex:
                 self.write_error(ex)
                 self.write(self.ready_for_query())
@@ -258,7 +258,9 @@ cdef class PgConnection(frontend.FrontendConnection):
 
             conn = await self.get_pgcon()
             try:
-                await conn.sql_simple_query(";".join(sql_list), self)
+                await conn.sql_simple_query(
+                    sql_source, self, self.database.dbver
+                )
             finally:
                 self.maybe_release_pgcon(conn)
 

@@ -36,6 +36,7 @@ import ssl as ssl_mod
 import struct
 import textwrap
 import time
+from collections import deque
 
 cimport cython
 cimport cpython
@@ -605,8 +606,8 @@ cdef class PGConnection:
                 # serialization conflicts.
                 raise error
 
-    cdef before_prepare(self, stmt_name, dbver, WriteBuffer outbuf):
-        parse = 1
+    cdef bint before_prepare(self, stmt_name, dbver, WriteBuffer outbuf):
+        cdef bint parse = 1
 
         while self.prep_stmts.needs_cleanup():
             stmt_name_to_clean = self.prep_stmts.cleanup_one()
@@ -620,11 +621,8 @@ cdef class PGConnection:
                 outbuf.write_buffer(
                     self.make_clean_stmt_message(stmt_name))
                 del self.prep_stmts[stmt_name]
-                store_stmt = 1
-        else:
-            store_stmt = 1
 
-        return parse, store_stmt
+        return parse
 
     cdef write_sync(self, WriteBuffer outbuf):
         outbuf.write_bytes(_SYNC_MESSAGE)
@@ -872,7 +870,6 @@ cdef class PGConnection:
 
             int32_t dat_len
 
-            bint store_stmt = 0
             bint parse = 1
             bint state_sync = 0
 
@@ -898,7 +895,7 @@ cdef class PGConnection:
 
         if use_prep_stmt:
             stmt_name = query.sql_hash
-            parse, store_stmt = self.before_prepare(
+            parse = self.before_prepare(
                 stmt_name, dbver, out)
         else:
             stmt_name = b''
@@ -1020,8 +1017,7 @@ cdef class PGConnection:
                     elif mtype == b'1' and parse:
                         # ParseComplete
                         self.buffer.discard_message()
-                        if store_stmt:
-                            self.prep_stmts[stmt_name] = dbver
+                        self.prep_stmts[stmt_name] = dbver
 
                     elif mtype == b'E':  ## result
                         # ErrorResponse
@@ -1278,35 +1274,89 @@ cdef class PGConnection:
 
     async def sql_simple_query(
         self,
-        query: str,
+        queries: list[str],
         frontend.AbstractFrontendConnection fe_conn,
+        int dbver,
     ):
         cdef:
             char mtype, field_type
             WriteBuffer buf, msg_buf
+            bytes stmt_name, query
 
         self.before_command()
         try:
-            buf = WriteBuffer.new_message(b'Q')
-            buf.write_str(query, "utf-8")
-            self.write(buf.end_message())
+            buf = WriteBuffer.new()
+            queue = deque()
+            for query_text in queries:
+                query = query_text.encode("utf8")
+                stmt_name = b's' + hashlib.sha1(
+                    query).hexdigest().encode("latin1")
+                if self.before_prepare(stmt_name, dbver, buf):
+                    queue.append(stmt_name)
+                    msg_buf = WriteBuffer.new_message(b'P')
+                    msg_buf.write_bytestring(stmt_name)
+                    msg_buf.write_bytestring(query)
+                    msg_buf.write_int16(0)
+                    buf.write_buffer(msg_buf.end_message())
+
+                msg_buf = WriteBuffer.new_message(b'B')
+                msg_buf.write_bytestring(b'')  # unnamed portal
+                msg_buf.write_bytestring(stmt_name)
+                msg_buf.write_int16(0)  # number of parameter format codes
+                msg_buf.write_int16(0)  # number of parameter values
+                msg_buf.write_int16(0)  # text for all result columns
+                buf.write_buffer(msg_buf.end_message())
+
+                msg_buf = WriteBuffer.new_message(b'D')
+                msg_buf.write_byte(b'P')  # describe portal
+                msg_buf.write_bytestring(b'')  # unnamed portal
+                buf.write_buffer(msg_buf.end_message())
+
+                msg_buf = WriteBuffer.new_message(b'E')
+                msg_buf.write_bytestring(b'')  # unnamed portal
+                msg_buf.write_int32(0)  # no limit
+                buf.write_buffer(msg_buf.end_message())
+
+            msg_buf = WriteBuffer.new_message(b'C')
+            msg_buf.write_byte(b'P')  # close portal
+            msg_buf.write_bytestring(b'')  # unnamed portal
+            buf.write_buffer(msg_buf.end_message())
+
+            self.write_sync(buf)
+            self.write(buf)
 
             buf = WriteBuffer.new()
-
             while True:
                 if not self.buffer.take_message():
-                    fe_conn.write(buf)
-                    buf = WriteBuffer.new()
-                    fe_conn.flush()
+                    if buf.len() > 0:
+                        fe_conn.write(buf)
+                        fe_conn.flush()
+                        buf = WriteBuffer.new()
                     await self.wait_for_message()
+
                 mtype = self.buffer.get_message_type()
-                if mtype == b'E':
+
+                if mtype == b'1':  # ParseComplete
+                    stmt_name = queue.popleft()
+                    self.prep_stmts[stmt_name] = dbver
+                    self.buffer.finish_message()
+
+                elif mtype == b'2':  # BindComplete
+                    self.buffer.finish_message()
+
+                elif mtype == b'3':  # CloseComplete
+                    self.buffer.finish_message()
+
+                elif mtype == b'n':  # NoData
+                    self.buffer.finish_message()
+
+                elif mtype == b'E':
                     msg_buf = WriteBuffer.new_message(b'E')
                     while True:
                         field_type = self.buffer.read_byte()
                         if field_type == b'P':  # Position
                             msg_buf.write_byte(b'q')  # Internal query
-                            msg_buf.write_str(query, "utf-8")
+                            msg_buf.write_bytestring(query)
                             msg_buf.write_byte(b'p')  # Internal position
                         else:
                             msg_buf.write_byte(field_type)
@@ -1315,12 +1365,19 @@ cdef class PGConnection:
                         msg_buf.write_bytestring(self.buffer.read_null_str())
                     self.buffer.finish_message()
                     buf.write_buffer(msg_buf.end_message())
+
+                elif mtype == b'Z':  # ReadyForQuery
+                    msg_buf = WriteBuffer.new_message(b'Z')
+                    msg_buf.write_byte(self.parse_sync_message())
+                    buf.write_buffer(msg_buf.end_message())
+
+                    fe_conn.write(buf)
+                    fe_conn.flush()
+                    break
+
                 else:
                     self.buffer.redirect_messages(buf, mtype, 0)
-                    if mtype == b'Z':
-                        fe_conn.write(buf)
-                        fe_conn.flush()
-                        break
+
         finally:
             await self.after_command()
 
@@ -2049,7 +2106,7 @@ cdef class PGConnection:
 
         return err_cls, fields
 
-    cdef parse_sync_message(self):
+    cdef char parse_sync_message(self):
         cdef char status
 
         if not self.waiting_for_sync:
@@ -2073,6 +2130,7 @@ cdef class PGConnection:
             self.debug_print('SYNC MSG', self.xact_status)
 
         self.buffer.finish_message()
+        return status
 
     cdef parse_parameter_status_message(self):
         cdef:
