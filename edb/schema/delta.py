@@ -1073,7 +1073,7 @@ class Command(
     def as_markup(cls, self: Command, *, ctx: markup.Context) -> markup.Markup:
         node = markup.elements.lang.TreeNode(name=str(self))
 
-        for dd in self.get_subcommands():
+        def _markup(dd: Command) -> None:
             if isinstance(dd, AlterObjectProperty):
                 diff = markup.elements.doc.ValueDiff(
                     before=repr(dd.old_value), after=repr(dd.new_value))
@@ -1086,6 +1086,29 @@ class Command(
                 node.add_child(label=dd.property, node=diff)
             else:
                 node.add_child(node=markup.serialize(dd, ctx=ctx))
+
+        prereqs = self.get_prerequisites()
+        caused = self.get_caused()
+
+        if prereqs:
+            node.add_child(
+                node=markup.elements.doc.Marker(text='prerequsites'))
+            for dd in prereqs:
+                _markup(dd)
+        if subs := self.get_subcommands(
+            include_prerequisites=False,
+            include_caused=False,
+        ):
+            # Only label regular subcommands if there are prereqs or
+            # caused actions, and so there is room for confusion
+            if prereqs or caused:
+                node.add_child(node=markup.elements.doc.Marker(text='main'))
+            for dd in subs:
+                _markup(dd)
+        if caused:
+            node.add_child(node=markup.elements.doc.Marker(text='caused'))
+            for dd in caused:
+                _markup(dd)
 
         return node
 
