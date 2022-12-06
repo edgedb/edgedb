@@ -532,8 +532,7 @@ class ConstraintCommand(
                 return value  # type: ignore
 
             elif field.name in {'subjectexpr', 'finalexpr', 'except_expr'}:
-                return s_expr.Expression.compiled(
-                    value,
+                return value.compiled(
                     schema=schema,
                     options=qlcompiler.CompilerOptions(
                         modaliases=context.modaliases,
@@ -561,8 +560,7 @@ class ConstraintCommand(
                 inlined_defaults=False,
             )
 
-            return s_expr.Expression.compiled(
-                value,
+            return value.compiled(
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
@@ -809,8 +807,7 @@ class ConstraintCommand(
             singletons = frozenset()
 
         assert subject is not None
-        final_expr = s_expr.Expression.compiled(
-            s_expr.Expression.from_ast(expr_ql, schema, {}),
+        final_expr = s_expr.Expression.from_ast(expr_ql, schema, {}).compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: subject},
@@ -850,16 +847,16 @@ class ConstraintCommand(
                 schema_object_context=self.get_schema_metaclass(),
             )
 
-            final_subjectexpr = s_expr.Expression.compiled(
-                subjectexpr, schema=schema, options=options
+            final_subjectexpr = subjectexpr.compiled(
+                schema=schema, options=options
             )
 
             refs = ir_utils.get_longest_paths(final_expr.irast)
 
             final_except_expr = None
             if except_expr:
-                final_except_expr = s_expr.Expression.compiled(
-                    except_expr, schema=schema, options=options
+                final_except_expr = except_expr.compiled(
+                    schema=schema, options=options
                 )
                 refs |= ir_utils.get_longest_paths(final_except_expr.irast)
 

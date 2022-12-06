@@ -303,8 +303,7 @@ class GlobalCommand(
             if field.name == 'expr':
                 in_ddl_context_name = f'computed {ptr_name}'
 
-            return type(value).compiled(
-                value,
+            return value.compiled(
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,

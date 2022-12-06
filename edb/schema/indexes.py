@@ -303,8 +303,7 @@ class IndexCommand(
             assert isinstance(parent_ctx.op, sd.ObjectCommand)
             subject = parent_ctx.op.get_object(schema, context)
 
-            expr = type(value).compiled(
-                value,
+            expr = value.compiled(
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,

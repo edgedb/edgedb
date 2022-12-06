@@ -197,8 +197,7 @@ class ParameterDesc(ParameterLike):
         if astnode.default is not None:
             defexpr = s_expr.Expression.from_ast(
                 astnode.default, schema, modaliases, as_fragment=True)
-            paramd = s_expr.Expression.compiled(
-                defexpr,
+            paramd = defexpr.compiled(
                 schema,
                 as_fragment=True,
                 options=qlcompiler.CompilerOptions(
@@ -424,8 +423,8 @@ class Parameter(
 
         defexpr = self.get_default(schema)
         assert defexpr is not None
-        defexpr = s_expr.Expression.compiled(
-            defexpr, as_fragment=True, schema=schema)
+        defexpr = defexpr.compiled(
+            as_fragment=True, schema=schema)
         ir = defexpr.irast
         if not irutils.is_const(ir.expr):
             raise ValueError('expression not constant')
@@ -1459,8 +1458,7 @@ class FunctionCommand(
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.CompiledExpression:
         if field.name == 'initial_value':
-            return type(value).compiled(
-                value,
+            return value.compiled(
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     allow_generic_type_output=True,
@@ -1534,7 +1532,7 @@ class FunctionCommand(
         ):
             self.set_attribute_value(
                 'nativecode',
-                s_expr.Expression.not_compiled(nativecode)
+                nativecode.not_compiled()
             )
 
         # Resolving 'nativecode' has side effects on has_dml and
@@ -2302,8 +2300,7 @@ def compile_function(
         inlined_defaults=has_inlined_defaults,
     )
 
-    compiled = type(body).compiled(
-        body,
+    compiled = body.compiled(
         schema,
         options=qlcompiler.CompilerOptions(
             anchors=param_anchors,

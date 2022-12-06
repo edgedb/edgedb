@@ -167,14 +167,11 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             _qlast=qltree,
         )
 
-    @classmethod
-    def not_compiled(cls: Type[Expression], expr: Expression) -> Expression:
-        return Expression(text=expr.text, origin=expr.origin)
+    def not_compiled(self) -> Expression:
+        return Expression(text=self.text, origin=self.origin)
 
-    @classmethod
     def compiled(
-        cls: Type[Expression],
-        expr: Expression,
+        self,
         schema: s_schema.Schema,
         *,
         options: Optional[qlcompiler.CompilerOptions] = None,
@@ -185,13 +182,13 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
         if as_fragment:
             ir: irast_.Command = qlcompiler.compile_ast_fragment_to_ir(
-                expr.qlast,
+                self.qlast,
                 schema=schema,
                 options=options,
             )
         else:
             ir = qlcompiler.compile_ast_to_ir(
-                expr.qlast,
+                self.qlast,
                 schema=schema,
                 options=options,
             )
@@ -202,11 +199,11 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         srefs = {ref for ref in ir.schema_refs if schema.has_object(ref.id)}
 
         return CompiledExpression(
-            text=expr.text,
+            text=self.text,
             refs=so.ObjectSet.create(schema, srefs),
-            _qlast=expr.qlast,
+            _qlast=self.qlast,
             _irast=ir,
-            origin=expr.origin,
+            origin=self.origin,
         )
 
     def ensure_compiled(
@@ -220,7 +217,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             return self  # type: ignore
         else:
             return self.compiled(
-                self, schema, options=options, as_fragment=as_fragment)
+                schema, options=options, as_fragment=as_fragment)
 
     @classmethod
     def from_ir(cls: Type[Expression],

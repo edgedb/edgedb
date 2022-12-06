@@ -1605,7 +1605,6 @@ class Query(Command):
         schema = super().apply(schema, context)
         if not self.expr.is_compiled():
             self.expr = self.expr.compiled(
-                self.expr,
                 schema,
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,

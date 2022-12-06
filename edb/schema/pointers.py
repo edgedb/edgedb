@@ -1365,8 +1365,7 @@ class PointerCommandOrFragment(
             else:
                 singletons.append(self.scls)
 
-        compiled = type(expr).compiled(
-            expr,
+        compiled = expr.compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
@@ -2028,8 +2027,7 @@ class AlterPointer(
         assert isinstance(expr, s_expr.Expression)
         pointer = schema.get(self.classname, type=Pointer)
         source = cast(s_types.Type, pointer.get_source(schema))
-        expression = s_expr.Expression.compiled(
-            expr,
+        expression = expr.compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,

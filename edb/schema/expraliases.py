@@ -236,8 +236,7 @@ class AliasCommand(
         classname = sn.shortname_from_fullname(self.classname)
         assert isinstance(classname, sn.QualName), \
             "expected qualified name"
-        return type(value).compiled(
-            value,
+        return value.compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 derived_target_module=classname.module,
