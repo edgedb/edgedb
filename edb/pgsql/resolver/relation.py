@@ -203,7 +203,7 @@ def resolve_relation(
             return pgast.Relation(name=cte.name, schemaname=None), table
 
     # lookup the object in schema
-    obj: Optional[s_sources.Source] = None
+    obj: Optional[s_sources.Source | s_properties.Property] = None
     if catalog == 'postgres':
 
         module = 'default' if schema_name == 'public' else schema_name
@@ -216,9 +216,9 @@ def resolve_relation(
             type=s_objtypes.ObjectType,
         )
 
-        # try multi link table
+        # try pointer table
         if not obj:
-            obj = _lookup_link_property(relation.name, ctx)
+            obj = _lookup_pointer_table(relation.name, ctx)
 
     if not obj:
         raise errors.QueryError(
@@ -230,20 +230,25 @@ def resolve_relation(
     table = context.Table(name=relation.name)
 
     # extract table columns
-    pointers = obj.get_pointers(ctx.schema).objects(ctx.schema)
-
     # when changing this, make sure to update sql information_schema
     columns: List[context.Column] = []
-    for p in pointers:
-        if p.is_protected_pointer(ctx.schema):
-            continue
-        card = p.get_cardinality(ctx.schema)
-        if card.is_multi():
-            continue
-        if p.get_computable(ctx.schema):
-            continue
 
-        columns.append(_construct_column(p, ctx))
+    if isinstance(obj, s_sources.Source):
+        pointers = obj.get_pointers(ctx.schema).objects(ctx.schema)
+
+        for p in pointers:
+            if p.is_protected_pointer(ctx.schema):
+                continue
+            card = p.get_cardinality(ctx.schema)
+            if card.is_multi():
+                continue
+            if p.get_computable(ctx.schema):
+                continue
+
+            columns.append(_construct_column(p, ctx))
+    else:
+        for c in ['source', 'target']:
+            columns.append(context.Column(name=c, reference_as=c))
 
     # sort by name but put `id` first
     columns.sort(key=lambda c: () if c.name == 'id' else (c.name or '',))
@@ -260,7 +265,14 @@ def resolve_relation(
     return pgast.Relation(name=dbname, schemaname=schemaname), table
 
 
-def _lookup_link_property(name: str, ctx: Context) -> Optional[s_links.Link]:
+def _lookup_pointer_table(
+    name: str, ctx: Context
+) -> Optional[s_links.Link | s_properties.Property]:
+    # Pointer tables are either:
+    # - multi link tables
+    # - single link tables with at least one property besides source and target
+    # - multi property tables
+
     if '.' not in name:
         return None
     object_name, link_name = name.split('.')
@@ -273,23 +285,34 @@ def _lookup_link_property(name: str, ctx: Context) -> Optional[s_links.Link]:
     if not parent:
         return None
 
-    link = parent.maybe_get_ptr(
+    pointer = parent.maybe_get_ptr(
         ctx.schema, sn.UnqualName.from_string(link_name)
     )
 
-    if not isinstance(link, s_links.Link):
+    if not pointer:
         return None
-    if link.get_computable(ctx.schema):
+    if pointer.get_computable(ctx.schema) or pointer.get_internal(ctx.schema):
         return None
 
-    if link.get_cardinality(ctx.schema).is_single():
-        # single links only for tables with at least one property
-        # besides source and target
-        l_pointers = link.get_pointers(ctx.schema).objects(ctx.schema)
-        if len(l_pointers) <= 2:
-            return None
+    match pointer:
+        case s_links.Link():
+            if pointer.get_cardinality(ctx.schema).is_single():
+                # single links only for tables with at least one property
+                # besides source and target
+                l_pointers = pointer.get_pointers(ctx.schema).objects(
+                    ctx.schema
+                )
+                if len(l_pointers) <= 2:
+                    return None
 
-    return link
+            return pointer
+
+        case s_properties.Property():
+            if pointer.get_cardinality(ctx.schema).is_single():
+                return None
+            return pointer
+
+    raise NotImplementedError()
 
 
 def _construct_column(p: s_pointers.Pointer, ctx: Context) -> context.Column:

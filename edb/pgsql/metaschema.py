@@ -5034,6 +5034,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
                 END AS schema_name,
                 SPLIT_PART(name, '::', 2) AS table_name
             FROM edgedb."_SchemaObjectType"
+            WHERE internal IS NOT TRUE
         ),
         tables (id, schema_name, table_name) AS ((
             SELECT * FROM obj_ty
@@ -5044,7 +5045,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
                 SELECT link.id
                 FROM edgedb."_SchemaLink" link
                 JOIN edgedb."_SchemaProperty" AS prop ON link.id = prop.source
-                WHERE prop.computable IS NOT TRUE
+                WHERE prop.computable IS NOT TRUE AND prop.internal IS NOT TRUE
                 GROUP BY link.id, link.cardinality
                 HAVING link.cardinality = 'Many' OR COUNT(*) > 2
             )
@@ -5053,6 +5054,15 @@ def _generate_sql_information_schema() -> List[dbops.View]:
             FROM edgedb."_SchemaLink" link
             JOIN obj_ty ON obj_ty.id = link.source
             WHERE link.id IN (SELECT * FROM qualified_links)
+        ) UNION ALL (
+            -- multi properties
+            SELECT prop.id, obj_ty.schema_name,
+                CONCAT(obj_ty.table_name, '.', prop.name) AS table_name
+            FROM edgedb."_SchemaProperty" AS prop
+            JOIN obj_ty ON obj_ty.id = prop.source
+            WHERE prop.computable IS NOT TRUE
+              AND prop.internal IS NOT TRUE
+              AND prop.cardinality = 'Many'
         ))
         SELECT
             'postgres'::{sql_ident} AS table_catalog,
@@ -5082,6 +5092,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
                     ELSE SPLIT_PART(name, '::', 1) END AS schema_name,
                 SPLIT_PART(name, '::', 2) AS table_name
             FROM edgedb."_SchemaObjectType"
+            WHERE internal IS NOT TRUE
         ),
         columns (schema_name, table_name, name, required, type_name) AS ((
             -- pointers of objects
@@ -5094,7 +5105,8 @@ def _generate_sql_information_schema() -> List[dbops.View]:
                     ty.name
                 FROM edgedb."_SchemaProperty" AS prop
                 LEFT JOIN edgedb."_SchemaType" ty ON ty.id = prop.target
-                WHERE prop.computable IS NOT TRUE
+                WHERE prop.internal IS NOT TRUE
+                    AND prop.computable IS NOT TRUE
                     AND COALESCE(prop.cardinality = 'One', TRUE)
             ) UNION ALL ( -- link ids
                 SELECT
@@ -5114,7 +5126,7 @@ def _generate_sql_information_schema() -> List[dbops.View]:
                 SELECT link.id
                 FROM edgedb."_SchemaLink" link
                 JOIN edgedb."_SchemaProperty" AS prop ON link.id = prop.source
-                WHERE prop.computable IS NOT TRUE
+                WHERE prop.computable IS NOT TRUE AND prop.internal IS NOT TRUE
                 GROUP BY link.id, link.cardinality
                 HAVING link.cardinality = 'Many' OR COUNT(*) > 2
             ),
@@ -5137,7 +5149,27 @@ def _generate_sql_information_schema() -> List[dbops.View]:
             FROM edgedb."_SchemaProperty" AS prop
             JOIN links ON links.id = prop.source
             LEFT JOIN edgedb."_SchemaType" ty ON prop.target = ty.id
-            WHERE prop.computable IS NOT TRUE
+            WHERE prop.computable IS NOT TRUE AND prop.internal IS NOT TRUE
+        ) UNION ALL (
+            -- multi properties
+            WITH prop_tables AS (
+                SELECT obj_ty.schema_name,
+                    CONCAT(obj_ty.table_name, '.', prop.name) AS table_name,
+                    ty.name as target_type
+                FROM edgedb."_SchemaProperty" AS prop
+                JOIN obj_ty ON obj_ty.id = prop.source
+                LEFT JOIN edgedb."_SchemaType" ty ON prop.target = ty.id
+                WHERE prop.computable IS NOT TRUE
+                  AND prop.internal IS NOT TRUE
+                  AND prop.cardinality = 'Many'
+            )
+            SELECT schema_name, table_name, col.name, TRUE,
+                CASE col.name
+                    WHEN 'source' THEN 'std::uuid'
+                    ELSE target_type
+                END
+            FROM prop_tables
+            CROSS JOIN (VALUES ('source'), ('target')) col(name)
         ))
         SELECT
             'postgres'::{sql_ident} AS table_catalog,

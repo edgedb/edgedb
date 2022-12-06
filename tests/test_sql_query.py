@@ -490,6 +490,7 @@ class TestSQL(tb.SQLQueryTestCase):
             res,
             [
                 ['Book'],
+                ['Book.chapters'],
                 ['Content'],
                 ['Genre'],
                 ['Movie'],
@@ -497,6 +498,7 @@ class TestSQL(tb.SQLQueryTestCase):
                 ['Movie.director'],
                 ['Person'],
                 ['novel'],
+                ['novel.chapters'],
             ],
         )
 
@@ -517,6 +519,8 @@ class TestSQL(tb.SQLQueryTestCase):
                 ['Book', 'genre_id', 'YES', 2],
                 ['Book', 'pages', 'NO', 3],
                 ['Book', 'title', 'NO', 4],
+                ['Book.chapters', 'source', 'NO', 1],
+                ['Book.chapters', 'target', 'NO', 2],
                 ['Content', 'id', 'NO', 1],
                 ['Content', 'genre_id', 'YES', 2],
                 ['Content', 'title', 'NO', 3],
@@ -541,6 +545,8 @@ class TestSQL(tb.SQLQueryTestCase):
                 ['novel', 'genre_id', 'YES', 3],
                 ['novel', 'pages', 'NO', 4],
                 ['novel', 'title', 'NO', 5],
+                ['novel.chapters', 'source', 'NO', 1],
+                ['novel.chapters', 'target', 'NO', 2],
             ],
         )
 
