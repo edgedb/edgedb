@@ -273,10 +273,25 @@ individuals.
 Due to how they're persisted under the hood, link properties must always be
 ``single`` and ``optional``.
 
+In practice, link properties are most useful with many-to-many relationships.
+In that situation there's a significant difference between the *relationship*
+described by the link and the *target object*. Thus it makes sense to separate
+properties of the relationships and properties of the target objects. On the
+other hand, for one-to-one, one-to-many, and many-to-one relationships there's
+an exact correspondence between the link and one of the objects being linked.
+In these situations any property of the relationship can be equally expressed
+as the property of the target object (for one-to-many and one-to-one cases) or
+as the property of the source object (for many-to-one and one-to-one cases).
+It is generally advisable to use object properties instead of link properties
+in these cases due to better ergonomics of selecting, updating, and even
+casting into :eql:type:`json` when keeping all data in the same place rather
+than speading it across link and object properties.
+
 .. note::
 
   For a full guide on modeling, inserting, updating, and querying link
-  properties, see the :ref:`Using Link Properties <ref_guide_linkprops>` guide.
+  properties, see the :ref:`Using Link Properties <ref_guide_linkprops>`
+  guide.
 
 .. _ref_datamodel_link_deletion:
 
