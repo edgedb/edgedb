@@ -3825,7 +3825,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             );
         """])
 
-    @test.xerror('''
+    @test.xfail('''
         This wants to transmute an object type into an alias. It
         produces DDL, but the DDL doesn't really make any sense. We
         are going to probably need to add DDL syntax to accomplish
@@ -4660,6 +4660,70 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type User extending Named {
                   property asdf := .name ++ "!";
             }
+        """])
+
+    def test_schema_migrations_equivalence_56a(self):
+        self._assert_migration_equivalence([r"""
+            type User {
+                required property name -> str;
+            };
+
+            alias TwoUsers := (
+                select User {
+                    initial := .name[0],
+                } order by .name limit 2
+            );
+        """])
+
+    def test_schema_migrations_equivalence_56b(self):
+        self._assert_migration_equivalence([r"""
+            type User {
+                required property name -> str;
+            };
+
+            global TwoUsers := (
+                select User {
+                    initial := .name[0],
+                } order by .name limit 2
+            );
+        """])
+
+    def test_schema_migrations_equivalence_57a(self):
+        self._assert_migration_equivalence([r"""
+            type User {
+                required property name -> str;
+            };
+
+            alias TwoUsers := (
+                select User {
+                    initial := .name[0],
+                } order by .name limit 2
+            );
+        """, r"""
+            type User {
+                required property name -> str;
+            };
+
+            alias TwoUsers := (User);
+        """])
+
+    def test_schema_migrations_equivalence_57b(self):
+        self._assert_migration_equivalence([r"""
+            type User {
+                required property name -> str;
+            };
+
+            global TwoUsers := (
+                select User {
+                    initial := .name[0],
+                } order by .name limit 2
+            );
+        """, r"""
+            type User {
+                required property name -> str;
+            };
+
+            global TwoUsers := (User);
         """])
 
     def test_schema_migrations_equivalence_compound_01(self):
