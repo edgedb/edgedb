@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import collections
 import textwrap
+from typing import *
 
 from edb.common import ordered
 
@@ -41,8 +42,10 @@ class Table(composites.CompositeDBObject):
         self.data = []
         super().__init__(name, columns=columns)
 
-    def iter_columns(self, writable_only=False, only_self=False):
-        cols = collections.OrderedDict()
+    def iter_columns(
+        self, writable_only: bool = False, only_self: bool = False
+    ):
+        cols: collections.OrderedDict = collections.OrderedDict()
         cols.update((c.name, c) for c in self._columns
                     if not writable_only or not c.readonly)
 
@@ -104,8 +107,14 @@ class InheritableTableObject(base.InheritableDBObject):
 
 class Column(base.DBObject):
     def __init__(
-            self, name, type, required=False, default=None, readonly=False,
-            comment=None):
+        self,
+        name,
+        type,
+        required: bool = False,
+        default=None,
+        readonly: bool = False,
+        comment=None,
+    ):
         self.name = name
         self.type = type
         self.required = required
@@ -113,8 +122,8 @@ class Column(base.DBObject):
         self.readonly = readonly
         self.comment = comment
 
-    def code(self, context, short=False):
-        code = '{} {}'.format(qi(self.name), self.type)
+    def code(self, context, short: bool = False):
+        code = "{} {}".format(qi(self.name), self.type)
         if not short:
             default = 'DEFAULT {}'.format(
                 self.default) if self.default is not None else ''
@@ -179,7 +188,9 @@ class UniqueConstraint(TableConstraint):
 
 
 class CheckConstraint(TableConstraint):
-    def __init__(self, table_name, constraint_name, expr, inherit=True):
+    def __init__(
+        self, table_name, constraint_name, expr, inherit: bool = True
+    ):
         super().__init__(table_name, constraint_name=constraint_name)
         self.expr = expr
         self.inherit = inherit
@@ -285,8 +296,13 @@ class ColumnIsInherited(base.Condition):
 
 class CreateTable(ddl.SchemaObjectOperation):
     def __init__(
-            self, table, temporary=False, *, conditions=None,
-            neg_conditions=None):
+        self,
+        table,
+        temporary: bool = False,
+        *,
+        conditions=None,
+        neg_conditions=None,
+    ):
         super().__init__(
             table.name, conditions=conditions, neg_conditions=neg_conditions)
         self.table = table
@@ -327,7 +343,13 @@ class CreateTable(ddl.SchemaObjectOperation):
 
 
 class AlterTableBaseMixin:
-    def __init__(self, name, contained=False, **kwargs):
+
+    name: Tuple[str, ...]
+    contained: bool
+
+    def __init__(
+        self, name: Tuple[str, ...], contained: bool = False, **kwargs
+    ):
         self.name = name
         self.contained = contained
 
@@ -342,8 +364,13 @@ class AlterTableBaseMixin:
 
 class AlterTableBase(AlterTableBaseMixin, ddl.DDLOperation):
     def __init__(
-            self, name, *, contained=False, conditions=None,
-            neg_conditions=None):
+        self,
+        name,
+        *,
+        contained: bool = False,
+        conditions=None,
+        neg_conditions=None,
+    ):
         ddl.DDLOperation.__init__(
             self, conditions=conditions, neg_conditions=neg_conditions)
         AlterTableBaseMixin.__init__(self, name=name, contained=contained)
@@ -363,8 +390,13 @@ class AlterTableFragment(ddl.DDLOperation):
 class AlterTable(
         AlterTableBaseMixin, ddl.DDLOperation, base.CompositeCommandGroup):
     def __init__(
-            self, name, *, contained=False, conditions=None,
-            neg_conditions=None):
+        self,
+        name,
+        *,
+        contained: bool = False,
+        conditions=None,
+        neg_conditions=None,
+    ):
         base.CompositeCommandGroup.__init__(
             self, conditions=conditions, neg_conditions=neg_conditions)
         AlterTableBaseMixin.__init__(self, name=name, contained=contained)
