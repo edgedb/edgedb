@@ -16,7 +16,7 @@ Math
 
     :index: absolute
 
-    Return the absolute value of the input *x*.
+    Returns the absolute value of the input.
 
 
     .. code-block:: edgeql-repl
@@ -37,7 +37,7 @@ Math
 
     :index: round
 
-    Round up to the nearest integer.
+    Rounds up a given value to the nearest integer.
 
     .. code-block:: edgeql-repl
 
@@ -57,7 +57,7 @@ Math
 
     :index: round
 
-    Round down to the nearest integer.
+    Rounds down a given value to the nearest integer.
 
     .. code-block:: edgeql-repl
 
@@ -76,7 +76,7 @@ Math
 
     :index: logarithm
 
-    Return the natural logarithm of the input value.
+    Returns the natural logarithm of a given value.
 
     .. code-block:: edgeql-repl
 
@@ -93,7 +93,7 @@ Math
 
     :index: logarithm
 
-    Return the base 10 logarithm of the input value.
+    Returns the base 10 logarithm of a given value.
 
     .. code-block:: edgeql-repl
 
@@ -107,7 +107,7 @@ Math
 
     :index: logarithm
 
-    Return the logarithm of the input value in the specified *base*.
+    Returns the logarithm of a given value in the specified base.
 
     .. code-block:: edgeql-repl
 
@@ -124,7 +124,7 @@ Math
 
     :index: average avg
 
-    Return the arithmetic mean of the input set.
+    Returns the arithmetic mean of the input set.
 
     .. code-block:: edgeql-repl
 
@@ -141,7 +141,7 @@ Math
 
     :index: average
 
-    Return the sample standard deviation of the input set.
+    Returns the sample standard deviation of the input set.
 
     .. code-block:: edgeql-repl
 
@@ -154,7 +154,7 @@ Math
 
     :index: average
 
-    Return the population standard deviation of the input set.
+    Returns the population standard deviation of the input set.
 
     .. code-block:: edgeql-repl
 
@@ -171,7 +171,7 @@ Math
 
     :index: average
 
-    Return the sample variance of the input set.
+    Returns the sample variance of the input set.
 
     .. code-block:: edgeql-repl
 
@@ -188,7 +188,7 @@ Math
 
     :index: average
 
-    Return the population variance of the input set.
+    Returns the population variance of the input set.
 
     .. code-block:: edgeql-repl
 
