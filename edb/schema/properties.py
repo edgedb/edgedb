@@ -193,7 +193,7 @@ class Property(
         return delta  # type: ignore
 
 
-class PropertySourceContext(sources.SourceCommandContext):
+class PropertySourceContext(sources.SourceCommandContext[sources.Source_T]):
     pass
 
 
@@ -326,8 +326,7 @@ class CreateProperty(
         node: qlast.DDLOperation,
         op: sd.AlterObjectProperty,
     ) -> None:
-        # type ignore below, because the class is used as mixin
-        link = context.get(PropertySourceContext)  # type: ignore
+        link = context.get(PropertySourceContext)
 
         if op.property == 'target' and link:
             if isinstance(node, qlast.CreateConcreteProperty):

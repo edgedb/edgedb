@@ -29,7 +29,6 @@ from edb import errors
 from . import abc as s_abc
 from . import constraints
 from . import delta as sd
-from . import indexes
 from . import inheriting
 from . import properties
 from . import name as sn
@@ -141,13 +140,19 @@ class Link(
         return bool([p for p in self.get_pointers(schema).objects(schema)
                      if not p.is_special_pointer(schema)])
 
+    def get_source(
+        self,
+        schema: s_schema.Schema
+    ) -> Optional[s_objtypes.ObjectType]:
+        return self.get_field_value(  # type: ignore[no-any-return]
+            schema, 'source')
+
     def get_source_type(
         self,
         schema: s_schema.Schema
-    ) -> s_types.Type:
-        from . import types as s_types
+    ) -> s_objtypes.ObjectType:
         source = self.get_source(schema)
-        assert isinstance(source, s_types.Type)
+        assert source
         return source
 
     def compare(
@@ -190,7 +195,7 @@ class Link(
         return sn.QualName('std', 'link')
 
 
-class LinkSourceCommandContext(sources.SourceCommandContext):
+class LinkSourceCommandContext(sources.SourceCommandContext[sources.Source_T]):
     pass
 
 
@@ -200,8 +205,8 @@ class LinkSourceCommand(inheriting.InheritingObjectCommand[sources.Source_T]):
 
 class LinkCommandContext(pointers.PointerCommandContext[Link],
                          constraints.ConsistencySubjectCommandContext,
-                         properties.PropertySourceContext,
-                         indexes.IndexSourceCommandContext):
+                         properties.PropertySourceContext[Link],
+                         sources.SourceCommandContext[Link]):
     pass
 
 
