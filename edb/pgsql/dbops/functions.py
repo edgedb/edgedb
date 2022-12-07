@@ -97,7 +97,7 @@ class FunctionOperation:
         args: Optional[Sequence[FunctionArg]],
         has_variadic: Optional[bool],
         *,
-        include_defaults=True,
+        include_defaults: bool = True,
     ):
         if not args:
             return ''
@@ -127,7 +127,9 @@ class FunctionOperation:
 
 
 class CreateFunction(ddl.DDLOperation, FunctionOperation):
-    def __init__(self, function: Function, *, or_replace=False, **kwargs):
+    def __init__(
+        self, function: Function, *, or_replace: bool = False, **kwargs
+    ):
         super().__init__(**kwargs)
         self.function = function
         self.or_replace = or_replace
@@ -195,8 +197,8 @@ class DropFunction(ddl.DDLOperation, FunctionOperation):
         name: Tuple[str, ...],
         args: Sequence[str | Tuple[str, str, str]],
         *,
-        if_exists=False,
-        has_variadic=False,
+        if_exists: bool = False,
+        has_variadic: bool = False,
         conditions: Optional[List[str | base.Condition]] = None,
         neg_conditions: Optional[List[str | base.Condition]] = None,
     ):
