@@ -1140,7 +1140,7 @@ def _infer_stmt_cardinality(
         # We can only apply filter clause restrictions when the result
         # is a unique set, because if the set has duplicates we can
         # also pick out duplicates.
-        if result_mult.is_unique():
+        if result_mult.is_one():
             result_card = _analyse_filter_clause(
                 ir.result, result_card, ir.where, scope_tree, ctx)
 
