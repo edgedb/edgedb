@@ -37,6 +37,7 @@ from . import dispatch
 from . import context
 from . import range_var
 from . import expr
+from . import information_schema
 
 Context = context.ResolverContextLevel
 
@@ -100,8 +101,13 @@ def resolve_SelectStmt(
     for clause in stmt.from_clause:
         from_clause.append(range_var.resolve_BaseRangeVar(clause, ctx=ctx))
 
+    # WHERE
     where = dispatch.resolve_opt(stmt.where_clause, ctx=ctx)
 
+    # GROUP BY
+    group_clause = dispatch.resolve_opt_list(stmt.group_clause, ctx=ctx)
+
+    # SELECT projection
     table = context.Table()
     target_list: List[pgast.ResTarget] = []
     for t in stmt.target_list:
@@ -116,6 +122,22 @@ def resolve_SelectStmt(
             for c in stmt.distinct_clause
         ]
 
+    # order by can refer to columns in SELECT projection, so we need to add
+    # table.columns into scope
+    ctx.scope.tables.append(
+        context.Table(
+            columns=[
+                context.Column(name=c.name, reference_as=c.name)
+                for c, target in zip(table.columns, stmt.target_list)
+                if target.name
+                and (
+                    not isinstance(target.val, pgast.ColumnRef)
+                    or target.val.name[-1] != target.name
+                )
+            ]
+        )
+    )
+
     sort_clause = dispatch.resolve_opt_list(stmt.sort_clause, ctx=ctx)
     limit_offset = dispatch.resolve_opt(stmt.limit_offset, ctx=ctx)
     limit_count = dispatch.resolve_opt(stmt.limit_count, ctx=ctx)
@@ -124,6 +146,7 @@ def resolve_SelectStmt(
         distinct_clause=distinct_clause,
         from_clause=from_clause,
         target_list=target_list,
+        group_clause=group_clause,
         where_clause=where,
         sort_clause=sort_clause,
         limit_offset=limit_offset,
@@ -152,29 +175,50 @@ def resolve_relation(
 ) -> Tuple[pgast.Relation, context.Table]:
     assert relation.name
     schema_name = relation.schemaname or 'public'
+    catalog = relation.catalogname or 'postgres'
+
+    # try information schema
+
+    if schema_name == 'information_schema':
+        if relation.name in information_schema.TABLES:
+            cols = information_schema.TABLES[relation.name]
+
+            table = context.Table()
+            table.name = relation.name
+            table.columns = [
+                context.Column(name=name, reference_as=name)
+                for name, _type in cols
+            ]
+            rel = pgast.Relation(name=relation.name, schemaname='edgedbsql')
+
+            return rel, table
 
     # try a CTE
-    cte = next((t for t in ctx.scope.ctes if t.name == relation.name), None)
-    if cte:
-        table = context.Table(
-            name=cte.name,
-            columns=cte.columns.copy(),
+    if catalog == 'postgres' and schema_name == 'public':
+        cte = next(
+            (t for t in ctx.scope.ctes if t.name == relation.name), None
         )
-        return pgast.Relation(name=cte.name, schemaname=None), table
+        if cte:
+            table = context.Table(name=cte.name, columns=cte.columns.copy())
+            return pgast.Relation(name=cte.name, schemaname=None), table
 
     # lookup the object in schema
-    obj: Optional[s_sources.Source] = None
-    if schema_name == 'public':
+    obj: Optional[s_sources.Source | s_properties.Property] = None
+    if catalog == 'postgres':
+
+        module = 'default' if schema_name == 'public' else schema_name
+        object_name = sn.QualName(module, relation.name)
+
         obj = ctx.schema.get(  # type: ignore
-            relation.name,
+            object_name,
             None,
             module_aliases={None: 'default'},
             type=s_objtypes.ObjectType,
         )
 
-        # try multi link table
+        # try pointer table
         if not obj:
-            obj = _lookup_link_property(relation.name, ctx)
+            obj = _lookup_pointer_table(relation.name, ctx)
 
     if not obj:
         raise errors.QueryError(
@@ -186,17 +230,25 @@ def resolve_relation(
     table = context.Table(name=relation.name)
 
     # extract table columns
-    pointers = obj.get_pointers(ctx.schema).objects(ctx.schema)
-
+    # when changing this, make sure to update sql information_schema
     columns: List[context.Column] = []
-    for p in pointers:
-        if p.is_protected_pointer(ctx.schema):
-            continue
-        card = p.get_cardinality(ctx.schema)
-        if card.is_multi():
-            continue
 
-        columns.append(_construct_column(p, ctx))
+    if isinstance(obj, s_sources.Source):
+        pointers = obj.get_pointers(ctx.schema).objects(ctx.schema)
+
+        for p in pointers:
+            if p.is_protected_pointer(ctx.schema):
+                continue
+            card = p.get_cardinality(ctx.schema)
+            if card.is_multi():
+                continue
+            if p.get_computable(ctx.schema):
+                continue
+
+            columns.append(_construct_column(p, ctx))
+    else:
+        for c in ['source', 'target']:
+            columns.append(context.Column(name=c, reference_as=c))
 
     # sort by name but put `id` first
     columns.sort(key=lambda c: () if c.name == 'id' else (c.name or '',))
@@ -213,7 +265,14 @@ def resolve_relation(
     return pgast.Relation(name=dbname, schemaname=schemaname), table
 
 
-def _lookup_link_property(name: str, ctx: Context) -> Optional[s_links.Link]:
+def _lookup_pointer_table(
+    name: str, ctx: Context
+) -> Optional[s_links.Link | s_properties.Property]:
+    # Pointer tables are either:
+    # - multi link tables
+    # - single link tables with at least one property besides source and target
+    # - multi property tables
+
     if '.' not in name:
         return None
     object_name, link_name = name.split('.')
@@ -226,21 +285,34 @@ def _lookup_link_property(name: str, ctx: Context) -> Optional[s_links.Link]:
     if not parent:
         return None
 
-    link = parent.maybe_get_ptr(
+    pointer = parent.maybe_get_ptr(
         ctx.schema, sn.UnqualName.from_string(link_name)
     )
 
-    if not isinstance(link, s_links.Link):
+    if not pointer:
+        return None
+    if pointer.get_computable(ctx.schema) or pointer.get_internal(ctx.schema):
         return None
 
-    if link.get_cardinality(ctx.schema).is_single():
-        # single links only for tables with at least one property
-        # besides source and target
-        l_pointers = link.get_pointers(ctx.schema).objects(ctx.schema)
-        if len(l_pointers) <= 2:
-            return None
+    match pointer:
+        case s_links.Link():
+            if pointer.get_cardinality(ctx.schema).is_single():
+                # single links only for tables with at least one property
+                # besides source and target
+                l_pointers = pointer.get_pointers(ctx.schema).objects(
+                    ctx.schema
+                )
+                if len(l_pointers) <= 2:
+                    return None
 
-    return link
+            return pointer
+
+        case s_properties.Property():
+            if pointer.get_cardinality(ctx.schema).is_single():
+                return None
+            return pointer
+
+    raise NotImplementedError()
 
 
 def _construct_column(p: s_pointers.Pointer, ctx: Context) -> context.Column:

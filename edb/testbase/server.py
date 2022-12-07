@@ -1278,6 +1278,12 @@ class SQLQueryTestCase(BaseQueryTestCase):
         ''')
         return await self.scon.fetch(rewritten)
 
+    async def sprepare(self, query):
+        rewritten = await self.con.query_single(f'''
+           describe alter {qlquote.quote_literal(query)}
+        ''')
+        return await self.scon.prepare(rewritten)
+
     async def squery_values(self, query):
         res = await self.squery(query)
         return [list(r.values()) for r in res]

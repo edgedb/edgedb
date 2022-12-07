@@ -476,3 +476,108 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assert_shape(
             res, 3, 5, ['a', 'b', 'unnested_a', 'unnested_b', 'computed']
         )
+
+    async def test_sql_query_introspection_00(self):
+        res = await self.squery_values(
+            '''
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+            ORDER BY table_name
+            '''
+        )
+        self.assertEqual(
+            res,
+            [
+                ['Book'],
+                ['Book.chapters'],
+                ['Content'],
+                ['Genre'],
+                ['Movie'],
+                ['Movie.actors'],
+                ['Movie.director'],
+                ['Person'],
+                ['novel'],
+                ['novel.chapters'],
+            ],
+        )
+
+    async def test_sql_query_introspection_01(self):
+        res = await self.squery_values(
+            '''
+            SELECT table_name, column_name, is_nullable, ordinal_position
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+            ORDER BY table_name, ordinal_position
+            '''
+        )
+
+        self.assertEqual(
+            res,
+            [
+                ['Book', 'id', 'NO', 1],
+                ['Book', 'genre_id', 'YES', 2],
+                ['Book', 'pages', 'NO', 3],
+                ['Book', 'title', 'NO', 4],
+                ['Book.chapters', 'source', 'NO', 1],
+                ['Book.chapters', 'target', 'NO', 2],
+                ['Content', 'id', 'NO', 1],
+                ['Content', 'genre_id', 'YES', 2],
+                ['Content', 'title', 'NO', 3],
+                ['Genre', 'id', 'NO', 1],
+                ['Genre', 'name', 'NO', 2],
+                ['Movie', 'id', 'NO', 1],
+                ['Movie', 'director_id', 'YES', 2],
+                ['Movie', 'genre_id', 'YES', 3],
+                ['Movie', 'release_year', 'YES', 4],
+                ['Movie', 'title', 'NO', 5],
+                ['Movie.actors', 'role', 'YES', 1],
+                ['Movie.actors', 'source', 'NO', 2],
+                ['Movie.actors', 'target', 'YES', 3],
+                ['Movie.director', 'bar', 'YES', 1],
+                ['Movie.director', 'source', 'NO', 2],
+                ['Movie.director', 'target', 'YES', 3],
+                ['Person', 'id', 'NO', 1],
+                ['Person', 'first_name', 'NO', 2],
+                ['Person', 'last_name', 'YES', 3],
+                ['novel', 'id', 'NO', 1],
+                ['novel', 'foo', 'YES', 2],
+                ['novel', 'genre_id', 'YES', 3],
+                ['novel', 'pages', 'NO', 4],
+                ['novel', 'title', 'NO', 5],
+                ['novel.chapters', 'source', 'NO', 1],
+                ['novel.chapters', 'target', 'NO', 2],
+            ],
+        )
+
+    async def test_sql_query_introspection_02(self):
+        tables = await self.squery_values(
+            '''
+            SELECT
+                tbl_name, array_agg(column_name)
+            FROM (
+                SELECT
+                    table_schema || '."' || table_name || '"' as tbl_name,
+                    column_name
+                FROM information_schema.columns
+                ORDER BY tbl_name, ordinal_position
+            ) t
+            GROUP BY tbl_name
+            '''
+        )
+        for [table_name, columns_from_information_schema] in tables:
+            if table_name.split('.')[0] in ('cfg', 'schema', 'sys'):
+                continue
+
+            try:
+                prepared = await self.sprepare(f'SELECT * FROM {table_name}')
+
+                attributes = prepared.get_attributes()
+                columns_from_resolver = [a.name for a in attributes]
+
+                self.assertEqual(
+                    columns_from_resolver,
+                    columns_from_information_schema,
+                )
+            except Exception:
+                raise Exception(f'introspecting {table_name}')
