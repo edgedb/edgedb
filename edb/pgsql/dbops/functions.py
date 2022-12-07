@@ -31,8 +31,8 @@ from . import base
 from . import ddl
 
 FunctionArgType = str | Tuple[str, ...]
-FunctionArgTyped = Tuple[str, FunctionArgType]
-FunctionArgDefaulted = Tuple[str, FunctionArgType, str]
+FunctionArgTyped = Tuple[Optional[str], FunctionArgType]
+FunctionArgDefaulted = Tuple[Optional[str], FunctionArgType, str]
 FunctionArg = str | FunctionArgTyped | FunctionArgDefaulted
 
 

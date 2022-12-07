@@ -416,7 +416,7 @@ class ReferencedObjectCommandBase(sd.QualifiedObjectCommand[ReferencedT]):
         be the context of the `create/alter/etc type` command.
         """
         ctxcls = cls.get_referrer_context_class()
-        return context.get(ctxcls)  # type: ignore
+        return context.get(ctxcls)
 
     @classmethod
     def get_referrer_context_or_die(
