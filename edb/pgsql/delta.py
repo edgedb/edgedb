@@ -941,8 +941,7 @@ class FunctionCommand(MetaCommand):
     def compile_default(self, func: s_funcs.Function,
                         default: s_expr.Expression, schema):
         try:
-            comp = s_expr.Expression.compiled(
-                default,
+            comp = default.compiled(
                 schema=schema,
                 as_fragment=True,
             )
@@ -3121,15 +3120,11 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             apply_query_rewrites=False,
         )
 
-        index_expr = index.get_expr(schema)
+        index_expr = index.get_expr(schema).ensure_compiled(
+            schema=schema,
+            options=options,
+        )
         ir = index_expr.irast
-        if ir is None:
-            index_expr = type(index_expr).compiled(
-                index_expr,
-                schema=schema,
-                options=options,
-            )
-            ir = index_expr.irast
 
         table_name = common.get_backend_name(
             schema, subject, catenate=False)
@@ -3146,9 +3141,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             sql_exprs = [codegen.SQLSourceGenerator.to_source(sql_tree)]
 
         except_expr = index.get_except_expr(schema)
-        if except_expr and not except_expr.irast:
-            except_expr = type(except_expr).compiled(
-                except_expr,
+        if except_expr:
+            except_expr = except_expr.ensure_compiled(
                 schema=schema,
                 options=options,
             )

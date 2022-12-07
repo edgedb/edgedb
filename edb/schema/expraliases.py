@@ -173,17 +173,17 @@ class AliasLikeCommand(
             prev_expr = None
         else:
             prev = schema.get(classname, type=s_types.Type)
-            prev_expr = prev.get_expr(schema)
-            assert prev_expr is not None
+            prev_expr_ = prev.get_expr(schema)
+            assert prev_expr_ is not None
             prev_ir = compile_alias_expr(
-                prev_expr.qlast,
+                prev_expr_.qlast,
                 classname,
                 schema,
                 context,
                 parser_context=parser_context,
             )
             prev_expr = s_expr.Expression.from_ir(
-                prev_expr, prev_ir, schema=schema)
+                prev_expr_, prev_ir, schema=schema)
 
         is_global = (self.get_schema_metaclass().
                      get_schema_class_displayname() == 'global')
@@ -231,13 +231,12 @@ class AliasCommand(
         field: so.Field[Any],
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         assert field.name == 'expr'
         classname = sn.shortname_from_fullname(self.classname)
         assert isinstance(classname, sn.QualName), \
             "expected qualified name"
-        return type(value).compiled(
-            value,
+        return value.compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 derived_target_module=classname.module,
@@ -431,8 +430,8 @@ def compile_alias_expr(
 
 def define_alias(
     *,
-    expr: s_expr.Expression,
-    prev_expr: Optional[s_expr.Expression] = None,
+    expr: s_expr.CompiledExpression,
+    prev_expr: Optional[s_expr.CompiledExpression] = None,
     classname: sn.QualName,
     schema: s_schema.Schema,
     is_global: bool,
@@ -441,7 +440,6 @@ def define_alias(
     from edb.ir import ast as irast
     from . import ordering as s_ordering
 
-    assert isinstance(expr.irast, irast.Statement)
     ir = expr.irast
     new_schema = ir.schema
 
@@ -464,7 +462,6 @@ def define_alias(
             expr_aliases.append(vt)
 
     if prev_expr is not None:
-        assert isinstance(prev_expr.irast, irast.Statement)
         prev_ir = prev_expr.irast
         old_schema = prev_ir.schema
         for vt in prev_ir.views.values():

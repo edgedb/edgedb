@@ -127,15 +127,12 @@ class GlobalCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        from edb.ir import ast as irast
-
         expression = self.get_attribute_value('expr')
         assert isinstance(expression, s_expr.Expression)
         # If it's not compiled, don't worry about it. This should just
         # be a dummy expression.
         if not expression.irast:
             return schema
-        assert isinstance(expression.irast, irast.Statement)
 
         required, card = expression.irast.cardinality.to_schema_value()
 
@@ -225,11 +222,7 @@ class GlobalCommand(
         default_expr = scls.get_default(schema)
 
         if default_expr is not None:
-            from edb.ir import ast as irast
-            if default_expr.irast is None:
-                default_expr = default_expr.compiled(default_expr, schema)
-
-            assert isinstance(default_expr.irast, irast.Statement)
+            default_expr = default_expr.ensure_compiled(schema)
 
             default_schema = default_expr.irast.schema
             default_type = default_expr.irast.stype
@@ -303,15 +296,14 @@ class GlobalCommand(
         field: so.Field[Any],
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         if field.name in {'default', 'expr'}:
             ptr_name = self.get_verbosename()
             in_ddl_context_name = None
             if field.name == 'expr':
                 in_ddl_context_name = f'computed {ptr_name}'
 
-            return type(value).compiled(
-                value,
+            return value.compiled(
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,

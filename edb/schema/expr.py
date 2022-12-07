@@ -68,7 +68,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         self,
         *args: Any,
         _qlast: Optional[qlast_.Expr] = None,
-        _irast: Optional[irast_.Command] = None,
+        _irast: Optional[irast_.Statement] = None,
         **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -91,7 +91,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         return self._qlast
 
     @property
-    def irast(self) -> Optional[irast_.Command]:
+    def irast(self) -> Optional[irast_.Statement]:
         return self._irast
 
     def set_origin(self, id: uuid.UUID, field: str) -> None:
@@ -162,36 +162,33 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
         norm_text = qlcodegen.generate_source(qltree, pretty=False)
 
-        return cls(
+        return Expression(
             text=norm_text,
             _qlast=qltree,
         )
 
-    @classmethod
-    def not_compiled(cls: Type[Expression], expr: Expression) -> Expression:
-        return Expression(text=expr.text, origin=expr.origin)
+    def not_compiled(self) -> Expression:
+        return Expression(text=self.text, origin=self.origin)
 
-    @classmethod
     def compiled(
-        cls: Type[Expression],
-        expr: Expression,
+        self,
         schema: s_schema.Schema,
         *,
         options: Optional[qlcompiler.CompilerOptions] = None,
         as_fragment: bool = False,
-    ) -> Expression:
+    ) -> CompiledExpression:
 
         from edb.ir import ast as irast_
 
         if as_fragment:
             ir: irast_.Command = qlcompiler.compile_ast_fragment_to_ir(
-                expr.qlast,
+                self.qlast,
                 schema=schema,
                 options=options,
             )
         else:
             ir = qlcompiler.compile_ast_to_ir(
-                expr.qlast,
+                self.qlast,
                 schema=schema,
                 options=options,
             )
@@ -201,39 +198,37 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         # XXX: ref stuff - why doesn't it go into the delta tree? - temporary??
         srefs = {ref for ref in ir.schema_refs if schema.has_object(ref.id)}
 
-        return cls(
-            text=expr.text,
+        return CompiledExpression(
+            text=self.text,
             refs=so.ObjectSet.create(schema, srefs),
-            _qlast=expr.qlast,
+            _qlast=self.qlast,
             _irast=ir,
-            origin=expr.origin,
+            origin=self.origin,
         )
+
+    def ensure_compiled(
+        self,
+        schema: s_schema.Schema,
+        *,
+        options: Optional[qlcompiler.CompilerOptions] = None,
+        as_fragment: bool = False,
+    ) -> CompiledExpression:
+        if self._irast:
+            return self  # type: ignore
+        else:
+            return self.compiled(
+                schema, options=options, as_fragment=as_fragment)
 
     @classmethod
     def from_ir(cls: Type[Expression],
                 expr: Expression,
                 ir: irast_.Statement,
-                schema: s_schema.Schema) -> Expression:
-        return cls(
+                schema: s_schema.Schema) -> CompiledExpression:
+        return CompiledExpression(
             text=expr.text,
             refs=so.ObjectSet.create(schema, ir.schema_refs),
             _qlast=expr.qlast,
             _irast=ir,
-            origin=expr.origin,
-        )
-
-    @classmethod
-    def from_expr(cls: Type[Expression],
-                  expr: Expression,
-                  schema: s_schema.Schema) -> Expression:
-        return cls(
-            text=expr.text,
-            refs=(
-                so.ObjectSet.create(schema, expr.refs.objects(schema))
-                if expr.refs is not None else None
-            ),
-            _qlast=expr._qlast,
-            _irast=expr._irast,
             origin=expr.origin,
         )
 
@@ -327,6 +322,22 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         return self.ir_statement.schema
 
 
+class CompiledExpression(Expression):
+    def __init__(
+        self,
+        *args: Any,
+        _qlast: Optional[qlast_.Expr] = None,
+        _irast: irast_.Statement,
+        **kwargs: Any
+    ) -> None:
+        super().__init__(*args, _qlast=_qlast, _irast=_irast, **kwargs)
+
+    @property
+    def irast(self) -> irast_.Statement:
+        assert self._irast
+        return self._irast
+
+
 class ExpressionShell(so.Shell):
 
     def __init__(
@@ -335,7 +346,7 @@ class ExpressionShell(so.Shell):
         text: str,
         refs: Optional[Iterable[so.ObjectShell[so.Object]]],
         _qlast: Optional[qlast_.Expr] = None,
-        _irast: Optional[irast_.Command] = None,
+        _irast: Optional[irast_.Statement] = None,
     ) -> None:
         self.text = text
         self.refs = tuple(refs) if refs is not None else None
@@ -343,14 +354,15 @@ class ExpressionShell(so.Shell):
         self._irast = _irast
 
     def resolve(self, schema: s_schema.Schema) -> Expression:
-        return Expression(
+        cls = CompiledExpression if self._irast else Expression
+        return cls(
             text=self.text,
             refs=so.ObjectSet.create(
                 schema,
                 (s.resolve(schema) for s in self.refs),
             ) if self.refs is not None else None,
             _qlast=self._qlast,
-            _irast=self._irast,
+            _irast=self._irast,  # type: ignore[arg-type]
         )
 
     @property
