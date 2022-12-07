@@ -6,6 +6,17 @@ Heroku
 
 :edb-alt-title: Deploying EdgeDB to Heroku
 
+
+.. warning::
+
+    Deployment to Heroku is currently not working due to a change in Heroku's
+    Postgres extension schema. We plan to implement changes to address this and
+    will update this guide to remove this warning once we have done so. See
+    `the relevant Github issue <heroku_deploy_issue_>`_ for more information or
+    to subscribe to notifications.
+
+.. _heroku_deploy_issue: https://github.com/edgedb/edgedb/issues/4744
+
 In this guide we show how to deploy EdgeDB to Heroku using a Heroku PostgreSQL
 add-on as the backend.
 
