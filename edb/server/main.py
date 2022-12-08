@@ -172,14 +172,6 @@ async def _run_server(
     if sockets:
         logger.info("detected service manager socket activation")
 
-    if fd_str := os.environ.get("EDGEDB_SERVER_EXTERNAL_LOCK_FD"):
-        try:
-            fd = int(fd_str)
-        except ValueError:
-            logger.info("Invalid EDGEDB_SERVER_EXTERNAL_LOCK_FD")
-        else:
-            os.set_inheritable(fd, False)
-
     with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
         ss = server.Server(
             cluster=cluster,
@@ -458,6 +450,14 @@ async def run_server(
     logger.info(f'instance name: {args.instance_name!r}')
     if devmode.is_in_dev_mode():
         logger.info(f'development mode active')
+
+    if fd_str := os.environ.get("EDGEDB_SERVER_EXTERNAL_LOCK_FD"):
+        try:
+            fd = int(fd_str)
+        except ValueError:
+            logger.info("Invalid EDGEDB_SERVER_EXTERNAL_LOCK_FD")
+        else:
+            os.set_inheritable(fd, False)
 
     logger.debug(
         f"defaulting to the '{args.default_auth_method}' authentication method"

@@ -1156,7 +1156,6 @@ class PointerCommandOrFragment(
             value=s_expr.Expression.from_ast(expr, schema, context.modaliases),
         )
 
-        assert isinstance(expression.irast, irast.Statement)
         base = None
         target = expression.irast.stype
         target_shell = target.as_shell(expression.irast.schema)
@@ -1321,7 +1320,7 @@ class PointerCommandOrFragment(
         target_as_singleton: bool = False,
         expr_description: Optional[str] = None,
         no_query_rewrites: bool = False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         singletons: List[Union[s_types.Type, Pointer]] = []
 
         parent_ctx = self.get_referrer_context_or_die(context)
@@ -1366,8 +1365,7 @@ class PointerCommandOrFragment(
             else:
                 singletons.append(self.scls)
 
-        compiled = type(expr).compiled(
-            expr,
+        compiled = expr.compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
@@ -1402,7 +1400,7 @@ class PointerCommandOrFragment(
         field: so.Field[Any],
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         if field.name in {'default', 'expr'}:
             parent_ctx = self.get_referrer_context_or_die(context)
             source = parent_ctx.op.get_object(schema, context)
@@ -1581,8 +1579,6 @@ class PointerCommand(
         context: sd.CommandContext,
     ) -> None:
         """Check that pointer definition is sound."""
-        from edb.ir import ast as irast
-
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is None:
             return
@@ -1599,14 +1595,11 @@ class PointerCommand(
 
             source_context = self.get_attribute_source_context('default')
 
-            if default_expr.irast is None:
-                try:
-                    default_expr = default_expr.compiled(default_expr, schema)
-                except errors.QueryError as e:
-                    e.set_source_context(source_context)
-                    raise
-
-            assert isinstance(default_expr.irast, irast.Statement)
+            try:
+                default_expr = default_expr.ensure_compiled(schema)
+            except errors.QueryError as e:
+                e.set_source_context(source_context)
+                raise
 
             if scls.is_id_pointer(schema):
                 self._check_id_default(
@@ -2025,8 +2018,6 @@ class AlterPointer(
         # expression, then we also need to change the type to the
         # new expression type
 
-        from edb.ir import ast as irast
-
         expr = self.get_attribute_value('expr')
         if expr is None:
             # This shouldn't happen, but asserting here doesn't seem quite
@@ -2036,8 +2027,7 @@ class AlterPointer(
         assert isinstance(expr, s_expr.Expression)
         pointer = schema.get(self.classname, type=Pointer)
         source = cast(s_types.Type, pointer.get_source(schema))
-        expression = s_expr.Expression.compiled(
-            expr,
+        expression = expr.compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
@@ -2048,7 +2038,6 @@ class AlterPointer(
             ),
         )
 
-        assert isinstance(expression.irast, irast.Statement)
         target = expression.irast.stype
         self.set_attribute_value(
             'target',

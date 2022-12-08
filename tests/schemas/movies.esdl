@@ -43,6 +43,7 @@ type Movie extending Content {
 
 type Book extending Content {
     required property pages -> int16;
+    multi property chapters -> str;
 }
 
 type novel extending Book {

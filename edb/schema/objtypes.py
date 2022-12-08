@@ -437,12 +437,14 @@ def get_or_create_intersection_type(
     return schema, objtype, created
 
 
-class ObjectTypeCommandContext(sd.ObjectCommandContext[ObjectType],
-                               constraints.ConsistencySubjectCommandContext,
-                               s_anno.AnnotationSubjectCommandContext,
-                               links.LinkSourceCommandContext,
-                               properties.PropertySourceContext,
-                               policies.AccessPolicySourceCommandContext):
+class ObjectTypeCommandContext(
+    links.LinkSourceCommandContext[ObjectType],
+    properties.PropertySourceContext[ObjectType],
+    policies.AccessPolicySourceCommandContext[ObjectType],
+    sd.ObjectCommandContext[ObjectType],
+    constraints.ConsistencySubjectCommandContext,
+    s_anno.AnnotationSubjectCommandContext,
+):
     pass
 
 

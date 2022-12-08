@@ -112,6 +112,10 @@ class SQLBlock:
 
 
 class PLBlock(SQLBlock):
+
+    conditions: Iterable[str | Condition]
+    neg_conditions: Iterable[str | Condition]
+
     def __init__(self, top_block, level):
         super().__init__()
         self.top_block = top_block
@@ -131,7 +135,7 @@ class PLBlock(SQLBlock):
     def get_top_block(self) -> PLTopBlock:
         return self.top_block
 
-    def add_block(self):
+    def add_block(self) -> PLBlock:
         block = PLBlock(top_block=self.top_block, level=self.level + 1)
         self.add_command(block)
         return block
@@ -248,7 +252,7 @@ class PLTopBlock(PLBlock):
         super().__init__(top_block=None, level=0)
         self.declare_var('text', var_name='_dummy_text', shared=True)
 
-    def add_block(self):
+    def add_block(self) -> PLBlock:
         block = PLBlock(top_block=self, level=self.level + 1)
         self.add_command(block)
         return block
@@ -274,7 +278,16 @@ class BaseCommand(markup.MarkupCapableMixin):
 
 
 class Command(BaseCommand):
-    def __init__(self, *, conditions=None, neg_conditions=None):
+
+    conditions: Iterable[str | Condition]
+    neg_conditions: Iterable[str | Condition]
+
+    def __init__(
+        self,
+        *,
+        conditions: Optional[Iterable[str | Condition]] = None,
+        neg_conditions: Optional[Iterable[str | Condition]] = None,
+    ):
         self.opid = id(self)
         self.conditions = conditions or set()
         self.neg_conditions = neg_conditions or set()
@@ -306,10 +319,10 @@ class CommandGroup(Command):
         super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.commands = []
 
-    def add_command(self, cmd):
+    def add_command(self, cmd: Command):
         self.commands.append(cmd)
 
-    def add_commands(self, cmds):
+    def add_commands(self, cmds: Sequence[Command]):
         self.commands.extend(cmds)
 
     def generate_self_block(self, block: PLBlock) -> Optional[PLBlock]:

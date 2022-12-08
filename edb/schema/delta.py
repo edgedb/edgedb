@@ -565,10 +565,6 @@ class Command(
                 sequence = self.resolve_obj_collection(value, schema)
                 value = ftype.create(schema, sequence)
 
-            elif issubclass(ftype, s_expr.Expression):
-                if value is not None:
-                    value = ftype.from_expr(value, schema)
-
             else:
                 value = field.coerce_value(schema, value)
 
@@ -1073,7 +1069,7 @@ class Command(
     def as_markup(cls, self: Command, *, ctx: markup.Context) -> markup.Markup:
         node = markup.elements.lang.TreeNode(name=str(self))
 
-        for dd in self.get_subcommands():
+        def _markup(dd: Command) -> None:
             if isinstance(dd, AlterObjectProperty):
                 diff = markup.elements.doc.ValueDiff(
                     before=repr(dd.old_value), after=repr(dd.new_value))
@@ -1086,6 +1082,29 @@ class Command(
                 node.add_child(label=dd.property, node=diff)
             else:
                 node.add_child(node=markup.serialize(dd, ctx=ctx))
+
+        prereqs = self.get_prerequisites()
+        caused = self.get_caused()
+
+        if prereqs:
+            node.add_child(
+                node=markup.elements.doc.Marker(text='prerequsites'))
+            for dd in prereqs:
+                _markup(dd)
+        if subs := self.get_subcommands(
+            include_prerequisites=False,
+            include_caused=False,
+        ):
+            # Only label regular subcommands if there are prereqs or
+            # caused actions, and so there is room for confusion
+            if prereqs or caused:
+                node.add_child(node=markup.elements.doc.Marker(text='main'))
+            for dd in subs:
+                _markup(dd)
+        if caused:
+            node.add_child(node=markup.elements.doc.Marker(text='caused'))
+            for dd in caused:
+                _markup(dd)
 
         return node
 
@@ -1141,9 +1160,9 @@ class CommandGroup(Command):
         return schema
 
 
-class CommandContextToken(Generic[Command_T]):
+class CommandContextToken(Generic[Command_T_co]):
     original_schema: s_schema.Schema
-    op: Command_T
+    op: Command_T_co
     modaliases: Mapping[Optional[str], str]
     localnames: AbstractSet[str]
     inheritance_merge: Optional[bool]
@@ -1155,7 +1174,7 @@ class CommandContextToken(Generic[Command_T]):
     def __init__(
         self,
         schema: s_schema.Schema,
-        op: Command_T,
+        op: Command_T_co,
         *,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
         # localnames are the names defined locally via with block or
@@ -1183,7 +1202,7 @@ class CommandContextWrapper(Generic[Command_T_co]):
         self.token = token
 
     def __enter__(self) -> CommandContextToken[Command_T_co]:
-        self.context.push(self.token)  # type: ignore
+        self.context.push(self.token)
         return self.token
 
     def __exit__(
@@ -1354,10 +1373,25 @@ class CommandContext:
         assert isinstance(referrer_name, sn.QualName)
         return referrer_name
 
+    @overload
     def get(
         self,
-        cls: Union[Type[Command], Type[CommandContextToken[Command]]],
-    ) -> Optional[CommandContextToken[Command]]:
+        cls: Type[ObjectCommandContext[so.Object_T]],
+    ) -> Optional[ObjectCommandContext[so.Object_T]]:
+        ...
+
+    @overload
+    def get(  # NoQA: F811
+        self,
+        cls: Union[Type[Command_T], Type[CommandContextToken[Command_T]]],
+    ) -> Optional[CommandContextToken[Command_T]]:
+        ...
+
+    def get(  # NoQA: F811
+        self,
+        cls: Union[Type[Command_T], Type[CommandContextToken[Command_T]]],
+    ) -> Optional[CommandContextToken[Command_T]]:
+        ctxcls: Any
         if issubclass(cls, Command):
             ctxcls = cls.get_context_class()
             assert ctxcls is not None
@@ -1366,7 +1400,7 @@ class CommandContext:
 
         for item in reversed(self.stack):
             if isinstance(item, ctxcls):
-                return item
+                return item  # type: ignore
 
         return None
 
@@ -1586,7 +1620,6 @@ class Query(Command):
         schema = super().apply(schema, context)
         if not self.expr.is_compiled():
             self.expr = self.expr.compiled(
-                self.expr,
                 schema,
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
@@ -2584,7 +2617,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         field: so.Field[Any],
         value: Any,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         cdn = self.get_schema_metaclass().get_schema_class_displayname()
         raise errors.InternalServerError(
             f'uncompiled expression in the field {field.name!r} of '
@@ -3204,15 +3237,12 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         context: CommandContext,
         expr: s_expr.Expression,
     ) -> s_expr.Expression:
-        from edb.ir import ast as irast
-
         # Recompile the expression with reference tracking on so that we
         # can clean up the ast.
         field = cmd.get_schema_metaclass().get_field(fn)
         compiled = cmd.compile_expr_field(
             schema, context, field, expr,
             track_schema_ref_exprs=True)
-        assert isinstance(compiled.irast, irast.Statement)
         assert compiled.irast.schema_ref_exprs is not None
 
         # Now that the compilation is done, try to do the fixup.

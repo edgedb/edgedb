@@ -20,6 +20,7 @@
 """Abstractions for low-level database DDL and DML operations."""
 
 from __future__ import annotations
+from typing import *
 
 import itertools
 
@@ -360,18 +361,29 @@ class AlterTableDropMultiConstraint(dbops.AlterTableDropConstraint):
 
 class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
     def __init__(
-            self, name, *, constraint, contained=False, conditions=None,
-            neg_conditions=None):
-
+        self,
+        name: Tuple[str, ...],
+        *,
+        constraint: SchemaConstraintTableConstraint,
+        contained: bool = False,
+        conditions: Optional[Set[str | dbops.Condition]] = None,
+        neg_conditions: Optional[Set[str | dbops.Condition]] = None,
+    ):
         dbops.CompositeCommandGroup.__init__(
-            self, conditions=conditions, neg_conditions=neg_conditions)
+            self, conditions=conditions, neg_conditions=neg_conditions
+        )
 
         dbops.AlterTableBaseMixin.__init__(
             self, name=name, contained=contained)
 
         self._constraint = constraint
 
-    def _get_triggers(self, table_name, constraint, proc_name='null'):
+    def _get_triggers(
+        self,
+        table_name: Tuple[str, ...],
+        constraint: SchemaConstraintTableConstraint,
+        proc_name='null',
+    ) -> Tuple[dbops.Trigger, ...]:
         cname = constraint.raw_constraint_name()
 
         ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
@@ -389,29 +401,47 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
 
         return ins_trigger, upd_trigger
 
-    def create_constr_trigger(self, table_name, constraint, proc_name):
+    def create_constr_trigger(
+        self,
+        table_name: Tuple[str, ...],
+        constraint: SchemaConstraintTableConstraint,
+        proc_name: str,
+    ) -> List[dbops.CreateTrigger]:
         ins_trigger, upd_trigger = self._get_triggers(
-            table_name, constraint, proc_name)
+            table_name, constraint, proc_name
+        )
 
         return [
-            dbops.CreateTrigger(ins_trigger), dbops.CreateTrigger(upd_trigger)
+            dbops.CreateTrigger(ins_trigger),
+            dbops.CreateTrigger(upd_trigger),
         ]
 
-    def drop_constr_trigger(self, table_name, constraint):
+    def drop_constr_trigger(
+        self,
+        table_name: Tuple[str, ...],
+        constraint: SchemaConstraintTableConstraint,
+    ) -> List[dbops.DDLOperation]:
+        ins_trigger, upd_trigger = self._get_triggers(table_name, constraint)
+
+        return [dbops.DropTrigger(ins_trigger), dbops.DropTrigger(upd_trigger)]
+
+    def enable_constr_trigger(
+        self,
+        table_name: Tuple[str, ...],
+        constraint: SchemaConstraintTableConstraint,
+    ) -> List[dbops.DDLOperation]:
         ins_trigger, upd_trigger = self._get_triggers(table_name, constraint)
 
         return [
-            dbops.DropTrigger(ins_trigger), dbops.DropTrigger(upd_trigger)
+            dbops.EnableTrigger(ins_trigger),
+            dbops.EnableTrigger(upd_trigger),
         ]
 
-    def enable_constr_trigger(self, table_name, constraint):
-        ins_trigger, upd_trigger = self._get_triggers(table_name, constraint)
-
-        return [
-            dbops.EnableTrigger(ins_trigger), dbops.EnableTrigger(upd_trigger)
-        ]
-
-    def disable_constr_trigger(self, table_name, constraint):
+    def disable_constr_trigger(
+        self,
+        table_name: Tuple[str, ...],
+        constraint: SchemaConstraintTableConstraint,
+    ) -> List[dbops.DDLOperation]:
         ins_trigger, upd_trigger = self._get_triggers(table_name, constraint)
 
         return [
@@ -419,20 +449,30 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
             dbops.DisableTrigger(upd_trigger),
         ]
 
-    def create_constr_trigger_function(self, constraint):
+    def create_constr_trigger_function(
+        self, constraint: SchemaConstraintTableConstraint
+    ):
         proc_name = constraint.get_trigger_procname()
         proc_text = constraint.get_trigger_proc_text()
 
+        # Because of casting is not immutable in PG, this function may not be
+        # immutable, only stable. But because we check that casing in edgeql
+        # *is* immutable, we can (almost) safely assume that this function is
+        # also immutable.
         func = dbops.Function(
-            name=proc_name, text=proc_text, volatility='stable',
-            returns='trigger', language='plpgsql')
+            name=proc_name,
+            text=proc_text,
+            volatility='immutable',
+            returns='trigger',
+            language='plpgsql',
+        )
 
         return [dbops.CreateOrReplaceFunction(func)]
 
-    def drop_constr_trigger_function(self, proc_name):
+    def drop_constr_trigger_function(self, proc_name: Tuple[str, ...]):
         return [dbops.DropFunction(name=proc_name, args=())]
 
-    def create_constraint(self, constraint):
+    def create_constraint(self, constraint: SchemaConstraintTableConstraint):
         # Add the constraint normally to our table
         #
         my_alter = dbops.AlterTable(self.name)
@@ -454,7 +494,11 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
                 self.add_commands(
                     self.disable_constr_trigger(self.name, constraint))
 
-    def alter_constraint(self, old_constraint, new_constraint):
+    def alter_constraint(
+        self,
+        old_constraint: SchemaConstraintTableConstraint,
+        new_constraint: SchemaConstraintTableConstraint,
+    ):
         if old_constraint.delegated and not new_constraint.delegated:
             # No longer delegated, create db structures
             self.create_constraint(new_constraint)
@@ -468,7 +512,9 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
             self.drop_constraint(old_constraint)
             self.create_constraint(new_constraint)
 
-    def update_constraint_enabled(self, constraint):
+    def update_constraint_enabled(
+        self, constraint: SchemaConstraintTableConstraint
+    ):
         if constraint.requires_triggers():
             if constraint.can_disable_triggers():
                 self.add_commands(
@@ -477,7 +523,7 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
                 self.add_commands(
                     self.enable_constr_trigger(self.name, constraint))
 
-    def drop_constraint(self, constraint):
+    def drop_constraint(self, constraint: SchemaConstraintTableConstraint):
         if constraint.requires_triggers():
             self.add_commands(self.drop_constr_trigger(self.name, constraint))
             proc_name = constraint.get_trigger_procname()

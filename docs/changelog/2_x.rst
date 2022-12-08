@@ -792,6 +792,53 @@ Other changes
   inside access policies bodies in some cases.
   (:eql:gh:`#4695`)
 
+2.8
+===
+
+* Fix DML access policies that use shapes internally
+  (:eql:gh:`#4589`)
+
+* Give a proper error message creating a migration with a USING that has DML
+  (:eql:gh:`#4707`)
+
+* Don't incorrectly evaluate DML access policies when elements are also DML.
+  This fixes some cases in which policies would pass incorrectly.
+  (:eql:gh:`#4745`)
+
+* Fix direct use of ``__subject__`` from insert access policies
+  (:eql:gh:`#4752`)
+
+* Produce an error message on casts to and literal references of enum types
+  from indexes and constraints. Currently we generate an internal server
+  error. A real fix unfortunately must wait for 3.0 for technical reasons.
+  (:eql:gh:`#4754`)
+
+* Only apply filter cardinality inference to unique sets
+  (:eql:gh:`#4763`)
+
+* Fix changing a link to non-computed and single at the same time
+  (:eql:gh:`#4764`)
+
+* Fix error message for function calls on derived types
+  (:eql:gh:`#4757`)
+
+* Fix deleting certain complex aliases
+  (:eql:gh:`#4777`)
+
+* Fix link properties on inherited backlinks
+  (:eql:gh:`#4788`)
+
+* Fix using array/string/bytes/json subscripting inside of indexes and
+  constraints.
+  (:eql:gh:`#4760`)
+
+* Fix apparent startup hangs due to a lock fd leaking into postgres
+  (:eql:gh:`#4797`)
+
+* Fix some migrations with tricky constraint/computed interactions
+  (:eql:gh:`#4794`)
+
+
 .. lint-off
 
 .. _group:

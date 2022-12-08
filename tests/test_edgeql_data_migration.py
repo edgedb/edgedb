@@ -5922,6 +5922,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.interact([
             "did you create object type 'test::HasContent'?",
             "did you alter object type 'test::Post'?",
+            "did you alter constraint 'std::max_len_value' of property "
+            "'content'?",
             "did you create object type 'test::Reply'?",
             "did you alter property 'content' of object type 'test::Post'?",
         ])
@@ -11496,6 +11498,15 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             select schema::Migration { script, name };
         ''')
         self.assertEqual(res, [])
+
+        await self.migrate(r'''
+            type SomethingElse;
+        ''')
+
+        res = await self.con.query('''
+            select schema::Migration { script, name };
+        ''')
+        self.assertEqual(len(res), 1)
 
 
 class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):

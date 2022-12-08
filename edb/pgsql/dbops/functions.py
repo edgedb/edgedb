@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import textwrap
+from typing import *
 
 from ..common import qname as qn
 from ..common import quote_ident as qi
@@ -29,12 +30,26 @@ from ..common import quote_type as qt
 from . import base
 from . import ddl
 
+FunctionArgType = str | Tuple[str, ...]
+FunctionArgTyped = Tuple[Optional[str], FunctionArgType]
+FunctionArgDefaulted = Tuple[Optional[str], FunctionArgType, str]
+FunctionArg = str | FunctionArgTyped | FunctionArgDefaulted
+
 
 class Function(base.DBObject):
-    def __init__(self, name, *, args=None, returns, text,
-                 volatility='volatile', language='sql',
-                 has_variadic=None, strict=False,
-                 set_returning=False):
+    def __init__(
+        self,
+        name: Tuple[str, ...],
+        *,
+        args: Optional[Sequence[FunctionArg]] = None,
+        returns: str | Tuple[str, ...],
+        text: str,
+        volatility: str = "volatile",
+        language: str = "sql",
+        has_variadic: Optional[bool] = None,
+        strict: bool = False,
+        set_returning: bool = False,
+    ):
         self.name = name
         self.args = args
         self.returns = returns
@@ -77,7 +92,13 @@ class FunctionExists(base.Condition):
 
 
 class FunctionOperation:
-    def format_args(self, args, has_variadic, *, include_defaults=True):
+    def format_args(
+        self,
+        args: Optional[Sequence[FunctionArg]],
+        has_variadic: Optional[bool],
+        *,
+        include_defaults: bool = True,
+    ):
         if not args:
             return ''
 
@@ -92,8 +113,10 @@ class FunctionOperation:
                 if len(arg) > 1:
                     arg_expr += ' ' + qt(arg[1])
                 if include_defaults:
-                    if len(arg) > 2 and arg[2] is not None:
-                        arg_expr += ' = ' + arg[2]
+                    if len(arg) > 2:
+                        arg_def = cast(FunctionArgDefaulted, arg)
+                        if arg_def[2] is not None:
+                            arg_expr += ' = ' + arg_def[2]
 
             else:
                 arg_expr = arg
@@ -104,7 +127,9 @@ class FunctionOperation:
 
 
 class CreateFunction(ddl.DDLOperation, FunctionOperation):
-    def __init__(self, function, *, or_replace=False, **kwargs):
+    def __init__(
+        self, function: Function, *, or_replace: bool = False, **kwargs
+    ):
         super().__init__(**kwargs)
         self.function = function
         self.or_replace = or_replace
@@ -168,9 +193,15 @@ class CreateOrReplaceFunction(ddl.DDLOperation, FunctionOperation):
 
 class DropFunction(ddl.DDLOperation, FunctionOperation):
     def __init__(
-            self, name, args, *,
-            if_exists=False,
-            has_variadic=False, conditions=None, neg_conditions=None):
+        self,
+        name: Tuple[str, ...],
+        args: Sequence[str | Tuple[str, str, str]],
+        *,
+        if_exists: bool = False,
+        has_variadic: bool = False,
+        conditions: Optional[List[str | base.Condition]] = None,
+        neg_conditions: Optional[List[str | base.Condition]] = None,
+    ):
         self.conditional = if_exists
         if conditions:
             c = []

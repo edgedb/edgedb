@@ -106,17 +106,58 @@ class AliasLikeCommand(
 
     # Generic code
 
+    @classmethod
+    def _get_created_types(
+        cls,
+        scls: so.QualifiedObject_T,
+        schema: s_schema.Schema,
+    ) -> set[s_types.Type]:
+        objs = set()
+
+        typ = cls.get_type(scls, schema)
+        our_name = typ.get_name(schema)
+        assert isinstance(our_name, sn.QualName)
+        name_prefix = f'__{our_name.name}__'
+
+        # XXX: This is pretty unfortunate from a performance
+        # perspective, and not technically correct either.
+        # For 3.x we should track this information in the objects
+        # (or possibly instead ensure we do not put any types in the schema
+        # that are not directly part of the output type.)
+        for obj in schema.get_objects(exclude_stdlib=True, type=s_types.Type):
+            name = obj.get_name(schema)
+            if (
+                obj.get_alias_is_persistent(schema)
+                and isinstance(name, sn.QualName)
+                and name.module == our_name.module
+                and name.name.startswith(name_prefix)
+            ):
+                objs.add(obj)
+
+        return objs
+
     def _delete_alias_type(
         self,
         scls: so.QualifiedObject_T,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> sd.DeleteObject[s_types.Type]:
+        created = self._get_created_types(scls, schema)
+
         alias_type = self.get_type(scls, schema)
         drop_type = alias_type.init_delta_command(
             schema, sd.DeleteObject)
         subcmds = drop_type._canonicalize(schema, context, alias_type)
         drop_type.update(subcmds)
+
+        for dep_type in created:
+            drop_dep = dep_type.init_delta_command(
+                schema, sd.DeleteObject, if_exists=True)
+            subcmds = drop_dep._canonicalize(schema, context, dep_type)
+            drop_dep.update(subcmds)
+
+            drop_type.add(drop_dep)
+
         return drop_type
 
     @classmethod
@@ -149,51 +190,6 @@ class AliasLikeCommand(
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
 
-    def _compile_alias_expr(
-        self,
-        expr: qlast.Expr,
-        classname: sn.QualName,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> irast.Statement:
-        cached: Optional[irast.Statement] = (
-            context.get_cached((expr, classname)))
-        if cached is not None:
-            return cached
-
-        if not isinstance(expr, qlast.Statement):
-            expr = qlast.SelectQuery(result=expr)
-
-        existing = schema.get(classname, type=s_types.Type, default=None)
-        if existing is not None:
-            drop_cmd = existing.init_delta_command(schema, sd.DeleteObject)
-            with context.suspend_dep_verification():
-                schema = drop_cmd.apply(schema, context)
-
-        ir = qlcompiler.compile_ast_to_ir(
-            expr,
-            schema,
-            options=qlcompiler.CompilerOptions(
-                derived_target_module=classname.module,
-                result_view_name=classname,
-                modaliases=context.modaliases,
-                schema_view_mode=True,
-                in_ddl_context_name='alias definition',
-            ),
-        )
-
-        if ir.volatility == qltypes.Volatility.Volatile:
-            srcctx = self.get_attribute_source_context('expr')
-            raise errors.SchemaDefinitionError(
-                f'volatile functions are not permitted in schema-defined '
-                f'computed expressions',
-                context=srcctx
-            )
-
-        context.cache_value((expr, classname), ir)
-
-        return ir  # type: ignore
-
     def _handle_alias_op(
         self,
         *,
@@ -204,10 +200,20 @@ class AliasLikeCommand(
         is_alter: bool = False,
         parser_context: Optional[parsing.ParserContext] = None,
     ) -> Tuple[sd.Command, s_types.TypeShell[s_types.Type], s_expr.Expression]:
+        pschema = schema
+
+        # On alters, remove all the existing objects from the schema before
+        # trying to compile again.
+        if is_alter:
+            drop_cmd = self._delete_alias_type(
+                self.scls, schema, context)
+            with context.suspend_dep_verification():
+                pschema = drop_cmd.apply(pschema, context)
+
         ir = compile_alias_expr(
             expr.qlast,
             classname,
-            schema,
+            pschema,
             context,
             parser_context=parser_context,
         )
@@ -218,17 +224,17 @@ class AliasLikeCommand(
             prev_expr = None
         else:
             prev = schema.get(classname, type=s_types.Type)
-            prev_expr = prev.get_expr(schema)
-            assert prev_expr is not None
+            prev_expr_ = prev.get_expr(schema)
+            assert prev_expr_ is not None
             prev_ir = compile_alias_expr(
-                prev_expr.qlast,
+                prev_expr_.qlast,
                 classname,
-                schema,
+                pschema,
                 context,
                 parser_context=parser_context,
             )
             prev_expr = s_expr.Expression.from_ir(
-                prev_expr, prev_ir, schema=schema)
+                prev_expr_, prev_ir, schema=schema)
 
         is_global = (self.get_schema_metaclass().
                      get_schema_class_displayname() == 'global')
@@ -276,13 +282,12 @@ class AliasCommand(
         field: so.Field[Any],
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         assert field.name == 'expr'
         classname = sn.shortname_from_fullname(self.classname)
         assert isinstance(classname, sn.QualName), \
             "expected qualified name"
-        return type(value).compiled(
-            value,
+        return value.compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 derived_target_module=classname.module,
@@ -444,12 +449,6 @@ def compile_alias_expr(
     if not isinstance(expr, qlast.Statement):
         expr = qlast.SelectQuery(result=expr)
 
-    existing = schema.get(classname, type=s_types.Type, default=None)
-    if existing is not None:
-        drop_cmd = existing.init_delta_command(schema, sd.DeleteObject)
-        with context.suspend_dep_verification():
-            schema = drop_cmd.apply(schema, context)
-
     ir = qlcompiler.compile_ast_to_ir(
         expr,
         schema,
@@ -476,8 +475,8 @@ def compile_alias_expr(
 
 def define_alias(
     *,
-    expr: s_expr.Expression,
-    prev_expr: Optional[s_expr.Expression] = None,
+    expr: s_expr.CompiledExpression,
+    prev_expr: Optional[s_expr.CompiledExpression] = None,
     classname: sn.QualName,
     schema: s_schema.Schema,
     is_global: bool,
@@ -486,7 +485,6 @@ def define_alias(
     from edb.ir import ast as irast
     from . import ordering as s_ordering
 
-    assert isinstance(expr.irast, irast.Statement)
     ir = expr.irast
     new_schema = ir.schema
 
@@ -509,7 +507,6 @@ def define_alias(
             expr_aliases.append(vt)
 
     if prev_expr is not None:
-        assert isinstance(prev_expr.irast, irast.Statement)
         prev_ir = prev_expr.irast
         old_schema = prev_ir.schema
         for vt in prev_ir.views.values():

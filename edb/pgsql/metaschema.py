@@ -57,6 +57,8 @@ from edb.server import compiler as edbcompiler
 from edb.server import config as edbconfig
 from edb.server import bootstrap as edbbootstrap
 
+from .resolver import information_schema
+
 from . import common
 from . import compiler
 from . import dbops
@@ -4136,12 +4138,12 @@ async def bootstrap(
     conn: pgcon.PGConnection,
     config_spec: edbconfig.Spec
 ) -> None:
-    commands = dbops.CommandGroup()
-    commands.add_commands([
+    cmds = [
         dbops.CreateSchema(name='edgedb'),
         dbops.CreateSchema(name='edgedbss'),
         dbops.CreateSchema(name='edgedbpub'),
         dbops.CreateSchema(name='edgedbstd'),
+        dbops.CreateSchema(name='edgedbsql'),
         dbops.CreateCompositeType(ExpressionType()),
         dbops.CreateView(NormalizedPgSettingsView()),
         dbops.CreateTable(DBConfigTable()),
@@ -4251,7 +4253,9 @@ async def bootstrap(
         dbops.CreateFunction(RangeValidateFunction()),
         dbops.CreateFunction(RangeUnpackLowerValidateFunction()),
         dbops.CreateFunction(RangeUnpackUpperValidateFunction()),
-    ])
+    ]
+    commands = dbops.CommandGroup()
+    commands.add_commands(cmds)
 
     block = dbops.PLTopBlock()
     commands.generate(block)
@@ -5011,6 +5015,260 @@ def _generate_schema_alias_view(
     )
 
 
+def _generate_sql_information_schema() -> List[dbops.View]:
+    sql_ident = 'information_schema.sql_identifier'
+    sql_str = 'information_schema.character_data'
+    sql_bool = 'information_schema.yes_or_no'
+    sql_card = 'information_schema.cardinal_number'
+    tables_and_columns = [
+        dbops.View(
+            name=('edgedbsql', 'tables'),
+            query=(
+                f'''
+        WITH obj_ty AS (
+            SELECT
+                id,
+                CASE SPLIT_PART(name, '::', 1)
+                    WHEN 'default' THEN 'public'
+                    ELSE SPLIT_PART(name, '::', 1)
+                END AS schema_name,
+                SPLIT_PART(name, '::', 2) AS table_name
+            FROM edgedb."_SchemaObjectType"
+            WHERE internal IS NOT TRUE
+        ),
+        tables (id, schema_name, table_name) AS ((
+            SELECT * FROM obj_ty
+        ) UNION ALL (
+            WITH qualified_links AS (
+                -- multi links and links with at least one property
+                -- (besides source and target)
+                SELECT link.id
+                FROM edgedb."_SchemaLink" link
+                JOIN edgedb."_SchemaProperty" AS prop ON link.id = prop.source
+                WHERE prop.computable IS NOT TRUE AND prop.internal IS NOT TRUE
+                GROUP BY link.id, link.cardinality
+                HAVING link.cardinality = 'Many' OR COUNT(*) > 2
+            )
+            SELECT link.id, obj_ty.schema_name,
+                CONCAT(obj_ty.table_name, '.', link.name) AS table_name
+            FROM edgedb."_SchemaLink" link
+            JOIN obj_ty ON obj_ty.id = link.source
+            WHERE link.id IN (SELECT * FROM qualified_links)
+        ) UNION ALL (
+            -- multi properties
+            SELECT prop.id, obj_ty.schema_name,
+                CONCAT(obj_ty.table_name, '.', prop.name) AS table_name
+            FROM edgedb."_SchemaProperty" AS prop
+            JOIN obj_ty ON obj_ty.id = prop.source
+            WHERE prop.computable IS NOT TRUE
+              AND prop.internal IS NOT TRUE
+              AND prop.cardinality = 'Many'
+        ))
+        SELECT
+            'postgres'::{sql_ident} AS table_catalog,
+            schema_name::{sql_ident} AS table_schema,
+            table_name::{sql_ident} AS table_name,
+            'BASE TABLE'::{sql_str} AS table_type,
+            NULL::{sql_ident} AS self_referencing_column_name,
+            NULL::{sql_str} AS reference_generation,
+            NULL::{sql_ident} AS user_defined_type_catalog,
+            NULL::{sql_ident} AS user_defined_type_schema,
+            NULL::{sql_ident} AS user_defined_type_name,
+            'NO'::{sql_bool} AS is_insertable_into,
+            'NO'::{sql_bool} AS is_typed,
+            NULL::{sql_str} AS commit_action
+        FROM tables
+            '''
+            ),
+        ),
+        dbops.View(
+            name=('edgedbsql', 'columns'),
+            query=(
+                f'''
+        WITH obj_ty AS (
+            SELECT id,
+                CASE SPLIT_PART(name, '::', 1)
+                    WHEN 'default' THEN 'public'
+                    ELSE SPLIT_PART(name, '::', 1) END AS schema_name,
+                SPLIT_PART(name, '::', 2) AS table_name
+            FROM edgedb."_SchemaObjectType"
+            WHERE internal IS NOT TRUE
+        ),
+        columns (schema_name, table_name, name, required, type_name) AS ((
+            -- pointers of objects
+            SELECT
+                obj_ty.schema_name, obj_ty.table_name, pointers.name,
+                pointers.required, pointers.type_name
+            FROM obj_ty
+            JOIN (( -- properties
+                SELECT prop.source, prop.name, COALESCE(prop.required, FALSE),
+                    ty.name
+                FROM edgedb."_SchemaProperty" AS prop
+                LEFT JOIN edgedb."_SchemaType" ty ON ty.id = prop.target
+                WHERE prop.internal IS NOT TRUE
+                    AND prop.computable IS NOT TRUE
+                    AND COALESCE(prop.cardinality = 'One', TRUE)
+            ) UNION ALL ( -- link ids
+                SELECT
+                    source, name || '_id', COALESCE(required, FALSE),
+                    'std::uuid'
+                FROM edgedb."_SchemaLink"
+                WHERE computable IS NOT TRUE
+                    AND name != '__type__'
+                    AND COALESCE(cardinality = 'One', TRUE)
+            )) pointers(source, name, required, type_name)
+                ON obj_ty.id = pointers.source
+        ) UNION ALL (
+            -- properties of links
+            WITH qualified_links AS (
+                -- multi links and links with at least one property
+                -- (besides source and target)
+                SELECT link.id
+                FROM edgedb."_SchemaLink" link
+                JOIN edgedb."_SchemaProperty" AS prop ON link.id = prop.source
+                WHERE prop.computable IS NOT TRUE AND prop.internal IS NOT TRUE
+                GROUP BY link.id, link.cardinality
+                HAVING link.cardinality = 'Many' OR COUNT(*) > 2
+            ),
+            links AS (
+                SELECT link.id, obj_ty.schema_name,
+                    CONCAT(obj_ty.table_name, '.', link.name) AS table_name
+                FROM edgedb."_SchemaLink" link
+                JOIN obj_ty ON obj_ty.id = link.source
+                WHERE link.id IN (SELECT * FROM qualified_links)
+            )
+            SELECT links.schema_name,
+                links.table_name,
+                prop.name,
+                COALESCE(prop.required, FALSE),
+                CASE prop.name
+                    WHEN 'source' THEN 'std::uuid'
+                    WHEN 'target' THEN 'std::uuid'
+                    ELSE ty.name
+                END
+            FROM edgedb."_SchemaProperty" AS prop
+            JOIN links ON links.id = prop.source
+            LEFT JOIN edgedb."_SchemaType" ty ON prop.target = ty.id
+            WHERE prop.computable IS NOT TRUE AND prop.internal IS NOT TRUE
+        ) UNION ALL (
+            -- multi properties
+            WITH prop_tables AS (
+                SELECT obj_ty.schema_name,
+                    CONCAT(obj_ty.table_name, '.', prop.name) AS table_name,
+                    ty.name as target_type
+                FROM edgedb."_SchemaProperty" AS prop
+                JOIN obj_ty ON obj_ty.id = prop.source
+                LEFT JOIN edgedb."_SchemaType" ty ON prop.target = ty.id
+                WHERE prop.computable IS NOT TRUE
+                  AND prop.internal IS NOT TRUE
+                  AND prop.cardinality = 'Many'
+            )
+            SELECT schema_name, table_name, col.name, TRUE,
+                CASE col.name
+                    WHEN 'source' THEN 'std::uuid'
+                    ELSE target_type
+                END
+            FROM prop_tables
+            CROSS JOIN (VALUES ('source'), ('target')) col(name)
+        ))
+        SELECT
+            'postgres'::{sql_ident} AS table_catalog,
+            schema_name::{sql_ident} AS table_schema,
+            table_name::{sql_ident} AS table_name,
+            name::{sql_ident} AS column_name,
+            ROW_NUMBER() OVER (
+                PARTITION BY schema_name, table_name
+                ORDER BY CASE WHEN name = 'id' THEN 0 ELSE 1 END, name
+            )::{sql_card} AS ordinal_position,
+            NULL::{sql_str} AS column_default,
+            CASE
+                WHEN required THEN 'NO'
+                ELSE 'YES'
+            END::{sql_bool} AS is_nullable,
+            CASE type_name
+                WHEN 'std::anyreal' THEN 'double precision'
+                WHEN 'std::anyint' THEN 'bigint'
+                WHEN 'std::anyfloat' THEN 'double precision'
+                WHEN 'std::anynumeric' THEN 'character varying'
+                WHEN 'std::anyenum' THEN 'USER-DEFINED'
+                WHEN 'std::bool' THEN 'boolean'
+                WHEN 'std::bytes' THEN 'bytea'
+                WHEN 'std::uuid' THEN 'uuid'
+                WHEN 'std::str' THEN 'character varying'
+                WHEN 'std::json' THEN 'jsonb'
+                WHEN 'std::duration' THEN 'interval'
+                WHEN 'std::int16' THEN 'smallint'
+                WHEN 'std::int32' THEN 'integer'
+                WHEN 'std::int64' THEN 'bigint'
+                WHEN 'std::float32' THEN 'real'
+                WHEN 'std::float64' THEN 'double precision'
+                WHEN 'std::decimal' THEN 'numeric'
+                WHEN 'std::JsonEmpty' THEN 'jsonb'
+                WHEN 'std::bigint' THEN 'USER-DEFINED'
+                WHEN 'cal::local_datetime' THEN 'USER-DEFINED'
+                WHEN 'cal::local_date' THEN 'USER-DEFINED'
+                WHEN 'cal::local_time' THEN 'USER-DEFINED'
+                WHEN 'cal::relative_duration' THEN 'USER-DEFINED'
+                WHEN 'cal::date_duration' THEN 'USER-DEFINED'
+                ELSE 'USER-DEFINED'
+            END::{sql_str} AS data_type,
+            NULL::{sql_card} AS character_maximum_length,
+            NULL::{sql_card} AS character_octet_length,
+            NULL::{sql_card} AS numeric_precision,
+            NULL::{sql_card} AS numeric_precision_radix,
+            NULL::{sql_card} AS numeric_scale,
+            NULL::{sql_card} AS datetime_precision,
+            NULL::{sql_str} AS interval_type,
+            NULL::{sql_card} AS interval_precision,
+            NULL::{sql_ident} AS character_set_catalog,
+            NULL::{sql_ident} AS character_set_schema,
+            NULL::{sql_ident} AS character_set_name,
+            NULL::{sql_ident} AS collation_catalog,
+            NULL::{sql_ident} AS collation_schema,
+            NULL::{sql_ident} AS collation_name,
+            NULL::{sql_ident} AS domain_catalog,
+            NULL::{sql_ident} AS domain_schema,
+            NULL::{sql_ident} AS domain_name,
+            'postgres'::{sql_ident} AS udt_catalog,
+            'pg_catalog'::{sql_ident} AS udt_schema,
+            NULL::{sql_ident} AS udt_name,
+            NULL::{sql_ident} AS scope_catalog,
+            NULL::{sql_ident} AS scope_schema,
+            NULL::{sql_ident} AS scope_name,
+            NULL::{sql_card} AS maximum_cardinality,
+            0::{sql_ident} AS dtd_identifier,
+            'NO'::{sql_bool} AS is_self_referencing,
+            'NO'::{sql_bool} AS is_identity,
+            NULL::{sql_str} AS identity_generation,
+            NULL::{sql_str} AS identity_start,
+            NULL::{sql_str} AS identity_increment,
+            NULL::{sql_str} AS identity_maximum,
+            NULL::{sql_str} AS identity_minimum,
+            'NO' ::{sql_bool} AS identity_cycle,
+            'NEVER'::{sql_str} AS is_generated,
+            NULL::{sql_str} AS generation_expression,
+            'YES'::{sql_bool} AS is_updatable
+        FROM columns
+            '''
+            ),
+        ),
+    ]
+
+    return tables_and_columns + [
+        dbops.View(
+            name=('edgedbsql', table_name),
+            query='SELECT {} LIMIT 0'.format(
+                ','.join(
+                    f'NULL::information_schema.{type} AS {name}'
+                    for name, type in columns
+                )
+            ),
+        )
+        for table_name, columns in information_schema.TABLES.items()
+        if table_name not in ['tables', 'columns']
+    ]
+
+
 def get_support_views(
     schema: s_schema.Schema,
     backend_params: params.BackendRuntimeParams,
@@ -5092,6 +5350,9 @@ def get_support_views(
         schema, s_name.UnqualName('sys'))
     for alias_view in sys_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
+
+    for view in _generate_sql_information_schema():
+        commands.add_command(dbops.CreateView(view, or_replace=True))
 
     return commands
 

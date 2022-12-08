@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *
 
+from . import delta as sd
 from . import indexes
 from . import name as sn
 from . import objects as so
@@ -33,7 +34,10 @@ if TYPE_CHECKING:
 Source_T = TypeVar('Source_T', bound='Source')
 
 
-class SourceCommandContext(indexes.IndexSourceCommandContext):
+class SourceCommandContext(
+    sd.ObjectCommandContext[Source_T],
+    indexes.IndexSourceCommandContext,
+):
     # context mixin
     pass
 

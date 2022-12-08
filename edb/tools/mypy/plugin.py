@@ -24,6 +24,7 @@ from typing import *
 
 from mypy import exprtotype
 import mypy.plugin as mypy_plugin
+from mypy import mro
 from mypy import nodes
 from mypy import types
 from mypy import semanal
@@ -45,6 +46,8 @@ SCHEMA_BASE_METACLASSES = {
     'edb.schema.objects.ObjectMeta',
     'edb.schema.types.SchemaCollectionMeta',
 }
+
+ADAPTER_METACLASS = 'edb.common.adapter.Adapter'
 
 
 def plugin(version: str):
@@ -95,6 +98,55 @@ class EDBPlugin(mypy_plugin.Plugin):
 
         for transformer in transformers:
             transformer.transform()
+
+    def get_customize_class_mro_hook(self, fullname: str):
+        if fullname.startswith('edb.'):
+            return self.maybe_update_mro
+
+    def maybe_update_mro(self, ctx: mypy_plugin.ClassDefContext):
+        info = ctx.cls.info
+        mcls = info.metaclass_type
+        if not mcls:
+            # This is a deep hack. The MRO gets computed *before* we
+            # know the metaclass, which is kind of weird, since I
+            # think metaclass shenanigans are the whole point of
+            # get_customize_class_mro_hook. If we defer it, though,
+            # then when we get called again it will still be sitting
+            # there.
+            if ctx.cls.metaclass:
+                ctx.api.defer()
+            return
+
+        # If the adapter class is in our metaclass MRO and we have an
+        # adapts argument, add it to our bases and recompute the MRO.
+        # This mirrors what the actual metaclass does.
+        if (
+            any(c.fullname == ADAPTER_METACLASS for c in mcls.type.mro)
+            and (adapts := ctx.cls.keywords.get('adapts'))
+            and isinstance(adapts, nodes.RefExpr)
+        ):
+            if not (
+                isinstance(adapts, nodes.RefExpr)
+                and isinstance(adapts.node, nodes.TypeInfo)
+            ):
+                ctx.api.fail('Invalid argument to adapts', ctx.cls)
+                return
+            typ = types.Instance(adapts.node, ())
+            if typ not in info.bases:
+                info.bases.append(typ)
+
+            old_mro = info.mro
+            info.mro = []
+            try:
+                mro.calculate_mro(
+                    info, lambda: ctx.api.named_type('builtins.object', []))
+            except mro.MroError:
+                ctx.api.fail(
+                    "Cannot determine consistent method resolution "
+                    'order (MRO) for "%s"' % ctx.cls.name,
+                    ctx.cls,
+                )
+                info.mro = old_mro
 
 
 class DeferException(Exception):

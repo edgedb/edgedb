@@ -502,7 +502,7 @@ class ConstraintCommand(
         field: so.Field[Any],
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         from . import pointers as s_pointers
 
         base: Optional[so.Object] = None
@@ -528,11 +528,11 @@ class ConstraintCommand(
                         f'uncompiled expression in the {field.name!r} field of'
                         f' {dn} {self.classname!r}'
                     )
-                return value
+                # HACK: Not *really* compiled, but...
+                return value  # type: ignore
 
             elif field.name in {'subjectexpr', 'finalexpr', 'except_expr'}:
-                return s_expr.Expression.compiled(
-                    value,
+                return value.compiled(
                     schema=schema,
                     options=qlcompiler.CompilerOptions(
                         modaliases=context.modaliases,
@@ -560,8 +560,7 @@ class ConstraintCommand(
                 inlined_defaults=False,
             )
 
-            return s_expr.Expression.compiled(
-                value,
+            return value.compiled(
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
@@ -808,8 +807,7 @@ class ConstraintCommand(
             singletons = frozenset()
 
         assert subject is not None
-        final_expr = s_expr.Expression.compiled(
-            s_expr.Expression.from_ast(expr_ql, schema, {}),
+        final_expr = s_expr.Expression.from_ast(expr_ql, schema, {}).compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: subject},
@@ -820,7 +818,6 @@ class ConstraintCommand(
             ),
         )
 
-        assert isinstance(final_expr.irast, ir_ast.Statement)
         bool_t = schema.get('std::bool', type=s_scalars.ScalarType)
 
         expr_type = final_expr.irast.stype
@@ -850,19 +847,17 @@ class ConstraintCommand(
                 schema_object_context=self.get_schema_metaclass(),
             )
 
-            final_subjectexpr = s_expr.Expression.compiled(
-                subjectexpr, schema=schema, options=options
+            final_subjectexpr = subjectexpr.compiled(
+                schema=schema, options=options
             )
-            assert isinstance(final_subjectexpr.irast, ir_ast.Statement)
 
             refs = ir_utils.get_longest_paths(final_expr.irast)
 
             final_except_expr = None
             if except_expr:
-                final_except_expr = s_expr.Expression.compiled(
-                    except_expr, schema=schema, options=options
+                final_except_expr = except_expr.compiled(
+                    schema=schema, options=options
                 )
-                assert isinstance(final_except_expr.irast, ir_ast.Statement)
                 refs |= ir_utils.get_longest_paths(final_except_expr.irast)
 
             has_multi = False
@@ -927,7 +922,6 @@ class ConstraintCommand(
                 )
 
             if final_except_expr:
-                assert isinstance(final_except_expr.irast, ir_ast.Statement)
                 if (
                     final_except_expr.irast.volatility
                     != qltypes.Volatility.Immutable

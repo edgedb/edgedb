@@ -2522,10 +2522,9 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
         field: so.Field[Any],
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
+    ) -> s_expr.CompiledExpression:
         assert field.name == 'expr'
-        return type(value).compiled(
-            value,
+        return value.compiled(
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
