@@ -58,6 +58,17 @@ cdef enum PGAuthenticationState:
     PGAUTH_SASL_FINAL = 12
 
 
+cdef enum PGAction:
+    PARSE = 1
+    BIND = 2
+    DESCRIBE = 3
+    EXECUTE = 4
+    CLOSE_STMT = 5
+    CLOSE_PORTAL = 6
+    FLUSH = 7
+    SYNC = 8
+
+
 @cython.final
 cdef class PGConnection:
 

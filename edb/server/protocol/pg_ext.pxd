@@ -26,5 +26,8 @@ cdef class PgConnection(frontend.FrontendConnection):
     cdef:
         bytes secret
         str client_encoding
+        dict prepared_stmts
+        dict portals
+        bint ignore_till_sync
 
     cdef inline WriteBuffer ready_for_query(self)
