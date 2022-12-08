@@ -4678,6 +4678,26 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             global TwoUsers := (User);
         """])
 
+    def test_schema_migrations_equivalence_58(self):
+        self._assert_migration_equivalence([r"""
+            abstract type C {
+                link x -> E {
+                    constraint exclusive;
+                }
+            }
+
+            abstract type A;
+
+            type B extending A;
+
+            type D extending C, A;
+
+            type E extending A {
+                link y := assert_single(.<`x`[IS C]);
+            }
+        """, r"""
+        """])
+
     def test_schema_migrations_equivalence_compound_01(self):
         # Check that union types can be referenced in computables
         # Bug #2002.
