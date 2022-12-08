@@ -25,6 +25,7 @@ import dataclasses
 import io
 import struct
 import typing
+from uuid import UUID
 
 import immutables
 
@@ -75,6 +76,7 @@ CTYPE_ENUM = b'\x07'
 CTYPE_INPUT_SHAPE = b'\x08'
 CTYPE_RANGE = b'\x09'
 CTYPE_ANNO_TYPENAME = b'\xff'
+CTYPE_ANNO_INTROSPECTION = b'\xf0'
 
 EMPTY_BYTEARRAY = bytearray()
 
@@ -123,12 +125,14 @@ class TypeSerializer:
         schema,
         *,
         inline_typenames: bool = False,
+        introspect_type_information: bool = False,
     ):
         self.schema = schema
         self.buffer = []
         self.anno_buffer = []
         self.uuid_to_pos = {}
         self.inline_typenames = inline_typenames
+        self.introspect_type_information = introspect_type_information
 
     def _get_collection_type_id(self, coll_type, subtypes,
                                 element_names=None):
@@ -288,6 +292,10 @@ class TypeSerializer:
 
             metadata = view_shapes_metadata.get(t)
             implicit_id = metadata is not None and metadata.has_implicit_id
+
+            if self.introspect_type_information:
+                # add the introspection data
+                self._add_type_annotation(t, self.schema)
 
             for ptr in view_shapes.get(t, ()):
                 name = ptr.get_shortname(self.schema).name
@@ -506,6 +514,38 @@ class TypeSerializer:
         self.anno_buffer.append(_uint32_packer(len(tn_bytes)))
         self.anno_buffer.append(tn_bytes)
 
+    def _add_type_annotation(self, t: s_objtypes.ObjectType, schema: s_schema.Schema):
+        self.anno_buffer.append(CTYPE_ANNO_INTROSPECTION)
+
+        self.anno_buffer.append(t.id.bytes)
+
+        buf = b''.join(self._get_type_information_data(t, schema))
+        
+        self.anno_buffer.append(_uint32_packer(len(buf)))
+        self.anno_buffer.append(buf)
+
+    def _get_type_information_data(self, t: s_objtypes.ObjectType, schema: s_schema.Schema):
+        buf = []
+
+        name_bytes = t.get_displayname(schema).encode('utf-8')
+
+        buf.append(_uint32_packer(len(name_bytes)))
+        buf.append(name_bytes)
+        buf.append(t.get_id(schema).bytes)
+
+        # get direct ancestors of the type
+        ancestors = [
+            x for x in t.get_ancestors(schema).objects(schema) 
+            if x not in x.get_ancestors(schema).objects(schema) and x.get_displayname(schema) not in ['std::BaseObject', 'std::Object']
+        ]
+
+        buf.append(_uint16_packer(len(ancestors)))
+
+        for x in ancestors:
+            buf.append(b''.join(self._get_type_information_data(x, schema)))
+
+        return buf
+        
     @classmethod
     def describe_params(
         cls,
@@ -573,11 +613,13 @@ class TypeSerializer:
         protocol_version,
         follow_links: bool = True,
         inline_typenames: bool = False,
+        introspect_type_information: bool = False,
         name_filter: str = "",
     ) -> typing.Tuple[bytes, uuidgen.UUID]:
         builder = cls(
             schema,
             inline_typenames=inline_typenames,
+            introspect_type_information=introspect_type_information,
         )
         type_id = builder._describe_type(
             typ, view_shapes, view_shapes_metadata,

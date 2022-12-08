@@ -78,6 +78,7 @@ cdef class QueryRequestInfo:
         inline_typeids: bint = False,
         inline_typenames: bint = False,
         inline_objectids: bint = True,
+        introspect_type_information: bint = False,
         allow_capabilities: uint64_t = <uint64_t>compiler.Capability.ALL,
     ):
         self.source = source
@@ -89,6 +90,7 @@ cdef class QueryRequestInfo:
         self.inline_typeids = inline_typeids
         self.inline_typenames = inline_typenames
         self.inline_objectids = inline_objectids
+        self.introspect_type_information = introspect_type_information
         self.allow_capabilities = allow_capabilities
 
         self.cached_hash = hash((
@@ -956,6 +958,7 @@ cdef class DatabaseConnectionView:
         query_req: QueryRequestInfo,
     ) -> CompiledQuery:
         source = query_req.source
+        # TODO: introspect compilation flag should be omitted for cached queries
         query_unit_group = self.lookup_compiled_query(query_req)
         cached = True
         if query_unit_group is None:
@@ -1038,6 +1041,7 @@ cdef class DatabaseConnectionView:
                     self._protocol_version,
                     query_req.inline_objectids,
                     query_req.input_format is compiler.InputFormat.JSON,
+                    query_req.introspect_type_information,
                     self.in_tx_error(),
                 )
             else:
@@ -1060,6 +1064,7 @@ cdef class DatabaseConnectionView:
                     self._protocol_version,
                     query_req.inline_objectids,
                     query_req.input_format is compiler.InputFormat.JSON,
+                    query_req.introspect_type_information,
                 )
         finally:
             metrics.edgeql_query_compilation_duration.observe(

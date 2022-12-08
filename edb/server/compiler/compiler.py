@@ -108,6 +108,7 @@ class CompileContext:
     inline_typeids: bool = False
     inline_typenames: bool = False
     inline_objectids: bool = True
+    introspect_type_information: bool = False
     schema_object_ids: Optional[Mapping[s_name.Name, uuid.UUID]] = None
     source: Optional[edgeql.Source] = None
     backend_runtime_params: pg_params.BackendRuntimeParams = (
@@ -466,6 +467,7 @@ class Compiler:
                     implicit_limit=implicit_limit,
                     inline_typeids=False,
                     inline_typenames=True,
+                    introspect_type_information=False,
                     json_parameters=False,
                     source=source,
                     protocol_version=protocol_version,
@@ -506,6 +508,7 @@ class Compiler:
         protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
         json_parameters: bool = False,
+        introspect_type_information: bool = False,
     ) -> Tuple[dbstate.QueryUnitGroup,
                Optional[dbstate.CompilerConnectionState]]:
 
@@ -543,6 +546,7 @@ class Compiler:
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
+            introspect_type_information=introspect_type_information,
             skip_first=skip_first,
             json_parameters=json_parameters,
             source=source,
@@ -575,6 +579,7 @@ class Compiler:
         protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
         json_parameters: bool = False,
+        introspect_type_information: bool = False,
         expect_rollback: bool = False,
     ) -> Tuple[dbstate.QueryUnitGroup, dbstate.CompilerConnectionState]:
         if (
@@ -599,6 +604,7 @@ class Compiler:
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
+            introspect_type_information=introspect_type_information,
             skip_first=skip_first,
             source=source,
             protocol_version=protocol_version,
@@ -1219,6 +1225,7 @@ def _compile_ql_query(
             ir.schema, ir.stype,
             ir.view_shapes, ir.view_shapes_metadata,
             inline_typenames=ctx.inline_typenames,
+            introspect_type_information=ctx.introspect_type_information,
             protocol_version=ctx.protocol_version)
     else:
         out_type_data, out_type_id = \

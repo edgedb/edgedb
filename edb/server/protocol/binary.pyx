@@ -1093,6 +1093,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             bint inline_typenames = False
             bint inline_typeids = False
             bint inline_objectids = False
+            bint introspect_type_information = False
             object output_format
             bint expect_one = False
             bytes query
@@ -1117,6 +1118,10 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         inline_objectids = (
             compilation_flags
             & messages.CompilationFlag.INJECT_OUTPUT_OBJECT_IDS
+        )
+        introspect_type_information = (
+            compilation_flags
+            & messages.CompilationFlag.INTROSPECT_TYPE_INFORMATION
         )
 
         output_format = self.parse_output_format(self.buffer.read_byte())
@@ -1145,6 +1150,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             inline_typeids=inline_typeids,
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
+            introspect_type_information=introspect_type_information,
             allow_capabilities=allow_capabilities,
         )
 
