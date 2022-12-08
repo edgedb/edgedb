@@ -88,6 +88,12 @@ cdef class PgConnection(frontend.FrontendConnection):
                 L=str(exc.lineno),
                 P=str(exc.cursorpos),
             )
+        elif isinstance(exc, errors.AuthenticationError):
+            exc = pgerror.InvalidAuthSpec(str(exc))
+        elif isinstance(exc, errors.BinaryProtocolError):
+            exc = pgerror.ProtocolViolation(str(exc), detail=exc.details)
+        elif isinstance(exc, errors.UnsupportedFeatureError):
+            exc = pgerror.FeatureNotSupported(str(exc))
         elif isinstance(exc, errors.EdgeDBError):
             exc = pgerror.new(
                 pgerror.ERROR_INTERNAL_ERROR,
@@ -163,6 +169,72 @@ cdef class PgConnection(frontend.FrontendConnection):
 
     def debug_print(self, *args):
         print("::PGEXT::", f"id:{self._id}", *args, file=sys.stderr)
+
+    cdef WriteBuffer _make_authentication_sasl_initial(self, list methods):
+        cdef WriteBuffer msg_buf
+        msg_buf = WriteBuffer.new_message(b'R')
+        msg_buf.write_int32(10)
+        for method in methods:
+            msg_buf.write_bytestring(method)
+        msg_buf.write_byte(b'\0')
+        msg_buf.end_message()
+        if self.debug:
+            self.debug_print("AuthenticationSASL:", *methods)
+        return msg_buf
+
+    cdef _expect_sasl_initial_response(self):
+        mtype = self.buffer.get_message_type()
+        if mtype != b'p':
+            raise pgerror.ProtocolViolation(
+                f'expected SASL response, got message type {mtype}')
+        selected_mech = self.buffer.read_null_str()
+        try:
+            client_first = self.buffer.read_len_prefixed_bytes()
+        except BufferError:
+            client_first = None
+        self.buffer.finish_message()
+        if self.debug:
+            self.debug_print(
+                "SASLInitialResponse:",
+                selected_mech,
+                len(client_first) if client_first else client_first,
+            )
+        if not client_first:
+            # The client didn't send the Client Initial Response
+            # in SASLInitialResponse, this is an error.
+            raise pgerror.ProtocolViolation(
+                'client did not send the Client Initial Response '
+                'data in SASLInitialResponse')
+        return selected_mech, client_first
+
+    cdef WriteBuffer _make_authentication_sasl_msg(
+        self, bytes data, bint final
+    ):
+        cdef WriteBuffer msg_buf
+        msg_buf = WriteBuffer.new_message(b'R')
+        if final:
+            msg_buf.write_int32(12)
+        else:
+            msg_buf.write_int32(11)
+        msg_buf.write_bytes(data)
+        msg_buf.end_message()
+        if self.debug:
+            self.debug_print(
+                "AuthenticationSASLFinal" if final
+                else "AuthenticationSASLContinue",
+                len(data),
+            )
+        return msg_buf
+
+    cdef bytes _expect_sasl_response(self):
+        mtype = self.buffer.get_message_type()
+        if mtype != b'p':
+            raise pgerror.ProtocolViolation(
+                f'expected SASL response, got message type {mtype}')
+        client_final = self.buffer.consume_message()
+        if self.debug:
+            self.debug_print("SASLResponse", len(client_final))
+        return client_final
 
     async def _handle_startup_message(self):
         cdef:

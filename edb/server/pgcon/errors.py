@@ -170,9 +170,9 @@ class FeatureNotSupported(BackendError):
 
 
 class ProtocolViolation(BackendError):
-    def __init__(self, message="protocol violation"):
+    def __init__(self, message="protocol violation", detail=None):
         super().__init__(fields=_build_fields(
-            ERROR_PROTOCOL_VIOLATION, message
+            ERROR_PROTOCOL_VIOLATION, message, detail=detail
         ))
 
 

@@ -28,7 +28,7 @@ CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 
 CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
 CREATE SCALAR TYPE cfg::AllowBareDDL EXTENDING enum<AlwaysAllow, NeverAllow>;
-CREATE SCALAR TYPE cfg::ConnectionTransport EXTENDING enum<TCP, HTTP>;
+CREATE SCALAR TYPE cfg::ConnectionTransport EXTENDING enum<TCP, TCP_PG, HTTP>;
 
 CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
 

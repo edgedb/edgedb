@@ -71,3 +71,9 @@ cdef class FrontendConnection(AbstractFrontendConnection):
     cdef stop_connection(self)
     cdef abort_pinned_pgcon(self)
     cdef is_in_tx(self)
+
+    cdef WriteBuffer _make_authentication_sasl_initial(self, list methods)
+    cdef _expect_sasl_initial_response(self)
+    cdef WriteBuffer _make_authentication_sasl_msg(
+        self, bytes data, bint final)
+    cdef bytes _expect_sasl_response(self)

@@ -19,7 +19,6 @@
 import asyncio
 import base64
 import collections
-import hashlib
 import json
 import logging
 import time
@@ -81,8 +80,6 @@ from edb.common import debug, taskgroup
 from edb.common import context as pctx
 
 from edb.protocol import messages
-
-from edgedb import scram
 
 
 include "./consts.pxi"
@@ -464,174 +461,54 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 raise errors.AuthenticationError(
                     'authentication failed: role not authorized by this JWT')
 
-    async def _auth_scram(self, user):
-        # Tell the client that we require SASL SCRAM auth.
+    cdef WriteBuffer _make_authentication_sasl_initial(self, list methods):
+        cdef WriteBuffer msg_buf
         msg_buf = WriteBuffer.new_message(b'R')
         msg_buf.write_int32(10)
         # Number of auth methods followed by a series
         # of zero-terminated strings identifying each method,
         # sorted in the order of server preference.
-        msg_buf.write_int32(1)
-        msg_buf.write_len_prefixed_bytes(b'SCRAM-SHA-256')
-        msg_buf.end_message()
-        self.write(msg_buf)
-        self.flush()
+        msg_buf.write_int32(len(methods))
+        for method in methods:
+            msg_buf.write_len_prefixed_bytes(method)
+        return msg_buf.end_message()
 
-        selected_mech = None
-        verifier = None
-        mock_auth = False
-        client_nonce = None
-        cb_flag = None
-        done = False
+    cdef _expect_sasl_initial_response(self):
+        mtype = self.buffer.get_message_type()
+        if mtype != b'p':
+            raise errors.BinaryProtocolError(
+                f'expected SASL response, got message type {mtype}')
+        selected_mech = self.buffer.read_len_prefixed_bytes()
+        client_first = self.buffer.read_len_prefixed_bytes()
+        self.buffer.finish_message()
+        if not client_first:
+            # The client didn't send the Client Initial Response
+            # in SASLInitialResponse, this is an error.
+            raise errors.BinaryProtocolError(
+                f'client did not send the Client Initial Response '
+                f'data in SASLInitialResponse')
+        return selected_mech, client_first
 
-        while not done:
-            if not self.buffer.take_message():
-                await self.wait_for_message(report_idling=True)
-            mtype = self.buffer.get_message_type()
+    cdef WriteBuffer _make_authentication_sasl_msg(
+        self, bytes data, bint final
+    ):
+        cdef WriteBuffer msg_buf
+        msg_buf = WriteBuffer.new_message(b'R')
+        if final:
+            msg_buf.write_int32(12)
+        else:
+            msg_buf.write_int32(11)
+        msg_buf.write_len_prefixed_bytes(data)
+        return msg_buf.end_message()
 
-            if selected_mech is None:
-                if mtype != b'p':
-                    raise errors.BinaryProtocolError(
-                        f'expected SASL response, got message type {mtype}')
-                # Initial response.
-                selected_mech = self.buffer.read_len_prefixed_bytes()
-                if selected_mech != b'SCRAM-SHA-256':
-                    raise errors.BinaryProtocolError(
-                        f'client selected an invalid SASL authentication '
-                        f'mechanism')
-
-                verifier, mock_auth = self._get_scram_verifier(user)
-                client_first = self.buffer.read_len_prefixed_bytes()
-                self.buffer.finish_message()
-
-                if not client_first:
-                    # The client didn't send the Client Initial Response
-                    # in SASLInitialResponse, this is an error.
-                    raise errors.BinaryProtocolError(
-                        f'client did not send the Client Initial Response '
-                        f'data in SASLInitialResponse')
-
-                try:
-                    bare_offset, cb_flag, authzid, username, client_nonce = (
-                        scram.parse_client_first_message(client_first))
-                except ValueError as e:
-                    raise errors.BinaryProtocolError(str(e))
-
-                client_first_bare = client_first[bare_offset:]
-
-                if isinstance(cb_flag, str):
-                    raise errors.BinaryProtocolError(
-                        'malformed SCRAM message',
-                        details='The client selected SCRAM-SHA-256 without '
-                                'channel binding, but the SCRAM message '
-                                'includes channel binding data.')
-
-                if authzid:
-                    raise errors.UnsupportedFeatureError(
-                        'client uses SASL authorization identity, '
-                        'which is not supported')
-
-                server_nonce = scram.generate_nonce()
-                server_first = scram.build_server_first_message(
-                    server_nonce, client_nonce,
-                    verifier.salt, verifier.iterations).encode('utf-8')
-
-                # AuthenticationSASLContinue
-                msg_buf = WriteBuffer.new_message(b'R')
-                msg_buf.write_int32(11)
-                msg_buf.write_len_prefixed_bytes(server_first)
-                msg_buf.end_message()
-                self.write(msg_buf)
-                self.flush()
-
-            else:
-                if mtype != b'r':
-                    raise errors.BinaryProtocolError(
-                        f'expected SASL response, got message type {mtype}')
-                # client final message
-                client_final = self.buffer.read_len_prefixed_bytes()
-                self.buffer.finish_message()
-
-                try:
-                    cb_data, client_proof, proof_len = (
-                        scram.parse_client_final_message(
-                            client_final, client_nonce, server_nonce))
-                except ValueError as e:
-                    raise errors.BinaryProtocolError(str(e)) from None
-
-                client_final_without_proof = client_final[:-proof_len]
-
-                cb_data_ok = (
-                    (cb_flag is False and cb_data == b'biws')
-                    or (cb_flag is True and cb_data == b'eSws')
-                )
-                if not cb_data_ok:
-                    raise errors.BinaryProtocolError(
-                        'malformed SCRAM message',
-                        details='Unexpected SCRAM channel-binding attribute '
-                                'in client-final-message.')
-
-                if not scram.verify_client_proof(
-                        client_first_bare, server_first,
-                        client_final_without_proof,
-                        verifier.stored_key, client_proof):
-                    raise errors.AuthenticationError(
-                        'authentication failed')
-
-                if mock_auth:
-                    # This user actually does not exist, so fail here.
-                    raise errors.AuthenticationError(
-                        'authentication failed')
-
-                server_final = scram.build_server_final_message(
-                    client_first_bare,
-                    server_first,
-                    client_final_without_proof,
-                    verifier.server_key,
-                )
-
-                # AuthenticationSASLFinal
-                msg_buf = WriteBuffer.new_message(b'R')
-                msg_buf.write_int32(12)
-                msg_buf.write_len_prefixed_utf8(server_final)
-                msg_buf.end_message()
-                self.write(msg_buf)
-                self.flush()
-
-                done = True
-
-    def _get_scram_verifier(self, user):
-        server = self.server
-        roles = server.get_roles()
-
-        rolerec = roles.get(user)
-        if rolerec is not None:
-            verifier_string = rolerec['password']
-            if verifier_string is not None:
-                try:
-                    verifier = scram.parse_verifier(verifier_string)
-                except ValueError:
-                    raise errors.AuthenticationError(
-                        f'invalid SCRAM verifier for user {user!r}') from None
-                is_mock = False
-                return verifier, is_mock
-
-        # To avoid revealing the validity of the submitted user name,
-        # generate a mock verifier using a salt derived from the
-        # received user name and the cluster mock auth nonce.
-        # The same approach is taken by Postgres.
-        nonce = server.get_instance_data('mock_auth_nonce')
-        salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
-
-        verifier = scram.SCRAMVerifier(
-            mechanism='SCRAM-SHA-256',
-            iterations=scram.DEFAULT_ITERATIONS,
-            salt=salt[:scram.DEFAULT_SALT_LENGTH],
-            stored_key=b'',
-            server_key=b'',
-        )
-        is_mock = True
-        return verifier, is_mock
+    cdef bytes _expect_sasl_response(self):
+        mtype = self.buffer.get_message_type()
+        if mtype != b'r':
+            raise errors.BinaryProtocolError(
+                f'expected SASL response, got message type {mtype}')
+        client_final = self.buffer.read_len_prefixed_bytes()
+        self.buffer.finish_message()
+        return client_final
 
     async def _execute_script(self, compiled: object, bind_args: bytes):
         cdef:
