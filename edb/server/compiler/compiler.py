@@ -45,7 +45,6 @@ from edb.common import uuidgen
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
-from edb.edgeql import quote as qlquote
 
 from edb.ir import staeval as ireval
 from edb.ir import ast as irast

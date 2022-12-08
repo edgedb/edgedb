@@ -562,6 +562,7 @@ class TestSQL(tb.SQLQueryTestCase):
             ],
         )
 
+    @test.xerror('asyncpg type inspection query not supported')
     async def test_sql_query_introspection_02(self):
         tables = await self.squery_values(
             '''

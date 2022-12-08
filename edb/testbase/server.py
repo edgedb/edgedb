@@ -53,7 +53,6 @@ from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 from edb.server import main as edgedb_main
-from edb.server import pgconnparams
 
 from edb.common import assert_data_shape
 from edb.common import devmode
