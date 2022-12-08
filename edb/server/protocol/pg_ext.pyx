@@ -93,11 +93,13 @@ cdef class PgConnection(frontend.FrontendConnection):
                 P=str(exc.cursorpos),
             )
         elif isinstance(exc, errors.AuthenticationError):
-            exc = pgerror.InvalidAuthSpec(str(exc))
+            exc = pgerror.InvalidAuthSpec(str(exc), severity="FATAL")
         elif isinstance(exc, errors.BinaryProtocolError):
-            exc = pgerror.ProtocolViolation(str(exc), detail=exc.details)
+            exc = pgerror.ProtocolViolation(
+                str(exc), detail=exc.details, severity="FATAL"
+            )
         elif isinstance(exc, errors.UnsupportedFeatureError):
-            exc = pgerror.FeatureNotSupported(str(exc))
+            exc = pgerror.FeatureNotSupported(str(exc), severity="FATAL")
         elif isinstance(exc, errors.EdgeDBError):
             exc = pgerror.new(
                 pgerror.ERROR_INTERNAL_ERROR,
@@ -133,7 +135,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                     if self.debug:
                         self.debug_print("CancelRequest")
                     raise pgerror.FeatureNotSupported(
-                        "CancelRequest is not supported"
+                        "CancelRequest is not supported", severity="FATAL"
                     )
 
                 elif proto_ver_minor == 5679:  # SSLRequest
@@ -141,7 +143,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                         self.debug_print("SSLRequest")
                     if not first:
                         raise pgerror.ProtocolViolation(
-                            "found multiple SSLRequest"
+                            "found multiple SSLRequest", severity="FATAL"
                         )
 
                     self.buffer.finish_message()
@@ -162,11 +164,11 @@ cdef class PgConnection(frontend.FrontendConnection):
 
                 elif proto_ver_minor == 5680:  # GSSENCRequest
                     raise pgerror.FeatureNotSupported(
-                        "GSSENCRequest is not supported"
+                        "GSSENCRequest is not supported", severity="FATAL"
                     )
 
                 else:
-                    raise pgerror.FeatureNotSupported()
+                    raise pgerror.FeatureNotSupported(severity="FATAL")
 
             elif proto_ver_major == 3 and proto_ver_minor == 0:
                 # StartupMessage with 3.0 protocol
@@ -178,13 +180,16 @@ cdef class PgConnection(frontend.FrontendConnection):
                 ):
                     raise pgerror.InvalidAuthSpec(
                         "TLS required due to server endpoint security",
+                        severity="FATAL",
                     )
 
                 await self._handle_startup_message()
                 break
 
             else:
-                raise pgerror.ProtocolViolation("invalid protocol version")
+                raise pgerror.ProtocolViolation(
+                    "invalid protocol version", severity="FATAL"
+                )
 
     def debug_print(self, *args):
         print("::PGEXT::", f"id:{self._id}", *args, file=sys.stderr)
@@ -271,7 +276,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.debug_print("StartupMessage params:", params)
         if "user" not in params:
             raise pgerror.ProtocolViolation(
-                "StartupMessage must have a \"user\""
+                "StartupMessage must have a \"user\"", severity="FATAL"
             )
         self.buffer.finish_message()
 
@@ -283,7 +288,8 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         if not self.server.is_database_connectable(database):
             raise pgerror.InvalidAuthSpec(
-                f'database {database!r} does not accept connections'
+                f'database {database!r} does not accept connections',
+                severity="FATAL",
             )
 
         self.database = self.server.get_db(dbname=database)
