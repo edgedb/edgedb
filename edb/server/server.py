@@ -380,6 +380,11 @@ class Server(ha_base.ClusterProtocol):
         self._pgext_conns.pop(conn.get_id(), None)
         self.maybe_auto_shutdown()
 
+    def cancel_pgext_connection(self, pid, secret):
+        conn = self._pgext_conns.get(pid)
+        if conn is not None:
+            conn.cancel(secret)
+
     async def _pg_connect(self, dbname):
         ha_serial = self._ha_master_serial
         if self.get_backend_runtime_params().has_create_database:

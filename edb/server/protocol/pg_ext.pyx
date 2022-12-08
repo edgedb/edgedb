@@ -132,11 +132,15 @@ cdef class PgConnection(frontend.FrontendConnection):
             proto_ver_minor = self.buffer.read_int16()
             if proto_ver_major == 1234:
                 if proto_ver_minor == 5678:  # CancelRequest
+                    pid = str(self.buffer.read_int32())
+                    secret = self.buffer.read_bytes(4)
+                    self.buffer.finish_message()
+
                     if self.debug:
-                        self.debug_print("CancelRequest")
-                    raise pgerror.FeatureNotSupported(
-                        "CancelRequest is not supported", severity="FATAL"
-                    )
+                        self.debug_print("CancelRequest", pid, secret)
+                    self.server.cancel_pgext_connection(pid, secret)
+                    self.stop()
+                    break
 
                 elif proto_ver_minor == 5679:  # SSLRequest
                     if self.debug:
@@ -190,6 +194,18 @@ cdef class PgConnection(frontend.FrontendConnection):
                 raise pgerror.ProtocolViolation(
                     "invalid protocol version", severity="FATAL"
                 )
+
+    def cancel(self, secret):
+        if (
+            self.secret == secret and
+            self._pinned_pgcon is not None and
+            not self._pinned_pgcon.idle and
+            self.server._accept_new_tasks
+        ):
+            self.server.create_task(
+                self.server._cancel_pgcon_operation(self._pinned_pgcon),
+                interruptable=False,
+            )
 
     def debug_print(self, *args):
         print("::PGEXT::", f"id:{self._id}", *args, file=sys.stderr)
