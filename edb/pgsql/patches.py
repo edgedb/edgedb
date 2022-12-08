@@ -399,4 +399,23 @@ ALTER ABSTRACT CONSTRAINT
 std::max_ex_value
 USING (__subject__ < max);
 '''),
+    ('sql', '''
+ALTER FUNCTION edgedb._index(anyarray, bigint, text) IMMUTABLE;
+'''),
+    ('sql', '''
+ALTER FUNCTION edgedb._index(text, bigint, text,
+                             typename text) IMMUTABLE;
+'''),
+    ('sql', '''
+ALTER FUNCTION edgedb._index(bytea, bigint, text) IMMUTABLE;
+'''),
+    ('sql', '''
+ALTER FUNCTION edgedb._index(jsonb, text, text) IMMUTABLE;
+'''),
+    ('sql', '''
+ALTER FUNCTION edgedb._index(jsonb, bigint, text) IMMUTABLE;
+'''),
+    ('sql', '''
+ALTER FUNCTION edgedb._slice(jsonb, int, int) IMMUTABLE;
+'''),
 ]
