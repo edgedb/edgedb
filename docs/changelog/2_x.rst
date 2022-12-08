@@ -832,6 +832,13 @@ Other changes
   constraints.
   (:eql:gh:`#4760`)
 
+* Fix apparent startup hangs due to a lock fd leaking into postgres
+  (:eql:gh:`#4797`)
+
+* Fix some migrations with tricky constraint/computed interactions
+  (:eql:gh:`#4794`)
+
+
 .. lint-off
 
 .. _group:
