@@ -37,12 +37,16 @@ cdef object logger = logging.getLogger('edb.server')
 
 
 cdef class PgConnection(frontend.FrontendConnection):
-    def __init__(self, server, **kwargs):
+    def __init__(self, server, sslctx, endpoint_security, **kwargs):
         super().__init__(server, **kwargs)
         self._id = str(<int32_t><uint32_t>(int(self._id) % (2 ** 32)))
         self.prepared_stmts = {}
         self.portals = {}
         self.ignore_till_sync = False
+
+        self.sslctx = sslctx
+        self.endpoint_security = endpoint_security
+        self.is_tls = False
 
     cdef _main_task_created(self):
         self.server.on_pgext_client_connected(self)
@@ -144,10 +148,17 @@ cdef class PgConnection(frontend.FrontendConnection):
                     if self._transport is None:
                         raise ConnectionAbortedError
                     if self.debug:
-                        self.debug_print("N for SSLRequest")
-                    self._transport.write(b'N')
+                        self.debug_print("S for SSLRequest")
+                    self._transport.write(b'S')
                     # complete the next client message with a mocked type
                     self.buffer.feed_data(b'\xff')
+                    self._transport = await self.loop.start_tls(
+                        self._transport,
+                        self,
+                        self.sslctx,
+                        server_side=True,
+                    )
+                    self.is_tls = True
 
                 elif proto_ver_minor == 5680:  # GSSENCRequest
                     raise pgerror.FeatureNotSupported(
@@ -161,6 +172,14 @@ cdef class PgConnection(frontend.FrontendConnection):
                 # StartupMessage with 3.0 protocol
                 if self.debug:
                     self.debug_print("StartupMessage")
+                if (
+                    not self.is_tls and self.endpoint_security ==
+                    srvargs.ServerEndpointSecurityMode.Tls
+                ):
+                    raise pgerror.InvalidAuthSpec(
+                        "TLS required due to server endpoint security",
+                    )
+
                 await self._handle_startup_message()
                 break
 
@@ -696,9 +715,11 @@ cdef class PgConnection(frontend.FrontendConnection):
         return result
 
 
-def new_pg_connection(server):
+def new_pg_connection(server, sslctx, endpoint_security):
     return PgConnection(
         server,
+        sslctx,
+        endpoint_security,
         passive=False,
         transport=srvargs.ServerConnTransport.TCP_PG,
         external_auth=False,

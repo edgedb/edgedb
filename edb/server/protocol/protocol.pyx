@@ -88,6 +88,7 @@ cdef class HttpProtocol:
         self,
         server,
         sslctx,
+        sslctx_pgext,
         *,
         external_auth: bool=False,
         binary_endpoint_security = None,
@@ -98,6 +99,7 @@ cdef class HttpProtocol:
         self.transport = None
         self.external_auth = external_auth
         self.sslctx = sslctx
+        self.sslctx_pgext = sslctx_pgext
 
         self.parser = None
         self.current_request = None
@@ -180,7 +182,11 @@ cdef class HttpProtocol:
                 return
             elif data[0:1] == b'\x00':
                 # Postgres protocol, assuming the 1st message is less than 16MB
-                pg_ext_conn = pg_ext.new_pg_connection(self.server)
+                pg_ext_conn = pg_ext.new_pg_connection(
+                    self.server,
+                    self.sslctx_pgext,
+                    self.binary_endpoint_security,
+                )
                 self.transport.set_protocol(pg_ext_conn)
                 pg_ext_conn.connection_made(self.transport)
                 pg_ext_conn.data_received(data)

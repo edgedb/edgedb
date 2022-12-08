@@ -30,4 +30,8 @@ cdef class PgConnection(frontend.FrontendConnection):
         dict portals
         bint ignore_till_sync
 
+        object sslctx
+        object endpoint_security
+        bint is_tls
+
     cdef inline WriteBuffer ready_for_query(self)

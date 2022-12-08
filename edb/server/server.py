@@ -256,6 +256,7 @@ class Server(ha_base.ClusterProtocol):
         self._tls_cert_file = None
         self._tls_cert_newly_generated = False
         self._sslctx = None
+        self._sslctx_pgext = None
 
         self._jws_key: jwk.JWK | None = None
         self._jws_keys_newly_generated = False
@@ -1685,6 +1686,7 @@ class Server(ha_base.ClusterProtocol):
         proto_factory = lambda: protocol.HttpProtocol(
             self,
             self._sslctx,
+            self._sslctx_pgext,
             binary_endpoint_security=self._binary_endpoint_security,
             http_endpoint_security=self._http_endpoint_security,
         )
@@ -1869,8 +1871,14 @@ class Server(ha_base.ClusterProtocol):
             return os.environ.get('EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD', '')
 
         sslctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        sslctx_pgext = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         try:
             sslctx.load_cert_chain(
+                tls_cert_file,
+                tls_key_file,
+                password=_tls_private_key_password,
+            )
+            sslctx_pgext.load_cert_chain(
                 tls_cert_file,
                 tls_key_file,
                 password=_tls_private_key_password,
@@ -1912,6 +1920,7 @@ class Server(ha_base.ClusterProtocol):
 
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
         self._sslctx = sslctx
+        self._sslctx_pgext = sslctx_pgext
 
     def init_tls(
         self,
@@ -1919,7 +1928,7 @@ class Server(ha_base.ClusterProtocol):
         tls_key_file,
         tls_cert_newly_generated,
     ):
-        assert self._sslctx is None
+        assert self._sslctx is self._sslctx_pgext is None
         self.reload_tls(tls_cert_file, tls_key_file)
 
         self._tls_cert_file = str(tls_cert_file)
