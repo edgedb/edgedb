@@ -189,7 +189,7 @@ class Property(
             **kwargs,
         )
         assert isinstance(delta, referencing.ReferencedObjectCommandBase)
-        delta.is_strong_ref = self.is_endpoint_pointer(schema)
+        delta.is_strong_ref = self.is_special_pointer(schema)
         return delta  # type: ignore
 
 

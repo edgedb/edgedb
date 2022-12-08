@@ -915,10 +915,13 @@ def _get_referrers(
         if not ref.is_blocking_ref(schema, obj):
             continue
 
+        referrer: so.Object | None = None
+
         parent_ref = strongrefs.get(ref.get_name(schema))
         if parent_ref is not None:
-            referrer: so.Object = schema.get(parent_ref)
-        else:
+            referrer = schema.get(parent_ref, default=None)
+
+        if not referrer or obj == referrer:
             referrer = ref
 
         result.add(referrer)
