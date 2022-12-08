@@ -1148,39 +1148,6 @@ def _get_compile_options(
     )
 
 
-def _compile_ql_debug_sql(
-    ctx: CompileContext,
-    ql: qlast.Base,
-) -> dbstate.BaseQuery:
-    # XXX: DEBUG HACK Implement DESCRIBE ALTER <STRING> by
-    # (eventually) rewriting <STRING> and returning it
-    assert _is_dev_instance(ctx)
-
-    current_tx = ctx.state.current_tx()
-    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
-
-    from edb.pgsql import parser as pg_parser
-    from edb.pgsql import resolver as pg_resolver
-    from edb.pgsql import codegen as pg_codegen
-
-    stmts = pg_parser.parse(ql.source)
-    sql_source = ''
-    for stmt in stmts:
-        resolved = pg_resolver.resolve(stmt, schema)
-        source = pg_codegen.generate_source(resolved)
-        sql_source += source + ';'
-
-    # Compile the result as a query that just returns the string
-    res_ql = edgeql.parse(f'SELECT {qlquote.quote_literal(sql_source)}')
-    query = _compile_ql_query(
-        ctx,
-        res_ql,
-        cacheable=False,
-        migration_block_query=True,
-    )
-    return query
-
-
 def _compile_ql_query(
     ctx: CompileContext,
     ql: qlast.Base,
@@ -1577,12 +1544,6 @@ def _compile_dispatch_ql(
     elif isinstance(ql, (qlast.BaseSessionSet, qlast.BaseSessionReset)):
         return (
             _compile_ql_sess_state(ctx, ql),
-            enums.Capability.SESSION_CONFIG,
-        )
-
-    elif isinstance(ql, qlast.SQLDebugStmt):
-        return (
-            _compile_ql_debug_sql(ctx, ql),
             enums.Capability.SESSION_CONFIG,
         )
 
