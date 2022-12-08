@@ -22,6 +22,7 @@ in our internal Postgres instance."""
 from typing import *
 
 from edb import errors
+from edb.server.pgcon import errors as pgerror
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common as pgcommon
@@ -180,6 +181,7 @@ def resolve_relation(
         raise errors.QueryError(
             f'unknown table `{schema_name}.{relation.name}`',
             context=relation.context,
+            pgext_code=pgerror.ERROR_UNDEFINED_TABLE,
         )
 
     # extract table name

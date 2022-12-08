@@ -18,9 +18,10 @@
 
 import os.path
 
-import edgedb
+import asyncpg
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestSQL(tb.SQLQueryTestCase):
@@ -42,7 +43,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_01(self):
         # table alias
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT mve.title, mve.release_year, director_id FROM "Movie" as mve
             '''
@@ -51,7 +52,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_02(self):
         # SELECT FROM parent type
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT * FROM "Content"
             '''
@@ -60,7 +61,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_03(self):
         # SELECT FROM parent type only
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT * FROM ONLY "Content" -- should have only one result
             '''
@@ -69,7 +70,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_04(self):
         # multiple FROMs
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT mve.title, "Person".first_name
             FROM "Movie" mve, "Person" WHERE mve.director_id = "Person".id
@@ -78,7 +79,7 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assert_shape(res, 1, 2, ['title', 'first_name'])
 
     async def test_sql_query_05(self):
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SeLeCt mve.title as tiT, perSon.first_name
             FROM "Movie" mve, "Person" person
@@ -88,7 +89,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_06(self):
         # sub relations
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT id, title, prS.first_name
             FROM "Movie" mve, (SELECT first_name FROM "Person") prs
@@ -98,7 +99,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_07(self):
         # quoted case sensitive
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT tItLe, release_year "RL year" FROM "Movie" ORDER BY titLe;
             '''
@@ -107,7 +108,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_08(self):
         # JOIN
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT "Movie".id, "Genre".id
             FROM "Movie" JOIN "Genre" ON "Movie".genre_id = "Genre".id
@@ -117,7 +118,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_09(self):
         # resolve columns without table names
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT "Movie".id, title, name
             FROM "Movie" JOIN "Genre" ON "Movie".genre_id = "Genre".id
@@ -127,7 +128,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_10(self):
         # wildcard SELECT
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT m.* FROM "Movie" m
             '''
@@ -141,7 +142,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_11(self):
         # multiple wildcard SELECT
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT * FROM "Movie"
             JOIN "Genre" g ON "Movie".genre_id = "Genre".id
@@ -151,7 +152,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_12(self):
         # JOIN USING
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT * FROM "Movie"
             JOIN (SELECT id as genre_id, name FROM "Genre") g USING (genre_id)
@@ -161,7 +162,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_13(self):
         # CTE
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             WITH g AS (SELECT id as genre_id, name FROM "Genre")
             SELECT * FROM "Movie" JOIN g USING (genre_id)
@@ -188,7 +189,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_15(self):
         # UNION
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT id, title FROM "Movie" UNION SELECT id, title FROM "Book"
             '''
@@ -197,7 +198,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_16(self):
         # casting
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT 1::bigint, 'accbf276-705b-11e7-b8e4-0242ac120002'::UUID
             '''
@@ -290,14 +291,14 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_22(self):
         # IS NULL/true
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT id FROM "Person" WHERE last_name IS NULL
             '''
         )
         self.assert_shape(res, 1, 1)
 
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT id FROM "Person" WHERE (last_name = 'Hanks') IS NOT TRUE
             '''
@@ -306,7 +307,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_23(self):
         # ImplicitRow
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT id FROM "Person"
             WHERE (first_name, last_name) IN (
@@ -336,20 +337,24 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_25(self):
         # lower case object name
-        await self.squery('SELECT title FROM novel ORDER BY title')
+        await self.scon.fetch('SELECT title FROM novel ORDER BY title')
 
-        await self.squery('SELECT title FROM "novel" ORDER BY title')
+        await self.scon.fetch('SELECT title FROM "novel" ORDER BY title')
 
-        with self.assertRaisesRegex(edgedb.QueryError, "unknown table"):
-            await self.squery('SELECT title FROM "Novel" ORDER BY title')
+        with self.assertRaisesRegex(
+            asyncpg.UndefinedTableError, "unknown table"
+        ):
+            await self.scon.fetch('SELECT title FROM "Novel" ORDER BY title')
 
     async def test_sql_query_26(self):
-        with self.assertRaisesRegex(edgedb.QueryError, "unknown table"):
-            await self.squery('SELECT title FROM Movie ORDER BY title')
+        with self.assertRaisesRegex(
+            asyncpg.UndefinedTableError, "unknown table"
+        ):
+            await self.scon.fetch('SELECT title FROM Movie ORDER BY title')
 
     async def test_sql_query_27(self):
         # FROM LATERAL
-        await self.squery(
+        await self.scon.fetch(
             '''
             SELECT name, title
             FROM "Movie" m, LATERAL (
@@ -361,7 +366,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_28(self):
         # JOIN LATERAL
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT name, title
             FROM "Movie" m CROSS JOIN LATERAL (
@@ -376,29 +381,33 @@ class TestSQL(tb.SQLQueryTestCase):
         # link tables
 
         # multi
-        res = await self.squery('SELECT * FROM "Movie.actors"')
+        res = await self.scon.fetch('SELECT * FROM "Movie.actors"')
         self.assert_shape(res, 3, 3, ['role', 'source', 'target'])
 
         # single with properties
-        res = await self.squery('SELECT * FROM "Movie.director"')
+        res = await self.scon.fetch('SELECT * FROM "Movie.director"')
         self.assert_shape(res, 1, 3, ['bar', 'source', 'target'])
 
         # single without properties
-        with self.assertRaisesRegex(edgedb.QueryError, "unknown table"):
-            await self.squery('SELECT * FROM "Movie.genre"')
+        with self.assertRaisesRegex(
+            asyncpg.UndefinedTableError, "unknown table"
+        ):
+            await self.scon.fetch('SELECT * FROM "Movie.genre"')
 
     async def test_sql_query_30(self):
         # VALUES
 
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT * FROM (VALUES (1, 2), (3, 4)) AS vals(c, d)
             '''
         )
         self.assert_shape(res, 2, 2, ['c', 'd'])
 
-        with self.assertRaisesRegex(edgedb.QueryError, "query resolves to 2"):
-            await self.squery(
+        with self.assertRaisesRegex(
+            asyncpg.InvalidColumnReferenceError, "query resolves to 2"
+        ):
+            await self.scon.fetch(
                 '''
                 SELECT * FROM (VALUES (1, 2), (3, 4)) AS vals(c, d, e)
                 '''
@@ -406,7 +415,7 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_31(self):
         # column aliases in CTEs
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             with common as (SELECT 1 a, 2 b)
             SELECT * FROM common
@@ -414,7 +423,7 @@ class TestSQL(tb.SQLQueryTestCase):
         )
         self.assert_shape(res, 1, 2, ['a', 'b'])
 
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             with common(c, d) as (SELECT 1 a, 2 b)
             SELECT * FROM common
@@ -422,7 +431,7 @@ class TestSQL(tb.SQLQueryTestCase):
         )
         self.assert_shape(res, 1, 2, ['c', 'd'])
 
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             with common(c, d) as (SELECT 1 a, 2 b)
             SELECT * FROM common as cmn(e, f)
@@ -430,14 +439,17 @@ class TestSQL(tb.SQLQueryTestCase):
         )
         self.assert_shape(res, 1, 2, ['e', 'f'])
 
-        with self.assertRaisesRegex(edgedb.QueryError, "query resolves to 2"):
-            await self.squery(
+        with self.assertRaisesRegex(
+            asyncpg.InvalidColumnReferenceError, "query resolves to 2"
+        ):
+            await self.scon.fetch(
                 '''
                 with common(c, d) as (SELECT 1 a, 2 b)
                 SELECT * FROM common as cmn(e, f, g)
                 '''
             )
 
+    @test.xerror('asyncpg type inspection query not supported')
     async def test_sql_query_32(self):
         # range functions
 
@@ -449,7 +461,7 @@ class TestSQL(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [["a", "foo", "_foo"], ["b", "bar", "_bar"]])
 
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT * FROM
                 (SELECT ARRAY[1, 2, 3] a, ARRAY[4, 5, 6] b) t,
@@ -458,14 +470,14 @@ class TestSQL(tb.SQLQueryTestCase):
         )
         self.assert_shape(res, 3, 4, ['a', 'b', 'unnest', 'unnest'])
 
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT unnest(ARRAY[1, 2, 3]) a
             '''
         )
         self.assert_shape(res, 3, 1, ['a'])
 
-        res = await self.squery(
+        res = await self.scon.fetch(
             '''
             SELECT *, unnested_b + 1 computed
             FROM

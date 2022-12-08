@@ -73,6 +73,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     _code: Optional[int] = None
     _attrs: Dict[int, str]
+    _pgext_code: Optional[str] = None
 
     def __init__(
         self,
@@ -83,6 +84,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         context=None,
         position: Optional[Tuple[int, int, int]] = None,
         token=None,
+        pgext_code: Optional[str] = None,
     ):
         if type(self) is EdgeDBError:
             raise RuntimeError(
@@ -90,6 +92,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
         self.token = token
         self._attrs = {}
+        self._pgext_code = pgext_code
 
         if isinstance(context, pctx.ParserContext):
             self.set_source_context(context)
@@ -154,7 +157,7 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
 
     @property
     def position(self):
-        return int(self._attrs.get(FIELD_POSITION_START))
+        return int(self._attrs.get(FIELD_POSITION_START, -1))
 
     @property
     def hint(self):
@@ -163,6 +166,10 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
     @property
     def details(self):
         return self._attrs.get(FIELD_DETAILS)
+
+    @property
+    def pgext_code(self):
+        return self._pgext_code
 
 
 @contextlib.contextmanager
