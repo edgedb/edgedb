@@ -400,217 +400,22 @@ std::max_ex_value
 USING (__subject__ < max);
 '''),
     ('sql', '''
-DROP FUNCTION edgedb._index(val anyarray, index bigint, detail text)
+ALTER FUNCTION edgedb._index(anyarray, bigint, text) IMMUTABLE;
 '''),
     ('sql', '''
-CREATE FUNCTION edgedb._index(val anyarray, index bigint, detail text)
- RETURNS anyelement
- LANGUAGE sql
- IMMUTABLE STRICT
-AS $function$
-SELECT edgedb.raise_on_null(
-    val[edgedb._normalize_array_index(index, array_upper(val, 1))],
-    'array_subscript_error',
-    msg => 'array index ' || index::text || ' is out of bounds',
-    detail => detail
-)
-$function$
+ALTER FUNCTION edgedb._index(text, bigint, text,
+                             typename text) IMMUTABLE;
 '''),
     ('sql', '''
-DROP FUNCTION edgedb._index(
-    val text, index bigint, detail text, typename text DEFAULT 'string'::text
-)
+ALTER FUNCTION edgedb._index(bytea, bigint, text) IMMUTABLE;
 '''),
     ('sql', '''
-CREATE FUNCTION edgedb._index(
-    val text, index bigint, detail text, typename text DEFAULT 'string'::text
-)
- RETURNS text
- LANGUAGE sql
- IMMUTABLE STRICT
-AS $function$
-SELECT edgedb.raise_on_empty(
-    substr(
-        "val",
-        edgedb._normalize_array_index("index", char_length("val")),
-        1
-    ),
-    'invalid_parameter_value',
-    "typename" || ' index ' || "index"::text || ' is out of bounds',
-    "detail"
-)
-$function$
+ALTER FUNCTION edgedb._index(jsonb, text, text) IMMUTABLE;
 '''),
     ('sql', '''
-DROP FUNCTION edgedb._index(val bytea, index bigint, detail text)
+ALTER FUNCTION edgedb._index(jsonb, bigint, text) IMMUTABLE;
 '''),
     ('sql', '''
-CREATE FUNCTION edgedb._index(val bytea, index bigint, detail text)
- RETURNS bytea
- LANGUAGE sql
- IMMUTABLE STRICT
-AS $function$
-SELECT edgedb.raise_on_empty(
-    substr(
-        "val",
-        edgedb._normalize_array_index("index", length("val")),
-        1
-    ),
-    'invalid_parameter_value',
-    'byte string index ' || "index"::text || ' is out of bounds',
-    "detail"
-)
-$function$
+ALTER FUNCTION edgedb._slice(jsonb, int, int) IMMUTABLE;
 '''),
-    ('sql', '''
-DROP FUNCTION edgedb._index(
-    val jsonb, index text, detail text DEFAULT ''::text
-)
-'''),
-    ('sql', '''
-CREATE FUNCTION edgedb._index(
-    val jsonb, index text, detail text DEFAULT ''::text
-)
- RETURNS jsonb
- LANGUAGE sql
- IMMUTABLE STRICT
-AS $function$
-SELECT
-    CASE jsonb_typeof(val)
-    WHEN 'object' THEN (
-        edgedb.raise_on_null(
-            val -> index,
-            'invalid_parameter_value',
-            msg => (
-                'JSON index ' || quote_literal(index)
-                || ' is out of bounds'
-            ),
-            detail => detail
-        )
-    )
-    WHEN 'array' THEN (
-        edgedb.raise(
-            NULL::jsonb,
-            'wrong_object_type',
-            msg => (
-                'cannot index JSON ' || jsonb_typeof(val)
-                || ' by ' || pg_typeof(index)::text
-            ),
-            detail => detail
-        )
-    )
-    ELSE
-        edgedb.raise(
-            NULL::jsonb,
-            'wrong_object_type',
-            msg => (
-                'cannot index JSON '
-                || coalesce(jsonb_typeof(val), 'UNKNOWN')
-            ),
-            detail => (
-                '{"hint":"Retrieving an element by a string index '
-                || 'is only available for JSON objects."}'
-            )
-        )
-    END
-$function$
-'''),
-    ('sql', '''
-DROP FUNCTION edgedb._index(
-    val jsonb, index bigint, detail text DEFAULT ''::text
-)
-'''),
-    ('sql', '''
-CREATE FUNCTION edgedb._index(
-    val jsonb, index bigint, detail text DEFAULT ''::text
-)
- RETURNS jsonb
- LANGUAGE sql
- IMMUTABLE STRICT
-AS $function$
-SELECT
-    CASE jsonb_typeof(val)
-    WHEN 'object' THEN (
-        edgedb.raise(
-            NULL::jsonb,
-            'wrong_object_type',
-            msg => (
-                'cannot index JSON ' || jsonb_typeof(val)
-                || ' by ' || pg_typeof(index)::text
-            ),
-            detail => detail
-        )
-    )
-    WHEN 'array' THEN (
-        edgedb.raise_on_null(
-            val -> index::int,
-            'invalid_parameter_value',
-            msg => 'JSON index ' || index::text || ' is out of bounds',
-            detail => detail
-        )
-    )
-    WHEN 'string' THEN (
-        to_jsonb(edgedb._index(
-            val#>>'{}',
-            index,
-            detail,
-            'JSON'
-        ))
-    )
-    ELSE
-        edgedb.raise(
-            NULL::jsonb,
-            'wrong_object_type',
-            msg => (
-                'cannot index JSON '
-                || coalesce(jsonb_typeof(val), 'UNKNOWN')
-            ),
-            detail => (
-                '{"hint":"Retrieving an element by an integer index '
-                || 'is only available for JSON arrays and strings."}'
-            )
-        )
-    END
-$function$
-'''),
-    ('sql', '''
-DROP FUNCTION edgedb._slice(val jsonb, start integer, stop integer)
-'''),
-    ('sql', '''
-CREATE FUNCTION edgedb._slice(val jsonb, start integer, stop integer)
- RETURNS jsonb
- LANGUAGE sql
- IMMUTABLE
-AS $function$
-SELECT
-    CASE
-    WHEN val IS NULL THEN NULL
-    WHEN jsonb_typeof(val) = 'array' THEN (
-        to_jsonb(edgedb._slice(
-            (
-                SELECT coalesce(array_agg(value), '{}'::jsonb[])
-                FROM jsonb_array_elements(val)
-            ),
-            start, stop
-        ))
-    )
-    WHEN jsonb_typeof(val) = 'string' THEN (
-        to_jsonb(edgedb._slice(val#>>'{}', start, stop))
-    )
-    ELSE
-        edgedb.raise(
-            NULL::jsonb,
-            'wrong_object_type',
-            msg => (
-                'cannot slice JSON '
-                || coalesce(jsonb_typeof(val), 'UNKNOWN')
-            ),
-            detail => (
-                '{"hint":"Slicing is only available for JSON arrays'
-                || ' and strings."}'
-            )
-        )
-    END
-$function$
-''')
 ]
