@@ -210,6 +210,18 @@ def ptrcls_from_ptrref(  # NoQA: F811
     return ptr
 
 
+def ptr_to_ptrref(
+    ptrcls: s_pointers.Pointer, *,
+    ctx: context.ContextLevel,
+) -> irast.BasePointerRef:
+    return irtyputils.ptrref_from_ptrcls(
+        schema=ctx.env.schema,
+        ptrcls=ptrcls,
+        cache=ctx.env.ptr_ref_cache,
+        typeref_cache=ctx.env.type_ref_cache,
+    )
+
+
 def collapse_type_intersection_rptr(
     ir_set: irast.Set, *,
     ctx: context.ContextLevel,

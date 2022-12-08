@@ -1284,6 +1284,22 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 '''
             )
 
+    async def test_edgeql_props_back_08(self):
+        await self.assert_query_result(
+            r'''
+            select Card { name, z := .<deck[IS Bot] { name, x := @count }}
+            filter .name = 'Dragon';
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "z": tb.bag([
+                        {"x": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
     async def test_edgeql_props_intersect_01(self):
         await self.assert_query_result(
             r'''
