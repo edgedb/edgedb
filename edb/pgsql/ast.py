@@ -1005,3 +1005,14 @@ class IteratorCTE(ImmutableBase):
     path_id: irast.PathId
     cte: CommonTableExpr
     parent: typing.Optional[IteratorCTE]
+
+
+class Statement(Base):
+    """A statement that does not return"""
+
+    pass
+
+
+class VariableSetStmt(BaseRelation):
+    name: str
+    args: typing.List[BaseExpr]

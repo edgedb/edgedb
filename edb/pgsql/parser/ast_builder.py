@@ -149,6 +149,7 @@ def _build_query(node: Node, c: Context) -> pgast.Query:
             "InsertStmt": _build_insert_stmt,
             "UpdateStmt": _build_update_stmt,
             "DeleteStmt": _build_delete_stmt,
+            "VariableSetStmt": _build_variable_set_stmt,
         },
     )
 
@@ -211,6 +212,12 @@ def _build_delete_stmt(n: Node, c: Context) -> pgast.DeleteStmt:
         where_clause=_maybe(n, c, "whereClause", _build_base_expr),
         using_clause=_maybe_list(n, c, "usingClause", _build_base_range_var)
         or [],
+    )
+
+
+def _build_variable_set_stmt(n: Node, c: Context) -> pgast.VariableSetStmt:
+    return pgast.VariableSetStmt(
+        name=n["name"], args=_list(n, c, "args", _build_base_expr)
     )
 
 

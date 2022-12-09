@@ -894,5 +894,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write('RESET ')
             self.write(common.quote_ident(node.name))
 
+    def visit_VariableSetStmt(self, node: pgast.VariableSetStmt) -> None:
+        self.write("SET ")
+        self.write(node.name)
+        self.write(" TO ")
+        for arg in node.args:
+            self.visit(arg)
+
 
 generate_source = SQLSourceGenerator.to_source

@@ -782,3 +782,8 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         c NUMERIC(2, 3), d character(4), e char(5),
         f varchar(6), g character varying(7))
         """
+
+    def test_sql_parse_query_27(self):
+        """
+        SET search_path TO 'edgedb,public'
+        """
