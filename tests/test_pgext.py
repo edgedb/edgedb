@@ -35,13 +35,13 @@ DEBUG = debug.flags.server_proto
 PID = os.getpid()
 
 
-def write_string(buf, string):
+def write_string(buf: io.BytesIO, string: str):
     buf.write(string.encode("utf-8"))
     buf.write(b"\x00")
 
 
 class Message:
-    msg_type = NotImplemented
+    msg_type: bytes = NotImplemented
 
     def _serialize_type(self, buf):
         buf.write(self.msg_type)
@@ -217,7 +217,7 @@ class RowDescription(ResponseMessage):
 
     def _deserialize(self, buf):
         offset = 2
-        for i in range(struct.unpack("!H", buf[:2])[0]):
+        for _ in range(struct.unpack("!H", buf[:2])[0]):
             field = {}
             pos = len(buf)
             for pos in range(offset, len(buf)):
@@ -250,7 +250,7 @@ class DataRow(ResponseMessage):
 
     def _deserialize(self, buf):
         offset = 2
-        for i in range(struct.unpack("!h", buf[:2])[0]):
+        for _ in range(struct.unpack("!h", buf[:2])[0]):
             size = struct.unpack("!i", buf[offset : offset + 4])[0]
             if size < 0:
                 self.values.append(None)
@@ -319,7 +319,7 @@ class ParseComplete(ResponseMessage):
 
 class Describe(Message):
     msg_type = b"D"
-    target = NotImplemented
+    target: bytes = NotImplemented
 
     def __init__(self, name=""):
         self.name = name
@@ -606,32 +606,34 @@ class TestSQLProtocol(tb.DatabaseTestCase):
         mechanism = b"SCRAM-SHA-256"
 
         if mechanism not in msg.mechanisms:
-            raise RuntimeError(f"{mechanism} not in: {msg.mechanisms}")
+            raise RuntimeError(f"{mechanism!r} not in: {msg.mechanisms}")
         client_nonce = scram.generate_nonce()
-        client_first, client_first_bare = scram.build_client_first_message(
+        first: tuple[str, str] = scram.build_client_first_message(
             client_nonce, conargs["user"]
-        )
+        )  # type: ignore
+        client_first, client_first_bare = first
         self.conn.write(
             SASLInitialResponse(mechanism, client_first.encode("utf-8"))
         )
 
-        msg = await self.conn.read(AuthenticationSASLContinue)
-        server_first = msg.data
+        msg_continue = await self.conn.read(AuthenticationSASLContinue)
+        server_first = msg_continue.data
         server_nonce, salt, itercount = scram.parse_server_first_message(
             server_first
         )
-        client_final, expected_server_sig = scram.build_client_final_message(
+        final: tuple[str, str] = scram.build_client_final_message(
             conargs["password"],
             salt,
             itercount,
             client_first_bare.encode("utf-8"),
             server_first,
             server_nonce,
-        )
+        )  # type: ignore
+        client_final, expected_server_sig = final
         self.conn.write(SASLResponse(client_final.encode("utf-8")))
 
-        msg = await self.conn.read(AuthenticationSASLFinal)
-        server_final = msg.additional_data
+        msg_final = await self.conn.read(AuthenticationSASLFinal)
+        server_final = msg_final.additional_data
         server_sig = scram.parse_server_final_message(server_final)
 
         if server_sig != expected_server_sig:
