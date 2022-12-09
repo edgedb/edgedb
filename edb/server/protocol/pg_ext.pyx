@@ -460,9 +460,15 @@ cdef class PgConnection(frontend.FrontendConnection):
                 self.write(buf.end_message())
 
         elif mtype == b'H':  # Flush
+            self.buffer.finish_message()
+            if self.debug:
+                self.debug_print("Flush")
             self.flush()
 
         elif mtype == b'X':  # Terminate
+            self.buffer.finish_message()
+            if self.debug:
+                self.debug_print("Terminate")
             self.close()
             return True
 
@@ -624,7 +630,7 @@ cdef class PgConnection(frontend.FrontendConnection):
 
                 if max_rows > 0:
                     raise pgerror.FeatureNotSupported(
-                        "Suspended cursor is not supported"
+                        "suspended cursor is not supported"
                     )
                 if portal_name not in self.portals:
                     raise pgerror.new(

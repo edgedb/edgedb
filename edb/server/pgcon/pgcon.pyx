@@ -468,6 +468,7 @@ cdef class PGConnection:
     def debug_print(self, *args):
         print(
             '::PGCONN::',
+            self.backend_pid,
             *args,
         )
 
@@ -1394,12 +1395,17 @@ cdef class PGConnection:
         try:
             buf = WriteBuffer.new()
             queue = deque()
+            prepared = set()
             for action in actions:
                 if action[0] == PGAction.PARSE:
                     _, stmt_name, sql_text, data, _ = action
-                    parse = self.before_prepare(stmt_name, dbver, buf)
+                    if stmt_name in prepared:
+                        parse = False
+                    else:
+                        parse = self.before_prepare(stmt_name, dbver, buf)
                     queue.append(parse)
                     if parse:
+                        prepared.add(stmt_name)
                         msg_buf = WriteBuffer.new_message(b'P')
                         msg_buf.write_bytestring(stmt_name)
                         msg_buf.write_bytestring(sql_text)
@@ -1456,6 +1462,11 @@ cdef class PGConnection:
 
                 if action[0] == PGAction.PARSE:
                     if not queue.popleft():
+                        if action[-1]:
+                            # We hit a cached prepared statement but the
+                            # frontend still needs a ParseComplete
+                            msg_buf = WriteBuffer.new_message(b'1')
+                            buf.write_buffer(msg_buf.end_message())
                         continue
                 elif action[0] == PGAction.CLOSE_STMT:
                     msg_buf = WriteBuffer.new_message(b'3')  # CloseComplete
@@ -1476,48 +1487,56 @@ cdef class PGConnection:
 
                     # ParseComplete
                     if mtype == b'1' and action[0] == PGAction.PARSE:
+                        self.buffer.finish_message()
                         if self.debug:
                             self.debug_print('PARSE COMPLETE MSG')
                         self.prep_stmts[action[1]] = dbver
                         if action[-1]:
-                            self.buffer.redirect_messages(buf, mtype, 1)
-                        else:
-                            self.buffer.finish_message()
+                            msg_buf = WriteBuffer.new_message(mtype)
+                            buf.write_buffer(msg_buf.end_message())
                         break
 
                     # BindComplete
                     elif mtype == b'2' and action[0] == PGAction.BIND:
+                        self.buffer.finish_message()
                         if self.debug:
                             self.debug_print('BIND COMPLETE MSG')
                         if action[-1]:
-                            self.buffer.redirect_messages(buf, mtype, 1)
-                        else:
-                            self.buffer.finish_message()
+                            msg_buf = WriteBuffer.new_message(mtype)
+                            buf.write_buffer(msg_buf.end_message())
                         break
 
                     elif (
                         # RowDescription or NoData
                         mtype == b'T' or mtype == b'n'
                     ) and action[0] == PGAction.DESCRIBE:
+                        data = self.buffer.consume_message()
                         if self.debug:
                             self.debug_print('END OF DESCRIBE', mtype)
-                        self.buffer.redirect_messages(buf, mtype, 1)
+                        msg_buf = WriteBuffer.new_message(mtype)
+                        msg_buf.write_bytes(data)
+                        buf.write_buffer(msg_buf.end_message())
                         break
 
                     elif (
                         # CommandComplete or EmptyQueryResponse
                         mtype == b'C' or mtype == b'I'
                     ) and action[0] == PGAction.EXECUTE:
+                        data = self.buffer.consume_message()
                         if self.debug:
                             self.debug_print('END OF EXECUTE', mtype)
-                        self.buffer.redirect_messages(buf, mtype, 1)
+                        msg_buf = WriteBuffer.new_message(mtype)
+                        msg_buf.write_bytes(data)
+                        buf.write_buffer(msg_buf.end_message())
                         break
 
                     # CloseComplete
                     elif mtype == b'3' and action[0] == PGAction.CLOSE_PORTAL:
+                        self.buffer.finish_message()
                         if self.debug:
                             self.debug_print('CLOSE COMPLETE MSG')
-                        self.buffer.redirect_messages(buf, mtype, 1)
+                        msg_buf = WriteBuffer.new_message(mtype)
+                        buf.write_buffer(msg_buf.end_message())
                         break
 
                     elif mtype == b'E':  # ErrorResponse
@@ -1545,7 +1564,10 @@ cdef class PGConnection:
                             self.buffer.finish_message()
                             buf.write_buffer(msg_buf.end_message())
                         else:
-                            self.buffer.redirect_messages(buf, mtype, 1)
+                            data = self.buffer.consume_message()
+                            msg_buf = WriteBuffer.new_message(mtype)
+                            msg_buf.write_bytes(data)
+                            buf.write_buffer(msg_buf.end_message())
                         break
 
                     elif mtype == b'Z':  # ReadyForQuery

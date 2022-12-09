@@ -20,6 +20,7 @@
 
 import asyncio
 import io
+import os
 import ssl
 import struct
 import enum
@@ -31,6 +32,7 @@ from edb.testbase import server as tb
 
 
 DEBUG = debug.flags.server_proto
+PID = os.getpid()
 
 
 def write_string(buf, string):
@@ -65,7 +67,7 @@ class Message:
     def __bytes__(self):
         rv = self.serialize()
         if DEBUG:
-            print("  >", self)
+            print(PID, "  >", self)
         return rv
 
     @classmethod
@@ -82,6 +84,9 @@ class Message:
 
     def values_repr(self):
         return ", ".join(f"{k}={v!r}" for k, v in self.__dict__.items())
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
 
 
 class ResponseMessage(Message):
@@ -485,11 +490,11 @@ def deserialize(data):
         cls = messages_by_type.get(msg_type)
         if cls is None:
             if DEBUG:
-                print("<  ", "skipping:", bytes(buf[: msg_size + 1]))
+                print(PID, "<  ", "skipping:", bytes(buf[: msg_size + 1]))
         else:
             rv = cls.deserialize(payload)
             if DEBUG:
-                print("<  ", rv)
+                print(PID, "<  ", rv)
             yield rv
         buf = buf[msg_size + 1 :]
 
@@ -523,7 +528,7 @@ class PgProtocol(asyncio.Protocol):
     async def _start_tls(self):
         try:
             if DEBUG:
-                print("START TLS")
+                print(PID, "START TLS")
             loop = asyncio.get_running_loop()
             self._transport = await loop.start_tls(
                 self._transport, self, self.sslctx
@@ -539,7 +544,7 @@ class PgProtocol(asyncio.Protocol):
 
     def connection_lost(self, exc):
         if DEBUG:
-            print("CONNECTION LOST")
+            print(PID, "CONNECTION LOST")
         self.messages.put_nowait(None)
 
     async def read(self, expect=None):
@@ -632,13 +637,16 @@ class TestSQLProtocol(tb.DatabaseTestCase):
         if server_sig != expected_server_sig:
             raise RuntimeError(f"server SCRAM proof does not match")
 
-    async def assert_simple_query_result(self, rows):
-        await self.conn.read(RowDescription)
+    async def assert_query_results(self, rows):
         for row in rows:
             msg = await self.conn.read(DataRow)
             self.assertEqual(msg.values, row)
         msg = await self.conn.read(CommandComplete)
         self.assertEqual(msg.tag, f"SELECT {len(rows)}")
+
+    async def assert_simple_query_result(self, rows):
+        await self.conn.read(RowDescription)
+        await self.assert_query_results(rows)
 
     async def assert_ready_for_query(self, status=ReadyForQuery.Type.idle):
         msg = await self.conn.read(ReadyForQuery)
@@ -694,4 +702,424 @@ class TestSQLProtocol(tb.DatabaseTestCase):
     async def test_sql_proto_simple_query_06(self):
         self.conn.write(Query("SELECT 42; SELT 42"))
         await self.assert_error_response("42601", "syntax error")
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_01(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Bind(),
+            Execute(),
+            Sync(),
+        )
+        await self.conn.read(ParseComplete)
+        await self.conn.read(BindComplete)
+        await self.assert_query_results([[b"42"]])
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_02(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Bind(),
+            Execute(),
+            Bind(),
+            Execute(),
+            Bind(),
+            Execute(),
+            Sync(),
+        )
+        await self.conn.read(ParseComplete)
+        for _ in range(3):
+            await self.conn.read(BindComplete)
+            await self.assert_query_results([[b"42"]])
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_03(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Parse("SELECT 1/0", "err"),
+            Bind(),
+            Execute(),
+            Bind(statement="err"),
+            Execute(),
+            Bind(),
+            Execute(),
+            Sync(),
+        )
+        await self.conn.read(ParseComplete)
+        await self.conn.read(ParseComplete)
+        await self.conn.read(BindComplete)
+        await self.assert_query_results([[b"42"]])
+        await self.assert_error_response("22012", "division by zero")
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_04(self):
+        self.conn.write(
+            Parse("SELECT 42", "s42"),
+            Bind(statement="s42"),
+            Execute(),
+            Parse("SELT 42", "err"),
+            Bind(statement="err"),
+            Execute(),
+            Bind(statement="s42"),
+            Execute(),
+            Sync(),
+        )
+        # On Postgres we will receive the commented out messages
+        # await self.conn.read(ParseComplete)
+        # await self.conn.read(BindComplete)
+        # await self.assert_query_results([[b"42"]])
+        await self.assert_error_response("42601", "syntax error")
+        await self.assert_ready_for_query()
+
+        self.conn.write(
+            Bind(statement="s42"),
+            Execute(),
+            Sync(),
+        )
+        await self.conn.read(BindComplete)
+        await self.assert_query_results([[b"42"]])
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_05(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Parse("SELECT 84"),
+            Bind(),
+            Bind(),
+            Execute(),
+            Sync(),
+        )
+        await self.conn.read(ParseComplete)
+        await self.conn.read(ParseComplete)
+        await self.conn.read(BindComplete)
+        await self.conn.read(BindComplete)
+        await self.assert_query_results([[b"84"]])
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_06(self):
+        self.conn.write(
+            Parse("SELECT 426"),  # for backend cache
+            Parse("SELECT 426", "s42"),
+            Parse("SELECT 846", "s84"),
+            Bind("s84", "s84"),
+            Bind("s42", "s42"),
+            Execute("s84"),
+            Execute("s42"),
+            Sync(),
+        )
+        await self.conn.read(ParseComplete)
+        await self.conn.read(ParseComplete)
+        await self.conn.read(ParseComplete)
+        await self.conn.read(BindComplete)
+        await self.conn.read(BindComplete)
+        await self.assert_query_results([[b"846"]])
+        await self.assert_query_results([[b"426"]])
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_07(self):
+        self.conn.write(
+            Parse("SELECT 42", "stmt7"),
+            Parse("SELECT 84", "stmt7"),
+            Bind(),
+            Execute(),
+            Sync(),
+        )
+        # On Postgres we will also receive:
+        # await self.conn.read(ParseComplete)
+        await self.assert_error_response(
+            "42P05", 'prepared statement "stmt7" already exists'
+        )
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_08(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Bind("portal8"),
+            Bind("portal8"),
+            Execute("portal8"),
+            Sync(),
+        )
+        # On Postgres we will also receive:
+        # await self.conn.read(ParseComplete)
+        # await self.conn.read(BindComplete)
+        await self.assert_error_response(
+            "42P03", 'cursor "portal8" already exists'
+        )
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_09(self):
+        self.conn.write(
+            Bind(statement="stmt9"),
+            Execute(),
+            Sync(),
+        )
+        await self.assert_error_response(
+            "26000", 'prepared statement "stmt9" does not exist'
+        )
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_10(self):
+        self.conn.write(
+            Execute("portal10"),
+            Sync(),
+        )
+        await self.assert_error_response(
+            "34000", 'cursor "portal10" does not exist'
+        )
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_11(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Bind(),
+            Flush(),
+        )
+        await self.conn.read(ParseComplete)
+        await self.conn.read(BindComplete)
+        self.conn.write(
+            Execute(),
+            Sync(),
+        )
+        await self.assert_query_results([[b"42"]])
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_12(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Flush(),
+        )
+        await self.conn.read(ParseComplete)
+        self.conn.write(
+            Bind(),
+            Execute(),
+            Sync(),
+        )
+        await self.conn.read(BindComplete)
+        await self.assert_query_results([[b"42"]])
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_13(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Bind(),
+            Sync(),
+        )
+        await self.conn.read(ParseComplete)
+        await self.conn.read(BindComplete)
+        await self.assert_ready_for_query()
+
+        self.conn.write(
+            Execute(),
+            Sync(),
+        )
+        await self.assert_error_response("34000", 'cursor "" does not exist')
+        await self.assert_ready_for_query()
+
+        self.conn.write(
+            Bind(),
+            Execute(),
+            Sync(),
+        )
+        await self.conn.read(BindComplete)
+        await self.assert_query_results([[b"42"]])
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_14(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Bind(),
+            Execute(),
+            Execute(),
+            Flush(),
+        )
+        await self.conn.read(ParseComplete)
+        await self.conn.read(BindComplete)
+        await self.assert_query_results([[b"42"]])
+        await self.assert_query_results([])
+
+        # Executed portals are closed in the end of a pipeline
+        self.conn.write(
+            Execute(),
+            Sync(),
+        )
+        await self.assert_error_response("34000", 'cursor "" does not exist')
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_15(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Bind(),
+            Execute(limit=1),
+            Sync(),
+        )
+        await self.assert_error_response(
+            "0A000", "suspended cursor is not supported"
+        )
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_16(self):
+        self.conn.write(Parse("SELT 42"))
+        await self.assert_error_response("42601", "syntax error")
+        self.conn.write(Bind())
+        with self.assertRaises(asyncio.TimeoutError):
+            await asyncio.wait_for(self.conn.messages.get(), 0.1)
+        self.conn.write(Flush())
+        with self.assertRaises(asyncio.TimeoutError):
+            await asyncio.wait_for(self.conn.messages.get(), 0.1)
+        self.conn.write(Sync())
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_17(self):
+        self.conn.write(
+            Parse("SELECT 42", "stmt17"),
+            Bind(statement="stmt17"),
+            Execute(),
+            Close("stmt17"),
+            Bind(statement="stmt17"),
+            Execute(),
+            Sync(),
+        )
+        # On Postgres we will also receive:
+        # await self.conn.read(ParseComplete)
+        # await self.conn.read(BindComplete)
+        # await self.assert_query_results([[b"42"]])
+        # await self.conn.read(CloseComplete)
+        await self.assert_error_response(
+            "26000", 'prepared statement "stmt17" does not exist'
+        )
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_18(self):
+        self.conn.write(
+            Parse("SELECT 42", "stmt18"),
+            Bind(statement="stmt18"),
+            Execute(),
+            Sync(),
+        )
+        await self.conn.read(ParseComplete)
+        await self.conn.read(BindComplete)
+        await self.assert_query_results([[b"42"]])
+        await self.assert_ready_for_query()
+
+        self.conn.write(
+            Close("stmt18"),
+            Flush(),
+        )
+        await self.conn.read(CloseComplete)
+
+        self.conn.write(
+            Bind(statement="stmt18"),
+            Execute(),
+            Sync(),
+        )
+        await self.assert_error_response(
+            "26000", 'prepared statement "stmt18" does not exist'
+        )
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_19(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Bind("portal19"),
+            Execute("portal19"),
+            Close("portal19", close_type="P"),
+            Execute("portal19"),
+            Sync(),
+        )
+        # On Postgres we will also receive:
+        # await self.conn.read(ParseComplete)
+        # await self.conn.read(BindComplete)
+        # await self.assert_query_results([[b"42"]])
+        # await self.conn.read(CloseComplete)
+        await self.assert_error_response(
+            "34000", 'cursor "portal19" does not exist'
+        )
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_20(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Bind("portal20"),
+            Flush(),
+        )
+        await self.conn.read(ParseComplete)
+        await self.conn.read(BindComplete)
+
+        self.conn.write(
+            Close("portal20", close_type="P"),
+            Flush(),
+        )
+        await self.conn.read(CloseComplete)
+
+        self.conn.write(
+            Execute("portal20"),
+            Sync(),
+        )
+        await self.assert_error_response(
+            "34000", 'cursor "portal20" does not exist'
+        )
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_21(self):
+        self.conn.write(
+            Parse("SELECT 42", "stmt21"),
+            DescribeStatement("stmt21"),
+            Sync(),
+        )
+        await self.conn.read(ParseComplete)
+        param_desc = await self.conn.read(ParameterDescription)
+        row_desc = await self.conn.read(RowDescription)
+        await self.assert_ready_for_query()
+
+        self.conn.write(
+            DescribeStatement("stmt21"),
+            Sync(),
+        )
+        self.assertEqual(
+            param_desc, await self.conn.read(ParameterDescription)
+        )
+        self.assertEqual(row_desc, await self.conn.read(RowDescription))
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_22(self):
+        self.conn.write(
+            Parse("SELECT 42"),
+            Bind("portal22"),
+            DescribePortal("portal22"),
+            Flush(),
+        )
+        await self.conn.read(ParseComplete)
+        await self.conn.read(BindComplete)
+        row_desc = await self.conn.read(RowDescription)
+
+        self.conn.write(
+            DescribePortal("portal22"),
+            Sync(),
+        )
+        self.assertEqual(row_desc, await self.conn.read(RowDescription))
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_23(self):
+        self.conn.write(
+            Parse("SELECT $1"),
+            Bind(parameters=[42]),
+            Execute(),
+            Sync(),
+        )
+        await self.conn.read(ParseComplete)
+        await self.conn.read(BindComplete)
+        await self.assert_query_results([[b"42"]])
+        await self.assert_ready_for_query()
+
+    async def test_sql_proto_extended_query_24(self):
+        self.conn.write(
+            Parse("SELECT $1"),
+            Bind(parameters=[42, "err"]),
+            Execute(),
+            Sync(),
+        )
+        await self.conn.read(ParseComplete)
+        await self.assert_error_response(
+            "08P01", r"supplies 2 parameters.*requires 1"
+        )
         await self.assert_ready_for_query()
