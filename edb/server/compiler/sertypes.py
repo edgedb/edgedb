@@ -515,31 +515,46 @@ class TypeSerializer:
         self.anno_buffer.append(_uint32_packer(len(tn_bytes)))
         self.anno_buffer.append(tn_bytes)
 
-    def _add_type_annotation(self, id: uuid.UUID, t: s_types.InheritingType, schema: s_schema.Schema):
+    def _add_type_annotation(
+        self, id: uuid.UUID, t: s_types.InheritingType, 
+        schema: s_schema.Schema
+    ):
         self.anno_buffer.append(CTYPE_ANNO_INTROSPECTION)
 
         # append the descriptor id
         self.anno_buffer.append(id.bytes)
 
-        # append the index of the descriptor this annotation is for
-        # TODO: is this information necessary? do bindings need this?
-        # self.anno_buffer.append(_uint16_packer(self.uuid_to_pos[id]))
-
-        # get all ancestors of the type, excluding 'BaseObject' and 'Object'
-        ancestors = [
-            x for x in t.get_ancestors(schema).objects(schema) 
-            if x.get_displayname(schema) not in ['std::BaseObject', 'std::Object']
-        ]
+        # get all ancestors of the type, excluding 'BaseObject' 
+        # and 'Object', and make distinct by 'id'
+        ancestors = {
+            x.id: x for x in t.get_ancestors(schema).objects(schema) 
+            if x.get_displayname(schema) not in [
+                'std::BaseObject', 'std::Object'
+            ]
+        }.values()
 
         # encode the information for the current type
-        type_buf = b''.join(self._encode_type_annotation_ancestors(t, ancestors, schema))
+        type_buf = b''.join(
+            self._encode_type_annotation_ancestors(
+                t, 
+                ancestors, schema
+            )
+        )
+
         self.anno_buffer.append(type_buf)
 
         # encode all ancestors information
         self.anno_buffer.append(_uint16_packer(len(ancestors)))
 
         for x in ancestors:
-            anc_buf = b''.join(self._encode_type_annotation_ancestors(x, ancestors, schema))
+            anc_buf = b''.join(
+                self._encode_type_annotation_ancestors(
+                    x, 
+                    ancestors, 
+                    schema
+                )
+            )
+
             self.anno_buffer.append(anc_buf)
 
     def _encode_type_annotation_ancestors(
@@ -561,38 +576,19 @@ class TypeSerializer:
 
         # get direct parents of this type and grab their indexes
         direct_ancestors = [
-            ancestors.index(x) for x in t.get_ancestors(schema).objects(schema) 
+            ancestors.index(x)
+            for x in t.get_ancestors(schema).objects(schema)
             if x not in x.get_ancestors(schema).objects(schema) and 
-                x.get_displayname(schema) not in ['std::BaseObject', 'std::Object']
+                x.get_displayname(schema) not in [
+                    'std::BaseObject', 
+                    'std::Object'
+                ]
         ]
 
         buf.append(_uint16_packer(len(direct_ancestors)))
 
         for index in direct_ancestors:
             buf.append(_uint16_packer(index))
-
-        return buf
-
-    def _get_type_information_data(self, t: s_objtypes.ObjectType, schema: s_schema.Schema):
-        buf = []
-
-        name_bytes = t.get_displayname(schema).encode('utf-8')
-
-        buf.append(_uint32_packer(len(name_bytes)))
-        buf.append(name_bytes)
-        buf.append(t.get_id(schema).bytes)
-
-        # get direct ancestors of the type
-        ancestors = [
-            x for x in t.get_ancestors(schema).objects(schema) 
-            if x not in x.get_ancestors(schema).objects(schema) 
-                and x.get_displayname(schema) not in ['std::BaseObject', 'std::Object']
-        ]
-
-        buf.append(_uint16_packer(len(ancestors)))
-
-        for x in ancestors:
-            buf.append(b''.join(self._get_type_information_data(x, schema)))
 
         return buf
         
