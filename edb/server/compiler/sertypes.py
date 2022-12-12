@@ -134,6 +134,10 @@ class TypeSerializer:
         self.inline_typenames = inline_typenames
         self.introspect_type_information = introspect_type_information
 
+        if introspect_type_information:
+            self.codec_type_information = {}
+            self.ancestor_type_information = []
+
     def _get_collection_type_id(self, coll_type, subtypes,
                                 element_names=None):
         if coll_type == 'tuple' and not subtypes:
@@ -395,7 +399,7 @@ class TypeSerializer:
 
             if self.introspect_type_information:
                 # add the introspection data
-                self._add_type_annotation(type_id, mt, self.schema)
+                self._track_type_information(type_id, mt, self.schema)
 
             return type_id
 
@@ -504,6 +508,44 @@ class TypeSerializer:
         else:
             return self._describe_type(t, {}, {}, protocol_version)
 
+    def _track_type_information(
+        self, id: uuid.UUID, t: s_types.InheritingType,
+        schema: s_schema.Schema
+    ):
+        # get all ancestors of the type and track them
+        ancestors = {
+            x.id: self._track_ancestor_type_information(x, schema)
+            for x in t.get_bases(schema).objects(schema)
+            if x.get_displayname(schema) not in [
+                'std::BaseObject', 'std::Object'
+            ]
+        }.values()
+
+        self.codec_type_information[id] = t, ancestors
+
+    def _track_ancestor_type_information(
+        self, t: s_types.InheritingType,
+        schema: s_schema.Schema
+    ) -> int:
+        if any(x[0] is t for x in self.ancestor_type_information):
+            return self.ancestor_type_information.index(
+                next(x for x in self.ancestor_type_information if x[0] is t)
+            )
+
+        ancestors = {
+            x.id: self._track_ancestor_type_information(x, schema)
+            for x in t.get_bases(schema).objects(schema)
+            if x.get_displayname(schema) not in [
+                'std::BaseObject', 'std::Object'
+            ]
+        }.values()
+
+        idx = len(self.ancestor_type_information)
+
+        self.ancestor_type_information.append((t, ancestors))
+
+        return idx
+
     def _add_annotation(self, t: s_types.Type):
         self.anno_buffer.append(CTYPE_ANNO_TYPENAME)
 
@@ -515,82 +557,47 @@ class TypeSerializer:
         self.anno_buffer.append(_uint32_packer(len(tn_bytes)))
         self.anno_buffer.append(tn_bytes)
 
-    def _add_type_annotation(
-        self, id: uuid.UUID, t: s_types.InheritingType,
-        schema: s_schema.Schema
-    ):
-        self.anno_buffer.append(CTYPE_ANNO_INTROSPECTION)
-
-        # append the descriptor id
-        self.anno_buffer.append(id.bytes)
-
-        # get all ancestors of the type, excluding 'BaseObject'
-        # and 'Object', and make distinct by 'id'
-        ancestors = {
-            x.id: x for x in t.get_ancestors(schema).objects(schema)
-            if x.get_displayname(schema) not in [
-                'std::BaseObject', 'std::Object'
-            ]
-        }.values()
-
-        # encode the information for the current type
-        type_buf = b''.join(
-            self._encode_type_annotation_ancestors(
-                t,
-                ancestors, schema
-            )
-        )
-
-        self.anno_buffer.append(type_buf)
-
-        # encode all ancestors information
-        self.anno_buffer.append(_uint16_packer(len(ancestors)))
-
-        for x in ancestors:
-            anc_buf = b''.join(
-                self._encode_type_annotation_ancestors(
-                    x,
-                    ancestors,
-                    schema
-                )
-            )
-
-            self.anno_buffer.append(anc_buf)
-
-    def _encode_type_annotation_ancestors(
-        self, t: s_types.InheritingType,
-        ancestors: typing.Tuple[s_types.InheritingType, ...],
-        schema: s_schema.Schema
-    ):
+    def _compile_type_information(self) -> bytes:
         buf = []
 
-        # append the type name
-        tn = t.get_displayname(self.schema)
+        buf.append(CTYPE_ANNO_INTROSPECTION)
 
-        tn_bytes = tn.encode('utf-8')
-        buf.append(_uint32_packer(len(tn_bytes)))
-        buf.append(tn_bytes)
+        # encode ancestor information
+        buf.append(_uint16_packer(len(self.ancestor_type_information)))
 
-        # append the type id
-        buf.append(t.get_id(schema).bytes)
+        for type, ancestors in self.ancestor_type_information:
+            tname = type.get_displayname(self.schema)
+            buf.append(_uint32_packer(len(tname)))
+            buf.append(tname.encode('utf-8'))
 
-        # get direct parents of this type and grab their indexes
-        direct_ancestors = [
-            ancestors.index(x)
-            for x in t.get_ancestors(schema).objects(schema)
-            if x not in x.get_ancestors(schema).objects(schema) and
-            x.get_displayname(schema) not in [
-                'std::BaseObject',
-                'std::Object'
-            ]
-        ]
+            buf.append(type.get_id(self.schema).bytes)
 
-        buf.append(_uint16_packer(len(direct_ancestors)))
+            buf.append(_uint16_packer(len(ancestors)))
 
-        for index in direct_ancestors:
-            buf.append(_uint16_packer(index))
+            for idx in ancestors:
+                buf.append(_uint16_packer(idx))
 
-        return buf
+        # encode main type information
+        buf.append(_uint16_packer(len(self.codec_type_information)))
+
+        for codec_id, val in self.codec_type_information.items():
+            type = val[0]
+            ancestors = val[1]
+
+            buf.append(codec_id.bytes)
+
+            tname = type.get_displayname(self.schema)
+            buf.append(_uint32_packer(len(tname)))
+            buf.append(tname.encode('utf-8'))
+
+            buf.append(type.get_id(self.schema).bytes)
+
+            buf.append(_uint16_packer(len(ancestors)))
+
+            for idx in ancestors:
+                buf.append(_uint16_packer(idx))
+
+        return b''.join(buf)
 
     @classmethod
     def describe_params(
@@ -672,6 +679,10 @@ class TypeSerializer:
             protocol_version, follow_links=follow_links,
             name_filter=name_filter)
         out = b''.join(builder.buffer) + b''.join(builder.anno_buffer)
+
+        if introspect_type_information:
+            out = out + builder._compile_type_information()
+
         return out, type_id
 
     @classmethod
