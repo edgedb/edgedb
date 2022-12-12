@@ -3671,3 +3671,29 @@ class TestUpdate(tb.QueryTestCase):
             """,
             [],
         )
+
+    async def test_edgeql_update_volatility_01(self):
+        # random should be executed once for each object
+        await self.con.execute(r"""
+            update UpdateTest set { comment := <str>random() };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select count(distinct UpdateTest.comment) = count(UpdateTest)
+            """,
+            [True],
+        )
+
+    async def test_edgeql_update_volatility_02(self):
+        # random should be executed once for each object
+        await self.con.execute(r"""
+            update UpdateTest set { str_tags := <str>random() };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select count(distinct UpdateTest.str_tags) = count(UpdateTest)
+            """,
+            [True],
+        )
