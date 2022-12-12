@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import textwrap
 
@@ -48,15 +49,16 @@ class EnumExists(base.Condition):
 
 
 class Enum(base.DBObject):
-
-    def __init__(self, name, values, *, metadata=None):
+    def __init__(
+        self, name: Tuple[str, ...], values: Sequence[str], *, metadata=None
+    ):
         self.name = name
         self.values = values
         super().__init__(metadata=metadata)
 
 
 class CreateEnum(ddl.SchemaObjectOperation):
-    def __init__(self, enum, *, conditions=None, neg_conditions=None):
+    def __init__(self, enum: Enum, *, conditions=None, neg_conditions=None):
         super().__init__(
             enum.name, conditions=conditions, neg_conditions=neg_conditions)
         self.values = enum.values
