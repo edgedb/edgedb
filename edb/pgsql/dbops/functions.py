@@ -195,7 +195,7 @@ class DropFunction(ddl.DDLOperation, FunctionOperation):
     def __init__(
         self,
         name: Tuple[str, ...],
-        args: Sequence[str | Tuple[str, str, str]],
+        args: Sequence[FunctionArg],
         *,
         if_exists: bool = False,
         has_variadic: bool = False,

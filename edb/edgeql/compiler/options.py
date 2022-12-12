@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from edb.schema import name as s_name
     from edb.schema import types as s_types
     from edb.schema import pointers as s_pointers
+    from edb.schema import constraints as s_constraints
 
 
 @dataclass
@@ -121,13 +122,15 @@ class CompilerOptions(GlobalCompilerOptions):
 
     #: A set of schema types and links that should be treated
     #: as singletons in the context of this compilation.
-    singletons: Collection[Union[s_types.Type, s_pointers.Pointer]] = (
-        frozenset())
+    singletons: Collection[
+        s_types.Type | s_pointers.Pointer | s_constraints.ConsistencySubject
+    ] = frozenset()
 
     #: Type references that should be remaped to another type.  This
     #: is for dealing with remapping explicit type names in schema
     #: expressions to their subtypes when necessary.
-    type_remaps: Dict[s_types.Type, s_types.Type] = (
-        dc_field(default_factory=dict))
+    type_remaps: Dict[s_obj.Object, s_types.Type] = dc_field(
+        default_factory=dict
+    )
 
     detached: bool = False

@@ -2246,8 +2246,6 @@ class CreateScalarType(ScalarTypeMetaCommand,
             )
             ops.add_command(dbops.CreateFunction(cast_func))
 
-            base = q(*new_enum_name)
-
         else:
             base = types.get_scalar_base(schema, scalar)
 
@@ -2692,6 +2690,7 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         old_domain_name = common.get_backend_name(
             orig_schema, scalar, catenate=False)
 
+        cond: dbops.Condition
         if scalar.is_concrete_enum(orig_schema):
             old_enum_name = common.get_backend_name(
                 orig_schema, scalar, catenate=False)
