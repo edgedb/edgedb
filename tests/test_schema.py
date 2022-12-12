@@ -7441,6 +7441,121 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             """,
         ])
 
+    def test_schema_migrations_half_diamonds_00(self):
+        self._assert_migration_equivalence([
+            r"""
+                abstract type A;
+
+                abstract type B {
+                    link z -> G {
+                        constraint exclusive;
+                    }
+                }
+
+                abstract type C extending B {
+                    link y -> H {
+                        constraint exclusive;
+                    }
+                }
+
+                abstract type D;
+
+                type E extending D;
+
+                type F extending C, B, D;
+
+                type G extending D, A {
+                    link x := assert_single(.<z[IS B]);
+                }
+
+                type H extending B, D, A {
+                    link w := assert_single(.<y[IS C]);
+                }
+            """,
+            r"""
+            """,
+        ])
+
+    def test_schema_migrations_half_diamonds_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                abstract type A;
+                abstract type B {
+                    link z -> A;
+                };
+                abstract type C extending B;
+                abstract type D;
+                type F extending C, B;
+            """,
+            r"""
+            """,
+        ])
+
+    def test_schema_migrations_half_diamonds_02(self):
+        self._assert_migration_equivalence([
+            r"""
+                abstract type A;
+                abstract type B {
+                    link z -> A;
+                };
+                abstract type C extending B;
+                abstract type C2 extending B;
+                abstract type D;
+                type F extending C, C2, B;
+            """,
+            r"""
+            """,
+        ])
+
+    def test_schema_migrations_half_diamonds_03(self):
+        self._assert_migration_equivalence([
+            r"""
+                abstract type A;
+                abstract type B {
+                    link z -> A;
+                };
+                abstract type C extending B;
+                abstract type C2 extending C;
+                abstract type D;
+                type F extending C, C2, B;
+            """,
+            r"""
+            """,
+        ])
+
+    def test_schema_migrations_half_diamonds_04(self):
+        self._assert_migration_equivalence([
+            r"""
+                abstract type A;
+                abstract type B {
+                    link z -> A;
+                };
+                abstract type C extending B;
+                abstract type C2 extending C;
+                abstract type D;
+                type F extending C2, B;
+            """,
+            r"""
+            """,
+        ])
+
+    def test_schema_migrations_half_diamonds_05(self):
+        self._assert_migration_equivalence([
+            r"""
+                abstract type A;
+                abstract type B {
+                    link z -> A;
+                };
+                abstract type C extending B;
+                abstract type C2 extending C;
+                abstract type D;
+                type F extending C, C2, B;
+                type F2 extending C, C2, B, F;
+            """,
+            r"""
+            """,
+        ])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""

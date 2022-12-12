@@ -194,7 +194,7 @@ def delta_objects(
             # how the delta in child objects is treated.
             order_x = cast(
                 Iterable[so.Object_T],
-                _sort_by_inheritance(
+                sort_by_inheritance(
                     new_schema,
                     cast(Iterable[so.InheritingObject], comparison_map),
                 ),
@@ -265,7 +265,7 @@ def delta_objects(
     deleted = old - {y for _, y in alter_pairs}
 
     if issubclass(sclass, so.InheritingObject):
-        deleted_order = _sort_by_inheritance(  # type: ignore
+        deleted_order = sort_by_inheritance(  # type: ignore[assignment]
             old_schema,
             cast(Iterable[so.InheritingObject], deleted),
         )
@@ -286,15 +286,15 @@ def delta_objects(
     return delta
 
 
-def _sort_by_inheritance(
+def sort_by_inheritance(
     schema: s_schema.Schema,
     objs: Iterable[so.InheritingObjectT],
-) -> Iterable[so.InheritingObjectT]:
+) -> Tuple[so.InheritingObjectT, ...]:
     graph = {}
     for x in objs:
         graph[x] = topological.DepGraphEntry(
             item=x,
-            deps=ordered.OrderedSet(x.get_bases(schema).objects(schema)),
+            deps=ordered.OrderedSet(x.get_ancestors(schema).objects(schema)),
             extra=False,
         )
 
