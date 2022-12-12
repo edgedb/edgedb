@@ -718,6 +718,8 @@ class PathId:
         result._norm_path = self._norm_path[0:size]
         result._prefix = self._prefix
         result._namespace = self._namespace
+        if rptr := result.rptr():
+            result._is_linkprop = rptr.source_ptr is not None
 
         if size < len(self._path) and self._norm_path[size][2]:  # type: ignore
             # A link property ref has been chopped off.
