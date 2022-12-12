@@ -1359,6 +1359,9 @@ def process_update_body(
         subctx.expr_exposed = False
         subctx.enclosing_cte_iterator = iterator
 
+        clauses.setup_iterator_volatility(
+            iterator, is_cte=True, ctx=subctx)
+
         for shape_el, shape_op in ir_stmt.subject.shape:
             if shape_op == qlast.ShapeOp.MATERIALIZE:
                 continue
