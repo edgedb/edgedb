@@ -2485,8 +2485,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             elif isinstance(obj, s_indexes.Index):
                 self.pgops.add(DeleteIndex.delete_index(obj, schema, context))
             elif isinstance(obj, s_scalars.ScalarType):
-                self.pgops.add(DeleteScalarType.delete_scalar(
-                    obj, schema, context))
+                self.pgops.add(DeleteScalarType.delete_scalar(obj, schema))
             elif isinstance(obj, s_props.Property):
                 new_typ = props[obj]
 
@@ -2702,13 +2701,13 @@ class DeleteScalarType(ScalarTypeMetaCommand,
             cast_func_name = common.get_backend_name(
                 orig_schema, scalar, catenate=False, aspect="enum-cast"
             )
-            cast_func = dbops.DropFunction(
+            cast_func_any = dbops.DropFunction(
                 name=cast_func_name,
                 args=[("value", ("anyelement",))],
                 conditions=[cond],
             )
 
-            return (enum, cast_func)
+            return (enum, cast_func_any)
         else:
             cond = dbops.DomainExists(old_domain_name)
             return (dbops.DropDomain(name=old_domain_name, conditions=[cond]),)
@@ -2732,7 +2731,8 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         else:
             ops = self.pgops
 
-        ops.extend(self.delete_scalar(scalar, orig_schema, context))
+        for op in self.delete_scalar(scalar, orig_schema):
+            ops.add(op)
 
         if self.is_sequence(orig_schema, scalar):
             seq_name = common.get_backend_name(

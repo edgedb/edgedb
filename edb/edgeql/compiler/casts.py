@@ -96,19 +96,6 @@ def compile_cast(
             f'`...[IS {new_stype.get_displayname(ctx.env.schema)}]` instead',
             context=srcctx)
 
-    if new_stype.is_enum(ctx.env.schema):
-        objctx = ctx.env.options.schema_object_context
-        if objctx in (s_constr.Constraint, s_indexes.Index):
-            pass
-            # this if statements was preventing all casts within constraints
-            # from using the _cast_enum_immutable
-            # it passed trough one call, but in the pg-compiler, I received
-            # three different TypeCasts none of which came from
-            # _cast_enum_immutable.
-        return _cast_enum_immutable(
-            ir_expr, orig_stype, new_stype, ctx=ctx
-        )
-
     uuid_t = ctx.env.get_track_schema_type(sn.QualName('std', 'uuid'))
     if (
         orig_stype.issubclass(ctx.env.schema, uuid_t)
@@ -227,6 +214,13 @@ def compile_cast(
                 cardinality_mod,
                 srcctx=srcctx,
                 ctx=ctx,
+            )
+
+    if new_stype.is_enum(ctx.env.schema):
+        objctx = ctx.env.options.schema_object_context
+        if objctx in (s_constr.Constraint, s_indexes.Index):
+            return _cast_enum_immutable(
+                ir_expr, orig_stype, new_stype, ctx=ctx
             )
 
     return _compile_cast(
@@ -969,8 +963,6 @@ def _cast_enum_immutable(
         sql_cast=False,
         sql_expr=True,
     )
-
-    cast_ir.dump()
 
     return setgen.ensure_set(cast_ir, ctx=ctx)
 

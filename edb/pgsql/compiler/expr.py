@@ -233,9 +233,6 @@ def compile_TypeCast(
     else:
         raise errors.UnsupportedFeatureError('cast not supported')
 
-    expr.dump()
-    res.dump()
-
     if expr.cardinality_mod is qlast.CardinalityModifier.Required:
         res = pgast.FuncCall(
             name=('edgedb', 'raise_on_null'),
