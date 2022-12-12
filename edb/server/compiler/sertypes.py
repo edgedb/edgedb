@@ -516,7 +516,7 @@ class TypeSerializer:
         self.anno_buffer.append(tn_bytes)
 
     def _add_type_annotation(
-        self, id: uuid.UUID, t: s_types.InheritingType, 
+        self, id: uuid.UUID, t: s_types.InheritingType,
         schema: s_schema.Schema
     ):
         self.anno_buffer.append(CTYPE_ANNO_INTROSPECTION)
@@ -524,10 +524,10 @@ class TypeSerializer:
         # append the descriptor id
         self.anno_buffer.append(id.bytes)
 
-        # get all ancestors of the type, excluding 'BaseObject' 
+        # get all ancestors of the type, excluding 'BaseObject'
         # and 'Object', and make distinct by 'id'
         ancestors = {
-            x.id: x for x in t.get_ancestors(schema).objects(schema) 
+            x.id: x for x in t.get_ancestors(schema).objects(schema)
             if x.get_displayname(schema) not in [
                 'std::BaseObject', 'std::Object'
             ]
@@ -536,7 +536,7 @@ class TypeSerializer:
         # encode the information for the current type
         type_buf = b''.join(
             self._encode_type_annotation_ancestors(
-                t, 
+                t,
                 ancestors, schema
             )
         )
@@ -549,8 +549,8 @@ class TypeSerializer:
         for x in ancestors:
             anc_buf = b''.join(
                 self._encode_type_annotation_ancestors(
-                    x, 
-                    ancestors, 
+                    x,
+                    ancestors,
                     schema
                 )
             )
@@ -558,7 +558,7 @@ class TypeSerializer:
             self.anno_buffer.append(anc_buf)
 
     def _encode_type_annotation_ancestors(
-        self, t: s_types.InheritingType, 
+        self, t: s_types.InheritingType,
         ancestors: typing.Tuple[s_types.InheritingType, ...],
         schema: s_schema.Schema
     ):
@@ -571,18 +571,18 @@ class TypeSerializer:
         buf.append(_uint32_packer(len(tn_bytes)))
         buf.append(tn_bytes)
 
-         # append the type id
+        # append the type id
         buf.append(t.get_id(schema).bytes)
 
         # get direct parents of this type and grab their indexes
         direct_ancestors = [
             ancestors.index(x)
             for x in t.get_ancestors(schema).objects(schema)
-            if x not in x.get_ancestors(schema).objects(schema) and 
-                x.get_displayname(schema) not in [
-                    'std::BaseObject', 
-                    'std::Object'
-                ]
+            if x not in x.get_ancestors(schema).objects(schema) and
+            x.get_displayname(schema) not in [
+                'std::BaseObject',
+                'std::Object'
+            ]
         ]
 
         buf.append(_uint16_packer(len(direct_ancestors)))
@@ -591,7 +591,7 @@ class TypeSerializer:
             buf.append(_uint16_packer(index))
 
         return buf
-        
+
     @classmethod
     def describe_params(
         cls,
