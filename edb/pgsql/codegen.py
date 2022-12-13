@@ -901,6 +901,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         for arg in node.args:
             self.visit(arg)
 
+    def visit_VariableShowStmt(self, node: pgast.VariableShowStmt) -> None:
+        self.write("SHOW ")
+        self.write(node.name)
+
     def visit_BeginStmt(self, node: pgast.BeginStmt) -> None:
         self.write("BEGIN")
         if node.options:

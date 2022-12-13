@@ -150,6 +150,7 @@ def _build_query(node: Node, c: Context) -> pgast.Query:
             "UpdateStmt": _build_update_stmt,
             "DeleteStmt": _build_delete_stmt,
             "VariableSetStmt": _build_variable_set_stmt,
+            "VariableShowStmt": _build_variable_show_stmt,
             "TransactionStmt": _build_transaction_stmt,
             "PrepareStmt": _build_prepare,
             "ExecuteStmt": _build_execute,
@@ -227,6 +228,13 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
     return pgast.VariableSetStmt(
         name=n["name"],
         args=_list(n, c, "args", _build_base_expr),
+        context=_build_context(n, c),
+    )
+
+
+def _build_variable_show_stmt(n: Node, c: Context) -> pgast.Statement:
+    return pgast.VariableShowStmt(
+        name=n["name"],
         context=_build_context(n, c),
     )
 

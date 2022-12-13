@@ -1018,11 +1018,16 @@ class VariableSetStmt(Statement):
     args: typing.List[BaseExpr]
 
 
+class VariableShowStmt(Statement):
+    name: str
+
+
 class TransactionStmt(Statement):
     pass
 
 
 class SetTransactionStmt(Statement):
+    """A special case of VariableSetStmt"""
     options: TransactionOptions
 
 
