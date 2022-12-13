@@ -2017,10 +2017,6 @@ def process_set_as_tuple_indirection(
                     break
         rvar = get_set_rvar(tuple_set, ctx=subctx)
 
-        # Check if unpack_rvar has found our answer for us.
-        if ret_rvar := _lookup_set_rvar(ir_set, ctx=ctx):
-            return new_simple_set_rvar(ir_set, ret_rvar, aspects=('value',))
-
         source_rvar = relctx.maybe_get_path_rvar(
             stmt, tuple_set.path_id, aspect='source', ctx=subctx)
 
