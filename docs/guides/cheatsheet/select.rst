@@ -225,3 +225,13 @@ instead of the named tuple if no ``matches`` are found.
   * - **See also**
   * - :ref:`EdgeQL > Select <ref_eql_select>`
   * - :ref:`Reference > Commands > Select <ref_eql_statements_select>`
+  * - `Tutorial > Basic Queries > Objects
+      <https://www.edgedb.com/tutorial/basic-queries/objects>`_
+  * - `Tutorial > Basic Queries > Filters
+      <https://www.edgedb.com/tutorial/basic-queries/config>`_
+  * - `Tutorial > Basic Queries > Aggregates
+      <https://www.edgedb.com/tutorial/basic-queries/aggregate-functions>`_
+  * - `Tutorial > Nested Structures > Shapes
+      <https://www.edgedb.com/tutorial/nested-structures/shapes>`_
+  * - `Tutorial > Nested Structures > Polymorphism
+      <https://www.edgedb.com/tutorial/nested-structures/polymorphism>`_
