@@ -1254,3 +1254,45 @@ class TestEdgeQLGroup(tb.QueryTestCase):
           ''',
             tb.bag([{"sum": -7}, {"sum": 5}, {"sum": -23}]),
         )
+
+    async def test_edgeql_group_enumerate_01(self):
+        await self.assert_query_result(
+            '''
+                group enumerate({'a', 'b', 'c', 'd'})
+                using groupIndex := .0 // 2
+                by groupIndex;
+            ''',
+            tb.bag([
+                {
+                    "elements": tb.bag([[0, "a"], [1, "b"]]),
+                    "grouping": ["groupIndex"],
+                    "key": {"groupIndex": 0}
+                },
+                {
+                    "elements": tb.bag([[2, "c"], [3, "d"]]),
+                    "grouping": ["groupIndex"],
+                    "key": {"groupIndex": 1}
+                }
+            ]),
+        )
+
+    async def test_edgeql_group_enumerate_02(self):
+        await self.assert_query_result(
+            '''
+                group enumerate(array_unpack(['a', 'b', 'c', 'd']))
+                using groupIndex := .0 // 2
+                by groupIndex;
+            ''',
+            tb.bag([
+                {
+                    "elements": tb.bag([[0, "a"], [1, "b"]]),
+                    "grouping": ["groupIndex"],
+                    "key": {"groupIndex": 0}
+                },
+                {
+                    "elements": tb.bag([[2, "c"], [3, "d"]]),
+                    "grouping": ["groupIndex"],
+                    "key": {"groupIndex": 1}
+                }
+            ]),
+        )

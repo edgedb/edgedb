@@ -2592,7 +2592,7 @@ def process_set_as_simple_enumerate(
             newctx.rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
 
     aspects = pathctx.list_path_aspects(
-        newctx.rel, ir_arg.path_id, env=ctx.env)
+        newctx.rel, ir_arg.path_id, env=ctx.env) | {'source'}
 
     pathctx.put_path_id_map(newctx.rel, expr.tuple_path_ids[1], ir_arg.path_id)
 
