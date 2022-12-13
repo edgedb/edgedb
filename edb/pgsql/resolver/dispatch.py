@@ -22,7 +22,6 @@ from __future__ import annotations
 import functools
 import typing
 
-from edb.common import debug
 from edb.pgsql import ast as pgast
 
 from . import context
@@ -87,14 +86,3 @@ def _resolve_BaseRelation(
 ) -> pgast.BaseRelation:
     rel, _ = resolve_relation(rel, ctx=ctx)
     return rel
-
-
-@_resolve.register
-def _resolve_VariableSetStmt(
-    set: pgast.VariableSetStmt, *, ctx: context.ResolverContextLevel
-) -> pgast.SelectStmt:
-    debug.header("SQL client is using SET. Ignoring.")
-    debug.dump_sql(set)
-    return pgast.SelectStmt(
-        target_list=[], limit_count=pgast.NumericConstant(val="0")
-    )

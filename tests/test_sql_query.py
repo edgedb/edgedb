@@ -581,11 +581,3 @@ class TestSQL(tb.SQLQueryTestCase):
                 )
             except Exception:
                 raise Exception(f'introspecting {table_name}')
-
-    async def test_sql_query_set(self):
-        res = await self.scon.fetch(
-            """
-            SET search_path TO 'edgedb,public'
-            """
-        )
-        self.assert_shape(res, 0, 0)
