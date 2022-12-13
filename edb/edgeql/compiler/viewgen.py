@@ -453,7 +453,6 @@ def _compile_qlexpr(
     *,
     ptrcls: Optional[s_pointers.Pointer],
     ptrsource: s_sources.Source,
-    path_id: irast.PathId,
     ptr_name: sn.QualName,
     exprtype: s_types.ExprType = s_types.ExprType.Select,
     is_linkprop: bool,
@@ -698,7 +697,7 @@ def _normalize_view_ptr_expr(
             irexpr, _ = _compile_qlexpr(
                 ir_source, qlexpr, view_scls,
                 ptrcls=qlptrcls, ptrsource=qlptrsource,
-                path_id=path_id, ptr_name=ptr_name, is_linkprop=is_linkprop,
+                ptr_name=ptr_name, is_linkprop=is_linkprop,
                 exprtype=exprtype, ctx=ctx)
             materialized = setgen.should_materialize(
                 irexpr, ptrcls=ptrcls,
@@ -770,7 +769,7 @@ def _normalize_view_ptr_expr(
 
         irexpr, sub_view_rptr = _compile_qlexpr(
             ir_source, qlexpr, view_scls, ptrcls=ptrcls, ptrsource=ptrsource,
-            path_id=path_id, ptr_name=ptr_name, is_linkprop=is_linkprop,
+            ptr_name=ptr_name, is_linkprop=is_linkprop,
             exprtype=exprtype, ctx=ctx)
         materialized = setgen.should_materialize(
             irexpr, ptrcls=ptrcls,
