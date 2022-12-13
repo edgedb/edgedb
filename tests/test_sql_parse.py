@@ -669,14 +669,164 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT * FROM x WHERE y = ANY ($1)
         """
 
-    @test.xerror("unsupported")
-    def test_sql_parse_query_09(self):
+    def test_sql_parse_transaction_00(self):
         """
-        PREPARE a123 AS SELECT a
+        BEGIN
         """
 
-    @test.xerror("unsupported")
-    def test_sql_parse_query_10(self):
+    def test_sql_parse_transaction_01(self):
+        """
+        BEGIN TRANSACTION
+% OK %
+        BEGIN
+        """
+
+    def test_sql_parse_transaction_02(self):
+        """
+        BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY DEFERRABLE
+        """
+
+    def test_sql_parse_transaction_03(self):
+        """
+        START TRANSACTION
+        """
+
+    def test_sql_parse_transaction_04(self):
+        """
+        START TRANSACTION ISOLATION LEVEL REPEATABLE READ
+        """
+
+    def test_sql_parse_transaction_05(self):
+        """
+        START TRANSACTION ISOLATION LEVEL READ COMMITTED
+% OK %
+        START TRANSACTION
+        """
+
+    def test_sql_parse_transaction_06(self):
+        """
+        START TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+        """
+
+    def test_sql_parse_transaction_07(self):
+        """
+        START TRANSACTION READ WRITE
+% OK %
+        START TRANSACTION
+        """
+
+    def test_sql_parse_transaction_08(self):
+        """
+        START TRANSACTION READ ONLY
+        """
+
+    def test_sql_parse_transaction_09(self):
+        """
+        START TRANSACTION NOT DEFERRABLE
+% OK %
+        START TRANSACTION
+        """
+
+    def test_sql_parse_transaction_10(self):
+        """
+        START TRANSACTION DEFERRABLE
+        """
+
+    def test_sql_parse_transaction_11(self):
+        """
+        COMMIT
+        """
+
+    def test_sql_parse_transaction_12(self):
+        """
+        COMMIT TRANSACTION
+% OK %
+        COMMIT
+        """
+
+    def test_sql_parse_transaction_13(self):
+        """
+        COMMIT WORK
+% OK %
+        COMMIT
+        """
+
+    def test_sql_parse_transaction_14(self):
+        """
+        COMMIT AND NO CHAIN
+% OK %
+        COMMIT
+        """
+
+    def test_sql_parse_transaction_15(self):
+        """
+        COMMIT AND CHAIN
+        """
+
+    def test_sql_parse_transaction_16(self):
+        """
+        ROLLBACK
+        """
+
+    def test_sql_parse_transaction_17(self):
+        """
+        ROLLBACK TRANSACTION
+% OK %
+        ROLLBACK
+        """
+
+    def test_sql_parse_transaction_18(self):
+        """
+        ROLLBACK WORK
+% OK %
+        ROLLBACK
+        """
+
+    def test_sql_parse_transaction_19(self):
+        """
+        ROLLBACK AND NO CHAIN
+% OK %
+        ROLLBACK
+        """
+
+    def test_sql_parse_transaction_20(self):
+        """
+        ROLLBACK AND CHAIN
+        """
+
+    def test_sql_parse_transaction_21(self):
+        """
+        SAVEPOINT some_id
+        """
+
+    def test_sql_parse_transaction_22(self):
+        """
+        RELEASE some_id
+        """
+
+    def test_sql_parse_transaction_23(self):
+        """
+        ROLLBACK TO SAVEPOINT savepoint_name
+        """
+
+    def test_sql_parse_transaction_24(self):
+        """
+        PREPARE a123 AS SELECT a
+% OK %
+        PREPARE a123 AS (SELECT a)
+        """
+
+    def test_sql_parse_transaction_25(self):
+        """
+        COMMIT PREPARED 'transaction_id'
+        """
+
+    def test_sql_parse_transaction_26(self):
+        """
+        ROLLBACK PREPARED 'transaction_id'
+        """
+
+    def test_sql_parse_transaction_27(self):
         """
         EXECUTE a123
         """
@@ -703,30 +853,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_query_14(self):
         """
         VACUUM FULL my_table
-        """
-
-    @test.xerror("unsupported")
-    def test_sql_parse_query_15(self):
-        """
-        SAVEPOINT some_id
-        """
-
-    @test.xerror("unsupported")
-    def test_sql_parse_query_16(self):
-        """
-        RELEASE some_id
-        """
-
-    @test.xerror("unsupported")
-    def test_sql_parse_query_17(self):
-        """
-        PREPARE TRANSACTION 'some_id'
-        """
-
-    @test.xerror("unsupported")
-    def test_sql_parse_query_18(self):
-        """
-        START TRANSACTION READ WRITE
         """
 
     @test.xerror("unsupported")

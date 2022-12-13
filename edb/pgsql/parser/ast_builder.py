@@ -150,6 +150,9 @@ def _build_query(node: Node, c: Context) -> pgast.Query:
             "UpdateStmt": _build_update_stmt,
             "DeleteStmt": _build_delete_stmt,
             "VariableSetStmt": _build_variable_set_stmt,
+            "TransactionStmt": _build_transaction_stmt,
+            "PrepareStmt": _build_prepare,
+            "ExecuteStmt": _build_execute,
         },
     )
 
@@ -215,9 +218,125 @@ def _build_delete_stmt(n: Node, c: Context) -> pgast.DeleteStmt:
     )
 
 
-def _build_variable_set_stmt(n: Node, c: Context) -> pgast.VariableSetStmt:
+def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
+    if n["name"] == "TRANSACTION":
+        return pgast.SetTransactionStmt(
+            options=_build_transaction_options(n["args"], c)
+        )
+
     return pgast.VariableSetStmt(
-        name=n["name"], args=_list(n, c, "args", _build_base_expr)
+        name=n["name"],
+        args=_list(n, c, "args", _build_base_expr),
+        context=_build_context(n, c),
+    )
+
+
+def _build_transaction_stmt(n: Node, c: Context) -> pgast.TransactionStmt:
+    def begin(n: Node, c: Context) -> pgast.BeginStmt:
+        return pgast.BeginStmt(
+            options=_maybe(n, c, "options", _build_transaction_options)
+        )
+
+    def start(n: Node, c: Context) -> pgast.StartStmt:
+        return pgast.StartStmt(
+            options=_maybe(n, c, "options", _build_transaction_options)
+        )
+
+    def commit(n: Node, _: Context) -> pgast.CommitStmt:
+        return pgast.CommitStmt(chain=_bool_or_false(n, "chain"))
+
+    def rollback(n: Node, _: Context) -> pgast.RollbackStmt:
+        return pgast.RollbackStmt(chain=_bool_or_false(n, "chain"))
+
+    def savepoint(n: Node, _: Context) -> pgast.SavepointStmt:
+        return pgast.SavepointStmt(savepoint_name=n["savepoint_name"])
+
+    def release(n: Node, _: Context) -> pgast.ReleaseStmt:
+        return pgast.ReleaseStmt(savepoint_name=n["savepoint_name"])
+
+    def rollback_to(n: Node, _: Context) -> pgast.RollbackToStmt:
+        return pgast.RollbackToStmt(savepoint_name=n["savepoint_name"])
+
+    def commit_prepared(n: Node, _: Context) -> pgast.CommitPreparedStmt:
+        return pgast.CommitPreparedStmt(gid=n["gid"])
+
+    def rollback_prepared(n: Node, _: Context) -> pgast.RollbackPreparedStmt:
+        return pgast.RollbackPreparedStmt(gid=n["gid"])
+
+    kinds = {
+        "BEGIN": begin,
+        "START": start,
+        "COMMIT": commit,
+        "ROLLBACK": rollback,
+        "SAVEPOINT": savepoint,
+        "RELEASE": release,
+        "ROLLBACK_TO": rollback_to,
+        "COMMIT_PREPARED": commit_prepared,
+        "ROLLBACK_PREPARED": rollback_prepared,
+    }
+
+    kind = cast(str, n["kind"]).removeprefix("TRANS_STMT_")
+    if kind not in kinds:
+        raise PSqlUnsupportedError(f'transaction stmt: {n["kind"]}')
+
+    return kinds[kind](n, c)
+
+
+def _build_transaction_options(
+    nodes: List[Node], c: Context
+) -> pgast.TransactionOptions:
+    isolation_mode = None
+    access_mode = None
+    deferrable = None
+
+    for n in nodes:
+        if "DefElem" not in n:
+            continue
+        def_e = n["DefElem"]
+        if not ("defname" in def_e or "arg" in def_e):
+            continue
+        def_name = def_e["defname"]
+        arg = _build_base_expr(def_e["arg"], c)
+
+        if def_name == "transaction_isolation":
+            if isinstance(arg, pgast.StringConstant):
+                if arg.val == "serializable":
+                    isolation_mode = pgast.IsolationMode.SERIALIZABLE
+                elif arg.val == "repeatable read":
+                    isolation_mode = pgast.IsolationMode.REPEATABLE_READ
+                elif arg.val == "read committed":
+                    isolation_mode = pgast.IsolationMode.READ_COMMITTED
+                elif arg.val == "read uncommitted":
+                    isolation_mode = pgast.IsolationMode.READ_UNCOMMITTED
+
+        elif def_name == "transaction_read_only":
+            if isinstance(arg, pgast.NumericConstant):
+                if arg.val == "1":
+                    access_mode = pgast.AccessMode.READ_ONLY
+
+        elif def_name == "transaction_deferrable":
+            if isinstance(arg, pgast.NumericConstant):
+                if arg.val == "1":
+                    deferrable = True
+
+    return pgast.TransactionOptions(
+        isolation_mode=isolation_mode or pgast.IsolationMode.READ_COMMITTED,
+        access_mode=access_mode or pgast.AccessMode.READ_WRITE,
+        deferrable=deferrable or False,
+    )
+
+
+def _build_prepare(n: Node, c: Context) -> pgast.PrepareStmt:
+    return pgast.PrepareStmt(
+        name=n["name"],
+        argtypes=_maybe_list(n, c, "params", _build_base_expr),
+        query=_build_base_relation(n["query"], c),
+    )
+
+
+def _build_execute(n: Node, c: Context) -> pgast.ExecuteStmt:
+    return pgast.ExecuteStmt(
+        name=n["name"], params=_maybe_list(n, c, "params", _build_base_expr)
     )
 
 
@@ -488,7 +607,7 @@ def _build_join_expr(n: Node, c: Context) -> pgast.JoinExpr:
 def _build_rel_range_var(n: Node, c: Context) -> pgast.RelRangeVar:
     return pgast.RelRangeVar(
         alias=_maybe(n, c, "alias", _build_alias) or pgast.Alias(aliasname=""),
-        relation=_build_base_relation(n, c),
+        relation=_build_relation(n, c),
         include_inherited=_bool_or_false(n, "inh"),
         context=_build_context(n, c),
     )
@@ -502,6 +621,18 @@ def _build_alias(n: Node, c: Context) -> pgast.Alias:
 
 
 def _build_base_relation(n: Node, c: Context) -> pgast.BaseRelation:
+    return _enum(
+        pgast.BaseRelation,
+        n,
+        c,
+        {
+            "SelectStmt": _build_select_stmt,
+            "Relation": _build_relation,
+        },
+    )
+
+
+def _build_relation(n: Node, c: Context) -> pgast.Relation:
     return pgast.Relation(
         name=_maybe(n, c, "relname", _build_str),
         catalogname=_maybe(n, c, "catalogname", _build_str),

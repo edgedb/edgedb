@@ -1013,6 +1013,79 @@ class Statement(Base):
     pass
 
 
-class VariableSetStmt(BaseRelation):
+class VariableSetStmt(Statement):
     name: str
     args: typing.List[BaseExpr]
+
+
+class TransactionStmt(Statement):
+    pass
+
+
+class SetTransactionStmt(Statement):
+    options: TransactionOptions
+
+
+class BeginStmt(TransactionStmt):
+    options: typing.Optional[TransactionOptions]
+
+
+class StartStmt(TransactionStmt):
+    options: typing.Optional[TransactionOptions]
+
+
+class CommitStmt(TransactionStmt):
+    chain: typing.Optional[bool]
+
+
+class RollbackStmt(TransactionStmt):
+    chain: typing.Optional[bool]
+
+
+class SavepointStmt(TransactionStmt):
+    savepoint_name: str
+
+
+class ReleaseStmt(TransactionStmt):
+    savepoint_name: str
+
+
+class RollbackToStmt(TransactionStmt):
+    savepoint_name: str
+
+
+class CommitPreparedStmt(TransactionStmt):
+    gid: str
+
+
+class RollbackPreparedStmt(TransactionStmt):
+    gid: str
+
+
+class TransactionOptions(Base):
+    isolation_mode: IsolationMode
+    access_mode: AccessMode
+    deferrable: bool
+
+
+class IsolationMode(enum.IntEnum):
+    SERIALIZABLE = enum.auto()
+    REPEATABLE_READ = enum.auto()
+    READ_COMMITTED = enum.auto()
+    READ_UNCOMMITTED = enum.auto()
+
+
+class AccessMode(enum.IntEnum):
+    READ_WRITE = enum.auto()
+    READ_ONLY = enum.auto()
+
+
+class ExecuteStmt(Statement):
+    name: str
+    params: typing.Optional[typing.List[Base]]
+
+
+class PrepareStmt(Statement):
+    name: str
+    argtypes: typing.Optional[typing.List[Base]]
+    query: BaseRelation

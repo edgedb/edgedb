@@ -901,5 +901,65 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         for arg in node.args:
             self.visit(arg)
 
+    def visit_BeginStmt(self, node: pgast.BeginStmt) -> None:
+        self.write("BEGIN")
+        if node.options:
+            self.visit(node.options)
+
+    def visit_StartStmt(self, node: pgast.StartStmt) -> None:
+        self.write("START TRANSACTION")
+        if node.options:
+            self.visit(node.options)
+
+    def visit_CommitStmt(self, node: pgast.CommitStmt) -> None:
+        self.write("COMMIT")
+        if node.chain:
+            self.write(" AND CHAIN")
+
+    def visit_RollbackStmt(self, node: pgast.RollbackStmt) -> None:
+        self.write("ROLLBACK")
+        if node.chain:
+            self.write(" AND CHAIN")
+
+    def visit_SavepointStmt(self, node: pgast.SavepointStmt) -> None:
+        self.write(f"SAVEPOINT {node.savepoint_name}")
+
+    def visit_ReleaseStmt(self, node: pgast.ReleaseStmt) -> None:
+        self.write(f"RELEASE {node.savepoint_name}")
+
+    def visit_RollbackToStmt(self, node: pgast.RollbackToStmt) -> None:
+        self.write(f"ROLLBACK TO SAVEPOINT {node.savepoint_name}")
+
+    def visit_CommitPreparedStmt(self, node: pgast.CommitPreparedStmt) -> None:
+        self.write(f"COMMIT PREPARED '{node.gid}'")
+
+    def visit_RollbackPreparedStmt(
+        self, node: pgast.RollbackPreparedStmt
+    ) -> None:
+        self.write(f"ROLLBACK PREPARED '{node.gid}'")
+
+    def visit_TransactionOptions(self, node: pgast.TransactionOptions) -> None:
+        if node.isolation_mode == pgast.IsolationMode.SERIALIZABLE:
+            self.write(" ISOLATION LEVEL SERIALIZABLE")
+        elif node.isolation_mode == pgast.IsolationMode.REPEATABLE_READ:
+            self.write(" ISOLATION LEVEL REPEATABLE READ")
+        elif node.isolation_mode == pgast.IsolationMode.READ_COMMITTED:
+            # this is the default
+            pass
+        elif node.isolation_mode == pgast.IsolationMode.READ_UNCOMMITTED:
+            self.write(" ISOLATION LEVEL READ UNCOMMITTED")
+
+        if node.access_mode != pgast.AccessMode.READ_WRITE:
+            self.write(" READ ONLY")
+        if node.deferrable:
+            self.write(" DEFERRABLE")
+
+    def visit_PrepareStmt(self, node: pgast.PrepareStmt) -> None:
+        self.write(f"PREPARE {node.name} AS ")
+        self.visit(node.query)
+
+    def visit_ExecuteStmt(self, node: pgast.ExecuteStmt) -> None:
+        self.write(f"EXECUTE {node.name}")
+
 
 generate_source = SQLSourceGenerator.to_source
