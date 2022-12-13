@@ -1432,10 +1432,10 @@ cdef class PGConnection:
                     buf.write_buffer(msg_buf.end_message())
 
                 elif action[0] == PGAction.EXECUTE:
-                    _, portal_name = action
+                    _, portal_name, limit = action
                     msg_buf = WriteBuffer.new_message(b'E')
                     msg_buf.write_bytestring(portal_name)
-                    msg_buf.write_int32(0)  # no limit
+                    msg_buf.write_int32(limit)
                     buf.write_buffer(msg_buf.end_message())
 
                 elif action[0] == PGAction.CLOSE_PORTAL:
@@ -1519,8 +1519,8 @@ cdef class PGConnection:
                         break
 
                     elif (
-                        # CommandComplete or EmptyQueryResponse
-                        mtype == b'C' or mtype == b'I'
+                        # CommandComplete, EmptyQueryResponse, PortalSuspended
+                        mtype == b'C' or mtype == b'I' or mtype == b's'
                     ) and action[0] == PGAction.EXECUTE:
                         data = self.buffer.consume_message()
                         if self.debug:

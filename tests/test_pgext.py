@@ -954,10 +954,22 @@ class TestSQLProtocol(tb.DatabaseTestCase):
             Execute(limit=1),
             Sync(),
         )
+        await self.conn.read(ParseComplete)
+        await self.conn.read(BindComplete)
+        msg = await self.conn.read(DataRow)
+        self.assertEqual(msg.values, [b"42"])
+        await self.conn.read(PortalSuspended)
+        await self.assert_ready_for_query()
+
+        self.conn.write(
+            Parse("SELECT 42"),
+            Bind(),
+            Execute(limit=1),
+            Flush(),
+        )
         await self.assert_error_response(
             "0A000", "suspended cursor is not supported"
         )
-        await self.assert_ready_for_query()
 
     async def test_sql_proto_extended_query_16(self):
         self.conn.write(Parse("SELT 42"))

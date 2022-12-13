@@ -370,6 +370,13 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.write(self.ready_for_query())
             self.flush()
 
+        elif mtype == b'X':  # Terminate
+            self.buffer.finish_message()
+            if self.debug:
+                self.debug_print("Terminate")
+            self.close()
+            return True
+
         elif self.ignore_till_sync:
             self.buffer.discard_message()
 
@@ -465,13 +472,6 @@ cdef class PgConnection(frontend.FrontendConnection):
                 self.debug_print("Flush")
             self.flush()
 
-        elif mtype == b'X':  # Terminate
-            self.buffer.finish_message()
-            if self.debug:
-                self.debug_print("Terminate")
-            self.close()
-            return True
-
         else:
             if self.debug:
                 self.debug_print(
@@ -489,6 +489,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         fresh_stmts = set()
         fresh_portals = set()
         executed_portals = set()
+        suspended_portals = set()
 
         # Here we will exhaust the buffer and queue up actions for the backend.
         # Any error in this step will be handled in the outer main_step() -
@@ -552,6 +553,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 else:
                     # previous unnamed portal is closed
                     executed_portals.discard(portal_name)
+                    suspended_portals.discard(portal_name)
                 if stmt_name not in self.prepared_stmts:
                     raise pgerror.new(
                         pgerror.ERROR_INVALID_SQL_STATEMENT_NAME,
@@ -629,9 +631,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                     self.debug_print("Execute", repr(portal_name), max_rows)
 
                 if max_rows > 0:
-                    raise pgerror.FeatureNotSupported(
-                        "suspended cursor is not supported"
-                    )
+                    suspended_portals.add(portal_name)
                 if portal_name not in self.portals:
                     raise pgerror.new(
                         pgerror.ERROR_INVALID_CURSOR_NAME,
@@ -653,7 +653,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 name_out = portal_name.encode('utf-8')
                 if name_out:
                     name_out = b'u' + name_out
-                actions.append((PGAction.EXECUTE, name_out))
+                actions.append((PGAction.EXECUTE, name_out, max_rows))
 
             elif mtype == b'C':  # Close
                 kind = self.buffer.read_byte()
@@ -682,6 +682,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                         )
                     fresh_portals.discard(name)
                     executed_portals.discard(name)
+                    suspended_portals.discard(name)
                     del self.portals[name]
                     name_out = name.encode('utf-8')
                     if name_out:
@@ -719,6 +720,10 @@ cdef class PgConnection(frontend.FrontendConnection):
             for portal_name in executed_portals:
                 self.portals.pop(portal_name, None)
             actions.append((PGAction.SYNC, False))
+            if suspended_portals:
+                raise pgerror.FeatureNotSupported(
+                    "suspended cursor is not supported"
+                )
 
         if self.debug:
             self.debug_print("extended_query", actions)
