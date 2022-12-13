@@ -390,6 +390,8 @@ cdef class PgConnection(frontend.FrontendConnection):
                     self.debug_print("Query", query_str)
 
                 sql_source = await self.compile(query_str)
+                if not sql_source:
+                    sql_source = ['']
 
             except Exception as ex:
                 self.write_error(ex)
@@ -522,7 +524,11 @@ cdef class PgConnection(frontend.FrontendConnection):
                         "cannot insert multiple commands into a prepared "
                         "statement",
                     )
-                sql_text = sql_source[0].encode("utf-8")
+                if sql_source:
+                    sql_text = sql_source[0].encode("utf-8")
+                else:
+                    # Cluvio will try to execute an empty query
+                    sql_text = b''
                 parse_hash = hashlib.sha1(sql_text)
                 parse_hash.update(data)
                 parse_hash = b'p' + parse_hash.hexdigest().encode("latin1")
