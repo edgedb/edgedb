@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import *
 
+import collections
 import random
 
 from edb.common import ast as ast_visitor
@@ -243,6 +244,9 @@ def compile_dml_bindings(
         stmt: irast.Stmt, *,
         ctx: context.CompilerContextLevel) -> None:
     for binding in (stmt.bindings or ()):
+        # breakpoint()
+        ctx.binding_scope[binding.path_id] = (
+            ctx.rel, collections.ChainMap(*ctx.path_scope.maps[1:]))
         # If something we are WITH binding contains DML, we want to
         # compile it *now*, in the context of its initial appearance
         # and not where the variable is used. This will populate

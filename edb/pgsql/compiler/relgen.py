@@ -156,6 +156,9 @@ def get_set_rvar(
     """
     path_id = ir_set.path_id
 
+    # if repr(path_id) == '(__derived__::I2@w~1)':
+    #     breakpoint()
+
     scope_stmt = relctx.maybe_get_scope_stmt(path_id, ctx=ctx)
     if rvar := _lookup_set_rvar(ir_set, scope_stmt=scope_stmt, ctx=ctx):
         return rvar
@@ -183,6 +186,26 @@ def get_set_rvar(
         # stmt.
         stmt = subctx.rel
         stmt.name = ctx.env.aliases.get(get_set_rel_alias(ir_set, ctx=ctx))
+
+        # if repr(path_id) == '(__derived__::I2@w~1)':
+        #     breakpoint()
+
+        if ir_set.is_binding and (
+            entry := subctx.binding_scope.get(path_id)
+        ):
+            binding_stmt, new_map = entry
+            # print("REWRITE!!", ir_set, new_map)
+            # XXX: materialized bindings need to get pointed at the binding
+            # spot itself, since we *do* need to directly access whatever
+            # it is...
+            if ir_set.is_materialized_ref:  # ???
+                subctx.rel_hierarchy[subctx.rel] = binding_stmt
+            elif parent := subctx.rel_hierarchy.get(binding_stmt):
+                subctx.rel_hierarchy[subctx.rel] = parent
+            else:
+                del subctx.rel_hierarchy[subctx.rel]
+            # breakpoint()
+            subctx.path_scope = new_map.new_child()  # new ???
 
         # If ir.Set compilation needs to produce a subquery,
         # make sure it uses the current subrel.  This makes it
@@ -1406,7 +1429,9 @@ def process_set_as_subquery(
         # up. So try to lookup the rvar again, and try to look it up
         # in the source_rvar itself, and if we find it, skip compiling
         # the computable.
-        if ir_source and (new_rvar := (
+        # XXX: NB we have dropped the ir_source condition, need to
+        # update comment.
+        if (new_rvar := (
             _lookup_set_rvar(ir_set, ctx=newctx)
             or _lookup_set_rvar_in_source(ir_set, source_set_rvar, ctx=newctx)
         )):

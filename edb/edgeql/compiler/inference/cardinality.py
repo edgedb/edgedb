@@ -473,6 +473,8 @@ def _infer_shape(
     # Mark the source of the shape as being a singleton. We can't just
     # rely on the scope tree, where it might appear as optional
     # (giving us AT_MOST_ONE instead of ONE).
+    # XXX: but this fucks it with some other stuff
+    # XXX: I think we seriously need a better understanding of binding.
     ctx = ctx._replace(singletons=ctx.singletons | {ir.path_id})
 
     for shape_set, shape_op in ir.shape:

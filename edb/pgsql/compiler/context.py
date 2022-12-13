@@ -274,6 +274,16 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: Which SQL query holds the SQL scope for the given PathId
     path_scope: ChainMap[irast.PathId, Optional[pgast.SelectStmt]]
 
+    #: Which SQL query holds the SQL scope for location where the
+    #: given PathId was bound
+    binding_scope: ChainMap[
+        irast.PathId,
+        tuple[
+            pgast.SelectStmt,
+            ChainMap[irast.PathId, Optional[pgast.SelectStmt]],
+        ],
+    ]
+
     #: Relevant IR scope for this context.
     scope_tree: irast.ScopeTreeNode
 
@@ -340,6 +350,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.intersection_narrowing = {}
 
             self.path_scope = collections.ChainMap()
+            self.binding_scope = collections.ChainMap()
             self.scope_tree = scope_tree
             self.dml_stmt_stack = []
             self.rel_overlays = RelOverlays()
@@ -379,6 +390,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.intersection_narrowing = prevlevel.intersection_narrowing
 
             self.path_scope = prevlevel.path_scope
+            self.binding_scope = prevlevel.binding_scope
             self.scope_tree = prevlevel.scope_tree
             self.dml_stmt_stack = prevlevel.dml_stmt_stack
             self.rel_overlays = prevlevel.rel_overlays
@@ -418,6 +430,9 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.pending_query = None
                 self.parent_rel = None
                 self.path_scope = collections.ChainMap()
+                # self.binding_scope = collections.ChainMap()
+                # This *can't* be right; new_child, at least?
+                self.binding_scope = prevlevel.binding_scope  # ???
                 self.rel_hierarchy = {}
                 self.scope_tree = prevlevel.scope_tree.root
                 self.volatility_ref = ()
@@ -428,6 +443,7 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.pending_type_ctes = set(prevlevel.pending_type_ctes)
 
             elif mode == ContextSwitchMode.NEWSCOPE:
+                self.binding_scope = prevlevel.binding_scope.new_child()
                 self.path_scope = prevlevel.path_scope.new_child()
 
     def subrel(

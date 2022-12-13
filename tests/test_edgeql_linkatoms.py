@@ -587,6 +587,24 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
         )
 
     async def test_edgeql_links_set_13(self):
+        # XXX: THIS IS BROKEN BUT *THIS* WORKS:
+        '''
+        WITH
+            I0 := Item,
+            I2 := I0,
+        SELECT Item {
+            name,
+            unique := count( (
+                SELECT _ := Item.tag_set1
+                FILTER _ NOT IN (
+                    (SELECT I2 FILTER I2 != Item).tag_set1
+                )
+            ))
+        }
+        FILTER .unique > 0
+        ORDER BY .name;
+        '''
+
         await self.assert_query_result(
             r'''
                 # find an item with a unique quality

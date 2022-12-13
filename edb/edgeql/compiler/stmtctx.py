@@ -210,7 +210,7 @@ def fini_expression(
             extra, scope_tree=ctx.path_scope, ctx=inf_ctx)
 
     # Fix up weak namespaces
-    _rewrite_weak_namespaces(all_exprs, ctx)
+    # _rewrite_weak_namespaces(all_exprs, ctx)
 
     ctx.path_scope.validate_unique_ids()
 
@@ -679,9 +679,9 @@ def declare_view(
             cached_view_set = ctx.env.expr_view_cache.get((expr, alias))
             # Detach the view namespace and record the prefix
             # in the parent statement's fence node.
-            view_path_id_ns = ctx.aliases.get('ns')
-            subctx.path_id_namespace |= {view_path_id_ns}
-            ctx.path_scope.add_namespaces({view_path_id_ns})
+            # view_path_id_ns = ctx.aliases.get('ns')
+            # subctx.path_id_namespace |= {view_path_id_ns}
+            # ctx.path_scope.add_namespaces({view_path_id_ns})
         else:
             cached_view_set = None
 

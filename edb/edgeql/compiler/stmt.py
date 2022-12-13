@@ -1294,7 +1294,7 @@ def process_with_block(
             raise RuntimeError(
                 f'unexpected expression in WITH block: {with_entry}')
 
-    if had_materialized:
+    if had_materialized or True:
         # If we had to materialize, put the body of the statement into
         # its own fence, to avoid potential spurious factoring when we
         # compile view sets for materialized sets.
