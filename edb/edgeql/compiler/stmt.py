@@ -1187,10 +1187,6 @@ def init_stmt(
 
     ctx.path_scope = parent_ctx.path_scope.attach_fence()
 
-    pending_own_ns = parent_ctx.pending_stmt_own_path_id_namespace
-    if pending_own_ns:
-        ctx.path_scope.add_namespaces(pending_own_ns)
-
     pending_full_ns = parent_ctx.pending_stmt_full_path_id_namespace
     if pending_full_ns:
         ctx.path_id_namespace |= pending_full_ns

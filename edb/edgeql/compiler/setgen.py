@@ -1725,15 +1725,9 @@ def _get_computable_ctx(
             if path_id_ns is not None:
                 subctx.path_id_namespace |= {path_id_ns}
 
-            pending_pid_ns = {ctx.aliases.get('ns')}
-
+            subns = set()
             if path_id_ns is not None and same_scope:
-                pending_pid_ns.add(path_id_ns)
-
-            subctx.pending_stmt_own_path_id_namespace = (
-                frozenset(pending_pid_ns))
-
-            subns = set(pending_pid_ns)
+                subns.add(path_id_ns)
             subns.add(ctx.aliases.get('ns'))
 
             # Include the namespace from the source in the namespace

@@ -452,9 +452,6 @@ class ContextLevel(compiler.ContextLevel):
     path_id_namespace: FrozenSet[str]
     """A namespace to use for all path ids."""
 
-    pending_stmt_own_path_id_namespace: FrozenSet[str]
-    """A path id namespace to add to the fence of the next statement."""
-
     pending_stmt_full_path_id_namespace: FrozenSet[str]
     """A set of path id namespaces to use in path ids in the next statement."""
 
@@ -577,7 +574,6 @@ class ContextLevel(compiler.ContextLevel):
             self.stmt = None
             self.qlstmt = None
             self.path_id_namespace = frozenset()
-            self.pending_stmt_own_path_id_namespace = frozenset()
             self.pending_stmt_full_path_id_namespace = frozenset()
             self.inserting_paths = {}
             self.view_map = collections.ChainMap()
@@ -619,8 +615,6 @@ class ContextLevel(compiler.ContextLevel):
 
             self.iterator_path_ids = prevlevel.iterator_path_ids
             self.path_id_namespace = prevlevel.path_id_namespace
-            self.pending_stmt_own_path_id_namespace = \
-                prevlevel.pending_stmt_own_path_id_namespace
             self.pending_stmt_full_path_id_namespace = \
                 prevlevel.pending_stmt_full_path_id_namespace
             self.inserting_paths = prevlevel.inserting_paths
@@ -658,7 +652,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.class_view_overrides = \
                     prevlevel.class_view_overrides.copy()
 
-                self.pending_stmt_own_path_id_namespace = frozenset()
                 self.pending_stmt_full_path_id_namespace = frozenset()
                 self.inserting_paths = prevlevel.inserting_paths.copy()
 
@@ -681,7 +674,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_nodes = {}
                 self.view_sets = {}
                 self.path_id_namespace = frozenset({self.aliases.get('ns')})
-                self.pending_stmt_own_path_id_namespace = frozenset()
                 self.pending_stmt_full_path_id_namespace = frozenset()
                 self.inserting_paths = {}
 
