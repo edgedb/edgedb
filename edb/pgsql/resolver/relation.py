@@ -37,7 +37,7 @@ from . import dispatch
 from . import context
 from . import range_var
 from . import expr
-from . import information_schema
+from . import sql_introspection
 
 Context = context.ResolverContextLevel
 
@@ -177,21 +177,23 @@ def resolve_relation(
     schema_name = relation.schemaname or 'public'
     catalog = relation.catalogname or 'postgres'
 
-    # try information schema
+    # try introspection tables
 
+    introspection_tables = None
     if schema_name == 'information_schema':
-        if relation.name in information_schema.TABLES:
-            cols = information_schema.TABLES[relation.name]
+        introspection_tables = sql_introspection.INFORMATION_SCHEMA
+    elif schema_name == 'pg_catalog':
+        introspection_tables = sql_introspection.PG_CATALOG
 
-            table = context.Table()
-            table.name = relation.name
-            table.columns = [
-                context.Column(name=name, reference_as=name)
-                for name, _type in cols
-            ]
-            rel = pgast.Relation(name=relation.name, schemaname='edgedbsql')
+    if introspection_tables and relation.name in introspection_tables:
+        cols = [
+            context.Column(name=n, reference_as=n)
+            for n, _type in introspection_tables[relation.name]
+        ]
+        table = context.Table(name=relation.name, columns=cols)
+        rel = pgast.Relation(name=relation.name, schemaname='edgedbsql')
 
-            return rel, table
+        return rel, table
 
     # try a CTE
     if catalog == 'postgres' and schema_name == 'public':
