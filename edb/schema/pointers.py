@@ -667,6 +667,10 @@ class Pointer(referencing.ReferencedInheritingObject,
         return bool(self.get_expr(schema)) or bool(self.get_computable(schema))
 
     def is_id_pointer(self, schema: s_schema.Schema) -> bool:
+        local_name = self.get_local_name(schema)
+        if local_name.name != 'id':
+            return False
+
         from edb.schema import sources as s_sources
         std_base = schema.get('std::BaseObject', type=s_sources.Source)
         std_id = std_base.getptr(schema, sn.UnqualName('id'))
