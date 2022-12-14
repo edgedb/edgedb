@@ -437,6 +437,7 @@ def _build_base_expr(node: Node, c: Context) -> pgast.BaseExpr:
             "SubLink": _build_sub_link,
             "ParamRef": _build_param_ref,
             "SetToDefault": _build_keyword("DEFAULT"),
+            "SQLValueFunction": _build_sql_value_function,
         },
         [_build_base_range_var, _build_indirection_op],  # type: ignore
     )
@@ -499,6 +500,35 @@ def _build_keyword(name: str) -> Builder[pgast.Keyword]:
 
 def _build_param_ref(n: Node, c: Context) -> pgast.ParamRef:
     return pgast.ParamRef(number=n["number"], context=_build_context(n, c))
+
+
+def _build_sql_value_function(n: Node, c: Context) -> pgast.SQLValueFunction:
+    op = n["op"].removeprefix("SVFOP_")
+
+    op_mapping = {
+        "CURRENT_DATE": pgast.SQLValueFunctionOP.CURRENT_DATE,
+        "CURRENT_TIME": pgast.SQLValueFunctionOP.CURRENT_TIME,
+        "CURRENT_TIME_N": pgast.SQLValueFunctionOP.CURRENT_TIME_N,
+        "CURRENT_TIMESTAMP": pgast.SQLValueFunctionOP.CURRENT_TIMESTAMP,
+        "CURRENT_TIMESTAMP_N": pgast.SQLValueFunctionOP.CURRENT_TIMESTAMP_N,
+        "LOCALTIME": pgast.SQLValueFunctionOP.LOCALTIME,
+        "LOCALTIME_N": pgast.SQLValueFunctionOP.LOCALTIME_N,
+        "LOCALTIMESTAMP": pgast.SQLValueFunctionOP.LOCALTIMESTAMP,
+        "LOCALTIMESTAMP_N": pgast.SQLValueFunctionOP.LOCALTIMESTAMP_N,
+        "CURRENT_ROLE": pgast.SQLValueFunctionOP.CURRENT_ROLE,
+        "CURRENT_USER": pgast.SQLValueFunctionOP.CURRENT_USER,
+        "USER": pgast.SQLValueFunctionOP.USER,
+        "SESSION_USER": pgast.SQLValueFunctionOP.SESSION_USER,
+        "CURRENT_CATALOG": pgast.SQLValueFunctionOP.CURRENT_CATALOG,
+        "CURRENT_SCHEMA": pgast.SQLValueFunctionOP.CURRENT_SCHEMA,
+    }
+
+    if op not in op_mapping:
+        raise PSqlUnsupportedError(n)
+
+    return pgast.SQLValueFunction(
+        op=op_mapping[op], arg=_maybe(n, c, "xpr", _build_base_expr)
+    )
 
 
 def _build_sub_link(n: Node, c: Context) -> pgast.SubLink:

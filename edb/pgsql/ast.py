@@ -1101,3 +1101,26 @@ class PrepareStmt(Statement):
     name: str
     argtypes: typing.Optional[typing.List[Base]]
     query: BaseRelation
+
+
+class SQLValueFunctionOP(enum.IntEnum):
+    CURRENT_DATE = enum.auto()
+    CURRENT_TIME = enum.auto()
+    CURRENT_TIME_N = enum.auto()
+    CURRENT_TIMESTAMP = enum.auto()
+    CURRENT_TIMESTAMP_N = enum.auto()
+    LOCALTIME = enum.auto()
+    LOCALTIME_N = enum.auto()
+    LOCALTIMESTAMP = enum.auto()
+    LOCALTIMESTAMP_N = enum.auto()
+    CURRENT_ROLE = enum.auto()
+    CURRENT_USER = enum.auto()
+    USER = enum.auto()
+    SESSION_USER = enum.auto()
+    CURRENT_CATALOG = enum.auto()
+    CURRENT_SCHEMA = enum.auto()
+
+
+class SQLValueFunction(BaseExpr):
+    op: SQLValueFunctionOP
+    arg: typing.Optional[BaseExpr]
