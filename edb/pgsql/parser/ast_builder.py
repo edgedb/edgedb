@@ -382,6 +382,7 @@ def _build_base_expr(node: Node, c: Context) -> pgast.BaseExpr:
             "A_Expr": _build_a_expr,
             "A_ArrayExpr": _build_array_expr,
             "A_Const": _build_const,
+            "A_Indirection": _build_indirection,
             "BoolExpr": _build_bool_expr,
             "CaseExpr": _build_case_expr,
             "TypeCast": _build_type_cast,
@@ -402,6 +403,13 @@ def _build_distinct(nodes: List[Node], c: Context) -> List[pgast.Base]:
     if len(nodes) == 1 and len(nodes[0]) == 0:
         return [pgast.Star()]
     return [_build_base_expr(n, c) for n in nodes]
+
+
+def _build_indirection(n: Node, c: Context) -> pgast.Indirection:    
+    return pgast.Indirection(
+        arg=_build_base_expr(n['arg'], c),
+        indirection=_list(n, c, 'indirection', _build_indirection_op),
+    )
 
 
 def _build_indirection_op(n: Node, c: Context) -> pgast.IndirectionOp:
@@ -723,14 +731,15 @@ def _build_coalesce(n: Node, c: Context) -> pgast.CoalesceExpr:
 
 
 def _build_index_or_slice(n: Node, c: Context) -> pgast.Slice | pgast.Index:
-    if n['is_slice']:
+    if 'is_slice' in n and n['is_slice']:
         return pgast.Slice(
             lidx=_build_base_expr(n['lidx'], c),
             ridx=_build_base_expr(n['uidx'], c),
         )
     else:
+        idx = n['lidx'] if 'lidx' in n else n['uidx']
         return pgast.Index(
-            idx=_build_base_expr(n['lidx'], c),
+            idx=_build_base_expr(idx, c),
         )
 
 

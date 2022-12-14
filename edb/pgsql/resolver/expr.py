@@ -351,3 +351,38 @@ def resolve_ArrayExpr(
     return pgast.ArrayExpr(
         elements=dispatch.resolve_list(expr.elements, ctx=ctx)
     )
+
+
+@dispatch._resolve.register
+def resolve_Indirection(
+    expr: pgast.Indirection,
+    *,
+    ctx: Context,
+) -> pgast.Indirection:
+    return pgast.Indirection(
+        arg=dispatch.resolve(expr.arg, ctx=ctx),
+        indirection=dispatch.resolve_list(expr.indirection, ctx=ctx)
+    )
+
+
+@dispatch._resolve.register
+def resolve_Slice(
+    expr: pgast.Slice,
+    *,
+    ctx: Context,
+) -> pgast.Slice:
+    return pgast.Slice(
+        lidx=dispatch.resolve_opt(expr.lidx, ctx=ctx),
+        ridx=dispatch.resolve_opt(expr.ridx, ctx=ctx)
+    )
+
+
+@dispatch._resolve.register
+def resolve_Index(
+    expr: pgast.Index,
+    *,
+    ctx: Context,
+) -> pgast.Index:
+    return pgast.Index(
+        idx=dispatch.resolve(expr.idx, ctx=ctx),
+    )

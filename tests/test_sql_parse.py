@@ -935,3 +935,13 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SHOW timezone
         """
         # `SHOW TIME ZONE`` is a pg alias for `SHOW timezone`
+
+    def test_sql_parse_query_31(self):
+        """
+        SELECT ('asxasx')[2][3:4]
+        """
+
+    def test_sql_parse_query_32(self):
+        """
+        SELECT ((blah(4))[0])[2][3:4][2][5:5]
+        """
