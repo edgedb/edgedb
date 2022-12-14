@@ -198,8 +198,8 @@ many of the commands:
 .. rubric:: Settings
 
 :cli:synopsis:`\\set [OPTION [VALUE]]`
-  With *VALUE*, the option named by *OPTION* will be set to the provided value.
   If *VALUE* is omitted, the command will show the current value of *OPTION*.
+  With *VALUE*, the option named by *OPTION* will be set to the provided value.
   Use ``\set`` with no arguments for a listing of all available options.
 
 .. rubric:: Connection
