@@ -3854,3 +3854,17 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ''',
             [9],
         )
+
+    async def test_edgeql_scope_union_backlink_01(self):
+        await self.assert_query_result(
+            r'''
+                select {Card {name}, Card{element}} {name, owners: {name}}
+                filter .name = 'Djinn';
+            ''',
+            [
+                {"name": "Djinn", "owners": [
+                    {"name": "Carol"}, {"name": "Dave"}]},
+                {"name": "Djinn", "owners": [
+                    {"name": "Carol"}, {"name": "Dave"}]}
+            ],
+        )
