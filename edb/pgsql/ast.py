@@ -1005,3 +1005,122 @@ class IteratorCTE(ImmutableBase):
     path_id: irast.PathId
     cte: CommonTableExpr
     parent: typing.Optional[IteratorCTE]
+
+
+class Statement(Base):
+    """A statement that does not return a relation"""
+    pass
+
+
+class VariableSetStmt(Statement):
+    name: str
+    args: typing.List[BaseExpr]
+    scope: OptionsScope
+
+
+class SetTransactionStmt(Statement):
+    """A special case of VariableSetStmt"""
+
+    options: TransactionOptions
+    scope: OptionsScope
+
+
+class VariableShowStmt(Statement):
+    name: str
+
+
+class TransactionStmt(Statement):
+    pass
+
+
+class OptionsScope(enum.IntEnum):
+    TRANSACTION = enum.auto()
+    SESSION = enum.auto()
+
+
+class BeginStmt(TransactionStmt):
+    options: typing.Optional[TransactionOptions]
+
+
+class StartStmt(TransactionStmt):
+    options: typing.Optional[TransactionOptions]
+
+
+class CommitStmt(TransactionStmt):
+    chain: typing.Optional[bool]
+
+
+class RollbackStmt(TransactionStmt):
+    chain: typing.Optional[bool]
+
+
+class SavepointStmt(TransactionStmt):
+    savepoint_name: str
+
+
+class ReleaseStmt(TransactionStmt):
+    savepoint_name: str
+
+
+class RollbackToStmt(TransactionStmt):
+    savepoint_name: str
+
+
+class CommitPreparedStmt(TransactionStmt):
+    gid: str
+
+
+class RollbackPreparedStmt(TransactionStmt):
+    gid: str
+
+
+class TransactionOptions(Base):
+    isolation_mode: IsolationMode
+    access_mode: AccessMode
+    deferrable: bool
+
+
+class IsolationMode(enum.IntEnum):
+    SERIALIZABLE = enum.auto()
+    REPEATABLE_READ = enum.auto()
+    READ_COMMITTED = enum.auto()
+    READ_UNCOMMITTED = enum.auto()
+
+
+class AccessMode(enum.IntEnum):
+    READ_WRITE = enum.auto()
+    READ_ONLY = enum.auto()
+
+
+class ExecuteStmt(Statement):
+    name: str
+    params: typing.Optional[typing.List[Base]]
+
+
+class PrepareStmt(Statement):
+    name: str
+    argtypes: typing.Optional[typing.List[Base]]
+    query: BaseRelation
+
+
+class SQLValueFunctionOP(enum.IntEnum):
+    CURRENT_DATE = enum.auto()
+    CURRENT_TIME = enum.auto()
+    CURRENT_TIME_N = enum.auto()
+    CURRENT_TIMESTAMP = enum.auto()
+    CURRENT_TIMESTAMP_N = enum.auto()
+    LOCALTIME = enum.auto()
+    LOCALTIME_N = enum.auto()
+    LOCALTIMESTAMP = enum.auto()
+    LOCALTIMESTAMP_N = enum.auto()
+    CURRENT_ROLE = enum.auto()
+    CURRENT_USER = enum.auto()
+    USER = enum.auto()
+    SESSION_USER = enum.auto()
+    CURRENT_CATALOG = enum.auto()
+    CURRENT_SCHEMA = enum.auto()
+
+
+class SQLValueFunction(BaseExpr):
+    op: SQLValueFunctionOP
+    arg: typing.Optional[BaseExpr]
