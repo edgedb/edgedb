@@ -158,10 +158,10 @@ many of the commands:
 :cli:synopsis:`\\lt, \\list types [-sI] [PATTERN]`
   List object types.
 
-:cli:synopsis:`\\lr, \\list roles [-I]`
+:cli:synopsis:`\\lr, \\list roles [PATTERN]`
   List roles.
 
-:cli:synopsis:`\\lm, \\list modules [-I]`
+:cli:synopsis:`\\lm, \\list modules [PATTERN]`
   List modules.
 
 :cli:synopsis:`\\la, \\list aliases [-Isv] [PATTERN]`
