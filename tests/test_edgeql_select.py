@@ -1684,6 +1684,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_select_id_01(self):
+        # allow assigning id to a computed (#4781)
+        await self.con.query('SELECT schema::Type { XYZ := .id};')
+
     async def test_edgeql_select_reverse_link_01(self):
         await self.assert_query_result(
             r'''
