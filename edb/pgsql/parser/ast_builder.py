@@ -17,25 +17,45 @@
 #
 
 
+import dataclasses
 from typing import *
+
 from edb.common.parsing import ParserContext
 
 from edb.pgsql import ast as pgast
 from edb.edgeql import ast as qlast
 from edb.pgsql.parser.exceptions import PSqlUnsupportedError
 
+
+@dataclasses.dataclass(kw_only=True)
+class Context:
+    source_sql: str
+    has_fallback = False
+
+
 # Node = bool | str | int | float | List[Any] | dict[str, Any]
 Node = Any
-Context = Tuple[str]
 T = TypeVar("T")
 U = TypeVar("U")
 Builder = Callable[[Node, Context], T]
 
 
-def build_queries(node: Node, source_sql: str) -> List[pgast.Query]:
-    ctx = (source_sql,)
+def build_stmts(
+    node: Node, source_sql: str
+) -> List[pgast.Query | pgast.Statement]:
+    ctx = Context(source_sql=source_sql)
 
-    return [_build_query(node["stmt"], ctx) for node in node["stmts"]]
+    try:
+        return [_build_stmt(node["stmt"], ctx) for node in node["stmts"]]
+    except IndexError:
+        raise PSqlUnsupportedError()
+    except PSqlUnsupportedError as e:
+        if e.node and "location" in e.node:
+            e.location = e.node["location"]
+            assert e.location
+            e.message += f" near location {e.location}:"
+            e.message += source_sql[e.location : (e.location + 50)]
+        raise
 
 
 def _maybe(
@@ -77,16 +97,27 @@ def _enum(
     builders: dict[str, Builder],
     fallbacks: Sequence[Builder] = (),
 ) -> T:
-    for name in builders:
-        if name in node:
-            builder = builders[name]
-            return builder(node[name], ctx)
-    for fallback in fallbacks:
-        try:
-            return fallback(node, ctx)
-        except PSqlUnsupportedError:
-            pass
-    raise PSqlUnsupportedError(f"unknown enum: {node}")
+    outer_fallback = ctx.has_fallback
+    ctx.has_fallback = False
+
+    try:
+        for name in builders:
+            if name in node:
+                builder = builders[name]
+                return builder(node[name], ctx)
+
+        ctx.has_fallback = True
+        for fallback in fallbacks:
+            res = fallback(node, ctx)
+            if res:
+                return res
+
+        if outer_fallback:
+            return None  # type: ignore
+
+        raise PSqlUnsupportedError(node, ", ".join(node.keys()))
+    finally:
+        ctx.has_fallback = outer_fallback
 
 
 def _build_any(node: Node, _: Context) -> Any:
@@ -135,7 +166,26 @@ def _build_context(n: Node, c: Context) -> Optional[ParserContext]:
         return None
 
     return ParserContext(
-        name='<string>', buffer=c[0], start=n['location'], end=n['location']
+        name="<string>",
+        buffer=c.source_sql,
+        start=n["location"],
+        end=n["location"],
+    )
+
+
+def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
+    return _enum(
+        pgast.Query | pgast.Statement,  # type: ignore
+        node,
+        c,
+        {
+            "VariableSetStmt": _build_variable_set_stmt,
+            "VariableShowStmt": _build_variable_show_stmt,
+            "TransactionStmt": _build_transaction_stmt,
+            "PrepareStmt": _build_prepare,
+            "ExecuteStmt": _build_execute,
+        },
+        [_build_query],
     )
 
 
@@ -149,11 +199,6 @@ def _build_query(node: Node, c: Context) -> pgast.Query:
             "InsertStmt": _build_insert_stmt,
             "UpdateStmt": _build_update_stmt,
             "DeleteStmt": _build_delete_stmt,
-            "VariableSetStmt": _build_variable_set_stmt,
-            "VariableShowStmt": _build_variable_show_stmt,
-            "TransactionStmt": _build_transaction_stmt,
-            "PrepareStmt": _build_prepare,
-            "ExecuteStmt": _build_execute,
         },
     )
 
@@ -192,7 +237,7 @@ def _build_insert_stmt(n: Node, c: Context) -> pgast.InsertStmt:
         returning_list=_maybe_list(n, c, "returningList", _build_res_target)
         or [],
         cols=_maybe_list(n, c, "cols", _build_insert_target),
-        select_stmt=_maybe(n, c, "selectStmt", _build_query),
+        select_stmt=_maybe(n, c, "selectStmt", _build_stmt),
         on_conflict=_maybe(n, c, "on_conflict", _build_on_conflict),
         ctes=_maybe(n, c, "withClause", _build_ctes),
     )
@@ -294,7 +339,7 @@ def _build_transaction_stmt(n: Node, c: Context) -> pgast.TransactionStmt:
 
     kind = cast(str, n["kind"]).removeprefix("TRANS_STMT_")
     if kind not in kinds:
-        raise PSqlUnsupportedError(f'transaction stmt: {n["kind"]}')
+        raise PSqlUnsupportedError(n)
 
     return kinds[kind](n, c)
 
@@ -405,7 +450,7 @@ def _build_distinct(nodes: List[Node], c: Context) -> List[pgast.Base]:
     return [_build_base_expr(n, c) for n in nodes]
 
 
-def _build_indirection(n: Node, c: Context) -> pgast.Indirection:    
+def _build_indirection(n: Node, c: Context) -> pgast.Indirection:
     return pgast.Indirection(
         arg=_build_base_expr(n['arg'], c),
         indirection=_list(n, c, 'indirection', _build_indirection_op),
@@ -469,7 +514,7 @@ def _build_sub_link(n: Node, c: Context) -> pgast.SubLink:
     elif typ == "EXPR_SUBLINK":
         type = pgast.SubLinkType.EXPR
     else:
-        raise PSqlUnsupportedError(f"unknown SubLink type: `{typ}`")
+        raise PSqlUnsupportedError(n)
 
     return pgast.SubLink(
         type=type,
@@ -591,7 +636,7 @@ def _build_const(n: Node, c: Context) -> pgast.BaseConstant:
     if "String" in val:
         return pgast.StringConstant(val=_build_str(val, c), context=context)
 
-    raise PSqlUnsupportedError(f'unknown Const: {val}')
+    raise PSqlUnsupportedError(n)
 
 
 def _build_range_subselect(n: Node, c: Context) -> pgast.RangeSubselect:
@@ -706,7 +751,7 @@ def _build_a_expr(n: Node, c: Context) -> pgast.Expr:
             context=_build_context(n, c),
         )
     else:
-        raise PSqlUnsupportedError(f'unknown ExprKind: {n["kind"]}')
+        raise PSqlUnsupportedError(n)
 
 
 def _build_func_call(n: Node, c: Context) -> pgast.FuncCall:
