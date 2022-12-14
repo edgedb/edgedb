@@ -49,7 +49,7 @@ To disable version check do one of two things:
 
 1. Use ``--no-cli-update-check`` command-line parameter to disable just
    for this invocation
-2. Export ``EDGEDB_NO_VERSION_CHECK=true`` in the environment.
+2. Export ``EDGEDB_RUN_VERSION_CHECK=never`` in the environment.
 
 To verify that check is skipped and no network access is being done
 logging facility can be used::
@@ -58,8 +58,8 @@ logging facility can be used::
    $ edgedb --no-cli-update-check
    [..snip..] Skipping version check due to --no-cli-update-check
    edgedb>
-   $ EDGEDB_NO_VERSION_CHECK=true edgedb
-   [..snip..] Skipping version check due to EDGEDB_NO_VERSION_CHECK
+   $ EDGEDB_RUN_VERSION_CHECK=never edgedb
+   [..snip..] Skipping version check due to EDGEDB_RUN_VERSION_CHECK=never
    edgedb>
 
 
