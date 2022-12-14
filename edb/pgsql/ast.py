@@ -1008,14 +1008,21 @@ class IteratorCTE(ImmutableBase):
 
 
 class Statement(Base):
-    """A statement that does not return"""
-
+    """A statement that does not return a relation"""
     pass
 
 
 class VariableSetStmt(Statement):
     name: str
     args: typing.List[BaseExpr]
+    scope: OptionsScope
+
+
+class SetTransactionStmt(Statement):
+    """A special case of VariableSetStmt"""
+
+    options: TransactionOptions
+    scope: OptionsScope
 
 
 class VariableShowStmt(Statement):
@@ -1026,9 +1033,9 @@ class TransactionStmt(Statement):
     pass
 
 
-class SetTransactionStmt(Statement):
-    """A special case of VariableSetStmt"""
-    options: TransactionOptions
+class OptionsScope(enum.IntEnum):
+    TRANSACTION = enum.auto()
+    SESSION = enum.auto()
 
 
 class BeginStmt(TransactionStmt):

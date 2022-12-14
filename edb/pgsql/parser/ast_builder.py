@@ -220,16 +220,25 @@ def _build_delete_stmt(n: Node, c: Context) -> pgast.DeleteStmt:
 
 
 def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
-    if n["name"] == "TRANSACTION":
+    if n["name"] == "TRANSACTION" or n["name"] == "SESSION CHARACTERISTICS":
         return pgast.SetTransactionStmt(
-            options=_build_transaction_options(n["args"], c)
+            options=_build_transaction_options(n["args"], c),
+            scope=pgast.OptionsScope.TRANSACTION
+            if n["name"] == "TRANSACTION"
+            else pgast.OptionsScope.SESSION,
         )
 
-    return pgast.VariableSetStmt(
-        name=n["name"],
-        args=_list(n, c, "args", _build_base_expr),
-        context=_build_context(n, c),
-    )
+    if n["kind"] == "VAR_SET_VALUE":
+        return pgast.VariableSetStmt(
+            name=n["name"],
+            args=_list(n, c, "args", _build_base_expr),
+            scope=pgast.OptionsScope.TRANSACTION
+            if "is_local" in n and n["is_local"]
+            else pgast.OptionsScope.SESSION,
+            context=_build_context(n, c),
+        )
+
+    raise PSqlUnsupportedError(n)
 
 
 def _build_variable_show_stmt(n: Node, c: Context) -> pgast.Statement:

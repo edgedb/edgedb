@@ -911,5 +911,27 @@ class TestEdgeQLSelect(tb.BaseDocTest):
 
     def test_sql_parse_query_27(self):
         """
-        SET search_path TO 'edgedb,public'
+        SET LOCAL search_path TO 'my_schema', 'public'
         """
+
+    def test_sql_parse_query_28(self):
+        """
+        SET SESSION datestyle TO postgres, dmy
+% OK %
+        SET datestyle TO 'postgres', 'dmy'
+        """
+        # SESSION is the default
+        # args are strings actually
+
+    def test_sql_parse_query_29(self):
+        """
+        SHOW search_path
+        """
+
+    def test_sql_parse_query_30(self):
+        """
+        SHOW TIME ZONE
+% OK %
+        SHOW timezone
+        """
+        # `SHOW TIME ZONE`` is a pg alias for `SHOW timezone`

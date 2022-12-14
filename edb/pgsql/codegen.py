@@ -896,10 +896,19 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_VariableSetStmt(self, node: pgast.VariableSetStmt) -> None:
         self.write("SET ")
+        if node.scope == pgast.OptionsScope.TRANSACTION:
+            self.write("LOCAL ")
         self.write(node.name)
         self.write(" TO ")
-        for arg in node.args:
-            self.visit(arg)
+        self.visit_list(node.args)
+
+    def visit_SetTransactionStmt(self, node: pgast.SetTransactionStmt) -> None:
+        self.write("SET ")
+        if node.scope != pgast.OptionsScope.TRANSACTION:
+            self.write("TRANSACTION ")
+        else:
+            self.write("SESSION CHARACTERISTICS AS TRANSACTION ")
+        self.visit(node.options)
 
     def visit_VariableShowStmt(self, node: pgast.VariableShowStmt) -> None:
         self.write("SHOW ")
