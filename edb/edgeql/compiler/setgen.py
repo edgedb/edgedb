@@ -706,8 +706,10 @@ def resolve_ptr_with_intersections(
                     ref.get_target(ctx.env.schema), ctx=ctx)
 
     else:
-        ptrs = near_endpoint.getrptrs(ctx.env.schema, pointer_name,
-                                      sources=far_endpoints)
+        assert isinstance(near_endpoint, s_types.Type)
+        concrete_near_endpoint = schemactx.concretify(near_endpoint, ctx=ctx)
+        ptrs = concrete_near_endpoint.getrptrs(
+            ctx.env.schema, pointer_name, sources=far_endpoints)
         if ptrs:
             # If this reverse pointer access is followed by
             # intersections, we filter out any pointers that
