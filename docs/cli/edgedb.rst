@@ -131,8 +131,8 @@ Options
     value is ``10s``.
 
 
-Shell Commands
-==============
+Backslash Commands
+==================
 
 .. rubric:: Introspection
 
