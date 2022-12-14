@@ -189,8 +189,9 @@ many of the commands:
 
 :cli:synopsis:`\\e, \\edit [N]`
   Spawn ``$EDITOR`` to edit the most recent history entry or history entry *N*.
-  History entries are negative indexed with `-1` being the most recent command.
-  Use the `\history` command (above) to see previous command indexes.
+  History entries are negative indexed with ``-1`` being the most recent
+  command. Use the ``\history`` command (above) to see previous command
+  indexes.
 
   The output of this will then be used as input into the shell.
 
