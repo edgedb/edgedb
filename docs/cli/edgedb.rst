@@ -129,3 +129,85 @@ Options
     :cli:synopsis:`<timeout>` value must be given using time units
     (e.g. ``hr``, ``min``, ``sec``, ``ms``, etc.). The default
     value is ``10s``.
+
+
+Shell Commands
+==============
+
+.. rubric:: Introspection
+
+The introspection commands share a few common options that are available to
+many of the commands:
+
+- ``-v``- Verbose
+- ``-s``- Show system objects
+- ``-I``- Case-insensitive matching
+
+:cli:synopsis:`\\d [-v] NAME`
+  Describe schema object specified by *NAME*.
+
+:cli:synopsis:`\\ds, \\describe-schema`
+  Describe the entire schema.
+
+:cli:synopsis:`\\l, \\list databases`
+  List databases.
+
+:cli:synopsis:`\\ls, \\list scalars [-sI] [PATTERN]`
+  List scalar types.
+
+:cli:synopsis:`\\lt, \\list types [-sI] [PATTERN]`
+  List object types.
+
+:cli:synopsis:`\\lr, \\list roles [-I]`
+  List roles.
+
+:cli:synopsis:`\\lm, \\list modules [-I]`
+  List modules.
+
+:cli:synopsis:`\\la, \\list aliases [-Isv] [PATTERN]`
+  List expression aliases.
+
+:cli:synopsis:`\\lc, \\list casts [-I] [PATTERN]`
+  List casts.
+
+:cli:synopsis:`\\li, \\list indexes [-Isv] [PATTERN]`
+  List indexes.
+
+.. rubric:: Operations
+
+:cli:synopsis:`\\dump FILENAME`
+  Dump current database to a file at *FILENAME*.
+
+:cli:synopsis:`\\restore FILENAME`
+  Restore the database dump at *FILENAME* into the currently connected
+  database.
+
+.. rubric:: Editing
+
+:cli:synopsis:`\\s, \\history`
+  Show a history of commands executed in the shell.
+
+:cli:synopsis:`\\e, \\edit [N]`
+  Spawn ``$EDITOR`` to edit the most recent history entry or history entry *N*.
+  The output of this will then be used as input into the shell.
+
+
+.. rubric:: Settings
+
+:cli:synopsis:`\\set [OPTION [VALUE]]`
+  With *VALUE*, the option named by *OPTION* will be set to the provided value.
+  If *VALUE* is omitted, the command will show the current value of *OPTION*.
+  Use ``\set`` with no arguments for a listing of all available options.
+
+.. rubric:: Connection
+
+:cli:synopsis:`\\c, \\connect [DBNAME]`
+  Connect to database *DBNAME*.
+
+.. rubric:: Help
+
+:cli:synopsis:`\\?, \\h, \\help`
+  Show help on backslash commands.
+
+:cli:synopsis:`\\q, \\quit, \\exit`
+  Quit the REPL. You can also do this by pressing Ctrl+D.
