@@ -141,7 +141,7 @@ many of the commands:
 
 - ``-v``- Verbose
 - ``-s``- Show system objects
-- ``-I``- Case-insensitive matching
+- ``-c``- Case-sensitive pattern matching
 
 :cli:synopsis:`\\d [-v] NAME`
   Describe schema object specified by *NAME*.
@@ -152,25 +152,25 @@ many of the commands:
 :cli:synopsis:`\\l, \\list databases`
   List databases.
 
-:cli:synopsis:`\\ls, \\list scalars [-sI] [PATTERN]`
+:cli:synopsis:`\\ls, \\list scalars [-sc] [PATTERN]`
   List scalar types.
 
-:cli:synopsis:`\\lt, \\list types [-sI] [PATTERN]`
+:cli:synopsis:`\\lt, \\list types [-sc] [PATTERN]`
   List object types.
 
-:cli:synopsis:`\\lr, \\list roles [PATTERN]`
+:cli:synopsis:`\\lr, \\list roles [-c] [PATTERN]`
   List roles.
 
-:cli:synopsis:`\\lm, \\list modules [PATTERN]`
+:cli:synopsis:`\\lm, \\list modules [-c] [PATTERN]`
   List modules.
 
-:cli:synopsis:`\\la, \\list aliases [-Isv] [PATTERN]`
+:cli:synopsis:`\\la, \\list aliases [-vsc] [PATTERN]`
   List expression aliases.
 
-:cli:synopsis:`\\lc, \\list casts [-I] [PATTERN]`
+:cli:synopsis:`\\lc, \\list casts [-c] [PATTERN]`
   List casts.
 
-:cli:synopsis:`\\li, \\list indexes [-Isv] [PATTERN]`
+:cli:synopsis:`\\li, \\list indexes [-vsc] [PATTERN]`
   List indexes.
 
 .. rubric:: Operations
