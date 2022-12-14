@@ -1200,7 +1200,6 @@ def process_with_block(
                     with_entry.expr,
                     s_name.UnqualName(with_entry.alias),
                     binding_kind=irast.BindingKind.With,
-                    must_be_used=True,
                     ctx=scopectx,
                 )
                 results.append(binding)
