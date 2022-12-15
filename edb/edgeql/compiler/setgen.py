@@ -1526,18 +1526,22 @@ def _get_schema_computed_ctx(
             ptr = typegen.ptrcls_from_ptrref(rptr.ptrref, ctx=ctx)
             assert isinstance(ptr, s_pointers.Pointer)
             ptr = ptr.maybe_get_topmost_concrete_base(ctx.env.schema) or ptr
+            src = ptr.get_source(ctx.env.schema)
 
-            inner_path_id = not_none(irast.PathId.from_pointer(
-                ctx.env.schema, ptr, namespace=subctx.path_id_namespace,
-            ).src_path())
-
-            remapped_source = new_set_from_set(
-                rptr.source,
-                rptr=rptr.source.rptr,
-                ctx=ctx,
-            )
-            key = inner_path_id.strip_namespace(inner_path_id.namespace)
-            update_view_map(inner_path_id, remapped_source, ctx=subctx)
+            # If the source is an abstract pointer, then we don't have
+            # a full path to bind in the computed. Otherwise use a
+            # path derived from the pointer source.
+            if not (
+                isinstance(src, s_pointers.Pointer)
+                and src.generic(ctx.env.schema)
+            ):
+                inner_path_id = not_none(irast.PathId.from_pointer(
+                    ctx.env.schema, ptr, namespace=subctx.path_id_namespace,
+                ).src_path())
+                remapped_source = new_set_from_set(
+                    rptr.source, rptr=rptr.source.rptr, ctx=ctx
+                )
+                update_view_map(inner_path_id, remapped_source, ctx=subctx)
 
             yield subctx
 
