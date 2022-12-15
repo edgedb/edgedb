@@ -491,7 +491,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             if self._auth_data:
                 token = self._extract_token_from_auth_data(self._auth_data)
             else:
-                token = params.get('token')
+                token = params.get('secret_key')
             self._auth_jwt(user, token)
         elif authmethod_name == 'Trust':
             self._auth_trust(user)
