@@ -838,6 +838,37 @@ Other changes
 * Fix some migrations with tricky constraint/computed interactions
   (:eql:gh:`#4794`)
 
+2.9
+===
+
+* Fix broken DROPs of pointers in some multiple-inheritance situations
+  (:eql:gh:`#4809`)
+
+* Properly execute function calls in UPDATE once per object
+  (:eql:gh:`#4810`)
+
+* Fix accessing tuple elements on link properties
+  (:eql:gh:`#4811`)
+
+* Fix ``assert_exists()`` not firing on some tuple values
+  (:eql:gh:`#4812`)
+
+* Fix GROUP on the result of enumerate
+  (:eql:gh:`#4813`)
+
+* Support more env vars in args.py, standardize docs
+  (:eql:gh:`#4387`)
+
+* Fix computed properties that just copy id
+  (:eql:gh:`#4807`)
+
+* Fix backlinks on derived union types
+  (:eql:gh:`#4818`)
+
+* Fix references to the enclosing type in schema-defined computeds
+  (:eql:gh:`#4826`)
+
+* UI: Many fixes and improvements
 
 .. lint-off
 
