@@ -809,6 +809,11 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         ROLLBACK TO SAVEPOINT savepoint_name
         """
 
+    def test_sql_parse_transaction_24(self):
+        """
+        PREPARE TRANSACTION 'transaction_id'
+        """
+
     def test_sql_parse_transaction_25(self):
         """
         COMMIT PREPARED 'transaction_id'

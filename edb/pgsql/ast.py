@@ -1066,12 +1066,20 @@ class RollbackToStmt(TransactionStmt):
     savepoint_name: str
 
 
-class CommitPreparedStmt(TransactionStmt):
+class TwoPhaseTransactionStmt(TransactionStmt):
     gid: str
 
 
-class RollbackPreparedStmt(TransactionStmt):
-    gid: str
+class PrepareTransaction(TwoPhaseTransactionStmt):
+    pass
+
+
+class CommitPreparedStmt(TwoPhaseTransactionStmt):
+    pass
+
+
+class RollbackPreparedStmt(TwoPhaseTransactionStmt):
+    pass
 
 
 class TransactionOptions(Base):

@@ -319,6 +319,9 @@ def _build_transaction_stmt(n: Node, c: Context) -> pgast.TransactionStmt:
     def rollback_to(n: Node, _: Context) -> pgast.RollbackToStmt:
         return pgast.RollbackToStmt(savepoint_name=n["savepoint_name"])
 
+    def prepare(n: Node, _: Context) -> pgast.PrepareTransaction:
+        return pgast.PrepareTransaction(gid=n["gid"])
+
     def commit_prepared(n: Node, _: Context) -> pgast.CommitPreparedStmt:
         return pgast.CommitPreparedStmt(gid=n["gid"])
 
@@ -333,6 +336,7 @@ def _build_transaction_stmt(n: Node, c: Context) -> pgast.TransactionStmt:
         "SAVEPOINT": savepoint,
         "RELEASE": release,
         "ROLLBACK_TO": rollback_to,
+        "PREPARE": prepare,
         "COMMIT_PREPARED": commit_prepared,
         "ROLLBACK_PREPARED": rollback_prepared,
     }
