@@ -929,6 +929,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_RollbackToStmt(self, node: pgast.RollbackToStmt) -> None:
         self.write(f"ROLLBACK TO SAVEPOINT {node.savepoint_name}")
 
+    def visit_PrepareTransaction(self, node: pgast.PrepareTransaction) -> None:
+        self.write(f"PREPARE TRANSACTION '{node.gid}'")
+
     def visit_CommitPreparedStmt(self, node: pgast.CommitPreparedStmt) -> None:
         self.write(f"COMMIT PREPARED '{node.gid}'")
 
