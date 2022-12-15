@@ -212,11 +212,16 @@ async def _run_server(
                 tls_cert_newly_generated = True
 
         jws_keys_newly_generated = False
+        jwe_keys_newly_generated = False
         if args.jose_key_mode is srvargs.JOSEKeyMode.Generate:
             assert args.jws_key_file is not None
+            assert args.jwe_key_file is not None
             if not args.jws_key_file.exists():
                 generate_jwk(args.jws_key_file)
                 jws_keys_newly_generated = True
+            if not args.jwe_key_file.exists():
+                generate_jwk(args.jwe_key_file)
+                jwe_keys_newly_generated = True
 
         if args.bootstrap_only:
             if args.startup_script and new_instance:
@@ -229,7 +234,12 @@ async def _run_server(
         ss.init_tls(
             args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
 
-        ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
+        ss.init_jwcrypto(
+            args.jws_key_file,
+            args.jwe_key_file,
+            jws_keys_newly_generated,
+            jwe_keys_newly_generated,
+        )
 
         def load_configuration(_signum):
             logger.info("reloading configuration")
@@ -237,7 +247,7 @@ async def _run_server(
                 if args.readiness_state_file:
                     ss.reload_readiness_state(args.readiness_state_file)
                 ss.reload_tls(args.tls_cert_file, args.tls_key_file)
-                ss.load_jwcrypto(args.jws_key_file)
+                ss.load_jwcrypto(args.jws_key_file, args.jwe_key_file)
             except Exception:
                 logger.critical(
                     "Unexpected error occurred during reload configuration; "
@@ -614,6 +624,16 @@ async def run_server(
                         args = args._replace(
                             jws_key_file=pathlib.Path(
                                 str(args.jws_key_file).replace(
+                                    '<runstate>', int_runstate_dir)
+                            ),
+                        )
+                    if (
+                        args.jwe_key_file
+                        and '<runstate>' in str(args.jwe_key_file)
+                    ):
+                        args = args._replace(
+                            jwe_key_file=pathlib.Path(
+                                str(args.jwe_key_file).replace(
                                     '<runstate>', int_runstate_dir)
                             ),
                         )

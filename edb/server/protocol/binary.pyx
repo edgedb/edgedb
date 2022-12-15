@@ -627,21 +627,39 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise errors.AuthenticationError(
                 'authentication failed: no authorization data provided')
 
+        # support legacy CLI `edgedb ui` command
+        is_legacy = prefixed_token.count(".") == 4
+
         for prefix in ["nbwt_", "edbt_"]:
             encoded_token = prefixed_token.removeprefix(prefix)
             if encoded_token != prefixed_token:
                 break
         else:
-            raise errors.AuthenticationError(
-                'authentication failed: malformed JWT')
+            if not is_legacy:
+                raise errors.AuthenticationError(
+                    'authentication failed: malformed JWT')
 
         role = self.server.get_roles().get(user)
         if role is None:
             raise errors.AuthenticationError('authentication failed')
 
+        ekey = self.server.get_jwe_key()
         skey = self.server.get_jws_key()
 
         try:
+            if is_legacy:
+                decrypted_token = jwt.JWT(
+                    key=ekey,
+                    algs=[
+                        "RSA-OAEP-256",
+                        "ECDH-ES",
+                        "A128GCM",
+                        "A192GCM",
+                        "A256GCM",
+                    ],
+                    jwt=encoded_token,
+                )
+                encoded_token = decrypted_token.claims
             token = jwt.JWT(
                 key=skey,
                 algs=["RS256", "ES256"],
@@ -668,6 +686,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             ) from None
 
         if not claims.get(f"{namespace}.any_role"):
+            assert not is_legacy  # legacy CLI will only generate any_role JWTs
             token_roles = claims.get(f"{namespace}.roles")
             if not isinstance(token_roles, list):
                 raise errors.AuthenticationError(
