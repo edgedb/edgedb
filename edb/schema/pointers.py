@@ -674,9 +674,8 @@ class Pointer(referencing.ReferencedInheritingObject,
         from edb.schema import sources as s_sources
         std_base = schema.get('std::BaseObject', type=s_sources.Source)
         std_id = std_base.getptr(schema, sn.UnqualName('id'))
-        std_target = schema.get('std::target', type=so.SubclassableObject)
         assert isinstance(std_id, so.SubclassableObject)
-        return self.issubclass(schema, (std_id, std_target))
+        return self.issubclass(schema, std_id)
 
     def is_link_source_property(self, schema: s_schema.Schema) -> bool:
         std_source = schema.get('std::source', type=so.SubclassableObject)
