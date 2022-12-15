@@ -1515,21 +1515,33 @@ def _get_schema_computed_ctx(
     @contextlib.contextmanager
     def newctx() -> Iterator[context.ContextLevel]:
         with ctx.detached() as subctx:
-            source_stype = get_set_type(source, ctx=ctx)
-
             source_scope = pathctx.get_set_scope(rptr.source, ctx=ctx)
             if source_scope and source_scope.namespaces:
                 subctx.path_id_namespace |= source_scope.namespaces
 
-            inner_path_id = pathctx.get_path_id(source_stype, ctx=subctx)
+            # Get the type of the actual location where the computed pointer
+            # was defined in the schema, since that is the type that must
+            # be used in the view map, since that is the type that might
+            # be *referenced in the definition*.
+            ptr = typegen.ptrcls_from_ptrref(rptr.ptrref, ctx=ctx)
+            assert isinstance(ptr, s_pointers.Pointer)
+            ptr = ptr.maybe_get_topmost_concrete_base(ctx.env.schema) or ptr
+            src = ptr.get_source(ctx.env.schema)
 
-            remapped_source = new_set_from_set(
-                rptr.source,
-                rptr=rptr.source.rptr,
-                ctx=ctx,
-            )
-            key = inner_path_id.strip_namespace(inner_path_id.namespace)
-            subctx.view_map[key] = ((inner_path_id, remapped_source),)
+            # If the source is an abstract pointer, then we don't have
+            # a full path to bind in the computed. Otherwise use a
+            # path derived from the pointer source.
+            if not (
+                isinstance(src, s_pointers.Pointer)
+                and src.generic(ctx.env.schema)
+            ):
+                inner_path_id = not_none(irast.PathId.from_pointer(
+                    ctx.env.schema, ptr, namespace=subctx.path_id_namespace,
+                ).src_path())
+                remapped_source = new_set_from_set(
+                    rptr.source, rptr=rptr.source.rptr, ctx=ctx
+                )
+                update_view_map(inner_path_id, remapped_source, ctx=subctx)
 
             yield subctx
 
