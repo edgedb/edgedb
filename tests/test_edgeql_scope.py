@@ -3854,3 +3854,65 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ''',
             [9],
         )
+
+    async def test_edgeql_scope_union_backlink_01(self):
+        await self.assert_query_result(
+            r'''
+                select {Card {name}, Card{element}} {name, owners: {name}}
+                filter .name = 'Djinn';
+            ''',
+            [
+                {"name": "Djinn", "owners": [
+                    {"name": "Carol"}, {"name": "Dave"}]},
+                {"name": "Djinn", "owners": [
+                    {"name": "Carol"}, {"name": "Dave"}]}
+            ],
+        )
+
+    async def test_edgeql_scope_schema_computed_01(self):
+        await self.con.execute('''
+            alter type User
+            create link lcards := (
+                select Card filter Card.name[0] = User.name[0]);
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                with U := User,
+                select U { name } filter exists .lcards;
+            ''',
+            tb.bag([
+                {"name": "Bob"},
+                {"name": "Dave"},
+            ]),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Bot { lcards: {name} }
+            ''',
+            [
+                {
+                    "lcards": tb.bag([
+                        {"name": "Dragon"},
+                        {"name": "Dwarf"},
+                        {"name": "Djinn"}
+                    ])
+                }
+            ]
+        )
+
+    async def test_edgeql_scope_schema_computed_02(self):
+        await self.con.execute('''
+            alter type Named
+            create property foo := count(User)
+        ''')
+
+        # Make sure that 'User' doesn't get captured when evaluating
+        # the schema computed here.
+        await self.assert_query_result(
+            r'''
+                select User { foo }
+            ''',
+            [{'foo': 4}, {'foo': 4}, {'foo': 4}, {'foo': 4}]
+        )

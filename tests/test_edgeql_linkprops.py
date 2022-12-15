@@ -1354,3 +1354,23 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     insert Src { l := assert_single(Tgt { @y := "..." }) };
                 '''
             )
+
+    async def test_edgeql_props_tuples_01(self):
+        await self.con.execute(r'''
+            create type Org;
+            create type Foo {
+                create multi link orgs -> Org {
+                    create property roles -> tuple<role1: bool, role2: bool>;
+                }
+            };
+            insert Org;
+            insert Foo { orgs := (select Org {
+                @roles := (role1 := true, role2 := false) }) };
+        ''')
+
+        await self.assert_query_result(
+            '''
+            select Foo.orgs@roles.role1;
+            ''',
+            [True],
+        )

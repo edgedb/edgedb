@@ -880,6 +880,43 @@ def _normalize_view_ptr_expr(
                     f'(expecting {" or ".join(expected)})'
                 )
 
+    # Prohibit update of readonly
+    if exprtype.is_update() and ptrcls and ptrcls.get_readonly(ctx.env.schema):
+        raise errors.QueryError(
+            f'cannot update {ptrcls.get_verbosename(ctx.env.schema)}: '
+            f'it is declared as read-only',
+            context=compexpr and compexpr.context,
+        )
+
+    # Prohibit invalid operations on id
+    id_access = (
+        ptrcls
+        and ptrcls.is_id_pointer(ctx.env.schema)
+        and (
+            not ctx.env.options.allow_user_specified_id
+            or not exprtype.is_mutation()
+        )
+    )
+    if (
+        (compexpr is not None or is_polymorphic)
+        and id_access and not from_default and ptrcls
+    ):
+        ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
+        if is_polymorphic:
+            msg = (f'cannot access {ptrcls_sn.name} on a polymorphic '
+                   f'shape element')
+        else:
+            msg = f'cannot assign to {ptrcls_sn.name}'
+        if not ctx.env.options.allow_user_specified_id:
+            hint = (
+                'consider enabling the "allow_user_specified_id" '
+                'configuration parameter to allow setting custom object ids'
+            )
+        else:
+            hint = None
+
+        raise errors.QueryError(msg, context=shape_el.context, hint=hint)
+
     # Common code for computed/not computed
 
     if ptrcls and ptrcls in pending_pointers:
@@ -1087,42 +1124,6 @@ def _normalize_view_ptr_expr(
 
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.Unknown)
-
-    # Prohibit update of readonly
-    if exprtype.is_update() and ptrcls.get_readonly(ctx.env.schema):
-        raise errors.QueryError(
-            f'cannot update {ptrcls.get_verbosename(ctx.env.schema)}: '
-            f'it is declared as read-only',
-            context=compexpr and compexpr.context,
-        )
-
-    # Prohibit invalid operations on id
-    id_access = (
-        ptrcls.is_id_pointer(ctx.env.schema)
-        and (
-            not ctx.env.options.allow_user_specified_id
-            or not exprtype.is_mutation()
-        )
-    )
-    if (
-        (compexpr is not None or is_polymorphic)
-        and id_access and not from_default
-    ):
-        ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
-        if is_polymorphic:
-            msg = (f'cannot access {ptrcls_sn.name} on a polymorphic '
-                   f'shape element')
-        else:
-            msg = f'cannot assign to {ptrcls_sn.name}'
-        if not ctx.env.options.allow_user_specified_id:
-            hint = (
-                'consider enabling the "allow_user_specified_id" '
-                'configuration parameter to allow setting custom object ids'
-            )
-        else:
-            hint = None
-
-        raise errors.QueryError(msg, context=shape_el.context, hint=hint)
 
     return ptrcls, irexpr
 

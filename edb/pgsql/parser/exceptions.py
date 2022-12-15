@@ -17,7 +17,7 @@
 #
 
 
-from typing import Optional
+from typing import Any, Optional
 
 
 class PSqlParseError(Exception):
@@ -31,10 +31,12 @@ class PSqlParseError(Exception):
 
 
 class PSqlUnsupportedError(Exception):
-    def __init__(self, construct: Optional[str] = None):
-        self.construct = construct
+    def __init__(self, node: Optional[Any] = None, feat: Optional[str] = None):
+        self.node = node
+        self.location = None
+        self.message = "unsupported SQL feature"
+        if feat:
+            self.message += f" `{feat}`"
 
     def __str__(self):
-        if self.construct is not None:
-            return f"unsupported SQL construct: {self.construct}"
-        return "unsupported SQL construct"
+        return self.message

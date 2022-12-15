@@ -894,5 +894,112 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write('RESET ')
             self.write(common.quote_ident(node.name))
 
+    def visit_VariableSetStmt(self, node: pgast.VariableSetStmt) -> None:
+        self.write("SET ")
+        if node.scope == pgast.OptionsScope.TRANSACTION:
+            self.write("LOCAL ")
+        self.write(node.name)
+        self.write(" TO ")
+        self.visit_list(node.args)
+
+    def visit_SetTransactionStmt(self, node: pgast.SetTransactionStmt) -> None:
+        self.write("SET ")
+        if node.scope != pgast.OptionsScope.TRANSACTION:
+            self.write("TRANSACTION ")
+        else:
+            self.write("SESSION CHARACTERISTICS AS TRANSACTION ")
+        self.visit(node.options)
+
+    def visit_VariableShowStmt(self, node: pgast.VariableShowStmt) -> None:
+        self.write("SHOW ")
+        self.write(node.name)
+
+    def visit_BeginStmt(self, node: pgast.BeginStmt) -> None:
+        self.write("BEGIN")
+        if node.options:
+            self.visit(node.options)
+
+    def visit_StartStmt(self, node: pgast.StartStmt) -> None:
+        self.write("START TRANSACTION")
+        if node.options:
+            self.visit(node.options)
+
+    def visit_CommitStmt(self, node: pgast.CommitStmt) -> None:
+        self.write("COMMIT")
+        if node.chain:
+            self.write(" AND CHAIN")
+
+    def visit_RollbackStmt(self, node: pgast.RollbackStmt) -> None:
+        self.write("ROLLBACK")
+        if node.chain:
+            self.write(" AND CHAIN")
+
+    def visit_SavepointStmt(self, node: pgast.SavepointStmt) -> None:
+        self.write(f"SAVEPOINT {node.savepoint_name}")
+
+    def visit_ReleaseStmt(self, node: pgast.ReleaseStmt) -> None:
+        self.write(f"RELEASE {node.savepoint_name}")
+
+    def visit_RollbackToStmt(self, node: pgast.RollbackToStmt) -> None:
+        self.write(f"ROLLBACK TO SAVEPOINT {node.savepoint_name}")
+
+    def visit_CommitPreparedStmt(self, node: pgast.CommitPreparedStmt) -> None:
+        self.write(f"COMMIT PREPARED '{node.gid}'")
+
+    def visit_RollbackPreparedStmt(
+        self, node: pgast.RollbackPreparedStmt
+    ) -> None:
+        self.write(f"ROLLBACK PREPARED '{node.gid}'")
+
+    def visit_TransactionOptions(self, node: pgast.TransactionOptions) -> None:
+        if node.isolation_mode == pgast.IsolationMode.SERIALIZABLE:
+            self.write(" ISOLATION LEVEL SERIALIZABLE")
+        elif node.isolation_mode == pgast.IsolationMode.REPEATABLE_READ:
+            self.write(" ISOLATION LEVEL REPEATABLE READ")
+        elif node.isolation_mode == pgast.IsolationMode.READ_COMMITTED:
+            # this is the default
+            pass
+        elif node.isolation_mode == pgast.IsolationMode.READ_UNCOMMITTED:
+            self.write(" ISOLATION LEVEL READ UNCOMMITTED")
+
+        if node.access_mode != pgast.AccessMode.READ_WRITE:
+            self.write(" READ ONLY")
+        if node.deferrable:
+            self.write(" DEFERRABLE")
+
+    def visit_PrepareStmt(self, node: pgast.PrepareStmt) -> None:
+        self.write(f"PREPARE {node.name} AS ")
+        self.visit(node.query)
+
+    def visit_ExecuteStmt(self, node: pgast.ExecuteStmt) -> None:
+        self.write(f"EXECUTE {node.name}")
+
+    def visit_SQLValueFunction(self, node: pgast.SQLValueFunction) -> None:
+        from edb.pgsql.ast import SQLValueFunctionOP as op
+
+        names = {
+            op.CURRENT_DATE: "current_date",
+            op.CURRENT_TIME: "current_time",
+            op.CURRENT_TIME_N: "current_time",
+            op.CURRENT_TIMESTAMP: "current_timestamp",
+            op.CURRENT_TIMESTAMP_N: "current_timestamp",
+            op.LOCALTIME: "localtime",
+            op.LOCALTIME_N: "localtime",
+            op.LOCALTIMESTAMP: "localtimestamp",
+            op.LOCALTIMESTAMP_N: "localtimestamp",
+            op.CURRENT_ROLE: "current_role",
+            op.CURRENT_USER: "current_user",
+            op.USER: "user",
+            op.SESSION_USER: "session_user",
+            op.CURRENT_CATALOG: "current_catalog",
+            op.CURRENT_SCHEMA: "current_schema",
+        }
+
+        self.write(names[node.op])
+        if node.arg:
+            self.write("(")
+            self.visit(node.arg)
+            self.write(")")
+
 
 generate_source = SQLSourceGenerator.to_source

@@ -2008,10 +2008,6 @@ def process_set_as_tuple_indirection(
                     break
         rvar = get_set_rvar(tuple_set, ctx=subctx)
 
-        # Check if unpack_rvar has found our answer for us.
-        if ret_rvar := _lookup_set_rvar(ir_set, ctx=ctx):
-            return new_simple_set_rvar(ir_set, ret_rvar, aspects=('value',))
-
         source_rvar = relctx.maybe_get_path_rvar(
             stmt, tuple_set.path_id, aspect='source', ctx=subctx)
 
@@ -2592,7 +2588,7 @@ def process_set_as_simple_enumerate(
             newctx.rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
 
     aspects = pathctx.list_path_aspects(
-        newctx.rel, ir_arg.path_id, env=ctx.env)
+        newctx.rel, ir_arg.path_id, env=ctx.env) | {'source'}
 
     pathctx.put_path_id_map(newctx.rel, expr.tuple_path_ids[1], ir_arg.path_id)
 

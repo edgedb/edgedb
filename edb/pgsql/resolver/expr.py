@@ -351,3 +351,78 @@ def resolve_ArrayExpr(
     return pgast.ArrayExpr(
         elements=dispatch.resolve_list(expr.elements, ctx=ctx)
     )
+
+
+@dispatch._resolve.register
+def resolve_Indirection(
+    expr: pgast.Indirection,
+    *,
+    ctx: Context,
+) -> pgast.Indirection:
+    return pgast.Indirection(
+        arg=dispatch.resolve(expr.arg, ctx=ctx),
+        indirection=dispatch.resolve_list(expr.indirection, ctx=ctx)
+    )
+
+
+@dispatch._resolve.register
+def resolve_Slice(
+    expr: pgast.Slice,
+    *,
+    ctx: Context,
+) -> pgast.Slice:
+    return pgast.Slice(
+        lidx=dispatch.resolve_opt(expr.lidx, ctx=ctx),
+        ridx=dispatch.resolve_opt(expr.ridx, ctx=ctx)
+    )
+
+
+@dispatch._resolve.register
+def resolve_Index(
+    expr: pgast.Index,
+    *,
+    ctx: Context,
+) -> pgast.Index:
+    return pgast.Index(
+        idx=dispatch.resolve(expr.idx, ctx=ctx),
+    )
+
+
+@dispatch._resolve.register
+def resolve_SQLValueFunction(
+    expr: pgast.SQLValueFunction,
+    *,
+    ctx: Context,
+) -> pgast.BaseExpr:
+    from edb.pgsql.ast import SQLValueFunctionOP as op
+
+    pass_trough = [
+        op.CURRENT_DATE,
+        op.CURRENT_TIME,
+        op.CURRENT_TIME_N,
+        op.CURRENT_TIMESTAMP,
+        op.CURRENT_TIMESTAMP_N,
+        op.LOCALTIME,
+        op.LOCALTIME_N,
+        op.LOCALTIMESTAMP,
+        op.LOCALTIMESTAMP_N,
+    ]
+    if expr.op in pass_trough:
+        return expr
+
+    user = [
+        op.CURRENT_ROLE,
+        op.CURRENT_USER,
+        op.USER,
+        op.SESSION_USER,
+    ]
+    if expr.op in user:
+        raise errors.QueryError("unsupported", context=expr.context)
+
+    if expr.op == op.CURRENT_CATALOG:
+        raise errors.QueryError("unsupported", context=expr.context)
+
+    if expr.op == op.CURRENT_SCHEMA:
+        raise errors.QueryError("unsupported", context=expr.context)
+
+    raise NotImplementedError()

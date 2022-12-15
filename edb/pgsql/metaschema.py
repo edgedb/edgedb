@@ -57,7 +57,7 @@ from edb.server import compiler as edbcompiler
 from edb.server import config as edbconfig
 from edb.server import bootstrap as edbbootstrap
 
-from .resolver import information_schema
+from .resolver import sql_introspection
 
 from . import common
 from . import compiler
@@ -5264,8 +5264,19 @@ def _generate_sql_information_schema() -> List[dbops.View]:
                 )
             ),
         )
-        for table_name, columns in information_schema.TABLES.items()
+        for table_name, columns in sql_introspection.INFORMATION_SCHEMA.items()
         if table_name not in ['tables', 'columns']
+    ] + [
+        dbops.View(
+            name=('edgedbsql', table_name),
+            query='SELECT {} LIMIT 0'.format(
+                ','.join(
+                    f'NULL::{type or "text"} AS {name}'
+                    for name, type in columns
+                )
+            ),
+        )
+        for table_name, columns in sql_introspection.PG_CATALOG.items()
     ]
 
 
