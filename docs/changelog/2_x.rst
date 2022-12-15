@@ -868,9 +868,11 @@ Other changes
 * Fix references to the enclosing type in schema-defined computeds
   (:eql:gh:`#4826`)
 
-* UI: Fix regression introduced in 2.8 when editing empty string fields in data explorer
+* UI: Fix regression introduced in 2.8 when editing empty string
+  fields in data explorer
 
-* UI: Improvements to handling of union link targets in schema and data explorer views
+* UI: Improvements to handling of union link targets in schema and
+  data explorer views
 
 * UI: Fix loading indicators on tabs
 
