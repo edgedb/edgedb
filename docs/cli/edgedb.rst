@@ -173,7 +173,7 @@ many of the commands:
 :cli:synopsis:`\\li [-vsc] [PATTERN], \\list indexes [-vsc] [PATTERN]`
   List indexes.
 
-.. rubric:: Operations
+.. rubric:: Data Operations
 
 :cli:synopsis:`\\dump FILENAME`
   Dump current database to a file at *FILENAME*.
