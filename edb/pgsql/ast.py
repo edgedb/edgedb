@@ -1004,6 +1004,11 @@ class VariableSetStmt(Statement):
     scope: OptionsScope
 
 
+class VariableResetStmt(Statement):
+    name: typing.Optional[str]
+    scope: OptionsScope
+
+
 class SetTransactionStmt(Statement):
     """A special case of VariableSetStmt"""
 

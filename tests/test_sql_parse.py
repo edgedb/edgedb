@@ -1038,3 +1038,27 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         """
         SELECT ($1)::oid[5][6]
         """
+
+    def test_sql_parse_query_45(self):
+        """
+        SET LOCAL search_path TO DEFAULT
+        """
+
+    def test_sql_parse_query_46(self):
+        """
+        SET SESSION search_path TO DEFAULT
+% OK %
+        SET search_path TO DEFAULT
+        """
+
+    def test_sql_parse_query_47(self):
+        """
+        RESET search_path
+% OK %
+        SET search_path TO DEFAULT
+        """
+
+    def test_sql_parse_query_48(self):
+        """
+        RESET ALL
+        """

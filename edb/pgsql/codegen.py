@@ -888,6 +888,17 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(" TO ")
         self.visit_list(node.args)
 
+    def visit_VariableResetStmt(self, node: pgast.VariableResetStmt) -> None:
+        if node.name is None:
+            assert node.scope == pgast.OptionsScope.SESSION
+            self.write("RESET ALL")
+        else:
+            self.write("SET ")
+            if node.scope == pgast.OptionsScope.TRANSACTION:
+                self.write("LOCAL ")
+            self.write(node.name)
+            self.write(" TO DEFAULT")
+
     def visit_SetTransactionStmt(self, node: pgast.SetTransactionStmt) -> None:
         self.write("SET ")
         if node.scope == pgast.OptionsScope.TRANSACTION:
