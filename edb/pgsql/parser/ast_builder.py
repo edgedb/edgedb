@@ -283,7 +283,9 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
         )
         if n["kind"] == "VAR_SET_VALUE":
             return pgast.VariableSetStmt(
-                args=_list(n, c, "args", _build_base_expr),
+                args=pgast.ArgsList(
+                    args=_list(n, c, "args", _build_base_expr)
+                ),
                 **args,
             )
 

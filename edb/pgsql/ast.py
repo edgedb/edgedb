@@ -1014,8 +1014,12 @@ class Statement(Base):
 
 class VariableSetStmt(Statement):
     name: str
-    args: typing.List[BaseExpr]
+    args: ArgsList
     scope: OptionsScope
+
+
+class ArgsList(Base):
+    args: typing.List[BaseExpr]
 
 
 class VariableResetStmt(Statement):
