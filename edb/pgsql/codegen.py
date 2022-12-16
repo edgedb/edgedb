@@ -886,6 +886,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write("LOCAL ")
         self.write(node.name)
         self.write(" TO ")
+        self.visit(node.args)
+
+    def visit_ArgsList(self, node: pgast.ArgsList) -> None:
         self.visit_list(node.args)
 
     def visit_VariableResetStmt(self, node: pgast.VariableResetStmt) -> None:
