@@ -146,7 +146,7 @@ many of the commands:
 :cli:synopsis:`\\d [-v] NAME`
   Describe schema object specified by *NAME*.
 
-:cli:synopsis:`\\ds, \\describe-schema`
+:cli:synopsis:`\\ds, \\describe schema`
   Describe the entire schema.
 
 :cli:synopsis:`\\l, \\list databases`
