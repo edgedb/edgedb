@@ -919,8 +919,9 @@ time to code up the endpoint to use that freshly generated query.
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={
-                    "error": "Invalid datetime format. "
-                    "Datetime string must look like this: '2010-12-27T23:59:59-07:00'",
+                    ("error": "Invalid datetime format. "
+                    "Datetime string must look like this: "
+                    "'2010-12-27T23:59:59-07:00'")
                 },
             )
 
