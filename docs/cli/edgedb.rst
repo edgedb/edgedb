@@ -173,6 +173,11 @@ many of the commands:
 :cli:synopsis:`\\li [-vsc] [PATTERN], \\list indexes [-vsc] [PATTERN]`
   List indexes.
 
+.. rubric:: Database
+
+:cli:synopsis:`\\database create [NAME]`
+  Create a new database.
+
 .. rubric:: Data Operations
 
 :cli:synopsis:`\\dump FILENAME`
