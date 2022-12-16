@@ -208,6 +208,34 @@ many of the commands:
 :cli:synopsis:`\\c, \\connect [DBNAME]`
   Connect to database *DBNAME*.
 
+.. rubric:: Migrations
+
+These migration commands are also accessible directly from the command line
+without first entering the EdgeDB shell. Their counterpart commands are noted
+and linked in their descriptions if you want more detail.
+
+:cli:synopsis:`\\migration create`
+  Create a migration script based on differences between the current database
+  and the schema file, just like running
+  :ref:`ref_cli_edgedb_migration_create`.
+
+:cli:synopsis:`\\migrate, \\migration apply`
+  Apply your migration, just like running the
+  :ref:`ref_cli_edgedb_migrate`.
+
+:cli:synopsis:`\\migration edit`
+  Spawn ``$EDITOR`` on the last migration file and fixes the migration ID after
+  the editor exits, just like :ref:`ref_cli_edgedb_migration_edit`. This is
+  typically used only on migrations that have not yet been applied.
+
+:cli:synopsis:`\\migration log`
+  Show the migration history, just like :ref:`ref_cli_edgedb_migration_log`.
+
+:cli:synopsis:`\\migration status`
+  Show how the state of the schema in the EdgeDB instance compares to the
+  migration stored in the schema directory, just like
+  :ref:`ref_cli_edgedb_migration_status`.
+
 .. rubric:: Help
 
 :cli:synopsis:`\\?, \\h, \\help`
