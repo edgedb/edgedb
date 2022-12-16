@@ -143,34 +143,34 @@ many of the commands:
 - ``-s``- Show system objects
 - ``-c``- Case-sensitive pattern matching
 
-:cli:synopsis:`\\d [-v] NAME`
+:cli:synopsis:`\\d object [-v] NAME, \\describe object [-v] NAME`
   Describe schema object specified by *NAME*.
 
-:cli:synopsis:`\\ds, \\describe schema`
+:cli:synopsis:`\\ds, \\d schema, \\describe schema`
   Describe the entire schema.
 
 :cli:synopsis:`\\l, \\list databases`
   List databases.
 
-:cli:synopsis:`\\ls, \\list scalars [-sc] [PATTERN]`
+:cli:synopsis:`\\ls [-sc] [PATTERN], \\list scalars [-sc] [PATTERN]`
   List scalar types.
 
-:cli:synopsis:`\\lt, \\list types [-sc] [PATTERN]`
+:cli:synopsis:`\\lt [-sc] [PATTERN], \\list types [-sc] [PATTERN]`
   List object types.
 
-:cli:synopsis:`\\lr, \\list roles [-c] [PATTERN]`
+:cli:synopsis:`\\lr [-c] [PATTERN], \\list roles [-c] [PATTERN]`
   List roles.
 
-:cli:synopsis:`\\lm, \\list modules [-c] [PATTERN]`
+:cli:synopsis:`\\lm [-c] [PATTERN], \\list modules [-c] [PATTERN]`
   List modules.
 
-:cli:synopsis:`\\la, \\list aliases [-vsc] [PATTERN]`
+:cli:synopsis:`\\la [-vsc] [PATTERN], \\list aliases [-vsc] [PATTERN]`
   List expression aliases.
 
-:cli:synopsis:`\\lc, \\list casts [-c] [PATTERN]`
-  List casts.
+:cli:synopsis:`\\lc [-c] [PATTERN], \\list casts [-c] [PATTERN]`
+  List available conversions between types.
 
-:cli:synopsis:`\\li, \\list indexes [-vsc] [PATTERN]`
+:cli:synopsis:`\\li [-vsc] [PATTERN], \\list indexes [-vsc] [PATTERN]`
   List indexes.
 
 .. rubric:: Operations
