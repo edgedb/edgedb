@@ -293,6 +293,7 @@ def _process_view(
                 ),
                 compexpr=qlast.DetachedExpr(
                     expr=default_expr.qlast,
+                    preserve_path_prefix=True,
                 ),
             )
 
