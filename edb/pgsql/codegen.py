@@ -904,7 +904,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_SetTransactionStmt(self, node: pgast.SetTransactionStmt) -> None:
         self.write("SET ")
-        if node.scope != pgast.OptionsScope.TRANSACTION:
+        if node.scope == pgast.OptionsScope.TRANSACTION:
             self.write("TRANSACTION ")
         else:
             self.write("SESSION CHARACTERISTICS AS TRANSACTION ")
@@ -968,11 +968,20 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(" DEFERRABLE")
 
     def visit_PrepareStmt(self, node: pgast.PrepareStmt) -> None:
-        self.write(f"PREPARE {node.name} AS ")
+        self.write(f"PREPARE {node.name}")
+        if node.argtypes:
+            self.write(f"(")
+            self.visit_list(node.argtypes, newlines=False)
+            self.write(f")")
+        self.write(f" AS ")
         self.visit(node.query)
 
     def visit_ExecuteStmt(self, node: pgast.ExecuteStmt) -> None:
         self.write(f"EXECUTE {node.name}")
+        if node.params:
+            self.write(f"(")
+            self.visit_list(node.params, newlines=False)
+            self.write(f")")
 
     def visit_SQLValueFunction(self, node: pgast.SQLValueFunction) -> None:
         from edb.pgsql.ast import SQLValueFunctionOP as op
