@@ -962,3 +962,15 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         """
         SELECT ((blah(4))[0])[2][3:4][2][5:5]
         """
+
+    def test_sql_parse_query_33(self):
+        """
+        SET LOCAL search_path TO DEFAULT
+        """
+
+    def test_sql_parse_query_34(self):
+        """
+        SET SESSION search_path TO DEFAULT
+% OK %
+        SET search_path TO DEFAULT
+        """

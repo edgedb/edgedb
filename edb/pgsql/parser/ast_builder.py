@@ -273,15 +273,22 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
             else pgast.OptionsScope.SESSION,
         )
 
-    if n["kind"] == "VAR_SET_VALUE":
-        return pgast.VariableSetStmt(
+    if n["kind"].startswith("VAR_SET"):
+        args = dict(
             name=n["name"],
-            args=_list(n, c, "args", _build_base_expr),
             scope=pgast.OptionsScope.TRANSACTION
             if "is_local" in n and n["is_local"]
             else pgast.OptionsScope.SESSION,
             context=_build_context(n, c),
         )
+        if n["kind"] == "VAR_SET_VALUE":
+            return pgast.VariableSetStmt(
+                args=_list(n, c, "args", _build_base_expr),
+                **args,
+            )
+
+        if n["kind"] == "VAR_SET_DEFAULT":
+            return pgast.VariableResetStmt(**args)
 
     raise PSqlUnsupportedError(n)
 

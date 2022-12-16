@@ -1018,6 +1018,11 @@ class VariableSetStmt(Statement):
     scope: OptionsScope
 
 
+class VariableResetStmt(Statement):
+    name: str
+    scope: OptionsScope
+
+
 class SetTransactionStmt(Statement):
     """A special case of VariableSetStmt"""
 
