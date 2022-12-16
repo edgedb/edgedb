@@ -21,25 +21,28 @@ Prerequisites
 Before we start, make sure you've :ref:`installed <ref_admin_install>` the
 ``edgedb`` command line tool. In this tutorial, we'll use Python 3.10 and take
 advantage of the asynchronous I/O paradigm to communicate with the database
-more efficiently. A working version of this tutorial can be found
-`on Github
+more efficiently. If you want to skip ahead, the completed source code for this
+API can be found `in our examples repo
 <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_.
+
+
+Create a project directory
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To get started, create a directory for your project and change into it.
+
+.. code-block:: bash
+
+    $ mkdir fastapi-crud
+    $ cd fastapi-crud
 
 
 Install the dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-To follow along, clone the repository and head over to the ``fastapi-crud``
-directory.
-
-
-.. code-block:: bash
-
-    $ git clone git@github.com:edgedb/edgedb-examples.git
-    $ cd edgedb-examples/fastapi-crud
-
-Create a Python 3.10 virtual environment, activate it, and install
-the dependencies with these commands. On Linux/macOS:
+Create a Python 3.10 virtual environment, activate it, and
+install the dependencies with this command (in Linux/macOS; see the following
+note for help with Windows):
 
 .. code-block:: bash
 
@@ -47,10 +50,18 @@ the dependencies with these commands. On Linux/macOS:
     $ source myvenv/bin/activate
     $ pip install edgedb fastapi 'httpx[cli]' uvicorn
 
+.. note::
+
+    Make sure you run ``source myvenv/bin/activate`` any time you want to come
+    back to this project to activate its virtual environment. If not, you may
+    start working under your system's default Python environment which could be
+    the incorrect version or not have the dependencies installed. If you want
+    to confirm you're using the right environment, run ``which python``. You
+    should see that the current ``python`` is inside your venv directory.
 
 .. note::
 
-    This commands will differ for Windows/Powershell users; `this guide
+    The commands will differ for Windows/Powershell users; `this guide
     <https://realpython.com/python-virtual-environments-a-primer/>`_ provides
     instructions for working with virtual environments across a range of OSes,
     including Windows.
@@ -63,18 +74,18 @@ Now, let's initialize an EdgeDB project. From the project's root directory:
 .. code-block:: bash
 
     $ edgedb project init
-    Initializing project...
-
-    Specify the name of EdgeDB instance to use with this project
-    [default: fastapi_crud]:
+    No `edgedb.toml` found in `<project-path>` or above
+    Do you want to initialize a new project? [Y/n]
+    > Y
+    Specify the name of EdgeDB instance to use with this project [default:
+    fastapi_crud]:
     > fastapi_crud
-
-    Do you want to start instance automatically on login? [y/n]
-    > y
     Checking EdgeDB versions...
+    Specify the version of EdgeDB to use with this project [default: 2.7]:
+    > 2.7
 
 Once you've answered the prompts, a new EdgeDB instance called ``fastapi_crud``
-will be created and started.
+will be created and started. If you see ``Project initialized``, you're ready.
 
 
 Connect to the database
@@ -86,8 +97,8 @@ Let's test that we can connect to the newly started instance. To do so, run:
 
     $ edgedb
 
-You should be connected to the database instance and able to see a prompt
-similar to this:
+You should see this prompt indicating you are now connected to your new
+database instance:
 
 ::
 
@@ -95,16 +106,16 @@ similar to this:
     Type \help for help, \quit to quit.
     edgedb>
 
-You can start writing queries here. However, the database is currently
-schemaless. Let's start designing our data model.
+You can start writing queries here. Since this database is empty, that won't
+get you very far, so let's start designing our data model instead.
 
 Schema design
 =============
 
-The event management system will have two entities—**events** and **users**.
-Each *event* can have an optional link to a *user*. The goal is to create API
-endpoints that'll allow us to fetch, create, update, and delete the entities
-while maintaining their relationships.
+The event management system will have two entities: **events** and **users**.
+Each *event* can have an optional link to a *user* who is that event's host.
+The goal is to create API endpoints that'll allow us to fetch, create, update,
+and delete the entities while maintaining their relationships.
 
 EdgeDB allows us to declaratively define the structure of the entities. If
 you've worked with SQLAlchemy or Django ORM, you might refer to these
@@ -113,7 +124,9 @@ declarative schema definitions as *models*. In EdgeDB we call them
 
 The schema lives inside ``.esdl`` files in the ``dbschema`` directory. It's
 common to declare the entire schema in a single file
-``dbschema/default.esdl``. This is how our datatypes look:
+``dbschema/default.esdl``. This file is created for you when you run ``edgedb
+project init``, but you'll need to fill it with your schema. This is what our
+datatypes look like:
 
 .. code-block:: sdl
 
@@ -121,7 +134,7 @@ common to declare the entire schema in a single file
 
     module default {
       abstract type Auditable {
-        property created_at -> datetime {
+        required property created_at -> datetime {
           readonly := true;
           default := datetime_current();
         }
@@ -153,48 +166,108 @@ actual data. Their only job is to propagate properties, links, and constraints
 to the types that extend them.
 
 The ``User`` type extends ``Auditable`` and inherits the ``created_at``
-property as a result. This property is auto-filled via the
-``datetime_current`` function. Along with the inherited type, the user type
-also defines a concrete required property called ``name``. We impose two
-constraints on this property: names should be unique and shorter than 50
-characters.
+property as a result. Since ``created_at`` has a ``default`` value, it's
+auto-filled with the return value of the ``datetime_current`` function. Along
+with the property conveyed to it by the extended type, the ``User`` type
+defines its own concrete required property called ``name``. We impose two
+constraints on this property: names should be unique (``constraint exclusive``)
+and shorter than 50 characters (``constraint max_len_value(50)``).
 
-We also define an ``Event`` type that extends the
-``Auditable`` abstract type. It also contains some additional concrete
-properties and links: ``address``, ``schedule``, and an optional link called
-``host`` that corresponds to a ``User``.
+We also define an ``Event`` type that extends the ``Auditable`` abstract type.
+It contains its own concrete properties and links: ``address``, ``schedule``,
+and an optional link called ``host`` that corresponds to a ``User``.
+
+Run a migration
+===============
+
+With the schema created, it's time to lock it in. The first step is to create a
+migration.
+
+.. code-block:: bash
+
+    $ edgedb migration create
+
+When this step is successful, you'll see
+``Created dbschema/migrations/00001.edgeql``.
+
+Now run the migration we just created.
+
+.. code-block:: bash
+
+    $ edgedb migrate
+
+Once this is done, you'll see ``Applied`` along with the migration's ID. I like
+to go one step further in verifying success and see the schema applied to my
+database. To do that, first fire up the EdgeDB console:
+
+.. code-block:: bash
+
+    $ edgedb
+
+In the console, type ``\ds`` (for "describe schema"). If everything worked, we
+should output very close to the schema we added in the ``default.esdl`` file:
+
+::
+
+    module default {
+        abstract type Auditable {
+            property created_at -> std::datetime {
+                default := (std::datetime_current());
+                readonly := true;
+            };
+        };
+        type Event extending default::Auditable {
+            link host -> default::User;
+            property address -> std::str;
+            required property name -> std::str {
+                constraint std::exclusive;
+                constraint std::max_len_value(50);
+            };
+            property schedule -> std::datetime;
+        };
+        type User extending default::Auditable {
+            required property name -> std::str {
+                constraint std::exclusive;
+                constraint std::max_len_value(50);
+            };
+        };
+    };
 
 Build the API endpoints
 =======================
 
-The API endpoints are defined in the ``app`` directory. The directory structure
-looks as follows:
+With the schema established, we're ready to start building out the app. Let's
+start by creating an ``app`` directory inside our project:
 
-::
+.. code-block:: bash
 
-    app
-    ├── __init__.py
-    ├── events.py
-    ├── main.py
-    └── users.py
+    $ mkdir app
 
-The ``user.py`` and ``event.py`` modules contain the code to build the ``User``
-and ``Event`` APIs respectively. The ``main.py`` module then registers all the
-endpoints and exposes them to the `uvicorn <https://www.uvicorn.org>`_
-webserver.
+Within this ``app`` directory, we're going to create three modules:
+``events.py`` and ``users.py`` which represent the events and users APIs
+respectively, and ``main.py`` that registers all the endpoints and exposes them
+to the `uvicorn <https://www.uvicorn.org>`_ webserver. We also need an
+``__init__.py`` to mark this directory as a package so we can easily import
+from it. Go ahead and create that file now in your editor or via the command
+line like this (from the project root):
+
+.. code-block:: bash
+
+    $ touch app/__init__.py
+
+We'll work on the user API first since it's the simpler of the two, so create
+``app/users.py`` and open it in your editor.
 
 
-User APIs
+Users API
 ^^^^^^^^^^
 
-Since the ``User`` type is simpler, we'll start with that. Let's
-create a ``GET /users`` endpoint so that we can see the ``User``
-objects saved in the database. You can create the API with a couple of lines of
-code in FastAPI:
+Let's create a ``GET /users`` endpoint so that we can see the ``User`` objects
+saved in the database.
 
 .. code-block:: python
 
-    # fastapi-crud/app/users.py
+    # app/users.py
     from __future__ import annotations
 
     import datetime
@@ -212,7 +285,6 @@ code in FastAPI:
     class RequestData(BaseModel):
         name: str
 
-
     class ResponseData(BaseModel):
         name: str
         created_at: datetime.datetime
@@ -221,17 +293,39 @@ code in FastAPI:
     @router.get("/users")
     async def get_users(
         name: str = Query(None, max_length=50)
-        ) -> Iterable[ResponseData]:
+    ) -> Iterable[ResponseData] | ResponseData:
 
         if not name:
-            users = await client.query(
-                "SELECT User {name, created_at};"
-                )
+            # Query all user objects here
+            response = (
+                ResponseData(
+                    name=user.name,
+                    created_at=user.created_at
+                ) for user in users
+            )
         else:
-            users = await client.query(
-            """SELECT User {name, created_at}
-                FILTER User.name = <str>$name""",
-                name=name,
+            # Query user objects filtered by name here
+            response = ResponseData(
+                name=user.name,
+                created_at=user.created_at
+            )
+        return response
+
+The ``APIRouter`` instance does the actual work of exposing the API. We also
+create an async EdgeDB client instance to communicate with the database. By
+default, this API will return a list of all users, but you can also filter the
+user objects by name.
+
+In this endpoint's current state, though, the database client we created has
+nothing to do. That's because the actual queries haven't been written yet. We
+could write the queries inline as strings to make this work. That might look
+like this:
+
+.. code-block:: python
+
+    if not name:
+        users = await client.query(
+            "select User {name, created_at};"
             )
         response = (
             ResponseData(
@@ -239,29 +333,211 @@ code in FastAPI:
                 created_at=user.created_at
             ) for user in users
         )
-        return response
+    else:
+        user = await client.query(
+        """select User {name, created_at}
+            filter User.name = <str>$name""",
+            name=name,
+        )
+        response = ResponseData(
+            name=user.name,
+            created_at=user.created_at
+        )
 
-The ``APIRouter`` instance does the actual work of exposing the API. We also
-create an async EdgeDB client instance to communicate with the database. By
-default, this API will return a list of users, but you can also filter the
-objects by name.
+But if we do that, the we lose type safety. The better and more maintainable
+alternative is to use the **code generator**. In order to do that, we will
+write our queries each into an individual file with a ``.edgeql`` extension
+that the generator can turn into typesafe Python code.
 
-In the ``get_users`` function, we perform asynchronous queries via the
-``edgedb`` client and serialize the returned data with the ``ResponseData``
-model. Then we aggregate the instances in a generator and return it. Afterward,
-the JSON serialization part is taken care of by FastAPI. This endpoint is
-exposed to the server in the ``main.py`` module. Here's the content of the
-module:
+To keep things organized, create a new directory inside ``app`` called
+``queries``. Create a new file in ``app/queries`` named ``get_users.edgeql``
+and open it in your editor. Write the query into this file. It's the same one
+we would have written inline in our Python code as shown in the code block
+above:
+
+.. code-block:: edgeql
+
+    select User {name, created_at};
+
+We need one more query to finish off this endpoint. Create another file inside
+``app/queries`` named ``get_user_by_name.edgeql`` and open it in your editor.
+Add this query:
+
+.. code-block:: edgeql
+
+    select User {name, created_at}
+    filter User.name = <str>$name
+
+Save that file and get ready to kick off the magic that is code generation! 🪄
+
+When you installed the EdgeDB package at the beginning of the guide, that also
+gave you the code generator command line utility. With our two queries in
+place, we're ready to run that now from the root of the project. To make
+importing this generated code a bit simpler, I'll generate all the code in a
+single file by passing the ``--file`` option:
+
+.. code-block:: bash
+
+    $ edgedb-py --file
+    Found EdgeDB project: <project-path>
+    Processing <project-path>/app/queries/get_user_by_name.edgeql
+    Processing <project-path>/app/queries/get_users.edgeql
+    Generating <project-path>/generated_async_edgeql.py
+
+.. note::
+
+    By default ``edgedb-py`` generates one file per query in the location of
+    the original query file. The ``--file`` option generates a single file in
+    the project root. The default may be the best option when you're working on
+    more complex projects to help you keep your code better organized.
+
+Now, we need to circle back and utilize the functions we just generated. Add
+another import under the existing imports at the top of ``app/users.py`` to
+bring in the queries:
 
 .. code-block:: python
 
-    # fastapi-crud/app/main.py
+    # app/users.py
+    ...
+    import generated_async_edgeql as db_queries
+    ...
+
+Get rid of the ``ResponseData`` dataclass and instead import the generated
+dataclass:
+
+.. code-block:: python
+
+    # app/users.py
+    ...
+    UserResult = db_queries.CreateUserResult
+    ...
+
+.. note::
+
+    In file mode, the code generator will reuse the same dataclass rather than
+    creating a new identical one for each function. That's cool because it
+    means even our generated code is DRY! The side effect of this, though, is
+    that the dataclass is named for the first function that is generated (the
+    first occurring one alphabetically — in our case, the ``create_user``
+    function). The dataclass's generated ``CreateUserResult`` name implies it's
+    only the type resulting from ``create_user``, but it's actually a more
+    general dataclass that refers to any kind of user result. That's why we
+    assign it to a new, more generically named variable here.
+
+Replace the ``get_users`` function's return type with the newly imported
+dataclass:
+
+.. code-block:: python
+
+    # app/users.py
+    ...
+    @router.get("/users")
+    async def get_users(
+        name: str = Query(None, max_length=50)
+    ) -> Iterable[UserResult] | UserResult:
+    ...
+
+And replace the comments with calls to the functions:
+
+.. code-block:: python
+
+    # app/users.py
+    ...
+    if not name:
+        users = await db_queries.get_users(client)
+        return users
+    else:
+        user = await db_queries.get_user_by_name(client, name=name)
+        return user
+    ...
+
+This nearly gets us there but not quite. We have one potential outcome not
+accounted for: a query for a user by name that returns no results. In that
+case, we'll want to return a 404 (not found).
+
+To fix it, we'll check in the else case whether we got anything back
+from the single user query. If not, we'll go ahead and raise an exception. This
+will send the 404 (not found) response to the user.
+
+.. code-block:: python
+
+    # app/users.py
+    ...
+    if not name:
+        users = await db_queries.get_users(client)
+        return users
+    else:
+        user = await db_queries.get_user_by_name(client, name=name)
+        if not user:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail={"error": f"Username '{name}' does not exist."},
+            )
+        return user
+    ...
+
+Let's break this down. In the ``get_users`` function, we use our generated code
+to perform asynchronous queries via the ``edgedb`` client. Then we return the
+query results. Afterward, the JSON serialization part is taken care of by
+FastAPI.
+
+Here's what the entire ``users.py`` module looks like at this point:
+
+.. code-block:: python
+
+    # app/users.py
+    from __future__ import annotations
+
+    import datetime
+    from http import HTTPStatus
+    from typing import Iterable
+
+    import edgedb
+    from fastapi import APIRouter, HTTPException, Query
+    from pydantic import BaseModel
+
+    import generated_async_edgeql as db_queries
+
+    router = APIRouter()
+    client = edgedb.create_async_client()
+
+    UserResult = db_queries.CreateUserResult
+
+
+    class RequestData(BaseModel):
+        name: str
+
+
+    @router.get("/users")
+    async def get_users(
+        name: str = Query(None, max_length=50)
+    ) -> Iterable[UserResult] | UserResult:
+
+        if not name:
+            users = await db_queries.get_users(client)
+            return users
+        else:
+            user = await db_queries.get_user_by_name(client, name=name)
+            if not user:
+                raise HTTPException(
+                    status_code=HTTPStatus.NOT_FOUND,
+                    detail={"error": f"Username '{name}' does not exist."},
+                )
+            return user
+
+Before we can use this endpoint, we need to expose it to the server. We'll do
+that in the ``main.py`` module. Create ``app/main.py`` and open it in your
+editor. Here's the content of the module:
+
+.. code-block:: python
+
+    # app/main.py
     from __future__ import annotations
 
     from fastapi import FastAPI
     from starlette.middleware.cors import CORSMiddleware
 
-    from app import events, users
+    from app import users
 
     fast_api = FastAPI()
 
@@ -275,11 +551,13 @@ module:
     )
 
 
-    fast_api.include_router(events.router)
     fast_api.include_router(users.router)
 
+Here, we import everything we need, including our own ``users`` module
+containing the router and endpoint logic for the users API. We instantiate the
+API, give it a permissive CORS configuration, and give it the users router.
 
-To test the endpoint, go to the ``fastapi-crud`` directory and run:
+To test the endpoint, go to the project root and run:
 
 .. code-block:: bash
 
@@ -291,7 +569,8 @@ requests against it. Earlier, we installed the
 programmatically. It also comes with a neat command-line tool that we'll use to
 test our API.
 
-While the ``uvicorn`` server is running, on a new console, run:
+While the ``uvicorn`` server is running, bring up a new console. Activate your
+virtual environment by running ``source myenv/bin/activate`` and run:
 
 .. code-block:: bash
 
@@ -309,53 +588,67 @@ You'll see the following output on the console:
 
     []
 
-Our request yielded an empty list because the database is currently empty.
-Let's create the ``POST /users`` endpoint to start saving users
-in the database. The POST endpoint can be built similarly:
+.. note::
+
+    If you find yourself with a result you don't expect when making a request
+    to your API, switch over to the uvicorn server console. You should find a
+    traceback that will point you to the problem area in your code.
+
+If you see this result, that means the API is working! It's not especially
+useful though. Our request yields an empty list because the database is
+currently empty. Let's create the ``POST /users`` endpoint in ``app/users.py``
+to start saving users in the database. Before we do that though, let's go ahead
+and create the new query we'll need.
+
+Create and open ``app/queries/create_user.edgeql`` and fill it with this query:
+
+.. code-block:: edgeql
+
+    select (insert User {
+        name := <str>$name
+    }) {
+        name,
+        created_at
+    };
+
+.. note::
+
+    We're running our ``insert`` inside a ``select`` here so that we can return
+    the ``name`` and ``created_at`` properties. If we just ran the ``insert``
+    bare, it would return only the ``id``.
+
+Save the file and run ``edgedb-py --file`` to generate the new function. Now,
+we're ready to open ``app/users.py`` again and add the POST endpoint:
 
 .. code-block:: python
 
-    # fastapi-crud/app/users.py
+    # app/users.py
     ...
     @router.post("/users", status_code=HTTPStatus.CREATED)
-    async def post_user(user: RequestData) -> ResponseData:
+    async def post_user(user: RequestData) -> UserResult:
+
         try:
-            (created_user,) = await client.query(
-                """
-                WITH
-                    new_user := (INSERT User {name := <str>$name})
-                SELECT new_user {
-                    name,
-                    created_at
-                };
-                """,
-                name=user.name,
-            )
+            created_user = await db_queries.create_user(client, name=user.name)
         except edgedb.errors.ConstraintViolationError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
-                detail={
-                "error": f"Username '{user.name}' already exists,"
-                },
+                detail={"error": f"Username '{user.name}' already exists."},
             )
-        response = ResponseData(
-            name=created_user.name,
-            created_at=created_user.created_at,
-        )
-        return response
+        return created_user
 
 In the above snippet, we ingest data with the shape dictated by the
-``RequestData`` model and return a payload with the shape defined in the
-``ResponseData`` model. The ``try...except`` block gracefully handles the
-situation where the API consumer might try to create multiple users with the
-same name. A successful request will yield the status code HTTP 201 (created).
+``RequestData`` model and return a payload of the query results. The
+``try...except`` block gracefully handles the situation where the API consumer
+might try to create multiple users with the same name. A successful request
+will yield the status code HTTP 201 (created) along with the new user's
+``id``, ``name``, and ``created_at`` as JSON.
+
 To test it out, make a request as follows:
 
 .. code-block:: bash
 
     $ httpx -m POST http://localhost:5000/users \
             --json '{"name" : "Jonathan Harker"}'
-
 
 The output should look similar to this:
 
@@ -364,9 +657,15 @@ The output should look similar to this:
     HTTP/1.1 201 Created
     ...
     {
+      "id": "53771f56-6f57-11ed-8729-572f5fba7ddc",
       "name": "Jonathan Harker",
       "created_at": "2022-04-16T23:09:30.929664+00:00"
     }
+
+.. note::
+
+    Since IDs are generated, your ``id`` values probably won't match the values
+    in this guide. This is not a problem.
 
 If you try to make the same request again, it'll throw an HTTP 400
 (bad request) error:
@@ -383,53 +682,64 @@ If you try to make the same request again, it'll throw an HTTP 400
 
 Before we move on to the next step, create 2 more users called
 ``Count Dracula`` and ``Mina Murray``. Once you've done that, we can move on to
-the next step of building the ``PUT /users`` endpoint to update the user data.
-It can be built like this:
+the next step of building the ``PUT /users`` endpoint to update existing user
+data.
 
+We'll start again with the query. Create a new file in ``app/queries`` named
+``update_user.edgeql``. Open it in your editor and enter this query:
+
+.. code-block:: edgeql
+
+    select (
+        update User filter .name = <str>$current_name
+            set {name := <str>$new_name}
+    ) {name, created_at};
+
+Save the file and generate again using ``edgedb-py --file``. Now, we'll add the
+endpoint over in ``app/users.py``.
 
 .. code-block:: python
 
-    # fastapi-crud/app/users.py
+    # app/users.py
     ...
     @router.put("/users")
-    async def put_user(
-        user: RequestData, filter_name: str
-    ) -> Iterable[ResponseData]:
+    async def put_user(user: RequestData, current_name: str) -> UserResult:
         try:
-            updated_users = await client.query(
-                """
-                SELECT (
-                    UPDATE User FILTER .name=<str>$filter_name
-                        SET {name:=<str>$name}
-                ) {name, created_at};
-                """,
-                name=user.name,
-                filter_name=filter_name,
+            updated_user = await db_queries.update_user(
+                client,
+                new_name=user.name,
+                current_name=current_name,
             )
         except edgedb.errors.ConstraintViolationError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
-                detail={
-                "error": f"Username '{user.name}' already exists."
-                },
+                detail={"error": f"Username '{user.name}' already exists."},
             )
-        response = (
-            ResponseData(
-                name=user.name, created_at=user.created_at
-            ) for user in updated_users
-        )
-        return response
 
-Here, we'll isolate the intended object that we want to update by filtering the
-users with the ``filter_name`` parameter. For example, if you wanted to update
-the properties of ``Jonathan Harker``, the value of the ``filter_name`` query
-parameter would be ``Jonathan Harker``. The following command changes the name
-of ``Jonathan Harker`` to ``Dr. Van Helsing``.
+        if not updated_user:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail={"error": f"User '{current_name}' was not found."},
+            )
+        return updated_user
+
+Not much new happening here. We wrote our query with a ``current_name``
+parameter for finding the user to be updated. The only thing we can change
+about the user is the name, so the ``new_name`` parameter takes care of setting
+that to a new value. The endpoint calls the generated function passing the
+client and those two values, and the user is updated.
+
+We've accounted for the possibility of a user trying to change a user's name to
+a new name that conflicts with a different user. That will return a 400 (bad
+request) error. We've also accounted for the possibility of a user trying to
+update a user that doesn't exist, which will return a 404 (not found).
+
+Let's save everything and test this out.
 
 .. code-block:: bash
 
     $ httpx -m PUT http://localhost:5000/users \
-            -p 'filter_name' 'Jonathan Harker' \
+            -p 'current_name' 'Jonathan Harker' \
             --json '{"name" : "Dr. Van Helsing"}'
 
 This will return:
@@ -440,6 +750,7 @@ This will return:
     ...
     [
       {
+        "id": "53771f56-6f57-11ed-8729-572f5fba7ddc",
         "name": "Dr. Van Helsing",
         "created_at": "2022-04-16T23:09:30.929664+00:00"
       }
@@ -451,7 +762,7 @@ endpoint will throw an HTTP 400 (bad request) error:
 .. code-block:: bash
 
     $ httpx -m PUT http://localhost:5000/users \
-            -p 'filter_name' 'Count Dracula' \
+            -p 'current_name' 'Count Dracula' \
             --json '{"name" : "Dr. Van Helsing"}'
 
 This returns:
@@ -466,54 +777,58 @@ This returns:
       }
     }
 
-Another API that we'll need to cover is the ``DELETE /users`` endpoint. It'll
-allow us to query the name of the targeted object and delete that. The code
-looks similar to the ones you've already seen:
+Since we've verified that endpoint is working, let's move on to the ``DELETE
+/users`` endpoint. It'll allow us to query the name of the targeted object to
+delete it.
 
+Start by creating ``app/queries/delete_user.edgeql`` and filling it with this
+query:
+
+.. code-block:: edgeql
+
+    select (
+        delete User filter .name = <str>$name
+    ) {name, created_at};
+
+Generate the new function by again running ``edgeql-py --file``. Then re-open
+``app/users.py``. This endpoint's code will look similar to the endpoints
+you've already written:
 
 .. code-block:: python
 
-    # fastapi-crud/app/users.py
+    # app/users.py
     ...
     @router.delete("/users")
-    async def delete_user(name: str) -> Iterable[ResponseData]:
+    async def delete_user(name: str) -> UserResult:
         try:
-            deleted_users = await client.query(
-                """SELECT (
-                    DELETE User FILTER .name = <str>$name
-                ) {name, created_at};
-                """,
+            deleted_user = await db_queries.delete_user(
+                client,
                 name=name,
             )
         except edgedb.errors.ConstraintViolationError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
-                detail={
-                    "error": "User attached to an event. "
-                    "Cannot delete."
-                },
+                detail={"error": "User attached to an event. Cannot delete."},
             )
 
-        response = (
-            ResponseData(
-                name=deleted_user.name,
-                created_at=deleted_user.created_at
-            ) for deleted_user in deleted_users
-        )
-
-        return response
+        if not deleted_user:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail={"error": f"User '{name}' was not found."},
+            )
+        return deleted_user
 
 This endpoint will simply delete the requested user if the user isn't attached
-to any event. If the targeted object is attached to an event, the API will
+to any event. If the targeted object *is* attached to an event, the API will
 throw an HTTP 400 (bad request) error and refuse to delete the object. To
-delete ``Count Dracula``, on your console, run:
+test it out by deleting ``Count Dracula``, on your console, run:
 
 .. code-block:: bash
 
     $ httpx -m DELETE http://localhost:5000/users \
             -p 'name' 'Count Dracula'
 
-That'll return:
+If it worked, you should see this result:
 
 ::
 
@@ -521,68 +836,80 @@ That'll return:
     ...
     [
       {
+        "id": "e6837562-6f55-11ed-8744-ff1b295ed864",
         "name": "Count Dracula",
         "created_at": "2022-04-16T23:23:56.630101+00:00"
       }
     ]
 
-Event APIs
+With that, you've written the entire users API! Now, we move onto the events
+API which is slightly more complex. (Nothing you can't handle though. 😁)
+
+Events API
 ^^^^^^^^^^
 
-The event APIs are built in a similar manner as the user APIs. Without sounding
-too repetitive, let's look at how the ``POST /events`` endpoint is created and
-then we'll introspect the objects created with this API via the ``GET /events``
-endpoint.
+Let's start with the ``POST /events`` endpoint, and then we'll fetch the
+objects created via POST using the ``GET /events`` endpoint.
 
-Take a look at how the POST API is built:
+First, we need a query. Create a file ``app/queries/create_event.edgeql`` and
+drop this query into it:
 
+.. code-block:: edgeql
+   
+    with name := <str>$name,
+        address := <str>$address,
+        schedule := <str>$schedule,
+        host_name := <str>$host_name
+
+    select (
+        insert Event {
+            name := name,
+            address := address,
+            schedule := <datetime>schedule,
+            host := assert_single(
+                (select detached User filter .name = host_name)
+            )
+        }
+    ) {name, address, schedule, host: {name}};
+
+Run ``edgedb-py --file`` to generate a function from that query.
+
+Create a file in ``app`` named ``events.py`` and open it in your editor. It's
+time to code up the endpoint to use that freshly generated query.
 
 .. code-block:: python
 
-    # fastapi-crud/app/events.py
-
+    # app/events.py
     from __future__ import annotations
 
-    import datetime
     from http import HTTPStatus
-    from typing import Iterable
+    from typing import Iterable, Optional
 
     import edgedb
     from fastapi import APIRouter, HTTPException, Query
     from pydantic import BaseModel
 
+    import generated_async_edgeql as db_queries
+
     router = APIRouter()
     client = edgedb.create_async_client()
+
+    EventResult = db_queries.CreateEventResult
 
 
     class RequestData(BaseModel):
         name: str
-
-
-    class ResponseData(BaseModel):
-        name: str
-        created_at: datetime.datetime
+        address: str
+        schedule: str
+        host_name: str
 
 
     @router.post("/events", status_code=HTTPStatus.CREATED)
-    async def post_event(event: RequestData) -> ResponseData:
+    async def post_event(event: RequestData) -> EventResult:
         try:
-            (created_event,) = await client.query(
-            """
-            WITH
-                name := <str>$name,
-                address := <str>$address,
-                schedule := <str>$schedule,
-                host_name := <str>$host_name
-            SELECT (
-                INSERT Event {
-                name := name,
-                address := address,
-                schedule := <datetime>schedule,
-                host := (SELECT User FILTER .name = host_name)
-            }) {name, address, schedule, host: {name}};
-            """,
-            name=event.name,
+            created_event = await db_queries.create_event(
+                client,
+                name=event.name,
                 address=event.address,
                 schedule=event.schedule,
                 host_name=event.host_name,
@@ -592,9 +919,9 @@ Take a look at how the POST API is built:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={
-                    "error": "Invalid datetime format. "
+                    ("error": "Invalid datetime format. "
                     "Datetime string must look like this: "
-                    "'2010-12-27T23:59:59-07:00'",
+                    "'2010-12-27T23:59:59-07:00'")
                 },
             )
 
@@ -604,27 +931,42 @@ Take a look at how the POST API is built:
                 detail=f"Event name '{event.name}' already exists,",
             )
 
-        return ResponseData(
-            name=created_event.name,
-            address=created_event.address,
-            schedule=created_event.schedule,
-            host=Host(
-                name=created_event.host.name
-            ) if created_event.host else None,
-        )
+        return created_event
 
-Like the ``POST /users`` API, here, the incoming and outgoing shape of the data
-is defined by the ``RequestData`` and ``ResponseData`` models respectively.
-The ``post_events`` function asynchronously inserts the data into the database
-and returns the fields defined in the ``SELECT`` statement. EdgeQL allows us to
-perform insertion and selection of data fields at the same time. The exception
-handling logic validates the shape of the incoming data. For example, just as
-before, this API will complain if you try to create multiple events with the
-same. Also, the field ``schedule`` accepts data as an
-`ISO 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ timestamp string. Failing
-to do so will incur an HTTP 400 (bad request) error.
+Like the ``POST /users`` endpoint, the incoming and outgoing shape of the
+``POST /events`` endpoint's data are defined by the ``RequestData`` model and
+the generated ``CreateEventResult`` model (renamed here to ``EventResult``)
+respectively. The ``post_events`` function asynchronously inserts the data into
+the database and returns the fields defined in the ``select`` query we wrote
+earlier, along with the new event's ``id``.
 
-Here's how you'd create an event:
+The exception handling logic validates the shape of the incoming data. For
+example, just as before in the users API, the events API will complain if you
+try to create multiple events with the same name. Also, the field ``schedule``
+accepts data as an `ISO 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_
+timestamp string. Values not adhering to that will incur an HTTP 400 (bad
+request) error.
+
+It's almost time to test, but before we can do that, we need to expose this new
+API in ``app/main.py``. Open that file, and update the import on line 6 to also
+import ``events``:
+
+.. code-block:: python
+
+    # app/main.py
+    ...
+    from app import users, events
+    ...
+
+Drop down to the bottom of ``main.py`` and include the events router:
+
+.. code-block:: python
+
+    # app/main.py
+    ...
+    fast_api.include_router(events.router)
+
+Let's try it out. Here's how you'd create an event:
 
 .. code-block:: bash
 
@@ -636,13 +978,14 @@ Here's how you'd create an event:
                       "host_name":"Mina Murray"
                     }'
 
-That'll return:
+If everything worked, you'll see output like this:
 
 ::
 
     HTTP/1.1 200 OK
     ...
     {
+      "id": "0b1847f4-6f3d-11ed-9f27-6fcdf20ffe22",
       "name": "Resuscitation",
       "address": "Britain",
       "schedule": "1889-07-28T06:59:59+00:00",
@@ -651,8 +994,106 @@ That'll return:
       }
     }
 
-You can also use the ``GET /events`` endpoint to list and filter the event
-objects. To locate the ``Resuscitation`` event, you'd use the ``filter_name``
+To speed this up a bit, we'll go ahead and write all the remaining queries in
+one shot. Then we can flip back to ``app/events.py`` and code up all the
+endpoints. Start by creating a file in ``app/queries`` named
+``get_events.edgeql``. This one is really straightforward:
+
+.. code-block:: edgeql
+
+    select Event {name, address, schedule, host : {name}};
+
+Save that one and create ``app/queries/get_event_by_name.edgeql`` with this
+query:
+
+.. code-block:: edgeql
+
+    select Event {
+        name, address, schedule,
+        host : {name}
+    } filter .name = <str>$name;
+
+Those two will handle queries for ``GET /events``. Next, create
+``app/queries/update_event.edgeql`` with this query:
+
+.. code-block:: edgeql
+
+    with current_name := <str>$current_name,
+        new_name := <str>$name,
+        address := <str>$address,
+        schedule := <str>$schedule,
+        host_name := <str>$host_name
+
+    select (
+        update Event filter .name = current_name
+        set {
+            name := new_name,
+            address := address,
+            schedule := <datetime>schedule,
+            host := (select User filter .name = host_name)
+        }
+    ) {name, address, schedule, host: {name}};
+
+That query will handle PUT requests. The last method left is DELETE. Create
+``app/queries/delete_event.edgeql`` and put this query in it:
+
+.. code-block:: edgeql
+
+    select (
+        delete Event filter .name = <str>$name
+    ) {name, address, schedule, host : {name}};
+
+Run ``edgedb-py --file`` to generate the new functions. Open ``app/events.py``
+so we can start getting these functions implemented in the API! We'll start by
+coding GET. Add this to your ``events.py``:
+
+.. code-block:: python
+
+    # app/events.py
+    ...
+    @router.get("/events")
+    async def get_events(
+        name: str = Query(None, max_length=50)
+    ) -> Iterable[EventResult] | EventResult:
+        if not name:
+            events = await db_queries.get_events(client)
+            return events
+        else:
+            event = await db_queries.get_event_by_name(client, name=name)
+            if not event:
+                raise HTTPException(
+                    status_code=HTTPStatus.NOT_FOUND,
+                    detail={"error": f"Event '{name}' does not exist."},
+                )
+            return event
+
+Save that file and test it like this:
+
+.. code-block:: bash
+
+    $ httpx -m GET http://localhost:5000/events
+
+We should get back an array containing all our events (which, at the moment,
+is just the one):
+
+::
+
+    HTTP/1.1 200 OK
+    ...
+    [
+        {
+            "id": "0b1847f4-6f3d-11ed-9f27-6fcdf20ffe22",
+            "name": "Resuscitation",
+            "address": "Britain",
+            "schedule": "1889-07-28T06:59:59+00:00",
+            "host": {
+                "name": "Mina Murray"
+            }
+        }
+    ]
+
+You can also use the ``GET /events`` endpoint to return a single event object
+by name. To locate the ``Resuscitation`` event, you'd use the ``name``
 parameter with the GET API as follows:
 
 .. code-block:: bash
@@ -660,13 +1101,15 @@ parameter with the GET API as follows:
     $ httpx -m GET http://localhost:5000/events \
             -p 'name' 'Resuscitation'
 
-That'll return:
+That'll return a result that looks like the response we just got without the
+``name`` parameter, except that it's a single object instead of an array.
 
 ::
 
     HTTP/1.1 200 OK
     ...
     {
+      "id": "0b1847f4-6f3d-11ed-9f27-6fcdf20ffe22",
       "name": "Resuscitation",
       "address": "Britain",
       "schedule": "1889-07-28T06:59:59+00:00",
@@ -675,8 +1118,69 @@ That'll return:
       }
     }
 
-Take a look at the ``app/events.py`` file to see how the ``PUT /events`` and
-``DELETE /events`` endpoints are constructed.
+If we'd had multiple events, the first response would have given us all of
+them.
+
+Let's finish off the events API with the PUT and DELETE endpoints. Open
+``app/events.py`` and add this code:
+
+.. code-block:: python
+
+    # app/events.py
+    ...
+    @router.put("/events")
+    async def put_event(event: RequestData, current_name: str) -> EventResult:
+
+        try:
+            updated_event = await db_queries.update_event(
+                client,
+                current_name=current_name,
+                name=event.name,
+                address=event.address,
+                schedule=event.schedule,
+                host_name=event.host_name,
+            )
+
+        except edgedb.errors.InvalidValueError:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail={
+                    ("error": "Invalid datetime format. "
+                    "Datetime string must look like this:"
+                    "'2010-12-27T23:59:59-07:00'"),
+                },
+            )
+
+        except edgedb.errors.ConstraintViolationError:
+            raise HTTPException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail={"error": f"Event name '{event.name}' already exists."},
+            )
+
+        if not updated_event:
+            raise HTTPException(
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+                detail={"error": f"Update event '{event.name}' failed."},
+            )
+
+        return updated_event
+
+
+    @router.delete("/events")
+    async def delete_event(name: str) -> EventResult:
+        deleted_event = await db_queries.delete_event(client, name=name)
+
+        if not deleted_event:
+            raise HTTPException(
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+                detail={"error": f"Delete event '{name}' failed."},
+            )
+
+        return deleted_event
+
+
+The events API is now ready to handle updates and deletion. Let's try out a
+cool alternative way to test these new endpoints.
 
 
 Browse the endpoints using the native OpenAPI doc
@@ -693,9 +1197,10 @@ API navigator like this:
     :alt: FastAPI docs navigator
     :width: 100%
 
-The doc allows you to play with the APIs interactively. Let's try to make a
-request to the ``PUT /events``. Click on the API that you want to try and then
-click on the **Try it out** button. You can do it in the UI as follows:
+This documentation allows you to play with the APIs interactively. Let's try to
+make a request to the ``PUT /events``. Click on the API that you want to try
+and then click on the **Try it out** button. You can do it in the UI as
+follows:
 
 .. image::
     https://www.edgedb.com/docs/tutorials/fastapi/put.png
@@ -709,3 +1214,22 @@ payload:
     https://www.edgedb.com/docs/tutorials/fastapi/put_result.png
     :alt: FastAPI docs PUT events API result
     :width: 100%
+
+You can do the same to test ``DELETE /events``, just make sure you give it
+whatever name you set for the event in your previous test of the PUT method.
+
+Wrapping up
+===========
+
+Now you have a fully functioning events API in FastAPI backed by EdgeDB. If you
+want to see all the source code for the completed project, you'll find it in
+`our examples repo
+<https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_. If you're
+stuck or if you just want to show off what you've built, come talk to us `on
+Discord <https://discord.gg/umUueND6ag>`_. It's a great community of helpful
+folks, all passionate about being part of the next generation of databases.
+
+If you like what you see and want to dive deeper into EdgeDB and what it can
+do, check out our `Easy EdgeDB book <https://www.edgedb.com/easy-edgedb>`_. In
+it, you'll get to learn more about EdgeDB as we build an imaginary role-playing
+game based on Bram Stoker's Dracula.

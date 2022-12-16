@@ -809,13 +809,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         ROLLBACK TO SAVEPOINT savepoint_name
         """
 
-    def test_sql_parse_transaction_24(self):
-        """
-        PREPARE a123 AS SELECT a
-% OK %
-        PREPARE a123 AS (SELECT a)
-        """
-
     def test_sql_parse_transaction_25(self):
         """
         COMMIT PREPARED 'transaction_id'
@@ -828,7 +821,26 @@ class TestEdgeQLSelect(tb.BaseDocTest):
 
     def test_sql_parse_transaction_27(self):
         """
-        EXECUTE a123
+        SET TRANSACTION ISOLATION LEVEL SERIALIZABLE READ ONLY DEFERRABLE
+        """
+
+    def test_sql_parse_transaction_28(self):
+        """
+        SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE
+        """
+
+    def test_sql_parse_query_09(self):
+        """
+        PREPARE fooplan (int, text, bool, numeric) AS (SELECT $1, $2, $3, $4)
+% OK %
+        PREPARE fooplan(pg_catalog.int4, text, bool, pg_catalog.numeric) AS (
+            SELECT $1, $2, $3, $4
+        )
+        """
+
+    def test_sql_parse_query_10(self):
+        """
+        EXECUTE fooplan(1, 'Hunter Valley', 't', 200.00)
         """
 
     @test.xerror("unsupported")

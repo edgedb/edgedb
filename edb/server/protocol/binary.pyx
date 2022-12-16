@@ -403,7 +403,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 self._auth_data
             )
         else:
-            prefixed_token = params.get('token')
+            prefixed_token = params.get('secret_key')
 
         if not prefixed_token:
             raise errors.AuthenticationError(

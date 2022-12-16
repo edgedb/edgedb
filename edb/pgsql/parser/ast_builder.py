@@ -391,7 +391,7 @@ def _build_transaction_options(
 def _build_prepare(n: Node, c: Context) -> pgast.PrepareStmt:
     return pgast.PrepareStmt(
         name=n["name"],
-        argtypes=_maybe_list(n, c, "params", _build_base_expr),
+        argtypes=_maybe_list(n, c, "argtypes", _build_type_name),
         query=_build_base_relation(n["query"], c),
     )
 
@@ -587,6 +587,7 @@ def _build_type_cast(n: Node, c: Context) -> pgast.TypeCast:
 
 
 def _build_type_name(n: Node, c: Context) -> pgast.TypeName:
+    n = _unwrap(n, "TypeName")
     return pgast.TypeName(
         name=tuple(_list(n, c, "names", _build_str)),
         setof=_bool_or_false(n, "setof"),
