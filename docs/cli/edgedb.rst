@@ -195,7 +195,6 @@ many of the commands:
 
   The output of this will then be used as input into the shell.
 
-
 .. rubric:: Settings
 
 :cli:synopsis:`\\set [OPTION [VALUE]]`
