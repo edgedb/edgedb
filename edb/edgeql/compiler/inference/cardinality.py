@@ -443,6 +443,8 @@ def _infer_pointer_cardinality(
         assert in_card is not None
         assert out_card is not None
         ptrref.in_cardinality = in_card
+        if out_card == 'MANY' and '__tname__' in str(ptrref.name):
+            breakpoint()
         ptrref.out_cardinality = out_card
 
 
@@ -490,6 +492,8 @@ def _infer_shape(
                                                    (None, False, None)))
             assert isinstance(shape_set.expr, irast.Stmt)
 
+            if shape_set.is_computed_ref:
+                breakpoint()
             _infer_pointer_cardinality(
                 ptrcls=ptrcls,
                 ptrref=ptrref,
@@ -560,7 +564,7 @@ def _infer_set_inner(
     rptr = ir.rptr
     new_scope = inf_utils.get_set_scope(ir, scope_tree, ctx=ctx)
 
-    if ir.expr:
+    if ir.expr and not ir.is_computed_ref:
         expr_card = infer_cardinality(ir.expr, scope_tree=new_scope, ctx=ctx)
 
     if rptr is not None and not rptr.is_phony:
@@ -573,7 +577,8 @@ def _infer_set_inner(
 
         ctx.env.schema, ptrcls = typeutils.ptrcls_from_ptrref(
             rptrref, schema=ctx.env.schema)
-        if ir.expr:
+        if ir.expr and not ir.is_computed_ref:
+            assert isinstance(ir.expr, irast.Stmt)
             assert isinstance(ptrcls, s_pointers.Pointer)
             _infer_pointer_cardinality(
                 ptrcls=ptrcls,
