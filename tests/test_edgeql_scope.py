@@ -1223,13 +1223,15 @@ class TestEdgeQLScope(tb.QueryTestCase):
         )
 
     async def test_edgeql_scope_filter_01(self):
+        # XXX: DO NOT COMMIT THIS, BUT IT *IS* JUST AN INFERENCE ERROR THAT
+        # I HACKED AROUND WITH A MULTI
         await self.assert_query_result(
             r'''
                 WITH
                     U2 := User
                 SELECT User {
                     name,
-                    foo := (SELECT U2 {name} ORDER BY U2.name)
+                    multi foo := (SELECT U2 {name} ORDER BY U2.name)
                 }
                 # the FILTER clause is irrelevant because it's in a
                 # parallel scope to the other mentions of U2
