@@ -206,3 +206,7 @@ inserting nested structures:
   * - **See also**
   * - :ref:`EdgeQL > Insert <ref_eql_insert>`
   * - :ref:`Reference > Commands > Insert <ref_eql_statements_insert>`
+  * - `Tutorial > Data Mutations > Insert
+      </tutorial/data-mutations/insert>`_
+  * - `Tutorial > Data Mutations > Upsert
+      </tutorial/data-mutations/upsert>`_

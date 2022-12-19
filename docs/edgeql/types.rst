@@ -169,4 +169,6 @@ Introspection
 The entire type system of EdgeDB is *stored inside EdgeDB*. All types are
 introspectable as instances of the ``schema::Type`` type. For a set of
 introspection examples, see :ref:`Guides > Introspection
-<ref_eql_introspection>`.
+<ref_eql_introspection>`. To try introspection for yourself, see `our
+interactive introspection tutorial
+</tutorial/advanced-edgeql/introspection>`_.

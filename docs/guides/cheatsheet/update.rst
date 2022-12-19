@@ -153,3 +153,5 @@ Update the ``list_order`` link property for a specific link:
   * - **See also**
   * - :ref:`EdgeQL > Update <ref_eql_update>`
   * - :ref:`Reference > Commands > Update <ref_eql_statements_update>`
+  * - `Tutorial > Data Mutations > Update
+      </tutorial/data-mutations/update>`_

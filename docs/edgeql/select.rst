@@ -102,6 +102,9 @@ this result would look like this:
     {"id": "b233ca98-3c23-11ec-b81f-6ba8c4f0084e"},
   ]
 
+Learn to select objects by trying it in `our interactive object query
+tutorial </tutorial/basic-queries/objects>`_.
+
 
 .. _ref_eql_shapes:
 
@@ -119,6 +122,9 @@ shape can be attached to any object type expression in EdgeQL.
     default::Villain { id: 6ddbb04a..., name: 'Green Goblin', },
     default::Villain { id: b233ca98..., name: 'Doc Ock' },
   }
+
+To learn to use shapes by trying them yourself, see `our interactive shapes
+tutorial </tutorial/nested-structures/shapes>`_.
 
 Nested shapes
 ^^^^^^^^^^^^^
@@ -197,6 +203,9 @@ of the ``Villain`` type. In other words, we are in the **scope** of the
   db> select Villain {name}
   ... filter .name = "Doc Ock";
   {default::Villain {name: 'Doc Ock'}}
+
+Learn to filter your queries by trying it in `our interactive filters
+tutorial </tutorial/basic-queries/config>`_.
 
 Filtering by ID
 ^^^^^^^^^^^^^^^
@@ -514,6 +523,10 @@ All queries thus far have referenced concrete object types: ``Hero`` and
 ``Villain``. However, both of these types extend the abstract type ``Person``,
 from which they inherit the ``name`` property.
 
+To learn how to leverage polymorphism in your queries, see `our interactive
+polymorphism tutorial
+</tutorial/nested-structures/polymorphism>`_.
+
 Polymorphic sets
 ^^^^^^^^^^^^^^^^
 
@@ -713,3 +726,13 @@ For full documentation on ``with``, see :ref:`EdgeQL > With <ref_eql_with>`.
   * - **See also**
   * - :ref:`Reference > Commands > Select <ref_eql_statements_select>`
   * - :ref:`Cheatsheets > Selecting data <ref_cheatsheet_select>`
+  * - `Tutorial > Basic Queries > Objects
+      </tutorial/basic-queries/objects>`_
+  * - `Tutorial > Basic Queries > Filters
+      </tutorial/basic-queries/config>`_
+  * - `Tutorial > Basic Queries > Aggregates
+      </tutorial/basic-queries/aggregate-functions>`_
+  * - `Tutorial > Nested Structures > Shapes
+      </tutorial/nested-structures/shapes>`_
+  * - `Tutorial > Nested Structures > Polymorphism
+      </tutorial/nested-structures/polymorphism>`_
