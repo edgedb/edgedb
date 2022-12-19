@@ -221,4 +221,4 @@ using arbitrary EdgeQL expressions. The example below uses the built-in
   * - :ref:`Introspection > Constraints <ref_eql_introspection_constraints>`
   * - :ref:`Standard Library > Constraints <ref_std_constraints>`
   * - `Tutorial > Advanced EdgeQL > Constraints
-      <https://www.edgedb.com/tutorial/advanced-edgeql/constraints>`_
+      </tutorial/advanced-edgeql/constraints>`_

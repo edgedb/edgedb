@@ -103,7 +103,7 @@ this result would look like this:
   ]
 
 Learn to select objects by trying it in `our interactive object query
-tutorial <https://www.edgedb.com/tutorial/basic-queries/objects>`_.
+tutorial </tutorial/basic-queries/objects>`_.
 
 
 .. _ref_eql_shapes:
@@ -124,7 +124,7 @@ shape can be attached to any object type expression in EdgeQL.
   }
 
 To learn to use shapes by trying them yourself, see `our interactive shapes
-tutorial <https://www.edgedb.com/tutorial/nested-structures/shapes>`_.
+tutorial </tutorial/nested-structures/shapes>`_.
 
 Nested shapes
 ^^^^^^^^^^^^^
@@ -205,7 +205,7 @@ of the ``Villain`` type. In other words, we are in the **scope** of the
   {default::Villain {name: 'Doc Ock'}}
 
 Learn to filter your queries by trying it in `our interactive filters
-tutorial <https://www.edgedb.com/tutorial/basic-queries/config>`_.
+tutorial </tutorial/basic-queries/config>`_.
 
 Filtering by ID
 ^^^^^^^^^^^^^^^
@@ -525,7 +525,7 @@ from which they inherit the ``name`` property.
 
 To learn how to leverage polymorphism in your queries, see `our interactive
 polymorphism tutorial
-<https://www.edgedb.com/tutorial/nested-structures/polymorphism>`_.
+</tutorial/nested-structures/polymorphism>`_.
 
 Polymorphic sets
 ^^^^^^^^^^^^^^^^
@@ -727,12 +727,12 @@ For full documentation on ``with``, see :ref:`EdgeQL > With <ref_eql_with>`.
   * - :ref:`Reference > Commands > Select <ref_eql_statements_select>`
   * - :ref:`Cheatsheets > Selecting data <ref_cheatsheet_select>`
   * - `Tutorial > Basic Queries > Objects
-      <https://www.edgedb.com/tutorial/basic-queries/objects>`_
+      </tutorial/basic-queries/objects>`_
   * - `Tutorial > Basic Queries > Filters
-      <https://www.edgedb.com/tutorial/basic-queries/config>`_
+      </tutorial/basic-queries/config>`_
   * - `Tutorial > Basic Queries > Aggregates
-      <https://www.edgedb.com/tutorial/basic-queries/aggregate-functions>`_
+      </tutorial/basic-queries/aggregate-functions>`_
   * - `Tutorial > Nested Structures > Shapes
-      <https://www.edgedb.com/tutorial/nested-structures/shapes>`_
+      </tutorial/nested-structures/shapes>`_
   * - `Tutorial > Nested Structures > Polymorphism
-      <https://www.edgedb.com/tutorial/nested-structures/polymorphism>`_
+      </tutorial/nested-structures/polymorphism>`_

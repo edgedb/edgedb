@@ -57,5 +57,5 @@ Define and use polymorphic function:
   * - :ref:`Reference > Function calls <ref_reference_function_call>`
   * - :ref:`Introspection > Functions <ref_eql_introspection_functions>`
   * - `Tutorial > Advanced EdgeQL > User-Defined Functions
-      <https://www.edgedb.com/tutorial/advanced-edgeql/user-def-functions>`_
+      </tutorial/advanced-edgeql/user-def-functions>`_
 

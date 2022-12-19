@@ -181,5 +181,5 @@ are called *overloaded functions*.
   * - :ref:`Introspection > Functions <ref_eql_introspection_functions>`
   * - :ref:`Cheatsheets > Functions <ref_cheatsheet_functions>`
   * - `Tutorial > Advanced EdgeQL > User-Defined Functions
-      <https://www.edgedb.com/tutorial/advanced-edgeql/user-def-functions>`_
+      </tutorial/advanced-edgeql/user-def-functions>`_
 

@@ -455,4 +455,4 @@ Reference
 
   * - **See also**
   * - `Tutorial > Building Blocks > Sets
-      <https://www.edgedb.com/tutorial/building-blocks/working-with-sets>`_
+      </tutorial/building-blocks/working-with-sets>`_

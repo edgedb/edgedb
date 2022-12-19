@@ -102,4 +102,4 @@ permanently deleted.
   * - :ref:`Reference > Commands > Delete <ref_eql_statements_delete>`
   * - :ref:`Cheatsheets > Deleting data <ref_cheatsheet_delete>`
   * - `Tutorial > Data Mutations > Delete
-      <https://www.edgedb.com/tutorial/data-mutations/delete>`_
+      </tutorial/data-mutations/delete>`_

@@ -40,4 +40,4 @@ Alternative way to delete all reviews from a specific user:
   * - :ref:`EdgeQL > Delete <ref_eql_delete>`
   * - :ref:`Reference > Commands > Delete <ref_eql_statements_delete>`
   * - `Tutorial > Data Mutations > Delete
-      <https://www.edgedb.com/tutorial/data-mutations/delete>`_
+      </tutorial/data-mutations/delete>`_

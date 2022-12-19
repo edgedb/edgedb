@@ -171,4 +171,4 @@ introspectable as instances of the ``schema::Type`` type. For a set of
 introspection examples, see :ref:`Guides > Introspection
 <ref_eql_introspection>`. To try introspection for yourself, see `our
 interactive introspection tutorial
-<https://www.edgedb.com/tutorial/advanced-edgeql/introspection>`_.
+</tutorial/advanced-edgeql/introspection>`_.

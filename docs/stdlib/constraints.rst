@@ -205,4 +205,4 @@ Constraints
   * - :ref:`DDL > Constraints <ref_eql_ddl_constraints>`
   * - :ref:`Introspection > Constraints <ref_eql_introspection_constraints>`
   * - `Tutorial > Advanced EdgeQL > Constraints
-      <https://www.edgedb.com/tutorial/advanced-edgeql/constraints>`_
+      </tutorial/advanced-edgeql/constraints>`_
