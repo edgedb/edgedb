@@ -52,7 +52,7 @@ instance which is not available at build time on Heroku.
 
 .. code-block:: bash
 
-   $ yarn install && npx @edgedb/generate edgedb-js
+   $ yarn install && npx @edgedb/generate edgeql-js
 
 The ``dbschema/edgeql-js`` directory was added to the ``.gitignore`` in the
 upstream project so we'll remove it here.
