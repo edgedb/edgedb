@@ -129,3 +129,121 @@ Options
     :cli:synopsis:`<timeout>` value must be given using time units
     (e.g. ``hr``, ``min``, ``sec``, ``ms``, etc.). The default
     value is ``10s``.
+
+
+Backslash Commands
+==================
+
+.. rubric:: Introspection
+
+The introspection commands share a few common options that are available to
+many of the commands:
+
+- ``-v``- Verbose
+- ``-s``- Show system objects
+- ``-c``- Case-sensitive pattern matching
+
+:cli:synopsis:`\\d object [-v] NAME, \\describe object [-v] NAME`
+  Describe schema object specified by *NAME*.
+
+:cli:synopsis:`\\ds, \\d schema, \\describe schema`
+  Describe the entire schema.
+
+:cli:synopsis:`\\l, \\list databases`
+  List databases.
+
+:cli:synopsis:`\\ls [-sc] [PATTERN], \\list scalars [-sc] [PATTERN]`
+  List scalar types.
+
+:cli:synopsis:`\\lt [-sc] [PATTERN], \\list types [-sc] [PATTERN]`
+  List object types.
+
+:cli:synopsis:`\\lr [-c] [PATTERN], \\list roles [-c] [PATTERN]`
+  List roles.
+
+:cli:synopsis:`\\lm [-c] [PATTERN], \\list modules [-c] [PATTERN]`
+  List modules.
+
+:cli:synopsis:`\\la [-vsc] [PATTERN], \\list aliases [-vsc] [PATTERN]`
+  List expression aliases.
+
+:cli:synopsis:`\\lc [-c] [PATTERN], \\list casts [-c] [PATTERN]`
+  List available conversions between types.
+
+:cli:synopsis:`\\li [-vsc] [PATTERN], \\list indexes [-vsc] [PATTERN]`
+  List indexes.
+
+.. rubric:: Database
+
+:cli:synopsis:`\\database create [NAME]`
+  Create a new database.
+
+.. rubric:: Data Operations
+
+:cli:synopsis:`\\dump FILENAME`
+  Dump current database to a file at *FILENAME*.
+
+:cli:synopsis:`\\restore FILENAME`
+  Restore the database dump at *FILENAME* into the currently connected
+  database.
+
+.. rubric:: Editing
+
+:cli:synopsis:`\\s, \\history`
+  Show a history of commands executed in the shell.
+
+:cli:synopsis:`\\e, \\edit [N]`
+  Spawn ``$EDITOR`` to edit the most recent history entry or history entry *N*.
+  History entries are negative indexed with ``-1`` being the most recent
+  command. Use the ``\history`` command (above) to see previous command
+  indexes.
+
+  The output of this will then be used as input into the shell.
+
+.. rubric:: Settings
+
+:cli:synopsis:`\\set [OPTION [VALUE]]`
+  If *VALUE* is omitted, the command will show the current value of *OPTION*.
+  With *VALUE*, the option named by *OPTION* will be set to the provided value.
+  Use ``\set`` with no arguments for a listing of all available options.
+
+.. rubric:: Connection
+
+:cli:synopsis:`\\c, \\connect [DBNAME]`
+  Connect to database *DBNAME*.
+
+.. rubric:: Migrations
+
+These migration commands are also accessible directly from the command line
+without first entering the EdgeDB shell. Their counterpart commands are noted
+and linked in their descriptions if you want more detail.
+
+:cli:synopsis:`\\migration create`
+  Create a migration script based on differences between the current database
+  and the schema file, just like running
+  :ref:`ref_cli_edgedb_migration_create`.
+
+:cli:synopsis:`\\migrate, \\migration apply`
+  Apply your migration, just like running the
+  :ref:`ref_cli_edgedb_migrate`.
+
+:cli:synopsis:`\\migration edit`
+  Spawn ``$EDITOR`` on the last migration file and fixes the migration ID after
+  the editor exits, just like :ref:`ref_cli_edgedb_migration_edit`. This is
+  typically used only on migrations that have not yet been applied.
+
+:cli:synopsis:`\\migration log`
+  Show the migration history, just like :ref:`ref_cli_edgedb_migration_log`.
+
+:cli:synopsis:`\\migration status`
+  Show how the state of the schema in the EdgeDB instance compares to the
+  migration stored in the schema directory, just like
+  :ref:`ref_cli_edgedb_migration_status`.
+
+.. rubric:: Help
+
+:cli:synopsis:`\\?, \\h, \\help`
+  Show help on backslash commands.
+
+:cli:synopsis:`\\q, \\quit, \\exit`
+  Quit the REPL. You can also do this by pressing Ctrl+D.
