@@ -111,7 +111,8 @@ def _lookup_column(
             return [(t, c) for t in ctx.scope.tables for c in t.columns]
         else:
             for table in ctx.scope.tables:
-                matched_columns.extend(_lookup_in_table(col_name, table))
+                if not table.in_parent:
+                    matched_columns.extend(_lookup_in_table(col_name, table))
 
     elif len(name) == 2:
         # look for the column in the specific table
@@ -175,7 +176,7 @@ def resolve_SubLink(
     *,
     ctx: Context,
 ) -> pgast.SubLink:
-    with ctx.empty() as subctx:
+    with ctx.isolated() as subctx:
         expr = dispatch.resolve(sub_link.expr, ctx=subctx)
 
     return pgast.SubLink(

@@ -119,6 +119,15 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             if getattr(cte, 'recursive', None):
                 self.write('RECURSIVE ')
             self.write(common.quote_ident(cte.name))
+            
+            if cte.aliascolnames:
+                self.write('(')
+                for (index, col_name) in enumerate(cte.aliascolnames):
+                    self.write(common.qname(col_name))
+                    if index + 1 < len(cte.aliascolnames):
+                        self.write(',')
+                self.write(')')
+
             self.write(' AS ')
             if cte.materialized is not None:
                 if cte.materialized:

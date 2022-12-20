@@ -189,7 +189,18 @@ def _resolve_JoinExpr(
 def resolve_CommonTableExpr(
     cte: pgast.CommonTableExpr, *, ctx: Context
 ) -> Tuple[pgast.CommonTableExpr, context.CTE]:
+    reference_as = None
+
     with ctx.isolated() as subctx:
+        if cte.recursive and cte.aliascolnames:
+            reference_as = [subctx.names.get('col') for _ in cte.aliascolnames]
+            columns = [
+                context.Column(name=col, reference_as=ref_as)
+                for col, ref_as in zip(cte.aliascolnames, reference_as)
+            ]
+            subctx.scope.ctes.append(
+                context.CTE(name=cte.name, columns=columns)
+            )
 
         query, table = dispatch.resolve_relation(cte.query, ctx=subctx)
 
@@ -205,9 +216,13 @@ def resolve_CommonTableExpr(
                 )
             )
 
+        if reference_as:
+            for col, ref_as in zip(result.columns, reference_as):
+                col.reference_as = ref_as
+
     node = pgast.CommonTableExpr(
         name=cte.name,
-        aliascolnames=None,
+        aliascolnames=reference_as,
         query=query,
         recursive=cte.recursive,
         materialized=cte.materialized,

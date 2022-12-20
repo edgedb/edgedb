@@ -174,15 +174,13 @@ def resolve_relation(
     relation: pgast.Relation, *, ctx: Context
 ) -> Tuple[pgast.Relation, context.Table]:
     assert relation.name
-    schema_name = relation.schemaname or 'public'
-    catalog = relation.catalogname or 'postgres'
 
     # try introspection tables
 
     introspection_tables = None
-    if schema_name == 'information_schema':
+    if relation.schemaname == 'information_schema':
         introspection_tables = sql_introspection.INFORMATION_SCHEMA
-    elif schema_name == 'pg_catalog':
+    elif not relation.schemaname or relation.schemaname == 'pg_catalog':
         introspection_tables = sql_introspection.PG_CATALOG
 
     if introspection_tables and relation.name in introspection_tables:
@@ -194,6 +192,9 @@ def resolve_relation(
         rel = pgast.Relation(name=relation.name, schemaname='edgedbsql')
 
         return rel, table
+
+    schema_name = relation.schemaname or 'public'
+    catalog = relation.catalogname or 'postgres'
 
     # try a CTE
     if catalog == 'postgres' and schema_name == 'public':

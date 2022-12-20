@@ -484,10 +484,18 @@ def _build_cte(n: Node, c: Context) -> pgast.CommonTableExpr:
     elif n["ctematerialized"] == "CTEMaterializeNever":
         materialized = False
 
+    recursive =_bool_or_false(n, "cterecursive")
+    
+    # workaround because libpg_query does not actually emit cterecursive
+    if "cterecursive" not in n:
+        location = n["location"]
+        if 'RECURSIVE' in c.source_sql[:location][-15:].upper():
+            recursive = True
+
     return pgast.CommonTableExpr(
         name=n["ctename"],
         query=_build_query(n["ctequery"], c),
-        recursive=_bool_or_false(n, "cterecursive"),
+        recursive=recursive,
         aliascolnames=_maybe_list(n, c, "aliascolnames", _build_str),
         materialized=materialized,
         context=_build_context(n, c),

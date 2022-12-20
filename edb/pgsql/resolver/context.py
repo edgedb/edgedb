@@ -59,6 +59,10 @@ class Table:
     # Internal SQL
     reference_as: Optional[str] = None
 
+    # Set for tables that in a parent scope.
+    # This will prevent them from being matched without an explicit table name.
+    in_parent: bool = False
+
     def __str__(self) -> str:
         columns = ', '.join(str(c) for c in self.columns)
         alias = f'{self.alias} = ' if self.alias else ''
@@ -126,6 +130,8 @@ class ResolverContextLevel(compiler.ContextLevel):
                 self.scope = Scope(ctes=prevlevel.scope.ctes)
             elif mode == ContextSwitchMode.ISOLATED:
                 self.scope = deepcopy(prevlevel.scope)
+                for t in self.scope.tables:
+                    t.in_parent = True
 
     def empty(
         self,
