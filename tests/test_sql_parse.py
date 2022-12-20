@@ -663,10 +663,9 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT * FROM x WHERE y = ?
         """
 
-    @test.xerror("unsupported")
     def test_sql_parse_query_08(self):
         """
-        SELECT * FROM x WHERE y = ANY ($1)
+        SELECT * FROM x WHERE (y = ANY($1))
         """
 
     def test_sql_parse_transaction_00(self):
@@ -956,4 +955,75 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_query_32(self):
         """
         SELECT ((blah(4))[0])[2][3:4][2][5:5]
+        """
+
+    def test_sql_parse_query_33(self):
+        """
+        SELECT a <= ANY(array[1, 2, 3])
+% OK %
+        SELECT (a <= ANY(ARRAY[1, 2, 3]))
+        """
+
+    def test_sql_parse_query_34(self):
+        """
+        SELECT a <= ALL(array[1, 2, 3])
+% OK %
+        SELECT (a <= ALL(ARRAY[1, 2, 3]))
+        """
+
+    def test_sql_parse_query_35(self):
+        """
+        SELECT a <= some(array[1, 2, 3])
+% OK %
+        SELECT (a <= ANY(ARRAY[1, 2, 3]))
+        """
+
+    def test_sql_parse_query_36(self):
+        """
+        SELECT a NOT IN (1, 2, 3)
+% OK %
+        SELECT (a NOT IN (1, 2, 3))
+        """
+
+    def test_sql_parse_query_37(self):
+        """
+        SELECT a NOT LIKE 'a%'
+% OK %
+        SELECT (a NOT LIKE 'a%')
+        """
+
+    def test_sql_parse_query_38(self):
+        """
+        SELECT a NOT ILIKE 'a%'
+% OK %
+        SELECT (a NOT ILIKE 'a%')
+        """
+
+    def test_sql_parse_query_39(self):
+        """
+        SELECT a ILIKE 'a%'
+% OK %
+        SELECT (a ILIKE 'a%')
+        """
+
+    def test_sql_parse_query_41(self):
+        """
+        SELECT 1 FROM t WHERE ia.attnum > 0 AND NOT ia.attisdropped
+% OK %
+        SELECT 1 FROM t WHERE ((ia.attnum > 0) AND (NOT ia.attisdropped))
+        """
+
+    def test_sql_parse_query_42(self):
+        """
+        SELECT ($1)::oid[]
+        """
+
+    def test_sql_parse_query_43(self):
+        """
+        SELECT ($1)::oid[5]
+        """
+
+    def test_sql_parse_query_44(self):
+        """
+        SELECT ($1)::oid[5][6]
         """

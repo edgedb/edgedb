@@ -588,11 +588,15 @@ def _build_type_cast(n: Node, c: Context) -> pgast.TypeCast:
 
 def _build_type_name(n: Node, c: Context) -> pgast.TypeName:
     n = _unwrap(n, "TypeName")
+
+    def unwrap_int(n: Node, _c: Context):
+        return _unwrap(_unwrap(n, 'Integer'), 'ival')
+
     return pgast.TypeName(
         name=tuple(_list(n, c, "names", _build_str)),
         setof=_bool_or_false(n, "setof"),
         typmods=None,
-        array_bounds=None,
+        array_bounds=_maybe_list(n, c, "arrayBounds", unwrap_int),
         context=_build_context(n, c),
     )
 
@@ -617,19 +621,20 @@ def _build_case_when(n: Node, c: Context) -> pgast.CaseWhen:
 
 def _build_bool_expr(n: Node, c: Context) -> pgast.Expr:
     name = _build_str(n["boolop"], c)[0:-5]
+    args = list(n["args"])
     res = pgast.Expr(
         kind=pgast.ExprKind.OP,
         name=name,
-        lexpr=_build_base_expr(n["args"].pop(0), c),
-        rexpr=_build_base_expr(n["args"].pop(0), c),
+        lexpr=_build_base_expr(args.pop(0), c) if len(args) > 1 else None,
+        rexpr=_build_base_expr(args.pop(0), c) if len(args) > 0 else None,
         context=_build_context(n, c),
     )
-    while len(n["args"]) > 0:
+    while len(args) > 0:
         res = pgast.Expr(
             kind=pgast.ExprKind.OP,
             name=_build_str(n["boolop"], c)[0:-5],
             lexpr=res,
-            rexpr=_build_base_expr(n["args"].pop(0), c),
+            rexpr=_build_base_expr(args.pop(0), c) if len(args) > 0 else None,
             context=_build_context(n, c),
         )
     return res
@@ -757,32 +762,39 @@ def _build_array_expr(n: Node, c: Context) -> pgast.ArrayExpr:
 
 
 def _build_a_expr(n: Node, c: Context) -> pgast.Expr:
+    name = _build_str(n["name"][0], c)
+
     if n["kind"] == "AEXPR_OP":
-        return pgast.Expr(
-            kind=pgast.ExprKind.OP,
-            name=_build_str(n["name"][0], c),
-            lexpr=_maybe(n, c, "lexpr", _build_base_expr),
-            rexpr=_maybe(n, c, "rexpr", _build_base_expr),
-            context=_build_context(n, c),
-        )
-    elif n["kind"] == "AEXPR_LIKE":
-        return pgast.Expr(
-            kind=pgast.ExprKind.OP,
-            name="LIKE",
-            lexpr=_maybe(n, c, "lexpr", _build_base_expr),
-            rexpr=_maybe(n, c, "rexpr", _build_base_expr),
-            context=_build_context(n, c),
-        )
+        kind = pgast.ExprKind.OP
+    elif n["kind"] in ("AEXPR_LIKE", "AEXPR_ILIKE"):
+        if name.endswith("*"):
+            kind = pgast.ExprKind.ILIKE
+        else:
+            kind = pgast.ExprKind.LIKE
+        if name.startswith("!"):
+            name = "NOT"
+        else:
+            name = ""
     elif n["kind"] == "AEXPR_IN":
-        return pgast.Expr(
-            kind=pgast.ExprKind.OP,
-            name="IN",
-            lexpr=_maybe(n, c, "lexpr", _build_base_expr),
-            rexpr=_maybe(n, c, "rexpr", _build_base_expr),
-            context=_build_context(n, c),
-        )
+        kind = pgast.ExprKind.IN
+        if name == "<>":
+            name = "NOT"
+        else:
+            name = ""
+    elif n["kind"] == "AEXPR_OP_ANY":
+        kind = pgast.ExprKind.ANY
+    elif n["kind"] == "AEXPR_OP_ALL":
+        kind = pgast.ExprKind.ALL
     else:
         raise PSqlUnsupportedError(n)
+
+    return pgast.Expr(
+        kind=kind,
+        name=name,
+        lexpr=_maybe(n, c, "lexpr", _build_base_expr),
+        rexpr=_maybe(n, c, "rexpr", _build_base_expr),
+        context=_build_context(n, c),
+    )
 
 
 def _build_func_call(n: Node, c: Context) -> pgast.FuncCall:

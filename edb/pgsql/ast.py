@@ -325,7 +325,7 @@ class TypeName(ImmutableBase):
     name: typing.Tuple[str, ...]                # Type name
     setof: bool = False                         # SET OF?
     typmods: typing.Optional[list] = None       # Type modifiers
-    array_bounds: typing.Optional[list] = None  # Array bounds
+    array_bounds: typing.Optional[typing.List[int]] = None
 
 
 class ColumnRef(OutputVar):
@@ -623,6 +623,11 @@ class SelectStmt(Query):
 
 class ExprKind(enum.IntEnum):
     OP = enum.auto()
+    LIKE = enum.auto()
+    ILIKE = enum.auto()
+    IN = enum.auto()
+    ANY = enum.auto()
+    ALL = enum.auto()
 
 
 class Expr(ImmutableBaseExpr):

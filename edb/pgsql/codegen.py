@@ -630,18 +630,28 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         op = str(node.name)
         if '.' not in op:
             op = op.upper()
-        self.write(op)
-        if op.lower() in {'or', 'and'}:
-            self.new_lines = 1
-            self.char_indentation += 1
-        if node.rexpr is not None:
-            self.write(' ')
-            self.visit(node.rexpr)
-        if op.lower() in {'or', 'and'}:
-            self.char_indentation -= 1
-        self.write(')')
 
-    def visit_NullConstant(self, node: pgast.NullConstant) -> None:
+        self.write(op)
+        if node.kind == pgast.ExprKind.ANY:
+            self.write(" ANY(")
+        if node.kind == pgast.ExprKind.ALL:
+            self.write(" ALL(")
+        if node.kind == pgast.ExprKind.LIKE:
+            self.write(" LIKE")
+        if node.kind == pgast.ExprKind.ILIKE:
+            self.write(" ILIKE")
+        if node.kind == pgast.ExprKind.IN:
+            self.write(" IN")
+
+        if node.rexpr is not None:
+            self.write(" ")
+            self.visit_indented(node.rexpr, indent=op in {"OR", "AND"})
+
+        if node.kind in (pgast.ExprKind.ANY, pgast.ExprKind.ALL):
+            self.write(")")
+        self.write(")")
+
+    def visit_NullConstant(self, _node: pgast.NullConstant) -> None:
         self.write('NULL')
 
     def visit_NumericConstant(self, node: pgast.NumericConstant) -> None:
@@ -787,7 +797,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             for array_bound in node.array_bounds:
                 self.write('[')
                 if array_bound >= 0:
-                    self.write(array_bound)
+                    self.write(str(array_bound))
                 self.write(']')
 
     def visit_Star(self, _: pgast.Star) -> None:

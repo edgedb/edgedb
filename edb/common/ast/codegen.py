@@ -52,6 +52,15 @@ class SourceGenerator(NodeVisitor):
         visitor = getattr(self, method, self.generic_visit)
         return visitor(node)
 
+    def visit_indented(self, node: base.AST, indent: bool=False) -> None:
+        if indent:
+            self.new_lines = 1
+            self.char_indentation += 1
+        res = self.visit(node)
+        if indent:
+            self.char_indentation -= 1
+        return res
+
     def write(
         self,
         *x: str,
