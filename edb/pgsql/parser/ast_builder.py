@@ -834,8 +834,11 @@ def _build_a_expr(n: Node, c: Context) -> pgast.BaseExpr:
 
 def _build_func_call(n: Node, c: Context) -> pgast.FuncCall:
     n = _unwrap(n, "FuncCall")
+    name = tuple(_list(n, c, "funcname", _build_str))  # type: tuple[str, ...]
+    if name == ('set_config',) or name == ('pg_catalog', 'set_config'):
+        raise PSqlUnsupportedError(n)
     return pgast.FuncCall(
-        name=tuple(_list(n, c, "funcname", _build_str)),
+        name=name,
         args=_maybe_list(n, c, "args", _build_base_expr) or [],
         agg_order=_maybe_list(n, c, "aggOrder", _build_sort_by),
         agg_filter=_maybe(n, c, "aggFilter", _build_base_expr),
