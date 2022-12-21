@@ -333,12 +333,6 @@ class CreateLink(
         if isinstance(astnode, qlast.CreateConcreteLink):
             assert isinstance(cmd, pointers.PointerCommand)
             cmd._process_create_or_alter_ast(schema, astnode, context)
-        else:
-            # this is an abstract property then
-            if cmd.get_attribute_value('default') is not None:
-                raise errors.SchemaDefinitionError(
-                    f"'default' is not a valid field for an abstract link",
-                    context=astnode.context)
         assert isinstance(cmd, sd.Command)
         return cmd
 

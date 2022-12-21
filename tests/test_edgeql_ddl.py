@@ -3495,6 +3495,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     };
                 """)
 
+    async def test_edgeql_ddl_link_bad_04(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                f"'default' is not a valid field for an abstract link"):
+            async with self.con.transaction():
+                await self.migrate("""
+                    abstract link bar {
+                        default := Object;
+                    };
+                """)
+
     async def test_edgeql_ddl_property_long_01(self):
         prop_name = (
             'f123456789_123456789_123456789_123456789'
@@ -3531,6 +3542,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 await self.con.execute("""
                     CREATE ABSTRACT PROPERTY bar {
                         SET default := 'bad';
+                    };
+                """)
+
+    async def test_edgeql_ddl_property_bad_04(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                f"'default' is not a valid field for an abstract property"):
+            async with self.con.transaction():
+                await self.migrate("""
+                    abstract property currency_fallback {
+                        default := 'EUR';
                     };
                 """)
 
