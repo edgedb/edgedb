@@ -5316,6 +5316,12 @@ def _generate_sql_information_schema() -> List[dbops.View]:
         ),
     ]
 
+    # We expose most of the views as empty tables, just to prevent errors when
+    # the tools do introspection.
+    # For the tables that it turns out are actually needed, we handcraft the
+    # views that expose the actual data.
+    # I've been cautious about exposing too much data, for example limiting
+    # pg_type to pg_catalog and pg_toast namespaces.
     return tables_and_columns + [
         dbops.View(
             name=("edgedbsql", table_name),
