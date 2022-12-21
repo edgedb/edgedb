@@ -1726,7 +1726,7 @@ class PointerCommand(
             if getattr(astnode, 'declared_overloaded', False):
                 cmd.set_attribute_value('declared_overloaded', True)
         else:
-            # This is an abstract propery/link
+            # This is an abstract property/link
             if cmd.get_attribute_value('default') is not None:
                 typ = cls.get_schema_metaclass().get_schema_class_displayname()
                 raise errors.SchemaDefinitionError(
