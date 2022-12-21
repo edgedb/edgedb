@@ -2213,21 +2213,24 @@ class CreateScalarType(ScalarTypeMetaCommand,
                        adapts=s_scalars.CreateScalarType):
 
     @classmethod
-    def create_scalar(cls, scalar, default, schema, context):
-        ops = dbops.CommandGroup()
-
-        new_domain_name = types.pg_type_from_scalar(schema, scalar)
+    def create_scalar(
+        cls,
+        scalar: s_scalars.ScalarType,
+        default: Optional[s_expr.Expression],
+        schema: s_schema.Schema,
+    ) -> dbops.Command:
 
         if scalar.is_concrete_enum(schema):
             enum_values = scalar.get_enum_values(schema)
-            new_enum_name = common.get_backend_name(
-                schema, scalar, catenate=False)
-            ops.add_command(dbops.CreateEnum(
-                dbops.Enum(name=new_enum_name, values=enum_values)))
-            base = q(*new_enum_name)
+            assert enum_values
 
+            return CreateScalarType.create_enum(scalar, enum_values, schema)
         else:
+            ops = dbops.CommandGroup()
+
             base = types.get_scalar_base(schema, scalar)
+
+            new_domain_name = types.pg_type_from_scalar(schema, scalar)
 
             if cls.is_sequence(schema, scalar):
                 seq_name = common.get_backend_name(
@@ -2249,6 +2252,37 @@ class CreateScalarType(ScalarTypeMetaCommand,
                     dbops.AlterDomainAlterDefault(
                         name=new_domain_name, default=default))
 
+            return ops
+
+    @classmethod
+    def create_enum(
+        cls,
+        scalar: s_scalars.ScalarType,
+        values: Sequence[str],
+        schema: s_schema.Schema,
+    ) -> dbops.Command:
+        ops = dbops.CommandGroup()
+
+        new_enum_name = common.get_backend_name(schema, scalar, catenate=False)
+
+        ops.add_command(
+            dbops.CreateEnum(dbops.Enum(name=new_enum_name, values=values))
+        )
+
+        # Cast wrapper function is needed for immutable casts, which are
+        # needed for casting within indexes/constraints.
+        # (Postgres casts are only stable)
+        cast_func_name = common.get_backend_name(
+            schema, scalar, catenate=False, aspect="enum-cast"
+        )
+        cast_func = dbops.Function(
+            name=cast_func_name,
+            args=[("value", ("anyelement",))],
+            volatility="immutable",
+            returns=new_enum_name,
+            text=f"SELECT value::{qt(new_enum_name)}",
+        )
+        ops.add_command(dbops.CreateFunction(cast_func))
         return ops
 
     def _create_begin(
@@ -2270,7 +2304,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
             schema=schema,
             context=context,
         )
-        self.pgops.add(self.create_scalar(scalar, default, schema, context))
+        self.pgops.add(self.create_scalar(scalar, default, schema))
 
         return schema
 
@@ -2463,8 +2497,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             elif isinstance(obj, s_indexes.Index):
                 self.pgops.add(DeleteIndex.delete_index(obj, schema, context))
             elif isinstance(obj, s_scalars.ScalarType):
-                self.pgops.add(DeleteScalarType.delete_scalar(
-                    obj, schema, context))
+                self.pgops.add(DeleteScalarType.delete_scalar(obj, schema))
             elif isinstance(obj, s_props.Property):
                 new_typ = props[obj]
 
@@ -2510,7 +2543,9 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             elif isinstance(obj, s_scalars.ScalarType):
                 self.pgops.add(
                     CreateScalarType.create_scalar(
-                        obj, obj.get_default(schema), orig_schema, context))
+                        obj, obj.get_default(schema), orig_schema
+                    )
+                )
             elif isinstance(obj, s_props.Property):
                 new_typ = props[obj]
 
@@ -2599,9 +2634,13 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
             if needs_recreate:
                 self.pgops.add(
-                    dbops.DropEnum(name=type_name))
-                self.pgops.add(dbops.CreateEnum(
-                    dbops.Enum(name=type_name, values=new_enum_values)))
+                    DeleteScalarType.delete_scalar(new_scalar, orig_schema)
+                )
+                self.pgops.add(
+                    CreateScalarType.create_enum(
+                        new_scalar, new_enum_values, schema
+                    )
+                )
 
             elif old_enum_values != new_enum_values:
                 old_idx = 0
@@ -2665,15 +2704,32 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 class DeleteScalarType(ScalarTypeMetaCommand,
                        adapts=s_scalars.DeleteScalarType):
     @classmethod
-    def delete_scalar(cls, scalar, orig_schema, context):
+    def delete_scalar(
+        cls, scalar: s_scalars.ScalarType, orig_schema: s_schema.Schema
+    ) -> dbops.Command:
         old_domain_name = common.get_backend_name(
             orig_schema, scalar, catenate=False)
 
+        cond: dbops.Condition
         if scalar.is_concrete_enum(orig_schema):
+            ops = dbops.CommandGroup()
             old_enum_name = common.get_backend_name(
                 orig_schema, scalar, catenate=False)
             cond = dbops.EnumExists(old_enum_name)
-            return dbops.DropEnum(name=old_enum_name, conditions=[cond])
+
+            cast_func_name = common.get_backend_name(
+                orig_schema, scalar, catenate=False, aspect="enum-cast"
+            )
+            cast_func = dbops.DropFunction(
+                name=cast_func_name,
+                args=[("value", ("anyelement",))],
+                conditions=[cond],
+            )
+            ops.add_command(cast_func)
+
+            enum = dbops.DropEnum(name=old_enum_name, conditions=[cond])
+            ops.add_command(enum)
+            return ops
         else:
             cond = dbops.DomainExists(old_domain_name)
             return dbops.DropDomain(name=old_domain_name, conditions=[cond])
@@ -2697,7 +2753,7 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         else:
             ops = self.pgops
 
-        ops.add(self.delete_scalar(scalar, orig_schema, context))
+        ops.add(self.delete_scalar(scalar, orig_schema))
 
         if self.is_sequence(orig_schema, scalar):
             seq_name = common.get_backend_name(

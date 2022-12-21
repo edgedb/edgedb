@@ -436,7 +436,7 @@ class ContextLevel(compiler.ContextLevel):
     view_nodes: Dict[s_name.Name, s_types.Type]
     """A dictionary of newly derived Node classes representing views."""
 
-    view_sets: Dict[s_types.Type, irast.Set]
+    view_sets: Dict[s_obj.Object, irast.Set]
     """A dictionary of IR expressions for views declared in the query."""
 
     suppress_rewrites: FrozenSet[s_types.Type]
