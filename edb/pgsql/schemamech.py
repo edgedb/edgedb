@@ -174,7 +174,8 @@ class ConstraintMech:
 
         constraint_origins = constraint.get_constraint_origins(schema)
 
-        singletons: Collection[s_types.Type] = frozenset({subject})
+        TypeOrPointer = s_types.Type | s_pointers.Pointer
+        singletons: Collection[TypeOrPointer] = frozenset({subject})
 
         options = qlcompiler.CompilerOptions(
             anchors={qlast.Subject().name: subject},
@@ -246,8 +247,8 @@ class ConstraintMech:
         per_origin_parts = []
         for constraint_origin in different_origins:
             sub = constraint_origin.get_subject(schema)
-            assert isinstance(sub, s_types.Type)
-            origin_subject: s_types.Type = sub
+            assert isinstance(sub, (s_types.Type, s_pointers.Pointer))
+            origin_subject: s_types.Type | s_pointers.Pointer = sub
 
             origin_path_prefix_anchor = (
                 qlast.Subject().name
