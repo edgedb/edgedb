@@ -216,6 +216,9 @@ def compile_cast(
                 ctx=ctx,
             )
 
+    # Constraints and indexes require an immutable expression, but pg cast is
+    # only stable. In this specific case, we use cast wrapper function that
+    # is declared to be immutable.
     if new_stype.is_enum(ctx.env.schema):
         objctx = ctx.env.options.schema_object_context
         if objctx in (s_constr.Constraint, s_indexes.Index):

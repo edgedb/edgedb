@@ -51,8 +51,6 @@ from . import types
 from . import compiler
 from . import codegen
 
-TypeOrSubject = s_types.Type | s_constraints.ConsistencySubject
-
 
 class ConstraintMech:
 
@@ -176,7 +174,7 @@ class ConstraintMech:
 
         constraint_origins = constraint.get_constraint_origins(schema)
 
-        singletons: Collection[TypeOrSubject] = frozenset({subject})
+        singletons: Collection[s_types.Type] = frozenset({subject})
 
         options = qlcompiler.CompilerOptions(
             anchors={qlast.Subject().name: subject},
@@ -247,9 +245,10 @@ class ConstraintMech:
 
         per_origin_parts = []
         for constraint_origin in different_origins:
-            origin_subject: TypeOrSubject = constraint_origin.get_subject(
-                schema
-            )
+            sub = constraint_origin.get_subject(schema)
+            assert isinstance(sub, s_types.Type)
+            origin_subject: s_types.Type = sub
+
             origin_path_prefix_anchor = (
                 qlast.Subject().name
                 if isinstance(origin_subject, s_types.Type) else None
