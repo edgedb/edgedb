@@ -52,7 +52,14 @@ def get_volatility_ref(
     if not ref:
         rvar = relctx.maybe_get_path_rvar(
             stmt, path_id, aspect='value', ctx=ctx)
-        if rvar and isinstance(rvar.query, pgast.ReturningQuery):
+        if (
+            rvar
+            and isinstance(rvar.query, pgast.ReturningQuery)
+            # Expanded inhviews might be unions, which can't naively have
+            # a row_number stuck on; they should be safe to just grab
+            # the path_id value from, though
+            and rvar.tag != 'expanded-inhview'
+        ):
             # If we are selecting from a nontrivial subquery, manually
             # add a volatility ref based on row_number. We do it
             # manually because the row number isn't /really/ the
