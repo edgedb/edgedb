@@ -565,8 +565,8 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         OR age IN (select * from table_two)
 % OK %
         UPDATE dataset SET a = 5
-        WHERE (id IN ((SELECT * FROM table_one))
-        OR age IN ((SELECT * FROM table_two)))
+        WHERE (id = ANY ((SELECT * FROM table_one))
+        OR age = ANY ((SELECT * FROM table_two)))
         """
 
     def test_sql_parse_update_05(self):
@@ -619,7 +619,7 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         WHERE x = y OR x IN (SELECT * from table_two)
 % OK %
         DELETE FROM dataset USING table_one
-        WHERE ((x = y) OR x IN ((SELECT * FROM table_two)))
+        WHERE ((x = y) OR x = ANY ((SELECT * FROM table_two)))
         """
 
     def test_sql_parse_query_00(self):
@@ -665,7 +665,7 @@ class TestEdgeQLSelect(tb.BaseDocTest):
 
     def test_sql_parse_query_08(self):
         """
-        SELECT * FROM x WHERE (y = ANY($1))
+        SELECT * FROM x WHERE y = ANY ($1)
         """
 
     def test_sql_parse_transaction_00(self):
@@ -959,23 +959,19 @@ class TestEdgeQLSelect(tb.BaseDocTest):
 
     def test_sql_parse_query_33(self):
         """
-        SELECT a <= ANY(array[1, 2, 3])
-% OK %
-        SELECT (a <= ANY(ARRAY[1, 2, 3]))
+        SELECT a <= ANY (ARRAY[1, 2, 3])
         """
 
     def test_sql_parse_query_34(self):
         """
-        SELECT a <= ALL(array[1, 2, 3])
-% OK %
-        SELECT (a <= ALL(ARRAY[1, 2, 3]))
+        SELECT a <= ALL (ARRAY[1, 2, 3])
         """
 
     def test_sql_parse_query_35(self):
         """
         SELECT a <= some(array[1, 2, 3])
 % OK %
-        SELECT (a <= ANY(ARRAY[1, 2, 3]))
+        SELECT a <= ANY (ARRAY[1, 2, 3])
         """
 
     def test_sql_parse_query_36(self):

@@ -1691,10 +1691,8 @@ def anti_join(
             src_ref, rhs, 'NOT IN')
     else:
         # No path we care about. Just check existance.
-        cond_expr = pgast.SubLink(
-            type=pgast.SubLinkType.NOT_EXISTS, expr=rhs)
-    lhs.where_clause = astutils.extend_binop(
-        lhs.where_clause, cond_expr)
+        cond_expr = pgast.SubLink(operator="NOT EXISTS", expr=rhs)
+    lhs.where_clause = astutils.extend_binop(lhs.where_clause, cond_expr)
 
 
 def range_from_queryset(

@@ -477,7 +477,6 @@ def compile_operator(
     # If result was not already computed, it's going to be a generic Expr.
     if result is None:
         result = pgast.Expr(
-            kind=pgast.ExprKind.OP,
             name=sql_oper,
             lexpr=lexpr,
             rexpr=rexpr,

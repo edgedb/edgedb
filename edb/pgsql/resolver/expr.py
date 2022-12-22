@@ -179,7 +179,7 @@ def resolve_SubLink(
         expr = dispatch.resolve(sub_link.expr, ctx=subctx)
 
     return pgast.SubLink(
-        type=sub_link.type,
+        operator=sub_link.operator,
         expr=expr,
         test_expr=dispatch.resolve_opt(sub_link.test_expr, ctx=ctx),
     )
@@ -188,7 +188,6 @@ def resolve_SubLink(
 @dispatch._resolve.register
 def resolve_Expr(expr: pgast.Expr, *, ctx: Context) -> pgast.Expr:
     return pgast.Expr(
-        kind=expr.kind,
         name=expr.name,
         lexpr=dispatch.resolve(expr.lexpr, ctx=ctx) if expr.lexpr else None,
         rexpr=dispatch.resolve(expr.rexpr, ctx=ctx) if expr.rexpr else None,

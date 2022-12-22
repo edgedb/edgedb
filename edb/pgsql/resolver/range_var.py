@@ -172,7 +172,6 @@ def _resolve_JoinExpr(
             quals = pgastutils.extend_binop(
                 quals,
                 pgast.Expr(
-                    kind=pgast.ExprKind.OP,
                     name='=',
                     lexpr=l_expr,
                     rexpr=r_expr,
