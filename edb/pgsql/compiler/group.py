@@ -126,7 +126,6 @@ def _compile_grouping_value(
 
         els.append(pgast.CaseExpr(
             arg=pgast.Expr(
-                kind=pgast.ExprKind.OP,
                 name='&',
                 lexpr=grouping_ref,
                 rexpr=pgast.LiteralExpr(expr=str(mask))
