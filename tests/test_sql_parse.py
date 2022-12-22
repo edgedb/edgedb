@@ -1002,6 +1002,16 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT (a ILIKE 'a%')
         """
 
+    def test_sql_parse_query_40(self):
+        """
+        WITH RECURSIVE t(n) AS (((
+            VALUES (1)
+        ) UNION ALL (
+            SELECT (n + 1) FROM t WHERE (n < 100)
+        )))
+        SELECT sum(n) FROM t
+        """
+
     def test_sql_parse_query_41(self):
         """
         SELECT 1 FROM t WHERE ia.attnum > 0 AND NOT ia.attisdropped
