@@ -877,13 +877,6 @@ class JoinExpr(BaseRangeVar):
         self.type = other.type
 
 
-class SubLinkType(enum.IntEnum):
-    pass
-    pass
-    pass
-    pass
-
-
 class SubLink(ImmutableBaseExpr):
     """Subselect appearing in an expression."""
 

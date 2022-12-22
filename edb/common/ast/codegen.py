@@ -53,7 +53,7 @@ class SourceGenerator(NodeVisitor):
         return visitor(node)
 
     def visit_indented(
-        self, node: base.AST, indent: bool = False, nest: bool = False
+        self, node: base.AST, indent: bool = True, nest: bool = False
     ) -> None:
         if nest:
             self.write("(")
