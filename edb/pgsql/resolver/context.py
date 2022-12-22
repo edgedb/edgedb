@@ -27,6 +27,12 @@ from edb.common import compiler
 from edb.schema import schema as s_schema
 
 
+@dataclass(frozen=True)
+class Options:
+    # schemas that will be searched when idents don't have an explicit one
+    search_path: Sequence[str] = ("public",)
+
+
 @dataclass(kw_only=True)
 class Scope:
     """
@@ -97,14 +103,14 @@ class ResolverContextLevel(compiler.ContextLevel):
     schema: s_schema.Schema
     names: compiler.AliasGenerator
 
+    # Visible names in scope
     scope: Scope
-    """Visible names in scope"""
 
+    # True iff relation currently resolving should also include instances of
+    # child objects.
     include_inherited: bool
-    """
-    True iff relation currently resolving should also include instances of
-    child objects.
-    """
+
+    options: Options
 
     def __init__(
         self,
@@ -112,17 +118,21 @@ class ResolverContextLevel(compiler.ContextLevel):
         mode: ContextSwitchMode,
         *,
         schema: Optional[s_schema.Schema] = None,
+        options: Optional[Options] = None,
     ) -> None:
         if prevlevel is None:
-            assert schema is not None
+            assert schema
+            assert options
 
             self.schema = schema
+            self.options = options
             self.scope = Scope()
             self.include_inherited = True
             self.names = compiler.AliasGenerator()
 
         else:
             self.schema = prevlevel.schema
+            self.options = prevlevel.options
             self.names = prevlevel.names
 
             self.include_inherited = True
@@ -142,15 +152,11 @@ class ResolverContextLevel(compiler.ContextLevel):
         """Create a new empty context"""
         return self.new(ContextSwitchMode.EMPTY)
 
-    def child(
-        self
-    ) -> compiler.CompilerContextManager[ResolverContextLevel]:
+    def child(self) -> compiler.CompilerContextManager[ResolverContextLevel]:
         """Clone current context, prevent changes from leaking to parent"""
         return self.new(ContextSwitchMode.CHILD)
 
-    def lateral(
-        self
-    ) -> compiler.CompilerContextManager[ResolverContextLevel]:
+    def lateral(self) -> compiler.CompilerContextManager[ResolverContextLevel]:
         """Clone current context, prevent changes from leaking to parent"""
         return self.new(ContextSwitchMode.LATERAL)
 
