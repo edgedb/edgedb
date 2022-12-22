@@ -119,7 +119,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             if getattr(cte, 'recursive', None):
                 self.write('RECURSIVE ')
             self.write(common.quote_ident(cte.name))
-            
+
             if cte.aliascolnames:
                 self.write('(')
                 for (index, col_name) in enumerate(cte.aliascolnames):

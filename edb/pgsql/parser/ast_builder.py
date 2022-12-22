@@ -484,8 +484,8 @@ def _build_cte(n: Node, c: Context) -> pgast.CommonTableExpr:
     elif n["ctematerialized"] == "CTEMaterializeNever":
         materialized = False
 
-    recursive =_bool_or_false(n, "cterecursive")
-    
+    recursive = _bool_or_false(n, "cterecursive")
+
     # workaround because libpg_query does not actually emit cterecursive
     if "cterecursive" not in n:
         location = n["location"]
