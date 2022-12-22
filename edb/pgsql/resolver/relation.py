@@ -66,10 +66,10 @@ def resolve_SelectStmt(
     if stmt.larg or stmt.rarg:
         assert stmt.larg and stmt.rarg
 
-        with ctx.isolated() as subctx:
+        with ctx.child() as subctx:
             larg, ltable = dispatch.resolve_relation(stmt.larg, ctx=subctx)
 
-        with ctx.isolated() as subctx:
+        with ctx.child() as subctx:
             rarg, rtable = dispatch.resolve_relation(stmt.rarg, ctx=subctx)
 
         # validate equal columns from both sides

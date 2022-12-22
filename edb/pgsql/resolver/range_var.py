@@ -116,7 +116,7 @@ def _resolve_RangeSubselect(
     *,
     ctx: Context,
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
-    with ctx.isolated() if range_var.lateral else ctx.empty() as subctx:
+    with ctx.lateral() if range_var.lateral else ctx.empty() as subctx:
         subquery, subtable = dispatch.resolve_relation(
             range_var.subquery, ctx=subctx
         )
@@ -191,7 +191,7 @@ def resolve_CommonTableExpr(
 ) -> Tuple[pgast.CommonTableExpr, context.CTE]:
     reference_as = None
 
-    with ctx.isolated() as subctx:
+    with ctx.child() as subctx:
         if cte.recursive and cte.aliascolnames:
             reference_as = [subctx.names.get('col') for _ in cte.aliascolnames]
             columns = [
@@ -237,7 +237,7 @@ def _resolve_RangeFunction(
     *,
     ctx: Context,
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
-    with ctx.isolated() if range_var.lateral else ctx.empty() as subctx:
+    with ctx.lateral() if range_var.lateral else ctx.empty() as subctx:
 
         functions = []
         col_names = []
@@ -253,7 +253,7 @@ def _resolve_RangeFunction(
 
             functions.append(dispatch.resolve(function, ctx=subctx))
 
-        infered_columns = [context.Column(name=name) for name in col_names]
+        inferred_columns = [context.Column(name=name) for name in col_names]
 
         table = context.Table(
             columns=[
@@ -262,7 +262,7 @@ def _resolve_RangeFunction(
                     reference_as=al or ctx.names.get('col'),
                 )
                 for col, al in _zip_column_alias(
-                    infered_columns, alias, ctx=range_var.context
+                    inferred_columns, alias, ctx=range_var.context
                 )
             ]
         )

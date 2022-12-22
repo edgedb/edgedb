@@ -176,7 +176,7 @@ def resolve_SubLink(
     *,
     ctx: Context,
 ) -> pgast.SubLink:
-    with ctx.isolated() as subctx:
+    with ctx.child() as subctx:
         expr = dispatch.resolve(sub_link.expr, ctx=subctx)
 
     return pgast.SubLink(

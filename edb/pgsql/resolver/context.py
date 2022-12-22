@@ -89,7 +89,8 @@ class Column:
 
 class ContextSwitchMode(enum.Enum):
     EMPTY = enum.auto()
-    ISOLATED = enum.auto()
+    CHILD = enum.auto()
+    LATERAL = enum.auto()
 
 
 class ResolverContextLevel(compiler.ContextLevel):
@@ -128,10 +129,12 @@ class ResolverContextLevel(compiler.ContextLevel):
 
             if mode == ContextSwitchMode.EMPTY:
                 self.scope = Scope(ctes=prevlevel.scope.ctes)
-            elif mode == ContextSwitchMode.ISOLATED:
+            elif mode == ContextSwitchMode.CHILD:
                 self.scope = deepcopy(prevlevel.scope)
                 for t in self.scope.tables:
                     t.in_parent = True
+            elif mode == ContextSwitchMode.LATERAL:
+                self.scope = deepcopy(prevlevel.scope)
 
     def empty(
         self,
@@ -139,11 +142,17 @@ class ResolverContextLevel(compiler.ContextLevel):
         """Create a new empty context"""
         return self.new(ContextSwitchMode.EMPTY)
 
-    def isolated(
-        self,
+    def child(
+        self
     ) -> compiler.CompilerContextManager[ResolverContextLevel]:
         """Clone current context, prevent changes from leaking to parent"""
-        return self.new(ContextSwitchMode.ISOLATED)
+        return self.new(ContextSwitchMode.CHILD)
+
+    def lateral(
+        self
+    ) -> compiler.CompilerContextManager[ResolverContextLevel]:
+        """Clone current context, prevent changes from leaking to parent"""
+        return self.new(ContextSwitchMode.LATERAL)
 
 
 class ResolverContext(compiler.CompilerContext[ResolverContextLevel]):
