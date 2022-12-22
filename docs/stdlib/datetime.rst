@@ -668,8 +668,8 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     This function is non-volatile since it returns the current time when the
     transaction is started, not when the function is called. As a result, it
-    can be used in :ref:`computed properties <ref_datamodel_computed>`, even
-    when they are defined in schema.
+    can be used in :ref:`computed properties <ref_datamodel_computed>` defined
+    in schema.
 
 ----------
 
@@ -682,8 +682,8 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     This function is non-volatile since it returns the current time when the
     statement is started, not when the function is called. As a result, it
-    can be used in :ref:`computed properties <ref_datamodel_computed>`, even
-    when they are defined in schema.
+    can be used in :ref:`computed properties <ref_datamodel_computed>` defined
+    in schema.
 
 ----------
 
