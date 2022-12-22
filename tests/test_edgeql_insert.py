@@ -1779,6 +1779,34 @@ class TestInsert(tb.QueryTestCase):
         # The result should not include the default param
         assert not hasattr(obj, 'num')
 
+    async def test_edgeql_insert_default_06(self):
+        await self.con.query(r'''
+            create type Foo {
+                create property a -> str;
+                create property b -> str;
+                create property c -> str;
+            };
+ 
+            alter type Foo {
+                alter property a { set default := 'a=' ++ .b };
+                alter property b { set default := 'b=' ++ .c };
+                alter property c { set default := 'c=' ++ .a };
+            };
+        ''')
+        await self.con.query(r'''
+            insert Foo { a := 'given' };
+        ''')
+        await self.con.query(r'''
+            insert Foo { b := 'given' };
+        ''')
+        await self.con.query(r'''
+            insert Foo { c := 'given' };
+        ''')
+        res = await self.con.query(r'''
+            select Foo filter exists .a and exists .b and exists .c
+        ''')
+        assert len(res) == 3
+
     async def test_edgeql_insert_as_expr_01(self):
         await self.con.execute(r'''
             # insert several objects, then annotate one of the inserted batch
