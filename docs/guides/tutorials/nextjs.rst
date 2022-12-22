@@ -369,7 +369,7 @@ First, install the generator to your project.
 
 .. code-block:: bash
 
-  $ yarn add @edgedb/generate
+  $ yarn add --dev @edgedb/generate
 
 Then generate the query builder with the following command.
 
