@@ -1136,10 +1136,12 @@ def _compile_ql_debug_sql(
     from edb.pgsql import resolver as pg_resolver
     from edb.pgsql import codegen as pg_codegen
 
+    options = pg_resolver.Options()
+
     stmts = pg_parser.parse(ql.source)
     sql_source = ''
     for stmt in stmts:
-        resolved = pg_resolver.resolve(stmt, schema)
+        resolved = pg_resolver.resolve(stmt, schema, options)
         source = pg_codegen.generate_source(resolved)
         sql_source += source + ';'
 
