@@ -686,9 +686,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             ) from None
 
         if not claims.get(f"{namespace}.any_role"):
-            assert not is_legacy  # legacy CLI will only generate any_role JWTs
             token_roles = claims.get(f"{namespace}.roles")
-            if not isinstance(token_roles, list):
+            if not isinstance(token_roles, dict if is_legacy else list):
                 raise errors.AuthenticationError(
                     f'authentication failed: malformed claims section in JWT'
                     f' expected mapping in "role_names"'
