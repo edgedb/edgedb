@@ -1593,6 +1593,9 @@ class PointerCommand(
         context: sd.CommandContext,
     ) -> None:
         """Check that pointer definition is sound."""
+        from edb.ir import utils as irutils
+        from edb.ir import ast as irast
+
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is None:
             return
@@ -1609,9 +1612,7 @@ class PointerCommand(
 
             if not default_expr.irast:
                 default_expr = self._compile_expr(
-                    schema, context, default_expr, 
-                    singleton_result_expected=True, 
-                    expr_description='default value'
+                    schema, context, default_expr
                 )
                 assert default_expr.irast
 
@@ -1655,6 +1656,23 @@ class PointerCommand(
                     f"'single'",
                     context=source_context,
                 )
+
+            # prevent references to local links, only properties
+            pointers = irutils.collect_pointers(default_expr.irast)
+            scls_source = scls.get_source(schema)
+            assert scls_source
+            for pointer in pointers:
+                if pointer.source.typeref.id != scls_source.id:
+                    continue
+                if not isinstance(pointer.ptrref, irast.PointerRef):
+                    continue
+                s_pointer = schema.get_by_id(pointer.ptrref.id, type=Pointer)
+                if not s_pointer.is_property(schema):
+                    raise errors.SchemaDefinitionError(
+                        f'default expression cannot refer to local links',
+                        context=source_context,
+                        hint='this is a temporary implementation restriction'
+                    )
 
     def _check_id_default(
         self,
