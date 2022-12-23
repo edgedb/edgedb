@@ -1779,14 +1779,14 @@ class TestInsert(tb.QueryTestCase):
         # The result should not include the default param
         assert not hasattr(obj, 'num')
 
-    async def test_edgeql_insert_default_06(self):
+    async def test_edgeql_insert_default_07(self):
         await self.con.query(r'''
             create type Foo {
                 create property a -> str;
                 create property b -> str;
                 create property c -> str;
             };
- 
+
             alter type Foo {
                 alter property a { set default := 'a=' ++ .b };
                 alter property b { set default := 'b=' ++ .c };

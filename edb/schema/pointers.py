@@ -1395,7 +1395,7 @@ class PointerCommandOrFragment(
                     f'{expr_description}, while a singleton is expected',
                     context=expr.qlast.context,
                 )
-        
+
             return compiled
 
         except errors.QueryError as e:

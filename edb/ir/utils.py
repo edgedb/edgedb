@@ -455,7 +455,7 @@ def contains_set_of_op(ir: irast.Base) -> bool:
 
 class PointerCollectorVisitor(ast.NodeVisitor):
     collected: List[irast.Pointer]
-    
+
     def __init__(self) -> None:
         super().__init__()
         self.collected = []

@@ -249,10 +249,11 @@ def _process_view(
         explicit_ptrs = {
             ptrcls.get_local_name(ctx.env.schema) for ptrcls in pointers
         }
-        
+
         pointer_entries.extend(
             gen_pointers_from_defaults(
-                explicit_ptrs, view_scls, ir_set, stype, path_id_namespace, view_rptr, exprtype, ctx
+                explicit_ptrs, view_scls, ir_set, stype, path_id_namespace,
+                view_rptr, exprtype, ctx
             )
         )
 
@@ -416,7 +417,7 @@ def gen_pointers_from_defaults(
 
     schema = ctx.env.schema
 
-    # toposort defaults 
+    # toposort defaults
     pointer_indexes = {}
     for (index, (pointer, _)) in enumerate(result):
         p = pointer.get_nearest_non_derived_parent(schema)
