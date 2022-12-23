@@ -419,19 +419,19 @@ def gen_pointers_from_defaults(
     # toposort defaults 
     pointer_indexes = {}
     for (index, (pointer, _)) in enumerate(result):
-        name = pointer.get_bases(schema).first(schema).get_name(schema).name
-        pointer_indexes[name] = index
+        p = pointer.get_nearest_non_derived_parent(schema)
+        pointer_indexes[p.get_name(schema).name] = index
     graph = {}
     for (index, (_, irset)) in enumerate(result):
         assert irset
         dep_pointers = irutils.collect_pointers(irset)
-        dep_names = (
-            pointer.target.path_id.rptr_name() for pointer in dep_pointers
+        dep_rptrs = (
+            pointer.target.path_id.rptr() for pointer in dep_pointers
             if pointer.source.typeref.id == stype.id
         )
         deps = {
-            pointer_indexes[name.name] for name in dep_names 
-            if name and name.name in pointer_indexes
+            pointer_indexes[rpts.name.name] for rpts in dep_rptrs
+            if rpts and rpts.name.name in pointer_indexes
         }
         graph[index] = topological.DepGraphEntry(
             item=index, deps=deps, extra=False,
