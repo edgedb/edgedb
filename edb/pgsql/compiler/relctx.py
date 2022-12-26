@@ -1365,6 +1365,8 @@ def range_for_material_objtype(
 
     relation: Union[pgast.Relation, pgast.CommonTableExpr]
 
+    assert isinstance(typeref.name_hint, sn.QualName)
+
     key = (typeref.id, include_descendants)
     if (
         not ignore_rewrites
@@ -1373,6 +1375,7 @@ def range_for_material_objtype(
         and not for_mutation
     ):
 
+        type_rel: pgast.BaseRelation | pgast.CommonTableExpr
         if (type_cte := ctx.type_ctes.get(key)) is None:
             with ctx.newrel() as sctx:
                 sctx.pending_type_ctes.add(key)
@@ -1383,18 +1386,28 @@ def range_for_material_objtype(
                 sctx.ptr_rel_overlays = collections.defaultdict(
                     lambda: collections.defaultdict(list))
                 dispatch.visit(rewrite, ctx=sctx)
-                type_cte = pgast.CommonTableExpr(
-                    name=ctx.env.aliases.get('t'),
-                    query=sctx.rel,
-                    materialized=False,
-                )
-                ctx.type_ctes[key] = type_cte
+                # If we are expanding inhviews, we also expand type
+                # rewrites, so don't populate type_ctes. The normal
+                # case is to stick it in a CTE and cache that, though.
+                if ctx.env.expand_inhviews:
+                    type_rel = sctx.rel
+                else:
+                    type_cte = pgast.CommonTableExpr(
+                        name=ctx.env.aliases.get('t'),
+                        query=sctx.rel,
+                        materialized=False,
+                    )
+                    ctx.type_ctes[key] = type_cte
+                    type_rel = type_cte
+        else:
+            type_rel = type_cte
 
         with ctx.subrel() as sctx:
-            cte_rvar = pgast.RelRangeVar(
-                relation=type_cte,
+            cte_rvar = rvar_for_rel(
+                type_rel,
                 typeref=typeref,
-                alias=pgast.Alias(aliasname=env.aliases.get('t'))
+                alias=env.aliases.get('t'),
+                ctx=ctx,
             )
             pathctx.put_path_id_map(sctx.rel, path_id, rewrite.path_id)
             include_rvar(
@@ -1403,8 +1416,48 @@ def range_for_material_objtype(
             )
             rvar = rvar_for_rel(
                 sctx.rel, lateral=lateral, typeref=typeref, ctx=sctx)
+
+    # When we are compiling a query for EXPLAIN, expand out type references
+    # to an explicit union of all the types, rather than relying on the
+    # inheritance views. This allows postgres to actually give us back the
+    # alias names that we use for relations, which we use to track which
+    # parts of the query are being referred to.
+    elif (
+        ctx.env.expand_inhviews
+        and include_descendants
+        and not for_mutation
+        and typeref.children is not None
+
+        # HACK: This is a workaround for #4491
+        and typeref.name_hint.module not in {'cfg', 'sys'}
+    ):
+        ops = []
+        for subref in [typeref, *irtyputils.get_typeref_descendants(typeref)]:
+            rvar = range_for_material_objtype(
+                subref, path_id, lateral=lateral,
+                include_descendants=False,
+                include_overlays=False,
+                ignore_rewrites=ignore_rewrites,  # XXX: Is this right?
+                ctx=ctx,
+            )
+            qry = pgast.SelectStmt(from_clause=[rvar])
+            sub_path_id = path_id
+            pathctx.put_path_value_rvar(qry, sub_path_id, rvar, env=env)
+            pathctx.put_path_source_rvar(qry, sub_path_id, rvar, env=env)
+
+            ops.append(('union', qry))
+
+        rvar = range_from_queryset(
+            ops,
+            typeref.name_hint,
+            lateral=lateral,
+            path_id=path_id,
+            typeref=typeref,
+            tag='expanded-inhview',
+            ctx=ctx,
+        )
+
     else:
-        assert isinstance(typeref.name_hint, sn.QualName)
 
         table_schema_name, table_name = common.get_objtype_backend_name(
             typeref.id,
@@ -1416,7 +1469,7 @@ def range_for_material_objtype(
             catenate=False,
         )
 
-        if typeref.name_hint.module in {'cfg', 'sys'}:
+        if typeref.name_hint.module in {'cfg', 'sys'} and include_descendants:
             # Redirect all queries to schema tables to edgedbss
             table_schema_name = 'edgedbss'
 
@@ -1638,10 +1691,8 @@ def anti_join(
             src_ref, rhs, 'NOT IN')
     else:
         # No path we care about. Just check existance.
-        cond_expr = pgast.SubLink(
-            type=pgast.SubLinkType.NOT_EXISTS, expr=rhs)
-    lhs.where_clause = astutils.extend_binop(
-        lhs.where_clause, cond_expr)
+        cond_expr = pgast.SubLink(operator="NOT EXISTS", expr=rhs)
+    lhs.where_clause = astutils.extend_binop(lhs.where_clause, cond_expr)
 
 
 def range_from_queryset(
@@ -1771,7 +1822,29 @@ def range_for_ptrref(
         overlays = get_ptr_rel_overlays(
             ptrref, dml_source=dml_source, ctx=ctx)
 
-    for src_ptrref in refs:
+    include_descendants = not ptrref.union_is_concrete
+
+    assert isinstance(ptrref.out_source.name_hint, sn.QualName)
+    # expand_inhviews helps support EXPLAIN. see
+    # range_for_material_objtype for details.
+    lrefs: List[irast.BasePointerRef]
+    if (
+        ctx.env.expand_inhviews
+        and include_descendants
+        and not for_mutation
+
+        # HACK: This is a workaround for #4491
+        and ptrref.out_source.name_hint.module not in {'sys', 'cfg'}
+    ):
+        include_descendants = False
+        lrefs = []
+        for ref in list(refs):
+            lrefs.extend(ref.descendants())
+            lrefs.append(ref)
+    else:
+        lrefs = list(refs)
+
+    for src_ptrref in lrefs:
         assert isinstance(src_ptrref, irast.PointerRef), \
             "expected regular PointerRef"
 
@@ -1797,7 +1870,7 @@ def range_for_ptrref(
         table = table_from_ptrref(
             src_ptrref,
             ptr_info,
-            include_descendants=not ptrref.union_is_concrete,
+            include_descendants=include_descendants,
             for_mutation=for_mutation,
             ctx=ctx,
         )
@@ -1814,17 +1887,21 @@ def range_for_ptrref(
 
         set_ops.append(('union', qry))
 
-        overlays = get_ptr_rel_overlays(
-            src_ptrref, dml_source=dml_source, ctx=ctx)
-        if overlays and not for_mutation:
-            # We need the identity var for semi_join to work and
-            # the source rvar so that linkprops can be found here.
-            if path_id:
-                target_ref = qry.target_list[1].val
-                pathctx.put_path_identity_var(
-                    qry, path_id, var=target_ref, env=ctx.env)
-                pathctx.put_path_source_rvar(
-                    qry, path_id, table, env=ctx.env)
+        # We need the identity var for semi_join to work and
+        # the source rvar so that linkprops can be found here.
+        if path_id:
+            target_ref = qry.target_list[1].val
+            pathctx.put_path_identity_var(
+                qry, path_id, var=target_ref, env=ctx.env)
+            pathctx.put_path_source_rvar(
+                qry, path_id, table, env=ctx.env)
+
+        # Only fire off the overlays at the end of each expanded inhview.
+        # This only matters when we are doing expand_inhviews, and prevents
+        # us from repeating the overlays many times in that case.
+        if src_ptrref in refs and not for_mutation:
+            overlays = get_ptr_rel_overlays(
+                src_ptrref, dml_source=dml_source, ctx=ctx)
 
             for op, cte, cte_path_id in overlays:
                 rvar = rvar_for_rel(cte, ctx=ctx)
@@ -1889,6 +1966,7 @@ def range_for_pointer(
 def rvar_for_rel(
     rel: Union[pgast.BaseRelation, pgast.CommonTableExpr],
     *,
+    alias: Optional[str] = None,
     typeref: Optional[irast.TypeRef] = None,
     lateral: bool = False,
     colnames: Optional[List[str]] = None,
@@ -1901,7 +1979,7 @@ def rvar_for_rel(
         colnames = []
 
     if isinstance(rel, pgast.Query):
-        alias = ctx.env.aliases.get(rel.name or 'q')
+        alias = alias or ctx.env.aliases.get(rel.name or 'q')
 
         rvar = pgast.RangeSubselect(
             subquery=rel,
@@ -1910,7 +1988,7 @@ def rvar_for_rel(
             typeref=typeref,
         )
     else:
-        alias = ctx.env.aliases.get(rel.name or '')
+        alias = alias or ctx.env.aliases.get(rel.name or '')
 
         rvar = pgast.RelRangeVar(
             relation=rel,

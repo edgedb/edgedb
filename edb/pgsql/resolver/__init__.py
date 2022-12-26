@@ -26,13 +26,16 @@ from . import context
 from . import expr  # NOQA
 from . import relation  # NOQA
 
+Options = context.Options
+
 
 def resolve(
     query: pgast.Base,
     schema: s_schema.Schema,
+    options: context.Options,
 ) -> pgast.Base:
     ctx = context.ResolverContextLevel(
-        None, context.ContextSwitchMode.EMPTY, schema=schema
+        None, context.ContextSwitchMode.EMPTY, schema=schema, options=options
     )
 
     _ = context.ResolverContext(initial=ctx)

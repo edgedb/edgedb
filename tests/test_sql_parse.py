@@ -565,8 +565,8 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         OR age IN (select * from table_two)
 % OK %
         UPDATE dataset SET a = 5
-        WHERE (id IN ((SELECT * FROM table_one))
-        OR age IN ((SELECT * FROM table_two)))
+        WHERE (id = ANY ((SELECT * FROM table_one))
+        OR age = ANY ((SELECT * FROM table_two)))
         """
 
     def test_sql_parse_update_05(self):
@@ -619,7 +619,7 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         WHERE x = y OR x IN (SELECT * from table_two)
 % OK %
         DELETE FROM dataset USING table_one
-        WHERE ((x = y) OR x IN ((SELECT * FROM table_two)))
+        WHERE ((x = y) OR x = ANY ((SELECT * FROM table_two)))
         """
 
     def test_sql_parse_query_00(self):
@@ -663,7 +663,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT * FROM x WHERE y = ?
         """
 
-    @test.xerror("unsupported")
     def test_sql_parse_query_08(self):
         """
         SELECT * FROM x WHERE y = ANY ($1)
@@ -956,4 +955,81 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_query_32(self):
         """
         SELECT ((blah(4))[0])[2][3:4][2][5:5]
+        """
+
+    def test_sql_parse_query_33(self):
+        """
+        SELECT a <= ANY (ARRAY[1, 2, 3])
+        """
+
+    def test_sql_parse_query_34(self):
+        """
+        SELECT a <= ALL (ARRAY[1, 2, 3])
+        """
+
+    def test_sql_parse_query_35(self):
+        """
+        SELECT a <= some(array[1, 2, 3])
+% OK %
+        SELECT a <= ANY (ARRAY[1, 2, 3])
+        """
+
+    def test_sql_parse_query_36(self):
+        """
+        SELECT a NOT IN (1, 2, 3)
+% OK %
+        SELECT (a NOT IN (1, 2, 3))
+        """
+
+    def test_sql_parse_query_37(self):
+        """
+        SELECT a NOT LIKE 'a%'
+% OK %
+        SELECT (a NOT LIKE 'a%')
+        """
+
+    def test_sql_parse_query_38(self):
+        """
+        SELECT a NOT ILIKE 'a%'
+% OK %
+        SELECT (a NOT ILIKE 'a%')
+        """
+
+    def test_sql_parse_query_39(self):
+        """
+        SELECT a ILIKE 'a%'
+% OK %
+        SELECT (a ILIKE 'a%')
+        """
+
+    def test_sql_parse_query_40(self):
+        """
+        WITH RECURSIVE t(n) AS (((
+            VALUES (1)
+        ) UNION ALL (
+            SELECT (n + 1) FROM t WHERE (n < 100)
+        )))
+        SELECT sum(n) FROM t
+        """
+
+    def test_sql_parse_query_41(self):
+        """
+        SELECT 1 FROM t WHERE ia.attnum > 0 AND NOT ia.attisdropped
+% OK %
+        SELECT 1 FROM t WHERE ((ia.attnum > 0) AND (NOT ia.attisdropped))
+        """
+
+    def test_sql_parse_query_42(self):
+        """
+        SELECT ($1)::oid[]
+        """
+
+    def test_sql_parse_query_43(self):
+        """
+        SELECT ($1)::oid[5]
+        """
+
+    def test_sql_parse_query_44(self):
+        """
+        SELECT ($1)::oid[5][6]
         """

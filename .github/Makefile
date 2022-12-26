@@ -21,3 +21,6 @@ workflows.src/tests-ha.tpl.yml: workflows.src/tests.inc.yml
 
 workflows.src/tests-pg-versions.tpl.yml: workflows.src/tests.inc.yml
 	touch $(ROOT)/workflows.src/tests-pg-versions.tpl.yml
+
+workflows.src/tests-patches.tpl.yml: workflows.src/tests.inc.yml
+	touch $(ROOT)/workflows.src/tests-patches.tpl.yml

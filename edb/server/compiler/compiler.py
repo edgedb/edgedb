@@ -510,10 +510,11 @@ class Compiler:
         from edb.pgsql import resolver as pg_resolver
         from edb.pgsql import codegen as pg_codegen
 
+        options = pg_resolver.Options()
         stmts = pg_parser.parse(query_str)
         sql_source = []
         for stmt in stmts:
-            resolved = pg_resolver.resolve(stmt, schema)
+            resolved = pg_resolver.resolve(stmt, schema, options)
             source = pg_codegen.generate_source(resolved)
             sql_source.append(source)
         return sql_source
@@ -1142,6 +1143,11 @@ def _get_compile_options(
             ctx, 'apply_access_policies'),
         allow_user_specified_id=_get_config_val(
             ctx, 'allow_user_specified_id') or ctx.schema_reflection_mode,
+        expand_inhviews=(
+            debug.flags.edgeql_expand_inhviews
+            and not ctx.bootstrap_mode
+            and not ctx.schema_reflection_mode
+        ),
         testmode=_get_config_val(ctx, '__internal_testmode'),
         devmode=_is_dev_instance(ctx),
     )
@@ -1159,11 +1165,12 @@ def _compile_ql_query(
     current_tx = ctx.state.current_tx()
 
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
+    options = _get_compile_options(ctx)
     ir = qlcompiler.compile_ast_to_ir(
         ql,
         schema=schema,
         script_info=script_info,
-        options=_get_compile_options(ctx),
+        options=options,
     )
 
     result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
@@ -1178,6 +1185,7 @@ def _compile_ql_query(
         expected_cardinality_one=ctx.expected_cardinality_one,
         output_format=_convert_format(ctx.output_format),
         backend_runtime_params=ctx.backend_runtime_params,
+        expand_inhviews=options.expand_inhviews,
     )
 
     if (

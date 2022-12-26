@@ -986,7 +986,7 @@ def force_policy_checks(
     # modifications are done.
 
     scan = pgast.Expr(
-        kind=pgast.ExprKind.OP, name='>',
+        name=">",
         lexpr=clauses.make_check_scan(policy_cte, ctx=ctx),
         rexpr=pgast.NumericConstant(val="-1"),
     )
@@ -1980,7 +1980,7 @@ def process_link_update(
                         ),
                         op='=',
                         rexpr=pgast.SubLink(
-                            type=pgast.SubLinkType.ANY,
+                            operator="ANY",
                             expr=ctid_select,
                         ),
                     ),
@@ -2175,7 +2175,7 @@ def process_link_update(
                     ],
                 ),
                 rexpr=pgast.SubLink(
-                    type=pgast.SubLinkType.ALL,
+                    operator="ALL",
                     expr=filter_select,
                 ),
                 op='!=',

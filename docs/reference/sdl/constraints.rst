@@ -152,3 +152,5 @@ The valid SDL sub-declarations are listed below:
   * - :ref:`DDL > Constraints <ref_eql_ddl_constraints>`
   * - :ref:`Introspection > Constraints <ref_eql_introspection_constraints>`
   * - :ref:`Standard Library > Constraints <ref_std_constraints>`
+  * - `Tutorial > Advanced EdgeQL > Constraints
+      </tutorial/advanced-edgeql/constraints>`_

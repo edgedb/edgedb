@@ -309,6 +309,7 @@ def type_to_typeref(
                 _typeref(child, include_children=True)
                 for child in t.children(schema)
                 if not child.get_is_derived(schema)
+                and not child.is_compound_type(schema)
             )
         else:
             children = None

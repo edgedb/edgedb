@@ -5254,29 +5254,100 @@ def _generate_sql_information_schema() -> List[dbops.View]:
         ),
     ]
 
+    pg_catalog_views = [
+        dbops.View(
+            name=("edgedbsql", "pg_namespace"),
+            query="""
+        SELECT * FROM pg_namespace WHERE nspname IN ('pg_catalog', 'pg_toast')
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_type"),
+            query="""
+        SELECT pg_type.*
+        FROM pg_type
+        JOIN pg_namespace pn ON pg_type.typnamespace = pn.oid
+        WHERE nspname IN ('pg_catalog', 'pg_toast')
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_attribute"),
+            query="""
+        SELECT attrelid,
+            attname,
+            atttypid,
+            attstattarget,
+            attlen,
+            attnum,
+            attndims,
+            attcacheoff,
+            atttypmod,
+            attbyval,
+            attstorage,
+            attalign,
+            attnotnull,
+            atthasdef,
+            atthasmissing,
+            attidentity,
+            attgenerated,
+            attisdropped,
+            attislocal,
+            attinhcount,
+            attcollation,
+            attacl,
+            attoptions,
+            attfdwoptions,
+            null::int[] as attmissingval
+        FROM pg_attribute
+        JOIN pg_type pt ON pt.oid = pg_attribute.atttypid
+        JOIN pg_namespace pn ON pt.typnamespace = pn.oid
+        WHERE nspname IN ('pg_catalog', 'pg_toast')
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_range"),
+            query="""
+        SELECT pg_range.*
+        FROM pg_range
+        JOIN pg_type pt ON pt.oid = pg_range.rngtypid
+        JOIN pg_namespace pn ON pt.typnamespace = pn.oid
+        WHERE nspname IN ('pg_catalog', 'pg_toast')
+        """,
+        ),
+    ]
+
+    # We expose most of the views as empty tables, just to prevent errors when
+    # the tools do introspection.
+    # For the tables that it turns out are actually needed, we handcraft the
+    # views that expose the actual data.
+    # I've been cautious about exposing too much data, for example limiting
+    # pg_type to pg_catalog and pg_toast namespaces.
     return tables_and_columns + [
         dbops.View(
-            name=('edgedbsql', table_name),
-            query='SELECT {} LIMIT 0'.format(
-                ','.join(
-                    f'NULL::information_schema.{type} AS {name}'
+            name=("edgedbsql", table_name),
+            query="SELECT {} LIMIT 0".format(
+                ",".join(
+                    f"NULL::information_schema.{type} AS {name}"
                     for name, type in columns
                 )
             ),
         )
         for table_name, columns in sql_introspection.INFORMATION_SCHEMA.items()
-        if table_name not in ['tables', 'columns']
-    ] + [
+        if table_name not in ["tables", "columns"]
+    ] + pg_catalog_views + [
         dbops.View(
-            name=('edgedbsql', table_name),
-            query='SELECT {} LIMIT 0'.format(
-                ','.join(
+            name=("edgedbsql", table_name),
+            query="SELECT {} LIMIT 0".format(
+                ",".join(
                     f'NULL::{type or "text"} AS {name}'
                     for name, type in columns
                 )
             ),
         )
         for table_name, columns in sql_introspection.PG_CATALOG.items()
+        if table_name not in [
+            "pg_type", "pg_attribute", "pg_namespace", "pg_range"
+        ]
     ]
 
 

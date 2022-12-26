@@ -792,6 +792,12 @@ def process_set_as_link_property_ref(
                 {spec.id for spec in rptr_specialization}
                 if rptr_specialization is not None else None
             )
+            if ctx.env.expand_inhviews and ptr_ids and rptr_specialization:
+                ptr_ids.update(
+                    x.id for spec in rptr_specialization
+                    for x in spec.descendants()
+                    if isinstance(x, irast.PointerRef)
+                )
 
             def cb(subquery: pgast.Query) -> None:
                 if isinstance(subquery, pgast.SelectStmt):
@@ -1455,15 +1461,13 @@ def process_set_as_membership_expr(
                 )
 
             negated = str(expr.func_shortname) == 'std::NOT IN'
-            sublink_type = (
-                pgast.SubLinkType.ALL if negated else pgast.SubLinkType.ANY)
 
             set_expr = exprcomp.compile_operator(
                 expr,
                 [
                     left_out,
                     pgast.SubLink(
-                        type=sublink_type,
+                        operator="ALL" if negated else "ANY",
                         expr=right_rel,
                     ),
                 ],
@@ -2545,7 +2549,6 @@ def process_set_as_simple_enumerate(
         named_tuple = any(st.element_name for st in rtype.subtypes)
 
         num_expr = pgast.Expr(
-            kind=pgast.ExprKind.OP,
             name='-',
             lexpr=pgast.FuncCall(
                 name=('row_number',),
@@ -2902,7 +2905,6 @@ def _process_set_func_with_ordinality(
                 path_id=outer_func_expr.tuple_path_ids[0],
                 name=colnames[0],
                 val=pgast.Expr(
-                    kind=pgast.ExprKind.OP,
                     name='-',
                     lexpr=astutils.get_column(
                         func_rvar, colnames[-1], nullable=fexpr.nullable,
@@ -3539,10 +3541,7 @@ def process_set_as_exists_expr(
         wrapper.where_clause = astutils.extend_binop(
             wrapper.where_clause, pgast.NullTest(arg=set_ref, negated=True))
 
-        set_expr = pgast.SubLink(
-            type=pgast.SubLinkType.EXISTS,
-            expr=wrapper
-        )
+        set_expr = pgast.SubLink(operator="EXISTS", expr=wrapper)
 
     pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr, env=ctx.env)
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)

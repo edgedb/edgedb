@@ -325,7 +325,7 @@ class TypeName(ImmutableBase):
     name: typing.Tuple[str, ...]                # Type name
     setof: bool = False                         # SET OF?
     typmods: typing.Optional[list] = None       # Type modifiers
-    array_bounds: typing.Optional[list] = None  # Array bounds
+    array_bounds: typing.Optional[typing.List[int]] = None
 
 
 class ColumnRef(OutputVar):
@@ -621,15 +621,9 @@ class SelectStmt(Query):
     rarg: typing.Optional[Query] = None
 
 
-class ExprKind(enum.IntEnum):
-    OP = enum.auto()
-
-
 class Expr(ImmutableBaseExpr):
     """Infix, prefix, and postfix expressions."""
 
-    # Operator kind
-    kind: ExprKind
     # Possibly-qualified name of operator
     name: str
     # Left argument, if any
@@ -883,23 +877,15 @@ class JoinExpr(BaseRangeVar):
         self.type = other.type
 
 
-class SubLinkType(enum.IntEnum):
-    EXISTS = enum.auto()
-    NOT_EXISTS = enum.auto()
-    ALL = enum.auto()
-    ANY = enum.auto()
-    EXPR = enum.auto()
-
-
 class SubLink(ImmutableBaseExpr):
     """Subselect appearing in an expression."""
 
-    # Type of sublink
-    type: SubLinkType
-    # Sublink expression
-    expr: BaseExpr
     # Sublink expression
     test_expr: typing.Optional[BaseExpr] = None
+    # EXISTS, NOT_EXISTS, ALL, ANY
+    operator: typing.Optional[str]
+    # Sublink expression
+    expr: BaseExpr
     # Sublink is never NULL
     nullable: bool = False
 

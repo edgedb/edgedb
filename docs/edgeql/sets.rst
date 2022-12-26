@@ -449,3 +449,10 @@ Reference
   * - Cardinality assertion
     - :eql:func:`assert_distinct` :eql:func:`assert_single`
       :eql:func:`assert_exists`
+
+.. list-table::
+  :class: seealso
+
+  * - **See also**
+  * - `Tutorial > Building Blocks > Sets
+      </tutorial/building-blocks/working-with-sets>`_

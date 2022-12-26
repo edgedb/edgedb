@@ -32,6 +32,7 @@ from edb.ir import utils as irutils
 
 from edb.schema import abc as s_abc
 from edb.schema import pointers as s_pointers
+from edb.schema import objtypes as s_objtypes
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
@@ -268,6 +269,10 @@ def type_to_typeref(
     include_children = (
         expr_type is s_types.ExprType.Update
         or expr_type is s_types.ExprType.Delete
+        or (
+            env.options.expand_inhviews
+            and isinstance(t, s_objtypes.ObjectType)
+        )
     )
     include_ancestors = (
         expr_type is s_types.ExprType.Insert

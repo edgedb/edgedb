@@ -73,6 +73,11 @@ class GlobalCompilerOptions:
     #: definitions.
     func_params: Optional[s_func.ParameterLikeList] = None
 
+    #: Should the backend compiler expand out inheritance views instead of
+    #: using them. This is needed by EXPLAIN to maintain alias names in
+    #: the query plan.
+    expand_inhviews: bool = False
+
     #: The name that can be used in a "DML is disallowed in ..."
     #: error. When this is not None, any DML should cause an error.
     in_ddl_context_name: Optional[str] = None
@@ -116,13 +121,15 @@ class CompilerOptions(GlobalCompilerOptions):
 
     #: A set of schema types and links that should be treated
     #: as singletons in the context of this compilation.
-    singletons: Collection[Union[s_types.Type, s_pointers.Pointer]] = (
-        frozenset())
+    singletons: Collection[
+        Union[s_types.Type, s_pointers.Pointer]
+    ] = frozenset()
 
     #: Type references that should be remaped to another type.  This
     #: is for dealing with remapping explicit type names in schema
     #: expressions to their subtypes when necessary.
-    type_remaps: Dict[s_types.Type, s_types.Type] = (
-        dc_field(default_factory=dict))
+    type_remaps: Dict[s_obj.Object, s_types.Type] = dc_field(
+        default_factory=dict
+    )
 
     detached: bool = False

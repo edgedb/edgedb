@@ -17,7 +17,6 @@
 #
 
 import os.path
-
 import asyncpg
 
 from edb.testbase import server as tb
@@ -596,3 +595,55 @@ class TestSQL(tb.SQLQueryTestCase):
                 )
             except Exception:
                 raise Exception(f'introspecting {table_name}')
+
+    @test.skip("unimplemented")
+    async def test_sql_schemas(self):
+        await self.migrate(
+            '''
+            mod my_module {
+                type Foo;
+            }
+            '''
+        )
+        await self.squery('SELECT id FROM "my_module"."Foo";')
+        await self.squery('SELECT id FROM "public"."Person";')
+
+        await self.squery(
+            '''
+            SET search_path TO my_module, public;
+            SELECT id FROM "Foo";
+            '''
+        )
+        await self.squery(
+            '''
+            SET search_path TO my_module, public;
+            SELECT id FROM "Person";
+            '''
+        )
+        await self.squery(
+            '''
+            SET search_path TO public;
+            SELECT id FROM "Person";
+            '''
+        )
+        await self.squery(
+            '''
+            SET search_path TO my_module;
+            SELECT id FROM "Foo";
+            '''
+        )
+
+        with self.assertRaisesRegexTx(
+            asyncpg.UndefinedTableError, "unknown table"
+        ):
+            await self.squery('SELECT id FROM "Foo"')
+
+        with self.assertRaisesRegexTx(
+            asyncpg.UndefinedTableError, "unknown table"
+        ):
+            await self.squery(
+                '''
+                SET search_path TO my_module;
+                SELECT id FROM "Person";
+                '''
+            )

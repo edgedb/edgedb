@@ -171,7 +171,6 @@ def new_binop(
     op: str,
 ) -> pgast.Expr:
     return pgast.Expr(
-        kind=pgast.ExprKind.OP,
         name=op,
         lexpr=lexpr,
         rexpr=rexpr
@@ -241,7 +240,6 @@ def extend_select_op(
 
 def new_unop(op: str, expr: pgast.BaseExpr) -> pgast.Expr:
     return pgast.Expr(
-        kind=pgast.ExprKind.OP,
         name=op,
         rexpr=expr
     )

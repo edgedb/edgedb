@@ -42,4 +42,6 @@ This function accepts a :eql:type:`str` as an argument and produces a
   * - :ref:`Reference > Function calls <ref_reference_function_call>`
   * - :ref:`Introspection > Functions <ref_eql_introspection_functions>`
   * - :ref:`Cheatsheets > Functions <ref_cheatsheet_functions>`
+  * - `Tutorial > Advanced EdgeQL > User-Defined Functions
+      </tutorial/advanced-edgeql/user-def-functions>`_
 

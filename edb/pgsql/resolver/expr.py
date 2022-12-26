@@ -111,7 +111,8 @@ def _lookup_column(
             return [(t, c) for t in ctx.scope.tables for c in t.columns]
         else:
             for table in ctx.scope.tables:
-                matched_columns.extend(_lookup_in_table(col_name, table))
+                if not table.in_parent:
+                    matched_columns.extend(_lookup_in_table(col_name, table))
 
     elif len(name) == 2:
         # look for the column in the specific table
@@ -175,11 +176,11 @@ def resolve_SubLink(
     *,
     ctx: Context,
 ) -> pgast.SubLink:
-    with ctx.empty() as subctx:
+    with ctx.child() as subctx:
         expr = dispatch.resolve(sub_link.expr, ctx=subctx)
 
     return pgast.SubLink(
-        type=sub_link.type,
+        operator=sub_link.operator,
         expr=expr,
         test_expr=dispatch.resolve_opt(sub_link.test_expr, ctx=ctx),
     )
@@ -188,7 +189,6 @@ def resolve_SubLink(
 @dispatch._resolve.register
 def resolve_Expr(expr: pgast.Expr, *, ctx: Context) -> pgast.Expr:
     return pgast.Expr(
-        kind=expr.kind,
         name=expr.name,
         lexpr=dispatch.resolve(expr.lexpr, ctx=ctx) if expr.lexpr else None,
         rexpr=dispatch.resolve(expr.rexpr, ctx=ctx) if expr.rexpr else None,

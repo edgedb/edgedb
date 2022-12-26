@@ -119,6 +119,15 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             if getattr(cte, 'recursive', None):
                 self.write('RECURSIVE ')
             self.write(common.quote_ident(cte.name))
+
+            if cte.aliascolnames:
+                self.write('(')
+                for (index, col_name) in enumerate(cte.aliascolnames):
+                    self.write(common.qname(col_name))
+                    if index + 1 < len(cte.aliascolnames):
+                        self.write(',')
+                self.write(')')
+
             self.write(' AS ')
             if cte.materialized is not None:
                 if cte.materialized:
@@ -631,17 +640,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if '.' not in op:
             op = op.upper()
         self.write(op)
-        if op.lower() in {'or', 'and'}:
-            self.new_lines = 1
-            self.char_indentation += 1
         if node.rexpr is not None:
-            self.write(' ')
-            self.visit(node.rexpr)
-        if op.lower() in {'or', 'and'}:
-            self.char_indentation -= 1
-        self.write(')')
+            self.write(" ")
+            self.visit_indented(node.rexpr, indent=op in {"OR", "AND"})
+        self.write(")")
 
-    def visit_NullConstant(self, node: pgast.NullConstant) -> None:
+    def visit_NullConstant(self, _node: pgast.NullConstant) -> None:
         self.write('NULL')
 
     def visit_NumericConstant(self, node: pgast.NumericConstant) -> None:
@@ -729,30 +733,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.val)
 
     def visit_SubLink(self, node: pgast.SubLink) -> None:
-        if node.test_expr and node.type == pgast.SubLinkType.ANY:
+        if node.test_expr:
             self.visit(node.test_expr)
-            self.write(' IN ')
-        elif node.type == pgast.SubLinkType.EXISTS:
-            self.write('EXISTS ')
-        elif node.type == pgast.SubLinkType.NOT_EXISTS:
-            self.write('NOT EXISTS ')
-        elif node.type == pgast.SubLinkType.ALL:
-            self.write('ALL ')
-        elif node.type == pgast.SubLinkType.ANY:
-            self.write('ANY ')
-        elif node.type == pgast.SubLinkType.EXPR:
-            pass
-        else:
-            raise SQLSourceGeneratorError(
-                'unexpected SubLinkType: {!r}'.format(node.type))
 
-        self.write('(')
-        self.new_lines = 1
-        self.indentation += 1
-        self.visit(node.expr)
-        self.indentation -= 1
-        self.new_lines = 1
-        self.write(')')
+        if node.operator:
+            self.write(" " + node.operator + " ")
+        self.visit_indented(node.expr, indent=True, nest=True)
 
     def visit_SortBy(self, node: pgast.SortBy) -> None:
         self.visit(node.node)
@@ -787,7 +773,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             for array_bound in node.array_bounds:
                 self.write('[')
                 if array_bound >= 0:
-                    self.write(array_bound)
+                    self.write(str(array_bound))
                 self.write(']')
 
     def visit_Star(self, _: pgast.Star) -> None:

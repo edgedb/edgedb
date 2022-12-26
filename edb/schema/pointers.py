@@ -1404,14 +1404,16 @@ class PointerCommandOrFragment(
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.CompiledExpression:
+
         if field.name in {'default', 'expr'}:
-            parent_ctx = self.get_referrer_context_or_die(context)
-            source = parent_ctx.op.get_object(schema, context)
-            parent_vname = source.get_verbosename(schema)
-            ptr_name = self.get_verbosename(parent=parent_vname)
-            in_ddl_context_name = None
             if field.name == 'expr':
+                parent_ctx = self.get_referrer_context_or_die(context)
+                source = parent_ctx.op.get_object(schema, context)
+                parent_vname = source.get_verbosename(schema)
+                ptr_name = self.get_verbosename(parent=parent_vname)
                 in_ddl_context_name = f'computed {ptr_name}'
+            else:
+                in_ddl_context_name = None
 
             return self._compile_expr(
                 schema,
@@ -1717,10 +1719,19 @@ class PointerCommand(
         context: sd.CommandContext,
     ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, PointerCommand)
+
         referrer_ctx = cls.get_referrer_context(context)
         if referrer_ctx is not None:
             if getattr(astnode, 'declared_overloaded', False):
                 cmd.set_attribute_value('declared_overloaded', True)
+        else:
+            # This is an abstract property/link
+            if cmd.get_attribute_value('default') is not None:
+                typ = cls.get_schema_metaclass().get_schema_class_displayname()
+                raise errors.SchemaDefinitionError(
+                    f"'default' is not a valid field for an abstract {typ}",
+                    context=astnode.context)
         return cmd
 
     def _process_create_or_alter_ast(

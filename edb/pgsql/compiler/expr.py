@@ -212,18 +212,21 @@ def compile_TypeCast(
             )
         )
 
-    elif expr.sql_function or expr.sql_expr:
+    elif expr.sql_expr:
         # Cast implemented as a function.
+        assert expr.cast_name
 
-        if expr.sql_expr:
-            func_name = common.get_cast_backend_name(
-                expr.cast_name, aspect='function')
-        else:
-            assert expr.sql_function
-            func_name = tuple(expr.sql_function.split('.'))
-
+        func_name = common.get_cast_backend_name(
+            expr.cast_name, aspect="function"
+        )
         res = pgast.FuncCall(
             name=func_name,
+            args=[pg_expr],
+        )
+
+    elif expr.sql_function:
+        res = pgast.FuncCall(
+            name=tuple(expr.sql_function.split(".")),
             args=[pg_expr],
         )
 
@@ -474,7 +477,6 @@ def compile_operator(
     # If result was not already computed, it's going to be a generic Expr.
     if result is None:
         result = pgast.Expr(
-            kind=pgast.ExprKind.OP,
             name=sql_oper,
             lexpr=lexpr,
             rexpr=rexpr,
