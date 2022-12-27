@@ -79,6 +79,8 @@ cdef class QueryRequestInfo:
         inline_typenames: bint = False,
         inline_objectids: bint = True,
         introspect_type_information: bint = False,
+        detailed_type_information: bint = False,
+        detailed_scalar_information: bint = False,
         allow_capabilities: uint64_t = <uint64_t>compiler.Capability.ALL,
     ):
         self.source = source
@@ -91,6 +93,8 @@ cdef class QueryRequestInfo:
         self.inline_typenames = inline_typenames
         self.inline_objectids = inline_objectids
         self.introspect_type_information = introspect_type_information
+        self.detailed_type_information = detailed_type_information
+        self.detailed_scalar_information = detailed_scalar_information
         self.allow_capabilities = allow_capabilities
 
         self.cached_hash = hash((
@@ -1042,6 +1046,8 @@ cdef class DatabaseConnectionView:
                     query_req.inline_objectids,
                     query_req.input_format is compiler.InputFormat.JSON,
                     query_req.introspect_type_information,
+                    query_req.detailed_type_information,
+                    query_req.detailed_scalar_information,
                     self.in_tx_error(),
                 )
             else:
@@ -1065,6 +1071,8 @@ cdef class DatabaseConnectionView:
                     query_req.inline_objectids,
                     query_req.input_format is compiler.InputFormat.JSON,
                     query_req.introspect_type_information,
+                    query_req.detailed_type_information,
+                    query_req.detailed_scalar_information,
                 )
         finally:
             metrics.edgeql_query_compilation_duration.observe(

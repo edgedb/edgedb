@@ -1123,6 +1123,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             compilation_flags
             & messages.CompilationFlag.INTROSPECT_TYPE_INFORMATION
         )
+        detailed_type_information = (
+            compilation_flags
+            & messages.CompilationFlag.DETAILED_TYPE_INFORMATION
+        )
+        detailed_scalar_information = (
+            compilation_flags
+            & messages.CompilationFlag.DETAILED_SCALAR_INFORMATION
+        )
 
         output_format = self.parse_output_format(self.buffer.read_byte())
         expect_one = (
@@ -1151,6 +1159,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             inline_typenames=inline_typenames,
             inline_objectids=inline_objectids,
             introspect_type_information=introspect_type_information,
+            detailed_type_information=detailed_type_information,
+            detailed_scalar_information=detailed_scalar_information,
             allow_capabilities=allow_capabilities,
         )
 

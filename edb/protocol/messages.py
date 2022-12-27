@@ -521,10 +521,12 @@ class Capability(enum.IntFlag):
 
 class CompilationFlag(enum.IntFlag):
 
-    INJECT_OUTPUT_TYPE_IDS       = 1 << 0    # noqa
-    INJECT_OUTPUT_TYPE_NAMES     = 1 << 1    # noqa
-    INJECT_OUTPUT_OBJECT_IDS     = 1 << 2    # noqa
-    INTROSPECT_TYPE_INFORMATION  = 1 << 3    # noqa
+    INJECT_OUTPUT_TYPE_IDS      = 1 << 0    # noqa
+    INJECT_OUTPUT_TYPE_NAMES    = 1 << 1    # noqa
+    INJECT_OUTPUT_OBJECT_IDS    = 1 << 2    # noqa
+    INTROSPECT_TYPE_INFORMATION = 1 << 3    # noqa
+    DETAILED_TYPE_INFORMATION   = 1 << 4    # noqa
+    DETAILED_SCALAR_INFORMATION = 1 << 5    # noqa
 
 
 class ErrorSeverity(enum.Enum):

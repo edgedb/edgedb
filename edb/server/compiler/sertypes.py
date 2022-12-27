@@ -75,7 +75,9 @@ CTYPE_ARRAY = b'\x06'
 CTYPE_ENUM = b'\x07'
 CTYPE_INPUT_SHAPE = b'\x08'
 CTYPE_RANGE = b'\x09'
-CTYPE_ANNO_INTROSPECTION = b'\xfe'
+CTYPE_ANNO_INTROSPECTION = b'\xfc'
+CTYPE_DETAILED_INTROSPECTION = b'\xfd'
+CTYPE_DETAILED_ANNO_TYPENAME = b'\xfe'
 CTYPE_ANNO_TYPENAME = b'\xff'
 
 EMPTY_BYTEARRAY = bytearray()
@@ -126,13 +128,18 @@ class TypeSerializer:
         *,
         inline_typenames: bool = False,
         introspect_type_information: bool = False,
+        detailed_type_information: bool = False,
+        detailed_scalar_information: bool = False,
     ):
         self.schema = schema
         self.buffer = []
         self.anno_buffer = []
         self.uuid_to_pos = {}
+        self.tracked_anno_ids = []
         self.inline_typenames = inline_typenames
         self.introspect_type_information = introspect_type_information
+        self.detailed_type_information = detailed_type_information
+        self.detailed_scalar_information = detailed_scalar_information
 
         if introspect_type_information:
             self.codec_type_information = {}
@@ -547,6 +554,22 @@ class TypeSerializer:
         return idx
 
     def _add_annotation(self, t: s_types.Type):
+        if self.detailed_scalar_information and isinstance(
+            t, s_scalars.ScalarType
+        ):
+            self._add_detailed_annotation(t)
+        else:
+            self._add_basic_annotation(t)
+
+    def _compile_type_information(self) -> bytes:
+        return self._compile_detailed_type_information() \
+            if self.detailed_type_information \
+            else self._compile_basic_type_information()
+
+    def _add_basic_annotation(self, t: s_types.Type):
+        if t.id in self.tracked_anno_ids:
+            return
+
         self.anno_buffer.append(CTYPE_ANNO_TYPENAME)
 
         self.anno_buffer.append(t.id.bytes)
@@ -557,10 +580,58 @@ class TypeSerializer:
         self.anno_buffer.append(_uint32_packer(len(tn_bytes)))
         self.anno_buffer.append(tn_bytes)
 
-    def _compile_type_information(self) -> bytes:
+        self.tracked_anno_ids.append(t.id)
+
+    def _add_detailed_annotation(self, t: s_scalars.ScalarType):
+        if t.id in self.tracked_anno_ids:
+            return
+
+        ancestors = t.get_ancestors(self.schema).objects(self.schema)
+
+        for ancestor in ancestors:
+            self._add_annotation(ancestor)
+
+        self.anno_buffer.append(CTYPE_DETAILED_ANNO_TYPENAME)
+
+        self.anno_buffer.append(t.id.bytes)
+
+        tn = t.get_displayname(self.schema)
+
+        tn_bytes = tn.encode('utf-8')
+        self.anno_buffer.append(_uint32_packer(len(tn_bytes)))
+        self.anno_buffer.append(tn_bytes)
+
+        self.anno_buffer.append(_uint32_packer(len(ancestors)))
+
+        for ancestor in ancestors:
+            self.anno_buffer.append(ancestor.id.bytes)
+
+        self.tracked_anno_ids.append(t.id)
+
+    def _compile_basic_type_information(self) -> bytes:
         buf = []
 
         buf.append(CTYPE_ANNO_INTROSPECTION)
+
+        buf.append(_uint16_packer(len(self.codec_type_information)))
+
+        for codec_id, val in self.codec_type_information.items():
+            type = val[0]
+
+            buf.append(codec_id.bytes)
+
+            tname = type.get_displayname(self.schema)
+            buf.append(_uint32_packer(len(tname)))
+            buf.append(tname.encode('utf-8'))
+
+            buf.append(type.get_id(self.schema).bytes)
+
+        return b''.join(buf)
+
+    def _compile_detailed_type_information(self) -> bytes:
+        buf = []
+
+        buf.append(CTYPE_DETAILED_INTROSPECTION)
 
         # encode ancestor information
         buf.append(_uint16_packer(len(self.ancestor_type_information)))
@@ -667,12 +738,16 @@ class TypeSerializer:
         follow_links: bool = True,
         inline_typenames: bool = False,
         introspect_type_information: bool = False,
+        detailed_type_information: bool = False,
+        detailed_scalar_information: bool = False,
         name_filter: str = "",
     ) -> typing.Tuple[bytes, uuidgen.UUID]:
         builder = cls(
             schema,
             inline_typenames=inline_typenames,
             introspect_type_information=introspect_type_information,
+            detailed_type_information=detailed_type_information,
+            detailed_scalar_information=detailed_scalar_information
         )
         type_id = builder._describe_type(
             typ, view_shapes, view_shapes_metadata,
