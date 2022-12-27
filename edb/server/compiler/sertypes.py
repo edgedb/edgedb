@@ -75,6 +75,7 @@ CTYPE_ARRAY = b'\x06'
 CTYPE_ENUM = b'\x07'
 CTYPE_INPUT_SHAPE = b'\x08'
 CTYPE_RANGE = b'\x09'
+CTYPE_ANCESTOR_ANNO_INTROSPECTION = b'\xfb'
 CTYPE_ANNO_INTROSPECTION = b'\xfc'
 CTYPE_DETAILED_INTROSPECTION = b'\xfd'
 CTYPE_DETAILED_ANNO_TYPENAME = b'\xfe'
@@ -140,10 +141,6 @@ class TypeSerializer:
         self.introspect_type_information = introspect_type_information
         self.detailed_type_information = detailed_type_information
         self.detailed_scalar_information = detailed_scalar_information
-
-        if introspect_type_information:
-            self.codec_type_information = {}
-            self.ancestor_type_information = []
 
     def _get_collection_type_id(self, coll_type, subtypes,
                                 element_names=None):
@@ -406,7 +403,7 @@ class TypeSerializer:
 
             if self.introspect_type_information:
                 # add the introspection data
-                self._track_type_information(type_id, mt, self.schema)
+                self._add_type_annotation(type_id, mt)
 
             return type_id
 
@@ -432,7 +429,7 @@ class TypeSerializer:
                     buf.append(enum_val_bytes)
 
                 if self.inline_typenames:
-                    self._add_annotation(mt)
+                    self._add_scalar_annotation(mt)
 
             elif mt == base_type:
                 buf.append(CTYPE_BASE_SCALAR)
@@ -448,7 +445,7 @@ class TypeSerializer:
                 buf.append(_uint16_packer(self.uuid_to_pos[bt_id]))
 
                 if self.inline_typenames:
-                    self._add_annotation(mt)
+                    self._add_scalar_annotation(mt)
 
             self._register_type_id(type_id)
             return type_id
@@ -515,58 +512,23 @@ class TypeSerializer:
         else:
             return self._describe_type(t, {}, {}, protocol_version)
 
-    def _track_type_information(
-        self, id: uuid.UUID, t: s_types.InheritingType,
-        schema: s_schema.Schema
-    ):
-        # get all ancestors of the type and track them
-        ancestors = {
-            x.id: self._track_ancestor_type_information(x, schema)
-            for x in t.get_bases(schema).objects(schema)
-            if x.get_displayname(schema) not in [
-                'std::BaseObject', 'std::Object'
-            ]
-        }.values()
-
-        self.codec_type_information[id] = t, ancestors
-
-    def _track_ancestor_type_information(
-        self, t: s_types.InheritingType,
-        schema: s_schema.Schema
-    ) -> int:
-        if any(x[0] is t for x in self.ancestor_type_information):
-            return self.ancestor_type_information.index(
-                next(x for x in self.ancestor_type_information if x[0] is t)
-            )
-
-        ancestors = {
-            x.id: self._track_ancestor_type_information(x, schema)
-            for x in t.get_bases(schema).objects(schema)
-            if x.get_displayname(schema) not in [
-                'std::BaseObject', 'std::Object'
-            ]
-        }.values()
-
-        idx = len(self.ancestor_type_information)
-
-        self.ancestor_type_information.append((t, ancestors))
-
-        return idx
-
-    def _add_annotation(self, t: s_types.Type):
+    def _add_scalar_annotation(self, t: s_types.Type):
         if self.detailed_scalar_information and isinstance(
             t, s_scalars.ScalarType
         ):
-            self._add_detailed_annotation(t)
+            self._add_detailed_scalar_annotation(t)
         else:
-            self._add_basic_annotation(t)
+            self._add_basic_scalar_annotation(t)
 
-    def _compile_type_information(self) -> bytes:
-        return self._compile_detailed_type_information() \
+    def _add_type_annotation(
+        self, descriptor_id: uuid.UUID,
+        t: s_objtypes.ObjectType
+    ) -> bytes:
+        return self._add_detailed_type_annotation(descriptor_id, t) \
             if self.detailed_type_information \
-            else self._compile_basic_type_information()
+            else self._add_basic_type_annotation(descriptor_id, t)
 
-    def _add_basic_annotation(self, t: s_types.Type):
+    def _add_basic_scalar_annotation(self, t: s_types.Type):
         if t.id in self.tracked_anno_ids:
             return
 
@@ -582,14 +544,14 @@ class TypeSerializer:
 
         self.tracked_anno_ids.append(t.id)
 
-    def _add_detailed_annotation(self, t: s_scalars.ScalarType):
+    def _add_detailed_scalar_annotation(self, t: s_scalars.ScalarType):
         if t.id in self.tracked_anno_ids:
             return
 
         ancestors = t.get_ancestors(self.schema).objects(self.schema)
 
         for ancestor in ancestors:
-            self._add_annotation(ancestor)
+            self._add_scalar_annotation(ancestor)
 
         self.anno_buffer.append(CTYPE_DETAILED_ANNO_TYPENAME)
 
@@ -608,67 +570,76 @@ class TypeSerializer:
 
         self.tracked_anno_ids.append(t.id)
 
-    def _compile_basic_type_information(self) -> bytes:
-        buf = []
+    def _add_basic_type_annotation(
+        self, descriptor_id: uuid.UUID,
+        t: s_objtypes.ObjectType
+    ):
+        if descriptor_id in self.tracked_anno_ids:
+            return
 
-        buf.append(CTYPE_ANNO_INTROSPECTION)
+        self.anno_buffer.append(CTYPE_ANNO_INTROSPECTION)
 
-        buf.append(_uint16_packer(len(self.codec_type_information)))
+        self.anno_buffer.append(descriptor_id.bytes)
 
-        for codec_id, val in self.codec_type_information.items():
-            type = val[0]
+        tn = t.get_displayname(self.schema)
+        tn_bytes = tn.encode('utf-8')
+        self.anno_buffer.append(_uint32_packer(len(tn_bytes)))
+        self.anno_buffer.append(tn_bytes)
 
-            buf.append(codec_id.bytes)
+        self.tracked_anno_ids.append(descriptor_id)
 
-            tname = type.get_displayname(self.schema)
-            buf.append(_uint32_packer(len(tname)))
-            buf.append(tname.encode('utf-8'))
+    def _add_detailed_type_annotation(
+        self, descriptor_id: uuid.UUID,
+        t: s_objtypes.ObjectType
+    ):
+        if descriptor_id in self.tracked_anno_ids:
+            return
 
-            buf.append(type.get_id(self.schema).bytes)
+        bases = t.get_bases(self.schema).objects(self.schema)
 
-        return b''.join(buf)
+        for base in bases:
+            self._add_ancestor_type_annotation(base)
 
-    def _compile_detailed_type_information(self) -> bytes:
-        buf = []
+        self.anno_buffer.append(CTYPE_DETAILED_INTROSPECTION)
 
-        buf.append(CTYPE_DETAILED_INTROSPECTION)
+        self.anno_buffer.append(descriptor_id.bytes)
 
-        # encode ancestor information
-        buf.append(_uint16_packer(len(self.ancestor_type_information)))
+        tn = t.get_displayname(self.schema)
+        tn_bytes = tn.encode('utf-8')
+        self.anno_buffer.append(_uint32_packer(len(tn_bytes)))
+        self.anno_buffer.append(tn_bytes)
 
-        for type, ancestors in self.ancestor_type_information:
-            tname = type.get_displayname(self.schema)
-            buf.append(_uint32_packer(len(tname)))
-            buf.append(tname.encode('utf-8'))
+        self.anno_buffer.append(t.id.bytes)
 
-            buf.append(type.get_id(self.schema).bytes)
+        self.anno_buffer.append(_uint32_packer(len(bases)))
+        for base in bases:
+            self.anno_buffer.append(base.id.bytes)
 
-            buf.append(_uint16_packer(len(ancestors)))
+        self.tracked_anno_ids.append(descriptor_id)
 
-            for idx in ancestors:
-                buf.append(_uint16_packer(idx))
+    def _add_ancestor_type_annotation(self, t: s_objtypes.ObjectType):
+        if t.id in self.tracked_anno_ids:
+            return
 
-        # encode main type information
-        buf.append(_uint16_packer(len(self.codec_type_information)))
+        bases = t.get_bases(self.schema).objects(self.schema)
 
-        for codec_id, val in self.codec_type_information.items():
-            type = val[0]
-            ancestors = val[1]
+        for base in bases:
+            self._add_ancestor_type_annotation(base)
 
-            buf.append(codec_id.bytes)
+        self.anno_buffer.append(CTYPE_ANCESTOR_ANNO_INTROSPECTION)
 
-            tname = type.get_displayname(self.schema)
-            buf.append(_uint32_packer(len(tname)))
-            buf.append(tname.encode('utf-8'))
+        self.anno_buffer.append(t.id.bytes)
 
-            buf.append(type.get_id(self.schema).bytes)
+        tn = t.get_displayname(self.schema)
+        tn_bytes = tn.encode('utf-8')
+        self.anno_buffer.append(_uint32_packer(len(tn_bytes)))
+        self.anno_buffer.append(tn_bytes)
 
-            buf.append(_uint16_packer(len(ancestors)))
+        self.anno_buffer.append(_uint32_packer(len(bases)))
+        for base in bases:
+            self.anno_buffer.append(base.id.bytes)
 
-            for idx in ancestors:
-                buf.append(_uint16_packer(idx))
-
-        return b''.join(buf)
+        self.tracked_anno_ids.append(t.id)
 
     @classmethod
     def describe_params(
@@ -754,10 +725,6 @@ class TypeSerializer:
             protocol_version, follow_links=follow_links,
             name_filter=name_filter)
         out = b''.join(builder.buffer) + b''.join(builder.anno_buffer)
-
-        if introspect_type_information:
-            out = out + builder._compile_type_information()
-
         return out, type_id
 
     @classmethod
