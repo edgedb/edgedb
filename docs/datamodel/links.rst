@@ -285,7 +285,7 @@ as the property of the source object (for many-to-one and one-to-one cases).
 It is generally advisable to use object properties instead of link properties
 in these cases due to better ergonomics of selecting, updating, and even
 casting into :eql:type:`json` when keeping all data in the same place rather
-than speading it across link and object properties.
+than spreading it across link and object properties.
 
 .. note::
 
