@@ -25,3 +25,4 @@ running EdgeDB `in Docker <https://github.com/edgedb/edgedb-docker>`_.
     heroku
     docker
     bare_metal
+    health_checks

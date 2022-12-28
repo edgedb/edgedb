@@ -40,3 +40,4 @@ In development:
     :hidden:
 
     protocol
+    liveness-readiness
