@@ -7,9 +7,10 @@ Using link properties
 :index: property
 
 
-Links can contain **properties**. Due to how they're persisted under the hood,
-link properties have a few additional constraints: they're always *single* and
-*optional*.
+Links can contain **properties**. These are distinct from links themselves
+(which we refer to as simply "links") and are used to store metadata about a
+link. Due to how they're persisted under the hood, link properties have a few
+additional constraints: they're always *single* and *optional*.
 
 .. note::
 
