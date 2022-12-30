@@ -40,4 +40,4 @@ In development:
     :hidden:
 
     protocol
-    liveness-readiness
+    health-checks
