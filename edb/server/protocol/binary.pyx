@@ -19,7 +19,6 @@
 import asyncio
 import base64
 import collections
-import hashlib
 import json
 import logging
 import time
@@ -82,13 +81,10 @@ from edb.common import context as pctx
 
 from edb.protocol import messages
 
-from edgedb import scram
-
 
 include "./consts.pxi"
 
 
-DEF FLUSH_BUFFER_AFTER = 100_000
 cdef bytes EMPTY_TUPLE_UUID = s_obj.get_known_type_id('empty-tuple').bytes
 
 cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
@@ -148,44 +144,20 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         self,
         server,
         *,
-        external_auth: bool,
-        passive: bool,
-        transport: srvargs.ServerConnTransport,
         auth_data: bytes,
         conn_params: dict[str, str] | None,
         protocol_version: tuple[int, int] = CURRENT_PROTOCOL,
+        **kwargs,
     ):
+        super().__init__(server, **kwargs)
         self._con_status = EDGECON_NEW
-        self._id = server.on_binary_client_created()
-        self.server = server
-        self._external_auth = external_auth
 
-        self.loop = server.get_loop()
         self._dbview = None
-        self.dbname = None
-
-        self._transport = None
-        self.buffer = ReadBuffer()
-
-        self._cancelled = False
-        self._stop_requested = False
-        self._pgcon_released_in_connection_lost = False
-
-        self._main_task = None
-        self._msg_take_waiter = None
-        self._write_waiter = None
 
         self._last_anon_compiled = None
 
-        self._write_buf = None
-
-        self.debug = debug.flags.server_proto
         self.query_cache_enabled = not (debug.flags.disable_qcache or
                                         debug.flags.edgeql_compile)
-
-        self.authed = False
-        self.idling = False
-        self.started_idling_at = 0.0
 
         self.protocol_version = protocol_version
         self.min_protocol = MIN_PROTOCOL
@@ -193,110 +165,19 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self._conn_params = conn_params
 
-        self._pinned_pgcon = None
-        self._pinned_pgcon_in_tx = False
-        self._get_pgcon_cc = 0
-
         self._in_dump_restore = False
-
-        # In "passive" mode the protocol is instantiated to parse and execute
-        # just what's in the buffer. It cannot "wait for message". This
-        # is used to implement binary protocol over http+fetch.
-        self._passive_mode = passive
-
-        self._transport_proto = transport
 
         # Authentication data supplied by the transport (e.g. the content
         # of an HTTP Authorization header).
         self._auth_data = auth_data
 
-    def __del__(self):
-        # Should not ever happen, there's a strong ref to
-        # every client connection until it hits connection_lost().
-        if self._pinned_pgcon is not None:
-            # XXX/TODO: add test diagnostics for this and
-            # fail all tests if this ever happens.
-            self.abort_pinned_pgcon()
+    cdef is_in_tx(self):
+        return self.get_dbview().in_tx()
 
     cdef inline dbview.DatabaseConnectionView get_dbview(self):
         if self._dbview is None:
             raise RuntimeError('Cannot access dbview while it is None')
         return self._dbview
-
-    def get_id(self):
-        return self._id
-
-    @property
-    def cancelled(self) -> bool:
-        return self._cancelled
-
-    async def get_pgcon(self) -> pgcon.PGConnection:
-        cdef dbview.DatabaseConnectionView _dbview
-        if self._cancelled or self._pgcon_released_in_connection_lost:
-            raise RuntimeError(
-                'cannot acquire a pgconn; the connection is closed')
-        self._get_pgcon_cc += 1
-        try:
-            if self._get_pgcon_cc > 1:
-                raise RuntimeError('nested get_pgcon() calls are prohibited')
-            _dbview = self.get_dbview()
-            if _dbview.in_tx():
-                #  In transaction. We must have a working pinned connection.
-                if not self._pinned_pgcon_in_tx or self._pinned_pgcon is None:
-                    raise RuntimeError(
-                        'get_pgcon(): in dbview transaction, '
-                        'but `_pinned_pgcon` is None')
-                return self._pinned_pgcon
-            if self._pinned_pgcon is not None:
-                raise RuntimeError('there is already a pinned pgcon')
-            conn = await self.server.acquire_pgcon(self.dbname)
-            self._pinned_pgcon = conn
-            conn.pinned_by = self
-            return conn
-        except Exception:
-            self._get_pgcon_cc -= 1
-            raise
-
-    def maybe_release_pgcon(self, pgcon.PGConnection conn):
-        cdef dbview.DatabaseConnectionView _dbview
-        self._get_pgcon_cc -= 1
-        if self._get_pgcon_cc < 0:
-            raise RuntimeError(
-                'maybe_release_pgcon() called more times than get_pgcon()')
-        if self._pinned_pgcon is not conn:
-            raise RuntimeError('mismatched released connection')
-
-        _dbview = self.get_dbview()
-        if _dbview.in_tx():
-            if self._cancelled:
-                # There could be a situation where we cancel the protocol while
-                # it's in a transaction. In which case we want to immediately
-                # return the connection to the pool (where it would be
-                # discarded and re-opened.)
-                conn.pinned_by = None
-                self._pinned_pgcon = None
-                if not self._pgcon_released_in_connection_lost:
-                    self.server.release_pgcon(self.dbname, conn)
-            else:
-                self._pinned_pgcon_in_tx = True
-        else:
-            conn.pinned_by = None
-            self._pinned_pgcon_in_tx = False
-            self._pinned_pgcon = None
-            if not self._pgcon_released_in_connection_lost:
-                self.server.release_pgcon(self.dbname, conn)
-
-    def on_aborted_pgcon(self, pgcon.PGConnection conn):
-        try:
-            self._pinned_pgcon = None
-
-            if not self._pgcon_released_in_connection_lost:
-                self.server.release_pgcon(self.dbname, conn, discard=True)
-
-            if conn.aborted_with_error is not None:
-                self.write_error(conn.aborted_with_error)
-        finally:
-            self.close()  # will flush
 
     def debug_print(self, *args):
         if self._dbview is None:
@@ -320,47 +201,17 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 file=sys.stderr,
             )
 
-    cdef write(self, WriteBuffer buf):
-        # One rule for this method: don't write partial messages.
-        if self._write_buf is not None:
-            self._write_buf.write_buffer(buf)
-            if self._write_buf.len() >= FLUSH_BUFFER_AFTER:
-                self.flush()
-        else:
-            self._write_buf = buf
-
-    cdef abort_pinned_pgcon(self):
-        if self._pinned_pgcon is not None:
-            self._pinned_pgcon.pinned_by = None
-            self._pinned_pgcon.abort()
-            self.server.release_pgcon(
-                self.dbname, self._pinned_pgcon, discard=True)
-            self._pinned_pgcon = None
-
     def is_idle(self, expiry_time: float):
         # A connection is idle if it awaits for the next message for
         # client for too long (even if it is in an open transaction!)
         return (
             self._con_status != EDGECON_BAD and
-            self.idling and
-            self.started_idling_at < expiry_time and
+            super().is_idle(expiry_time) and
             not self._in_dump_restore
         )
 
     def is_alive(self):
-        return (
-            self._con_status == EDGECON_STARTED and
-            self._transport is not None and
-            not self._cancelled
-        )
-
-    def abort(self):
-        self.abort_pinned_pgcon()
-        self.stop_connection()
-
-        if self._transport is not None:
-            self._transport.abort()
-            self._transport = None
+        return self._con_status == EDGECON_STARTED and super().is_alive()
 
     def close_for_idling(self):
         try:
@@ -371,54 +222,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         finally:
             self.close()  # will flush
 
-    def close(self):
-        self.abort_pinned_pgcon()
-        self.stop_connection()
-
-        if self._transport is not None:
-            self.flush()
-            self._transport.close()
-            self._transport = None
-
-    def stop(self):
-        # Actively stop a binary connection - this is used by the server
-        # when it's stopping.
-
-        self._stop_requested = True
-        if self._msg_take_waiter is not None:
-            if not self._msg_take_waiter.done():
-                self._msg_take_waiter.cancel()
-
-    cdef flush(self):
-        if self._transport is None:
-            # could be if the connection is lost and a coroutine
-            # method is finalizing.
-            raise ConnectionAbortedError
-        if self._write_buf is not None and self._write_buf.len():
-            buf = self._write_buf
-            self._write_buf = None
-            self._transport.write(memoryview(buf))
-
-    async def wait_for_message(self, *, bint report_idling):
-        if self.buffer.take_message():
-            return
-        if self._passive_mode:
-            raise RuntimeError('cannot wait for more messages in passive mode')
-        if self._transport is None:
-            # could be if the connection is lost and a coroutine
-            # method is finalizing.
-            raise ConnectionAbortedError
-
-        self._msg_take_waiter = self.loop.create_future()
-        if report_idling:
-            self.idling = True
-            self.started_idling_at = time.monotonic()
-
-        try:
-            await self._msg_take_waiter
-        finally:
-            self.idling = False
-
+    cdef _after_idling(self):
         self.server.on_binary_client_after_idling(self)
 
     async def do_handshake(self):
@@ -473,34 +277,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         await self._start_connection(database)
 
-        # The user has already been authenticated by other means
-        # (such as the ability to write to a protected socket).
-        if self._external_auth:
-            authmethod_name = 'Trust'
-        else:
-            authmethod = await self.server.get_auth_method(
-                user, self._transport_proto)
-            authmethod_name = type(authmethod).__name__
-
-        if authmethod_name == 'SCRAM':
-            await self._auth_scram(user)
-        elif authmethod_name == 'JWT':
-            # token in the HTTP header has higher priority than
-            # the ClientHandshake message, under the scenario of
-            # binary protocol over HTTP
-            if self._auth_data:
-                token = self._extract_token_from_auth_data(self._auth_data)
-            else:
-                token = params.get('secret_key')
-            self._auth_jwt(user, token)
-        elif authmethod_name == 'Trust':
-            self._auth_trust(user)
-        else:
-            raise errors.InternalServerError(
-                f'unimplemented auth method: {authmethod_name}')
-
-        logger.debug('successfully authenticated %s in database %s',
-                     user, database)
+        await self._authenticate(user, database, params)
 
         if self._transport_proto is srvargs.ServerConnTransport.HTTP:
             return
@@ -601,17 +378,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         self._con_status = EDGECON_STARTED
 
-    def stop_connection(self) -> None:
+    cdef stop_connection(self):
         self._con_status = EDGECON_BAD
 
         if self._dbview is not None:
             self.server.remove_dbview(self._dbview)
             self._dbview = None
-
-    def _auth_trust(self, user):
-        roles = self.server.get_roles()
-        if user not in roles:
-            raise errors.AuthenticationError('authentication failed')
 
     def _extract_token_from_auth_data(self, auth_data):
         header_value = auth_data.decode("ascii")
@@ -622,7 +394,17 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
         return prefixed_token.strip()
 
-    def _auth_jwt(self, user, prefixed_token):
+    def _auth_jwt(self, user, params):
+        # token in the HTTP header has higher priority than
+        # the ClientHandshake message, under the scenario of
+        # binary protocol over HTTP
+        if self._auth_data:
+            prefixed_token = self._extract_token_from_auth_data(
+                self._auth_data
+            )
+        else:
+            prefixed_token = params.get('secret_key')
+
         if not prefixed_token:
             raise errors.AuthenticationError(
                 'authentication failed: no authorization data provided')
@@ -679,174 +461,54 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 raise errors.AuthenticationError(
                     'authentication failed: role not authorized by this JWT')
 
-    async def _auth_scram(self, user):
-        # Tell the client that we require SASL SCRAM auth.
+    cdef WriteBuffer _make_authentication_sasl_initial(self, list methods):
+        cdef WriteBuffer msg_buf
         msg_buf = WriteBuffer.new_message(b'R')
         msg_buf.write_int32(10)
         # Number of auth methods followed by a series
         # of zero-terminated strings identifying each method,
         # sorted in the order of server preference.
-        msg_buf.write_int32(1)
-        msg_buf.write_len_prefixed_bytes(b'SCRAM-SHA-256')
-        msg_buf.end_message()
-        self.write(msg_buf)
-        self.flush()
+        msg_buf.write_int32(len(methods))
+        for method in methods:
+            msg_buf.write_len_prefixed_bytes(method)
+        return msg_buf.end_message()
 
-        selected_mech = None
-        verifier = None
-        mock_auth = False
-        client_nonce = None
-        cb_flag = None
-        done = False
+    cdef _expect_sasl_initial_response(self):
+        mtype = self.buffer.get_message_type()
+        if mtype != b'p':
+            raise errors.BinaryProtocolError(
+                f'expected SASL response, got message type {mtype}')
+        selected_mech = self.buffer.read_len_prefixed_bytes()
+        client_first = self.buffer.read_len_prefixed_bytes()
+        self.buffer.finish_message()
+        if not client_first:
+            # The client didn't send the Client Initial Response
+            # in SASLInitialResponse, this is an error.
+            raise errors.BinaryProtocolError(
+                f'client did not send the Client Initial Response '
+                f'data in SASLInitialResponse')
+        return selected_mech, client_first
 
-        while not done:
-            if not self.buffer.take_message():
-                await self.wait_for_message(report_idling=True)
-            mtype = self.buffer.get_message_type()
+    cdef WriteBuffer _make_authentication_sasl_msg(
+        self, bytes data, bint final
+    ):
+        cdef WriteBuffer msg_buf
+        msg_buf = WriteBuffer.new_message(b'R')
+        if final:
+            msg_buf.write_int32(12)
+        else:
+            msg_buf.write_int32(11)
+        msg_buf.write_len_prefixed_bytes(data)
+        return msg_buf.end_message()
 
-            if selected_mech is None:
-                if mtype != b'p':
-                    raise errors.BinaryProtocolError(
-                        f'expected SASL response, got message type {mtype}')
-                # Initial response.
-                selected_mech = self.buffer.read_len_prefixed_bytes()
-                if selected_mech != b'SCRAM-SHA-256':
-                    raise errors.BinaryProtocolError(
-                        f'client selected an invalid SASL authentication '
-                        f'mechanism')
-
-                verifier, mock_auth = self._get_scram_verifier(user)
-                client_first = self.buffer.read_len_prefixed_bytes()
-                self.buffer.finish_message()
-
-                if not client_first:
-                    # The client didn't send the Client Initial Response
-                    # in SASLInitialResponse, this is an error.
-                    raise errors.BinaryProtocolError(
-                        f'client did not send the Client Initial Response '
-                        f'data in SASLInitialResponse')
-
-                try:
-                    bare_offset, cb_flag, authzid, username, client_nonce = (
-                        scram.parse_client_first_message(client_first))
-                except ValueError as e:
-                    raise errors.BinaryProtocolError(str(e))
-
-                client_first_bare = client_first[bare_offset:]
-
-                if isinstance(cb_flag, str):
-                    raise errors.BinaryProtocolError(
-                        'malformed SCRAM message',
-                        details='The client selected SCRAM-SHA-256 without '
-                                'channel binding, but the SCRAM message '
-                                'includes channel binding data.')
-
-                if authzid:
-                    raise errors.UnsupportedFeatureError(
-                        'client uses SASL authorization identity, '
-                        'which is not supported')
-
-                server_nonce = scram.generate_nonce()
-                server_first = scram.build_server_first_message(
-                    server_nonce, client_nonce,
-                    verifier.salt, verifier.iterations).encode('utf-8')
-
-                # AuthenticationSASLContinue
-                msg_buf = WriteBuffer.new_message(b'R')
-                msg_buf.write_int32(11)
-                msg_buf.write_len_prefixed_bytes(server_first)
-                msg_buf.end_message()
-                self.write(msg_buf)
-                self.flush()
-
-            else:
-                if mtype != b'r':
-                    raise errors.BinaryProtocolError(
-                        f'expected SASL response, got message type {mtype}')
-                # client final message
-                client_final = self.buffer.read_len_prefixed_bytes()
-                self.buffer.finish_message()
-
-                try:
-                    cb_data, client_proof, proof_len = (
-                        scram.parse_client_final_message(
-                            client_final, client_nonce, server_nonce))
-                except ValueError as e:
-                    raise errors.BinaryProtocolError(str(e)) from None
-
-                client_final_without_proof = client_final[:-proof_len]
-
-                cb_data_ok = (
-                    (cb_flag is False and cb_data == b'biws')
-                    or (cb_flag is True and cb_data == b'eSws')
-                )
-                if not cb_data_ok:
-                    raise errors.BinaryProtocolError(
-                        'malformed SCRAM message',
-                        details='Unexpected SCRAM channel-binding attribute '
-                                'in client-final-message.')
-
-                if not scram.verify_client_proof(
-                        client_first_bare, server_first,
-                        client_final_without_proof,
-                        verifier.stored_key, client_proof):
-                    raise errors.AuthenticationError(
-                        'authentication failed')
-
-                if mock_auth:
-                    # This user actually does not exist, so fail here.
-                    raise errors.AuthenticationError(
-                        'authentication failed')
-
-                server_final = scram.build_server_final_message(
-                    client_first_bare,
-                    server_first,
-                    client_final_without_proof,
-                    verifier.server_key,
-                )
-
-                # AuthenticationSASLFinal
-                msg_buf = WriteBuffer.new_message(b'R')
-                msg_buf.write_int32(12)
-                msg_buf.write_len_prefixed_utf8(server_final)
-                msg_buf.end_message()
-                self.write(msg_buf)
-                self.flush()
-
-                done = True
-
-    def _get_scram_verifier(self, user):
-        server = self.server
-        roles = server.get_roles()
-
-        rolerec = roles.get(user)
-        if rolerec is not None:
-            verifier_string = rolerec['password']
-            if verifier_string is not None:
-                try:
-                    verifier = scram.parse_verifier(verifier_string)
-                except ValueError:
-                    raise errors.AuthenticationError(
-                        f'invalid SCRAM verifier for user {user!r}') from None
-                is_mock = False
-                return verifier, is_mock
-
-        # To avoid revealing the validity of the submitted user name,
-        # generate a mock verifier using a salt derived from the
-        # received user name and the cluster mock auth nonce.
-        # The same approach is taken by Postgres.
-        nonce = server.get_instance_data('mock_auth_nonce')
-        salt = hashlib.sha256(nonce.encode() + user.encode()).digest()
-
-        verifier = scram.SCRAMVerifier(
-            mechanism='SCRAM-SHA-256',
-            iterations=scram.DEFAULT_ITERATIONS,
-            salt=salt[:scram.DEFAULT_SALT_LENGTH],
-            stored_key=b'',
-            server_key=b'',
-        )
-        is_mock = True
-        return verifier, is_mock
+    cdef bytes _expect_sasl_response(self):
+        mtype = self.buffer.get_message_type()
+        if mtype != b'r':
+            raise errors.BinaryProtocolError(
+                f'expected SASL response, got message type {mtype}')
+        client_final = self.buffer.read_len_prefixed_bytes()
+        self.buffer.finish_message()
+        return client_final
 
     async def _execute_script(self, compiled: object, bind_args: bytes):
         cdef:
@@ -1288,191 +950,108 @@ cdef class EdgeConnection(frontend.FrontendConnection):
     async def legacy_main(self, params):
         raise NotImplementedError
 
-    async def main(self):
+    async def authenticate(self):
         cdef:
-            char mtype
             bint is_legacy
 
-        try:
-            params = await self.do_handshake()
-            is_legacy = self.protocol_version <= MAX_LEGACY_PROTOCOL
-            if not is_legacy:
-                await self.auth(params)
-        except Exception as ex:
-            if self._transport is not None:
-                # If there's no transport it means that the connection
-                # was aborted, in which case we don't really care about
-                # reporting the exception.
-
-                self.write_error(ex)
-                self.close()
-
-                if not isinstance(ex, (errors.ProtocolError,
-                                        errors.AuthenticationError)):
-                    self.loop.call_exception_handler({
-                        'message': (
-                            'unhandled error in edgedb protocol while '
-                            'accepting new connection'
-                        ),
-                        'exception': ex,
-                        'protocol': self,
-                        'transport': self._transport,
-                        'task': self._main_task,
-                    })
-
-            return
+        params = await self.do_handshake()
+        is_legacy = self.protocol_version <= MAX_LEGACY_PROTOCOL
+        if not is_legacy:
+            await self.auth(params)
 
         if is_legacy:
-            return await self.legacy_main(params)
+            # GOTCHA: awaited outside
+            return self.legacy_main(params)
+        else:
+            self.server.on_binary_client_authed(self)
 
-        self.authed = True
-        self.server.on_binary_client_authed(self)
-
+    async def main_step(self, char mtype):
         try:
-            while True:
-                if self._cancelled:
-                    self.abort()
-                    return
+            if mtype == b'O':
+                await self.execute()
 
-                if self._stop_requested:
-                    break
+            elif mtype == b'P':
+                await self.parse()
 
-                if not self.buffer.take_message():
-                    if self._passive_mode:
-                        # In "passive" mode we only parse what's in the buffer
-                        # and return. If there's any unparsed (incomplete) data
-                        # in the buffer it's an error.
-                        if self.buffer._length:
-                            raise RuntimeError(
-                                'unparsed data in the read buffer')
-                        # Flush whatever data is in the internal buffer before
-                        # returning.
-                        self.flush()
-                        return
-                    await self.wait_for_message(report_idling=True)
+            elif mtype == b'S':
+                await self.sync()
 
-                mtype = self.buffer.get_message_type()
+            elif mtype == b'X':
+                self.close()
+                return True
 
-                try:
-                    if mtype == b'O':
-                        await self.execute()
+            elif mtype == b'>':
+                await self.dump()
 
-                    elif mtype == b'P':
-                        await self.parse()
+            elif mtype == b'<':
+                # The restore protocol cannot send SYNC beforehand,
+                # so if an error occurs the server should send an
+                # ERROR message immediately.
+                await self.restore()
 
-                    elif mtype == b'S':
-                        await self.sync()
+            elif mtype == b'D':
+                raise errors.BinaryProtocolError(
+                    "Describe message (D) is not supported in "
+                    "protocol versions greater than 0.13")
 
-                    elif mtype == b'X':
-                        self.close()
-                        break
+            elif mtype == b'E':
+                raise errors.BinaryProtocolError(
+                    "Legacy Execute message (E) is not supported in "
+                    "protocol versions greater than 0.13")
 
-                    elif mtype == b'>':
-                        await self.dump()
+            elif mtype == b'Q':
+                raise errors.BinaryProtocolError(
+                    "ExecuteScript message (Q) is not supported in "
+                    "protocol versions greater then 0.13")
 
-                    elif mtype == b'<':
-                        # The restore protocol cannot send SYNC beforehand,
-                        # so if an error occurs the server should send an
-                        # ERROR message immediately.
-                        await self.restore()
+            else:
+                self.fallthrough()
 
-                    elif mtype == b'D':
-                        raise errors.BinaryProtocolError(
-                            "Describe message (D) is not supported in "
-                            "protocol versions greater than 0.13")
-
-                    elif mtype == b'E':
-                        raise errors.BinaryProtocolError(
-                            "Legacy Execute message (E) is not supported in "
-                            "protocol versions greater than 0.13")
-
-                    elif mtype == b'Q':
-                        raise errors.BinaryProtocolError(
-                            "ExecuteScript message (Q) is not supported in "
-                            "protocol versions greater then 0.13")
-
-                    else:
-                        self.fallthrough()
-
-                except ConnectionError:
-                    raise
-
-                except asyncio.CancelledError:
-                    raise
-
-                except Exception as ex:
-                    if self._cancelled and \
-                            isinstance(ex, pgerror.BackendQueryCancelledError):
-                        # If we are cancelling the protocol (means that the
-                        # client side of the connection has dropped and we
-                        # need to gracefull cleanup and abort) we want to
-                        # propagate the BackendQueryCancelledError exception.
-                        #
-                        # If we're not cancelling, we'll treat it just like
-                        # any other error coming from Postgres (a query
-                        # might get cancelled due to a variety of reasons.)
-                        raise
-
-                    # The connection has been aborted; there's nothing
-                    # we can do except shutting this down.
-                    if self._con_status == EDGECON_BAD:
-                        return
-
-                    self.get_dbview().tx_error()
-                    self.buffer.finish_message()
-
-                    self.write_error(ex)
-                    self.flush()
-
-                    # The connection was aborted while we were
-                    # interpreting the error (via compiler/errmech.py).
-                    if self._con_status == EDGECON_BAD:
-                        return
-
-                    await self.recover_from_error()
-
-                else:
-                    self.buffer.finish_message()
+        except ConnectionError:
+            raise
 
         except asyncio.CancelledError:
-            # Happens when the connection is aborted, the backend is
-            # being closed and propagates CancelledError to all
-            # EdgeCon methods that await on, say, the compiler process.
-            # We shouldn't have CancelledErrors otherwise, therefore,
-            # in this situation we just silently exit.
-            pass
-
-        except (ConnectionError, pgerror.BackendQueryCancelledError):
-            pass
+            raise
 
         except Exception as ex:
-            # We can only be here if an exception occurred during
-            # handling another exception, in which case, the only
-            # sane option is to abort the connection.
+            if self._cancelled and \
+                    isinstance(ex, pgerror.BackendQueryCancelledError):
+                # If we are cancelling the protocol (means that the
+                # client side of the connection has dropped and we
+                # need to gracefull cleanup and abort) we want to
+                # propagate the BackendQueryCancelledError exception.
+                #
+                # If we're not cancelling, we'll treat it just like
+                # any other error coming from Postgres (a query
+                # might get cancelled due to a variety of reasons.)
+                raise
 
-            self.loop.call_exception_handler({
-                'message': (
-                    'unhandled error in edgedb protocol while '
-                    'handling an error'
-                ),
-                'exception': ex,
-                'protocol': self,
-                'transport': self._transport,
-                'task': self._main_task,
-            })
+            # The connection has been aborted; there's nothing
+            # we can do except shutting this down.
+            if self._con_status == EDGECON_BAD:
+                return True
 
-        finally:
-            if self._stop_requested:
-                self.write_log(
-                    EdgeSeverity.EDGE_SEVERITY_NOTICE,
-                    errors.LogMessage.get_code(),
-                    'server is stopped; disconnecting now')
-                self.close()
-            else:
-                # Abort the connection.
-                # It might have already been cleaned up, but abort() is
-                # safe to be called on a closed connection.
-                self.abort()
+            self.get_dbview().tx_error()
+            self.buffer.finish_message()
+
+            self.write_error(ex)
+            self.flush()
+
+            # The connection was aborted while we were
+            # interpreting the error (via compiler/errmech.py).
+            if self._con_status == EDGECON_BAD:
+                return True
+
+            await self.recover_from_error()
+
+        else:
+            self.buffer.finish_message()
+
+    cdef _main_task_stopped_normally(self):
+        self.write_log(
+            EdgeSeverity.EDGE_SEVERITY_NOTICE,
+            errors.LogMessage.get_code(),
+            'server is stopped; disconnecting now')
 
     async def recover_from_error(self):
         # Consume all messages until sync.
@@ -1659,131 +1238,17 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'unexpected message type {chr(mtype)!r}')
 
     def connection_made(self, transport):
-        if not self.server._accepting_connections:
-            transport.abort()
-            return
-
         if self._con_status != EDGECON_NEW:
             raise errors.BinaryProtocolError(
                 'invalid connection status while establishing the connection')
-        self._transport = transport
+        super().connection_made(transport)
 
-        if self.server._accept_new_tasks:
-            self._main_task = self.server.create_task(
-                self.main(), interruptable=False
-            )
-            self.server.on_binary_client_connected(self)
-        else:
-            transport.abort()
+    cdef _main_task_created(self):
+        self.server.on_binary_client_connected(self)
 
     def connection_lost(self, exc):
         self.server.on_binary_client_disconnected(self)
-
-        # Let's talk about cancellation.
-        #
-        # 1. Since we need to synchronize the state between Postgres and
-        #    EdgeDB, we need to make sure we never do straight asyncio
-        #    cancellation while some operation in pgcon is in flight.
-        #
-        #    Doing that can lead to the following few bad scenarios:
-        #
-        #       * pgcon connction being wrecked by asyncio.CancelledError;
-        #
-        #       * pgcon completing its operation and then, a rogue
-        #         CancelledError preventing us to apply the new state
-        #         to dbview/server config/etc.
-        #
-        # 2. It is safe to cancel `_msg_take_waiter` though. Cancelling it
-        #    would abort protocol parsing, but there's no global state that
-        #    needs syncing in protocol messages.
-        #
-        # 3. We can interrupt some operations like auth with a CancelledError.
-        #    Again, those operations don't mutate global state.
-
-        if (self._msg_take_waiter is not None and
-                not self._msg_take_waiter.done()):
-            # We're parsing the protocol. We can abort that.
-            self._msg_take_waiter.cancel()
-
-        if (
-            self._main_task is not None
-            and not self._main_task.done()
-            and not self._cancelled
-        ):
-
-            # The main connection handling task is up and running.
-
-            # First, let's set a flag to signal that we should cancel soon;
-            # after all the client has already disconnected.
-            self._cancelled = True
-
-            if not self.authed:
-                # We must be still authenticating. We can abort that.
-                self._main_task.cancel()
-            else:
-                if (
-                    self._pinned_pgcon is not None
-                    and not self._pinned_pgcon.idle
-                ):
-                    # Looks like we have a Postgres connection acquired and
-                    # it's actively running some command for us.  To make
-                    # sure we're not leaving behind a heavy query, perform
-                    # an explicit Postgres cancellation because a mere
-                    # connection drop wouldn't necessarily abort the query
-                    # right away). Additionally, we must discard the connection
-                    # as we cannot be completely sure about its state. Postgres
-                    # cancellation is signal-based and is addressed to a whole
-                    # connection and not a concrete operation. The result is
-                    # that we might be racing with the currently running query
-                    # and if that completes before the cancellation signal
-                    # reaches the backend, we'll be setting a trap for the
-                    # _next_ query that is unlucky enough to pick up this
-                    # Postgres backend from the connection pool.
-                    # TODO(fantix): hold server shutdown to complete this task
-                    if self.server._accept_new_tasks:
-                        self.server.create_task(
-                            self.server._cancel_and_discard_pgcon(
-                                self._pinned_pgcon,
-                                self.get_dbview().dbname,
-                            ),
-                            interruptable=False,
-                        )
-                    # Prevent the main task from releasing the same connection
-                    # twice. This flag is for now only used in this case.
-                    self._pgcon_released_in_connection_lost = True
-
-                # In all other cases, we can just wait until the `main()`
-                # coroutine notices that `self._cancelled` was set.
-                # It would be a mistake to cancel the main task here, as it
-                # could be unpacking results from pgcon and applying them
-                # to the global state.
-                #
-                # Ultimately, the main() coroutine will be aborted, eventually,
-                # and will call `self.abort()` to shut all things down.
-        else:
-            # The `main()` coroutine isn't running, it means that the
-            # connection is already pretty much dead.  Nonetheless, call
-            # abort() to make sure we've cleaned everything up properly.
-            self.abort()
-
-    def data_received(self, data):
-        self.buffer.feed_data(data)
-        if self._msg_take_waiter is not None and self.buffer.take_message():
-            self._msg_take_waiter.set_result(True)
-            self._msg_take_waiter = None
-
-    def eof_received(self):
-        pass
-
-    def pause_writing(self):
-        if self._write_waiter and not self._write_waiter.done():
-            return
-        self._write_waiter = self.loop.create_future()
-
-    def resume_writing(self):
-        if not self._write_waiter or self._write_waiter.done():
-            return
-        self._write_waiter.set_result(True)
+        super().connection_lost(exc)
 
     async def dump(self):
         cdef:

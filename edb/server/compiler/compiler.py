@@ -45,7 +45,6 @@ from edb.common import uuidgen
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
-from edb.edgeql import quote as qlquote
 
 from edb.ir import staeval as ireval
 from edb.ir import ast as irast
@@ -486,6 +485,39 @@ class Compiler:
                 break
 
         return result
+
+    def compile_sql(
+        self,
+        user_schema: s_schema.Schema,
+        global_schema: s_schema.Schema,
+        reflection_cache: Mapping[str, Tuple[str, ...]],
+        database_config: Mapping[str, config.SettingValue],
+        system_config: Mapping[str, config.SettingValue],
+        query_str: str,
+    ) -> List[str]:
+        state = dbstate.CompilerConnectionState(
+            user_schema=user_schema,
+            global_schema=global_schema,
+            modaliases=DEFAULT_MODULE_ALIASES_MAP,
+            session_config=EMPTY_MAP,
+            database_config=database_config,
+            system_config=system_config,
+            cached_reflection=reflection_cache,
+        )
+        schema = state.current_tx().get_schema(self.state.std_schema)
+
+        from edb.pgsql import parser as pg_parser
+        from edb.pgsql import resolver as pg_resolver
+        from edb.pgsql import codegen as pg_codegen
+
+        options = pg_resolver.Options()
+        stmts = pg_parser.parse(query_str)
+        sql_source = []
+        for stmt in stmts:
+            resolved = pg_resolver.resolve(stmt, schema, options)
+            source = pg_codegen.generate_source(resolved)
+            sql_source.append(source)
+        return sql_source
 
     def compile(
         self,
@@ -1121,41 +1153,6 @@ def _get_compile_options(
     )
 
 
-def _compile_ql_debug_sql(
-    ctx: CompileContext,
-    ql: qlast.Base,
-) -> dbstate.BaseQuery:
-    # XXX: DEBUG HACK Implement DESCRIBE ALTER <STRING> by
-    # (eventually) rewriting <STRING> and returning it
-    assert _is_dev_instance(ctx)
-
-    current_tx = ctx.state.current_tx()
-    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
-
-    from edb.pgsql import parser as pg_parser
-    from edb.pgsql import resolver as pg_resolver
-    from edb.pgsql import codegen as pg_codegen
-
-    options = pg_resolver.Options()
-
-    stmts = pg_parser.parse(ql.source)
-    sql_source = ''
-    for stmt in stmts:
-        resolved = pg_resolver.resolve(stmt, schema, options)
-        source = pg_codegen.generate_source(resolved)
-        sql_source += source + ';'
-
-    # Compile the result as a query that just returns the string
-    res_ql = edgeql.parse(f'SELECT {qlquote.quote_literal(sql_source)}')
-    query = _compile_ql_query(
-        ctx,
-        res_ql,
-        cacheable=False,
-        migration_block_query=True,
-    )
-    return query
-
-
 def _compile_ql_query(
     ctx: CompileContext,
     ql: qlast.Base,
@@ -1554,12 +1551,6 @@ def _compile_dispatch_ql(
     elif isinstance(ql, (qlast.BaseSessionSet, qlast.BaseSessionReset)):
         return (
             _compile_ql_sess_state(ctx, ql),
-            enums.Capability.SESSION_CONFIG,
-        )
-
-    elif isinstance(ql, qlast.SQLDebugStmt):
-        return (
-            _compile_ql_debug_sql(ctx, ql),
             enums.Capability.SESSION_CONFIG,
         )
 

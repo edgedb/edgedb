@@ -49,17 +49,27 @@ ERROR_EXCLUSION_VIOLATION = '23P01'
 ERROR_IDLE_IN_TRANSACTION_TIMEOUT = '25P03'
 ERROR_READ_ONLY_SQL_TRANSACTION = '25006'
 
+ERROR_INVALID_SQL_STATEMENT_NAME = '26000'
+
+# Class 28 - Invalid Authorization Specification
 ERROR_INVALID_AUTHORIZATION_SPECIFICATION = '28000'
 ERROR_INVALID_PASSWORD = '28P01'
 
 ERROR_INVALID_CATALOG_NAME = '3D000'
+ERROR_INVALID_CURSOR_NAME = '34000'
 
 ERROR_SERIALIZATION_FAILURE = '40001'
 ERROR_DEADLOCK_DETECTED = '40P01'
 
+# Class 42 - Syntax Error or Access Rule Violation
 ERROR_WRONG_OBJECT_TYPE = '42809'
 ERROR_INSUFFICIENT_PRIVILEGE = '42501'
+ERROR_UNDEFINED_TABLE = '42P01'
 ERROR_DUPLICATE_DATABASE = '42P04'
+ERROR_SYNTAX_ERROR = '42601'
+ERROR_DUPLICATE_CURSOR = '42P03'
+ERROR_DUPLICATE_PREPARED_STATEMENT = '42P05'
+ERROR_INVALID_COLUMN_REFERENCE = '42P10'
 
 ERROR_PROGRAM_LIMIT_EXCEEDED = '54000'
 
@@ -68,10 +78,14 @@ ERROR_OBJECT_IN_USE = '55006'
 ERROR_QUERY_CANCELLED = '57014'
 ERROR_CANNOT_CONNECT_NOW = '57P03'
 
+# Class 08 - Connection Exception
 ERROR_CONNECTION_CLIENT_CANNOT_CONNECT = '08001'
 ERROR_CONNECTION_DOES_NOT_EXIST = '08003'
 ERROR_CONNECTION_REJECTION = '08004'
 ERROR_CONNECTION_FAILURE = '08006'
+ERROR_PROTOCOL_VIOLATION = '08P01'
+
+ERROR_INTERNAL_ERROR = 'XX000'
 
 CONNECTION_ERROR_CODES = [
     ERROR_CANNOT_CONNECT_NOW,
@@ -126,3 +140,48 @@ error_class_map = {
     ERROR_QUERY_CANCELLED: BackendQueryCancelledError,
     ERROR_INVALID_CATALOG_NAME: BackendCatalogNameError,
 }
+
+
+def _build_fields(code, message, severity="ERROR", detail=None, hint=None):
+    fields = {
+        "S": severity,
+        "V": severity,
+        "C": code,
+        "M": message,
+    }
+    if detail is not None:
+        fields["D"] = detail
+    if hint is not None:
+        fields["H"] = hint
+    return fields
+
+
+def new(
+    code, message, severity="ERROR", detail=None, hint=None, **extra_fields
+):
+    fields = _build_fields(code, message, severity, detail, hint)
+    fields.update(extra_fields)
+    return get_error_class(fields)(fields=fields)
+
+
+class FeatureNotSupported(BackendError):
+    def __init__(self, message="feature not supported", **kwargs):
+        super().__init__(fields=_build_fields(
+            ERROR_FEATURE_NOT_SUPPORTED, message, **kwargs
+        ))
+
+
+class ProtocolViolation(BackendError):
+    def __init__(self, message="protocol violation", **kwargs):
+        super().__init__(fields=_build_fields(
+            ERROR_PROTOCOL_VIOLATION, message, **kwargs
+        ))
+
+
+class InvalidAuthSpec(BackendError):
+    def __init__(
+        self, message="invalid authorization specification", **kwargs
+    ):
+        super().__init__(fields=_build_fields(
+            ERROR_INVALID_AUTHORIZATION_SPECIFICATION, message, **kwargs
+        ))

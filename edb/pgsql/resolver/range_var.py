@@ -24,6 +24,7 @@ from typing import *
 
 from edb import errors
 from edb.common.parsing import ParserContext
+from edb.server.pgcon import errors as pgerror
 
 from edb.pgsql import ast as pgast
 from edb.pgsql.compiler import astutils as pgastutils
@@ -296,5 +297,6 @@ def _zip_column_alias(
             f'{len(alias.colnames)} columns, but the query resolves to '
             f'{len(columns)} columns',
             context=ctx,
+            pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
         )
     return zip(columns, alias.colnames)

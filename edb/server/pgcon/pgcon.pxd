@@ -58,6 +58,17 @@ cdef enum PGAuthenticationState:
     PGAUTH_SASL_FINAL = 12
 
 
+cdef enum PGAction:
+    PARSE = 1
+    BIND = 2
+    DESCRIBE = 3
+    EXECUTE = 4
+    CLOSE_STMT = 5
+    CLOSE_PORTAL = 6
+    FLUSH = 7
+    SYNC = 8
+
+
 @cython.final
 cdef class PGConnection:
 
@@ -109,14 +120,14 @@ cdef class PGConnection:
     cdef write(self, buf)
 
     cdef parse_error_message(self)
-    cdef parse_sync_message(self)
+    cdef char parse_sync_message(self)
     cdef parse_parameter_status_message(self)
 
     cdef parse_notification(self)
     cdef fallthrough(self)
     cdef fallthrough_idle(self)
 
-    cdef before_prepare(self, stmt_name, dbver, WriteBuffer outbuf)
+    cdef bint before_prepare(self, stmt_name, dbver, WriteBuffer outbuf)
     cdef write_sync(self, WriteBuffer outbuf)
 
     cdef make_clean_stmt_message(self, bytes stmt_name)

@@ -41,10 +41,6 @@ class Stmt(Nonterm):
         # DESCRIBE
         self.val = kids[0].val
 
-    def reduce_SqlDebugStmt(self, *kids):
-        # DESCRIBE
-        self.val = kids[0].val
-
     def reduce_ExprStmt(self, *kids):
         self.val = kids[0].val
 
@@ -178,14 +174,6 @@ class DescribeFormat(Nonterm):
                 options={'VERBOSE': qlast.Flag(
                     name='VERBOSE', val=True, context=kids[2].context)}
             ),
-        )
-
-
-class SqlDebugStmt(Nonterm):
-    def reduce_debug(self, *kids):
-        """%reduce DESCRIBE ALTER SCONST"""
-        self.val = qlast.SQLDebugStmt(
-            source=kids[2].clean_value,
         )
 
 

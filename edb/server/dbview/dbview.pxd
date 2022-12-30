@@ -73,6 +73,7 @@ cdef class Database:
 
     cdef:
         object _eql_to_compiled
+        object _sql_to_compiled
         DatabaseIndex _index
         object _views
         object _introspection_lock

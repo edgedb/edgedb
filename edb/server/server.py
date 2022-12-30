@@ -62,6 +62,7 @@ from edb.server import protocol
 from edb.server.ha import base as ha_base
 from edb.server.ha import adaptive as adaptive_ha
 from edb.server.protocol import binary  # type: ignore
+from edb.server.protocol import pg_ext  # type: ignore
 from edb.server import metrics
 from edb.server import pgcon
 from edb.server.pgcon import errors as pgcon_errors
@@ -125,6 +126,7 @@ class Server(ha_base.ClusterProtocol):
     # every open connection. Also, this way, we can react to the
     # `session_idle_timeout` config setting changed mid-flight.
     _binary_conns: collections.OrderedDict[binary.EdgeConnection, bool]
+    _pgext_conns: dict[str, pg_ext.PgConnection]
     _idle_gc_handler: asyncio.TimerHandle | None = None
     _session_idle_timeout: int | None = None
 
@@ -238,6 +240,7 @@ class Server(ha_base.ClusterProtocol):
 
         self._binary_proto_id_counter = 0
         self._binary_conns = collections.OrderedDict()
+        self._pgext_conns = {}
         self._accepting_connections = False
 
         self._servers = {}
@@ -253,6 +256,7 @@ class Server(ha_base.ClusterProtocol):
         self._tls_cert_file = None
         self._tls_cert_newly_generated = False
         self._sslctx = None
+        self._sslctx_pgext = None
 
         self._jws_key: jwk.JWK | None = None
         self._jws_keys_newly_generated = False
@@ -351,7 +355,9 @@ class Server(ha_base.ClusterProtocol):
         self._binary_conns.pop(conn, None)
         self._report_connections(event="closed")
         metrics.current_client_connections.dec()
+        self.maybe_auto_shutdown()
 
+    def maybe_auto_shutdown(self):
         if (
             not self._binary_conns
             and self._auto_shutdown_after >= 0
@@ -366,6 +372,18 @@ class Server(ha_base.ClusterProtocol):
             event,
             len(self._binary_conns),
         )
+
+    def on_pgext_client_connected(self, conn):
+        self._pgext_conns[conn.get_id()] = conn
+
+    def on_pgext_client_disconnected(self, conn):
+        self._pgext_conns.pop(conn.get_id(), None)
+        self.maybe_auto_shutdown()
+
+    def cancel_pgext_connection(self, pid, secret):
+        conn = self._pgext_conns.get(pid)
+        if conn is not None:
+            conn.cancel(secret)
 
     async def _pg_connect(self, dbname):
         ha_serial = self._ha_master_serial
@@ -1673,6 +1691,7 @@ class Server(ha_base.ClusterProtocol):
         proto_factory = lambda: protocol.HttpProtocol(
             self,
             self._sslctx,
+            self._sslctx_pgext,
             binary_endpoint_security=self._binary_endpoint_security,
             http_endpoint_security=self._http_endpoint_security,
         )
@@ -1857,8 +1876,14 @@ class Server(ha_base.ClusterProtocol):
             return os.environ.get('EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD', '')
 
         sslctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        sslctx_pgext = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         try:
             sslctx.load_cert_chain(
+                tls_cert_file,
+                tls_key_file,
+                password=_tls_private_key_password,
+            )
+            sslctx_pgext.load_cert_chain(
                 tls_cert_file,
                 tls_key_file,
                 password=_tls_private_key_password,
@@ -1900,6 +1925,7 @@ class Server(ha_base.ClusterProtocol):
 
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
         self._sslctx = sslctx
+        self._sslctx_pgext = sslctx_pgext
 
     def init_tls(
         self,
@@ -1907,7 +1933,7 @@ class Server(ha_base.ClusterProtocol):
         tls_key_file,
         tls_cert_newly_generated,
     ):
-        assert self._sslctx is None
+        assert self._sslctx is self._sslctx_pgext is None
         self.reload_tls(tls_cert_file, tls_key_file)
 
         self._tls_cert_file = str(tls_cert_file)
@@ -2075,6 +2101,10 @@ class Server(ha_base.ClusterProtocol):
             for conn in self._binary_conns:
                 conn.stop()
             self._binary_conns.clear()
+
+            for conn in self._pgext_conns.values():
+                conn.stop()
+            self._pgext_conns.clear()
 
             if self._task_group is not None:
                 tg = self._task_group
