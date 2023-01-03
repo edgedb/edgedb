@@ -278,6 +278,6 @@ instance.
 Health Checks
 =============
 
-Using the EdgeDB HTTP client, you can perform health checks to monitor the
-status of your EdgeDB instance. Learn how to use them with our :ref:`health
-checks guide <ref_guide_deployment_health_checks>`.
+Using an HTTP client, you can perform health checks to monitor the status of
+your EdgeDB instance. Learn how to use them with our :ref:`health checks guide
+<ref_guide_deployment_health_checks>`.
