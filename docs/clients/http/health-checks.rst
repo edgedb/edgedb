@@ -4,10 +4,9 @@
 Health Checks
 =============
 
-Through the HTTP client, EdgeDB exposes endpoints to check for aliveness and
-readiness of your database instance. Once the client is enabled (see
-:ref:`ref_edgeql_http`), you can make requests to the endpoints to check the
-instance status.
+EdgeDB exposes endpoints to check for aliveness and readiness of your database
+instance. You can make requests to these endpoints to check the instance
+status.
 
 Aliveness
 ---------
