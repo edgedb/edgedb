@@ -279,13 +279,15 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
             context=_build_context(n, c),
         )
 
-    if n["name"] == "TRANSACTION" or n["name"] == "SESSION CHARACTERISTICS":
-        return pgast.SetTransactionStmt(
-            options=_build_transaction_options(n["args"], c),
-            scope=pgast.OptionsScope.TRANSACTION
-            if n["name"] == "TRANSACTION"
-            else pgast.OptionsScope.SESSION,
-        )
+    if n["kind"] == "VAR_SET_MULTI":
+        name = n["name"]
+        if name == "TRANSACTION" or name == "SESSION CHARACTERISTICS":
+            return pgast.SetTransactionStmt(
+                options=_build_transaction_options(n["args"], c),
+                scope=pgast.OptionsScope.TRANSACTION
+                if name == "TRANSACTION"
+                else pgast.OptionsScope.SESSION,
+            )
 
     if n["kind"] == "VAR_SET_VALUE":
         return pgast.VariableSetStmt(
@@ -374,45 +376,15 @@ def _build_transaction_stmt(n: Node, c: Context) -> pgast.TransactionStmt:
 def _build_transaction_options(
     nodes: List[Node], c: Context
 ) -> pgast.TransactionOptions:
-    isolation_mode = None
-    access_mode = None
-    deferrable = None
-
+    options = {}
     for n in nodes:
         if "DefElem" not in n:
             continue
         def_e = n["DefElem"]
-        if not ("defname" in def_e or "arg" in def_e):
+        if not ("defname" in def_e and "arg" in def_e):
             continue
-        def_name = def_e["defname"]
-        arg = _build_base_expr(def_e["arg"], c)
-
-        if def_name == "transaction_isolation":
-            if isinstance(arg, pgast.StringConstant):
-                if arg.val == "serializable":
-                    isolation_mode = pgast.IsolationMode.SERIALIZABLE
-                elif arg.val == "repeatable read":
-                    isolation_mode = pgast.IsolationMode.REPEATABLE_READ
-                elif arg.val == "read committed":
-                    isolation_mode = pgast.IsolationMode.READ_COMMITTED
-                elif arg.val == "read uncommitted":
-                    isolation_mode = pgast.IsolationMode.READ_UNCOMMITTED
-
-        elif def_name == "transaction_read_only":
-            if isinstance(arg, pgast.NumericConstant):
-                if arg.val == "1":
-                    access_mode = pgast.AccessMode.READ_ONLY
-
-        elif def_name == "transaction_deferrable":
-            if isinstance(arg, pgast.NumericConstant):
-                if arg.val == "1":
-                    deferrable = True
-
-    return pgast.TransactionOptions(
-        isolation_mode=isolation_mode or pgast.IsolationMode.READ_COMMITTED,
-        access_mode=access_mode or pgast.AccessMode.READ_WRITE,
-        deferrable=deferrable or False,
-    )
+        options[def_e["defname"]] = _build_base_expr(def_e["arg"], c)
+    return pgast.TransactionOptions(options=options)
 
 
 def _build_prepare(n: Node, c: Context) -> pgast.PrepareStmt:

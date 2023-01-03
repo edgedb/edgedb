@@ -698,8 +698,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_transaction_05(self):
         """
         START TRANSACTION ISOLATION LEVEL READ COMMITTED
-% OK %
-        START TRANSACTION
         """
 
     def test_sql_parse_transaction_06(self):
@@ -710,8 +708,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_transaction_07(self):
         """
         START TRANSACTION READ WRITE
-% OK %
-        START TRANSACTION
         """
 
     def test_sql_parse_transaction_08(self):
@@ -722,8 +718,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_transaction_09(self):
         """
         START TRANSACTION NOT DEFERRABLE
-% OK %
-        START TRANSACTION
         """
 
     def test_sql_parse_transaction_10(self):

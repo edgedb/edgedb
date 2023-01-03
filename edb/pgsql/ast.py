@@ -1078,21 +1078,7 @@ class RollbackPreparedStmt(TwoPhaseTransactionStmt):
 
 
 class TransactionOptions(Base):
-    isolation_mode: IsolationMode
-    access_mode: AccessMode
-    deferrable: bool
-
-
-class IsolationMode(enum.IntEnum):
-    SERIALIZABLE = enum.auto()
-    REPEATABLE_READ = enum.auto()
-    READ_COMMITTED = enum.auto()
-    READ_UNCOMMITTED = enum.auto()
-
-
-class AccessMode(enum.IntEnum):
-    READ_WRITE = enum.auto()
-    READ_ONLY = enum.auto()
+    options: dict[str, BaseExpr]
 
 
 class ExecuteStmt(Statement):

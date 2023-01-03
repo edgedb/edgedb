@@ -955,20 +955,22 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(f"ROLLBACK PREPARED '{node.gid}'")
 
     def visit_TransactionOptions(self, node: pgast.TransactionOptions) -> None:
-        if node.isolation_mode == pgast.IsolationMode.SERIALIZABLE:
-            self.write(" ISOLATION LEVEL SERIALIZABLE")
-        elif node.isolation_mode == pgast.IsolationMode.REPEATABLE_READ:
-            self.write(" ISOLATION LEVEL REPEATABLE READ")
-        elif node.isolation_mode == pgast.IsolationMode.READ_COMMITTED:
-            # this is the default
-            pass
-        elif node.isolation_mode == pgast.IsolationMode.READ_UNCOMMITTED:
-            self.write(" ISOLATION LEVEL READ UNCOMMITTED")
-
-        if node.access_mode != pgast.AccessMode.READ_WRITE:
-            self.write(" READ ONLY")
-        if node.deferrable:
-            self.write(" DEFERRABLE")
+        for def_name, arg in node.options.items():
+            if def_name == "transaction_isolation":
+                self.write(" ISOLATION LEVEL ")
+                if isinstance(arg, pgast.StringConstant):
+                    self.write(arg.val.upper())
+            elif def_name == "transaction_read_only":
+                if isinstance(arg, pgast.NumericConstant):
+                    if arg.val == "1":
+                        self.write(" READ ONLY")
+                    else:
+                        self.write(" READ WRITE")
+            elif def_name == "transaction_deferrable":
+                if isinstance(arg, pgast.NumericConstant):
+                    if arg.val != "1":
+                        self.write(" NOT")
+                    self.write(" DEFERRABLE")
 
     def visit_PrepareStmt(self, node: pgast.PrepareStmt) -> None:
         self.write(f"PREPARE {node.name}")
