@@ -418,7 +418,11 @@ def gen_pointers_from_defaults(
 
     schema = ctx.env.schema
 
-    # toposort defaults
+    # Toposort defaults
+    # This is required because defaults may reference each other
+    # (and even contain cyclical dependencies).
+    # We cannot check or preprocess this at migration time, because some
+    # defaults may not be used for some inserts.
     pointer_indexes = {}
     for (index, (pointer, _)) in enumerate(result):
         p = pointer.get_nearest_non_derived_parent(schema)

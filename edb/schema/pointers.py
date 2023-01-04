@@ -1594,7 +1594,6 @@ class PointerCommand(
         context: sd.CommandContext,
     ) -> None:
         """Check that pointer definition is sound."""
-        from edb.ir import utils as irutils
         from edb.ir import ast as irast
 
         referrer_ctx = self.get_referrer_context(context)
@@ -1668,9 +1667,20 @@ class PointerCommand(
                 if not isinstance(pointer.ptrref, irast.PointerRef):
                     continue
                 s_pointer = schema.get_by_id(pointer.ptrref.id, type=Pointer)
+                card = s_pointer.get_cardinality(schema)
+
+                if s_pointer.is_property(schema) and card.is_multi():
+                    raise errors.SchemaDefinitionError(
+                        f"default expression cannot refer to multi properties "
+                        "of insterted object",
+                        context=source_context,
+                        hint="this is a temporary implementation restriction",
+                    )
+
                 if not s_pointer.is_property(schema):
                     raise errors.SchemaDefinitionError(
-                        f'default expression cannot refer to local links',
+                        f"default expression cannot refer to links "
+                        "of insterted object",
                         context=source_context,
                         hint='this is a temporary implementation restriction'
                     )
