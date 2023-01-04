@@ -28,6 +28,7 @@ from edb import errors
 from edb.common import enum as s_enum
 from edb.common import struct
 from edb.common import parsing
+from edb.common import ast
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -1658,7 +1659,7 @@ class PointerCommand(
                 )
 
             # prevent references to local links, only properties
-            pointers = irutils.collect_pointers(default_expr.irast)
+            pointers = ast.find_children(default_expr.irast, irast.Pointer)
             scls_source = scls.get_source(schema)
             assert scls_source
             for pointer in pointers:

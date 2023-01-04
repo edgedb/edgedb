@@ -27,6 +27,7 @@ import functools
 from typing import *
 
 from edb import errors
+from edb.common import ast
 from edb.common import context as pctx
 from edb.common import topological
 from edb.common.typeutils import not_none
@@ -425,7 +426,7 @@ def gen_pointers_from_defaults(
     graph = {}
     for (index, (_, irset)) in enumerate(result):
         assert irset
-        dep_pointers = irutils.collect_pointers(irset)
+        dep_pointers = ast.find_children(irset, irast.Pointer)
         dep_rptrs = (
             pointer.target.path_id.rptr() for pointer in dep_pointers
             if pointer.source.typeref.id == stype.id

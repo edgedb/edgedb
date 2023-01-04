@@ -451,21 +451,3 @@ def contains_set_of_op(ir: irast.Base) -> bool:
     flt = (lambda n: any(x == ft.TypeModifier.SetOfType
                          for x in n.params_typemods))
     return bool(ast.find_children(ir, irast.Call, flt, terminate_early=True))
-
-
-class PointerCollectorVisitor(ast.NodeVisitor):
-    collected: List[irast.Pointer]
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.collected = []
-
-    def visit_Pointer(self, pointer: irast.Pointer) -> None:
-        self.collected.append(pointer)
-
-
-def collect_pointers(expr: irast.Base) -> List[irast.Pointer]:
-    """Walk over AST and collect all irast.Pointers"""
-    visitor = PointerCollectorVisitor()
-    visitor.visit(expr)
-    return visitor.collected
