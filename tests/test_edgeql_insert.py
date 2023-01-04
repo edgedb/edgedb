@@ -1821,7 +1821,7 @@ class TestInsert(tb.QueryTestCase):
         )
         await self.con.query("insert Bar { f := random() };")
         res = await self.con.query("select Bar { f, g }")
-        assert res[0]["f"] == res[0]["g"]
+        assert res[0].f == res[0].g
 
     async def test_edgeql_insert_default_09(self):
         async with self.assertRaisesRegexTx(
