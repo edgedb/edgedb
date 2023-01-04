@@ -173,7 +173,7 @@ parameters. For a POST request, use the ``application/json`` content type and
 submit a JSON payload with ``query`` and ``variables`` as top-level keys in
 that payload as in this example:
 
-.. code-block:: json
+.. code-block::
 
     {
       "query": "...",
