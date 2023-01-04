@@ -1056,3 +1056,26 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         """
         RESET ALL
         """
+
+    # The transaction_* settings are always on transaction level
+
+    def test_sql_parse_transaction_29(self):
+        """
+        SET SESSION transaction_isolation = serializable
+% OK %
+        SET LOCAL transaction_isolation TO 'serializable'
+        """
+
+    def test_sql_parse_transaction_30(self):
+        """
+        RESET transaction_deferrable
+% OK %
+        SET LOCAL transaction_deferrable TO DEFAULT
+        """
+
+    def test_sql_parse_transaction_31(self):
+        """
+        SET transaction_read_only TO DEFAULT
+% OK %
+        SET LOCAL transaction_read_only TO DEFAULT
+        """

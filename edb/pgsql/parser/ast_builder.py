@@ -265,10 +265,17 @@ def _build_delete_stmt(n: Node, c: Context) -> pgast.DeleteStmt:
 
 
 def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
+    tx_only_vars = {
+        "transaction_isolation",
+        "transaction_read_only",
+        "transaction_deferrable",
+    }
     if n["kind"] == "VAR_RESET":
         return pgast.VariableResetStmt(
             name=n["name"],
-            scope=pgast.OptionsScope.SESSION,
+            scope=pgast.OptionsScope.TRANSACTION
+            if n["name"] in tx_only_vars
+            else pgast.OptionsScope.SESSION,
             context=_build_context(n, c),
         )
 
@@ -294,7 +301,7 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
             name=n["name"],
             args=pgast.ArgsList(args=_list(n, c, "args", _build_base_expr)),
             scope=pgast.OptionsScope.TRANSACTION
-            if "is_local" in n and n["is_local"]
+            if n["name"] in tx_only_vars or "is_local" in n and n["is_local"]
             else pgast.OptionsScope.SESSION,
             context=_build_context(n, c),
         )
@@ -303,7 +310,7 @@ def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
         return pgast.VariableResetStmt(
             name=n["name"],
             scope=pgast.OptionsScope.TRANSACTION
-            if "is_local" in n and n["is_local"]
+            if n["name"] in tx_only_vars or "is_local" in n and n["is_local"]
             else pgast.OptionsScope.SESSION,
             context=_build_context(n, c),
         )
