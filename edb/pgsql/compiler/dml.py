@@ -569,14 +569,12 @@ def process_insert_body(
     if typeref.material_type is not None:
         typeref = typeref.material_type
 
+    type_val = pgast.TypeCast(
+        arg=pgast.StringConstant(val=str(typeref.id)),
+        type_name=pgast.TypeName(name=('uuid',)),
+    )
     values.append(
-        pgast.ResTarget(
-            name='__type__',
-            val=pgast.TypeCast(
-                arg=pgast.StringConstant(val=str(typeref.id)),
-                type_name=pgast.TypeName(name=('uuid',))
-            ),
-        )
+        pgast.ResTarget(name='__type__', val=type_val)
     )
 
     # Handle an UNLESS CONFLICT if we need it
@@ -616,6 +614,8 @@ def process_insert_body(
 
     # Use a dynamic rvar to return values out of the select purely
     # based on material rptr, as if it was a base relation.
+    # This is to make it easy for access policies to operate on the result
+    # of the INSERT.
     def dynamic_get_path(
         rel: pgast.Query, path_id: irast.PathId, *,
         flavor: str,
@@ -627,6 +627,8 @@ def process_insert_body(
             return None
         if ret := ptr_map.get(rptr.real_material_ptr):
             return ret
+        if rptr.real_material_ptr.shortname.name == '__type__':
+            return type_val
         # Properties that aren't specified are {}
         return pgast.NullConstant()
 

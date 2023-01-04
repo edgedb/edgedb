@@ -1002,6 +1002,23 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             [1],
         )
 
+    async def test_edgeql_policies_insert_type(self):
+        await self.con.execute('''
+            create type T {
+                create access policy ok allow all;
+                create access policy asdf deny insert using (
+                    .__type__.name ?!= 'default::T')
+            };
+            create type S extending T;
+        ''')
+
+        await self.con.execute('insert T')
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'access policy violation',
+        ):
+            await self.con.execute('insert S')
+
     async def test_edgeql_policies_internal_shape_01(self):
         await self.con.execute('''
             alter type Issue {
