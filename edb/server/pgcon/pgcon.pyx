@@ -159,6 +159,13 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
 
         PREPARE _reset_session_config AS
             SELECT edgedb._reset_session_config();
+
+        PREPARE _apply_sql_state(jsonb) AS
+            SELECT
+                e.key AS name,
+                pg_catalog.set_config(e.key, e.value, false) AS value
+            FROM
+                jsonb_each_text($1::jsonb) AS e;
     ''').strip().encode('utf-8')
 
 
@@ -588,8 +595,7 @@ cdef class PGConnection:
                     await self.wait_for_message()
                 mtype = self.buffer.get_message_type()
                 if mtype == b'Z':
-                    self.parse_sync_message()
-                    break
+                    return self.parse_sync_message()
                 elif mtype == b'E':
                     # ErrorResponse
                     er_cls, fields = self.parse_error_message()
@@ -677,13 +683,45 @@ cdef class PGConnection:
             buf.write_int32(0)  # limit: 0 - return all rows
             out.write_buffer(buf.end_message())
 
-    async def _parse_apply_state_resp(self, bytes serstate):
+    def _build_apply_sql_state_req(self, settings, WriteBuffer out):
+        cdef:
+            WriteBuffer buf
+
+        buf = WriteBuffer.new_message(b'B')
+        buf.write_bytestring(b'')  # portal name
+        buf.write_bytestring(b'_reset_session_config')  # statement name
+        buf.write_int16(0)  # number of format codes
+        buf.write_int16(0)  # number of parameters
+        buf.write_int16(0)  # number of result columns
+        out.write_buffer(buf.end_message())
+
+        buf = WriteBuffer.new_message(b'E')
+        buf.write_bytestring(b'')  # portal name
+        buf.write_int32(0)  # limit: 0 - return all rows
+        out.write_buffer(buf.end_message())
+
+        if settings:
+            serstate = json.dumps(dict(settings)).encode("utf-8")
+            buf = WriteBuffer.new_message(b'B')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_bytestring(b'_apply_sql_state')  # statement name
+            buf.write_int16(1)  # number of format codes
+            buf.write_int16(1)  # binary
+            buf.write_int16(1)  # number of parameters
+            buf.write_int32(len(serstate) + 1)
+            buf.write_byte(1)  # jsonb format version
+            buf.write_bytes(serstate)
+            buf.write_int16(0)  # number of result columns
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'E')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_int32(0)  # limit: 0 - return all rows
+            out.write_buffer(buf.end_message())
+
+    async def _parse_apply_state_resp(self, int expected_completed):
         cdef:
             int num_completed = 0
-            int expected_completed = 2
-
-        if serstate is not None:
-            expected_completed += 1
 
         while True:
             if not self.buffer.take_message():
@@ -768,11 +806,11 @@ cdef class PGConnection:
     async def wait_for_state_resp(self, bytes state, bint state_sync):
         if state_sync:
             try:
-                await self._parse_apply_state_resp(state)
+                await self._parse_apply_state_resp(2 if state is None else 3)
             finally:
                 await self.wait_for_sync()
         else:
-            await self._parse_apply_state_resp(state)
+            await self._parse_apply_state_resp(2 if state is None else 3)
 
     async def wait_for_command(
         self,
@@ -1211,7 +1249,7 @@ cdef class PGConnection:
         result = None
 
         if state is not None:
-            await self._parse_apply_state_resp(state)
+            await self._parse_apply_state_resp(3)
             await self.wait_for_sync()
 
         while True:
@@ -1275,25 +1313,35 @@ cdef class PGConnection:
 
     async def sql_simple_query(
         self,
-        queries: list[str],
+        query_units,
         frontend.AbstractFrontendConnection fe_conn,
         int dbver,
+        dbv,
     ):
         cdef:
             char mtype, field_type
             WriteBuffer buf, msg_buf
             bytes stmt_name, query
+            bint sync_received = 0
 
+        settings = None if dbv.in_tx() else dbv.current_settings()
+        if self.debug:
+            self.debug_print("pg_ext settings:", settings)
+        dbv.start_implicit()
         self.before_command()
         try:
             buf = WriteBuffer.new()
-            queue = deque()
-            for query_text in queries:
-                query = query_text.encode("utf8")
-                stmt_name = b's' + hashlib.sha1(
-                    query).hexdigest().encode("latin1")
-                if self.before_prepare(stmt_name, dbver, buf):
-                    queue.append(stmt_name)
+            if settings is not None:
+                self._build_apply_sql_state_req(settings, buf)
+                # We need to close the implicit transaction with a SYNC here
+                # because the next command may be "BEGIN DEFERRABLE".
+                self.write_sync(buf)
+            for unit in query_units:
+                if self.debug:
+                    self.debug_print('pg_ext SQL:', unit.stmt_name, unit.query)
+                query = unit.query.encode("utf8")
+                stmt_name = unit.stmt_name
+                if not stmt_name or self.before_prepare(stmt_name, dbver, buf):
                     msg_buf = WriteBuffer.new_message(b'P')
                     msg_buf.write_bytestring(stmt_name)
                     msg_buf.write_bytestring(query)
@@ -1326,61 +1374,82 @@ cdef class PGConnection:
             self.write_sync(buf)
             self.write(buf)
 
+            if settings is not None:
+                await self._parse_apply_state_resp(2 if settings else 1)
+                await self.wait_for_sync()
+
             buf = WriteBuffer.new()
-            while True:
-                if not self.buffer.take_message():
-                    if buf.len() > 0:
-                        fe_conn.write(buf)
-                        fe_conn.flush()
-                        buf = WriteBuffer.new()
-                    await self.wait_for_message()
+            for unit in query_units:
+                while not sync_received:
+                    if not self.buffer.take_message():
+                        if buf.len() > 0:
+                            fe_conn.write(buf)
+                            fe_conn.flush()
+                            buf = WriteBuffer.new()
+                        await self.wait_for_message()
 
-                mtype = self.buffer.get_message_type()
+                    mtype = self.buffer.get_message_type()
 
-                if mtype == b'1':  # ParseComplete
-                    stmt_name = queue.popleft()
-                    self.prep_stmts[stmt_name] = dbver
-                    self.buffer.finish_message()
+                    if mtype == b'1':  # ParseComplete
+                        if unit.stmt_name:
+                            self.prep_stmts[unit.stmt_name] = dbver
+                        self.buffer.finish_message()
 
-                elif mtype == b'2':  # BindComplete
-                    self.buffer.finish_message()
+                    elif mtype == b'2':  # BindComplete
+                        self.buffer.finish_message()
 
-                elif mtype == b'3':  # CloseComplete
-                    self.buffer.finish_message()
+                    elif mtype == b'n':  # NoData
+                        self.buffer.finish_message()
 
-                elif mtype == b'n':  # NoData
-                    self.buffer.finish_message()
+                    elif mtype == b'I':  # EmptyQueryResponse
+                        # This is always followed by ReadyForQuery, because the
+                        # SQL parser will drop empty queries unless the whole
+                        # query is just an empty string.
+                        self.buffer.redirect_messages(buf, mtype, 0)
+                        break
 
-                elif mtype == b'E':
-                    msg_buf = WriteBuffer.new_message(b'E')
-                    while True:
-                        field_type = self.buffer.read_byte()
-                        if field_type == b'P':  # Position
-                            msg_buf.write_byte(b'q')  # Internal query
-                            msg_buf.write_bytestring(query)
-                            msg_buf.write_byte(b'p')  # Internal position
-                        else:
-                            msg_buf.write_byte(field_type)
-                            if field_type == b'\0':
-                                break
-                        msg_buf.write_bytestring(self.buffer.read_null_str())
-                    self.buffer.finish_message()
-                    buf.write_buffer(msg_buf.end_message())
+                    elif mtype == b'C':  # CommandComplete
+                        self.buffer.redirect_messages(buf, mtype, 0)
+                        dbv.on_success(unit)
+                        break
 
-                elif mtype == b'Z':  # ReadyForQuery
-                    msg_buf = WriteBuffer.new_message(b'Z')
-                    msg_buf.write_byte(self.parse_sync_message())
-                    buf.write_buffer(msg_buf.end_message())
+                    elif mtype == b'E':  # ErrorResponse
+                        msg_buf = WriteBuffer.new_message(b'E')
+                        while True:
+                            field_type = self.buffer.read_byte()
+                            if field_type == b'P':  # Position
+                                msg_buf.write_byte(b'q')  # Internal query
+                                msg_buf.write_bytestring(query)
+                                msg_buf.write_byte(b'p')  # Internal position
+                            else:
+                                msg_buf.write_byte(field_type)
+                                if field_type == b'\0':
+                                    break
+                            msg_buf.write_bytestring(self.buffer.read_null_str())
+                        self.buffer.finish_message()
+                        buf.write_buffer(msg_buf.end_message())
+                        dbv.on_error()
+                        break
 
-                    fe_conn.write(buf)
-                    fe_conn.flush()
-                    break
+                    elif mtype == b'Z':  # ReadyForQuery
+                        # ReadyForQuery is received before all query units are
+                        # enumerated, this usually means an early exit due to
+                        # errors
+                        sync_received = 1
 
-                else:
-                    self.buffer.redirect_messages(buf, mtype, 0)
+                    else:
+                        self.buffer.redirect_messages(buf, mtype, 0)
 
+            # CloseComplete is skipped in wait_for_sync()
+            msg_buf = WriteBuffer.new_message(b'Z')
+            msg_buf.write_byte(await self.wait_for_sync())
+            buf.write_buffer(msg_buf.end_message())
+
+            fe_conn.write(buf)
+            fe_conn.flush()
         finally:
             await self.after_command()
+            dbv.end_implicit()
 
     async def sql_extended_query(
         self,

@@ -378,6 +378,18 @@ class QueryUnitGroup:
         self.units.append(query_unit)
 
 
+@dataclasses.dataclass
+class SQLQueryUnit:
+    query: str
+
+    tx_action: Optional[TxAction] = None
+    tx_chain: bool = False
+    sp_name: Optional[str] = None
+
+    set_vars: Optional[dict[str, Optional[str]]] = None
+
+    stmt_name: bytes = b""
+
 #############################
 
 

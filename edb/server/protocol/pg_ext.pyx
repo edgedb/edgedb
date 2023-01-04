@@ -17,28 +17,189 @@
 #
 
 
+import collections
 import logging
 import hashlib
 import os
 import sys
 from collections import deque
 
+cimport cython
+import immutables
 from libc.stdint cimport int32_t, int16_t, uint32_t
 
 from edb import errors
 from edb.common import debug
 from edb.pgsql.parser import exceptions as parser_errors
 from edb.server import args as srvargs
+from edb.server.compiler import dbstate
 from edb.server.pgcon import errors as pgerror
 from edb.server.pgcon.pgcon cimport PGAction
 from edb.server.protocol cimport frontend
 
 cdef object logger = logging.getLogger('edb.server')
+cdef object DEFAULT_SETTINGS = immutables.Map()
+
+cdef class Savepoint:
+    def __init__(self, name, settings=None):
+        self.name = name
+        self.settings = settings
+
+    def __eq__(self, Savepoint other):
+        return self.name == other.name
+
+
+@cython.final
+cdef class ConnectionView:
+    def __init__(self):
+        self._settings = DEFAULT_SETTINGS
+        self._in_tx_explicit = False
+        self._in_tx_implicit = False
+        self._in_tx_settings = None
+        self._in_tx_savepoints = collections.deque()
+        self._tx_error = False
+
+    def current_settings(self):
+        if self.in_tx():
+            return self._in_tx_settings
+        else:
+            return self._settings
+
+    cpdef inline bint in_tx(self):
+        return self._in_tx_explicit or self._in_tx_implicit
+
+    cdef inline _reset_tx_state(
+        self, bint chain_implicit, bint chain_explicit
+    ):
+        # This method is a part of ending a transaction. COMMIT must be handled
+        # before calling this method. If any of the chain_* flag is set, a new
+        # transaction will be opened immediately after clean-up.
+        self._in_tx_implicit = chain_implicit
+        self._in_tx_explicit = chain_explicit
+        self._in_tx_settings = self._settings if self.in_tx() else None
+        self._in_tx_savepoints.clear()
+        self._tx_error = False
+
+    def start_implicit(self):
+        if self._in_tx_implicit:
+            raise RuntimeError("already in implicit transaction")
+        else:
+            if not self.in_tx():
+                self._in_tx_settings = self._settings
+            self._in_tx_implicit = True
+
+    def end_implicit(self):
+        if not self._in_tx_implicit:
+            raise RuntimeError("not in implicit transaction")
+        if self._in_tx_explicit:
+            # There is an explicit transaction, nothing to do other than
+            # turning off the implicit flag so that we can start_implicit again
+            self._in_tx_implicit = False
+        else:
+            # Commit or rollback the implicit transaction
+            if not self._tx_error:
+                self._settings = self._in_tx_settings
+            self._reset_tx_state(False, False)
+
+    def on_success(self, unit: dbstate.SQLQueryUnit):
+        cdef Savepoint sp
+
+        # Handle ROLLBACK first before self._tx_error
+        if unit.tx_action == dbstate.TxAction.ROLLBACK:
+            if not self._in_tx_explicit:
+                # TODO: warn about "no tx" but still rollback implicit
+                pass
+            self._reset_tx_state(self._in_tx_implicit, unit.tx_chain)
+
+        elif unit.tx_action == dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
+            if not self._in_tx_explicit:
+                if self._in_tx_implicit:
+                    self._tx_error = True
+                raise errors.TransactionError(
+                    "ROLLBACK TO SAVEPOINT can only be used "
+                    "in transaction blocks"
+                )
+            while self._in_tx_savepoints:
+                sp = self._in_tx_savepoints[-1]
+                if sp.name == unit.sp_name:
+                    break
+                else:
+                    self._in_tx_savepoints.pop()
+            else:
+                self._tx_error = True
+                raise errors.TransactionError(
+                    f'savepoint "{unit.sp_name}" does not exist'
+                )
+            self._in_tx_settings = sp.settings
+
+        elif self._tx_error:
+            raise errors.TransactionError(
+                "current transaction is aborted, "
+                "commands ignored until end of transaction block"
+            )
+
+        elif unit.tx_action == dbstate.TxAction.START:
+            if self._in_tx_explicit:
+                # TODO: warning: there is already a transaction in progress
+                pass
+            else:
+                if not self.in_tx():
+                    self._in_tx_settings = self._settings
+                self._in_tx_explicit = True
+
+        elif unit.tx_action == dbstate.TxAction.COMMIT:
+            if not self._in_tx_explicit:
+                # TODO: warning: there is no transaction in progress
+                # but we still commit implicit transactions if any
+                pass
+            if self.in_tx():
+                self._settings = self._in_tx_settings
+            self._reset_tx_state(self._in_tx_implicit, unit.tx_chain)
+
+        elif unit.tx_action == dbstate.TxAction.DECLARE_SAVEPOINT:
+            if not self._in_tx_explicit:
+                raise errors.TransactionError(
+                    "SAVEPOINT can only be used in transaction blocks"
+                )
+            self._in_tx_savepoints.append(Savepoint(
+                unit.sp_name, self._in_tx_settings
+            ))
+
+        elif unit.tx_action == dbstate.TxAction.RELEASE_SAVEPOINT:
+            try:
+                self._in_tx_savepoints.remove(Savepoint(unit.sp_name))
+            except ValueError:
+                raise errors.TransactionError from None
+
+        if unit.set_vars:
+            # only session settings here
+            if unit.set_vars == {None: None}:  # RESET ALL
+                if self.in_tx():
+                    self._in_tx_settings = DEFAULT_SETTINGS
+                else:
+                    self._settings = DEFAULT_SETTINGS
+            else:
+                settings = (
+                    self._in_tx_settings if self.in_tx() else self._settings
+                ).mutate()
+                for k, v in unit.set_vars.items():
+                    if v is None:
+                        settings.pop(k, None)
+                    else:
+                        settings[k] = v
+                if self.in_tx():
+                    self._in_tx_settings = settings.finish()
+                else:
+                    self._settings = settings.finish()
+
+    def on_error(self):
+        self._tx_error = True
 
 
 cdef class PgConnection(frontend.FrontendConnection):
     def __init__(self, server, sslctx, endpoint_security, **kwargs):
         super().__init__(server, **kwargs)
+        self._dbview = ConnectionView()
         self._id = str(<int32_t><uint32_t>(int(self._id) % (2 ** 32)))
         self.prepared_stmts = {}
         self.portals = {}
@@ -56,6 +217,9 @@ cdef class PgConnection(frontend.FrontendConnection):
     def connection_lost(self, exc):
         self.server.on_pgext_client_disconnected(self)
         super().connection_lost(exc)
+
+    cdef is_in_tx(self):
+        return self._dbview.in_tx()
 
     cdef write_error(self, exc):
         cdef WriteBuffer buf
@@ -389,10 +553,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print("Query", query_str)
 
-                sql_source = await self.compile(query_str)
-                if not sql_source:
-                    sql_source = ['']
-
+                query_units = await self.compile(query_str)
             except Exception as ex:
                 self.write_error(ex)
                 self.write(self.ready_for_query())
@@ -405,7 +566,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                     self.portals.pop("", None)
 
                     await conn.sql_simple_query(
-                        sql_source, self, self.database.dbver
+                        query_units, self, self.database.dbver, self._dbview
                     )
                     self.ignore_till_sync = False
                 finally:
