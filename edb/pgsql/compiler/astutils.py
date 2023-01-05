@@ -532,3 +532,17 @@ def compile_typeref(expr: irast.TypeRef) -> pgast.BaseExpr:
         )
 
     return result
+
+
+def relation(names: Sequence[str]) -> pgast.Relation:
+    assert len(names) >= 1
+    assert len(names) <= 3
+    return pgast.Relation(
+        catalogname=names[-3] if len(names) >= 3 else None,
+        schemaname=names[-2] if len(names) >= 2 else None,
+        name=names[-1],
+    )
+
+
+def res_column(name: Sequence[str]) -> pgast.ResTarget:
+    return pgast.ResTarget(val=pgast.ColumnRef(name=name))
