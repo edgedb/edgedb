@@ -4,28 +4,30 @@
 Protocol
 ========
 
-EdgeDB supports GET and POST methods for handling EdgeQL over HTTP
-protocol. Both GET and POST methods use the following fields:
+EdgeDB supports ``GET`` and ``POST`` request methods for handling EdgeQL
+over an HTTP protocol. Both of these methods use the following fields:
 
-- ``query`` - contains the EdgeQL query string
+- ``query`` - contains a string value for an EdgeQL query.
 - ``variables`` - contains a JSON object where keys and values
   correspond to the variable names and values. It is required if the
   EdgeQL query has variables, otherwise it is optional.
 
-The protocol supports HTTP Keep-Alive.
+An HTTP protocol may also support the HTTP ``Keep-Alive`` header as well.
+
 
 GET request
 -----------
 
-The HTTP GET request passes the fields as query parameters: ``query``
-string and JSON-encoded ``variables`` mapping.
+An HTTP ``GET`` request pass fields such as query-string parameters (``query``)
+and JSON-encoded mapping. (``variables``)
 
 
 POST request
 ------------
 
-The POST request should use ``application/json`` content type and
-submit the following JSON-encoded form with the necessary fields::
+An HTTP ``POST`` request are recommended to be used with ``application/json``
+for the ``Content-Type`` HTTP header when submitting the following JSON-encoded
+form with these necessary fields::
 
     {
       "query": "...",
@@ -36,8 +38,9 @@ submit the following JSON-encoded form with the necessary fields::
 Response
 --------
 
-The response format is the same for both methods. The body of the
-response is JSON of the following form::
+The format of a request's response is the same for both methods. The
+``Content-Type`` of a response is returned in ``application/json`` with the
+following form::
 
     {
       "data": [ ... ],
@@ -48,24 +51,24 @@ response is JSON of the following form::
       }
     }
 
-The ``data`` response field will contain the response set serialized
-as a JSON array.
+The ``data`` field in a response will be returned as an ``application/json``
+content type of a JSON array.
 
-Note that the ``error`` field will only be present if an error
-actually occurred. The ``error`` will further contain the ``message``
-field with the error message string, the ``type`` field with the name
-of the type of error and the ``code`` field with an integer
-:ref:`error code <ref_protocol_error_codes>`.
+Note that ``error`` may only be present if an error has actually occurred. The
+``error`` field will contain ``message`` and ``type`` fields, with the message;
+and type respectively, along with a ``code`` field with an integer representing
+an :ref:`error code <ref_protocol_error_codes>`.
 
 .. note::
 
-    Caution is advised when reading ``decimal`` or ``bigint`` values
-    using HTTP protocol because the results are provides in JSON
-    format. The JSON specification does not have a limit on
-    significant digits, so a ``decimal`` or a ``bigint`` number can be
-    losslessly represented in JSON. However, JSON decoders in many
-    languages will read all such numbers as some kind of of 32- or
-    64-bit number type, which may result in errors or precision loss.
-    If such loss is unacceptable, then consider casting the value into
-    ``str`` and decoding it on the client side into a more appropriate
-    type.
+    When reading values from either ``decimal`` or ``bigint`` with our HTTP
+    protocol, keep in mind that all results are provided as the
+    ``application/json`` content type. As such, JSON does not constrain nor'
+    restrict the limit of significant digits, allowing potential error and/or
+    precision loss to occur. Some JSON decoders in languages may interpret
+    these values from 32-to-64 bit representation, resulting in less
+    probability in loss of accuracy. If this happens to be undesirable for your
+    needs, please consider casting these values into a ``str`` type and
+    decoding it on your client-side into an appropriate type suited for your
+    needs.
+
