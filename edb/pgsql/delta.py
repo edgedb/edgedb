@@ -3681,7 +3681,6 @@ class PointerMetaCommand(
         orig_schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
-        from .compiler import astutils
         assert isinstance(self, s_pointers.AlterPointerUpperCardinality)
 
         ptr = self.scls
@@ -3712,7 +3711,8 @@ class PointerMetaCommand(
         if isinstance(source_op, sd.CreateObject):
             return
 
-        conv_expr: pg_ast.Query
+        conv_expr_ctes: List[pg_ast.CommonTableExpr] = []
+        conv_expr_sql: str
         if self.conv_expr is not None:
             compiled_conv_expr = self._compile_conversion_expr(
                 pointer=ptr,
@@ -3724,6 +3724,10 @@ class PointerMetaCommand(
                 target_as_singleton=False,
             )
             _, conv_expr, orig_rel_alias, _ = compiled_conv_expr
+            if conv_expr.ctes:
+                conv_expr_ctes.extend(conv_expr.ctes)
+                conv_expr.ctes.clear()
+            conv_expr_sql = codegen.generate_source(conv_expr)
 
             if is_lprop:
                 obj_id_ref = f'{qi(orig_rel_alias)}.source'
@@ -3732,24 +3736,15 @@ class PointerMetaCommand(
 
             if is_required and not is_multi:
                 # wrap into raise_on_null
-                msg = pg_ast.StringConstant(
-                    val="missing value for required property"
-                )
-                detail = pg_ast.StringConstant(
-                    val=f"""{{"object_id": "' || {obj_id_ref} || '"}}"""
-                )
-                column = pg_ast.ColumnRef(name=str(ptr.id))
-
-                conv_expr_null_check = pg_ast.FuncCall(
-                    name=("edgedb", "raise_on_null"),
-                    args=[
-                        conv_expr,
-                        pg_ast.StringConstant(val="not_null_violation"),
-                        pg_ast.NamedFuncArg(name="msg", val=msg),
-                        pg_ast.NamedFuncArg(name="detail", val=detail),
-                        pg_ast.NamedFuncArg(name="column", val=column),
-                    ],
-                )
+                conv_expr_sql = textwrap.dedent(f'''\
+                    edgedb.raise_on_null(
+                        ({conv_expr_sql}),
+                        'not_null_violation',
+                        msg => 'missing value for required property',
+                        detail => '{{"object_id": "' || {obj_id_ref} || '"}}',
+                        "column" => {ql(str(ptr.id))}
+                    )
+                ''')
         else:
             orig_rel_alias = f'alias_{uuidgen.uuid1mc()}'
 
@@ -3760,16 +3755,19 @@ class PointerMetaCommand(
                 )
             else:
                 # single -> multi
-                col_ref = pg_ast.ColumnRef(
-                    name=(orig_rel_alias, old_ptr_stor_info.column_name)
-                )
-                conv_expr = pg_ast.SelectStmt(
-                    target_list=[pg_ast.ResTarget(val=col_ref)]
+                conv_expr_sql = (
+                    f'SELECT '
+                    f'{qi(orig_rel_alias)}.{qi(old_ptr_stor_info.column_name)}'
                 )
 
-        tab = ptr_stor_info.table_name
+        tab = q(*ptr_stor_info.table_name)
         target_col = ptr_stor_info.column_name
-        relation = astutils.relation(tab)
+
+        with_sql = ''
+        if conv_expr_ctes:
+            with_sql = codegen.SQLSourceGenerator.ctes_to_source(
+                conv_expr_ctes
+            )
 
         if not is_multi:
             # Moving from pointer table to source table.
@@ -3787,22 +3785,12 @@ class PointerMetaCommand(
 
             self.pgops.add(alter_table)
 
-            update_qry = pg_ast.UpdateStmt(
-                relation=pg_ast.RelRangeVar(
-                    relation=relation,
-                    alias=pg_ast.Alias(aliasname=orig_rel_alias),
-                ),
-                targets=[],
-                ctes=[],
-            )
-            if conv_expr.ctes and update_qry.ctes:
-                update_qry.ctes.extend(conv_expr.ctes)
-                conv_expr.ctes.clear()
-            update_qry.targets.append(
-                pg_ast.UpdateTarget(name=target_col, val=conv_expr)
-            )
-            update_qry_sql = codegen.generate_source(update_qry)
-            self.pgops.add(dbops.Query(update_qry_sql))
+            update_qry = textwrap.dedent(f'''\
+                {with_sql}
+                UPDATE {tab} AS {qi(orig_rel_alias)}
+                SET {qi(target_col)} = ({conv_expr_sql})
+            ''')
+            self.pgops.add(dbops.Query(update_qry))
 
             # A link might still own a table if it has properties.
             if not has_table(ptr, schema):
@@ -3820,52 +3808,33 @@ class PointerMetaCommand(
             # Moving from source table to pointer table.
             self.create_table(ptr, schema, context)
             source = ptr.get_source(orig_schema)
-            src_tab = common.get_backend_name(
+            src_tab = q(*common.get_backend_name(
                 orig_schema,
                 source,
                 catenate=False,
-            )
+            ))
 
-            insert_qry = pg_ast.InsertStmt(
-                relation=pg_ast.RelRangeVar(relation=relation),
-                cols=[
-                    pg_ast.InsertTarget(name="source"),
-                    pg_ast.InsertTarget(name="target"),
-                ],
-                select_stmt=pg_ast.SelectStmt(
-                    target_list=[
-                        astutils.res_column((orig_rel_alias, "id")),
-                        astutils.res_column(("q", "val")),
-                    ],
-                    from_clause=[
-                        pg_ast.RelRangeVar(
-                            relation=astutils.relation(src_tab),
-                            alias=pg_ast.Alias(aliasname=orig_rel_alias),
-                        ),
-                        pg_ast.RangeSubselect(
-                            subquery=conv_expr,
-                            alias=pg_ast.Alias(
-                                aliasname="q", colnames=["val"]
-                            ),
-                            lateral=True,
-                        ),
-                    ],
-                    where_clause=pg_ast.NullTest(
-                        arg=pg_ast.ColumnRef(name=("q", "val")), negated=True
-                    ),
-                ),
-                on_conflict=pg_ast.OnConflictClause(
-                    target_list=[
-                        pg_ast.InsertTarget(name="source"),
-                        pg_ast.InsertTarget(name="target"),
-                    ],
-                    action="DO NOTHING",
+            update_qry = textwrap.dedent(f'''\
+                {with_sql}
+                INSERT INTO {tab} (source, target)
+                (
+                    SELECT
+                        {qi(orig_rel_alias)}.id,
+                        q.val
+                    FROM
+                        {src_tab} AS {qi(orig_rel_alias)},
+                        LATERAL (
+                            {conv_expr_sql}
+                        ) AS q(val)
+                    WHERE
+                        q.val IS NOT NULL
                 )
-                if not is_scalar
-                else None,
-            )
-            insert_qry_sql = codegen.generate_source(insert_qry)
-            self.pgops.add(dbops.Query(insert_qry_sql))
+            ''')
+
+            if not is_scalar:
+                update_qry += 'ON CONFLICT (source, target) DO NOTHING'
+
+            self.pgops.add(dbops.Query(update_qry))
 
             assert isinstance(ref_op.scls, s_sources.Source)
             self.recreate_inhview(
@@ -3946,12 +3915,7 @@ class PointerMetaCommand(
                 )
 
         if fill_expr is not None:
-            (
-                _,
-                fill_ast_expr,
-                orig_rel_alias,
-                _,
-            ) = self._compile_conversion_expr(
+            compiled_fill_expr = self._compile_conversion_expr(
                 pointer=ptr,
                 conv_expr=fill_expr,
                 schema=schema,
@@ -3959,7 +3923,15 @@ class PointerMetaCommand(
                 context=context,
                 orig_rel_is_always_source=True,
             )
-            fill_sql_expr = codegen.generate_source(fill_ast_expr)
+            _, fill_ast_expr, orig_rel_alias, _ = compiled_fill_expr
+
+            with_sql = ''
+            if fill_ast_expr.ctes:
+                with_sql = codegen.SQLSourceGenerator.ctes_to_source(
+                    fill_ast_expr.ctes
+                )
+                fill_ast_expr.ctes.clear()
+            fill_expr_sql = codegen.generate_source(fill_ast_expr)
 
             if is_lprop:
                 obj_id_ref = f'{qi(orig_rel_alias)}.source'
@@ -3967,9 +3939,9 @@ class PointerMetaCommand(
                 obj_id_ref = f'{qi(orig_rel_alias)}.id'
 
             if is_required and not is_multi:
-                fill_sql_expr = textwrap.dedent(f'''\
+                fill_expr_sql = textwrap.dedent(f'''\
                     edgedb.raise_on_null(
-                        ({fill_sql_expr}),
+                        ({fill_expr_sql}),
                         'not_null_violation',
                         msg => 'missing value for required property',
                         detail => '{{"object_id": "' || {obj_id_ref} || '"}}',
@@ -3985,8 +3957,9 @@ class PointerMetaCommand(
                 # requisite column of the host source in every
                 # row where it is NULL.
                 update_qry = textwrap.dedent(f'''\
+                    {with_sql}
                     UPDATE {tab} AS {qi(orig_rel_alias)}
-                    SET {qi(target_col)} = ({fill_sql_expr})
+                    SET {qi(target_col)} = ({fill_expr_sql})
                     WHERE {qi(target_col)} IS NULL
                 ''')
                 ops.add_command(dbops.Query(update_qry))
@@ -4003,6 +3976,7 @@ class PointerMetaCommand(
                 ))
 
                 update_qry = textwrap.dedent(f'''\
+                    {with_sql}
                     INSERT INTO {tab} (source, target)
                     (
                         SELECT
@@ -4017,7 +3991,7 @@ class PointerMetaCommand(
                                 )
                             ) AS {qi(orig_rel_alias)},
                             LATERAL (
-                                {fill_sql_expr}
+                                {fill_expr_sql}
                             ) AS q(val)
                         WHERE
                             q.val IS NOT NULL
@@ -4142,19 +4116,20 @@ class PointerMetaCommand(
         # supports arbitrary queries, but requires a temporary column,
         # which is populated with the transition query and then used as the
         # source for the SQL USING clause.
-        (
-            cast_expr,
-            using_ast_expr,
-            orig_rel_alias,
-            sql_expr_is_trivial,
-        ) = self._compile_conversion_expr(
+        compiled_using = self._compile_conversion_expr(
             pointer=pointer,
             conv_expr=cast_expr,
             schema=schema,
             orig_schema=orig_schema,
             context=context,
         )
-        cast_sql_expr = codegen.generate_source(using_ast_expr)
+        (
+            cast_expr,
+            cast_ast_expr,
+            orig_rel_alias,
+            sql_expr_is_trivial,
+        ) = compiled_using
+        cast_sql_expr = codegen.generate_source(cast_ast_expr)
 
         expr_is_nullable = cast_expr.cardinality.can_be_zero()
 

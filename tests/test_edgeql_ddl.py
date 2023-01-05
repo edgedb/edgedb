@@ -2839,6 +2839,37 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER TYPE Foo ALTER LINK l SET TYPE Spam USING (SELECT Spam)
             """)
 
+    async def test_edgeql_ddl_ptr_using_dml(self):
+        await self.con.execute(r"""
+            CREATE TYPE Hello;
+            CREATE TYPE World {
+                CREATE LINK hell -> Hello;
+                CREATE MULTI LINK heaven -> Hello;
+            };
+            INSERT World {
+                heaven := {
+                    (INSERT Hello),
+                    (INSERT Hello),
+                    (INSERT Hello),
+                }
+            };
+        """)
+        assert len(await self.con.query('SELECT Hello')) == 3
+
+        await self.con.execute(r"""
+            ALTER TYPE World {
+                ALTER LINK hell SET REQUIRED USING (INSERT Hello);
+                ALTER LINK heaven SET SINGLE USING (INSERT Hello);
+            }
+        """)
+
+        assert len(await self.con.query('SELECT Hello')) == 5
+
+        await self.assert_query_result(
+            'SELECT World { hell: {}, heaven: {} }',
+            [{'hell': {}, 'heaven': {}}]
+        )
+
     async def test_edgeql_ddl_ptr_set_cardinality_01(self):
         await self.con.execute(r'''
             CREATE TYPE Foo {

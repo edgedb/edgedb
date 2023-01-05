@@ -2699,8 +2699,6 @@ class AlterPointerLowerCardinality(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        from edb.ir import utils as irutils
-
         orig_schema = schema
         schema = super()._alter_begin(schema, context)
         scls = self.scls

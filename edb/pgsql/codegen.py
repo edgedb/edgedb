@@ -111,6 +111,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             exceptions.add_context(e, ctx)
             raise
 
+    @classmethod
+    def ctes_to_source(cls, ctes: List[pgast.CommonTableExpr]) -> str:
+        generator = cls()
+        generator.gen_ctes(ctes)
+        return ''.join(generator.result)
+
     def generic_visit(self, node):  # type: ignore
         raise SQLSourceGeneratorError(
             'No method to generate code for %s' % node.__class__.__name__

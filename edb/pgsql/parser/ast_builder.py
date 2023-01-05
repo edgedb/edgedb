@@ -999,7 +999,7 @@ def _build_insert_target(n: Node, c: Context) -> pgast.InsertTarget:
     )
 
 
-def _build_update_target(n: Node, c: Context) -> pgast.UpdateTarget:
+def _build_update_target(n: Node, c: Context) -> pgast.UpdateTarget:  # no QA
     n = _unwrap(n, "ResTarget")
     return pgast.UpdateTarget(
         name=_build_str(n['name'], c),
