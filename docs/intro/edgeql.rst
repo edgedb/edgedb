@@ -287,7 +287,7 @@ are easily achieved with subqueries.
       title := 'Doctor Strange 2',
       release_year := 2022,
       director := (insert Person {
-        name := "Sam Raimi"
+        name := 'Sam Raimi'
       })
     };
 
@@ -295,7 +295,10 @@ are easily achieved with subqueries.
 
     const query = e.insert(e.Movie, {
       title: 'Doctor Strange 2',
-      release_year: 2022
+      release_year: 2022,
+      director: e.insert(e.Person, {
+        name: 'Sam Raimi'
+      })
     });
 
     const result = await query.run(client);
