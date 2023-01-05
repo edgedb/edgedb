@@ -27,6 +27,8 @@ from edb import errors
 
 from edb.common import enum as s_enum
 from edb.common import struct
+from edb.common import parsing
+from edb.common import ast
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -1323,6 +1325,7 @@ class PointerCommandOrFragment(
         target_as_singleton: bool = False,
         expr_description: Optional[str] = None,
         no_query_rewrites: bool = False,
+        source_context: Optional[parsing.ParserContext] = None,
     ) -> s_expr.CompiledExpression:
         singletons: List[Union[s_types.Type, Pointer]] = []
 
@@ -1368,9 +1371,8 @@ class PointerCommandOrFragment(
             else:
                 singletons.append(self.scls)
 
-        compiled = expr.compiled(
-            schema=schema,
-            options=qlcompiler.CompilerOptions(
+        try:
+            options = qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
                 schema_object_context=self.get_schema_metaclass(),
                 anchors={qlast.Source().name: source},
@@ -1381,20 +1383,28 @@ class PointerCommandOrFragment(
                 ),
                 track_schema_ref_exprs=track_schema_ref_exprs,
                 in_ddl_context_name=in_ddl_context_name,
-            ),
-        )
-
-        if singleton_result_expected and compiled.cardinality.is_multi():
-            if expr_description is None:
-                expr_description = 'an expression'
-
-            raise errors.SchemaError(
-                f'possibly more than one element returned by '
-                f'{expr_description}, while a singleton is expected',
-                context=expr.qlast.context,
             )
 
-        return compiled
+            compiled = expr.compiled(schema=schema, options=options)
+
+            if singleton_result_expected and compiled.cardinality.is_multi():
+                if expr_description is None:
+                    expr_description = 'an expression'
+
+                raise errors.SchemaError(
+                    f'possibly more than one element returned by '
+                    f'{expr_description}, while a singleton is expected',
+                    context=expr.qlast.context,
+                )
+
+            return compiled
+
+        except errors.QueryError as e:
+            if source_context:
+                e.set_source_context(source_context)
+            if not e.has_source_context():
+                e.set_source_context(expr.qlast.context)
+            raise
 
     def compile_expr_field(
         self,
@@ -1584,6 +1594,8 @@ class PointerCommand(
         context: sd.CommandContext,
     ) -> None:
         """Check that pointer definition is sound."""
+        from edb.ir import ast as irast
+
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is None:
             return
@@ -1598,18 +1610,17 @@ class PointerCommand(
 
         if default_expr is not None:
 
-            source_context = self.get_attribute_source_context('default')
-
-            try:
-                default_expr = default_expr.ensure_compiled(schema)
-            except errors.QueryError as e:
-                e.set_source_context(source_context)
-                raise
+            if not default_expr.irast:
+                default_expr = self._compile_expr(
+                    schema, context, default_expr
+                )
+                assert default_expr.irast
 
             if scls.is_id_pointer(schema):
                 self._check_id_default(
                     schema, context, default_expr.irast.expr)
 
+            source_context = self.get_attribute_source_context('default')
             default_schema = default_expr.irast.schema
             default_type = default_expr.irast.stype
             assert default_type is not None
@@ -1645,6 +1656,34 @@ class PointerCommand(
                     f"'single'",
                     context=source_context,
                 )
+
+            # prevent references to local links, only properties
+            pointers = ast.find_children(default_expr.irast, irast.Pointer)
+            scls_source = scls.get_source(schema)
+            assert scls_source
+            for pointer in pointers:
+                if pointer.source.typeref.id != scls_source.id:
+                    continue
+                if not isinstance(pointer.ptrref, irast.PointerRef):
+                    continue
+                s_pointer = schema.get_by_id(pointer.ptrref.id, type=Pointer)
+                card = s_pointer.get_cardinality(schema)
+
+                if s_pointer.is_property(schema) and card.is_multi():
+                    raise errors.SchemaDefinitionError(
+                        f"default expression cannot refer to multi properties "
+                        "of insterted object",
+                        context=source_context,
+                        hint="this is a temporary implementation restriction",
+                    )
+
+                if not s_pointer.is_property(schema):
+                    raise errors.SchemaDefinitionError(
+                        f"default expression cannot refer to links "
+                        "of insterted object",
+                        context=source_context,
+                        hint='this is a temporary implementation restriction'
+                    )
 
     def _check_id_default(
         self,

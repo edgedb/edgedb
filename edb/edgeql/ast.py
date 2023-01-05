@@ -267,6 +267,7 @@ class Subject(SpecialAnchor):  # __subject__
 
 class DetachedExpr(Expr):  # DETACHED Expr
     expr: Expr
+    preserve_path_prefix: bool = False
 
 
 class GlobalExpr(Expr):  # GLOBAL Name
