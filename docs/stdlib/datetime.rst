@@ -652,6 +652,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         db> select datetime_current();
         {<datetime>'2018-05-14T20:07:11.755827Z'}
 
+    This function is volatile since it always returns the current time when it
+    is called. As a result, it cannot be used in :ref:`computed properties
+    defined in schema <ref_datamodel_computed>`. This does *not* apply to
+    computed properties outside of schema.
 
 ----------
 
@@ -662,6 +666,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     Return the date and time of the start of the current transaction.
 
+    This function is non-volatile since it returns the current time when the
+    transaction is started, not when the function is called. As a result, it
+    can be used in :ref:`computed properties <ref_datamodel_computed>` defined
+    in schema.
 
 ----------
 
@@ -672,6 +680,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     Return the date and time of the start of the current statement.
 
+    This function is non-volatile since it returns the current time when the
+    statement is started, not when the function is called. As a result, it
+    can be used in :ref:`computed properties <ref_datamodel_computed>` defined
+    in schema.
 
 ----------
 
