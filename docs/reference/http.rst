@@ -43,7 +43,7 @@ If your instance is alive, it will respond with a ``200`` status code and
 ``"OK"`` as the payload. Otherwise, it will respond with a ``50x`` or a network
 error.
 
-Awakeness
+Readiness
 ^^^^^^^^^
 
 Check if your instance is ready to receive queries.
@@ -207,7 +207,7 @@ of the type of error and the ``code`` field with an integer
 .. note::
 
     Caution is advised when reading ``decimal`` or ``bigint`` values
-    using HTTP protocol because the results are provides in JSON
+    using the HTTP protocol because the results are provided in JSON
     format. The JSON specification does not have a limit on
     significant digits, so a ``decimal`` or a ``bigint`` number can be
     losslessly represented in JSON. However, JSON decoders in many
