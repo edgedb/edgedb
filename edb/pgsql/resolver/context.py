@@ -27,6 +27,12 @@ from edb.common import compiler
 from edb.schema import schema as s_schema
 
 
+@dataclass(frozen=True)
+class Options:
+    # schemas that will be searched when idents don't have an explicit one
+    search_path: Sequence[str] = ("public",)
+
+
 @dataclass(kw_only=True)
 class Scope:
     """
@@ -59,6 +65,10 @@ class Table:
     # Internal SQL
     reference_as: Optional[str] = None
 
+    # Set for tables that in a parent scope.
+    # This will prevent them from being matched without an explicit table name.
+    in_parent: bool = False
+
     def __str__(self) -> str:
         columns = ', '.join(str(c) for c in self.columns)
         alias = f'{self.alias} = ' if self.alias else ''
@@ -85,21 +95,22 @@ class Column:
 
 class ContextSwitchMode(enum.Enum):
     EMPTY = enum.auto()
-    ISOLATED = enum.auto()
+    CHILD = enum.auto()
+    LATERAL = enum.auto()
 
 
 class ResolverContextLevel(compiler.ContextLevel):
     schema: s_schema.Schema
     names: compiler.AliasGenerator
 
+    # Visible names in scope
     scope: Scope
-    """Visible names in scope"""
 
+    # True iff relation currently resolving should also include instances of
+    # child objects.
     include_inherited: bool
-    """
-    True iff relation currently resolving should also include instances of
-    child objects.
-    """
+
+    options: Options
 
     def __init__(
         self,
@@ -107,24 +118,32 @@ class ResolverContextLevel(compiler.ContextLevel):
         mode: ContextSwitchMode,
         *,
         schema: Optional[s_schema.Schema] = None,
+        options: Optional[Options] = None,
     ) -> None:
         if prevlevel is None:
-            assert schema is not None
+            assert schema
+            assert options
 
             self.schema = schema
+            self.options = options
             self.scope = Scope()
             self.include_inherited = True
             self.names = compiler.AliasGenerator()
 
         else:
             self.schema = prevlevel.schema
+            self.options = prevlevel.options
             self.names = prevlevel.names
 
             self.include_inherited = True
 
             if mode == ContextSwitchMode.EMPTY:
                 self.scope = Scope(ctes=prevlevel.scope.ctes)
-            elif mode == ContextSwitchMode.ISOLATED:
+            elif mode == ContextSwitchMode.CHILD:
+                self.scope = deepcopy(prevlevel.scope)
+                for t in self.scope.tables:
+                    t.in_parent = True
+            elif mode == ContextSwitchMode.LATERAL:
                 self.scope = deepcopy(prevlevel.scope)
 
     def empty(
@@ -133,11 +152,13 @@ class ResolverContextLevel(compiler.ContextLevel):
         """Create a new empty context"""
         return self.new(ContextSwitchMode.EMPTY)
 
-    def isolated(
-        self,
-    ) -> compiler.CompilerContextManager[ResolverContextLevel]:
+    def child(self) -> compiler.CompilerContextManager[ResolverContextLevel]:
         """Clone current context, prevent changes from leaking to parent"""
-        return self.new(ContextSwitchMode.ISOLATED)
+        return self.new(ContextSwitchMode.CHILD)
+
+    def lateral(self) -> compiler.CompilerContextManager[ResolverContextLevel]:
+        """Clone current context, prevent changes from leaking to parent"""
+        return self.new(ContextSwitchMode.LATERAL)
 
 
 class ResolverContext(compiler.CompilerContext[ResolverContextLevel]):

@@ -365,7 +365,13 @@ typed EdgeQL queries easy and painless. The result type of our queries will be
 automatically inferred, so we won't need to manually type something like
 ``type Post = { id: string; ... }``.
 
-Generate the query builder with the following command.
+First, install the generator to your project.
+
+.. code-block:: bash
+
+  $ yarn add --dev @edgedb/generate
+
+Then generate the query builder with the following command.
 
 .. code-block:: bash
 

@@ -36,7 +36,7 @@ On Ubuntu 22.10, these can be installed by running:
 .. code-block:: bash
 
    $ apt install make gcc rust-all autotools-dev python3.11-dev \
-     python3.11-venv bison flex libreadline-dev perl zlibg1-dev \
+     python3.11-venv bison flex libreadline-dev perl zlib1g-dev \
      uuid-dev nodejs npm
    $ npm i -g corepack
    $ corepack enable && corepack prepare yarn@stable --activate

@@ -267,10 +267,7 @@ def compile_filter_clause(
                 wrapper.where_clause = pathctx.get_path_value_var(
                     wrapper, ir_set.path_id, env=subctx.env)
 
-            where_clause = pgast.SubLink(
-                type=pgast.SubLinkType.EXISTS,
-                expr=wrapper
-            )
+            where_clause = pgast.SubLink(operator="EXISTS", expr=wrapper)
 
     return where_clause
 
@@ -364,8 +361,7 @@ def scan_check_ctes(
         # scanning it.
         check_cte.materialized = True
         check = make_check_scan(check_cte, ctx=ctx)
-        val = pgast.Expr(
-            kind=pgast.ExprKind.OP, name='+', lexpr=val, rexpr=check)
+        val = pgast.Expr(name="+", lexpr=val, rexpr=check)
 
     update_query = pgast.UpdateStmt(
         targets=[pgast.UpdateTarget(
@@ -374,8 +370,8 @@ def scan_check_ctes(
         relation=pgast.RelRangeVar(relation=pgast.Relation(
             schemaname='edgedb', name='_dml_dummy')),
         where_clause=pgast.Expr(
-            kind=pgast.ExprKind.OP, name='=',
-            lexpr=pgast.ColumnRef(name=['id']),
+            name="=",
+            lexpr=pgast.ColumnRef(name=["id"]),
             rexpr=val,
         )
     )

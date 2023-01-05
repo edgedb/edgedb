@@ -291,3 +291,10 @@ type Slicing {
     constraint exclusive on ((.z[1:3]));
     constraint exclusive on ((.u[1:3]));
 }
+
+scalar type OrderStatus extending enum<open, processing, complete>;
+
+type Order {
+    required property status -> OrderStatus;
+    constraint exclusive on ((OrderStatus.open in .status));
+}

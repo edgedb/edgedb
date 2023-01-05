@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2016-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2022-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,12 +17,21 @@
 #
 
 
-from edb.server.protocol cimport frontend
 from edb.server.pgproto.pgproto cimport WriteBuffer
+from edb.server.protocol cimport frontend
 
 
-cdef class NotebookConnection(frontend.AbstractFrontendConnection):
+cdef class PgConnection(frontend.FrontendConnection):
+
     cdef:
-        WriteBuffer buf
+        bytes secret
+        str client_encoding
+        dict prepared_stmts
+        dict portals
+        bint ignore_till_sync
 
-    cdef bytes _get_data(self)
+        object sslctx
+        object endpoint_security
+        bint is_tls
+
+    cdef inline WriteBuffer ready_for_query(self)

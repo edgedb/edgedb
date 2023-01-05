@@ -28,7 +28,7 @@ CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 
 CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
 CREATE SCALAR TYPE cfg::AllowBareDDL EXTENDING enum<AlwaysAllow, NeverAllow>;
-CREATE SCALAR TYPE cfg::ConnectionTransport EXTENDING enum<TCP, HTTP>;
+CREATE SCALAR TYPE cfg::ConnectionTransport EXTENDING enum<TCP, TCP_PG, HTTP>;
 
 CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
 
@@ -78,26 +78,39 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     CREATE REQUIRED PROPERTY session_idle_timeout -> std::duration {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::report := 'true';
+        CREATE ANNOTATION std::description :=
+            'How long client connections can stay inactive before being \
+            closed by the server.';
         SET default := <std::duration>'60 seconds';
     };
 
     CREATE REQUIRED PROPERTY session_idle_transaction_timeout -> std::duration {
         CREATE ANNOTATION cfg::backend_setting :=
             '"idle_in_transaction_session_timeout"';
+        CREATE ANNOTATION std::description :=
+            'How long client connections can stay inactive while in a \
+            transaction.';
         SET default := <std::duration>'10 seconds';
     };
 
     CREATE REQUIRED PROPERTY query_execution_timeout -> std::duration {
         CREATE ANNOTATION cfg::backend_setting := '"statement_timeout"';
+        CREATE ANNOTATION std::description :=
+            'How long an individual query can run before being aborted.';
     };
 
     CREATE REQUIRED PROPERTY listen_port -> std::int16 {
         CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION std::description :=
+            'The TCP port the server listens on.';
         SET default := 5656;
     };
 
     CREATE MULTI PROPERTY listen_addresses -> std::str {
         CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION std::description :=
+            'The TCP/IP address(es) on which the server is to listen for \
+            connections from client applications.';
     };
 
     CREATE MULTI LINK auth -> cfg::Auth {
@@ -113,16 +126,22 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     CREATE PROPERTY allow_bare_ddl -> cfg::AllowBareDDL {
         SET default := cfg::AllowBareDDL.AlwaysAllow;
         CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION std::description :=
+            'Whether DDL is allowed to be executed outside a migration.';
     };
 
     CREATE PROPERTY apply_access_policies -> std::bool {
         SET default := true;
         CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION std::description :=
+            'Whether access policies will be applied when running queries.';
     };
 
     CREATE PROPERTY allow_user_specified_id -> std::bool {
         SET default := false;
         CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION std::description :=
+            'Whether inserts are allowed to set the \'id\' property.';
     };
 
     # Exposed backend settings follow.
@@ -133,26 +152,39 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"shared_buffers"';
         CREATE ANNOTATION cfg::requires_restart := 'true';
+        CREATE ANNOTATION std::description :=
+            'The amount of memory used for shared memory buffers.';
     };
 
     CREATE PROPERTY query_work_mem -> cfg::memory {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"work_mem"';
+        CREATE ANNOTATION std::description :=
+            'The amount of memory used by internal query operations such as \
+            sorting.';
     };
 
     CREATE PROPERTY effective_cache_size -> cfg::memory {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_cache_size"';
+        CREATE ANNOTATION std::description :=
+            'An estimate of the effective size of the disk cache available \
+            to a single query.';
     };
 
     CREATE PROPERTY effective_io_concurrency -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_io_concurrency"';
+        CREATE ANNOTATION std::description :=
+            'The number of concurrent disk I/O operations that can be \
+            executed simultaneously.';
     };
 
     CREATE PROPERTY default_statistics_target -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"default_statistics_target"';
+        CREATE ANNOTATION std::description :=
+            'The default data statistics target for the planner.';
     };
 };
 

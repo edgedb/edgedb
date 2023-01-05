@@ -285,7 +285,7 @@ as the property of the source object (for many-to-one and one-to-one cases).
 It is generally advisable to use object properties instead of link properties
 in these cases due to better ergonomics of selecting, updating, and even
 casting into :eql:type:`json` when keeping all data in the same place rather
-than speading it across link and object properties.
+than spreading it across link and object properties.
 
 .. note::
 
@@ -368,8 +368,9 @@ delete`` clause.
 Under this policy, deleting a ``MessageThread`` will *unconditionally* delete
 its ``messages`` as well.
 
-To avoid deleting a ``Message`` that is linked to by other schema entities,
-append ``if orphan``.
+To avoid deleting a ``Message`` that is linked to by other ``MessageThread``
+objects via their ``message`` link, append ``if orphan`` to that link's
+deletion policy.
 
 .. code-block:: sdl-diff
 
@@ -380,6 +381,26 @@ append ``if orphan``.
   +     on source delete delete target if orphan;
       }
     }
+
+.. note::
+
+    Deletion policies using ``if orphan`` will result in the target being
+    deleted *unless it is linked by another object via the same link the policy
+    is on*. This qualifier does not apply globally across all links in the
+    database or across different links even if they're on the same type. For
+    example, a ``Message`` might be linked from both a ``MessageThread`` and a
+    ``Channel``. If the ``MessageThread`` linking to it is deleted, the
+    deletion policy would still result in the ``Message`` being deleted as long
+    as no other ``MessageThread`` objects link to it on that same field. It is
+    orphaned with respect to the ``MessageThread`` type's ``link`` field, even
+    though it is not orphaned globally.
+
+    Similarly, if the ``MessageThread`` had two links both linking to messages
+    — maybe the existing ``messages`` link and another called ``related`` to
+    link other related ``Message`` objects that are not in the thread — ``if
+    orphan`` could result in linked messages being deleted even if they were
+    also linked from another ``MessageThread`` object's ``related`` link
+    because they were orphaned with respect to the ``messages`` link.
 
 
 .. _ref_datamodel_link_polymorphic:

@@ -24,6 +24,7 @@ from typing import *
 
 from edb import errors
 from edb.common.parsing import ParserContext
+from edb.server.pgcon import errors as pgerror
 
 from edb.pgsql import ast as pgast
 from edb.pgsql.compiler import astutils as pgastutils
@@ -116,7 +117,7 @@ def _resolve_RangeSubselect(
     *,
     ctx: Context,
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
-    with ctx.isolated() if range_var.lateral else ctx.empty() as subctx:
+    with ctx.lateral() if range_var.lateral else ctx.empty() as subctx:
         subquery, subtable = dispatch.resolve_relation(
             range_var.subquery, ctx=subctx
         )
@@ -172,7 +173,6 @@ def _resolve_JoinExpr(
             quals = pgastutils.extend_binop(
                 quals,
                 pgast.Expr(
-                    kind=pgast.ExprKind.OP,
                     name='=',
                     lexpr=l_expr,
                     rexpr=r_expr,
@@ -190,7 +190,18 @@ def _resolve_JoinExpr(
 def resolve_CommonTableExpr(
     cte: pgast.CommonTableExpr, *, ctx: Context
 ) -> Tuple[pgast.CommonTableExpr, context.CTE]:
-    with ctx.isolated() as subctx:
+    reference_as = None
+
+    with ctx.child() as subctx:
+        if cte.recursive and cte.aliascolnames:
+            reference_as = [subctx.names.get('col') for _ in cte.aliascolnames]
+            columns = [
+                context.Column(name=col, reference_as=ref_as)
+                for col, ref_as in zip(cte.aliascolnames, reference_as)
+            ]
+            subctx.scope.ctes.append(
+                context.CTE(name=cte.name, columns=columns)
+            )
 
         query, table = dispatch.resolve_relation(cte.query, ctx=subctx)
 
@@ -206,9 +217,13 @@ def resolve_CommonTableExpr(
                 )
             )
 
+        if reference_as:
+            for col, ref_as in zip(result.columns, reference_as):
+                col.reference_as = ref_as
+
     node = pgast.CommonTableExpr(
         name=cte.name,
-        aliascolnames=None,
+        aliascolnames=reference_as,
         query=query,
         recursive=cte.recursive,
         materialized=cte.materialized,
@@ -223,7 +238,7 @@ def _resolve_RangeFunction(
     *,
     ctx: Context,
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
-    with ctx.isolated() if range_var.lateral else ctx.empty() as subctx:
+    with ctx.lateral() if range_var.lateral else ctx.empty() as subctx:
 
         functions = []
         col_names = []
@@ -239,7 +254,7 @@ def _resolve_RangeFunction(
 
             functions.append(dispatch.resolve(function, ctx=subctx))
 
-        infered_columns = [context.Column(name=name) for name in col_names]
+        inferred_columns = [context.Column(name=name) for name in col_names]
 
         table = context.Table(
             columns=[
@@ -248,7 +263,7 @@ def _resolve_RangeFunction(
                     reference_as=al or ctx.names.get('col'),
                 )
                 for col, al in _zip_column_alias(
-                    infered_columns, alias, ctx=range_var.context
+                    inferred_columns, alias, ctx=range_var.context
                 )
             ]
         )
@@ -282,5 +297,6 @@ def _zip_column_alias(
             f'{len(alias.colnames)} columns, but the query resolves to '
             f'{len(columns)} columns',
             context=ctx,
+            pgext_code=pgerror.ERROR_INVALID_COLUMN_REFERENCE,
         )
     return zip(columns, alias.colnames)

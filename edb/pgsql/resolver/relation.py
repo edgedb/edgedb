@@ -22,9 +22,11 @@ in our internal Postgres instance."""
 from typing import *
 
 from edb import errors
+from edb.server.pgcon import errors as pgerror
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common as pgcommon
+from edb.pgsql import codegen as pgcodegen
 
 from edb.schema import objtypes as s_objtypes
 from edb.schema import links as s_links
@@ -66,10 +68,10 @@ def resolve_SelectStmt(
     if stmt.larg or stmt.rarg:
         assert stmt.larg and stmt.rarg
 
-        with ctx.isolated() as subctx:
+        with ctx.child() as subctx:
             larg, ltable = dispatch.resolve_relation(stmt.larg, ctx=subctx)
 
-        with ctx.isolated() as subctx:
+        with ctx.child() as subctx:
             rarg, rtable = dispatch.resolve_relation(stmt.rarg, ctx=subctx)
 
         # validate equal columns from both sides
@@ -174,15 +176,19 @@ def resolve_relation(
     relation: pgast.Relation, *, ctx: Context
 ) -> Tuple[pgast.Relation, context.Table]:
     assert relation.name
-    schema_name = relation.schemaname or 'public'
-    catalog = relation.catalogname or 'postgres'
+
+    if relation.catalogname and relation.catalogname != 'postgres':
+        raise errors.QueryError(
+            f'queries cross databases are not supported',
+            context=relation.context
+        )
 
     # try introspection tables
 
     introspection_tables = None
-    if schema_name == 'information_schema':
+    if relation.schemaname == 'information_schema':
         introspection_tables = sql_introspection.INFORMATION_SCHEMA
-    elif schema_name == 'pg_catalog':
+    elif not relation.schemaname or relation.schemaname == 'pg_catalog':
         introspection_tables = sql_introspection.PG_CATALOG
 
     if introspection_tables and relation.name in introspection_tables:
@@ -195,8 +201,10 @@ def resolve_relation(
 
         return rel, table
 
+    schema_name = relation.schemaname
+
     # try a CTE
-    if catalog == 'postgres' and schema_name == 'public':
+    if not schema_name or schema_name == 'public':
         cte = next(
             (t for t in ctx.scope.ctes if t.name == relation.name), None
         )
@@ -205,12 +213,15 @@ def resolve_relation(
             return pgast.Relation(name=cte.name, schemaname=None), table
 
     # lookup the object in schema
+    schemas = [schema_name] if schema_name else ctx.options.search_path
+    modules = ['default' if s == 'public' else s for s in schemas]
+
     obj: Optional[s_sources.Source | s_properties.Property] = None
-    if catalog == 'postgres':
+    for module in modules:
+        if obj:
+            break
 
-        module = 'default' if schema_name == 'public' else schema_name
         object_name = sn.QualName(module, relation.name)
-
         obj = ctx.schema.get(  # type: ignore
             object_name,
             None,
@@ -218,14 +229,18 @@ def resolve_relation(
             type=s_objtypes.ObjectType,
         )
 
-        # try pointer table
-        if not obj:
-            obj = _lookup_pointer_table(relation.name, ctx)
+    # try pointer table
+    for module in modules:
+        if obj:
+            break
+        obj = _lookup_pointer_table(module, relation.name, ctx)
 
     if not obj:
+        rel_name = pgcodegen.generate_source(relation)
         raise errors.QueryError(
-            f'unknown table `{schema_name}.{relation.name}`',
+            f'unknown table `{rel_name}`',
             context=relation.context,
+            pgext_code=pgerror.ERROR_UNDEFINED_TABLE,
         )
 
     # extract table name
@@ -268,7 +283,7 @@ def resolve_relation(
 
 
 def _lookup_pointer_table(
-    name: str, ctx: Context
+    module: str, name: str, ctx: Context
 ) -> Optional[s_links.Link | s_properties.Property]:
     # Pointer tables are either:
     # - multi link tables
@@ -278,8 +293,10 @@ def _lookup_pointer_table(
     if '.' not in name:
         return None
     object_name, link_name = name.split('.')
+    object_name_qual = sn.QualName(module, object_name)
+
     parent: s_objtypes.ObjectType = ctx.schema.get(  # type: ignore
-        object_name,
+        object_name_qual,
         None,
         module_aliases={None: 'default'},
         type=s_objtypes.ObjectType,

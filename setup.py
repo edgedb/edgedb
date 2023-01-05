@@ -43,7 +43,7 @@ RUST_VERSION = '1.59.0'  # Also update docs/internal/dev.rst
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 # This can be a branch, tag, or commit
-EDGEDBCLI_COMMIT = '96af7430373f817603e7531672a1b597a61fd087'
+EDGEDBCLI_COMMIT = 'master'
 
 EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
 # This can be a branch, tag, or commit
@@ -964,6 +964,14 @@ setuptools.setup(
         setuptools_extension.Extension(
             "edb.server.protocol.binary",
             ["edb/server/protocol/binary.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS,
+            include_dirs=EXT_INC_DIRS,
+        ),
+
+        setuptools_extension.Extension(
+            "edb.server.protocol.pg_ext",
+            ["edb/server/protocol/pg_ext.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS,
             include_dirs=EXT_INC_DIRS,

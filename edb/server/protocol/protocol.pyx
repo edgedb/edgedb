@@ -38,6 +38,7 @@ from edb.graphql import extension as graphql_ext
 from edb.server import args as srvargs
 from edb.server.protocol cimport binary
 from edb.server.protocol import binary
+from edb.server.protocol import pg_ext
 from edb.server import defines as edbdef
 # Without an explicit cimport of `pgproto.debug`, we
 # can't cimport `protocol.binary` for some reason.
@@ -87,6 +88,7 @@ cdef class HttpProtocol:
         self,
         server,
         sslctx,
+        sslctx_pgext,
         *,
         external_auth: bool=False,
         binary_endpoint_security = None,
@@ -97,6 +99,7 @@ cdef class HttpProtocol:
         self.transport = None
         self.external_auth = external_auth
         self.sslctx = sslctx
+        self.sslctx_pgext = sslctx_pgext
 
         self.parser = None
         self.current_request = None
@@ -176,6 +179,17 @@ cdef class HttpProtocol:
                     self._return_binary_error(
                         self._switch_to_binary_protocol()
                     )
+                return
+            elif data[0:1] == b'\x00':
+                # Postgres protocol, assuming the 1st message is less than 16MB
+                pg_ext_conn = pg_ext.new_pg_connection(
+                    self.server,
+                    self.sslctx_pgext,
+                    self.binary_endpoint_security,
+                )
+                self.transport.set_protocol(pg_ext_conn)
+                pg_ext_conn.connection_made(self.transport)
+                pg_ext_conn.data_received(data)
                 return
             else:
                 # HTTP.

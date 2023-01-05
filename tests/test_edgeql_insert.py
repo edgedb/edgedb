@@ -1779,6 +1779,106 @@ class TestInsert(tb.QueryTestCase):
         # The result should not include the default param
         assert not hasattr(obj, 'num')
 
+    async def test_edgeql_insert_default_07(self):
+        await self.con.query(
+            r"""
+            create type Foo {
+                create property n -> int32;
+                create property a -> str;
+                create property b -> str;
+                create property c -> str;
+            };
+
+            alter type Foo {
+                alter property a { set default := 'a=' ++ .b };
+                alter property b { set default := 'b=' ++ .c };
+                alter property c { set default := 'c=' ++ .a };
+            };
+        """
+        )
+        await self.con.query("insert Foo { n := 0, a := 'given' };")
+        await self.con.query("insert Foo { n := 1, b := 'given' };")
+        await self.con.query("insert Foo { n := 2, c := 'given' };")
+        await self.assert_query_result(
+            "select Foo { a, b, c } order by .n",
+            [
+                {"a": "given", "b": "b=c=given", "c": "c=given"},
+                {"a": "a=given", "b": "given", "c": "c=a=given"},
+                {"a": "a=b=given", "b": "b=given", "c": "given"},
+            ],
+        )
+
+    async def test_edgeql_insert_default_08(self):
+        await self.con.query(
+            r"""
+            create type Bar {
+                create property f -> float64;
+                create property g -> float64 {
+                    set default := .f
+                };
+            };
+            """
+        )
+        await self.con.query("insert Bar { f := random() };")
+        res = await self.con.query("select Bar { f, g }")
+        assert res[0].f == res[0].g
+
+    async def test_edgeql_insert_default_09(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"default expression cannot refer to multi properties",
+        ):
+            await self.migrate(
+                r"""
+                type Hello {
+                    multi property b -> int32;
+                    property a -> int32 {
+                        default := count(.b);
+                    };
+                }
+            """
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"default expression cannot refer to links",
+        ):
+            await self.migrate(
+                r"""
+                type World {
+                    property w -> int32;
+                }
+
+                type Hello {
+                    link world -> World;
+
+                    property hello -> int32 {
+                        default := .world.w;
+                    };
+                }
+            """
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"default expression cannot refer to links",
+        ):
+            await self.migrate(
+                r"""
+                type World {
+                    property w -> int32;
+                }
+
+                type Hello {
+                    multi link world -> World;
+
+                    property hello -> int32 {
+                        default := count(.world);
+                    };
+                }
+            """
+            )
+
     async def test_edgeql_insert_as_expr_01(self):
         await self.con.execute(r'''
             # insert several objects, then annotate one of the inserted batch

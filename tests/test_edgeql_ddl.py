@@ -559,17 +559,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """)
 
     async def test_edgeql_ddl_14(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                f'__source__ cannot be used in this expression'):
-            await self.con.execute("""
-                CREATE TYPE TestSelfLink1 {
-                    CREATE PROPERTY foo1 -> std::str;
-                    CREATE PROPERTY bar1 -> std::str {
-                        SET default := __source__.foo1;
-                    };
+        await self.con.execute("""
+            CREATE TYPE TestSelfLink1 {
+                CREATE PROPERTY foo1 -> std::str;
+                CREATE PROPERTY bar1 -> std::str {
+                    SET default := __source__.foo1;
                 };
-            """)
+            };
+        """)
 
     async def test_edgeql_ddl_15(self):
         await self.con.execute(r"""
@@ -607,18 +604,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
     async def test_edgeql_ddl_16(self):
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                'possibly more than one element'):
-            await self.con.execute(r"""
-                CREATE TYPE TestSelfLink3 {
-                    CREATE PROPERTY foo3 -> std::str;
-                    CREATE PROPERTY bar3 -> std::str {
-                        # NOTE: this is a set of all TestSelfLink3.foo3
-                        SET default := TestSelfLink3.foo3;
-                    };
+        await self.con.execute(r"""
+            CREATE TYPE TestSelfLink3 {
+                CREATE PROPERTY foo3 -> std::str;
+                CREATE PROPERTY bar3 -> std::str {
+                    SET default := TestSelfLink3.foo3;
                 };
-            """)
+            };
+        """)
 
     async def test_edgeql_ddl_18(self):
         await self.con.execute("""
@@ -3495,6 +3488,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     };
                 """)
 
+    async def test_edgeql_ddl_link_bad_04(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                f"'default' is not a valid field for an abstract link"):
+            async with self.con.transaction():
+                await self.migrate("""
+                    abstract link bar {
+                        default := Object;
+                    };
+                """)
+
     async def test_edgeql_ddl_property_long_01(self):
         prop_name = (
             'f123456789_123456789_123456789_123456789'
@@ -3531,6 +3535,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 await self.con.execute("""
                     CREATE ABSTRACT PROPERTY bar {
                         SET default := 'bad';
+                    };
+                """)
+
+    async def test_edgeql_ddl_property_bad_04(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                f"'default' is not a valid field for an abstract property"):
+            async with self.con.transaction():
+                await self.migrate("""
+                    abstract property currency_fallback {
+                        default := 'EUR';
                     };
                 """)
 
@@ -9716,42 +9731,26 @@ type default::Foo {
                 create required property status -> Status;
             }
         """)
-        async with self.assertRaisesRegexTx(
-                edgedb.UnsupportedFeatureError,
-                r"cannot cast to enum types or reference enum literals "
-                r"from constraint"):
-            await self.con.execute("""
-                alter type Order {
-                  create constraint exclusive on ((Status.open = .status));
-                };
-            """)
-        async with self.assertRaisesRegexTx(
-                edgedb.UnsupportedFeatureError,
-                r"cannot cast to enum types or reference enum literals "
-                r"from constraint"):
-            await self.con.execute("""
-                alter type Order {
-                  create constraint exclusive on ((<Status>'open' = .status));
-                };
-            """)
-        async with self.assertRaisesRegexTx(
-                edgedb.UnsupportedFeatureError,
-                r"cannot cast to enum types or reference enum literals "
-                r"from index"):
-            await self.con.execute("""
-                alter type Order {
-                  create index on ((Status.open = .status));
-                };
-            """)
-        async with self.assertRaisesRegexTx(
-                edgedb.UnsupportedFeatureError,
-                r"cannot cast to enum types or reference enum literals "
-                r"from index"):
-            await self.con.execute("""
-                alter type Order {
-                  create index on ((<Status>'open' = .status));
-                };
-            """)
+        await self.con.execute("""
+            alter type Order {
+                create constraint exclusive on ((Status.open = .status));
+            };
+        """)
+        await self.con.execute("""
+            alter type Order {
+                create constraint exclusive on ((<Status>'open' = .status));
+            };
+        """)
+        await self.con.execute("""
+            alter type Order {
+                create index on ((Status.open = .status));
+            };
+        """)
+        await self.con.execute("""
+            alter type Order {
+                create index on ((<Status>'open' = .status));
+            };
+        """)
 
     async def test_edgeql_ddl_constraint_check_01a(self):
         await self.con.execute(r"""

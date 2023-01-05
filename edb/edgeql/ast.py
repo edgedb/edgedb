@@ -267,6 +267,7 @@ class Subject(SpecialAnchor):  # __subject__
 
 class DetachedExpr(Expr):  # DETACHED Expr
     expr: Expr
+    preserve_path_prefix: bool = False
 
 
 class GlobalExpr(Expr):  # GLOBAL Name
@@ -1374,10 +1375,6 @@ class DescribeStmt(Statement):
     language: qltypes.DescribeLanguage
     object: typing.Union[ObjectRef, DescribeGlobal]
     options: Options
-
-
-class SQLDebugStmt(Statement):
-    source: str
 
 
 #

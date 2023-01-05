@@ -53,7 +53,6 @@ from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 from edb.server import main as edgedb_main
-from edb.server import pgconnparams
 
 from edb.common import assert_data_shape
 from edb.common import devmode
@@ -1235,31 +1234,24 @@ class SQLQueryTestCase(BaseQueryTestCase):
             raise unittest.SkipTest('SQL tests skipped: asyncpg not installed')
 
         super().setUpClass()
-        settings = cls.con.get_settings()
-        pgaddr = settings.get('pgaddr')
-        if pgaddr is None:
-            raise unittest.SkipTest('SQL tests skipped: not in devmode')
-        pgaddr = json.loads(pgaddr)
+        conargs = cls.get_connect_args()
 
-        # Try to grab a password from the specified DSN, if one is
-        # present, since the pgaddr won't have a real one. (The non
-        # specified DSN test suite setup doesn't have one, so it is
-        # fine.)
-        password = None
-        spec_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
-        if spec_dsn:
-            _, params = pgconnparams.parse_dsn(spec_dsn)
-            password = params.password
-
-        pgdsn = (
-            f'postgres:///{pgaddr["database"]}?user={pgaddr["user"]}'
-            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
+        tls_context = ssl.create_default_context(
+            ssl.Purpose.SERVER_AUTH,
+            cafile=conargs["tls_ca_file"],
         )
-        if password is not None:
-            pgdsn += f'&password={password}'
+        tls_context.check_hostname = False
 
         cls.scon = cls.loop.run_until_complete(
-            asyncpg.connect(pgdsn))
+            asyncpg.connect(
+                host=conargs['host'],
+                port=conargs['port'],
+                user=conargs['user'],
+                password=conargs['password'],
+                database=cls.con.dbname,
+                ssl=tls_context,
+            )
+        )
 
     @classmethod
     def tearDownClass(cls):
@@ -1272,20 +1264,8 @@ class SQLQueryTestCase(BaseQueryTestCase):
         finally:
             super().tearDownClass()
 
-    async def squery(self, query):
-        rewritten = await self.con.query_single(f'''
-           describe alter {qlquote.quote_literal(query)}
-        ''')
-        return await self.scon.fetch(rewritten)
-
-    async def sprepare(self, query):
-        rewritten = await self.con.query_single(f'''
-           describe alter {qlquote.quote_literal(query)}
-        ''')
-        return await self.scon.prepare(rewritten)
-
     async def squery_values(self, query):
-        res = await self.squery(query)
+        res = await self.scon.fetch(query)
         return [list(r.values()) for r in res]
 
     def assert_shape(self, res, rows, cols, column_names=None):

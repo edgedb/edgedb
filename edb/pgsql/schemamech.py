@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import itertools
 
@@ -37,6 +38,8 @@ from edb.schema import pointers as s_pointers
 from edb.schema import scalars as s_scalars
 from edb.schema import utils as s_utils
 from edb.schema import types as s_types
+from edb.schema import constraints as s_constraints
+from edb.schema import schema as s_schema
 
 from edb.common import ast
 
@@ -160,18 +163,26 @@ class ConstraintMech:
 
     @classmethod
     def schema_constraint_to_backend_constraint(
-            cls, subject, constraint, schema, context, source_context):
+        cls,
+        subject: s_types.Type,
+        constraint: s_constraints.Constraint,
+        schema: s_schema.Schema,
+        context,
+        source_context,
+    ) -> SchemaDomainConstraint | SchemaTableConstraint:
         assert constraint.get_subject(schema) is not None
 
         constraint_origins = constraint.get_constraint_origins(schema)
 
-        singletons = frozenset({subject})
+        TypeOrPointer = s_types.Type | s_pointers.Pointer
+        singletons: Collection[TypeOrPointer] = frozenset({subject})
 
         options = qlcompiler.CompilerOptions(
             anchors={qlast.Subject().name: subject},
             path_prefix_anchor=qlast.Subject().name,
             apply_query_rewrites=False,
             singletons=singletons,
+            schema_object_context=type(constraint),
             # Remap the constraint origin to the subject, so that if
             # we have B <: A, and the constraint references A.foo, it
             # gets rewritten in the subtype to B.foo. It's OK to only
@@ -181,8 +192,10 @@ class ConstraintMech:
             type_remaps={constraint_origins[0].get_subject(schema): subject},
         )
 
+        final_expr = constraint.get_finalexpr(schema)
+        assert final_expr is not None and final_expr.qlast is not None
         ir = qlcompiler.compile_ast_to_ir(
-            constraint.get_finalexpr(schema).qlast,
+            final_expr.qlast,
             schema,
             options=options,
         )
@@ -233,7 +246,10 @@ class ConstraintMech:
 
         per_origin_parts = []
         for constraint_origin in different_origins:
-            origin_subject = constraint_origin.get_subject(schema)
+            sub = constraint_origin.get_subject(schema)
+            assert isinstance(sub, (s_types.Type, s_pointers.Pointer))
+            origin_subject: s_types.Type | s_pointers.Pointer = sub
+
             origin_path_prefix_anchor = (
                 qlast.Subject().name
                 if isinstance(origin_subject, s_types.Type) else None
@@ -245,10 +261,13 @@ class ConstraintMech:
                 path_prefix_anchor=origin_path_prefix_anchor,
                 apply_query_rewrites=False,
                 singletons=singletons,
+                schema_object_context=type(constraint),
             )
 
+            final_expr = constraint_origin.get_finalexpr(schema)
+            assert final_expr is not None and final_expr.qlast is not None
             origin_ir = qlcompiler.compile_ast_to_ir(
-                constraint_origin.get_finalexpr(schema).qlast,
+                final_expr.qlast,
                 schema,
                 options=origin_options,
             )
@@ -349,16 +368,15 @@ class ConstraintMech:
             pg_constr_data['type'] = 'check'
 
         if isinstance(constraint.get_subject(schema), s_scalars.ScalarType):
-            constraint = SchemaDomainConstraint(
+            return SchemaDomainConstraint(
                 subject=subject, constraint=constraint,
                 pg_constr_data=pg_constr_data,
                 schema=schema)
         else:
-            constraint = SchemaTableConstraint(
+            return SchemaTableConstraint(
                 subject=subject, constraint=constraint,
                 pg_constr_data=pg_constr_data,
                 schema=schema)
-        return constraint
 
 
 class SchemaDomainConstraint:

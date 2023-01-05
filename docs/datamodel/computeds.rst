@@ -33,6 +33,14 @@ field is referenced in a query.
   For more information, see the :ref:`EdgeQL > Select > Computeds
   <ref_eql_select_computeds>`.
 
+.. warning::
+
+  Volatile functions are not allowed in computed properties defined in schema.
+  This means that, for example, your schema-defined computed property cannot
+  call :eql:func:`datetime_current`, but it *can* call
+  :eql:func:`datetime_of_transaction` or :eql:func:`datetime_of_statement`.
+  This does *not* apply to computed properties outside of schema.
+
 .. _ref_dot_notation:
 
 Leading dot notation
@@ -121,6 +129,28 @@ The ``User.blog_posts`` expression above uses the *backlink operator* ``.<`` in
 conjunction with a *type filter* ``[is BlogPost]`` to fetch all the
 ``BlogPosts`` associated with a given ``User``. For details on this syntax, see
 the EdgeQL docs for :ref:`Backlinks <ref_eql_paths_backlinks>`.
+
+Created Timestamp
+^^^^^^^^^^^^^^^^^
+
+Using a computed property, you can timestamp when an object was created in your
+database.
+
+.. code-block:: sdl
+
+  type BlogPost {
+    property title -> str;
+    link author -> User;
+    required property created_at -> datetime {
+      readonly := true;
+      default := datetime_of_statement();
+    }
+  }
+
+When a ``BlogPost`` is created, :eql:func:`datetime_of_statement` will be
+called to supply it with a timestamp as the ``created_at`` property. You might
+also consider :eql:func:`datetime_of_transaction` if that's better suited to
+your use case.
 
 
 .. list-table::

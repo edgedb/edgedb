@@ -173,6 +173,9 @@ def compile_DetachedExpr(
     ctx: context.ContextLevel,
 ) -> irast.Set:
     with ctx.detached() as subctx:
+        if expr.preserve_path_prefix:
+            subctx.partial_path_prefix = ctx.partial_path_prefix
+
         ir = dispatch.compile(expr.expr, ctx=subctx)
     # Wrap the result in another set, so that the inner namespace
     # doesn't leak out into any shapes (since computable computation

@@ -17,10 +17,63 @@
 #
 
 
-from edb.server.pgproto.pgproto cimport WriteBuffer
+from edb.server.dbview cimport dbview
+from edb.server.pgcon cimport pgcon
+from edb.server.pgproto.pgproto cimport ReadBuffer, WriteBuffer
 
 
-cdef class FrontendConnection:
+cdef class AbstractFrontendConnection:
 
     cdef write(self, WriteBuffer buf)
     cdef flush(self)
+
+
+cdef class FrontendConnection(AbstractFrontendConnection):
+
+    cdef:
+        str _id
+        object server
+        object loop
+        str dbname
+        dbview.Database database
+
+        pgcon.PGConnection _pinned_pgcon
+        bint _pinned_pgcon_in_tx
+        int _get_pgcon_cc
+
+        object _transport
+        WriteBuffer _write_buf
+        object _write_waiter
+
+        ReadBuffer buffer
+        object _msg_take_waiter
+
+        object started_idling_at
+        bint idling
+
+        bint _passive_mode
+
+        bint authed
+        object _main_task
+        bint _cancelled
+        bint _stop_requested
+        bint _pgcon_released_in_connection_lost
+
+        bint debug
+
+        object _transport_proto
+        bint _external_auth
+
+    cdef _after_idling(self)
+    cdef _main_task_created(self)
+    cdef _main_task_stopped_normally(self)
+    cdef write_error(self, exc)
+    cdef stop_connection(self)
+    cdef abort_pinned_pgcon(self)
+    cdef is_in_tx(self)
+
+    cdef WriteBuffer _make_authentication_sasl_initial(self, list methods)
+    cdef _expect_sasl_initial_response(self)
+    cdef WriteBuffer _make_authentication_sasl_msg(
+        self, bytes data, bint final)
+    cdef bytes _expect_sasl_response(self)
