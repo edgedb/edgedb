@@ -152,3 +152,82 @@ class TestIndexes(tb.DDLTestCase):
                 CREATE INDEX ON (.title ?? "N/A");
             }
         """)
+
+    async def test_index_05(self):
+        await self.con.execute(
+            """
+            CREATE TYPE ObjIndex1 {
+                CREATE PROPERTY name -> str;
+            };
+            CREATE TYPE ObjIndex2 {
+                CREATE MULTI PROPERTY first_name -> str;
+                CREATE PROPERTY last_name -> str;
+                CREATE LINK foo -> ObjIndex1 {
+                    CREATE PROPERTY p -> str;
+                };
+
+                CREATE INDEX ON (__subject__.last_name);
+            };
+            """
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "cannot use aggregate functions or operators in an "
+            "index expression",
+        ):
+            await self.con.execute(
+                """
+                ALTER TYPE ObjIndex2 {
+                    CREATE INDEX on (EXISTS .first_name);
+                };
+                """
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "cannot use aggregate functions or operators in an "
+            "index expression",
+        ):
+            await self.con.execute(
+                """
+                ALTER TYPE ObjIndex2 {
+                    CREATE PROPERTY first_name_count
+                        := count(.first_name);
+                    CREATE INDEX ON (.first_name_count);
+                };
+                """
+            )
+
+        await self.con.execute(
+            """
+            ALTER TYPE ObjIndex2 {
+                CREATE PROPERTY last_name_len := len(.last_name);
+                CREATE INDEX ON (.last_name_len);
+            };
+            """
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "index expressions must be immutable",
+        ):
+            await self.con.execute(
+                """
+                ALTER TYPE ObjIndex2 {
+                    CREATE INDEX ON (.foo@p);
+                };
+                """
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "index expressions must be immutable",
+        ):
+            await self.con.execute(
+                """
+                ALTER TYPE ObjIndex2 {
+                    CREATE INDEX ON (.foo.name);
+                };
+                """
+            )
