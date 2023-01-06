@@ -474,10 +474,9 @@ def compile_operator(
                         f"compatible types, while the condition clause must "
                         f"be 'std::bool'. {hint}")
             elif op_name == '+':
-                str_t = cast(s_scalars.ScalarType,
-                             env.schema.get('std::str'))
-                bytes_t = cast(s_scalars.ScalarType,
-                               env.schema.get('std::bytes'))
+                str_t = env.schema.get('std::str', type=s_scalars.ScalarType)
+                bytes_t = env.schema.get('std::bytes',
+                                         type=s_scalars.ScalarType)
                 if (
                     all(t.issubclass(env.schema, str_t) for t in args_ty) or
                     all(t.issubclass(env.schema, bytes_t) for t in args_ty) or

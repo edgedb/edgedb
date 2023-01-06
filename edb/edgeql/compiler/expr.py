@@ -280,8 +280,7 @@ def try_fold_binop(
     try:
         const = ireval.evaluate(opcall, schema=ctx.env.schema)
     except ireval.UnsupportedExpressionError:
-        anyreal = cast(s_scalars.ScalarType,
-                       ctx.env.schema.get('std::anyreal'))
+        anyreal = ctx.env.schema.get('std::anyreal', type=s_scalars.ScalarType)
 
         if (str(opcall.func_shortname) in ('std::+', 'std::*') and
                 opcall.operator_kind is ft.OperatorKind.Infix and

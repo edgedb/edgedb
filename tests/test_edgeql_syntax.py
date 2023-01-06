@@ -25,6 +25,7 @@ from edb import errors
 from edb.testbase import lang as tb
 from edb.edgeql import generate_source as edgeql_to_source
 from edb.edgeql.parser import parser as edgeql_parser
+from edb.tools import test
 
 
 class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
@@ -5598,6 +5599,82 @@ aa';
             ALTER INDEX ON (.title) {
                 DROP ANNOTATION system;
             };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_index_04(self):
+        """
+        CREATE TYPE Foo {
+            CREATE INDEX pg::gist ON (.title);
+        };
+        """
+
+    @test.xerror('index parameters not implemented yet')
+    def test_edgeql_syntax_ddl_index_05(self):
+        """
+        CREATE TYPE Foo {
+            CREATE INDEX myindex0() ON (.bar);
+
+            CREATE INDEX myindex1(a := 13, b := 'ab', conf := [4, 3, 2])
+                ON (.baz);
+
+            CREATE INDEX myindex2(num := 13, val := 'ab')
+                ON (.foo);
+        };
+
+% OK %
+
+        CREATE TYPE Foo {
+            CREATE INDEX myindex0 ON (.bar);
+
+            CREATE INDEX myindex1(a := 13, b := 'ab', conf := [4, 3, 2])
+                ON (.baz);
+
+            CREATE INDEX myindex2(num := 13, val := 'ab')
+                ON (.foo);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_index_06(self):
+        """
+        CREATE ABSTRACT INDEX myindex0;
+        """
+
+    @test.xerror('index parameters and fallback not implemented yet')
+    def test_edgeql_syntax_ddl_index_07(self):
+        """
+        CREATE ABSTRACT INDEX myindex1(conf: str = 'special');
+        CREATE ABSTRACT INDEX myindex2(val: int64);
+        CREATE ABSTRACT INDEX myindex3(a: int64, b: str = 'default')
+            USING myindex2(val := a),
+                  myindex1(conf := b),
+                  myindex1;
+        """
+
+    @test.xerror('index extending not implemented yet')
+    def test_edgeql_syntax_ddl_index_08(self):
+        """
+        CREATE ABSTRACT INDEX myindex1 EXTENDING fts;
+        CREATE ABSTRACT INDEX myindex2(conf := 'test') EXTENDING fts;
+        """
+
+    def test_edgeql_syntax_ddl_index_09(self):
+        """
+        ALTER ABSTRACT INDEX myindex0 {
+            DROP ANNOTATION system;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_index_10(self):
+        """
+        DROP ABSTRACT INDEX myindex0;
+        """
+
+    @test.xerror('providing SQL is not implemented')
+    def test_edgeql_syntax_ddl_index_11(self):
+        """
+        CREATE ABSTRACT INDEX std::btree ON anytype {
+            USING SQL $$hash ((%) NULLS FIRST)$$;
         };
         """
 

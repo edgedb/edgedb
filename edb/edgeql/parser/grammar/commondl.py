@@ -153,6 +153,14 @@ class OptOnExpr(Nonterm):
         self.val = kids[0].val
 
 
+class OptOnTypeExpr(Nonterm):
+    def reduce_empty(self, *kids):
+        self.val = None
+
+    def reduce_ON_FullTypeExpr(self, *kids):
+        self.val = kids[1].val
+
+
 class OptExceptExpr(Nonterm):
     def reduce_empty(self, *kids):
         self.val = None
@@ -237,18 +245,20 @@ class FuncDeclArgs(Nonterm):
         self.val = kids[0].val
 
 
-class CreateFunctionArgs(Nonterm):
-    def reduce_LPAREN_RPAREN(self, *kids):
-        self.val = []
-
-    def reduce_LPAREN_FuncDeclArgs_RPAREN(self, *kids):
-        args = kids[1].val
-
+class ProcessFunctionParamsMixin:
+    def _validate_params(self, params):
         last_pos_default_arg = None
         last_named_arg = None
         variadic_arg = None
         names = set()
-        for arg in args:
+
+        for arg in params:
+            if isinstance(arg, tuple):
+                # A tuple here means that it's part of the "param := val"
+                raise EdgeQLSyntaxError(
+                    f"Unexpected ':='",
+                    context=arg[1])
+
             if arg.name in names:
                 raise EdgeQLSyntaxError(
                     f'duplicate parameter name `{arg.name}`',
@@ -301,6 +311,14 @@ class CreateFunctionArgs(Nonterm):
                 else:
                     last_pos_default_arg = arg
 
+
+class CreateFunctionArgs(Nonterm, ProcessFunctionParamsMixin):
+    def reduce_LPAREN_RPAREN(self, *kids):
+        self.val = []
+
+    def reduce_LPAREN_FuncDeclArgs_RPAREN(self, *kids):
+        args = kids[1].val
+        self._validate_params(args)
         self.val = args
 
 
@@ -543,3 +561,133 @@ class OptExtensionVersion(Nonterm):
 
     def reduce_empty(self, *kids):
         self.val = None
+
+
+class IndexArg(Nonterm):
+    def reduce_kwarg_definition(self, *kids):
+        r"""%reduce FuncDeclArgName COLON \
+                OptTypeQualifier FullTypeExpr OptDefault \
+        """
+        self.val = qlast.FuncParam(
+            kind=qltypes.ParameterKind.PositionalParam,
+            name=kids[0].val,
+            typemod=kids[2].val,
+            type=kids[3].val,
+            default=kids[4].val
+        )
+
+    def reduce_AnyIdentifier_ASSIGN_Expr(self, *kids):
+        self.val = (
+            kids[0].val,
+            kids[0].context,
+            kids[2].val,
+        )
+
+    def reduce_FuncDeclArgName_OptDefault(self, *kids):
+        raise EdgeQLSyntaxError(
+            f'missing type declaration for the `{kids[0].val}` parameter',
+            context=kids[0].context)
+
+
+class IndexArgList(parsing.ListNonterm, element=IndexArg,
+                   separator=tokens.T_COMMA):
+    pass
+
+
+class OptIndexArgList(Nonterm):
+    def reduce_IndexArgList_COMMA(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_IndexArgList(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = []
+
+
+class IndexExtArgList(Nonterm):
+
+    def reduce_LPAREN_OptIndexArgList_RPAREN(self, *kids):
+        self.val = kids[1].val
+
+
+class OptIndexExtArgList(Nonterm):
+
+    def reduce_IndexExtArgList(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self):
+        self.val = []
+
+
+class ProcessIndexMixin:
+    def _process_arguments(self, arguments):
+        kwargs = {}
+        for argval in arguments:
+            if isinstance(argval, qlast.FuncParam):
+                raise EdgeQLSyntaxError(
+                    f"unexpected new parameter definition `{argval.name}`",
+                    context=argval.context)
+
+            argname, argname_ctx, arg = argval
+            if argname in kwargs:
+                raise EdgeQLSyntaxError(
+                    f"duplicate named argument `{argname}`",
+                    context=argname_ctx)
+
+            kwargs[argname] = arg
+
+        return kwargs
+
+    def _process_sql_body(self, block, *, optional_using: bool=False):
+        props: typing.Dict[str, typing.Any] = {}
+
+        commands = []
+        code = None
+
+        for node in block.val:
+            if isinstance(node, qlast.IndexCode):
+                if code is not None:
+                    raise EdgeQLSyntaxError(
+                        'more than one USING <code> clause',
+                        context=node.context)
+                props['code'] = node
+            else:
+                commands.append(node)
+
+        if commands:
+            props['commands'] = commands
+
+        return props
+
+
+class IndexType(Nonterm, ProcessIndexMixin):
+
+    def reduce_NodeName_LPAREN_OptIndexArgList_RPAREN(self, *kids):
+        kwargs = self._process_arguments(kids[2].val)
+        self.val = qlast.IndexType(name=kids[0], kwargs=kwargs)
+
+    def reduce_NodeName(self, *kids):
+        self.val = qlast.IndexType(name=kids[0], kwargs={})
+
+
+class IndexTypeList(parsing.ListNonterm, element=IndexType,
+                    separator=tokens.T_COMMA):
+    pass
+
+
+class OptIndexTypeList(Nonterm):
+
+    def reduce_USING_IndexTypeList(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_empty(self):
+        self.val = []
+
+
+class UsingSQLIndex(Nonterm):
+
+    def reduce_USING_Identifier_BaseStringConstant(self, *kids):
+        lang = _parse_language(kids[1])
+        code = kids[2].val.value
+        self.val = qlast.IndexCode(language=lang, code=code)
