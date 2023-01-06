@@ -11,7 +11,7 @@ queries, you will append ``db/<database-name>/edgeql``.
 
 .. note::
 
-    Here's how to determine your development EdgeDB instance's HTTP server URL:
+    Here's how to determine your local EdgeDB instance's HTTP server URL:
 
     - The ``hostname`` will be ``localhost``
     - Find the ``port`` by running ``edgedb instance list``. This will print a
@@ -21,6 +21,11 @@ queries, you will append ``db/<database-name>/edgeql``.
       can contain multiple databases. On initialization, a default database
       called ``edgedb`` is created; all queries are executed against this
       database unless otherwise specified.
+
+    To determine the URL of a remote instance you have linked with the CLI, you
+    can get both the hostname and port of the instance from the "Port" column
+    of the ``edgedb instance list`` table (formatted as ``<hostname>:<port>``).
+    The same guidance on local database names applies here.
 
 .. _ref_reference_health_checks:
 
