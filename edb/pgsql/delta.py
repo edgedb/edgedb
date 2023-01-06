@@ -4313,7 +4313,7 @@ class PointerMetaCommand(
         target_as_singleton: bool = True,
     ) -> Tuple[
         s_expr.Expression,  # Possibly-amended EdgeQL conversion expression
-        pg_ast.SelectStmt,  # SQL text
+        pg_ast.SelectStmt,  # SQL AST
         str,  # original relation alias
         bool,  # whether SQL expression is trivial
     ]:

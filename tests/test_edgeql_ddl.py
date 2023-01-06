@@ -2839,8 +2839,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER TYPE Foo ALTER LINK l SET TYPE Spam USING (SELECT Spam)
             """)
 
-    async def test_edgeql_ddl_ptr_using_dml(self):
-        await self.con.execute(r"""
+    async def test_edgeql_ddl_ptr_using_dml_01(self):
+        await self.con.execute(
+            r"""
             CREATE TYPE Hello;
             CREATE TYPE World {
                 CREATE LINK hell -> Hello;
@@ -2853,22 +2854,82 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     (INSERT Hello),
                 }
             };
-        """)
-        assert len(await self.con.query('SELECT Hello')) == 3
+            INSERT World {
+                hell := (INSERT Hello),
+                heaven := {
+                    (INSERT Hello),
+                    (INSERT Hello),
+                }
+            };
+            """
+        )
+        self.assertEqual(len(await self.con.query("SELECT Hello")), 6)
 
-        await self.con.execute(r"""
+        await self.con.execute(
+            r"""
             ALTER TYPE World {
                 ALTER LINK hell SET REQUIRED USING (INSERT Hello);
                 ALTER LINK heaven SET SINGLE USING (INSERT Hello);
             }
-        """)
-
-        assert len(await self.con.query('SELECT Hello')) == 5
-
-        await self.assert_query_result(
-            'SELECT World { hell: {}, heaven: {} }',
-            [{'hell': {}, 'heaven': {}}]
+            """
         )
+
+        self.assertEqual(len(await self.con.query("SELECT Hello")), 8)
+
+        res = await self.con.query(
+            "SELECT World { hell: { id }, heaven: { id } }"
+        )
+        self.assertEqual(len(res), 2)
+        set_of_hellos = {world["hell"].target.id for world in res}.union(
+            {world["heaven"].target.id for world in res}
+        )
+        print(set_of_hellos)
+        self.assertEqual(len(set_of_hellos), 4)
+
+    async def test_edgeql_ddl_ptr_using_dml_02(self):
+        await self.con.execute(
+            r"""
+            CREATE TYPE Hello;
+            CREATE TYPE World {
+                CREATE LINK hell -> Hello;
+                CREATE MULTI LINK heaven -> Hello;
+            };
+            """
+        )
+
+        await self.con.execute(
+            r"""
+            ALTER TYPE World {
+                ALTER LINK hell SET REQUIRED USING (INSERT Hello);
+                ALTER LINK heaven SET SINGLE USING (INSERT Hello);
+            }
+            """
+        )
+
+    async def test_edgeql_ddl_ptr_using_dml_03(self):
+        await self.con.execute(
+            r"""
+            CREATE TYPE Hello;
+            CREATE TYPE Goodbye;
+            CREATE TYPE World {
+                CREATE LINK hell -> Hello;
+            };
+            INSERT World { hell:= (INSERT Hello) };
+            """
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            "USING clause for the type conversion of link '.*' of object type "
+            "'.*::.*' cannot include mutating statements"
+        ):
+            await self.con.execute(
+                r"""
+                ALTER TYPE World {
+                    ALTER LINK hell SET TYPE Goodbye USING (INSERT Goodbye);
+                }
+                """
+            )
 
     async def test_edgeql_ddl_ptr_set_cardinality_01(self):
         await self.con.execute(r'''
