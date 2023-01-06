@@ -62,6 +62,7 @@ STD_MODULES = (
     sn.UnqualName('cal'),
     sn.UnqualName('pg'),
     sn.UnqualName('std::_test'),
+    sn.UnqualName('fts'),
 )
 
 # Specifies the order of processing of files and directories in lib/
@@ -72,6 +73,7 @@ STD_SOURCES = (
     sn.UnqualName('sys'),
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
+    sn.UnqualName('fts'),
     sn.UnqualName('ext'),
     sn.UnqualName('pg'),
 )

@@ -185,15 +185,20 @@ class OptDefault(Nonterm):
         self.val = expr.val
 
 
-class OptParameterKind(Nonterm):
-    def reduce_empty(self):
-        self.val = qltypes.ParameterKind.PositionalParam
-
-    def reduce_VARIADIC(self, _):
+class ParameterKind(Nonterm):
+    def reduce_VARIADIC(self, *kids):
         self.val = qltypes.ParameterKind.VariadicParam
 
     def reduce_NAMEDONLY(self, _):
         self.val = qltypes.ParameterKind.NamedOnlyParam
+
+
+class OptParameterKind(Nonterm):
+    def reduce_empty(self):
+        self.val = qltypes.ParameterKind.PositionalParam
+
+    def reduce_ParameterKind(self, *kids):
+        self.val = kids[0].val
 
 
 class FuncDeclArgName(Nonterm):
@@ -616,12 +621,25 @@ class OptExtensionVersion(Nonterm):
 
 
 class IndexArg(Nonterm):
-    def reduce_kwarg_definition(self, name, _, typemod, type, default):
+    def reduce_kwarg_bad_definition(self, *kids):
         r"""%reduce FuncDeclArgName COLON \
                 OptTypeQualifier FullTypeExpr OptDefault \
         """
+        raise EdgeQLSyntaxError(
+            f'index parameters have to be NAMED ONLY',
+            context=kids[0].context)
+
+    def reduce_kwarg_definition(self, kind, name, _, typemod, type, default):
+        r"""%reduce ParameterKind FuncDeclArgName COLON \
+                OptTypeQualifier FullTypeExpr OptDefault \
+        """
+        if kind.val is not qltypes.ParameterKind.NamedOnlyParam:
+            raise EdgeQLSyntaxError(
+                f'index parameters have to be NAMED ONLY',
+                context=kind.context)
+
         self.val = qlast.FuncParam(
-            kind=qltypes.ParameterKind.PositionalParam,
+            kind=kind.val,
             name=name.val,
             typemod=typemod.val,
             type=type.val,
@@ -672,7 +690,7 @@ class OptIndexExtArgList(Nonterm):
         self.val = []
 
 
-class ProcessIndexMixin:
+class ProcessIndexMixin(ProcessFunctionParamsMixin):
     def _process_arguments(self, arguments):
         kwargs = {}
         for argval in arguments:
@@ -690,6 +708,20 @@ class ProcessIndexMixin:
             kwargs[argname] = arg
 
         return kwargs
+
+    def _process_params_or_kwargs(self, bases, arguments):
+        params = []
+        kwargs = dict()
+
+        # If the definition is extending another abstract index, then we
+        # cannot define new parameters, but can only supply some arguments.
+        if bases:
+            kwargs = self._process_arguments(arguments)
+        else:
+            params = arguments
+            self._validate_params(params)
+
+        return params, kwargs
 
     def _process_sql_body(self, block, *, optional_using: bool=False):
         props: typing.Dict[str, typing.Any] = {}

@@ -2279,6 +2279,9 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                         attr_val = ddl_id.qlast
                     elif issubclass(field.type, s_expr.ExpressionList):
                         attr_val = [e.qlast for e in ddl_id]
+                    elif issubclass(field.type, s_expr.ExpressionDict):
+                        attr_val = {name: e.qlast
+                                    for name, e in ddl_id.items()}
                     else:
                         raise AssertionError(
                             f'unexpected type of ddl_identity'

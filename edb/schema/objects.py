@@ -1242,6 +1242,10 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                 # Turn the list into something hashable so it can be
                 # put in a set.
                 val = tuple(val)
+            elif isinstance(val, collections.abc.MutableMapping):
+                # Turn the dict into something hashable so it can be
+                # put in a set.
+                val = tuple((k, v) for k, v in val.items())
             sig.append((fn, val))
 
         return frozenset(sig)

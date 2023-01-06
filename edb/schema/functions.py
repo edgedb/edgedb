@@ -894,8 +894,7 @@ class CallableObject(
         return not isinstance(reference, Parameter)
 
 
-class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
-
+class ParametrizedCommand(sd.ObjectCommand[so.Object_T]):
     def _get_params(
         self,
         schema: s_schema.Schema,
@@ -962,6 +961,10 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
             params.append(param)
 
         return schema, params
+
+
+class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT],
+                      ParametrizedCommand[CallableObjectT]):
 
     def canonicalize_attributes(
         self,
