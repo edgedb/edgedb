@@ -173,11 +173,39 @@ parameters. For a POST request, use the ``application/json`` content type and
 submit a JSON payload with ``query`` and ``variables`` as top-level keys in
 that payload as in this example:
 
+Here's an example query you might want to run to insert a new person in your
+database, as executed from the EdgeDB REPL:
+
+.. code-block:: edgeql-repl
+
+    db> insert Person { name := <str>$name };
+    Parameter <str>$name: Pat
+    {default::Person {id: e9009b00-8d4e-11ed-a556-c7b5bdd6cf7a}}
+
+The query inserts a ``Person`` object. The object's ``name`` value is
+parameterized in the query as ``$name``.
+
+This GET request would run the same query (assuming the instance is local and
+the database is named ``edgedb``):
+
+.. lint-off
+
+.. code-block::
+
+    GET http://localhost:<port>/db/edgedb/edgeql?query=insert%20Person%20%7B%20name%20%3A%3D%20%3Cstr%3E$name%20%7D%3B&variables=%7B%22name%22%3A%20%22Pat%22%7D
+
+.. lint-on
+
+As you can see with even this simple query, URL encoding can quickly become
+onerous with queries over GET.
+
+Here's the JSON payload of a POST request to execute the query:
+
 .. code-block::
 
     {
-      "query": "...",
-      "variables": { "varName": "varValue", ... }
+      "query": "insert Person { name := <str>$name };",
+      "variables": { "name": "Pat" }
     }
 
 Response
