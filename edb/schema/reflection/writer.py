@@ -383,6 +383,46 @@ def _build_object_mutation_shape(
 
             assignments.append(f'{ns}__internal := {shadow_target_expr}')
 
+        elif ftype is sr_struct.FieldType.EXPR_DICT:
+            target_expr = f'''
+                array_agg(<str>json_array_unpack(
+                    <json>${var_n})["expr"]["text"])
+            '''
+            if v is not None:
+                target_value = [
+                    {
+                        'name': key,
+                        'expr': {
+                            'text': ex.text,
+                            'refs': (
+                                [str(i) for i in ex.refs.ids(schema)]
+                                if ex.refs else []
+                            )
+                        }
+                    }
+                    for key, ex in v.items()
+                ]
+            else:
+                target_value = []
+
+            shadow_target_expr = f'''
+                (
+                    WITH
+                        orig_json := json_array_unpack(<json>${var_n})
+                    SELECT
+                        array_agg(
+                            (
+                                name := <str>orig_json['name'],
+                                expr := sys::_expr_from_json(
+                                    orig_json['expr']
+                                )
+                            )
+                        )
+                )
+            '''
+
+            assignments.append(f'{ns}__internal := {shadow_target_expr}')
+
         elif isinstance(target, s_types.Array):
             eltype = target.get_element_type(schema)
             target_expr = f'''

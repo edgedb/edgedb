@@ -5819,7 +5819,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property last_name -> str;
                 property name := .first_name ++ ' ' ++ .last_name;
                 # an index on a computable
-                index on (.name);
+                index fts::textsearch(language := 'english') on (.name);
             }
         """])
 

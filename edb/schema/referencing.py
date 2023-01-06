@@ -87,12 +87,21 @@ class ReferencedObject(so.DerivableObject):
     ) -> str:
         vn = super().get_verbosename(schema)
         if with_parent:
-            subject = self.get_subject(schema)
-            if subject is not None:
-                pn = subject.get_verbosename(schema, with_parent=True)
-                return f'{vn} of {pn}'
+            return self.add_parent_name(vn, schema)
 
         return vn
+
+    def add_parent_name(
+        self,
+        base_name: str,
+        schema: s_schema.Schema,
+    ) -> str:
+        subject = self.get_subject(schema)
+        if subject is not None:
+            pn = subject.get_verbosename(schema, with_parent=True)
+            return f'{base_name} of {pn}'
+
+        return base_name
 
     def init_parent_delta_branch(
         self: ReferencedT,

@@ -49,6 +49,8 @@ class FieldType(enum.StrEnum):
     EXPR = 'EXPR'
     #: An ExpressionList field.
     EXPR_LIST = 'EXPR_LIST'
+    #: An ExpressionDict field.
+    EXPR_DICT = 'EXPR_DICT'
     #: An ObjectDict field.
     OBJ_DICT = 'OBJ_DICT'
     #: All other field types.
@@ -162,6 +164,16 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
         ptr_kind = 'property'
         ptr_type = 'array<str>'
         fieldtype = FieldType.EXPR_LIST
+
+    elif issubclass(ftype, s_expr.ExpressionDict):
+        shadow_ptr_kind = 'property'
+        shadow_ptr_type = '''array<tuple<
+            name: str,
+            expr: tuple<text: str, refs: array<uuid>>
+        >>'''
+        ptr_kind = 'property'
+        ptr_type = 'array<str>'
+        fieldtype = FieldType.EXPR_DICT
 
     elif issubclass(ftype, collections.abc.Mapping):
         ptr_kind = 'property'

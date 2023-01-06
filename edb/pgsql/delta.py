@@ -131,6 +131,8 @@ def get_index_code(index_name: sn.Name) -> str:
             return 'btree ((__col__) NULLS FIRST)'
         case 'pg::gin':
             return 'gin ((__col__))'
+        case 'fts::textsearch':
+            return "gin (to_tsvector(__kw_language__, __col__))"
         case 'pg::gist':
             return 'gist ((__col__))'
         case 'pg::spgist':
@@ -3263,19 +3265,57 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         else:
             except_src = None
 
+        sql_kwarg_exprs = dict()
+        # Get the name of the root index that this index implements
+        orig_name = sn.shortname_from_fullname(index.get_name(schema))
+        if orig_name == s_indexes.DEFAULT_INDEX:
+            root_name = orig_name
+        else:
+            root = index.get_root(schema)
+            root_name = root.get_name(schema)
+
+            kwargs = index.get_concrete_kwargs(schema)
+            # Get all the concrete kwargs compiled (they are expected to be
+            # constants)
+            # These are expected to be constants, so we don't have anchors,
+            # path prefixes, etc.
+            kw_options = qlcompiler.CompilerOptions(
+                modaliases=context.modaliases,
+                schema_object_context=cls.get_schema_metaclass(),
+                apply_query_rewrites=False,
+            )
+            for name, expr in kwargs.items():
+                # XXX: origin messes up compilation, but by this point we
+                # shouldn't care about the expression's origin.
+                expr.origin = None
+                kw_expr = expr.ensure_compiled(
+                    schema=schema,
+                    options=kw_options,
+                    as_fragment=True,
+                )
+                kw_ir = kw_expr.irast
+                kw_sql_tree = compiler.compile_ir_to_sql_tree(
+                    kw_ir.expr, singleton_mode=True)
+                sql = codegen.SQLSourceGenerator.to_source(kw_sql_tree)
+                # HACK: the compiled SQL is expected to have some unnecessary
+                # casts, strip casts to text as they mess with the requirement
+                # that index expressions are IMMUTABLE.
+                if sql.endswith('::text'):
+                    sql = sql[:-6]
+                sql_kwarg_exprs[name] = sql
+
         module_name = index.get_name(schema).module
         index_name = common.get_index_backend_name(
             index.id, module_name, catenate=False)
 
-        # FIXME: this will need fixing once index names are fixed
-        orig_name = sn.shortname_from_fullname(index.get_name(schema))
         pg_index = dbops.Index(
             name=index_name[1], table_name=table_name, exprs=sql_exprs,
             unique=False, inherit=True,
             predicate=except_src,
             metadata={
                 'schemaname': str(index.get_name(schema)),
-                'code': get_index_code(orig_name),
+                'code': get_index_code(root_name),
+                'kwargs': sql_kwarg_exprs,
             }
         )
         return dbops.CreateIndex(pg_index)

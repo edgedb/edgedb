@@ -72,7 +72,7 @@ def merge_constraint_params(
         # in CreateConstraint.validate_create
         return constraint.get_explicit_field_value(schema, field_name, None)
     else:
-        # concrete constraints cannot redefined parameters and always
+        # concrete constraints cannot redefine parameters and always
         # inherit from super.
         return supers[0].get_explicit_field_value(schema, field_name, None)
 

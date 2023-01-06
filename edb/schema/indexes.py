@@ -32,6 +32,7 @@ from edb.edgeql import qltypes
 from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
+from . import functions as s_func
 from . import inheriting
 from . import name as sn
 from . import pointers as s_pointers
@@ -64,6 +65,9 @@ def is_index_valid_for_type(
             return True
         case 'pg::gin':
             return expr_type.is_array()
+        case 'fts::textsearch':
+            return expr_type.issubclass(
+                schema, schema.get('std::str', type=s_scalars.ScalarType))
         case 'pg::gist':
             return expr_type.is_range()
         case 'pg::spgist':
@@ -123,6 +127,28 @@ class Index(
         default=None,
         compcoef=None,
         inheritable=False,
+    )
+
+    # These can only appear in base abstract index definitions. These
+    # determine how indexes can be configured.
+    params = so.SchemaField(
+        s_func.FuncParameterList,
+        coerce=True,
+        compcoef=0.4,
+        default=so.DEFAULT_CONSTRUCTOR,
+        inheritable=False,
+    )
+
+    # These can appear in abstract indexes extending an existing one in order
+    # to override exisitng parameters. Also they can appear in concrete
+    # indexes.
+    kwargs = so.SchemaField(
+        s_expr.ExpressionDict,
+        coerce=True,
+        compcoef=0.4,
+        default=so.DEFAULT_CONSTRUCTOR,
+        inheritable=False,
+        ddl_identity=True,
     )
 
     expr = so.SchemaField(
@@ -185,6 +211,57 @@ class Index(
         shortname = cls.get_shortname_static(name)
         return shortname.name
 
+    def get_all_kwargs(
+        self,
+        schema: s_schema.Schema,
+    ) -> s_expr.ExpressionDict:
+        kwargs = s_expr.ExpressionDict()
+        all_kw = self.__class__.get_field('kwargs').merge_fn(
+            self,
+            self.get_ancestors(schema).objects(schema),
+            'kwargs',
+            schema=schema,
+        )
+        if all_kw:
+            kwargs.update(all_kw)
+
+        return kwargs
+
+    def get_root(
+        self,
+        schema: s_schema.Schema,
+    ) -> Index:
+        if not self.get_abstract(schema):
+            name = sn.shortname_from_fullname(self.get_name(schema))
+            index = schema.get(name, type=Index)
+        else:
+            index = self
+
+        if index.get_bases(schema):
+            return index.get_ancestors(schema).objects(schema)[-1]
+        else:
+            return index
+
+    def get_concrete_kwargs(
+        self,
+        schema: s_schema.Schema,
+    ) -> s_expr.ExpressionDict:
+        assert not self.get_abstract(schema)
+
+        name = sn.shortname_from_fullname(self.get_name(schema))
+        index = schema.get(name, type=Index)
+        root = self.get_root(schema)
+
+        kwargs = index.get_all_kwargs(schema)
+        kwargs.update(self.get_kwargs(schema))
+
+        for param in root.get_params(schema).objects(schema):
+            name = param.get_parameter_name(schema)
+            if name not in kwargs:
+                kwargs[name] = param.get_default(schema)
+
+        return kwargs
+
 
 IndexableSubject_T = TypeVar('IndexableSubject_T', bound='IndexableSubject')
 
@@ -224,6 +301,7 @@ class IndexCommandContext(sd.ObjectCommandContext[Index],
 
 class IndexCommand(
     referencing.ReferencedInheritingObjectCommand[Index],
+    s_func.ParametrizedCommandMixin,
     context_class=IndexCommandContext,
     referrer_context_class=IndexSourceCommandContext,
 ):
@@ -301,6 +379,24 @@ class IndexCommand(
         quals = sn.quals_from_fullname(name)
         return tuple(quals[-2:])
 
+    @classmethod
+    def _index_kwargs_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> Dict[str, s_expr.Expression]:
+        kwargs = dict()
+        # Some abstract indexes and all concrete index commands have kwargs.
+        assert isinstance(astnode, (qlast.CreateIndex,
+                                    qlast.ConcreteIndexCommand))
+
+        for key, val in astnode.kwargs.items():
+            kwargs[key] = s_expr.Expression.from_ast(
+                val, schema, context.modaliases, as_fragment=True)
+
+        return kwargs
+
     @overload
     def get_object(
         self,
@@ -367,15 +463,55 @@ class IndexCommand(
             )
         return cmd
 
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        astnode = super()._get_ast(schema, context, parent_node=parent_node)
+
+        kwargs = self.get_resolved_attribute_value(
+            'kwargs',
+            schema=schema,
+            context=context,
+        )
+        if kwargs:
+            astnode.kwargs = {
+                name: expr.qlast for name, expr in kwargs.items()
+            }
+
+        return astnode
+
     def get_ast_attr_for_field(
         self,
         field: str,
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
-        if field in ('expr', 'except_expr'):
+        if field in ('kwargs', 'expr', 'except_expr'):
             return field
         else:
             return super().get_ast_attr_for_field(field, astnode)
+
+    def get_ddl_identity_fields(
+        self,
+        context: sd.CommandContext,
+    ) -> Tuple[so.Field[Any], ...]:
+        id_fields = super().get_ddl_identity_fields(context)
+        omit_fields = set()
+
+        if (
+            self.get_attribute_value('abstract')
+            and not self.get_attribute_value('bases')
+        ):
+            # Base abstract indexes don't have kwargs at all.
+            omit_fields.add('kwargs')
+
+        if omit_fields:
+            return tuple(f for f in id_fields if f.name not in omit_fields)
+        else:
+            return id_fields
 
     def compile_expr_field(
         self,
@@ -495,6 +631,30 @@ class CreateIndex(
         if isinstance(astnode, qlast.CreateIndex):
             cmd.set_attribute_value('abstract', True)
 
+            params = cls._get_param_desc_from_ast(
+                schema, context.modaliases, astnode)
+            for param in params:
+                # as_create_delta requires the specific type
+                cmd.add_prerequisite(param.as_create_delta(
+                    schema, cmd.classname, context=context))
+
+            # There are several possibilities for abstract indexes:
+            # 1) base abstract index
+            # 2) an abstract index extending another one
+            # 3) an abstract index listing index fallback alternatives
+            if astnode.bases is None:
+                if astnode.index_types is None:
+                    # This actually defines a new index (1).
+                    pass
+                else:
+                    # This is for index fallback alternatives (3).
+                    raise NotImplementedError("Index fallback not implemented")
+            else:
+                # Extending existing indexes for composition (2).
+                kwargs = cls._index_kwargs_from_ast(schema, astnode, context)
+                if kwargs:
+                    cmd.set_attribute_value('kwargs', kwargs)
+
         elif isinstance(astnode, qlast.CreateConcreteIndex):
             orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
 
@@ -515,6 +675,10 @@ class CreateIndex(
                 )
             else:
                 expr_ql = astnode.expr
+
+            kwargs = cls._index_kwargs_from_ast(schema, astnode, context)
+            if kwargs:
+                cmd.set_attribute_value('kwargs', kwargs)
 
             cmd.set_attribute_value(
                 'expr',
@@ -566,6 +730,54 @@ class CreateIndex(
             except_expr=except_expr_ql,
         )
 
+    def _validate_kwargs(
+        self,
+        schema: s_schema.Schema,
+        params: s_func.FuncParameterList,
+        kwargs: s_expr.ExpressionDict,
+        ancestor_name: str,
+    ):
+        if not kwargs:
+            return
+
+        if not params:
+            raise errors.SchemaDefinitionError(
+                f'the {ancestor_name} does not support any parameters',
+                context=self.source_context
+            )
+
+        # Make sure that the kwargs are valid.
+        for key in kwargs:
+            expr = kwargs[key]
+            param = params.get_by_name(schema, key)
+            if param is None:
+                raise errors.SchemaDefinitionError(
+                    f'the {ancestor_name} does not have a parameter {key!r}',
+                    context=self.source_context
+                )
+
+            param_type = param.get_type(schema)
+            comp_expr = s_expr.Expression.compiled(expr, schema=schema)
+            expr_type = comp_expr.irast.stype
+
+            if (
+                not param_type.is_polymorphic(schema) and
+                not expr_type.is_polymorphic(schema) and
+                not expr_type.implicitly_castable_to(
+                    param_type, schema)
+            ):
+                raise errors.SchemaDefinitionError(
+                    f'the {key!r} parameter of the '
+                    f'{self.get_verbosename()} has type of '
+                    f'{expr_type.get_displayname(schema)} that '
+                    f'is not implicitly castable to the '
+                    f'corresponding parameter of the '
+                    f'{ancestor_name} with type '
+                    f'{param_type.get_displayname(schema)}',
+                    context=self.source_context,
+                )
+
+
     def validate_create(
         self,
         schema: s_schema.Schema,
@@ -575,25 +787,14 @@ class CreateIndex(
 
         referrer_ctx = self.get_referrer_context(context)
 
-        name = sn.shortname_from_fullname(
-            self.get_resolved_attribute_value(
-                'name',
-                schema=schema,
-                context=context,
-            )
+        # Get kwargs if any, so that we can process them later.
+        kwargs = self.get_resolved_attribute_value(
+            'kwargs',
+            schema=schema,
+            context=context,
         )
 
         if referrer_ctx is None:
-            # Creating abstract indexes is only allowed in "EdgeDB developer"
-            # mode, i.e. when populating std library, etc.
-            if not context.stdmode and not context.testmode:
-                raise errors.SchemaDefinitionError(
-                    f'cannot create {self.get_verbosename()} '
-                    f'because user-defined abstract indexes are not '
-                    f'supported',
-                    context=self.source_context
-                )
-
             # Make sure that all bases are ultimately inherited from the same
             # root base class.
             bases = self.get_resolved_attribute_value(
@@ -602,9 +803,9 @@ class CreateIndex(
                 context=context,
             )
             if bases:
+                # Users can extend abstract indexes.
                 root = None
                 for base in bases.objects(schema):
-
                     lineage = [base] + list(
                         base.get_ancestors(schema).objects(schema))
 
@@ -616,6 +817,26 @@ class CreateIndex(
                             f'because it extends incompatible abstract indxes',
                             context=self.source_context
                         )
+
+                # Make sure that the kwargs are valid.
+                self._validate_kwargs(
+                    schema,
+                    root.get_params(schema),
+                    kwargs,
+                    root.get_verbosename(schema),
+                )
+
+            else:
+                # Creating new abstract indexes is only allowed in "EdgeDB
+                # developer" mode, i.e. when populating std library, etc.
+                if not context.stdmode and not context.testmode:
+                    raise errors.SchemaDefinitionError(
+                        f'cannot create {self.get_verbosename()} '
+                        f'because user-defined abstract indexes are not '
+                        f'supported',
+                        context=self.source_context
+                    )
+
             return
 
         # The checks below apply only to concrete indexes.
@@ -624,13 +845,55 @@ class CreateIndex(
 
         # Ensure that the name of the index (if given) matches an existing
         # abstract index.
-        #
+        name = sn.shortname_from_fullname(
+            self.get_resolved_attribute_value(
+                'name',
+                schema=schema,
+                context=context,
+            )
+        )
+
         # HACK: the old concrete indexes all have names in form __::idx, but
         # this should be the actual name provided. Also the index without name
         # defaults to '__::idx'.
         if name != DEFAULT_INDEX and (index := schema.get(name, type=Index)):
             # only abstract indexes should have unmangled names
             assert index.get_abstract(schema)
+            root = index.get_root(schema)
+
+            # Make sure that kwargs and parameters match in name and type.
+            # Also make sure that all parameters have values at this point
+            # (either default or provided in kwargs).
+            mcls = self.get_schema_metaclass()
+            params = root.get_params(schema)
+            inh_kwargs = index.get_all_kwargs(schema)
+
+            self._validate_kwargs(schema,
+                                  params,
+                                  kwargs,
+                                  index.get_verbosename(schema))
+
+            unused_names = {p.get_parameter_name(schema)
+                            for p in params.objects(schema)}
+            if kwargs:
+                unused_names -= set(kwargs)
+            if inh_kwargs:
+                unused_names -= set(inh_kwargs)
+            if unused_names:
+                # Check that all of these parameters have defaults.
+                for name in list(unused_names):
+                    param = params.get_by_name(schema, name)
+                    if param.get_default(schema) is not None:
+                        unused_names.discard(name)
+
+            if unused_names:
+                names = ', '.join(repr(n) for n in sorted(unused_names))
+                raise errors.SchemaDefinitionError(
+                    f'cannot create {self.get_verbosename()} '
+                    f'because the following parameters are still undefined: '
+                    f'{names}.',
+                    context=self.source_context
+                )
 
             # Make sure that the concrete index expression type matches the
             # abstract index type.
@@ -651,13 +914,23 @@ class CreateIndex(
             )
             expr_type = comp_expr.irast.stype
 
-            if not is_index_valid_for_type(index, expr_type, schema):
+            if not is_index_valid_for_type(root, expr_type, schema):
                 raise errors.SchemaDefinitionError(
                     f'index expression ({expr.text}) '
                     f'is not of a valid type for the '
                     f'{index.get_verbosename(schema)}',
                     context=self.source_context
                 )
+
+    def get_resolved_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> Dict[str, Any]:
+        params = self._get_params(schema, context)
+        props = super().get_resolved_attributes(schema, context)
+        props['params'] = params
+        return props
 
 
 class RenameIndex(

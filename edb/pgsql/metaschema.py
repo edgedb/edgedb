@@ -4134,6 +4134,130 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
         )
 
 
+class FTSParseQueryFunction(dbops.Function):
+    """Return tsquery representing the given FTS input query."""
+
+    text = '''
+    DECLARE
+        parts text[];
+        exclude text;
+        term text;
+        rest text;
+        cur_op text := NULL;
+        default_op text;
+        tsq tsquery;
+        el tsquery;
+        result tsquery := ''::tsquery;
+
+    BEGIN
+        -- Break up the query string into the current term, optional next
+        -- operator and the rest.
+        parts := regexp_match(
+            q, $$^(-)?((?:"[^"]*")|(?:\S+))\s*(OR|AND)?\s*(.*)$$
+        );
+        exclude := parts[1];
+        term := parts[2];
+        cur_op := parts[3];
+        rest := parts[4];
+
+        IF starts_with(term, '"') THEN
+            -- match as a phrase
+            tsq := phraseto_tsquery(language, trim(both '"' from term));
+        ELSE
+            tsq := to_tsquery(language, term);
+        END IF;
+
+        IF exclude IS NOT NULL THEN
+            tsq := !!tsq;
+        END IF;
+
+        -- setup the default operator for the current term
+        IF starts_with(term, '"') OR exclude IS NOT NULL THEN
+            -- phrases and exclusions are "must" by default
+            default_op := 'AND';
+        ELSE
+            -- regular terms are "should" by default
+            default_op := 'OR';
+        END IF;
+
+        -- figure out the operator between the current term and the next one
+        IF rest = '' THEN
+            -- base case, one one term left, so we ignore the cur_op even if
+            -- present
+
+            IF coalesce(prev_op, default_op) = 'OR' THEN
+                should := array_append(should, tsq);
+            ELSE
+                must := array_append(must, tsq);
+            END IF;
+
+        ELSE
+            -- recursion
+
+            IF starts_with(term, '"') OR exclude IS NOT NULL THEN
+                -- if at least one of the suprrounding operators is 'OR', then
+                -- the phrase is put into "should" category
+
+                IF
+                    coalesce(prev_op, default_op) = 'OR'
+                    OR coalesce(cur_op, default_op) = 'OR'
+                THEN
+                    should := array_append(should, tsq);
+                ELSE
+                    must := array_append(must, tsq);
+                END IF;
+
+            ELSE
+                -- if at least one of the suprrounding operators is 'AND',
+                -- then the phrase is put into "must" category
+
+                IF
+                    coalesce(prev_op, default_op) = 'OR'
+                    AND coalesce(cur_op, default_op) = 'OR'
+                THEN
+                    should := array_append(should, tsq);
+                ELSE
+                    must := array_append(must, tsq);
+                END IF;
+
+            END IF;
+
+            RETURN fts_parse_query(rest, language, must, should, cur_op);
+        END IF;
+
+        FOREACH el IN ARRAY should
+        LOOP
+            result := result || el;
+        END LOOP;
+
+        FOREACH el IN ARRAY must
+        LOOP
+            result := result && el;
+        END LOOP;
+
+        RETURN result;
+
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'fts_parse_query'),
+            args=[
+
+                ('q', ('text',)),
+                ('language', ('regconfig',), "'english'"),
+                ('must', ('tsquery[]',), 'array[]::tsquery[]'),
+                ('should', ('tsquery[]',), 'array[]::tsquery[]'),
+                ('prev_op', ('text',), 'NULL'),
+            ],
+            returns=('tsquery',),
+            volatility='immutable',
+            language='plpgsql',
+            text=self.text,
+        )
+
+
 async def bootstrap(
     conn: pgcon.PGConnection,
     config_spec: edbconfig.Spec
@@ -4253,6 +4377,7 @@ async def bootstrap(
         dbops.CreateFunction(RangeValidateFunction()),
         dbops.CreateFunction(RangeUnpackLowerValidateFunction()),
         dbops.CreateFunction(RangeUnpackUpperValidateFunction()),
+        dbops.CreateFunction(FTSParseQueryFunction()),
     ]
     commands = dbops.CommandGroup()
     commands.add_commands(cmds)

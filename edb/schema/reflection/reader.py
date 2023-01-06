@@ -179,6 +179,16 @@ def parse_into(
                                     refs_to[refid][mcls, fn][objid] = None
                                 exprs.append(e)
                             val = ftype(exprs)
+                        elif issubclass(ftype, s_expr.ExpressionDict):
+                            expr_dict = dict()
+                            for e_dict in val:
+                                e = _parse_expression(
+                                    e_dict['expr'], objid, k)
+                                assert e.refs is not None
+                                for refid in e.refs.ids(schema):
+                                    refs_to[refid][mcls, fn][objid] = None
+                                expr_dict[e_dict['name']] = e
+                            val = ftype(expr_dict)
                         elif issubclass(ftype, s_obj.Object):
                             val = val.id
                         elif issubclass(ftype, s_name.Name):

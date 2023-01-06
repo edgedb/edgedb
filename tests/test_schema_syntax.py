@@ -805,7 +805,6 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
-    @test.xerror('index extending not implemented yet')
     def test_eschema_syntax_index_10(self):
         """
         module test {
