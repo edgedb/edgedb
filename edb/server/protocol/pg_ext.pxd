@@ -21,12 +21,6 @@ from edb.server.pgproto.pgproto cimport WriteBuffer
 from edb.server.protocol cimport frontend
 
 
-cdef class Savepoint:
-    cdef:
-        str name
-        object settings
-
-
 cdef class ConnectionView:
 
     cdef:
@@ -35,6 +29,8 @@ cdef class ConnectionView:
         bint _in_tx_explicit
         bint _in_tx_implicit
         object _in_tx_settings
+        dict _in_tx_portals
+        object _in_tx_new_portals
         object _in_tx_savepoints
         bint _tx_error
 
@@ -42,6 +38,7 @@ cdef class ConnectionView:
     cdef inline _reset_tx_state(
         self, bint chain_implicit, bint chain_explicit
     )
+    cpdef inline close_portal(self, str name)
 
 
 cdef class PgConnection(frontend.FrontendConnection):
@@ -52,7 +49,6 @@ cdef class PgConnection(frontend.FrontendConnection):
         bytes secret
         str client_encoding
         dict prepared_stmts
-        dict portals
         bint ignore_till_sync
 
         object sslctx

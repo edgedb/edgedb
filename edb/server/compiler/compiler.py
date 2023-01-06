@@ -612,6 +612,7 @@ class Compiler:
                 unit.query.encode("utf-8")).hexdigest().encode("latin1")
             sql_units.append(unit)
         if not sql_units:
+            # Cluvio will try to execute an empty query
             sql_units.append(dbstate.SQLQueryUnit(query=""))
         return sql_units
 

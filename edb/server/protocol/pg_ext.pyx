@@ -34,19 +34,11 @@ from edb.pgsql.parser import exceptions as parser_errors
 from edb.server import args as srvargs
 from edb.server.compiler import dbstate
 from edb.server.pgcon import errors as pgerror
-from edb.server.pgcon.pgcon cimport PGAction
+from edb.server.pgcon.pgcon cimport PGAction, PGMessage
 from edb.server.protocol cimport frontend
 
 cdef object logger = logging.getLogger('edb.server')
 cdef object DEFAULT_SETTINGS = immutables.Map()
-
-cdef class Savepoint:
-    def __init__(self, name, settings=None):
-        self.name = name
-        self.settings = settings
-
-    def __eq__(self, Savepoint other):
-        return self.name == other.name
 
 
 @cython.final
@@ -56,6 +48,8 @@ cdef class ConnectionView:
         self._in_tx_explicit = False
         self._in_tx_implicit = False
         self._in_tx_settings = None
+        self._in_tx_portals = {}
+        self._in_tx_new_portals = set()
         self._in_tx_savepoints = collections.deque()
         self._tx_error = False
 
@@ -77,6 +71,8 @@ cdef class ConnectionView:
         self._in_tx_implicit = chain_implicit
         self._in_tx_explicit = chain_explicit
         self._in_tx_settings = self._settings if self.in_tx() else None
+        self._in_tx_portals.clear()
+        self._in_tx_new_portals.clear()
         self._in_tx_savepoints.clear()
         self._tx_error = False
 
@@ -102,8 +98,6 @@ cdef class ConnectionView:
             self._reset_tx_state(False, False)
 
     def on_success(self, unit: dbstate.SQLQueryUnit):
-        cdef Savepoint sp
-
         # Handle ROLLBACK first before self._tx_error
         if unit.tx_action == dbstate.TxAction.ROLLBACK:
             if not self._in_tx_explicit:
@@ -120,8 +114,13 @@ cdef class ConnectionView:
                     "in transaction blocks"
                 )
             while self._in_tx_savepoints:
-                sp = self._in_tx_savepoints[-1]
-                if sp.name == unit.sp_name:
+                sp_name, settings, new_portals = self._in_tx_savepoints[-1]
+                for name in new_portals:
+                    self._in_tx_portals.pop(name, None)
+                if sp_name == unit.sp_name:
+                    new_portals.clear()
+                    self._in_tx_settings = settings
+                    self._in_tx_new_portals = new_portals
                     break
                 else:
                     self._in_tx_savepoints.pop()
@@ -130,7 +129,6 @@ cdef class ConnectionView:
                 raise errors.TransactionError(
                     f'savepoint "{unit.sp_name}" does not exist'
                 )
-            self._in_tx_settings = sp.settings
 
         elif self._tx_error:
             raise errors.TransactionError(
@@ -161,15 +159,13 @@ cdef class ConnectionView:
                 raise errors.TransactionError(
                     "SAVEPOINT can only be used in transaction blocks"
                 )
-            self._in_tx_savepoints.append(Savepoint(
-                unit.sp_name, self._in_tx_settings
+            self._in_tx_new_portals = set()
+            self._in_tx_savepoints.append((
+                unit.sp_name, self._in_tx_settings, self._in_tx_new_portals
             ))
 
         elif unit.tx_action == dbstate.TxAction.RELEASE_SAVEPOINT:
-            try:
-                self._in_tx_savepoints.remove(Savepoint(unit.sp_name))
-            except ValueError:
-                raise errors.TransactionError from None
+            pass
 
         if unit.set_vars:
             # only session settings here
@@ -195,6 +191,38 @@ cdef class ConnectionView:
     def on_error(self):
         self._tx_error = True
 
+    cpdef inline close_portal(self, str name):
+        try:
+            del self._in_tx_portals[name]
+        except KeyError:
+            raise pgerror.new(
+                pgerror.ERROR_INVALID_CURSOR_NAME,
+                f"cursor \"{name}\" does not exist",
+            ) from None
+
+    def create_portal(self, str name, query_unit):
+        if not self.in_tx():
+            raise RuntimeError(
+                "portals cannot be created outside a transaction"
+            )
+        if name and name in self._in_tx_portals:
+            raise pgerror.new(
+                pgerror.ERROR_DUPLICATE_CURSOR,
+                f"cursor \"{name}\" already exists",
+            )
+        self._in_tx_portals[name] = query_unit
+
+    def on_portal_success(self, str name):
+        try:
+            query_unit = self._in_tx_portals[name]
+        except KeyError:
+            raise pgerror.new(
+                pgerror.ERROR_INVALID_CURSOR_NAME,
+                f"cursor \"{name}\" does not exist",
+            ) from None
+        else:
+            self.on_success(query_unit)
+
 
 cdef class PgConnection(frontend.FrontendConnection):
     def __init__(self, server, sslctx, endpoint_security, **kwargs):
@@ -202,7 +230,6 @@ cdef class PgConnection(frontend.FrontendConnection):
         self._dbview = ConnectionView()
         self._id = str(<int32_t><uint32_t>(int(self._id) % (2 ** 32)))
         self.prepared_stmts = {}
-        self.portals = {}
         self.ignore_till_sync = False
 
         self.sslctx = sslctx
@@ -523,16 +550,38 @@ cdef class PgConnection(frontend.FrontendConnection):
         cdef WriteBuffer msg_buf
         self.ignore_till_sync = False
         msg_buf = WriteBuffer.new_message(b'Z')
-        msg_buf.write_byte(b'I')
+        if self._dbview.in_tx():
+            if self._dbview._tx_error:
+                msg_buf.write_byte(b'E')
+            else:
+                msg_buf.write_byte(b'T')
+        else:
+            msg_buf.write_byte(b'I')
         return msg_buf.end_message()
 
     async def main_step(self, char mtype):
         cdef WriteBuffer buf
 
+        if self.debug:
+            self.debug_print("main_step", mtype)
+
         if mtype == b'S':  # Sync
             self.buffer.finish_message()
-            self.write(self.ready_for_query())
-            self.flush()
+            if self.debug:
+                self.debug_print("Sync")
+            if self._dbview._in_tx_implicit:
+                actions = [PGMessage(PGAction.SYNC)]
+                conn = await self.get_pgcon()
+                try:
+                    success = await conn.sql_extended_query(
+                        actions, self, self.database.dbver, self._dbview)
+                    self.ignore_till_sync = not success
+                finally:
+                    self.maybe_release_pgcon(conn)
+            else:
+                self.ignore_till_sync = False
+                self.write(self.ready_for_query())
+                self.flush()
 
         elif mtype == b'X':  # Terminate
             self.buffer.finish_message()
@@ -553,6 +602,13 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print("Query", query_str)
 
+                # Emulate Postgres to close the anonymous stmt/portal
+                # once the Q message is taken
+                self.prepared_stmts.pop("", None)
+                try:
+                    self._dbview.close_portal("")
+                except pgerror.BackendError:
+                    pass
                 query_units = await self.compile(query_str)
             except Exception as ex:
                 self.write_error(ex)
@@ -562,9 +618,6 @@ cdef class PgConnection(frontend.FrontendConnection):
             else:
                 conn = await self.get_pgcon()
                 try:
-                    self.prepared_stmts.pop("", None)
-                    self.portals.pop("", None)
-
                     await conn.sql_simple_query(
                         query_units, self, self.database.dbver, self._dbview
                     )
@@ -572,8 +625,11 @@ cdef class PgConnection(frontend.FrontendConnection):
                 finally:
                     self.maybe_release_pgcon(conn)
 
-        elif mtype == b'P' or mtype == b'B' or mtype == b'D' or mtype == b'E':
+        elif (
+            mtype == b'P' or mtype == b'B' or mtype == b'D' or mtype == b'E' or
             # One of Parse, Bind, Describe or Execute starts an extended query
+            mtype == b'C'  # or Close
+        ):
             try:
                 actions = await self.extended_query()
             except Exception as ex:
@@ -584,50 +640,10 @@ cdef class PgConnection(frontend.FrontendConnection):
                 conn = await self.get_pgcon()
                 try:
                     success = await conn.sql_extended_query(
-                        actions, self, self.database.dbver)
+                        actions, self, self.database.dbver, self._dbview)
                     self.ignore_till_sync = not success
                 finally:
                     self.maybe_release_pgcon(conn)
-
-        elif mtype == b'C':  # Close
-            kind = self.buffer.read_byte()
-            name = self.buffer.read_null_str().decode(self.client_encoding)
-            self.buffer.finish_message()
-            if self.debug:
-                self.debug_print("Close", kind, repr(name))
-
-            try:
-                if kind == b'S':  # prepared statement
-                    if name not in self.prepared_stmts:
-                        raise pgerror.new(
-                            pgerror.ERROR_INVALID_SQL_STATEMENT_NAME,
-                            f"prepared statement \"{name}\" does not exist",
-                        )
-                    # The prepared statement in the backend is managed by the
-                    # LRU cache in pgcon.pyx, we don't close it here
-                    self.prepared_stmts.pop(name)
-
-                elif kind == b'P':  # portal
-                    if name not in self.portals:
-                        raise pgerror.new(
-                            pgerror.ERROR_INVALID_CURSOR_NAME,
-                            f"cursor \"{name}\" does not exist",
-                        )
-                    # No portal lives outside transactions, so we just clear
-                    # the replay cache here
-                    del self.portals[name]
-
-                else:
-                    raise pgerror.ProtocolViolation("invalid Close kind")
-
-            except Exception as ex:
-                self.write_error(ex)
-                self.flush()
-                self.ignore_till_sync = True
-
-            else:
-                buf = WriteBuffer.new_message(b'3')  # CloseComplete
-                self.write(buf.end_message())
 
         elif mtype == b'H':  # Flush
             self.buffer.finish_message()
@@ -647,12 +663,12 @@ cdef class PgConnection(frontend.FrontendConnection):
             WriteBuffer buf
             int16_t i
             bytes data
+            bint in_implicit
+            PGMessage parse_action
 
         actions = deque()
         fresh_stmts = set()
-        fresh_portals = set()
-        executed_portals = set()
-        suspended_portals = set()
+        in_implicit = self._dbview._in_tx_implicit
 
         # Here we will exhaust the buffer and queue up actions for the backend.
         # Any error in this step will be handled in the outer main_step() -
@@ -660,6 +676,9 @@ cdef class PgConnection(frontend.FrontendConnection):
         # be discarded until a Sync message is found (ignore_till_sync).
         # This also means no partial action is executed in the backend for now.
         while self.buffer.take_message():
+            if not in_implicit:
+                actions.append(PGMessage(PGAction.START_IMPLICIT))
+                in_implicit = True
             mtype = self.buffer.get_message_type()
 
             if mtype == b'P':  # Parse
@@ -678,24 +697,31 @@ cdef class PgConnection(frontend.FrontendConnection):
                         f"prepared statement \"{stmt_name}\" already exists",
                     )
 
-                sql_source = await self.compile(query_str)
-                if len(sql_source) > 1:
+                query_units = await self.compile(query_str)
+                if len(query_units) > 1:
                     raise pgerror.new(
                         pgerror.ERROR_SYNTAX_ERROR,
                         "cannot insert multiple commands into a prepared "
                         "statement",
                     )
-                if sql_source:
-                    sql_text = sql_source[0].encode("utf-8")
-                else:
-                    # Cluvio will try to execute an empty query
-                    sql_text = b''
+                sql_text = query_units[0].query.encode("utf-8")
                 parse_hash = hashlib.sha1(sql_text)
                 parse_hash.update(data)
                 parse_hash = b'p' + parse_hash.hexdigest().encode("latin1")
-                action = (PGAction.PARSE, parse_hash, sql_text, data)
-                actions.append(action + (True,))
-                self.prepared_stmts[stmt_name] = parse_hash, action + (False,)
+                actions.append(
+                    PGMessage(
+                        PGAction.PARSE,
+                        stmt_name=parse_hash,
+                        args=(sql_text, data, True),
+                        query_unit=query_units[0],
+                    )
+                )
+                self.prepared_stmts[stmt_name] = PGMessage(
+                    PGAction.PARSE,
+                    stmt_name=parse_hash,
+                    args=(sql_text, data, False),
+                    query_unit=query_units[0],
+                )
                 fresh_stmts.add(stmt_name)
 
             elif mtype == b'B':  # Bind
@@ -711,16 +737,6 @@ cdef class PgConnection(frontend.FrontendConnection):
                         "Bind", repr(portal_name), repr(stmt_name), data
                     )
 
-                if portal_name:
-                    if portal_name in self.portals:
-                        raise pgerror.new(
-                            pgerror.ERROR_DUPLICATE_CURSOR,
-                            f"cursor \"{portal_name}\" already exists",
-                        )
-                else:
-                    # previous unnamed portal is closed
-                    executed_portals.discard(portal_name)
-                    suspended_portals.discard(portal_name)
                 if stmt_name not in self.prepared_stmts:
                     raise pgerror.new(
                         pgerror.ERROR_INVALID_SQL_STATEMENT_NAME,
@@ -728,19 +744,19 @@ cdef class PgConnection(frontend.FrontendConnection):
                     )
 
                 # Replay Parse if it wasn't done in this extended_query() call
-                parse_hash, parse_action = self.prepared_stmts[stmt_name]
+                parse_action = self.prepared_stmts[stmt_name]
                 if stmt_name not in fresh_stmts:
                     actions.append(parse_action)
                     fresh_stmts.add(stmt_name)
-                name_out = portal_name.encode("utf-8")
-                if name_out:
-                    name_out = b'u' + name_out
-                action = (PGAction.BIND, name_out, parse_hash, data)
-                actions.append(action + (True,))
-                self.portals[portal_name] = (
-                    stmt_name, parse_action, action + (False,)
+                actions.append(
+                    PGMessage(
+                        PGAction.BIND,
+                        stmt_name=parse_action.stmt_name,
+                        portal_name=portal_name,
+                        args=data,
+                        query_unit=parse_action.query_unit,
+                    )
                 )
-                fresh_portals.add(portal_name)
 
             elif mtype == b'D':  # Describe
                 kind = self.buffer.read_byte()
@@ -755,38 +771,26 @@ cdef class PgConnection(frontend.FrontendConnection):
                             pgerror.ERROR_INVALID_SQL_STATEMENT_NAME,
                             f"prepared statement \"{name}\" does not exist",
                         )
-                    name_out, parse_action = self.prepared_stmts[name]
+                    parse_action = self.prepared_stmts[name]
                     # Replay Parse if it wasn't done
                     # in this extended_query() call
                     if name not in fresh_stmts:
                         fresh_stmts.add(name)
                         actions.append(parse_action)
+                    actions.append(
+                        PGMessage(
+                            PGAction.DESCRIBE_STMT,
+                            stmt_name=parse_action.stmt_name,
+                        )
+                    )
 
                 elif kind == b'P':  # portal
-                    if name not in self.portals:
-                        raise pgerror.new(
-                            pgerror.ERROR_INVALID_CURSOR_NAME,
-                            f"cursor \"{name}\" does not exist",
-                        )
-                    if name not in fresh_portals:
-                        # Replay Parse and/or Bind if they weren't done
-                        # in this extended_query() call
-                        (
-                            stmt_name, parse_action, bind_action
-                        ) = self.portals[name]
-                        if stmt_name not in fresh_stmts:
-                            fresh_stmts.add(stmt_name)
-                            actions.append(parse_action)
-                        fresh_portals.add(name)
-                        actions.append(bind_action)
-                    name_out = name.encode('utf-8')
-                    if name_out:
-                        name_out = b'u' + name_out
+                    actions.append(
+                        PGMessage(PGAction.DESCRIBE_PORTAL, portal_name=name)
+                    )
 
                 else:
                     raise pgerror.ProtocolViolation("invalid Describe kind")
-
-                actions.append((PGAction.DESCRIBE, kind, name_out))
 
             elif mtype == b'E':  # Execute
                 portal_name = self.buffer.read_null_str().decode(
@@ -797,30 +801,13 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print("Execute", repr(portal_name), max_rows)
 
-                if max_rows > 0:
-                    suspended_portals.add(portal_name)
-                if portal_name not in self.portals:
-                    raise pgerror.new(
-                        pgerror.ERROR_INVALID_CURSOR_NAME,
-                        f"cursor \"{portal_name}\" does not exist",
+                actions.append(
+                    PGMessage(
+                        PGAction.EXECUTE,
+                        portal_name=portal_name,
+                        args=max_rows,
                     )
-                if portal_name not in fresh_portals:
-                    # Replay Parse and/or Bind if they weren't done
-                    # in this extended_query() call
-                    (
-                        stmt_name, parse_action, bind_action
-                    ) = self.portals[portal_name]
-                    if stmt_name not in fresh_stmts:
-                        fresh_stmts.add(stmt_name)
-                        actions.append(parse_action)
-                    fresh_portals.add(portal_name)
-                    actions.append(bind_action)
-
-                executed_portals.add(portal_name)
-                name_out = portal_name.encode('utf-8')
-                if name_out:
-                    name_out = b'u' + name_out
-                actions.append((PGAction.EXECUTE, name_out, max_rows))
+                )
 
             elif mtype == b'C':  # Close
                 kind = self.buffer.read_byte()
@@ -839,22 +826,12 @@ cdef class PgConnection(frontend.FrontendConnection):
                     # LRU cache in pgcon.pyx, we don't close it here
                     fresh_stmts.discard(name)
                     self.prepared_stmts.pop(name)
-                    actions.append((PGAction.CLOSE_STMT,))
+                    actions.append(PGMessage(PGAction.CLOSE_STMT))
 
                 elif kind == b'P':  # portal
-                    if name not in self.portals:
-                        raise pgerror.new(
-                            pgerror.ERROR_INVALID_CURSOR_NAME,
-                            f"cursor \"{name}\" does not exist",
-                        )
-                    fresh_portals.discard(name)
-                    executed_portals.discard(name)
-                    suspended_portals.discard(name)
-                    del self.portals[name]
-                    name_out = name.encode('utf-8')
-                    if name_out:
-                        name_out = b'u' + name_out
-                    actions.append((PGAction.CLOSE_PORTAL, name_out))
+                    actions.append(
+                        PGMessage(PGAction.CLOSE_PORTAL, portal_name=name)
+                    )
 
                 else:
                     raise pgerror.ProtocolViolation("invalid Close kind")
@@ -863,34 +840,19 @@ cdef class PgConnection(frontend.FrontendConnection):
                 self.buffer.finish_message()
                 if self.debug:
                     self.debug_print("Flush")
-                actions.append((PGAction.FLUSH,))
+                actions.append(PGMessage(PGAction.FLUSH))
 
             elif mtype == b'S':  # Sync
+                in_implicit = False
                 self.buffer.finish_message()
                 if self.debug:
                     self.debug_print("Sync")
-
-                # Without explicit transaction support, a Sync means the end of
-                # the implicit transaction. Thus, drop all the portals.
-                self.portals.clear()
-                actions.append((PGAction.SYNC, True))
+                actions.append(PGMessage(PGAction.SYNC))
                 break
 
             else:
                 # Other messages would cut off the current extended_query()
                 break
-
-        # When this pipelined packet ends, we must SYNC the backend pgcon
-        # because it will be released before handling the next client message.
-        # In this case, executed portals will be closed if not closed yet.
-        if actions[-1][0] != PGAction.SYNC:
-            for portal_name in executed_portals:
-                self.portals.pop(portal_name, None)
-            actions.append((PGAction.SYNC, False))
-            if suspended_portals:
-                raise pgerror.FeatureNotSupported(
-                    "suspended cursor is not supported"
-                )
 
         if self.debug:
             self.debug_print("extended_query", actions)
