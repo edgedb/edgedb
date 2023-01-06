@@ -5651,7 +5651,6 @@ aa';
                   myindex1;
         """
 
-    @test.xerror('index extending not implemented yet')
     def test_edgeql_syntax_ddl_index_08(self):
         """
         CREATE ABSTRACT INDEX myindex1 EXTENDING fts;
