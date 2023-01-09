@@ -261,6 +261,13 @@ def resolve_FuncCall(
     ctx: Context,
 ) -> pgast.FuncCall:
     # TODO: which functions do we want to expose on the outside?
+    if expr.name in {
+        ("set_config",),
+        ("pg_catalog", "set_config"),
+        ("current_setting",),
+        ("pg_catalog", "current_setting"),
+    }:
+        raise errors.QueryError("unsupported", context=expr.context)
     return pgast.FuncCall(
         name=expr.name,
         args=dispatch.resolve_list(expr.args, ctx=ctx),
