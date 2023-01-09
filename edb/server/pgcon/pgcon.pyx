@@ -1393,6 +1393,8 @@ cdef class PGConnection:
             for unit in query_units:
                 if self.debug:
                     self.debug_print('pg_ext SQL:', unit.stmt_name, unit.query)
+                if unit.frontend_only:
+                    continue
                 query = unit.query.encode("utf8")
                 stmt_name = unit.stmt_name
                 if not stmt_name or self.before_prepare(stmt_name, dbver, buf):
@@ -1435,6 +1437,10 @@ cdef class PGConnection:
             buf = WriteBuffer.new()
             for unit in query_units:
                 while not sync_received:
+                    if unit.frontend_only:
+                        dbv.on_frontend_only(unit, buf)
+                        break
+
                     if not self.buffer.take_message():
                         if buf.len() > 0:
                             fe_conn.write(buf)

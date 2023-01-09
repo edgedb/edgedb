@@ -39,15 +39,19 @@ from edb.server.protocol cimport frontend
 
 cdef object logger = logging.getLogger('edb.server')
 cdef object DEFAULT_SETTINGS = immutables.Map()
+cdef object DEFAULT_FE_SETTINGS = immutables.Map({"search_path": "public"})
 
 
 @cython.final
 cdef class ConnectionView:
     def __init__(self):
         self._settings = DEFAULT_SETTINGS
+        self._fe_settings = DEFAULT_FE_SETTINGS
         self._in_tx_explicit = False
         self._in_tx_implicit = False
         self._in_tx_settings = None
+        self._in_tx_fe_settings = None
+        self._in_tx_fe_local_settings = None
         self._in_tx_portals = {}
         self._in_tx_new_portals = set()
         self._in_tx_savepoints = collections.deque()
@@ -55,9 +59,24 @@ cdef class ConnectionView:
 
     def current_settings(self):
         if self.in_tx():
-            return self._in_tx_settings
+            return self._in_tx_settings or DEFAULT_SETTINGS
         else:
-            return self._settings
+            return self._settings or DEFAULT_SETTINGS
+
+    cdef inline current_fe_settings(self):
+        if self.in_tx():
+            return self._in_tx_fe_local_settings or DEFAULT_FE_SETTINGS
+        else:
+            return self._fe_settings or DEFAULT_FE_SETTINGS
+
+    cdef inline fe_transaction_state(self):
+        return dbstate.SQLTransactionState(
+            in_tx=self.in_tx(),
+            settings=self._fe_settings,
+            in_tx_settings=self._in_tx_fe_settings,
+            in_tx_local_settings=self._in_tx_fe_local_settings,
+            savepoints=[sp[:3] for sp in self._in_tx_savepoints],
+        )
 
     cpdef inline bint in_tx(self):
         return self._in_tx_explicit or self._in_tx_implicit
@@ -71,6 +90,10 @@ cdef class ConnectionView:
         self._in_tx_implicit = chain_implicit
         self._in_tx_explicit = chain_explicit
         self._in_tx_settings = self._settings if self.in_tx() else None
+        self._in_tx_fe_settings = self._fe_settings if self.in_tx() else None
+        self._in_tx_fe_local_settings = (
+            self._fe_settings if self.in_tx() else None
+        )
         self._in_tx_portals.clear()
         self._in_tx_new_portals.clear()
         self._in_tx_savepoints.clear()
@@ -82,6 +105,8 @@ cdef class ConnectionView:
         else:
             if not self.in_tx():
                 self._in_tx_settings = self._settings
+                self._in_tx_fe_settings = self._fe_settings
+                self._in_tx_fe_local_settings = self._fe_settings
             self._in_tx_implicit = True
 
     def end_implicit(self):
@@ -95,6 +120,7 @@ cdef class ConnectionView:
             # Commit or rollback the implicit transaction
             if not self._tx_error:
                 self._settings = self._in_tx_settings
+                self._fe_settings = self._in_tx_fe_settings
             self._reset_tx_state(False, False)
 
     def on_success(self, unit: dbstate.SQLQueryUnit):
@@ -114,12 +140,20 @@ cdef class ConnectionView:
                     "in transaction blocks"
                 )
             while self._in_tx_savepoints:
-                sp_name, settings, new_portals = self._in_tx_savepoints[-1]
+                (
+                    sp_name,
+                    fe_settings,
+                    fe_local_settings,
+                    settings,
+                    new_portals,
+                ) = self._in_tx_savepoints[-1]
                 for name in new_portals:
                     self._in_tx_portals.pop(name, None)
                 if sp_name == unit.sp_name:
                     new_portals.clear()
                     self._in_tx_settings = settings
+                    self._in_tx_fe_settings = fe_settings
+                    self._in_tx_fe_local_settings = fe_local_settings
                     self._in_tx_new_portals = new_portals
                     break
                 else:
@@ -143,6 +177,8 @@ cdef class ConnectionView:
             else:
                 if not self.in_tx():
                     self._in_tx_settings = self._settings
+                    self._in_tx_fe_settings = self._fe_settings
+                    self._in_tx_fe_local_settings = self._fe_settings
                 self._in_tx_explicit = True
 
         elif unit.tx_action == dbstate.TxAction.COMMIT:
@@ -152,6 +188,7 @@ cdef class ConnectionView:
                 pass
             if self.in_tx():
                 self._settings = self._in_tx_settings
+                self._fe_settings = self._in_tx_fe_settings
             self._reset_tx_state(self._in_tx_implicit, unit.tx_chain)
 
         elif unit.tx_action == dbstate.TxAction.DECLARE_SAVEPOINT:
@@ -161,7 +198,11 @@ cdef class ConnectionView:
                 )
             self._in_tx_new_portals = set()
             self._in_tx_savepoints.append((
-                unit.sp_name, self._in_tx_settings, self._in_tx_new_portals
+                unit.sp_name,
+                self._in_tx_fe_settings,
+                self._in_tx_fe_local_settings,
+                self._in_tx_settings,
+                self._in_tx_new_portals,
             ))
 
         elif unit.tx_action == dbstate.TxAction.RELEASE_SAVEPOINT:
@@ -172,21 +213,53 @@ cdef class ConnectionView:
             if unit.set_vars == {None: None}:  # RESET ALL
                 if self.in_tx():
                     self._in_tx_settings = DEFAULT_SETTINGS
+                    self._in_tx_fe_settings = DEFAULT_FE_SETTINGS
+                    self._in_tx_fe_local_settings = DEFAULT_FE_SETTINGS
                 else:
                     self._settings = DEFAULT_SETTINGS
+                    self._fe_settings = DEFAULT_FE_SETTINGS
             else:
-                settings = (
-                    self._in_tx_settings if self.in_tx() else self._settings
-                ).mutate()
+                if self.in_tx():
+                    if unit.frontend_only:
+                        if unit.is_local:
+                            settings = self._in_tx_fe_local_settings.mutate()
+                            for k, v in unit.set_vars.items():
+                                if v is None:
+                                    if k in DEFAULT_FE_SETTINGS:
+                                        settings[k] = DEFAULT_FE_SETTINGS[k]
+                                    else:
+                                        settings.pop(k, None)
+                                else:
+                                    settings[k] = v
+                            self._in_tx_fe_local_settings = settings.finish()
+                        settings = self._in_tx_fe_settings.mutate()
+                    else:
+                        settings = self._in_tx_settings.mutate()
+                elif not unit.is_local:
+                    if unit.frontend_only:
+                        settings = self._fe_settings.mutate()
+                    else:
+                        settings = self._settings.mutate()
+                else:
+                    return
                 for k, v in unit.set_vars.items():
                     if v is None:
-                        settings.pop(k, None)
+                        if unit.frontend_only and k in DEFAULT_FE_SETTINGS:
+                            settings[k] = DEFAULT_FE_SETTINGS[k]
+                        else:
+                            settings.pop(k, None)
                     else:
                         settings[k] = v
                 if self.in_tx():
-                    self._in_tx_settings = settings.finish()
+                    if unit.frontend_only:
+                        self._in_tx_fe_settings = settings.finish()
+                    else:
+                        self._in_tx_settings = settings.finish()
                 else:
-                    self._settings = settings.finish()
+                    if unit.frontend_only:
+                        self._fe_settings = settings.finish()
+                    else:
+                        self._settings = settings.finish()
 
     def on_error(self):
         self._tx_error = True
@@ -222,6 +295,41 @@ cdef class ConnectionView:
             ) from None
         else:
             self.on_success(query_unit)
+
+    def on_frontend_only(self, query_unit, WriteBuffer out):
+        cdef WriteBuffer buf
+
+        self.on_success(query_unit)
+        if query_unit.set_vars is not None:
+            assert len(query_unit.set_vars) == 1
+            buf = WriteBuffer.new_message(b'C')  # CommandComplete
+            if next(iter(query_unit.set_vars.values())) is None:
+                buf.write_bytestring(b'RESET')
+            else:
+                buf.write_bytestring(b'SET')
+            out.write_buffer(buf.end_message())
+        elif query_unit.get_var is not None:
+            buf = WriteBuffer.new_message(b'T')  # RowDescription
+            buf.write_int16(1)  # number of fields
+            buf.write_str(query_unit.get_var, "utf-8")  # field name
+            buf.write_int32(0)  # object ID of the table to identify the field
+            buf.write_int16(0)  # attribute number of the column in prev table
+            buf.write_int32(25)  # object ID of the field's data type
+            buf.write_int16(-1)  # data type size
+            buf.write_int32(-1)  # type modifier
+            buf.write_int16(0)  # format code being used for the field
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'D')  # DataRow
+            buf.write_int16(1)  # number of column values
+            buf.write_len_prefixed_utf8(
+                self.current_fe_settings()[query_unit.get_var]
+            )
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'C')  # CommandComplete
+            buf.write_bytestring(b'SHOW')
+            out.write_buffer(buf.end_message())
 
 
 cdef class PgConnection(frontend.FrontendConnection):
@@ -861,7 +969,8 @@ cdef class PgConnection(frontend.FrontendConnection):
     async def compile(self, query_str):
         if self.debug:
             self.debug_print("Compile", query_str)
-        key = hashlib.sha1(query_str.encode("utf-8")).digest()
+        fe_settings = self._dbview.current_fe_settings()
+        key = (hashlib.sha1(query_str.encode("utf-8")).digest(), fe_settings)
         result = self.database.lookup_compiled_sql(key)
         if result is not None:
             return result
@@ -874,6 +983,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.database.db_config,
             self.database._index.get_compilation_system_config(),
             query_str,
+            self._dbview.fe_transaction_state(),
         )
         self.database.cache_compiled_sql(key, result)
         if self.debug:
