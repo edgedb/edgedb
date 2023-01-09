@@ -8321,9 +8321,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             abstract constraint test::my_constr1(val: std::int64) {
-                using (WITH m AS MODULE math
+                using (
                     SELECT
-                        (m::abs((__subject__ + val)) > 2)
+                        (math::abs((__subject__ + val)) > 2)
                 );
             };
             ''',
