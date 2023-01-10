@@ -150,6 +150,7 @@ or reboots copy the certificate files and use their contents in the
        --dns-name-label edgedb \
        --ports 5656 \
        --secure-environment-variables \
+         "EDGEDB_SERVER_PASSWORD=$PASSWORD" \
          "EDGEDB_SERVER_BACKEND_DSN=$DSN" \
          "EDGEDB_SERVER_TLS_KEY=$key" \
        --environment-variables \
@@ -171,6 +172,11 @@ machine link the instance.
            --query "[?name=='edgedb-container-group'].ipAddress.fqdn | [0]" \
            --output tsv ) \
        azure
+
+.. note::
+
+   The command groups ``edgedb instance`` and ``edgedb project`` are not
+   intended to manage production instances.
 
 You can now connect to your instance.
 

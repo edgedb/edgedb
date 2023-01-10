@@ -89,20 +89,27 @@ class Index(tables.InheritableTableObject):
         else:
             exprs = [qi(c) for c in self.columns]
 
-        # TODO: Make NULLs behavior configurable
-        expr = ', '.join(f'({e}) NULLS FIRST' for e in exprs)
+        using, expr = self.metadata['code'].split(' ', 1)
+
+        if using:
+            using = f'USING {using}'
+
+        expr = expr[1:-1].replace('__col__', '{}')
+        expr = ', '.join(expr.format(e) for e in exprs)
 
         code = '''
             CREATE {unique} INDEX {name}
-                ON {table} ({expr}) {predicate}'''.format(
-
+                ON {table} {using} ({expr})
+                {predicate}'''.format(
             unique='UNIQUE' if self.unique else '',
             name=qn(self.name_in_catalog),
             table=qn(*self.table_name),
             expr=expr,
+            using=using,
             predicate=('WHERE {}'.format(self.predicate)
                        if self.predicate else '')
         )
+
         return code
 
     @property

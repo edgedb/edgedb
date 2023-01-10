@@ -1800,7 +1800,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropObjectType(self, node: qlast.DropObjectType) -> None:
         self._visit_DropObject(node, 'TYPE')
 
-    def _after_index(self, node: qlast.IndexCommand) -> None:
+    def _after_index(self, node: qlast.ConcreteIndexCommand) -> None:
+        if node.kwargs:
+            self.write('(')
+            for i, (name, arg) in enumerate(node.kwargs.items()):
+                if i > 0:
+                    self.write(', ')
+                self.write(f'{edgeql_quote.quote_ident(name)} := ')
+                self.visit(arg)
+            self.write(')')
+
         self._write_keywords(' ON ')
         self.write('(')
         self.visit(node.expr)
@@ -1812,19 +1821,95 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.except_expr)
             self.write(')')
 
+    def visit_IndexType(
+        self,
+        node: qlast.IndexType
+    ) -> None:
+        self.visit(node.name)
+
+        if node.kwargs:
+            self.write('(')
+            for i, (name, arg) in enumerate(node.kwargs.items()):
+                if i > 0:
+                    self.write(', ')
+                self.write(f'{edgeql_quote.quote_ident(name)} := ')
+                self.visit(arg)
+            self.write(')')
+
     def visit_CreateIndex(self, node: qlast.CreateIndex) -> None:
-        self._visit_CreateObject(
-            node, 'INDEX', named=False,
-            after_name=lambda: self._after_index(node))
+        def after_name() -> None:
+            if node.params:
+                self.write('(')
+                self.visit_list(node.params, newlines=False)
+                self.write(')')
+
+            if node.kwargs:
+                self.write('(')
+                for i, (name, arg) in enumerate(node.kwargs.items()):
+                    if i > 0:
+                        self.write(', ')
+                    self.write(f'{edgeql_quote.quote_ident(name)} := ')
+                    self.visit(arg)
+                self.write(')')
+
+            if node.index_types:
+                self._write_keywords(' USING ')
+                self.visit_list(node.index_types, newlines=False)
+
+            self._ddl_visit_bases(node)
+
+            if node.commands or node.code:
+                self.write(' {')
+                self._block_ws(1)
+                commands = self._ddl_clean_up_commands(node.commands)
+                self.visit_list(commands, terminator=';')
+                self.new_lines = 1
+
+                if node.code:
+                    self._write_keywords('USING', node.code.language)
+                    self.write(edgeql_quote.dollar_quote_literal(
+                        node.code.code))
+                    self.write(';')
+
+                self._block_ws(-1)
+                self.write('}')
+
+        self._visit_CreateObject(node, 'ABSTRACT INDEX',
+                                 after_name=after_name)
 
     def visit_AlterIndex(self, node: qlast.AlterIndex) -> None:
-        self._visit_AlterObject(
-            node, 'INDEX', named=False,
-            after_name=lambda: self._after_index(node))
+        self._visit_AlterObject(node, 'ABSTRACT INDEX')
 
     def visit_DropIndex(self, node: qlast.DropIndex) -> None:
+        self._visit_DropObject(node, 'ABSTRACT INDEX')
+
+    def visit_IndexCode(self, node: qlast.IndexCode) -> None:
+        self._write_keywords('USING', node.language)
+        self.write(edgeql_quote.dollar_quote_literal(
+            node.code))
+
+    def visit_CreateConcreteIndex(
+        self,
+        node: qlast.CreateConcreteIndex
+    ) -> None:
+        self._visit_CreateObject(
+            node, 'INDEX', named=node.name.name != 'idx',
+            after_name=lambda: self._after_index(node))
+
+    def visit_AlterConcreteIndex(
+        self,
+        node: qlast.AlterConcreteIndex
+    ) -> None:
+        self._visit_AlterObject(
+            node, 'INDEX', named=node.name.name != 'idx',
+            after_name=lambda: self._after_index(node))
+
+    def visit_DropConcreteIndex(
+        self,
+        node: qlast.DropConcreteIndex
+    ) -> None:
         self._visit_DropObject(
-            node, 'INDEX', named=False,
+            node, 'INDEX', named=node.name.name != 'idx',
             after_name=lambda: self._after_index(node))
 
     def visit_CreateOperator(self, node: qlast.CreateOperator) -> None:

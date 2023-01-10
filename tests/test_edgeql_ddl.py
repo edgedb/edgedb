@@ -559,17 +559,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """)
 
     async def test_edgeql_ddl_14(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                f'__source__ cannot be used in this expression'):
-            await self.con.execute("""
-                CREATE TYPE TestSelfLink1 {
-                    CREATE PROPERTY foo1 -> std::str;
-                    CREATE PROPERTY bar1 -> std::str {
-                        SET default := __source__.foo1;
-                    };
+        await self.con.execute("""
+            CREATE TYPE TestSelfLink1 {
+                CREATE PROPERTY foo1 -> std::str;
+                CREATE PROPERTY bar1 -> std::str {
+                    SET default := __source__.foo1;
                 };
-            """)
+            };
+        """)
 
     async def test_edgeql_ddl_15(self):
         await self.con.execute(r"""
@@ -607,18 +604,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
     async def test_edgeql_ddl_16(self):
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                'possibly more than one element'):
-            await self.con.execute(r"""
-                CREATE TYPE TestSelfLink3 {
-                    CREATE PROPERTY foo3 -> std::str;
-                    CREATE PROPERTY bar3 -> std::str {
-                        # NOTE: this is a set of all TestSelfLink3.foo3
-                        SET default := TestSelfLink3.foo3;
-                    };
+        await self.con.execute(r"""
+            CREATE TYPE TestSelfLink3 {
+                CREATE PROPERTY foo3 -> std::str;
+                CREATE PROPERTY bar3 -> std::str {
+                    SET default := TestSelfLink3.foo3;
                 };
-            """)
+            };
+        """)
 
     async def test_edgeql_ddl_18(self):
         await self.con.execute("""

@@ -8,8 +8,8 @@ Constraints
 
   This section assumes a basic understanding of EdgeQL.
 
-Constraints gives users fine-grained control over which data is considered
-valid. The can be defined on :ref:`properties <ref_datamodel_props>`,
+Constraints give users fine-grained control over which data is considered
+valid. They can be defined on :ref:`properties <ref_datamodel_props>`,
 :ref:`links <ref_datamodel_links>`, :ref:`object types
 <ref_datamodel_object_types>`, and  :ref:`custom scalars
 <ref_datamodel_links>`.

@@ -18,10 +18,10 @@ Reference
     environment
     projects
     dsn
-    observability
     dump_format
     backend_ha
     configuration
+    http
     protocol/index
     admin/index
 

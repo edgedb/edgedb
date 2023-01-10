@@ -27,7 +27,9 @@ import functools
 from typing import *
 
 from edb import errors
+from edb.common import ast
 from edb.common import context as pctx
+from edb.common import topological
 from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
@@ -196,7 +198,7 @@ def _process_view(
             transparent=True, ctx=ctx)
 
     pointers: List[s_pointers.Pointer] = []
-    pointer_entries = []
+    pointer_entries: List[Tuple[s_pointers.Pointer, irast.Set | None]] = []
 
     elements = elements or ()
     for shape_el in elements:
@@ -246,70 +248,15 @@ def _process_view(
 
     if exprtype.is_insert():
         explicit_ptrs = {
-            ptrcls.get_local_name(ctx.env.schema)
-            for ptrcls in pointers
+            ptrcls.get_local_name(ctx.env.schema) for ptrcls in pointers
         }
-        scls_pointers = stype.get_pointers(ctx.env.schema)
-        for pn, ptrcls in scls_pointers.items(ctx.env.schema):
-            if (pn in explicit_ptrs or
-                    ptrcls.is_pure_computable(ctx.env.schema)):
-                continue
 
-            default_expr = ptrcls.get_default(ctx.env.schema)
-            if not default_expr:
-                if (
-                    ptrcls.get_required(ctx.env.schema)
-                    and pn != sn.UnqualName('__type__')
-                ):
-                    if ptrcls.is_property(ctx.env.schema):
-                        # If the target is a sequence, there's no need
-                        # for an explicit value.
-                        ptrcls_target = ptrcls.get_target(ctx.env.schema)
-                        assert ptrcls_target is not None
-                        if ptrcls_target.issubclass(
-                                ctx.env.schema,
-                                ctx.env.schema.get(
-                                    'std::sequence',
-                                    type=s_objects.SubclassableObject)):
-                            continue
-                    vn = ptrcls.get_verbosename(
-                        ctx.env.schema, with_parent=True)
-                    raise errors.MissingRequiredError(
-                        f'missing value for required {vn}')
-                else:
-                    continue
-
-            ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
-            default_ql = qlast.ShapeElement(
-                expr=qlast.Path(
-                    steps=[
-                        qlast.Ptr(
-                            ptr=qlast.ObjectRef(
-                                name=ptrcls_sn.name,
-                                module=ptrcls_sn.module,
-                            ),
-                        ),
-                    ],
-                ),
-                compexpr=qlast.DetachedExpr(
-                    expr=default_expr.qlast,
-                ),
+        pointer_entries.extend(
+            gen_pointers_from_defaults(
+                explicit_ptrs, view_scls, ir_set, stype, path_id_namespace,
+                view_rptr, exprtype, ctx
             )
-
-            with ctx.new() as scopectx:
-                pointer_entries.append(
-                    _normalize_view_ptr_expr(
-                        ir_set,
-                        default_ql,
-                        view_scls,
-                        path_id=path_id,
-                        path_id_namespace=path_id_namespace,
-                        exprtype=exprtype,
-                        from_default=True,
-                        view_rptr=view_rptr,
-                        ctx=scopectx,
-                    ),
-                )
+        )
 
     set_shape = []
     shape_ptrs: List[ShapePtr] = []
@@ -394,6 +341,111 @@ def _process_view(
     return view_scls, ir_set
 
 
+def gen_pointers_from_defaults(
+    explicit_ptrs: Set[sn.UnqualName],
+    view_scls: s_objtypes.ObjectType,
+    ir_set: irast.Set,
+    stype: s_objtypes.ObjectType,
+    path_id_namespace: Optional[irast.Namespace],
+    view_rptr: Optional[context.ViewRPtr],
+    exprtype: s_types.ExprType,
+    ctx: context.ContextLevel,
+) -> List[Tuple[s_pointers.Pointer, irast.Set | None]]:
+    path_id = ir_set.path_id
+    result: List[Tuple[s_pointers.Pointer, irast.Set | None]] = []
+
+    scls_pointers = stype.get_pointers(ctx.env.schema)
+    for pn, ptrcls in scls_pointers.items(ctx.env.schema):
+        if pn in explicit_ptrs or ptrcls.is_pure_computable(ctx.env.schema):
+            continue
+
+        default_expr = ptrcls.get_default(ctx.env.schema)
+        if not default_expr:
+            if ptrcls.get_required(ctx.env.schema) and pn != sn.UnqualName(
+                "__type__"
+            ):
+                if ptrcls.is_property(ctx.env.schema):
+                    # If the target is a sequence, there's no need
+                    # for an explicit value.
+                    ptrcls_target = ptrcls.get_target(ctx.env.schema)
+                    assert ptrcls_target is not None
+                    if ptrcls_target.issubclass(
+                        ctx.env.schema,
+                        ctx.env.schema.get(
+                            "std::sequence", type=s_objects.SubclassableObject
+                        ),
+                    ):
+                        continue
+                vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
+                raise errors.MissingRequiredError(
+                    f"missing value for required {vn}"
+                )
+            else:
+                continue
+
+        ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
+        default_ql = qlast.ShapeElement(
+            expr=qlast.Path(
+                steps=[
+                    qlast.Ptr(
+                        ptr=qlast.ObjectRef(
+                            name=ptrcls_sn.name,
+                            module=ptrcls_sn.module,
+                        ),
+                    ),
+                ],
+            ),
+            compexpr=qlast.DetachedExpr(
+                expr=default_expr.qlast,
+                preserve_path_prefix=True,
+            ),
+        )
+
+        with ctx.new() as scopectx:
+            result.append(
+                _normalize_view_ptr_expr(
+                    ir_set,
+                    default_ql,
+                    view_scls,
+                    path_id=path_id,
+                    path_id_namespace=path_id_namespace,
+                    exprtype=exprtype,
+                    from_default=True,
+                    view_rptr=view_rptr,
+                    ctx=scopectx,
+                ),
+            )
+
+    schema = ctx.env.schema
+
+    # Toposort defaults
+    # This is required because defaults may reference each other
+    # (and even contain cyclical dependencies).
+    # We cannot check or preprocess this at migration time, because some
+    # defaults may not be used for some inserts.
+    pointer_indexes = {}
+    for (index, (pointer, _)) in enumerate(result):
+        p = pointer.get_nearest_non_derived_parent(schema)
+        pointer_indexes[p.get_name(schema).name] = index
+    graph = {}
+    for (index, (_, irset)) in enumerate(result):
+        assert irset
+        dep_pointers = ast.find_children(irset, irast.Pointer)
+        dep_rptrs = (
+            pointer.target.path_id.rptr() for pointer in dep_pointers
+            if pointer.source.typeref.id == stype.id
+        )
+        deps = {
+            pointer_indexes[rpts.name.name] for rpts in dep_rptrs
+            if rpts and rpts.name.name in pointer_indexes
+        }
+        graph[index] = topological.DepGraphEntry(
+            item=index, deps=deps, extra=False,
+        )
+
+    return [result[i] for i in topological.sort(graph, allow_unresolved=True)]
+
+
 def _maybe_fixup_lprop(
     path_id: irast.PathId,
     ptrcls: s_pointers.Pointer,
@@ -453,7 +505,6 @@ def _compile_qlexpr(
     *,
     ptrcls: Optional[s_pointers.Pointer],
     ptrsource: s_sources.Source,
-    path_id: irast.PathId,
     ptr_name: sn.QualName,
     exprtype: s_types.ExprType = s_types.ExprType.Select,
     is_linkprop: bool,
@@ -698,7 +749,7 @@ def _normalize_view_ptr_expr(
             irexpr, _ = _compile_qlexpr(
                 ir_source, qlexpr, view_scls,
                 ptrcls=qlptrcls, ptrsource=qlptrsource,
-                path_id=path_id, ptr_name=ptr_name, is_linkprop=is_linkprop,
+                ptr_name=ptr_name, is_linkprop=is_linkprop,
                 exprtype=exprtype, ctx=ctx)
             materialized = setgen.should_materialize(
                 irexpr, ptrcls=ptrcls,
@@ -770,7 +821,7 @@ def _normalize_view_ptr_expr(
 
         irexpr, sub_view_rptr = _compile_qlexpr(
             ir_source, qlexpr, view_scls, ptrcls=ptrcls, ptrsource=ptrsource,
-            path_id=path_id, ptr_name=ptr_name, is_linkprop=is_linkprop,
+            ptr_name=ptr_name, is_linkprop=is_linkprop,
             exprtype=exprtype, ctx=ctx)
         materialized = setgen.should_materialize(
             irexpr, ptrcls=ptrcls,

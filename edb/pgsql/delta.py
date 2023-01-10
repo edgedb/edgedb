@@ -118,6 +118,29 @@ def has_table(obj, schema):
         )
 
 
+def get_index_code(index_name: sn.Name) -> str:
+    # HACK: currently this helper just hardcodes the SQL code necessary for
+    # specific PG indexes, but this should be based on index definition.
+    name = str(index_name)
+    match name:
+        case '__::idx':
+            return ' ((__col__) NULLS FIRST)'
+        case 'pg::hash':
+            return 'hash ((__col__))'
+        case 'pg::btree':
+            return 'btree ((__col__) NULLS FIRST)'
+        case 'pg::gin':
+            return 'gin ((__col__))'
+        case 'pg::gist':
+            return 'gist ((__col__))'
+        case 'pg::spgist':
+            return 'spgist ((__col__))'
+        case 'pg::brin':
+            return 'brin ((__col__))'
+        case _:
+            raise NotImplementedError(f'index {name} is not implemented')
+
+
 class CommandMeta(sd.CommandMeta):
     pass
 
@@ -3243,11 +3266,18 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         module_name = index.get_name(schema).module
         index_name = common.get_index_backend_name(
             index.id, module_name, catenate=False)
+
+        # FIXME: this will need fixing once index names are fixed
+        orig_name = sn.shortname_from_fullname(index.get_name(schema))
         pg_index = dbops.Index(
             name=index_name[1], table_name=table_name, exprs=sql_exprs,
             unique=False, inherit=True,
             predicate=except_src,
-            metadata={'schemaname': str(index.get_name(schema))})
+            metadata={
+                'schemaname': str(index.get_name(schema)),
+                'code': get_index_code(orig_name),
+            }
+        )
         return dbops.CreateIndex(pg_index)
 
     def _create_begin(
@@ -3257,6 +3287,11 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
     ) -> s_schema.Schema:
         schema = super()._create_begin(schema, context)
         index = self.scls
+
+        if index.get_abstract(schema):
+            # Don't do anything for abstract indexes
+            return schema
+
         self.pgops.add(self.create_index(index, schema, context))
 
         return schema
@@ -4426,7 +4461,12 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
 
         index_name = common.edgedb_name_to_pg_name(
             str(link.id) + '_target_key')
-        index = dbops.Index(index_name, new_table_name, unique=False)
+        index = dbops.Index(
+            index_name,
+            new_table_name,
+            unique=False,
+            metadata={'code': get_index_code(s_indexes.DEFAULT_INDEX)},
+        )
         index.add_columns([tgt_col])
         ci = dbops.CreateIndex(index)
 
@@ -4541,7 +4581,11 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                 pg_index = dbops.Index(
                     name=index_name, table_name=table_name,
                     unique=False, columns=[c.name for c in cols],
-                    inherit=True)
+                    inherit=True,
+                    metadata={
+                        'code': get_index_code(s_indexes.DEFAULT_INDEX),
+                    },
+                )
 
                 ci = dbops.CreateIndex(pg_index)
                 self.pgops.add(ci)
@@ -4872,7 +4916,9 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
 
         pg_index = dbops.Index(
             name=index_name, table_name=new_table_name,
-            unique=False, columns=[src_col])
+            unique=False, columns=[src_col],
+            metadata={'code': get_index_code(s_indexes.DEFAULT_INDEX)},
+        )
 
         ci = dbops.CreateIndex(pg_index)
 

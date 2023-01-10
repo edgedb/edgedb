@@ -26,7 +26,6 @@ from typing import *
 
 from edb.ir import ast as irast
 
-from edb.schema import futures as s_futures
 from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
 from edb.schema import policies as s_policies
@@ -58,8 +57,7 @@ def should_ignore_rewrite(
     # RBAC ownership of schema objects.)
     schema = ctx.env.schema
     if (
-        s_futures.future_enabled(schema, 'nonrecursive_access_policies')
-        and isinstance(stype, s_objtypes.ObjectType)
+        isinstance(stype, s_objtypes.ObjectType)
         and s_name.UnqualName(stype.get_name(schema).module)
             not in s_schema.STD_MODULES
     ):

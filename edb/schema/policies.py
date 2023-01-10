@@ -22,8 +22,6 @@ from typing import *
 
 from edb import errors
 
-from edb.common import topological
-
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
@@ -32,7 +30,6 @@ from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
 from . import futures as s_futures
-from . import links as s_links
 from . import name as sn
 from . import objects as so
 from . import properties as s_props
@@ -322,88 +319,6 @@ class AccessPolicyCommand(
                         context=self.source_context,
                     )
 
-        try:
-            if not s_futures.future_enabled(
-                schema, 'nonrecursive_access_policies'
-            ):
-                check_type_policy_ordering(subject, schema)
-        except topological.CycleError as e:
-            assert e.item is not None
-            assert e.path is not None
-
-            item_vn = e.item.get_verbosename(schema, with_parent=True)
-            # Recursion involving more than one schema object.
-            el = e.path[-1] if e.path else e.item
-            rec_vn = el.get_verbosename(schema, with_parent=True)
-            # Sort for output determinism
-            vn1, vn2 = sorted([rec_vn, item_vn])
-            msg = (
-                f'dependency cycle between access policies of {vn1} and {vn2}'
-            )
-            raise errors.InvalidDefinitionError(
-                msg,
-                hint=(
-                    "Consider 'using future nonrecursive_access_policies' in "
-                    "your schema to disable the evaluation of access policies "
-                    "inside of other access policies."
-                ),
-            ) from e
-
-
-def get_type_policy_deps(
-    stype: s_objtypes.ObjectType,
-    schema: s_schema.Schema,
-) -> Set[s_objtypes.ObjectType]:
-    from . import objtypes as s_objtypes
-
-    typs: Set[s_objtypes.ObjectType] = set()
-    for pol in stype.get_access_policies(schema).objects(schema):
-        objs = pol.get_expr_refs(schema)
-
-        ntyps = set()
-        for obj in objs:
-            if isinstance(obj, s_objtypes.ObjectType):
-                ntyps.add(obj)
-                ntyps.update(stype.get_union_of(schema).objects(schema))
-                ntyps.update(stype.get_intersection_of(schema).objects(schema))
-            elif isinstance(obj, s_links.Link):
-                if tgt := obj.get_target(schema):
-                    ntyps.add(tgt)
-
-        # The original subject of a rule and its children don't have
-        # their policies applied while evaluating a policy, so we
-        # don't depend on them.
-        orig_subj = pol.get_original_subject(schema)
-        ntyps.discard(orig_subj)
-        ntyps.difference_update(orig_subj.descendants(schema))
-
-        typs.update(ntyps)
-
-    typs.update({x for typ in typs for x in typ.descendants(schema)})
-
-    return typs
-
-
-def check_type_policy_ordering(
-    stype: s_objtypes.ObjectType,
-    schema: s_schema.Schema,
-) -> None:
-    graph = {}
-
-    # Trace out the graph of things we depend on
-    wl = [stype]
-    while wl:
-        obj = wl.pop()
-        deps = get_type_policy_deps(obj, schema)
-        graph[obj] = topological.DepGraphEntry(
-            item=obj,
-            deps=deps,
-            extra=False,
-        )
-        wl.extend([dep for dep in deps if dep not in graph])
-
-    topological.sort(graph)
-
 
 class CreateAccessPolicy(
     AccessPolicyCommand,
@@ -587,30 +502,6 @@ def toggle_nonrecursive_access_policies(
     context: sd.CommandContext,
     on: bool,
 ) -> tuple[s_schema.Schema, sd.Command]:
-    # When nonrecursive_access_policies is turned on or off, we mark every
-    # policy as changed, to force all policy using functions to
-    # recompile.
-    all_pols = [
-        pol
-        for pol in schema.get_objects(type=AccessPolicy)
-        if (
-            sn.UnqualName(pol.get_name(schema).module)
-            not in s_schema.STD_MODULES
-        )
-    ]
-
+    # Nothing to do anymore
     group = sd.CommandGroup()
-
-    for pol in all_pols:
-        delta_alter, cmd_alter, _ = pol.init_delta_branch(
-            schema, context, cmdtype=sd.AlterObject)
-
-        schema = cmd_alter._propagate_if_expr_refs(
-            schema,
-            context,
-            action='change nonrecursive_access_policies',
-            metadata_only=False,
-        )
-        group.add(delta_alter)
-
     return schema, group

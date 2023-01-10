@@ -25,6 +25,7 @@ from edb import errors
 from edb.testbase import lang as tb
 from edb.edgeql import generate_source
 from edb.edgeql.parser import parser as eql_parser
+from edb.tools import test
 
 
 class SchemaSyntaxTest(tb.BaseSyntaxTest):
@@ -750,6 +751,66 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
                     annotation title := 'User name index';
                 };
             };
+        };
+        """
+
+    def test_eschema_syntax_index_06(self):
+        """
+        module test {
+            type Foo {
+                property title -> str;
+                index pg::gist on (.title);
+            };
+        };
+        """
+
+    @test.xerror('index parameters not implemented yet')
+    def test_eschema_syntax_index_07(self):
+        """
+        module test {
+            alias eng_stop := to_json('["english_stop"]');
+            alias lowercase := to_json('["lowercase"]');
+
+            type Foo {
+                property bar -> str;
+                property baz -> str;
+                property foo -> str;
+
+                index myindex0() on (.bar);
+                index myindex1(tok_filter := eng_stop ++ lowercase)
+                    on (.baz);
+                index myindex2(num := 13, val := 'ab')
+                    on (.foo);
+            };
+        };
+        """
+
+    def test_eschema_syntax_index_08(self):
+        """
+        module test {
+            abstract index myindex0;
+        };
+        """
+
+    @test.xerror('index parameters and fallback not implemented yet')
+    def test_eschema_syntax_index_09(self):
+        """
+        module test {
+            abstract index myindex1(conf: str = 'special');
+            abstract index myindex2(val: int64);
+            abstract index myindex3(a : int64, b : str = 'default')
+                using myindex2(val := a),
+                      myindex1(conf := b),
+                      myindex1;
+        };
+        """
+
+    @test.xerror('index extending not implemented yet')
+    def test_eschema_syntax_index_10(self):
+        """
+        module test {
+            abstract index myindex1 extending fts;
+            abstract index myindex2(conf := 'test') extending fts;
         };
         """
 

@@ -402,8 +402,10 @@ likely be using one of EdgeDB's *client libraries* to execute queries. EdgeDB
 provides official libraries for
 `JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`__,
 `Go <https://github.com/edgedb/edgedb-go>`__,
-`Python <https://github.com/edgedb/edgedb-python>`__, and
-`Rust <https://github.com/edgedb/edgedb-rust>`_. Check out the :ref:`Clients
+`Python <https://github.com/edgedb/edgedb-python>`__,
+`Rust <https://github.com/edgedb/edgedb-rust>`__, and
+`C# and F# <https://github.com/edgedb/edgedb-net>`_.
+Check out the :ref:`Clients
 <ref_intro_clients>` guide to get started with the language of your choice.
 
 .. _ref_quickstart_onwards:

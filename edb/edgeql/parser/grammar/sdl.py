@@ -87,6 +87,9 @@ class SDLBlockStatement(Nonterm):
     def reduce_GlobalDeclaration(self, *kids):
         self.val = kids[0].val
 
+    def reduce_IndexDeclaration(self, *kids):
+        self.val = kids[0].val
+
 
 # these statements have no {} block
 class SDLShortStatement(Nonterm):
@@ -122,6 +125,9 @@ class SDLShortStatement(Nonterm):
         self.val = kids[0].val
 
     def reduce_GlobalDeclarationShort(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_IndexDeclarationShort(self, *kids):
         self.val = kids[0].val
 
 
@@ -546,27 +552,101 @@ class AnnotationDeclarationShort(Nonterm):
 #
 sdl_commands_block(
     'CreateIndex',
+    Using,
+    SetField,
+    SetAnnotation,
+)
+
+
+class IndexDeclaration(
+    Nonterm,
+    commondl.ProcessFunctionParamsMixin,
+    commondl.ProcessIndexMixin,
+):
+    def reduce_CreateIndex(self, *kids):
+        r"""%reduce ABSTRACT INDEX NodeName \
+                    CreateIndexSDLCommandsBlock"""
+        self.val = qlast.CreateIndex(
+            name=kids[2].val,
+            commands=kids[3].val,
+        )
+
+    def reduce_CreateIndex_CreateFunctionArgs(self, *kids):
+        r"""%reduce ABSTRACT INDEX NodeName IndexExtArgList \
+                    CreateIndexSDLCommandsBlock"""
+        self._validate_params(kids[3].val)
+        self.val = qlast.CreateIndex(
+            name=kids[2].val,
+            params=kids[3].val,
+            commands=kids[4].val,
+        )
+
+
+class IndexDeclarationShort(
+    Nonterm,
+    commondl.ProcessFunctionParamsMixin,
+    commondl.ProcessIndexMixin,
+):
+    def reduce_CreateIndex(self, *kids):
+        r"""%reduce ABSTRACT INDEX NodeName"""
+        self.val = qlast.CreateIndex(
+            name=kids[2].val,
+        )
+
+    def reduce_CreateIndex_CreateFunctionArgs(self, *kids):
+        r"""%reduce ABSTRACT INDEX NodeName IndexExtArgList"""
+        self._validate_params(kids[3].val)
+        self.val = qlast.CreateIndex(
+            name=kids[2].val,
+            params=kids[3].val,
+        )
+
+
+sdl_commands_block(
+    'CreateConcreteIndex',
     SetField,
     SetAnnotation)
 
 
-class IndexDeclarationBlock(Nonterm):
-    def reduce_INDEX_OnExpr_OptExceptExpr_CreateIndexSDLCommandsBlock(
+class ConcreteIndexDeclarationBlock(Nonterm, commondl.ProcessIndexMixin):
+    def reduce_INDEX_OnExpr_OptExceptExpr_CreateConcreteIndexSDLCommandsBlock(
             self, *kids):
-        self.val = qlast.CreateIndex(
-            name=qlast.ObjectRef(name='idx'),
+        self.val = qlast.CreateConcreteIndex(
+            name=qlast.ObjectRef(module='__', name='idx'),
             expr=kids[1].val,
             except_expr=kids[2].val,
             commands=kids[3].val,
         )
 
+    def reduce_CreateConcreteIndex(self, *kids):
+        r"""%reduce INDEX NodeName \
+                    OnExpr OptExceptExpr \
+                    CreateConcreteIndexSDLCommandsBlock \
+        """
+        self.val = qlast.CreateConcreteIndex(
+            name=kids[1].val,
+            expr=kids[2].val,
+            except_expr=kids[3].val,
+            commands=kids[4].val,
+        )
 
-class IndexDeclarationShort(Nonterm):
+
+class ConcreteIndexDeclarationShort(Nonterm, commondl.ProcessIndexMixin):
     def reduce_INDEX_OnExpr_OptExceptExpr(self, *kids):
-        self.val = qlast.CreateIndex(
-            name=qlast.ObjectRef(name='idx'),
+        self.val = qlast.CreateConcreteIndex(
+            name=qlast.ObjectRef(module='__', name='idx'),
             expr=kids[1].val,
             except_expr=kids[2].val,
+        )
+
+    def reduce_CreateConcreteIndex(self, *kids):
+        r"""%reduce INDEX NodeName \
+                    OnExpr OptExceptExpr \
+        """
+        self.val = qlast.CreateConcreteIndex(
+            name=kids[1].val,
+            expr=kids[2].val,
+            except_expr=kids[3].val,
         )
 
 
@@ -760,8 +840,8 @@ sdl_commands_block(
     ConcreteConstraintShort,
     ConcretePropertyBlock,
     ConcretePropertyShort,
-    IndexDeclarationBlock,
-    IndexDeclarationShort,
+    ConcreteIndexDeclarationBlock,
+    ConcreteIndexDeclarationShort,
 )
 
 
@@ -799,8 +879,8 @@ sdl_commands_block(
     ConcreteConstraintShort,
     ConcretePropertyBlock,
     ConcretePropertyShort,
-    IndexDeclarationBlock,
-    IndexDeclarationShort,
+    ConcreteIndexDeclarationBlock,
+    ConcreteIndexDeclarationShort,
     commondl.OnTargetDeleteStmt,
     commondl.OnSourceDeleteStmt,
 )
@@ -1007,8 +1087,8 @@ sdl_commands_block(
     ConcreteLinkShort,
     ConcreteConstraintBlock,
     ConcreteConstraintShort,
-    IndexDeclarationBlock,
-    IndexDeclarationShort,
+    ConcreteIndexDeclarationBlock,
+    ConcreteIndexDeclarationShort,
     AccessPolicyDeclarationBlock,
     AccessPolicyDeclarationShort,
 )

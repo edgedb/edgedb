@@ -267,6 +267,7 @@ class Subject(SpecialAnchor):  # __subject__
 
 class DetachedExpr(Expr):  # DETACHED Expr
     expr: Expr
+    preserve_path_prefix: bool = False
 
 
 class GlobalExpr(Expr):  # GLOBAL Name
@@ -1175,24 +1176,59 @@ class DropConcreteConstraint(ConcreteConstraintOp, DropObject):
     pass
 
 
+class IndexType(DDL):
+    name: ObjectRef
+    args: typing.List[Expr] = ast.field(factory=list)
+    kwargs: typing.Dict[str, Expr] = ast.field(factory=dict)
+
+
 class IndexCommand(ObjectDDL):
 
     __abstract_node__ = True
-    expr: Expr
-    except_expr: typing.Optional[Expr] = None
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.INDEX)
 
 
-class CreateIndex(IndexCommand, CreateObject):
+class IndexCode(Clause):
+    language: Language
+    code: str
+
+
+class CreateIndex(
+    CreateExtendingObject,
+    CallableObjectCommand,
+    IndexCommand,
+):
+    kwargs: typing.Dict[str, Expr] = ast.field(factory=dict)
+    index_types: typing.List[IndexType]
+    code: typing.Optional[IndexCode] = None
+
+
+class AlterIndex(AlterObject, IndexCommand):
     pass
 
 
-class AlterIndex(IndexCommand, AlterObject):
+class DropIndex(DropObject, IndexCommand):
     pass
 
 
-class DropIndex(IndexCommand, DropObject):
+class ConcreteIndexCommand(IndexCommand):
+
+    __abstract_node__ = True
+    kwargs: typing.Dict[str, Expr] = ast.field(factory=dict)
+    expr: Expr
+    except_expr: typing.Optional[Expr] = None
+
+
+class CreateConcreteIndex(ConcreteIndexCommand, CreateObject):
+    pass
+
+
+class AlterConcreteIndex(ConcreteIndexCommand, AlterObject):
+    pass
+
+
+class DropConcreteIndex(ConcreteIndexCommand, DropObject):
     pass
 
 

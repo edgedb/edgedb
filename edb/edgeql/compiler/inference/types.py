@@ -269,7 +269,7 @@ def __infer_typecheckop(
     env: context.Environment,
 ) -> s_types.Type:
     left_type, right_type = _infer_binop_args(ir.left, ir.right, env)
-    return cast(s_scalars.ScalarType, env.schema.get('std::bool'))
+    return env.schema.get('std::bool', type=s_scalars.ScalarType)
 
 
 @_infer_type.register
@@ -394,10 +394,10 @@ def __infer_slice(
 ) -> s_types.Type:
     node_type = infer_type(ir.expr, env)
 
-    str_t = cast(s_scalars.ScalarType, env.schema.get('std::str'))
-    int_t = cast(s_scalars.ScalarType, env.schema.get('std::int64'))
-    json_t = cast(s_scalars.ScalarType, env.schema.get('std::json'))
-    bytes_t = cast(s_scalars.ScalarType, env.schema.get('std::bytes'))
+    str_t = env.schema.get('std::str', type=s_scalars.ScalarType)
+    int_t = env.schema.get('std::int64', type=s_scalars.ScalarType)
+    json_t = env.schema.get('std::json', type=s_scalars.ScalarType)
+    bytes_t = env.schema.get('std::bytes', type=s_scalars.ScalarType)
 
     if node_type.issubclass(env.schema, str_t):
         base_name = 'string'
@@ -437,10 +437,10 @@ def __infer_index(
     node_type = infer_type(ir.expr, env)
     index_type = infer_type(ir.index, env)
 
-    str_t = cast(s_scalars.ScalarType, env.schema.get('std::str'))
-    bytes_t = cast(s_scalars.ScalarType, env.schema.get('std::bytes'))
-    int_t = cast(s_scalars.ScalarType, env.schema.get('std::int64'))
-    json_t = cast(s_scalars.ScalarType, env.schema.get('std::json'))
+    str_t = env.schema.get('std::str', type=s_scalars.ScalarType)
+    bytes_t = env.schema.get('std::bytes', type=s_scalars.ScalarType)
+    int_t = env.schema.get('std::int64', type=s_scalars.ScalarType)
+    json_t = env.schema.get('std::json', type=s_scalars.ScalarType)
 
     result: s_types.Type
 

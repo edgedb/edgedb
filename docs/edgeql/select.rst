@@ -111,7 +111,7 @@ tutorial </tutorial/basic-queries/objects>`_.
 Shapes
 ------
 
-To specify which properties to select, we attach a **shape** to ``Hero``. A
+To specify which properties to select, we attach a **shape** to ``Villain``. A
 shape can be attached to any object type expression in EdgeQL.
 
 .. code-block:: edgeql-repl

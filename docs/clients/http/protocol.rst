@@ -8,9 +8,9 @@ EdgeDB supports GET and POST methods for handling EdgeQL over HTTP
 protocol. Both GET and POST methods use the following fields:
 
 - ``query`` - contains the EdgeQL query string
-- ``variables`` - contains a JSON object where keys and values
-  correspond to the variable names and values. It is required if the
-  EdgeQL query has variables, otherwise it is optional.
+- ``variables``- contains a JSON object where the keys are the parameter names
+  from the query and the values are the arguments to be used in this execution
+  of the query.
 
 The protocol supports HTTP Keep-Alive.
 

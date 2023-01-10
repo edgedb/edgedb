@@ -24,16 +24,23 @@ Then create a new migration and apply it using
 Your instance can now receive EdgeQL queries over HTTP at
 ``http://<hostname>:<port>/db/<database-name>/edgeql``.
 
-In development:
+.. note::
 
-- The ``hostname`` will be ``localhost``
-- Find the ``port`` by running ``edgedb instance list``. This will print a
-  table of all EdgeDB instances on your machine, including their associated
-  port number.
-- In most cases, ``database_name`` will be ``edgedb``. An EdgeDB *instance*
-  can contain multiple databases. On initialization, a default database called
-  ``edgedb`` is created; all queries are executed against this database unless
-  otherwise specified.
+    Here's how to determine your local EdgeDB instance's HTTP server URL:
+
+    - The ``hostname`` will be ``localhost``
+    - Find the ``port`` by running ``edgedb instance list``. This will print a
+      table of all EdgeDB instances on your machine, including their associated
+      port number.
+    - In most cases, ``database_name`` will be ``edgedb``. An EdgeDB *instance*
+      can contain multiple databases. On initialization, a default database
+      called ``edgedb`` is created; all queries are executed against this
+      database unless otherwise specified.
+
+    To determine the URL of a remote instance you have linked with the CLI, you
+    can get both the hostname and port of the instance from the "Port" column
+    of the ``edgedb instance list`` table (formatted as ``<hostname>:<port>``).
+    The same guidance on local database names applies here.
 
 .. toctree::
     :maxdepth: 2
