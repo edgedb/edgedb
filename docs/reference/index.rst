@@ -23,6 +23,7 @@ Reference
     configuration
     http
     protocol/index
+    bindings/index
     admin/index
 
 
