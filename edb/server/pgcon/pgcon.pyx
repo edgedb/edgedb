@@ -436,6 +436,11 @@ cdef class PGMessage:
         self.args = args
         self.query_unit = query_unit
 
+    cdef inline bint frontend_only(self):
+        if self.query_unit is None:
+            return False
+        return self.query_unit.frontend_only
+
     def __repr__(self):
         rv = []
         if self.action == PGAction.START_IMPLICIT:
@@ -1438,7 +1443,48 @@ cdef class PGConnection:
             for unit in query_units:
                 while not sync_received:
                     if unit.frontend_only:
-                        dbv.on_frontend_only(unit, buf)
+                        dbv.on_success(unit)
+                        if unit.set_vars is not None:
+                            assert len(unit.set_vars) == 1
+                            # CommandComplete
+                            msg_buf = WriteBuffer.new_message(b'C')
+                            if next(iter(unit.set_vars.values())) is None:
+                                msg_buf.write_bytestring(b'RESET')
+                            else:
+                                msg_buf.write_bytestring(b'SET')
+                            buf.write_buffer(msg_buf.end_message())
+                        elif unit.get_var is not None:
+                            # RowDescription
+                            msg_buf = WriteBuffer.new_message(b'T')
+                            msg_buf.write_int16(1)  # number of fields
+                            # field name
+                            msg_buf.write_str(unit.get_var, "utf-8")
+                            # object ID of the table to identify the field
+                            msg_buf.write_int32(0)
+                            # attribute number of the column in prev table
+                            msg_buf.write_int16(0)
+                            # object ID of the field's data type
+                            msg_buf.write_int32(25)
+                            # data type size
+                            msg_buf.write_int16(-1)
+                            # type modifier
+                            msg_buf.write_int32(-1)
+                            # format code being used for the field
+                            msg_buf.write_int16(0)
+                            buf.write_buffer(msg_buf.end_message())
+
+                            # DataRow
+                            msg_buf = WriteBuffer.new_message(b'D')
+                            msg_buf.write_int16(1)  # number of column values
+                            msg_buf.write_len_prefixed_utf8(
+                                dbv.current_fe_settings()[unit.get_var]
+                            )
+                            buf.write_buffer(msg_buf.end_message())
+
+                            # CommandComplete
+                            msg_buf = WriteBuffer.new_message(b'C')
+                            msg_buf.write_bytestring(b'SHOW')
+                            buf.write_buffer(msg_buf.end_message())
                         break
 
                     if not self.buffer.take_message():
@@ -1520,9 +1566,9 @@ cdef class PGConnection:
     ):
         self.before_command()
         try:
-            queue = self._write_sql_extended_query(actions, dbver, dbv)
+            self._write_sql_extended_query(actions, dbver, dbv)
             return await self._parse_sql_extended_query(
-                actions, fe_conn, dbver, dbv, queue
+                actions, fe_conn, dbver, dbv
             )
         finally:
             await self.after_command()
@@ -1538,17 +1584,20 @@ cdef class PGConnection:
             # We need to close the implicit transaction with a SYNC here
             # because the next command may be e.g. "BEGIN DEFERRABLE".
             self.write_sync(buf)
-        queue = deque()
         prepared = set()
         for action in actions:
+            if action.frontend_only():
+                continue
+
             if action.action == PGAction.PARSE:
                 sql_text, data, _ = action.args
                 if action.stmt_name in prepared:
-                    parse = False
+                    action.be_parse = False
                 else:
-                    parse = self.before_prepare(action.stmt_name, dbver, buf)
-                queue.append(parse)
-                if parse:
+                    action.be_parse = self.before_prepare(
+                        action.stmt_name, dbver, buf
+                    )
+                if action.be_parse:
                     prepared.add(action.stmt_name)
                     msg_buf = WriteBuffer.new_message(b'P')
                     msg_buf.write_bytestring(action.stmt_name)
@@ -1606,7 +1655,6 @@ cdef class PGConnection:
             buf.write_buffer(msg_buf.end_message())
 
         self.write(buf)
-        return queue
 
     async def _parse_sql_extended_query(
         self,
@@ -1614,7 +1662,6 @@ cdef class PGConnection:
         frontend.AbstractFrontendConnection fe_conn,
         int dbver,
         dbv,
-        queue,
     ):
         cdef:
             WriteBuffer buf, msg_buf
@@ -1639,7 +1686,7 @@ cdef class PGConnection:
             if ignore_till_sync and action.action != PGAction.SYNC:
                 continue
             elif action.action == PGAction.PARSE:
-                if not queue.popleft():
+                if not action.be_parse:  # we won't receive ParseComplete
                     if action.args[-1]:
                         # We hit a cached prepared statement but the
                         # frontend still needs a ParseComplete
@@ -1658,6 +1705,78 @@ cdef class PGConnection:
                 continue
             elif action.action == PGAction.START_IMPLICIT:
                 dbv.start_implicit()
+                continue
+            elif action.frontend_only():
+                # FE PARSE and CLOSE_STMT is already handled previously
+                if action.action == PGAction.BIND:
+                    dbv.create_portal(
+                        action.orig_portal_name, action.query_unit
+                    )
+                    msg_buf = WriteBuffer.new_message(b'2')  # BindComplete
+                    buf.write_buffer(msg_buf.end_message())
+                elif action.action == PGAction.DESCRIBE_STMT:
+                    # ParameterDescription
+                    msg_buf = WriteBuffer.new_message(b't')
+                    msg_buf.write_int16(0)  # number of parameters
+                    buf.write_buffer(msg_buf.end_message())
+                elif action.action == PGAction.EXECUTE:
+                    dbv.on_success(action.query_unit)
+                    if action.query_unit.set_vars is not None:
+                        assert len(action.query_unit.set_vars) == 1
+                        # CommandComplete
+                        msg_buf = WriteBuffer.new_message(b'C')
+                        if next(
+                            iter(action.query_unit.set_vars.values())
+                        ) is None:
+                            msg_buf.write_bytestring(b'RESET')
+                        else:
+                            msg_buf.write_bytestring(b'SET')
+                        buf.write_buffer(msg_buf.end_message())
+                    elif action.query_unit.get_var is not None:
+                        # DataRow
+                        msg_buf = WriteBuffer.new_message(b'D')
+                        msg_buf.write_int16(1)  # number of column values
+                        msg_buf.write_len_prefixed_utf8(
+                            dbv.current_fe_settings()[
+                                action.query_unit.get_var
+                            ]
+                        )
+                        buf.write_buffer(msg_buf.end_message())
+
+                        # CommandComplete
+                        msg_buf = WriteBuffer.new_message(b'C')
+                        msg_buf.write_bytestring(b'SHOW')
+                        buf.write_buffer(msg_buf.end_message())
+                elif action.action == PGAction.CLOSE_PORTAL:
+                    dbv.close_portal(action.orig_portal_name)
+                    msg_buf = WriteBuffer.new_message(b'3')  # CloseComplete
+                    buf.write_buffer(msg_buf.end_message())
+                if (
+                    action.action == PGAction.DESCRIBE_STMT or
+                    action.action == PGAction.DESCRIBE_PORTAL
+                ):
+                    if action.query_unit.set_vars is not None:
+                        msg_buf = WriteBuffer.new_message(b'n')  # NoData
+                        buf.write_buffer(msg_buf.end_message())
+                    elif action.query_unit.get_var is not None:
+                        # RowDescription
+                        msg_buf = WriteBuffer.new_message(b'T')
+                        msg_buf.write_int16(1)  # number of fields
+                        # field name
+                        msg_buf.write_str(action.query_unit.get_var, "utf-8")
+                        # object ID of the table to identify the field
+                        msg_buf.write_int32(0)
+                        # attribute number of the column in prev table
+                        msg_buf.write_int16(0)
+                        # object ID of the field's data type
+                        msg_buf.write_int32(25)
+                        # data type size
+                        msg_buf.write_int16(-1)
+                        # type modifier
+                        msg_buf.write_int32(-1)
+                        # format code being used for the field
+                        msg_buf.write_int16(0)
+                        buf.write_buffer(msg_buf.end_message())
                 continue
 
             while True:
@@ -1717,7 +1836,7 @@ cdef class PGConnection:
                     data = self.buffer.consume_message()
                     if self.debug:
                         self.debug_print('END OF EXECUTE', mtype)
-                    dbv.on_portal_success(action.orig_portal_name)
+                    dbv.on_success(action.query_unit)
                     msg_buf = WriteBuffer.new_message(mtype)
                     msg_buf.write_bytes(data)
                     buf.write_buffer(msg_buf.end_message())

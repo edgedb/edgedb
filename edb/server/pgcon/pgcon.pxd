@@ -79,6 +79,9 @@ cdef class PGMessage:
         str orig_portal_name
         object args
         object query_unit
+        bint be_parse
+
+    cdef inline bint frontend_only(self)
 
 
 @cython.final

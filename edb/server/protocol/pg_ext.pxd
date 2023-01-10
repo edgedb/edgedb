@@ -37,13 +37,14 @@ cdef class ConnectionView:
         object _in_tx_savepoints
         bint _tx_error
 
-    cdef inline current_fe_settings(self)
+    cpdef inline current_fe_settings(self)
     cdef inline fe_transaction_state(self)
     cpdef inline bint in_tx(self)
     cdef inline _reset_tx_state(
         self, bint chain_implicit, bint chain_explicit
     )
     cpdef inline close_portal(self, str name)
+    cdef inline find_portal(self, str name)
 
 
 cdef class PgConnection(frontend.FrontendConnection):

@@ -18,6 +18,7 @@
 
 
 import collections
+import copy
 import logging
 import hashlib
 import os
@@ -63,7 +64,7 @@ cdef class ConnectionView:
         else:
             return self._settings or DEFAULT_SETTINGS
 
-    cdef inline current_fe_settings(self):
+    cpdef inline current_fe_settings(self):
         if self.in_tx():
             return self._in_tx_fe_local_settings or DEFAULT_FE_SETTINGS
         else:
@@ -266,7 +267,7 @@ cdef class ConnectionView:
 
     cpdef inline close_portal(self, str name):
         try:
-            del self._in_tx_portals[name]
+            return self._in_tx_portals.pop(name)
         except KeyError:
             raise pgerror.new(
                 pgerror.ERROR_INVALID_CURSOR_NAME,
@@ -285,51 +286,14 @@ cdef class ConnectionView:
             )
         self._in_tx_portals[name] = query_unit
 
-    def on_portal_success(self, str name):
+    cdef inline find_portal(self, str name):
         try:
-            query_unit = self._in_tx_portals[name]
+            return self._in_tx_portals[name]
         except KeyError:
             raise pgerror.new(
                 pgerror.ERROR_INVALID_CURSOR_NAME,
                 f"cursor \"{name}\" does not exist",
             ) from None
-        else:
-            self.on_success(query_unit)
-
-    def on_frontend_only(self, query_unit, WriteBuffer out):
-        cdef WriteBuffer buf
-
-        self.on_success(query_unit)
-        if query_unit.set_vars is not None:
-            assert len(query_unit.set_vars) == 1
-            buf = WriteBuffer.new_message(b'C')  # CommandComplete
-            if next(iter(query_unit.set_vars.values())) is None:
-                buf.write_bytestring(b'RESET')
-            else:
-                buf.write_bytestring(b'SET')
-            out.write_buffer(buf.end_message())
-        elif query_unit.get_var is not None:
-            buf = WriteBuffer.new_message(b'T')  # RowDescription
-            buf.write_int16(1)  # number of fields
-            buf.write_str(query_unit.get_var, "utf-8")  # field name
-            buf.write_int32(0)  # object ID of the table to identify the field
-            buf.write_int16(0)  # attribute number of the column in prev table
-            buf.write_int32(25)  # object ID of the field's data type
-            buf.write_int16(-1)  # data type size
-            buf.write_int32(-1)  # type modifier
-            buf.write_int16(0)  # format code being used for the field
-            out.write_buffer(buf.end_message())
-
-            buf = WriteBuffer.new_message(b'D')  # DataRow
-            buf.write_int16(1)  # number of column values
-            buf.write_len_prefixed_utf8(
-                self.current_fe_settings()[query_unit.get_var]
-            )
-            out.write_buffer(buf.end_message())
-
-            buf = WriteBuffer.new_message(b'C')  # CommandComplete
-            buf.write_bytestring(b'SHOW')
-            out.write_buffer(buf.end_message())
 
 
 cdef class PgConnection(frontend.FrontendConnection):
@@ -717,7 +681,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                     self._dbview.close_portal("")
                 except pgerror.BackendError:
                     pass
-                query_units = await self.compile(query_str)
+                query_units = await self.compile(query_str, self._dbview)
             except Exception as ex:
                 self.write_error(ex)
                 self.write(self.ready_for_query())
@@ -773,7 +737,9 @@ cdef class PgConnection(frontend.FrontendConnection):
             bytes data
             bint in_implicit
             PGMessage parse_action
+            ConnectionView dbv
 
+        dbv = copy.deepcopy(self._dbview)
         actions = deque()
         fresh_stmts = set()
         in_implicit = self._dbview._in_tx_implicit
@@ -787,6 +753,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             if not in_implicit:
                 actions.append(PGMessage(PGAction.START_IMPLICIT))
                 in_implicit = True
+                dbv.start_implicit()
             mtype = self.buffer.get_message_type()
 
             if mtype == b'P':  # Parse
@@ -805,14 +772,15 @@ cdef class PgConnection(frontend.FrontendConnection):
                         f"prepared statement \"{stmt_name}\" already exists",
                     )
 
-                query_units = await self.compile(query_str)
+                query_units = await self.compile(query_str, dbv)
                 if len(query_units) > 1:
                     raise pgerror.new(
                         pgerror.ERROR_SYNTAX_ERROR,
                         "cannot insert multiple commands into a prepared "
                         "statement",
                     )
-                sql_text = query_units[0].query.encode("utf-8")
+                unit = query_units[0]
+                sql_text = unit.query.encode("utf-8")
                 parse_hash = hashlib.sha1(sql_text)
                 parse_hash.update(data)
                 parse_hash = b'p' + parse_hash.hexdigest().encode("latin1")
@@ -821,14 +789,14 @@ cdef class PgConnection(frontend.FrontendConnection):
                         PGAction.PARSE,
                         stmt_name=parse_hash,
                         args=(sql_text, data, True),
-                        query_unit=query_units[0],
+                        query_unit=unit,
                     )
                 )
                 self.prepared_stmts[stmt_name] = PGMessage(
                     PGAction.PARSE,
                     stmt_name=parse_hash,
                     args=(sql_text, data, False),
-                    query_unit=query_units[0],
+                    query_unit=unit,
                 )
                 fresh_stmts.add(stmt_name)
 
@@ -865,6 +833,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                         query_unit=parse_action.query_unit,
                     )
                 )
+                dbv.create_portal(portal_name, parse_action.query_unit)
 
             elif mtype == b'D':  # Describe
                 kind = self.buffer.read_byte()
@@ -889,12 +858,17 @@ cdef class PgConnection(frontend.FrontendConnection):
                         PGMessage(
                             PGAction.DESCRIBE_STMT,
                             stmt_name=parse_action.stmt_name,
+                            query_unit=parse_action.query_unit,
                         )
                     )
 
                 elif kind == b'P':  # portal
                     actions.append(
-                        PGMessage(PGAction.DESCRIBE_PORTAL, portal_name=name)
+                        PGMessage(
+                            PGAction.DESCRIBE_PORTAL,
+                            portal_name=name,
+                            query_unit=dbv.find_portal(name),
+                        )
                     )
 
                 else:
@@ -909,13 +883,16 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print("Execute", repr(portal_name), max_rows)
 
+                unit = dbv.find_portal(portal_name)
                 actions.append(
                     PGMessage(
                         PGAction.EXECUTE,
                         portal_name=portal_name,
                         args=max_rows,
+                        query_unit=unit,
                     )
                 )
+                dbv.on_success(unit)
 
             elif mtype == b'C':  # Close
                 kind = self.buffer.read_byte()
@@ -938,7 +915,11 @@ cdef class PgConnection(frontend.FrontendConnection):
 
                 elif kind == b'P':  # portal
                     actions.append(
-                        PGMessage(PGAction.CLOSE_PORTAL, portal_name=name)
+                        PGMessage(
+                            PGAction.CLOSE_PORTAL,
+                            portal_name=name,
+                            query_unit=dbv.close_portal(name),
+                        )
                     )
 
                 else:
@@ -956,6 +937,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print("Sync")
                 actions.append(PGMessage(PGAction.SYNC))
+                dbv.end_implicit()
                 break
 
             else:
@@ -966,10 +948,10 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.debug_print("extended_query", actions)
         return actions
 
-    async def compile(self, query_str):
+    async def compile(self, query_str, ConnectionView dbv):
         if self.debug:
             self.debug_print("Compile", query_str)
-        fe_settings = self._dbview.current_fe_settings()
+        fe_settings = dbv.current_fe_settings()
         key = (hashlib.sha1(query_str.encode("utf-8")).digest(), fe_settings)
         result = self.database.lookup_compiled_sql(key)
         if result is not None:
@@ -983,7 +965,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.database.db_config,
             self.database._index.get_compilation_system_config(),
             query_str,
-            self._dbview.fe_transaction_state(),
+            dbv.fe_transaction_state(),
         )
         self.database.cache_compiled_sql(key, result)
         if self.debug:

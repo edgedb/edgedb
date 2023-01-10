@@ -842,8 +842,9 @@ class TestSQLProtocol(tb.DatabaseTestCase):
             Execute("portal8"),
             Sync(),
         )
-        await self.conn.read(ParseComplete)
-        await self.conn.read(BindComplete)
+        # On Postgres we will also receive:
+        # await self.conn.read(ParseComplete)
+        # await self.conn.read(BindComplete)
         await self.assert_error_response(
             "42P03", 'cursor "portal8" already exists'
         )
@@ -1039,10 +1040,11 @@ class TestSQLProtocol(tb.DatabaseTestCase):
             Execute("portal19"),
             Sync(),
         )
-        await self.conn.read(ParseComplete)
-        await self.conn.read(BindComplete)
-        await self.assert_query_results([[b"42"]])
-        await self.conn.read(CloseComplete)
+        # On Postgres we will also receive:
+        # await self.conn.read(ParseComplete)
+        # await self.conn.read(BindComplete)
+        # await self.assert_query_results([[b"42"]])
+        # await self.conn.read(CloseComplete)
         await self.assert_error_response(
             "34000", 'cursor "portal19" does not exist'
         )
