@@ -3711,10 +3711,15 @@ class PointerMetaCommand(
         if isinstance(source_op, sd.CreateObject):
             return
 
-        conv_expr_ctes: List[pg_ast.CommonTableExpr] = []
-        conv_expr_sql: str
+        with_sql = ''
         if self.conv_expr is not None:
-            compiled_conv_expr = self._compile_conversion_expr(
+            (
+                _,
+                conv_expr_sql,
+                orig_rel_alias,
+                _,
+                with_sql,
+            ) = self._compile_conversion_expr(
                 pointer=ptr,
                 conv_expr=self.conv_expr,
                 schema=schema,
@@ -3722,52 +3727,24 @@ class PointerMetaCommand(
                 context=context,
                 orig_rel_is_always_source=True,
                 target_as_singleton=False,
+                check_non_null=is_required and not is_multi
             )
-            _, conv_expr, orig_rel_alias, _ = compiled_conv_expr
-            if conv_expr.ctes:
-                conv_expr_ctes.extend(conv_expr.ctes)
-                conv_expr.ctes.clear()
-            conv_expr_sql = codegen.generate_source(conv_expr)
-
-            if is_lprop:
-                obj_id_ref = f'{qi(orig_rel_alias)}.source'
-            else:
-                obj_id_ref = f'{qi(orig_rel_alias)}.id'
-
-            if is_required and not is_multi:
-                # wrap into raise_on_null
-                conv_expr_sql = textwrap.dedent(f'''\
-                    edgedb.raise_on_null(
-                        ({conv_expr_sql}),
-                        'not_null_violation',
-                        msg => 'missing value for required property',
-                        detail => '{{"object_id": "' || {obj_id_ref} || '"}}',
-                        "column" => {ql(str(ptr.id))}
-                    )
-                ''')
         else:
-            orig_rel_alias = f'alias_{uuidgen.uuid1mc()}'
-
             if not is_multi:
                 raise AssertionError(
                     'explicit conversion expression was expected'
                     ' for multi->single transition'
                 )
-            else:
-                # single -> multi
-                conv_expr_sql = (
-                    f'SELECT '
-                    f'{qi(orig_rel_alias)}.{qi(old_ptr_stor_info.column_name)}'
-                )
+            
+            # single -> multi
+            orig_rel_alias = f'alias_{uuidgen.uuid1mc()}'
+            conv_expr_sql = (
+                f'SELECT '
+                f'{qi(orig_rel_alias)}.{qi(old_ptr_stor_info.column_name)}'
+            )
 
         tab = q(*ptr_stor_info.table_name)
         target_col = ptr_stor_info.column_name
-
-        with_sql = ''
-        if conv_expr_ctes:
-            with_sql = codegen.SQLSourceGenerator.ctes_to_source(
-                conv_expr_ctes
-            )
 
         if not is_multi:
             # Moving from pointer table to source table.
@@ -3915,42 +3892,24 @@ class PointerMetaCommand(
                 )
 
         if fill_expr is not None:
-            compiled_fill_expr = self._compile_conversion_expr(
+            (
+                _,
+                fill_expr_sql,
+                orig_rel_alias,
+                _,
+                with_sql,
+            ) = self._compile_conversion_expr(
                 pointer=ptr,
                 conv_expr=fill_expr,
                 schema=schema,
                 orig_schema=orig_schema,
                 context=context,
                 orig_rel_is_always_source=True,
+                check_non_null=is_required and not is_multi
             )
-            _, fill_ast_expr, orig_rel_alias, _ = compiled_fill_expr
-
-            with_sql = ''
-            if fill_ast_expr.ctes:
-                with_sql = codegen.SQLSourceGenerator.ctes_to_source(
-                    fill_ast_expr.ctes
-                )
-                fill_ast_expr.ctes.clear()
-            fill_expr_sql = codegen.generate_source(fill_ast_expr)
-
-            if is_lprop:
-                obj_id_ref = f'{qi(orig_rel_alias)}.source'
-            else:
-                obj_id_ref = f'{qi(orig_rel_alias)}.id'
-
-            if is_required and not is_multi:
-                fill_expr_sql = textwrap.dedent(f'''\
-                    edgedb.raise_on_null(
-                        ({fill_expr_sql}),
-                        'not_null_violation',
-                        msg => 'missing value for required property',
-                        detail => '{{"object_id": "' || {obj_id_ref} || '"}}',
-                        "column" => {ql(str(ptr.id))}
-                    )
-                ''')
 
             tab = q(*ptr_stor_info.table_name)
-            target_col = ptr_stor_info.column_name
+            target_col = ptr_stor_info.column_name\
 
             if not is_multi:
                 # For singleton pointers we simply update the
@@ -4116,20 +4075,20 @@ class PointerMetaCommand(
         # supports arbitrary queries, but requires a temporary column,
         # which is populated with the transition query and then used as the
         # source for the SQL USING clause.
-        compiled_using = self._compile_conversion_expr(
+        (
+            cast_expr,
+            cast_sql_expr,
+            orig_rel_alias,
+            sql_expr_is_trivial,
+            _with_sql
+        ) = self._compile_conversion_expr(
             pointer=pointer,
             conv_expr=cast_expr,
             schema=schema,
             orig_schema=orig_schema,
             context=context,
+            check_non_null=is_required and not is_multi
         )
-        (
-            cast_expr,
-            cast_ast_expr,
-            orig_rel_alias,
-            sql_expr_is_trivial,
-        ) = compiled_using
-        cast_sql_expr = codegen.generate_source(cast_ast_expr)
 
         expr_is_nullable = cast_expr.cardinality.can_be_zero()
 
@@ -4311,11 +4270,13 @@ class PointerMetaCommand(
         context: sd.CommandContext,
         orig_rel_is_always_source: bool = False,
         target_as_singleton: bool = True,
+        check_non_null: bool = False,
     ) -> Tuple[
         s_expr.Expression,  # Possibly-amended EdgeQL conversion expression
-        pg_ast.SelectStmt,  # SQL AST
+        str,  # SQL text
         str,  # original relation alias
         bool,  # whether SQL expression is trivial
+        str,  # SQL WITH clause
     ]:
         old_ptr_stor_info = types.get_pointer_storage_info(
             pointer, schema=orig_schema)
@@ -4475,7 +4436,32 @@ class PointerMetaCommand(
         )
         assert isinstance(sql_tree, pg_ast.SelectStmt)
 
-        return (conv_expr, sql_tree, alias, expr_is_trivial)
+        with_sql = ""
+        if sql_tree.ctes:
+            with_sql = codegen.SQLSourceGenerator.ctes_to_source(sql_tree.ctes)
+            sql_tree.ctes.clear()
+
+        sql = codegen.generate_source(sql_tree)
+
+        if check_non_null:
+            if is_lprop:
+                obj_id_ref = f'{qi(alias)}.source'
+            else:
+                obj_id_ref = f'{qi(alias)}.id'
+
+            sql = textwrap.dedent(f'''\
+                SELECT
+                    edgedb.raise_on_null(
+                        {obj_id_ref},
+                        'not_null_violation',
+                        msg => 'missing value for required property',
+                        detail => '{{"object_id": "' || {obj_id_ref} || '"}}',
+                        "column" => {ql(str(pointer.id))}
+                    )
+                FROM ({sql}) AS {qi(alias)}
+            ''')
+
+        return (conv_expr, sql, alias, expr_is_trivial, with_sql)
 
     def schedule_endpoint_delete_action_update(
             self, link, orig_schema, schema, context):
