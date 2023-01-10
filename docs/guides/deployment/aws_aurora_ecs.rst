@@ -844,3 +844,10 @@ link``:
    intended to manage production instances.
 
 You can now open a REPL to this instance
+
+Health Checks
+=============
+
+Using an HTTP client, you can perform health checks to monitor the status of
+your EdgeDB instance. Learn how to use them with our :ref:`health checks guide
+<ref_guide_deployment_health_checks>`.
