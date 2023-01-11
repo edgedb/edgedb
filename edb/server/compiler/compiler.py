@@ -73,6 +73,7 @@ from edb.pgsql import types as pg_types
 
 from . import dbstate
 from . import enums
+from . import explain
 from . import sertypes
 from . import status
 from . import ddl
@@ -1094,6 +1095,14 @@ class Compiler:
             tables=tables,
         )
 
+    def analyze_explain_output(
+        self,
+        query_asts_pickled: bytes,
+        data: list[list[bytes]],
+    ) -> bytes:
+        return explain.analyze_explain_output(
+            query_asts_pickled, data, self.state.std_schema)
+
 
 def compile_schema_storage_in_delta(
     ctx: CompileContext,
@@ -1442,6 +1451,18 @@ def _compile_ql_query(
         intype=in_type_id.bytes,
         outtype=out_type_id.bytes)
 
+    if is_explain:
+        if isinstance(ir.schema, s_schema.ChainedSchema):
+            # Strip the std schema out
+            ir.schema = s_schema.ChainedSchema(
+                top_schema=ir.schema._top_schema,
+                global_schema=ir.schema._global_schema,
+                base_schema=s_schema.FlatSchema(),
+            )
+        query_asts = pickle.dumps((ql, ir, qtree))
+    else:
+        query_asts = None
+
     return dbstate.Query(
         sql=(sql_bytes,),
         sql_hash=sql_hash,
@@ -1454,7 +1475,7 @@ def _compile_ql_query(
         out_type_data=out_type_data,
         cacheable=cacheable,
         has_dml=ir.dml_exprs,
-        query_asts=(ql, ir, qtree),
+        query_asts=query_asts,
     )
 
 

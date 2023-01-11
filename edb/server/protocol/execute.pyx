@@ -120,12 +120,11 @@ async def execute(
                         ]
 
                     if query_unit.is_explain:
-                        # Do it in a thread so that it doesn't *block*
-                        # the IO server, even if it does steal cycles
-                        # from it.
-                        r = await asyncio.to_thread(
-                            compiler.analyze_explain_output,
-                            query_unit, data,
+                        # Go back to the compiler pool to analyze
+                        # the explain output.
+                        compiler_pool = server.get_compiler_pool()
+                        r = await compiler_pool.analyze_explain_output(
+                            query_unit.query_asts, data
                         )
                         buf = WriteBuffer.new_message(b'D')
                         buf.write_bytes(r)

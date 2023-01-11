@@ -23,6 +23,7 @@ from typing import *
 import dataclasses
 import json
 import re
+import pickle
 import uuid
 import struct
 
@@ -42,8 +43,6 @@ from edb.schema import schema as s_schema
 
 from edb.pgsql import ast as pgast
 from edb.pgsql.compiler import pathctx
-
-from edb.server.compiler import dbstate
 
 uuid_core = '[a-f0-9]{8}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{12}'
 uuid_re = re.compile(
@@ -247,8 +246,9 @@ def json_fixup(
 
 
 def analyze_explain_output(
-    query_unit: dbstate.QueryUnit,
+    query_asts_pickled: bytes,
     data: list[list[bytes]],
+    std_schema: s_schema.FlatSchema,
 ) -> bytes:
     if debug.flags.edgeql_explain:
         debug.header('Explain')
@@ -256,8 +256,16 @@ def analyze_explain_output(
     ql: qlast.Base
     ir: irast.Statement
     pg: pgast.Base
-    ql, ir, pg = query_unit.query_asts
+    ql, ir, pg = pickle.loads(query_asts_pickled)
     schema = ir.schema
+    # We omit the std schema when serializing, so put it back
+    if isinstance(schema, s_schema.ChainedSchema):
+        schema = s_schema.ChainedSchema(
+            top_schema=schema._top_schema,
+            global_schema=schema._global_schema,
+            base_schema=std_schema
+        )
+
     assert len(data) == 1 and len(data[0]) == 1
     # print('DATA', data)
     plan = json.loads(data[0][0])
