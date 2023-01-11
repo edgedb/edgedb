@@ -448,7 +448,6 @@ class TestSQL(tb.SQLQueryTestCase):
                 '''
             )
 
-    @test.xerror('asyncpg type inspection query not supported')
     async def test_sql_query_32(self):
         # range functions
 
