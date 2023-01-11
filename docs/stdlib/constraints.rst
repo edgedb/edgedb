@@ -9,10 +9,10 @@ Constraints
 
 .. eql:constraint:: std::expression on (expr)
 
-    Arbitrary constraint expression.
+    A constraint based on an arbitrary boolean expression.
 
-    Example of using an ``expression`` constraint to create a custom
-    scalar:
+    The ``expression`` constraint may be used as in this example to create a
+    custom scalar type:
 
     .. code-block:: sdl
 
@@ -35,7 +35,7 @@ Constraints
 
 .. eql:constraint:: std::one_of(variadic members: anytype)
 
-    Specifies the list of allowed values directly.
+    Specifies a list of allowed values.
 
     Example:
 
@@ -47,7 +47,7 @@ Constraints
 
 .. eql:constraint:: std::max_value(max: anytype)
 
-    Specifies the maximum value for the subject.
+    Specifies the maximum allowed value.
 
     Example:
 
@@ -59,7 +59,7 @@ Constraints
 
 .. eql:constraint:: std::max_ex_value(max: anytype)
 
-    Specifies the maximum value (as an open interval) for the subject.
+    Specifies a non-inclusive upper bound for the value.
 
     Example:
 
@@ -69,9 +69,13 @@ Constraints
             constraint max_ex_value(100);
         }
 
+    In the example above, in contrast to the ``max_value`` constraint, a value
+    of the ``maxex_100`` type cannot be ``100`` since the valid range of
+    ``max_ex_value`` does not include the value specified in the constraint.
+
 .. eql:constraint:: std::max_len_value(max: int64)
 
-    Specifies the maximum length of subject string representation.
+    Specifies the maximum allowed length of a value.
 
     Example:
 
@@ -83,7 +87,7 @@ Constraints
 
 .. eql:constraint:: std::min_value(min: anytype)
 
-    Specifies the minimum value for the subject.
+    Specifies the minimum allowed value.
 
     Example:
 
@@ -95,7 +99,7 @@ Constraints
 
 .. eql:constraint:: std::min_ex_value(min: anytype)
 
-    Specifies the minimum value (as an open interval) for the subject.
+    Specifies a non-inclusive lower bound for the value.
 
     Example:
 
@@ -105,9 +109,13 @@ Constraints
             constraint min_ex_value(0);
         }
 
+    In the example above, in contrast to the ``min_value`` constraint, a value
+    of the ``positive_float`` type cannot be ``0`` since the valid range of
+    ``mix_ex_value`` does not include the value specified in the constraint.
+
 .. eql:constraint:: std::min_len_value(min: int64)
 
-    Specifies the minimum length of subject string representation.
+    Specifies the minimum allowed length of a value.
 
     Example:
 
@@ -121,8 +129,7 @@ Constraints
 
     :index: regex regexp regular
 
-    Specifies that the string representation of the subject must match a
-    regexp.
+    Limits to string values matching a regular expression.
 
     Example:
 
@@ -132,7 +139,8 @@ Constraints
             constraint regexp(r'[A-Za-z]*');
         }
 
-    See :ref:`here <string_regexp>` for more details on regexp patterns.
+    See our documentation on :ref:`regular expression patterns
+    <string_regexp>` for more information on those.
 
 .. eql:constraint:: std::exclusive
 

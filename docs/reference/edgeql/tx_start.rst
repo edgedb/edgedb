@@ -51,7 +51,7 @@ This command starts a new transaction block.
 Any EdgeDB command outside of an explicit transaction block starts
 an implicit transaction block; the transaction is then automatically
 committed if the command was executed successfully, or automatically
-rollbacked if there was an error.  This behaviour is often called
+rollbacked if there was an error.  This behavior is often called
 "autocommit".
 
 
