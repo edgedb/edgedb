@@ -67,8 +67,14 @@ class CardinalityBound(int, enum.Enum):
     ONE = 1
     MANY = 2
 
+    def __add__(self, other: int) -> CardinalityBound:
+        return CardinalityBound(min(int(self) + other, CB_MANY))
+
+    def __mul__(self, other: int) -> CardinalityBound:
+        return CardinalityBound(min(int(self) * other, CB_MANY))
+
     def as_required(self) -> bool:
-        return self is CB_ONE
+        return self >= CB_ONE
 
     def as_schema_cardinality(self) -> qltypes.SchemaCardinality:
         if self >= CB_MANY:
@@ -121,18 +127,27 @@ def _bounds_to_card(
     )
 
 
+def _card_unzip(
+    args: Iterable[qltypes.Cardinality],
+) -> tuple[tuple[CardinalityBound, ...], tuple[CardinalityBound, ...]]:
+    card = list(zip(*(_card_to_bounds(a) for a in args)))
+    lower, upper = card if card else ((), ())
+    return lower, upper
+
+
+def product(arg: Iterable[CardinalityBound]) -> CardinalityBound:
+    res = CB_ONE
+    for x in arg:
+        res *= x
+    return res
+
+
 def cartesian_cardinality(
     args: Iterable[qltypes.Cardinality],
 ) -> qltypes.Cardinality:
     '''Cardinality of Cartesian product of multiple args.'''
-
-    card = list(zip(*(_card_to_bounds(a) for a in args)))
-    if card:
-        lower, upper = card
-        return _bounds_to_card(min(lower), max(upper))
-    else:
-        # cartesian product of no arguments is ONE (the 0-tuple)
-        return ONE
+    lower, upper = _card_unzip(args)
+    return _bounds_to_card(product(lower), product(upper))
 
 
 def max_cardinality(
@@ -140,9 +155,8 @@ def max_cardinality(
 ) -> qltypes.Cardinality:
     '''Maximum lower and upper bound of specified cardinalities.'''
 
-    card = list(zip(*(_card_to_bounds(a) for a in args)))
-    assert card, "cannot take max cardinality of no elements"
-    lower, upper = card
+    lower, upper = _card_unzip(args)
+    assert lower, "cannot take max cardinality of no elements"
     return _bounds_to_card(max(lower), max(upper))
 
 
@@ -151,9 +165,8 @@ def min_cardinality(
 ) -> qltypes.Cardinality:
     '''Minimum lower and upper bound of specified cardinalities.'''
 
-    card = list(zip(*(_card_to_bounds(a) for a in args)))
-    assert card, "cannot take max cardinality of no elements"
-    lower, upper = card
+    lower, upper = _card_unzip(args)
+    assert lower, "cannot take min cardinality of no elements"
     return _bounds_to_card(min(lower), min(upper))
 
 
@@ -161,17 +174,9 @@ def _union_cardinality(
     args: Iterable[qltypes.Cardinality],
 ) -> qltypes.Cardinality:
     '''Cardinality of UNION of multiple args.'''
-
-    card = list(zip(*(_card_to_bounds(a) for a in args)))
-    if card:
-        lower, upper = card
-        return _bounds_to_card(
-            max(lower),
-            CB_MANY if len(upper) > 1 else upper[0],
-        )
-    else:
-        # union of no args is an empty set
-        return AT_MOST_ONE
+    lower, upper = _card_unzip(args)
+    return _bounds_to_card(
+        sum(lower, start=CB_ZERO), sum(upper, start=CB_ZERO))
 
 
 VOLATILE = qltypes.Volatility.Volatile
