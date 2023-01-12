@@ -1000,7 +1000,16 @@ class Statement(Base):
 
 class VariableSetStmt(Statement):
     name: str
+    args: ArgsList
+    scope: OptionsScope
+
+
+class ArgsList(Base):
     args: typing.List[BaseExpr]
+
+
+class VariableResetStmt(Statement):
+    name: typing.Optional[str]
     scope: OptionsScope
 
 
@@ -1052,30 +1061,24 @@ class RollbackToStmt(TransactionStmt):
     savepoint_name: str
 
 
-class CommitPreparedStmt(TransactionStmt):
+class TwoPhaseTransactionStmt(TransactionStmt):
     gid: str
 
 
-class RollbackPreparedStmt(TransactionStmt):
-    gid: str
+class PrepareTransaction(TwoPhaseTransactionStmt):
+    pass
+
+
+class CommitPreparedStmt(TwoPhaseTransactionStmt):
+    pass
+
+
+class RollbackPreparedStmt(TwoPhaseTransactionStmt):
+    pass
 
 
 class TransactionOptions(Base):
-    isolation_mode: IsolationMode
-    access_mode: AccessMode
-    deferrable: bool
-
-
-class IsolationMode(enum.IntEnum):
-    SERIALIZABLE = enum.auto()
-    REPEATABLE_READ = enum.auto()
-    READ_COMMITTED = enum.auto()
-    READ_UNCOMMITTED = enum.auto()
-
-
-class AccessMode(enum.IntEnum):
-    READ_WRITE = enum.auto()
-    READ_ONLY = enum.auto()
+    options: dict[str, BaseExpr]
 
 
 class ExecuteStmt(Statement):

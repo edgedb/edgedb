@@ -21,13 +21,40 @@ from edb.server.pgproto.pgproto cimport WriteBuffer
 from edb.server.protocol cimport frontend
 
 
+cdef class ConnectionView:
+
+    cdef:
+        object _settings
+        object _fe_settings
+
+        bint _in_tx_explicit
+        bint _in_tx_implicit
+        object _in_tx_settings
+        object _in_tx_fe_settings
+        object _in_tx_fe_local_settings
+        dict _in_tx_portals
+        object _in_tx_new_portals
+        object _in_tx_savepoints
+        bint _tx_error
+
+    cpdef inline current_fe_settings(self)
+    cdef inline fe_transaction_state(self)
+    cpdef inline bint in_tx(self)
+    cdef inline _reset_tx_state(
+        self, bint chain_implicit, bint chain_explicit
+    )
+    cpdef inline close_portal(self, str name)
+    cdef inline find_portal(self, str name)
+
+
 cdef class PgConnection(frontend.FrontendConnection):
 
     cdef:
+        ConnectionView _dbview
+
         bytes secret
         str client_encoding
         dict prepared_stmts
-        dict portals
         bint ignore_till_sync
 
         object sslctx

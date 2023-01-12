@@ -886,7 +886,21 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write("LOCAL ")
         self.write(node.name)
         self.write(" TO ")
+        self.visit(node.args)
+
+    def visit_ArgsList(self, node: pgast.ArgsList) -> None:
         self.visit_list(node.args)
+
+    def visit_VariableResetStmt(self, node: pgast.VariableResetStmt) -> None:
+        if node.name is None:
+            assert node.scope == pgast.OptionsScope.SESSION
+            self.write("RESET ALL")
+        else:
+            self.write("SET ")
+            if node.scope == pgast.OptionsScope.TRANSACTION:
+                self.write("LOCAL ")
+            self.write(node.name)
+            self.write(" TO DEFAULT")
 
     def visit_SetTransactionStmt(self, node: pgast.SetTransactionStmt) -> None:
         self.write("SET ")
@@ -929,6 +943,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_RollbackToStmt(self, node: pgast.RollbackToStmt) -> None:
         self.write(f"ROLLBACK TO SAVEPOINT {node.savepoint_name}")
 
+    def visit_PrepareTransaction(self, node: pgast.PrepareTransaction) -> None:
+        self.write(f"PREPARE TRANSACTION '{node.gid}'")
+
     def visit_CommitPreparedStmt(self, node: pgast.CommitPreparedStmt) -> None:
         self.write(f"COMMIT PREPARED '{node.gid}'")
 
@@ -938,20 +955,22 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(f"ROLLBACK PREPARED '{node.gid}'")
 
     def visit_TransactionOptions(self, node: pgast.TransactionOptions) -> None:
-        if node.isolation_mode == pgast.IsolationMode.SERIALIZABLE:
-            self.write(" ISOLATION LEVEL SERIALIZABLE")
-        elif node.isolation_mode == pgast.IsolationMode.REPEATABLE_READ:
-            self.write(" ISOLATION LEVEL REPEATABLE READ")
-        elif node.isolation_mode == pgast.IsolationMode.READ_COMMITTED:
-            # this is the default
-            pass
-        elif node.isolation_mode == pgast.IsolationMode.READ_UNCOMMITTED:
-            self.write(" ISOLATION LEVEL READ UNCOMMITTED")
-
-        if node.access_mode != pgast.AccessMode.READ_WRITE:
-            self.write(" READ ONLY")
-        if node.deferrable:
-            self.write(" DEFERRABLE")
+        for def_name, arg in node.options.items():
+            if def_name == "transaction_isolation":
+                self.write(" ISOLATION LEVEL ")
+                if isinstance(arg, pgast.StringConstant):
+                    self.write(arg.val.upper())
+            elif def_name == "transaction_read_only":
+                if isinstance(arg, pgast.NumericConstant):
+                    if arg.val == "1":
+                        self.write(" READ ONLY")
+                    else:
+                        self.write(" READ WRITE")
+            elif def_name == "transaction_deferrable":
+                if isinstance(arg, pgast.NumericConstant):
+                    if arg.val != "1":
+                        self.write(" NOT")
+                    self.write(" DEFERRABLE")
 
     def visit_PrepareStmt(self, node: pgast.PrepareStmt) -> None:
         self.write(f"PREPARE {node.name}")

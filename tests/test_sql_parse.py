@@ -698,8 +698,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_transaction_05(self):
         """
         START TRANSACTION ISOLATION LEVEL READ COMMITTED
-% OK %
-        START TRANSACTION
         """
 
     def test_sql_parse_transaction_06(self):
@@ -710,8 +708,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_transaction_07(self):
         """
         START TRANSACTION READ WRITE
-% OK %
-        START TRANSACTION
         """
 
     def test_sql_parse_transaction_08(self):
@@ -722,8 +718,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_transaction_09(self):
         """
         START TRANSACTION NOT DEFERRABLE
-% OK %
-        START TRANSACTION
         """
 
     def test_sql_parse_transaction_10(self):
@@ -806,6 +800,11 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_transaction_23(self):
         """
         ROLLBACK TO SAVEPOINT savepoint_name
+        """
+
+    def test_sql_parse_transaction_24(self):
+        """
+        PREPARE TRANSACTION 'transaction_id'
         """
 
     def test_sql_parse_transaction_25(self):
@@ -1032,4 +1031,51 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_query_44(self):
         """
         SELECT ($1)::oid[5][6]
+        """
+
+    def test_sql_parse_query_45(self):
+        """
+        SET LOCAL search_path TO DEFAULT
+        """
+
+    def test_sql_parse_query_46(self):
+        """
+        SET SESSION search_path TO DEFAULT
+% OK %
+        SET search_path TO DEFAULT
+        """
+
+    def test_sql_parse_query_47(self):
+        """
+        RESET search_path
+% OK %
+        SET search_path TO DEFAULT
+        """
+
+    def test_sql_parse_query_48(self):
+        """
+        RESET ALL
+        """
+
+    # The transaction_* settings are always on transaction level
+
+    def test_sql_parse_transaction_29(self):
+        """
+        SET SESSION transaction_isolation = serializable
+% OK %
+        SET LOCAL transaction_isolation TO 'serializable'
+        """
+
+    def test_sql_parse_transaction_30(self):
+        """
+        RESET transaction_deferrable
+% OK %
+        SET LOCAL transaction_deferrable TO DEFAULT
+        """
+
+    def test_sql_parse_transaction_31(self):
+        """
+        SET transaction_read_only TO DEFAULT
+% OK %
+        SET LOCAL transaction_read_only TO DEFAULT
         """
