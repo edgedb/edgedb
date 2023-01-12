@@ -93,8 +93,6 @@ DESUGARING_GROUP = True
 T = TypeVar('T')
 
 
-def bsid(n: int) -> uuid.UUID:
-    return uuid.UUID(f'ffffffff-ffff-ffff-ffff-{n:012x}')
 
 
 # ############# Data model
@@ -102,14 +100,11 @@ def bsid(n: int) -> uuid.UUID:
 Data = Any
 Result = List[Data]
 Row = Tuple[Data, ...]
-
-
-class DB(NamedTuple):
-    data: Dict[uuid.UUID, Dict[str, Data]]
     # We have a bad hacky mechanism for specifying schema computables,
     # but it's good enough to let us have these things in test queries.
-    schema_computables: Dict[str, Dict[str, qlast.Expr]]
+    # schema_computables: Dict[str, Dict[str, qlast.Expr]]
 
+    
 
 class Obj:
     def __init__(
@@ -140,20 +135,6 @@ class Obj:
         x = self.get(name, db)
         assert x
         return x
-
-
-def mk_db(
-    data: Iterable[Dict[str, Data]],
-    schema_computables: Dict[str, Dict[str, str]],
-) -> DB:
-    result =  DB(
-        {x["id"]: x for x in data},
-        {
-            typ: {ptr: parse_fragment(ql) for ptr, ql in d.items()}
-            for typ, d in schema_computables.items()
-        }
-    )
-    return result
 
 
 def bslink(n: int, **kwargs: Data) -> Data:
@@ -1665,200 +1646,7 @@ def load_json_db(data: Any) -> Any:
 
 
 null: None = None
-CARDS_DB = [
-    {
-        "avatar": {
-            "@text": "Best",
-            "id": "81537667-c308-11eb-98b8-e7ee6a203949"
-        },
-        "awards": [
-            {"id": "81537661-c308-11eb-98b8-d7ab026ed715"},
-            {"id": "81537663-c308-11eb-98b8-47f340f064e1"}
-        ],
-        "deck": [
-            {"@count": 2, "id": "81537666-c308-11eb-98b8-67d1235c4527"},
-            {"@count": 2, "id": "81537667-c308-11eb-98b8-e7ee6a203949"},
-            {"@count": 3, "id": "81537668-c308-11eb-98b8-2b363efb8a80"},
-            {"@count": 3, "id": "81537669-c308-11eb-98b8-c37076e778d2"}
-        ],
-        "friends": [
-            {
-                "@nickname": "Swampy",
-                "id": "81537670-c308-11eb-98b8-d3d2e939fbfc"
-            },
-            {
-                "@nickname": "Firefighter",
-                "id": "81537671-c308-11eb-98b8-6b6a92e0be3e"
-            },
-            {
-                "@nickname": "Grumpy",
-                "id": "81537672-c308-11eb-98b8-53b70c263a56"
-            }
-        ],
-        "id": "8153766f-c308-11eb-98b8-af7e8ffd99f3",
-        "name": "Alice",
-        "typ": "test::User"
-    },
-    {
-        "avatar": null,
-        "awards": [{"id": "81537665-c308-11eb-98b8-a7fee63c63ca"}],
-        "deck": [
-            {"@count": 3, "id": "81537668-c308-11eb-98b8-2b363efb8a80"},
-            {"@count": 3, "id": "81537669-c308-11eb-98b8-c37076e778d2"},
-            {"@count": 3, "id": "8153766a-c308-11eb-98b8-330dce42eb46"},
-            {"@count": 3, "id": "8153766b-c308-11eb-98b8-430d489d7125"}
-        ],
-        "friends": [],
-        "id": "81537670-c308-11eb-98b8-d3d2e939fbfc",
-        "name": "Bob",
-        "typ": "test::User"
-    },
-    {
-        "avatar": null,
-        "awards": [],
-        "deck": [
-            {"@count": 3, "id": "81537668-c308-11eb-98b8-2b363efb8a80"},
-            {"@count": 2, "id": "81537669-c308-11eb-98b8-c37076e778d2"},
-            {"@count": 4, "id": "8153766a-c308-11eb-98b8-330dce42eb46"},
-            {"@count": 2, "id": "8153766b-c308-11eb-98b8-430d489d7125"},
-            {"@count": 4, "id": "8153766c-c308-11eb-98b8-5bd98eec95bd"},
-            {"@count": 3, "id": "8153766d-c308-11eb-98b8-8b072b1a5f69"},
-            {"@count": 1, "id": "8153766e-c308-11eb-98b8-1b59432eef87"}
-        ],
-        "friends": [],
-        "id": "81537671-c308-11eb-98b8-6b6a92e0be3e",
-        "name": "Carol",
-        "typ": "test::User"
-    },
-    {
-        "avatar": {
-            "@text": "Wow",
-            "id": "8153766e-c308-11eb-98b8-1b59432eef87"
-        },
-        "awards": [],
-        "deck": [
-            {"@count": 1, "id": "81537667-c308-11eb-98b8-e7ee6a203949"},
-            {"@count": 1, "id": "81537668-c308-11eb-98b8-2b363efb8a80"},
-            {"@count": 1, "id": "81537669-c308-11eb-98b8-c37076e778d2"},
-            {"@count": 1, "id": "8153766b-c308-11eb-98b8-430d489d7125"},
-            {"@count": 4, "id": "8153766c-c308-11eb-98b8-5bd98eec95bd"},
-            {"@count": 1, "id": "8153766d-c308-11eb-98b8-8b072b1a5f69"},
-            {"@count": 1, "id": "8153766e-c308-11eb-98b8-1b59432eef87"}
-        ],
-        "friends": [
-            {"@nickname": null, "id": "81537670-c308-11eb-98b8-d3d2e939fbfc"}
-        ],
-        "id": "81537672-c308-11eb-98b8-53b70c263a56",
-        "name": "Dave",
-        "typ": "test::User"
-    },
-    {
-        "awards": [{"id": "81537663-c308-11eb-98b8-47f340f064e1"}],
-        "cost": 1,
-        "element": "Fire",
-        "id": "81537666-c308-11eb-98b8-67d1235c4527",
-        "name": "Imp",
-        "typ": "test::Card"
-    },
-    {
-        "awards": [{"id": "81537661-c308-11eb-98b8-d7ab026ed715"}],
-        "cost": 5,
-        "element": "Fire",
-        "id": "81537667-c308-11eb-98b8-e7ee6a203949",
-        "name": "Dragon",
-        "typ": "test::Card"
-    },
-    {
-        "awards": [],
-        "cost": 2,
-        "element": "Water",
-        "id": "81537668-c308-11eb-98b8-2b363efb8a80",
-        "name": "Bog monster",
-        "typ": "test::Card"
-    },
-    {
-        "awards": [],
-        "cost": 3,
-        "element": "Water",
-        "id": "81537669-c308-11eb-98b8-c37076e778d2",
-        "name": "Giant turtle",
-        "typ": "test::Card"
-    },
-    {
-        "awards": [],
-        "cost": 1,
-        "element": "Earth",
-        "id": "8153766a-c308-11eb-98b8-330dce42eb46",
-        "name": "Dwarf",
-        "typ": "test::Card"
-    },
-    {
-        "awards": [],
-        "cost": 3,
-        "element": "Earth",
-        "id": "8153766b-c308-11eb-98b8-430d489d7125",
-        "name": "Golem",
-        "typ": "test::Card"
-    },
-    {
-        "awards": [],
-        "cost": 1,
-        "element": "Air",
-        "id": "8153766c-c308-11eb-98b8-5bd98eec95bd",
-        "name": "Sprite",
-        "typ": "test::Card"
-    },
-    {
-        "awards": [],
-        "cost": 2,
-        "element": "Air",
-        "id": "8153766d-c308-11eb-98b8-8b072b1a5f69",
-        "name": "Giant eagle",
-        "typ": "test::Card"
-    },
-    {
-        "awards": [{"id": "81537665-c308-11eb-98b8-a7fee63c63ca"}],
-        "cost": 4,
-        "element": "Air",
-        "id": "8153766e-c308-11eb-98b8-1b59432eef87",
-        "name": "Djinn",
-        "typ": "test::Card"
-        # "typ": "test::SpecialCard"
-    },
-    {
-        "id": "81537661-c308-11eb-98b8-d7ab026ed715",
-        "name": "1st",
-        "typ": "test::Award"
-    },
-    {
-        "id": "81537663-c308-11eb-98b8-47f340f064e1",
-        "name": "2nd",
-        "typ": "test::Award"
-    },
-    {
-        "id": "81537665-c308-11eb-98b8-a7fee63c63ca",
-        "name": "3rd",
-        "typ": "test::Award"
-    }
-]
 
-
-PersonT = "Person"
-NoteT = "Note"
-FooT = "Foo"
-
-SCHEMA_COMPUTABLES = {
-    'Card': {
-        'owners': '.<deck[IS User]',
-        'elemental_cost': "<str>.cost ++ ' ' ++ .element",
-        'good_awards': "(SELECT .awards FILTER .name != '3rd')",
-    },
-    'User': {
-        'deck_cost': 'sum(.deck.cost)',
-        'deck@total_cost': '@count * .cost',
-        'avatar@tag': '.name ++ (("-" ++ @text) ?? "")',
-    },
-}
 
 DB1 = mk_db([
     # Person
