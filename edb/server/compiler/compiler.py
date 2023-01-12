@@ -1275,15 +1275,19 @@ def _get_compile_options(
         implicit_tid_in_shapes=(
             can_have_implicit_fields and ctx.inline_typeids
         ),
+        # XXX: All this is_explain checks need to be removed once we
+        # have a real solution to this problem
         implicit_tname_in_shapes=(
             can_have_implicit_fields and ctx.inline_typenames
+            and not is_explain
         ),
         implicit_id_in_shapes=(
             can_have_implicit_fields and ctx.inline_objectids
+            and not is_explain
         ),
         constant_folding=not disable_constant_folding,
         json_parameters=ctx.json_parameters,
-        implicit_limit=ctx.implicit_limit,
+        implicit_limit=ctx.implicit_limit if not is_explain else 0,
         bootstrap_mode=ctx.bootstrap_mode,
         apply_query_rewrites=(
             not ctx.bootstrap_mode
