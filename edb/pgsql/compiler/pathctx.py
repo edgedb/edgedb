@@ -22,7 +22,6 @@
 
 from __future__ import annotations
 
-import functools
 from typing import *
 
 from edb.common import enum as s_enum
@@ -376,9 +375,10 @@ def _get_path_var_in_setop(
 ) -> pgast.BaseExpr:
     test_vals = []
     if aspect in ('value', 'serialized'):
-        test_cb = functools.partial(
-            maybe_get_path_var, env=env, path_id=path_id, aspect=aspect)
-        test_vals = astutils.for_each_query_in_set(rel, test_cb)
+        test_vals = [
+            maybe_get_path_var(q, env=env, path_id=path_id, aspect=aspect)
+            for q in astutils.each_query_in_set(rel)
+        ]
 
     # In order to ensure output balance, we only want to output
     # a TupleVar if *every* subquery outputs a TupleVar.
@@ -389,7 +389,7 @@ def _get_path_var_in_setop(
         any(isinstance(x, pgast.TupleVarBase) for x in test_vals)
         and not all(isinstance(x, pgast.TupleVarBase) for x in test_vals)
     ):
-        def fixup(subrel: pgast.Query) -> None:
+        for subrel in astutils.each_query_in_set(rel):
             cur = get_path_var(
                 subrel, env=env, path_id=path_id, aspect=aspect)
             assert flavor == 'normal'
@@ -400,22 +400,21 @@ def _get_path_var_in_setop(
                     subrel, new_path_id, new,
                     force=True, env=env, aspect=aspect)
 
-        astutils.for_each_query_in_set(rel, fixup)
-
     # We disable the find_path_output optimization when doing
     # UNIONs to avoid situations where they have different numbers
     # of columns.
-    cb = functools.partial(
-        get_path_output_or_null,
-        env=env,
-        disable_output_fusion=True,
-        path_id=path_id,
-        aspect=aspect,
-        flavor=flavor)
+    outputs = [
+        get_path_output_or_null(
+            q,
+            env=env,
+            disable_output_fusion=True,
+            path_id=path_id,
+            aspect=aspect,
+            flavor=flavor
+        ) for q in astutils.each_query_in_set(rel)
+    ]
 
-    outputs = astutils.for_each_query_in_set(rel, cb)
-    counts = astutils.for_each_query_in_set(
-        rel, lambda x: len(x.target_list))
+    counts = [len(x.target_list) for x in astutils.each_query_in_set(rel)]
     assert counts == [counts[0]] * len(counts)
 
     first: Optional[pgast.OutputVar] = None
@@ -446,13 +445,12 @@ def _get_path_var_in_setop(
         # If *none* of the subqueries had it, we have to remove them all
         # before erroring, lest a future call see them and decide
         # they really exist.
-        def _clear(subrel: pgast.Query) -> None:
+        for subrel in astutils.each_query_in_set(rel):
             assert flavor == 'normal'
             new_path_id = map_path_id(path_id, subrel.view_path_id_map)
             del subrel.path_outputs[new_path_id, aspect]
             subrel.target_list.pop()
 
-        astutils.for_each_query_in_set(rel, _clear)
         raise LookupError(
             f'cannot find refs for '
             f'path {path_id} {aspect} in {rel}')

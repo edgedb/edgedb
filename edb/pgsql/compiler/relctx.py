@@ -457,15 +457,13 @@ def _deep_copy_primitive_rvar_path_var(
     the union to have all the path bonds.
     """
 
-    def _copy_id(component: pgast.Query) -> None:
-        rref = pathctx.get_path_var(
-            component, orig_id, aspect='identity', env=env)
-        pathctx.put_path_var(
-            component, new_id, rref, aspect='identity',
-            env=env)
-
     if isinstance(rvar, pgast.RangeSubselect):
-        astutils.for_each_query_in_set(rvar.query, _copy_id)
+        for component in astutils.each_query_in_set(rvar.query):
+            rref = pathctx.get_path_var(
+                component, orig_id, aspect='identity', env=env)
+            pathctx.put_path_var(
+                component, new_id, rref, aspect='identity',
+                env=env)
     else:
         rref = pathctx.get_path_output(
             rvar.query, orig_id, aspect='identity', env=env)
@@ -1244,8 +1242,8 @@ def rel_join(
         isinstance(right_rvar, pgast.RangeSubselect)
         and astutils.is_set_op_query(right_rvar.subquery)
         and right_rvar.tag == "overlay-stack"
-        and all(astutils.for_each_query_in_set(
-            right_rvar.subquery, lambda q: isinstance(q, pgast.SelectStmt)))
+        and all(isinstance(q, pgast.SelectStmt)
+                for q in astutils.each_query_in_set(right_rvar.subquery))
         and not is_pointer_rvar(right_rvar, ctx=ctx)
     ):
         # Unfortunately Postgres sometimes produces a very bad plan
@@ -1309,7 +1307,8 @@ def _lateral_union_join(
     *,
     ctx: context.CompilerContextLevel,
 ) -> None:
-    def _inject_filter(component: pgast.Query) -> None:
+    # Inject the filter into every subquery
+    for component in astutils.each_query_in_set(right_rvar.subquery):
         condition = None
 
         for path_id in right_rvar.query.path_scope:
@@ -1334,7 +1333,7 @@ def _lateral_union_join(
             component.where_clause = astutils.extend_binop(
                 component.where_clause, condition)
 
-    astutils.for_each_query_in_set(right_rvar.subquery, _inject_filter)
+    # Do the actual join
     if not query.from_clause:
         query.from_clause.append(right_rvar)
     else:

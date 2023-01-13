@@ -799,7 +799,7 @@ def process_set_as_link_property_ref(
                     if isinstance(x, irast.PointerRef)
                 )
 
-            def cb(subquery: pgast.Query) -> None:
+            for subquery in astutils.each_query_in_set(link_rvar.query):
                 if isinstance(subquery, pgast.SelectStmt):
                     rvar = subquery.from_clause[0]
                     assert isinstance(rvar, pgast.PathRangeVar)
@@ -807,7 +807,7 @@ def process_set_as_link_property_ref(
                         pathctx.put_path_source_rvar(
                             subquery, orig_link_path_id, rvar, env=ctx.env
                         )
-                        return
+                        continue
                 # Spare get_path_var() from attempting to rebalance
                 # the UNION by recording an explicit NULL as as the
                 # link property var.
@@ -823,9 +823,6 @@ def process_set_as_link_property_ref(
                     ),
                     env=ctx.env,
                 )
-
-            assert isinstance(link_rvar.query, pgast.Query)
-            astutils.for_each_query_in_set(link_rvar.query, cb)
 
         rvars.append(SetRVar(
             link_rvar, link_path_id, aspects=['value', 'source']))
