@@ -21,6 +21,11 @@ import os.path
 from edb.testbase import server as tb
 from edb.tools import test
 
+try:
+    import asyncpg
+except ImportError:
+    pass
+
 
 class TestSQL(tb.SQLQueryTestCase):
 
@@ -334,8 +339,6 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assertEqual(res, [['Forrest Gump']])
 
     async def test_sql_query_25(self):
-        import asyncpg
-
         # lower case object name
         await self.scon.fetch('SELECT title FROM novel ORDER BY title')
 
@@ -347,8 +350,6 @@ class TestSQL(tb.SQLQueryTestCase):
             await self.scon.fetch('SELECT title FROM "Novel" ORDER BY title')
 
     async def test_sql_query_26(self):
-        import asyncpg
-
         with self.assertRaisesRegex(
             asyncpg.UndefinedTableError, "unknown table"
         ):
@@ -381,7 +382,6 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_29(self):
         # link tables
-        import asyncpg
 
         # multi
         res = await self.scon.fetch('SELECT * FROM "Movie.actors"')
@@ -399,7 +399,6 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_30(self):
         # VALUES
-        import asyncpg
 
         res = await self.scon.fetch(
             '''
@@ -419,8 +418,6 @@ class TestSQL(tb.SQLQueryTestCase):
 
     async def test_sql_query_31(self):
         # column aliases in CTEs
-        import asyncpg
-
         res = await self.scon.fetch(
             '''
             with common as (SELECT 1 a, 2 b)
@@ -604,8 +601,6 @@ class TestSQL(tb.SQLQueryTestCase):
 
     @test.skip("unimplemented")
     async def test_sql_schemas(self):
-        import asyncpg
-
         await self.migrate(
             '''
             mod my_module {
