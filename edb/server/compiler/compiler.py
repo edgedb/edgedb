@@ -1338,6 +1338,7 @@ def _compile_ql_explain(
         cacheable=False,
         sql=(sql_bytes,),
         sql_hash=sql_hash,
+        cardinality=enums.Cardinality.ONE,
         # XXX: This is not right really
         out_type_data=out_type_data,
         out_type_id=out_type_id.bytes,

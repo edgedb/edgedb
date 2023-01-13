@@ -368,3 +368,89 @@ class TestEdgeQLExplain(tb.QueryTestCase):
 
         self.assertEqual(len(res['Buffers']), 2)
         self.assertEqual(res['Buffers'][1][0], ".<owner[is default::Issue]")
+
+    async def test_edgeql_explain_inheritance_01(self):
+        res = await self.explain('''
+            WITH X := Text, select X;
+        ''')
+
+        # TODO: Something tying the things together to default::Text
+        shape = {
+            "Node Type": "Result",
+            "Plans": [
+                {
+                    "Node Type": "Append",
+                    "Parent Relationship": "Outer",
+                    "Plans": tb.bag([
+                        {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Member",
+                            "Relation Name": "default::Issue",
+                            "Original Relation Name": "default::Text",
+                            "Contexts": [
+                                [
+                                    {
+                                        "start": 31,
+                                        "end": 35,
+                                        "buffer_idx": 0,
+                                        "text": "Text"
+                                    },
+                                    {
+                                        "start": 44,
+                                        "end": 45,
+                                        "buffer_idx": 0,
+                                        "text": "X"
+                                    }
+                                ]
+                            ]
+                        },
+                        {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Member",
+                            "Relation Name": "default::Comment",
+                            "Original Relation Name": "default::Text",
+                            "Contexts": [
+                                [
+                                    {
+                                        "start": 31,
+                                        "end": 35,
+                                        "buffer_idx": 0,
+                                        "text": "Text"
+                                    },
+                                    {
+                                        "start": 44,
+                                        "end": 45,
+                                        "buffer_idx": 0,
+                                        "text": "X"
+                                    }
+                                ]
+                            ]
+                        },
+                        {
+                            "Node Type": "Seq Scan",
+                            "Parent Relationship": "Member",
+                            "Relation Name": "default::LogEntry",
+                            "Original Relation Name": "default::Text",
+                            "Contexts": [
+                                [
+                                    {
+                                        "start": 31,
+                                        "end": 35,
+                                        "buffer_idx": 0,
+                                        "text": "Text"
+                                    },
+                                    {
+                                        "start": 44,
+                                        "end": 45,
+                                        "buffer_idx": 0,
+                                        "text": "X"
+                                    }
+                                ]
+                            ]
+                        }
+                    ])
+                }
+            ]
+        }
+
+        self.assert_plan(res['Plan'], shape)

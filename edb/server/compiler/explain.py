@@ -38,11 +38,13 @@ from edb.ir import utils as irutils
 
 from edb.schema import constraints as s_constr
 from edb.schema import indexes as s_indexes
+from edb.schema import objects as so
 from edb.schema import pointers as s_pointers
 from edb.schema import schema as s_schema
 
 from edb.pgsql import ast as pgast
 from edb.pgsql.compiler import pathctx
+from edb.pgsql.compiler import astutils
 
 uuid_core = '[a-f0-9]{8}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{12}'
 uuid_re = re.compile(
@@ -92,7 +94,8 @@ def analyze_queries(
     for rvar in rvars:
         if isinstance(rvar, pgast.RangeSubselect):
             assert rvar.subquery not in subq_to_rvar
-            subq_to_rvar[rvar.subquery] = rvar
+            for subq in astutils.each_query_in_set(rvar.subquery):
+                subq_to_rvar[subq] = rvar
 
     # Find all *references* to an rvar in path_rvar_maps
     reverse_path_rvar_map: dict[
@@ -150,7 +153,7 @@ def analyze_queries(
                         if k == (cpath, 'source')
                     ]
                     if debug_spew:
-                        print(sources, cpath)
+                        print('SOURCES', sources, cpath)
                     if sources:
                         source = sources[0]
                         cpath = pathctx.reverse_map_path_id(
@@ -188,6 +191,31 @@ def analyze_queries(
     )
 
 
+def _obj_to_name(
+        sobj: so.Object, schema: s_schema.Schema, dotted: bool=False) -> str:
+    if isinstance(sobj, s_pointers.Pointer):
+        # If a pointer is on the RHS of a dot, just use
+        # the short name. But otherwise, grab the source
+        # and link it up
+        s = str(sobj.get_shortname(schema).name)
+        if sobj.is_link_property(schema):
+            s = f'@{s}'
+        if not dotted and (src := sobj.get_source(schema)):
+            src_name = src.get_name(schema)
+            s = f'{src_name}.{s}'
+    elif isinstance(sobj, (s_constr.Constraint, s_indexes.Index)):
+        # XXX: Do we really want verbose names here, they are
+        # kind of awful.
+        s = sobj.get_verbosename(schema, with_parent=True)
+    else:
+        s = str(sobj.get_name(schema))
+
+    if dotted:
+        s = '.' + s
+
+    return s
+
+
 # Except for injecting contexts based on aliases, this is still mostly pretty
 # basic schema driven string replacement stuff on the pg plan...
 # We need to think about whether we can do better and how we can
@@ -203,8 +231,27 @@ def json_fixup(
             k: json_fixup(v, info, schema, k) for k, v in obj.items()
             if k not in ('Schema',)
         }
-        if 'Alias' in obj and obj['Alias'] in info.alias_contexts:
-            obj['Contexts'] = info.alias_contexts[obj['Alias']]
+        alias = obj.get('Alias')
+
+        # If the path id has a different type than the real relation,
+        # indicate what the original type was (since this is probably
+        # the result of expansion.)
+        if alias and alias in info.alias_to_path_id:
+            path_id, _ = info.alias_to_path_id[alias]
+            obj['DEBUG PATH ID'] = str(path_id)
+            if ptr := path_id.rptr():
+                assert isinstance(ptr.real_material_ptr, irast.PointerRef)
+                ptr_name = _obj_to_name(
+                    schema.get_by_id(ptr.real_material_ptr.id), schema)
+                obj['Pointer Name'] = ptr_name
+            if not path_id.is_ptr_path():
+                oid = path_id.target.real_material_type.id
+                path_name = _obj_to_name(schema.get_by_id(oid), schema)
+                obj['Original Relation Name'] = path_name
+
+        if alias and alias in info.alias_contexts:
+            obj['Contexts'] = info.alias_contexts[alias]
+
         return obj
     elif isinstance(obj, str):
         if idx == 'Index Name':
@@ -219,25 +266,7 @@ def json_fixup(
             sobj = schema.get_by_id(uid, default=None)
             if sobj:
                 dotted = full[0] == '.'
-                if isinstance(sobj, s_pointers.Pointer):
-                    # If a pointer is on the RHS of a dot, just use
-                    # the short name. But otherwise, grab the source
-                    # and link it up
-                    s = str(sobj.get_shortname(schema).name)
-                    if sobj.is_link_property(schema):
-                        s = f'@{s}'
-                    if not dotted:
-                        src_name = sobj.get_source(schema).get_name(schema)
-                        s = f'{src_name}.{s}'
-                elif isinstance(sobj, (s_constr.Constraint, s_indexes.Index)):
-                    # XXX: Do we really want verbose names here, they are
-                    # kind of awful.
-                    s = sobj.get_verbosename(schema, with_parent=True)
-                else:
-                    s = str(sobj.get_name(schema))
-
-                if dotted:
-                    s = '.' + s
+                s = _obj_to_name(sobj, schema, dotted=dotted)
                 obj = uuid_re.sub(s, obj, count=1)
 
         return obj
