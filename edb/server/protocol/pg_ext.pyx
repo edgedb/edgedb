@@ -318,7 +318,7 @@ cdef class PgConnection(frontend.FrontendConnection):
         super().connection_lost(exc)
 
     cdef is_in_tx(self):
-        return self._dbview.in_tx()
+        return self._pinned_pgcon is not None
 
     cdef write_error(self, exc):
         cdef WriteBuffer buf
