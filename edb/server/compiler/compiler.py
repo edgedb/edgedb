@@ -616,6 +616,9 @@ class Compiler:
                     tx_action=dbstate.TxAction.ROLLBACK_TO_SAVEPOINT,
                     sp_name=stmt.savepoint_name,
                 )
+            elif isinstance(stmt, pgast.DropTableStmt):
+                source = pg_codegen.generate_source(stmt)
+                unit = dbstate.SQLQueryUnit(query=source)
             elif isinstance(stmt, pgast.TwoPhaseTransactionStmt):
                 raise NotImplementedError(
                     "two-phase transactions are not supported"

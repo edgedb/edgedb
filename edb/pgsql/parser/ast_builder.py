@@ -184,6 +184,7 @@ def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
             "TransactionStmt": _build_transaction_stmt,
             "PrepareStmt": _build_prepare,
             "ExecuteStmt": _build_execute,
+            "DropStmt": _build_drop_stmt,
         },
         [_build_query],
     )
@@ -203,6 +204,12 @@ def _build_query(node: Node, c: Context) -> pgast.Query:
     )
 
 
+def _build_into_clause(n: Node, c: Context) -> pgast.IntoClause:
+    return pgast.IntoClause(
+        relation_clause=_build_relation_clause(n["rel"], c),
+    )
+
+
 def _build_select_stmt(n: Node, c: Context) -> pgast.SelectStmt:
     op = _maybe(n, c, "op", _build_str)
     if op:
@@ -210,6 +217,7 @@ def _build_select_stmt(n: Node, c: Context) -> pgast.SelectStmt:
         if op == "NONE":
             op = None
     return pgast.SelectStmt(
+        into_clause=_maybe(n, c, "intoClause", _build_into_clause),
         distinct_clause=_maybe(n, c, "distinctClause", _build_distinct),
         target_list=_maybe_list(n, c, "targetList", _build_res_target) or [],
         from_clause=_maybe_list(n, c, "fromClause", _build_base_range_var)
@@ -322,6 +330,22 @@ def _build_variable_show_stmt(n: Node, c: Context) -> pgast.Statement:
     return pgast.VariableShowStmt(
         name=n["name"],
         context=_build_context(n, c),
+    )
+
+
+def _build_drop_stmt(n: Node, c: Context) -> pgast.DropTableStmt:
+    if n["removeType"] != "OBJECT_TABLE":
+        raise PSqlUnsupportedError(n)
+
+    return pgast.DropTableStmt(
+        objects=_list(
+            n,
+            c,
+            "objects",
+            lambda n, c: _list(n["List"], c, "items", _build_str)
+        ),
+        cascade=n["behavior"] == "DROP_CASCADE",
+        missing_ok=_bool_or_false(n, "missing_ok"),
     )
 
 
@@ -747,6 +771,13 @@ def _build_base_relation(n: Node, c: Context) -> pgast.BaseRelation:
             "SelectStmt": _build_select_stmt,
             "Relation": _build_relation,
         },
+    )
+
+
+def _build_relation_clause(n: Node, c: Context) -> pgast.RelationClause:
+    return pgast.RelationClause(
+        relation=_build_relation(n, c),
+        persistence=pgast.RelationPersistence(n["relpersistence"]),
     )
 
 

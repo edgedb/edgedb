@@ -238,6 +238,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             if not node.op:
                 self.indentation -= 2
 
+        if node.into_clause:
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.into_clause)
+            self.indentation -= 1
+
         if node.from_clause:
             if not self.reordered:
                 self.indentation += 1
@@ -1014,6 +1020,36 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write("(")
             self.visit(node.arg)
             self.write(")")
+
+    def visit_RelationClause(self, node: pgast.RelationClause) -> None:
+        from edb.pgsql.ast import RelationPersistence as rp
+
+        if node.persistence == rp.TEMPORARY:
+            self.write("TEMPORARY ")
+        elif node.persistence == rp.UNLOGGED:
+            self.write("UNLOGGED ")
+
+        self.write("TABLE ")
+        self.visit(node.relation)
+
+    def visit_IntoClause(self, node: pgast.IntoClause) -> None:
+        self.write("INTO ")
+        self.visit(node.relation_clause)
+
+    def visit_DropTableStmt(self, node: pgast.DropTableStmt) -> None:
+        self.write("DROP TABLE ")
+        if node.missing_ok:
+            self.write("IF EXISTS ")
+        self.write(
+            ", ".join(
+                ".".join(common.quote_ident(part) for part in name_parts)
+                for name_parts in node.objects
+            )
+        )
+        if node.cascade:
+            self.write(" CASCADE")
+        else:
+            self.write(" RESTRICT")
 
 
 generate_source = SQLSourceGenerator.to_source

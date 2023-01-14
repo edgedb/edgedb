@@ -588,6 +588,7 @@ class DeleteStmt(DMLQuery):
 
 class SelectStmt(Query):
 
+    into_clause: typing.Optional[IntoClause] = None
     # List of DISTINCT ON expressions, empty list for DISTINCT ALL
     distinct_clause: typing.Optional[typing.List[OutputVar]] = None
     # The FROM clause
@@ -996,6 +997,27 @@ class IteratorCTE(ImmutableBase):
 class Statement(Base):
     """A statement that does not return a relation"""
     pass
+
+
+class RelationPersistence(enum.Enum):
+    PERSISTENT = "p"
+    TEMPORARY = "t"
+    UNLOGGED = "u"
+
+
+class RelationClause(ImmutableBase):
+    relation: Relation
+    persistence: RelationPersistence
+
+
+class IntoClause(ImmutableBase):
+    relation_clause: RelationClause
+
+
+class DropTableStmt(Statement):
+    objects: typing.List[typing.List[str]]
+    cascade: bool
+    missing_ok: bool
 
 
 class VariableSetStmt(Statement):
