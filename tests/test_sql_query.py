@@ -650,3 +650,22 @@ class TestSQL(tb.SQLQueryTestCase):
                 SELECT id FROM "Person";
                 '''
             )
+
+    async def test_sql_static_eval(self):
+        res = await self.squery_values('select current_schema;')
+        self.assertEqual(res, [['public']])
+
+        await self.scon.execute("set search_path to blah")
+        res = await self.squery_values("select current_schema")
+        self.assertEqual(res, [['blah']])
+
+        await self.squery_values('set search_path to blah;')
+        res = await self.squery_values('select current_schema;')
+        self.assertEqual(res, [['blah']]) # this fails
+
+        await self.squery_values('set search_path to blah,foo;')
+        res = await self.squery_values('select current_schema;')
+        self.assertEqual(res, [['blah']]) # this too
+
+        res = await self.squery_values('select current_catalog;')
+        self.assertEqual(res, [['postgres']])

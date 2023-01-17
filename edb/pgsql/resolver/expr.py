@@ -427,9 +427,10 @@ def resolve_SQLValueFunction(
         raise errors.QueryError("unsupported", context=expr.context)
 
     if expr.op == op.CURRENT_CATALOG:
-        raise errors.QueryError("unsupported", context=expr.context)
+        return pgast.StringConstant(val='postgres')
 
     if expr.op == op.CURRENT_SCHEMA:
-        raise errors.QueryError("unsupported", context=expr.context)
+        return pgast.StringConstant(val=ctx.options.search_path[0])
 
+    # this should never happen
     raise NotImplementedError()
