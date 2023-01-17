@@ -187,7 +187,7 @@ def compile_BooleanConstant(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     return pgast.TypeCast(
-        arg=pgast.BooleanConstant(val=expr.value),
+        arg=pgast.BooleanConstant(val=expr.value.lower() == 'true'),
         type_name=pgast.TypeName(
             name=pg_types.pg_type_from_ir_typeref(expr.typeref)
         )
@@ -556,7 +556,8 @@ def compile_TypeCheckOp(
 
         if expr.result is not None:
             result = pgast.BooleanConstant(
-                val='false' if not expr.result or negated else 'true')
+                val=(expr.result and not negated)
+            )
         else:
             right: pgast.BaseExpr
 

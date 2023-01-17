@@ -27,6 +27,7 @@ from edb.pgsql import ast as pgast
 
 from . import dispatch
 from . import context
+from . import static
 
 Context = context.ResolverContextLevel
 
@@ -259,7 +260,7 @@ def resolve_FuncCall(
     expr: pgast.FuncCall,
     *,
     ctx: Context,
-) -> pgast.FuncCall:
+) -> pgast.BaseExpr:
     # TODO: which functions do we want to expose on the outside?
     if expr.name in {
         ("set_config",),
@@ -268,6 +269,10 @@ def resolve_FuncCall(
         ("pg_catalog", "current_setting"),
     }:
         raise errors.QueryError("unsupported", context=expr.context)
+
+    if res := static.eval_FuncCall(expr, ctx=ctx):
+        return res
+
     return pgast.FuncCall(
         name=expr.name,
         args=dispatch.resolve_list(expr.args, ctx=ctx),
@@ -368,7 +373,7 @@ def resolve_Indirection(
 ) -> pgast.Indirection:
     return pgast.Indirection(
         arg=dispatch.resolve(expr.arg, ctx=ctx),
-        indirection=dispatch.resolve_list(expr.indirection, ctx=ctx)
+        indirection=dispatch.resolve_list(expr.indirection, ctx=ctx),
     )
 
 
@@ -380,7 +385,7 @@ def resolve_Slice(
 ) -> pgast.Slice:
     return pgast.Slice(
         lidx=dispatch.resolve_opt(expr.lidx, ctx=ctx),
-        ridx=dispatch.resolve_opt(expr.ridx, ctx=ctx)
+        ridx=dispatch.resolve_opt(expr.ridx, ctx=ctx),
     )
 
 
@@ -401,36 +406,4 @@ def resolve_SQLValueFunction(
     *,
     ctx: Context,
 ) -> pgast.BaseExpr:
-    from edb.pgsql.ast import SQLValueFunctionOP as op
-
-    pass_trough = [
-        op.CURRENT_DATE,
-        op.CURRENT_TIME,
-        op.CURRENT_TIME_N,
-        op.CURRENT_TIMESTAMP,
-        op.CURRENT_TIMESTAMP_N,
-        op.LOCALTIME,
-        op.LOCALTIME_N,
-        op.LOCALTIMESTAMP,
-        op.LOCALTIMESTAMP_N,
-    ]
-    if expr.op in pass_trough:
-        return expr
-
-    user = [
-        op.CURRENT_ROLE,
-        op.CURRENT_USER,
-        op.USER,
-        op.SESSION_USER,
-    ]
-    if expr.op in user:
-        raise errors.QueryError("unsupported", context=expr.context)
-
-    if expr.op == op.CURRENT_CATALOG:
-        return pgast.StringConstant(val='postgres')
-
-    if expr.op == op.CURRENT_SCHEMA:
-        return pgast.StringConstant(val=ctx.options.search_path[0])
-
-    # this should never happen
-    raise NotImplementedError()
+    return static.eval_SQLValueFunction(expr, ctx=ctx)

@@ -659,13 +659,11 @@ class ByteaConstant(BaseConstant):
 
 
 class NumericConstant(BaseConstant):
-
     val: str
 
 
 class BooleanConstant(BaseConstant):
-
-    val: str
+    val: bool
 
 
 class LiteralExpr(ImmutableBaseExpr):

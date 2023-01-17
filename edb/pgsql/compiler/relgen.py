@@ -229,7 +229,7 @@ def get_set_rvar(
             null_query = rvars.main.rvar.query
             assert isinstance(
                 null_query, (pgast.SelectStmt, pgast.NullRelation))
-            null_query.where_clause = pgast.BooleanConstant(val='FALSE')
+            null_query.where_clause = pgast.BooleanConstant(val=False)
 
         result_rvar = _include_rvars(rvars, scope_stmt=scope_stmt, ctx=subctx)
         for aspect in rvars.main.aspects:
@@ -1474,7 +1474,7 @@ def process_set_as_membership_expr(
             # A NULL argument to the array variant will produce NULL, so we
             # need to coalesce if that is possible.
             if needs_coalesce:
-                empty_val = str(negated).upper()
+                empty_val = negated
                 set_expr = pgast.CoalesceExpr(args=[
                     set_expr, pgast.BooleanConstant(val=empty_val)])
 

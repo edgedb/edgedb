@@ -866,7 +866,7 @@ def compile_policy_check(
                 args=[
                     pgast.FuncCall(
                         name=('nullif',),
-                        args=[a, pgast.BooleanConstant(val='TRUE')],
+                        args=[a, pgast.BooleanConstant(val=True)],
                     ),
                     pgast.StringConstant(val='insufficient_privilege'),
                     pgast.NamedFuncArg(
@@ -887,7 +887,7 @@ def compile_policy_check(
                 'NOT', astutils.extend_binop(None, *allow_conds, op='OR')
             )
         else:
-            no_allow_expr = pgast.BooleanConstant(val='TRUE')
+            no_allow_expr = pgast.BooleanConstant(val=True)
 
         # deny
         deny_exprs = (cond for _, cond in deny)

@@ -365,7 +365,7 @@ def scan_check_ctes(
 
     update_query = pgast.UpdateStmt(
         targets=[pgast.UpdateTarget(
-            name='flag', val=pgast.BooleanConstant(val='true')
+            name='flag', val=pgast.BooleanConstant(val=True)
         )],
         relation=pgast.RelRangeVar(relation=pgast.Relation(
             schemaname='edgedb', name='_dml_dummy')),
