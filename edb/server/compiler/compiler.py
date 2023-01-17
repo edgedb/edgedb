@@ -1272,18 +1272,18 @@ def _get_compile_options(
 
     return qlcompiler.CompilerOptions(
         modaliases=ctx.state.current_tx().get_modaliases(),
-        implicit_tid_in_shapes=(
-            can_have_implicit_fields and ctx.inline_typeids
-        ),
         # XXX: All this is_explain checks need to be removed once we
         # have a real solution to this problem
+        implicit_tid_in_shapes=(
+            can_have_implicit_fields and ctx.inline_typeids
+            and not is_explain
+        ),
         implicit_tname_in_shapes=(
             can_have_implicit_fields and ctx.inline_typenames
             and not is_explain
         ),
         implicit_id_in_shapes=(
             can_have_implicit_fields and ctx.inline_objectids
-            and not is_explain
         ),
         constant_folding=not disable_constant_folding,
         json_parameters=ctx.json_parameters,
