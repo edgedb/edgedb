@@ -629,6 +629,9 @@ class Compiler:
             elif isinstance(stmt, pgast.InsertStmt):
                 source = pg_codegen.generate_source(stmt)
                 unit = dbstate.SQLQueryUnit(query=source)
+            elif isinstance(stmt, pgast.IndexStmt):
+                source = pg_codegen.generate_source(stmt)
+                unit = dbstate.SQLQueryUnit(query=source)
             elif isinstance(stmt, pgast.TwoPhaseTransactionStmt):
                 raise NotImplementedError(
                     "two-phase transactions are not supported"

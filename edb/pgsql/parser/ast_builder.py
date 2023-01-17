@@ -186,6 +186,7 @@ def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
             "ExecuteStmt": _build_execute,
             "DropStmt": _build_drop_stmt,
             "CreateStmt": _build_create_stmt,
+            "IndexStmt": _build_index_stmt,
         },
         [_build_query],
     )
@@ -377,6 +378,45 @@ def _build_create_stmt(n: Node, c: Context) -> pgast.CreateStmt:
         ),
         elements=_list(n, c, "tableElts", _build_column_def),
         on_commit=on_commit,
+    )
+
+
+def _build_index_element(n: Node, c: Context) -> pgast.IndexElement:
+    print(n)
+    n = _unwrap(n, "IndexElem")
+
+    value = n["ordering"]
+    if value == "SORTBY_DEFAULT":
+        ordering = pgast.IndexElementOrdering.DEFAULT
+    else:
+        raise PSqlUnsupportedError(n)
+
+    value = n["nulls_ordering"]
+    if value == "SORTBY_NULLS_DEFAULT":
+        nulls_ordering = pgast.NullsOrdering.DEFAULT
+    else:
+        raise PSqlUnsupportedError(n)
+
+    return pgast.IndexElement(
+        name=n.get("name"),
+        expr=_maybe(n, c, "expr", _build_base_expr),
+        ordering=ordering,
+        nulls_ordering=nulls_ordering,
+    )
+
+
+def _build_index_stmt(n: Node, c: Context) -> pgast.IndexStmt:
+    method = n["accessMethod"]
+    if method == "btree":
+        access_method = pgast.IndexAccessMethod.BTREE
+    else:
+        raise PSqlUnsupportedError(n)
+
+    return pgast.IndexStmt(
+        name=n["idxname"],
+        relation=_build_relation(n["relation"], c),
+        access_method=access_method,
+        params=_list(n, c, "indexParams", _build_index_element),
     )
 
 

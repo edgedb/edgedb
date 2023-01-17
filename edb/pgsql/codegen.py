@@ -1069,5 +1069,20 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             elif node.on_commit == pgast.TempTableBehavior.DROP:
                 self.write("DROP")
 
+    def visit_IndexStmt(self, node: pgast.IndexStmt) -> None:
+        self.write("CREATE INDEX ")
+        self.write(common.quote_ident(node.name))
+        self.write(" ON ")
+        self.visit(node.relation)
+        self.write(" ( ")
+        self.visit_list(node.params)
+        self.write(" )")
+
+    def visit_IndexElement(self, node: pgast.IndexElement) -> None:
+        if node.name is not None:
+            self.write(common.quote_ident(node.name))
+        else:
+            self.visit(node.expr)
+
 
 generate_source = SQLSourceGenerator.to_source

@@ -1034,6 +1034,32 @@ class CreateStmt(Statement):
     on_commit: TempTableBehavior
 
 
+class IndexAccessMethod(enum.IntEnum):
+    BTREE = enum.auto()
+
+
+class IndexElementOrdering(enum.IntEnum):
+    DEFAULT = enum.auto()
+
+
+class NullsOrdering(enum.IntEnum):
+    DEFAULT = enum.auto()
+
+
+class IndexElement(Base):
+    name: typing.Optional[str]
+    expr: typing.Optional[BaseExpr]
+    ordering: IndexElementOrdering
+    nulls_ordering: NullsOrdering
+
+
+class IndexStmt(Statement):
+    name: str
+    relation: Relation
+    access_method: IndexAccessMethod
+    params: typing.List[IndexElement]
+
+
 class VariableSetStmt(Statement):
     name: str
     args: ArgsList
