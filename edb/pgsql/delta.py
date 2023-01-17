@@ -4042,17 +4042,17 @@ class PointerMetaCommand(
         # supports arbitrary queries, but requires a temporary column,
         # which is populated with the transition query and then used as the
         # source for the SQL USING clause.
-        using_eql_expr, using_sql_expr, orig_rel_alias, sql_expr_is_trivial = (
+        cast_expr, cast_sql_expr, orig_rel_alias, sql_expr_is_trivial = (
             self._compile_conversion_expr(
                 pointer=pointer,
-                conv_expr=using_eql_expr,
+                conv_expr=cast_expr,
                 schema=schema,
                 orig_schema=orig_schema,
                 context=context,
             )
         )
 
-        expr_is_nullable = using_eql_expr.cardinality.can_be_zero()
+        expr_is_nullable = cast_expr.cardinality.can_be_zero()
 
         need_temp_col = (
             (is_multi and expr_is_nullable)
