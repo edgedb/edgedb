@@ -599,42 +599,30 @@ class TestSQL(tb.SQLQueryTestCase):
             except Exception:
                 raise Exception(f'introspecting {table_name}')
 
-    @test.skip("unimplemented")
     async def test_sql_schemas(self):
-        await self.migrate(
-            '''
-            mod my_module {
-                type Foo;
-            }
-            '''
-        )
-        await self.squery('SELECT id FROM "my_module"."Foo";')
-        await self.squery('SELECT id FROM "public"."Person";')
+        await self.con.execute('''
+            create module my_module;
+            create type my_module::Foo;
+            create type default::Bar;
+        ''')
+        await self.con.query('SELECT my_module::Foo')
+        await self.scon.fetch('SELECT id FROM "my_module"."Foo";') # fails
+        await self.scon.fetch('SELECT id FROM "public"."Person";')
+        await self.scon.fetch('SELECT id FROM "default"."Person";')
+        await self.scon.fetch('SELECT id FROM "public"."Bar";') # fails
+        await self.scon.fetch('SELECT id FROM "default"."Bar";') # fails
 
-        await self.squery(
-            '''
-            SET search_path TO my_module, public;
-            SELECT id FROM "Foo";
-            '''
-        )
-        await self.squery(
-            '''
-            SET search_path TO my_module, public;
-            SELECT id FROM "Person";
-            '''
-        )
-        await self.squery(
-            '''
-            SET search_path TO public;
-            SELECT id FROM "Person";
-            '''
-        )
-        await self.squery(
-            '''
-            SET search_path TO my_module;
-            SELECT id FROM "Foo";
-            '''
-        )
+        await self.scon.execute('SET search_path TO my_module, public;')
+        await self.scon.fetch('SELECT id FROM "Foo";')
+
+        await self.scon.execute('SET search_path TO my_module, public;')
+        await self.scon.fetch('SELECT id FROM "Person";')
+
+        await self.scon.execute('SET search_path TO public;')
+        await self.scon.fetch('SELECT id FROM "Person";')
+
+        await self.scon.execute('SET search_path TO my_module;')
+        await self.scon.fetch('SELECT id FROM "Foo";')
 
         with self.assertRaisesRegexTx(
             asyncpg.UndefinedTableError, "unknown table"
@@ -644,12 +632,9 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegexTx(
             asyncpg.UndefinedTableError, "unknown table"
         ):
-            await self.squery(
-                '''
-                SET search_path TO my_module;
-                SELECT id FROM "Person";
-                '''
-            )
+            await self.scon.execute('SET search_path TO my_module;')
+            await self.scon.fetch('SELECT id FROM "Person";')\
+
 
     async def test_sql_static_eval(self):
         res = await self.squery_values('select current_schema;')
