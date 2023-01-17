@@ -1008,6 +1008,7 @@ class RelationPersistence(enum.Enum):
 class RelationClause(ImmutableBase):
     relation: Relation
     persistence: RelationPersistence
+    if_not_exists: bool = False
 
 
 class IntoClause(ImmutableBase):
@@ -1018,6 +1019,19 @@ class DropTableStmt(Statement):
     objects: typing.List[typing.List[str]]
     cascade: bool
     missing_ok: bool
+
+
+class TempTableBehavior(enum.IntEnum):
+    NOOP = enum.auto()
+    PRESERVE_ROWS = enum.auto()
+    DELETE_ROWS = enum.auto()
+    DROP = enum.auto()
+
+
+class CreateStmt(Statement):
+    relation_clause: RelationClause
+    elements: typing.List[ColumnDef]
+    on_commit: TempTableBehavior
 
 
 class VariableSetStmt(Statement):

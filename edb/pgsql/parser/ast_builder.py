@@ -185,6 +185,7 @@ def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
             "PrepareStmt": _build_prepare,
             "ExecuteStmt": _build_execute,
             "DropStmt": _build_drop_stmt,
+            "CreateStmt": _build_create_stmt,
         },
         [_build_query],
     )
@@ -346,6 +347,36 @@ def _build_drop_stmt(n: Node, c: Context) -> pgast.DropTableStmt:
         ),
         cascade=n["behavior"] == "DROP_CASCADE",
         missing_ok=_bool_or_false(n, "missing_ok"),
+    )
+
+
+def _build_column_def(n: Node, c: Context) -> pgast.ColumnDef:
+    n = _unwrap(n, "ColumnDef")
+    return pgast.ColumnDef(
+        name=_build_str(n["colname"], c),
+        typename=_build_type_name(n["typeName"], c),
+    )
+
+
+def _build_create_stmt(n: Node, c: Context) -> pgast.CreateStmt:
+    on_commit_val = n["oncommit"]
+    if on_commit_val == "ONCOMMIT_NOOP":
+        on_commit = pgast.TempTableBehavior.NOOP
+    elif on_commit_val == "ONCOMMIT_PRESERVE_ROWS":
+        on_commit = pgast.TempTableBehavior.PRESERVE_ROWS
+    elif on_commit_val == "ONCOMMIT_DELETE_ROWS":
+        on_commit = pgast.TempTableBehavior.DELETE_ROWS
+    elif on_commit_val == "ONCOMMIT_DROP":
+        on_commit = pgast.TempTableBehavior.DROP
+    else:
+        raise PSqlUnsupportedError(n)
+
+    return pgast.CreateStmt(
+        relation_clause=_build_relation_clause(
+            n["relation"], c, _bool_or_false(n, "if_not_exists")
+        ),
+        elements=_list(n, c, "tableElts", _build_column_def),
+        on_commit=on_commit,
     )
 
 
@@ -774,10 +805,13 @@ def _build_base_relation(n: Node, c: Context) -> pgast.BaseRelation:
     )
 
 
-def _build_relation_clause(n: Node, c: Context) -> pgast.RelationClause:
+def _build_relation_clause(
+    n: Node, c: Context, if_not_exists: bool = False
+) -> pgast.RelationClause:
     return pgast.RelationClause(
         relation=_build_relation(n, c),
         persistence=pgast.RelationPersistence(n["relpersistence"]),
+        if_not_exists=if_not_exists,
     )
 
 

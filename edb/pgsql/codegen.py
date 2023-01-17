@@ -1030,6 +1030,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write("UNLOGGED ")
 
         self.write("TABLE ")
+        if node.if_not_exists:
+            self.write("IF NOT EXISTS ")
+
         self.visit(node.relation)
 
     def visit_IntoClause(self, node: pgast.IntoClause) -> None:
@@ -1050,6 +1053,21 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(" CASCADE")
         else:
             self.write(" RESTRICT")
+
+    def visit_CreateStmt(self, node: pgast.CreateStmt) -> None:
+        self.write("CREATE ")
+        self.visit(node.relation_clause)
+        self.write(" ( ")
+        self.visit_list(node.elements)
+        self.write(" )")
+        if node.on_commit != pgast.TempTableBehavior.NOOP:
+            self.write(" ON COMMIT ")
+            if node.on_commit == pgast.TempTableBehavior.PRESERVE_ROWS:
+                self.write("PRESERVE ROWS")
+            elif node.on_commit == pgast.TempTableBehavior.DELETE_ROWS:
+                self.write("DELETE ROWS")
+            elif node.on_commit == pgast.TempTableBehavior.DROP:
+                self.write("DROP")
 
 
 generate_source = SQLSourceGenerator.to_source
