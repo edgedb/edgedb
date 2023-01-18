@@ -124,7 +124,12 @@ def get_path_var(
         rel: pgast.Query, path_id: irast.PathId, *,
         flavor: str='normal',
         aspect: str, env: context.Environment) -> pgast.BaseExpr:
-    """Return a value expression for a given *path_id* in a given *rel*."""
+    """
+    Return a value expression for a given *path_id* in a given *rel*.
+
+    This function is a part of "recursive column injection" algorithm,
+    described in [./ARCHITECTURE.md].
+    """
     if isinstance(rel, pgast.CommonTableExpr):
         rel = rel.query
 
