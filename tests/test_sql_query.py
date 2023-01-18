@@ -640,17 +640,13 @@ class TestSQL(tb.SQLQueryTestCase):
         res = await self.squery_values('select current_schema;')
         self.assertEqual(res, [['public']])
 
-        await self.scon.execute("set search_path to blah")
-        res = await self.squery_values("select current_schema")
-        self.assertEqual(res, [['blah']])
-
         await self.squery_values('set search_path to blah;')
         res = await self.squery_values('select current_schema;')
-        # self.assertEqual(res, [['blah']])
+        self.assertEqual(res, [['blah']])
 
         await self.squery_values('set search_path to blah,foo;')
         res = await self.squery_values('select current_schema;')
-        # self.assertEqual(res, [['blah']])
+        self.assertEqual(res, [['blah']])
 
         res = await self.squery_values('select current_catalog;')
         self.assertEqual(res, [['postgres']])

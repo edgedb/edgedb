@@ -772,6 +772,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                         f"prepared statement \"{stmt_name}\" already exists",
                     )
 
+                fe_settings = dbv.current_fe_settings()
                 query_units = await self.compile(query_str, dbv)
                 if len(query_units) > 1:
                     raise pgerror.new(
@@ -797,6 +798,8 @@ cdef class PgConnection(frontend.FrontendConnection):
                     stmt_name=parse_hash,
                     args=(sql_text, data, False),
                     query_unit=unit,
+                    orig_query=query_str,
+                    fe_settings=fe_settings,
                 )
                 fresh_stmts.add(stmt_name)
 
@@ -822,6 +825,38 @@ cdef class PgConnection(frontend.FrontendConnection):
                 # Replay Parse if it wasn't done in this extended_query() call
                 parse_action = self.prepared_stmts[stmt_name]
                 if stmt_name not in fresh_stmts:
+
+                    # HACK: some of the statically compiler-evaluated queries
+                    # like `current_schema` depend on the fe_settings,
+                    # we need to re-compile if the fe_settings mismatch.
+                    fe_settings = dbv.current_fe_settings()
+                    if parse_action.fe_settings is not fe_settings:
+                        query_units = await self.compile(
+                            parse_action.orig_query, dbv
+                        )
+                        if len(query_units) > 1:
+                            raise pgerror.new(
+                                pgerror.ERROR_SYNTAX_ERROR,
+                                "cannot insert multiple commands into a "
+                                "prepared statement",
+                            )
+                        unit = query_units[0]
+                        sql_text = unit.query.encode("utf-8")
+                        parse_hash = hashlib.sha1(sql_text)
+                        parse_hash.update(parse_action.args[1])
+                        parse_hash = b'p' + parse_hash.hexdigest().encode(
+                            "latin1"
+                        )
+                        parse_action = PGMessage(
+                            PGAction.PARSE,
+                            stmt_name=parse_hash,
+                            args=(sql_text, parse_action.args[1], False),
+                            query_unit=unit,
+                            orig_query=parse_action.orig_query,
+                            fe_settings=fe_settings,
+                        )
+                        self.prepared_stmts[stmt_name] = parse_action
+
                     actions.append(parse_action)
                     fresh_stmts.add(stmt_name)
                 actions.append(

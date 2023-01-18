@@ -425,6 +425,8 @@ cdef class PGMessage:
         str portal_name=None,
         args=None,
         query_unit=None,
+        orig_query=None,
+        fe_settings=None,
     ):
         self.action = action
         self.stmt_name = stmt_name
@@ -435,6 +437,9 @@ cdef class PGMessage:
             self.portal_name = b''
         self.args = args
         self.query_unit = query_unit
+
+        self.orig_query = orig_query
+        self.fe_settings = fe_settings
 
     cdef inline bint frontend_only(self):
         if self.query_unit is None:
