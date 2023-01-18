@@ -129,7 +129,7 @@ def get_path_var(
     Return a value expression for a given *path_id* in a given *rel*.
 
     This function is a part of "recursive column injection" algorithm,
-    described in [./ARCHITECTURE.md]. It Calls 
+    described in [./ARCHITECTURE.md].
     """
     if isinstance(rel, pgast.CommonTableExpr):
         rel = rel.query
