@@ -265,6 +265,23 @@ def resolve_FuncCall(
     if expr.name in {
         ("set_config",),
         ("pg_catalog", "set_config"),
+    }:
+        # HACK: allow set_config('search_path', '', false) to support pg_dump
+        if args := static.eval_list(expr.args, ctx=ctx):
+            name, value, is_local = args
+            if (
+                isinstance(name, pgast.StringConstant)
+                and isinstance(value, pgast.StringConstant)
+                and isinstance(is_local, pgast.BooleanConstant)
+            ):
+                if (
+                    name.val == "search_path"
+                    and value.val == ""
+                    and not is_local.val
+                ):
+                    return value
+        raise errors.QueryError("unsupported", context=expr.context)
+    if expr.name in {
         ("current_setting",),
         ("pg_catalog", "current_setting"),
     }:
