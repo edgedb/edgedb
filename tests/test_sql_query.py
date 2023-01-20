@@ -635,8 +635,7 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.UndefinedTableError, "unknown table"
         ):
-            await self.scon.fetch('SELECT id FROM "Person";')\
-
+            await self.scon.fetch('SELECT id FROM "Person";')
 
     async def test_sql_query_static_eval(self):
         res = await self.squery_values('select current_schema;')

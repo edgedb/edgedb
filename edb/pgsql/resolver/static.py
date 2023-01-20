@@ -123,6 +123,10 @@ def eval_current_schemas(
     res = []
 
     if include_implicit:
+        # if any temporary object has been created in current session,
+        # here we should also append res.append('pg_temp_xxx') were xxx is
+        # a number assigned by the server.
+
         res.append('pg_catalog')
     res.extend(ctx.options.search_path)
 
