@@ -108,7 +108,12 @@ def _lookup_column(
         col_name = name[0]
 
         if isinstance(col_name, pgast.Star):
-            return [(t, c) for t in ctx.scope.tables for c in t.columns]
+            return [
+                (t, c)
+                for t in ctx.scope.tables
+                for c in t.columns
+                if not c.hidden
+            ]
         else:
             for table in ctx.scope.tables:
                 if not table.in_parent:
@@ -125,7 +130,7 @@ def _lookup_column(
             raise
 
         if isinstance(col_name, pgast.Star):
-            return [(table, c) for c in table.columns]
+            return [(table, c) for c in table.columns if not c.hidden]
         else:
             matched_columns.extend(_lookup_in_table(col_name, table))
 
@@ -368,7 +373,7 @@ def resolve_Indirection(
 ) -> pgast.Indirection:
     return pgast.Indirection(
         arg=dispatch.resolve(expr.arg, ctx=ctx),
-        indirection=dispatch.resolve_list(expr.indirection, ctx=ctx)
+        indirection=dispatch.resolve_list(expr.indirection, ctx=ctx),
     )
 
 
@@ -380,7 +385,7 @@ def resolve_Slice(
 ) -> pgast.Slice:
     return pgast.Slice(
         lidx=dispatch.resolve_opt(expr.lidx, ctx=ctx),
-        ridx=dispatch.resolve_opt(expr.ridx, ctx=ctx)
+        ridx=dispatch.resolve_opt(expr.ridx, ctx=ctx),
     )
 
 
