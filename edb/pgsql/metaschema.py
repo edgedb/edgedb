@@ -5016,7 +5016,7 @@ def _generate_schema_alias_view(
 
 
 def _generate_sql_information_schema() -> List[dbops.Command]:
-    
+
     # a helper table used in many other views
     virtual_tables = dbops.View(
         name=('edgedbsql', 'virtual_tables'),
@@ -5077,13 +5077,13 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
 
     # For making up oids of schemas that represent modules
     uuid_to_oid = dbops.Function(
-        name = ('edgedbsql', 'uuid_to_oid'),
-        args = (
+        name=('edgedbsql', 'uuid_to_oid'),
+        args=(
             ('id', 'uuid'),
         ),
         returns=('oid',),
         volatility='immutable',
-        text = """
+        text="""
             SELECT (
                 ('x' || substring(id::text, 0, 4))::bit(32)::bigint
                  + 40000)::oid;
@@ -5125,12 +5125,15 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             edgedb.get_current_database()::{sql_ident} AS table_catalog,
             vt.schema_name::{sql_ident} AS table_schema,
             vt.table_name::{sql_ident} AS table_name,
-            COALESCE(sp.name, isc.column_name)::{sql_ident} AS column_name,
+            COALESCE(
+                sp.name || case when sl.id is not null then '_id' else '' end,
+                isc.column_name
+            )::{sql_ident} AS column_name,
             ROW_NUMBER() OVER (
                 PARTITION BY vt.schema_name, vt.table_name
-                ORDER BY 
+                ORDER BY
                     CASE WHEN isc.column_name = 'id' THEN 0 ELSE 1 END,
-                    sp.name
+                    COALESCE(sp.name, isc.column_name)
             ) AS ordinal_position,
             isc.column_default,
             isc.is_nullable,
@@ -5174,6 +5177,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         FROM information_schema.columns isc
         JOIN edgedbsql.virtual_tables vt ON vt.id::text = isc.table_name
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = isc.column_name
+        LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = isc.column_name
         WHERE column_name != '__type__'
             '''
             ),
@@ -5188,9 +5192,10 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         FROM pg_namespace
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
         UNION ALL
-        SELECT edgedbsql.uuid_to_oid(module_id), schema_name, 10, NULL
+        SELECT edgedbsql.uuid_to_oid(t.module_id), t.schema_name, 10, NULL
         FROM (
-            SELECT DISTINCT schema_name, module_id FROM edgedbsql.virtual_tables
+            SELECT DISTINCT schema_name, module_id
+            FROM edgedbsql.virtual_tables
         ) t
         """,
         ),
@@ -5318,7 +5323,10 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
         UNION ALL
         SELECT attrelid,
-            coalesce(sp.name, pa.attname) as attname,
+            COALESCE(
+                sp.name || case when sl.id is not null then '_id' else '' end,
+                pa.attname
+            ) AS attname,
             atttypid,
             attstattarget,
             attlen,
@@ -5346,6 +5354,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         JOIN pg_class pc ON pc.oid = pa.attrelid
         JOIN edgedbsql.virtual_tables vt ON vt.id::text = pc.relname
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = pa.attname
+        LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = pa.attname
         WHERE pa.attname NOT IN ('__type__')
         """,
         ),
@@ -5483,7 +5492,6 @@ def get_support_views(
     for alias_view in sys_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
-    
     commands.add_commands(_generate_sql_information_schema())
 
     return commands
