@@ -583,6 +583,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(' ')
             self.visit(node.typename)
 
+        if node.is_not_null:
+            self.write(' NOT NULL')
+        if node.default_expr:
+            self.write(' DEFAULT ')
+            self.visit(node.default_expr)
+
     def visit_GroupingOperation(self, node: pgast.GroupingOperation) -> None:
         if node.operation:
             self.write(node.operation)
@@ -1014,6 +1020,17 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write("(")
             self.visit(node.arg)
             self.write(")")
+
+    def visit_CreateStmt(self, node: pgast.CreateStmt) -> None:
+        self.write('CREATE ')
+        if node.relation.is_temporary:
+            self.write('TEMPORARY ')
+        self.write('TABLE ')
+        self.visit_Relation(node.relation)
+
+        self.write('(')
+        self.visit_list(node.table_elements)
+        self.write(')')
 
 
 generate_source = SQLSourceGenerator.to_source

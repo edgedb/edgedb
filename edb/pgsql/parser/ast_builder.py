@@ -184,6 +184,7 @@ def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
             "TransactionStmt": _build_transaction_stmt,
             "PrepareStmt": _build_prepare,
             "ExecuteStmt": _build_execute,
+            "CreateStmt": _build_create,
         },
         [_build_query],
     )
@@ -405,6 +406,48 @@ def _build_prepare(n: Node, c: Context) -> pgast.PrepareStmt:
 def _build_execute(n: Node, c: Context) -> pgast.ExecuteStmt:
     return pgast.ExecuteStmt(
         name=n["name"], params=_maybe_list(n, c, "params", _build_base_expr)
+    )
+
+
+def _build_create(n: Node, c: Context) -> pgast.CreateStmt:
+    return pgast.CreateStmt(
+        relation=_build_relation(n['relation'], c),
+        table_elements=_list(n, c, 'tableElts', _build_table_element),
+        context=_build_context(n, c),
+        on_commit=_maybe(n, c, 'oncommit', lambda n, c: n[8:]),
+    )
+
+
+def _build_table_element(n: Node, c: Context) -> pgast.TableElement:
+    return _enum(
+        pgast.TableElement,
+        n,
+        c,
+        {
+            "ColumnDef": _build_column_def,
+        },
+    )
+
+
+def _build_column_def(n: Node, c: Context) -> pgast.ColumnDef:
+    is_not_null = False
+    default_expr = None
+    if 'constraints' in n:
+        for constraint in n['constraints']:
+            constraint = _unwrap(constraint, 'Constraint')
+
+            if constraint['contype'] == 'CONSTR_NOTNULL':
+                is_not_null = True
+            if constraint['contype'] == 'CONSTR_DEFAULT':
+                is_not_null = True
+                default_expr = _maybe(n, c, 'raw_expr', _build_base_expr)
+
+    return pgast.ColumnDef(
+        name=n['colname'],
+        typename=_build_type_name(n['typeName'], c),
+        default_expr=default_expr,
+        is_not_null=is_not_null,
+        context=_build_context(n, c),
     )
 
 
@@ -755,6 +798,7 @@ def _build_relation(n: Node, c: Context) -> pgast.Relation:
         name=_maybe(n, c, "relname", _build_str),
         catalogname=_maybe(n, c, "catalogname", _build_str),
         schemaname=_maybe(n, c, "schemaname", _build_str),
+        is_temporary=_maybe(n, c, "relpersistence", lambda n, _c: n == 't'),
         context=_build_context(n, c),
     )
 
@@ -799,6 +843,14 @@ def _build_a_expr(n: Node, c: Context) -> pgast.BaseExpr:
             test_expr=_maybe(n, c, "lexpr", _build_base_expr),
             expr=_build_base_expr(n["rexpr"], c),
             context=_build_context(n, c),
+        )
+    elif n['kind'] == 'AEXPR_NULLIF':
+        return pgast.FuncCall(
+            name=('nullif',),
+            args=[
+                _build_base_expr(n['lexpr'], c),
+                _build_base_expr(n['rexpr'], c)
+            ]
         )
     else:
         raise PSqlUnsupportedError(n)
