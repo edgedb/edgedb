@@ -114,9 +114,9 @@ def _lookup_column(
                 if not table.in_parent:
                     matched_columns.extend(_lookup_in_table(col_name, table))
 
-    elif len(name) == 2:
+    elif len(name) >= 2:
         # look for the column in the specific table
-        tab_name, col_name = name
+        tab_name, col_name = name[-2:]
 
         try:
             table = _lookup_table(cast(str, tab_name), ctx)
