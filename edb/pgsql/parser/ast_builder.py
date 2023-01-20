@@ -516,8 +516,15 @@ def _build_indirection_op(n: Node, c: Context) -> pgast.IndirectionOp:
             'A_Indices': _build_index_or_slice,
             'Star': _build_star,
             'ColumnRef': _build_column_ref,
+            'String': _build_record_indirection_op,
         },
     )
+
+
+def _build_record_indirection_op(
+    n: Node, c: Context
+) -> pgast.RecordIndirectionOp:
+    return pgast.RecordIndirectionOp(name=_build_str(n, c))
 
 
 def _build_ctes(n: Node, c: Context) -> List[pgast.CommonTableExpr]:
@@ -849,8 +856,8 @@ def _build_a_expr(n: Node, c: Context) -> pgast.BaseExpr:
             name=('nullif',),
             args=[
                 _build_base_expr(n['lexpr'], c),
-                _build_base_expr(n['rexpr'], c)
-            ]
+                _build_base_expr(n['rexpr'], c),
+            ],
         )
     else:
         raise PSqlUnsupportedError(n)

@@ -55,7 +55,8 @@ class SQLSourceGeneratorContext(markup.MarkupExceptionContext):
 
         if self.chunks_generated:
             code = markup.serializer.serialize_code(
-                ''.join(self.chunks_generated), lexer='sql')
+                ''.join(self.chunks_generated), lexer='sql'
+            )
             body.append(
                 me.doc.Section(
                     title='SQL generated so far', body=[code]  # type: ignore
@@ -99,9 +100,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     ) -> str:
         try:
             return super().to_source(
-                node, indent_with=indent_with,
+                node,
+                indent_with=indent_with,
                 reordered=reordered,
-                add_line_information=add_line_information, pretty=pretty)
+                add_line_information=add_line_information,
+                pretty=pretty,
+            )
         except SQLSourceGeneratorError as e:
             ctx = SQLSourceGeneratorContext(node)
             exceptions.add_context(e, ctx)
@@ -109,7 +113,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def generic_visit(self, node):  # type: ignore
         raise SQLSourceGeneratorError(
-            'No method to generate code for %s' % node.__class__.__name__)
+            'No method to generate code for %s' % node.__class__.__name__
+        )
 
     def gen_ctes(self, ctes: List[pgast.CommonTableExpr]) -> None:
         self.write('WITH')
@@ -210,8 +215,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write('SELECT')
             if node.distinct_clause:
                 self.write(' DISTINCT')
-                if (len(node.distinct_clause) > 1 or
-                        not isinstance(node.distinct_clause[0], pgast.Star)):
+                if len(node.distinct_clause) > 1 or not isinstance(
+                    node.distinct_clause[0], pgast.Star
+                ):
                     self.write(' ON (')
                     self.visit_list(node.distinct_clause, newlines=False)
                     self.write(')')
@@ -523,7 +529,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(common.quote_ident(rel.name))
         else:
             raise SQLSourceGeneratorError(
-                'unexpected relation in RelRangeVar: {!r}'.format(rel))
+                'unexpected relation in RelRangeVar: {!r}'.format(rel)
+            )
 
         if not node.include_inherited:
             self.write(')')
@@ -610,8 +617,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             else:
                 self.write(join_type + ' JOIN ')
             nested_join = (
-                isinstance(node.rarg, pgast.JoinExpr) and
-                node.rarg.rarg is not None
+                isinstance(node.rarg, pgast.JoinExpr)
+                and node.rarg.rarg is not None
             )
             if nested_join:
                 self.write('(')
@@ -763,7 +770,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.write(' NULLS LAST')
             else:
                 raise SQLSourceGeneratorError(
-                    'unexpected NULLS order: {}'.format(node.nulls))
+                    'unexpected NULLS order: {}'.format(node.nulls)
+                )
 
     def visit_TypeCast(self, node: pgast.TypeCast) -> None:
         # '::' has very high precedence, so parenthesize the expression.
@@ -832,6 +840,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.arg)
         self.write(')')
         self._visit_indirection_ops(node.indirection)
+
+    def visit_RecordIndirectionOp(
+        self, node: pgast.RecordIndirectionOp
+    ) -> None:
+        self.write('.')
+        self.write(node.name)
 
     def _visit_indirection_ops(
         self, ops: Sequence[pgast.IndirectionOp]

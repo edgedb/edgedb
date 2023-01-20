@@ -775,7 +775,11 @@ class Slice(ImmutableBaseExpr):
     ridx: typing.Optional[BaseExpr]
 
 
-IndirectionOp = Slice | Index | ColumnRef | Star
+class RecordIndirectionOp(ImmutableBase):
+    name: str
+
+
+IndirectionOp = Slice | Index | ColumnRef | Star | RecordIndirectionOp
 
 
 class Indirection(ImmutableBaseExpr):
