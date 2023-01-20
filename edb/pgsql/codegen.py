@@ -1042,9 +1042,22 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write('TABLE ')
         self.visit_Relation(node.relation)
 
-        self.write('(')
-        self.visit_list(node.table_elements)
-        self.write(')')
+        if node.table_elements:
+            self.write(' (')
+            self.visit_list(node.table_elements)
+            self.write(')')
+
+        if node.on_commit:
+            self.write(' ON COMMIT ')
+            self.write(node.on_commit)
+
+    def visit_CreateTableAsStmt(self, node: pgast.CreateTableAsStmt) -> None:
+        self.visit(node.into)
+        self.write(' AS ')
+        self.visit(node.query)
+
+        if node.with_no_data:
+            self.write(' WITH NO DATA')
 
 
 generate_source = SQLSourceGenerator.to_source

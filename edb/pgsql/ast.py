@@ -1133,3 +1133,10 @@ class CreateStmt(Statement):
     table_elements: typing.List[TableElement]
 
     on_commit: typing.Optional[str]
+
+class CreateTableAsStmt(Statement):
+    into: CreateStmt
+    query: Query
+
+    with_no_data: bool
+    

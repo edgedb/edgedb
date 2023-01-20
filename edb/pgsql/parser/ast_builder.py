@@ -185,6 +185,7 @@ def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
             "PrepareStmt": _build_prepare,
             "ExecuteStmt": _build_execute,
             "CreateStmt": _build_create,
+            "CreateTableAsStmt": _build_create_table_as,
         },
         [_build_query],
     )
@@ -409,12 +410,29 @@ def _build_execute(n: Node, c: Context) -> pgast.ExecuteStmt:
     )
 
 
+def _build_create_table_as(n: Node, c: Context) -> pgast.CreateTableAsStmt:
+    print(n)
+
+    return pgast.CreateTableAsStmt(
+        into=_build_create(n['into'], c),
+        query=_build_query(n['query'], c),
+        with_no_data=_bool_or_false(n['into'], 'skipData'),
+    )
+
+
 def _build_create(n: Node, c: Context) -> pgast.CreateStmt:
+    def _build_on_commit(n: str, _c: Context) -> Optional[str]:
+        on_commit = n[9:]
+        return on_commit if on_commit != 'NOOP' else None
+
+    relation = n['relation'] if 'relation' in n else n['rel']
+
     return pgast.CreateStmt(
-        relation=_build_relation(n['relation'], c),
-        table_elements=_list(n, c, 'tableElts', _build_table_element),
+        relation=_build_relation(relation, c),
+        table_elements=_maybe_list(n, c, 'tableElts', _build_table_element)
+        or [],
         context=_build_context(n, c),
-        on_commit=_maybe(n, c, 'oncommit', lambda n, c: n[8:]),
+        on_commit=_maybe(n, c, 'oncommit', _build_on_commit),
     )
 
 
