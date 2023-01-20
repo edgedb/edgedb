@@ -34,6 +34,7 @@ class TestSQL(tb.SQLQueryTestCase):
     SETUP = os.path.join(
         os.path.dirname(__file__), 'schemas', 'movies_setup.edgeql'
     )
+    TRANSACTION_ISOLATION = False
 
     async def test_sql_query_00(self):
         # basic
@@ -599,18 +600,18 @@ class TestSQL(tb.SQLQueryTestCase):
             except Exception:
                 raise Exception(f'introspecting {table_name}')
 
-    async def test_sql_schemas(self):
+    async def test_sql_query_schemas(self):
         await self.con.execute('''
             create module my_module;
             create type my_module::Foo;
             create type default::Bar;
         ''')
         await self.con.query('SELECT my_module::Foo')
-        await self.scon.fetch('SELECT id FROM "my_module"."Foo";') # fails
+        await self.scon.fetch('SELECT id FROM "my_module"."Foo";')
         await self.scon.fetch('SELECT id FROM "public"."Person";')
         await self.scon.fetch('SELECT id FROM "default"."Person";')
-        await self.scon.fetch('SELECT id FROM "public"."Bar";') # fails
-        await self.scon.fetch('SELECT id FROM "default"."Bar";') # fails
+        await self.scon.fetch('SELECT id FROM "public"."Bar";')
+        await self.scon.fetch('SELECT id FROM "default"."Bar";')
 
         await self.scon.execute('SET search_path TO my_module, public;')
         await self.scon.fetch('SELECT id FROM "Foo";')
@@ -624,19 +625,20 @@ class TestSQL(tb.SQLQueryTestCase):
         await self.scon.execute('SET search_path TO my_module;')
         await self.scon.fetch('SELECT id FROM "Foo";')
 
-        with self.assertRaisesRegexTx(
+        await self.scon.execute('SET search_path TO public;')
+        with self.assertRaisesRegex(
             asyncpg.UndefinedTableError, "unknown table"
         ):
-            await self.squery('SELECT id FROM "Foo"')
+            await self.squery_values('SELECT id FROM "Foo"')
 
-        with self.assertRaisesRegexTx(
+        await self.scon.execute('SET search_path TO my_module;')
+        with self.assertRaisesRegex(
             asyncpg.UndefinedTableError, "unknown table"
         ):
-            await self.scon.execute('SET search_path TO my_module;')
             await self.scon.fetch('SELECT id FROM "Person";')\
 
 
-    async def test_sql_static_eval(self):
+    async def test_sql_query_static_eval(self):
         res = await self.squery_values('select current_schema;')
         self.assertEqual(res, [['public']])
 
