@@ -988,6 +988,17 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [{"grouping": ["awd_size", "element"]}] * 6,
         )
 
+    async def test_edgeql_trivial_grouping_01(self):
+        await self.assert_query_result(
+            '''
+            group 0 using x := 0 by cube(x)
+            ''',
+            tb.bag([
+                {"elements": [0], "grouping": [], "key": {"x": None}},
+                {"elements": [0], "grouping": ["x"], "key": {"x": 0}}
+            ]),
+        )
+
     async def test_edgeql_group_binding_01(self):
         await self.assert_query_result(
             '''

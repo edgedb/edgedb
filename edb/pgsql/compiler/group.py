@@ -83,12 +83,13 @@ def _compile_grouping_value(
     assert stmt.grouping_binding
     grouprel = ctx.rel
 
-    # If there is only one thing grouped on, just output the hardcoded
-    if len(used_args) == 1:
+    # If there is only one grouping set, hardcode the output
+    if all(isinstance(b, qlast.GroupingSimple) for b in stmt.by):
         return pgast.ArrayExpr(
             elements=[
-                pgast.StringConstant(
-                    val=desugar_group.key_name(list(used_args)[0]))]
+                pgast.StringConstant(val=desugar_group.key_name(arg))
+                for arg in used_args
+            ],
         )
 
     using = {k: stmt.using[k] for k in used_args}
