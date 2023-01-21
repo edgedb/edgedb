@@ -897,26 +897,38 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         CREATE FOREIGN TABLE ft1 () SERVER no_server
         """
 
-    @test.xerror("unsupported")
     def test_sql_parse_query_24(self):
         """
-        CREATE TEMPORARY TABLE my_temp_table
-        (test_id integer NOT NULL) ON COMMIT DROP
+        CREATE TEMPORARY TABLE my_temp_table (
+            test_id integer NOT NULL
+        ) ON COMMIT DROP
+% OK %
+        CREATE TEMPORARY TABLE my_temp_table (
+            test_id pg_catalog.int4 NOT NULL
+        ) ON COMMIT DROP
         """
 
-    @test.xerror("unsupported")
     def test_sql_parse_query_25(self):
         """
-        CREATE TEMPORARY TABLE my_temp_table AS SELECT 1
+        CREATE TEMPORARY TABLE my_temp_table AS (SELECT 1) WITH NO DATA
         """
 
-    @test.xerror("unsupported")
     def test_sql_parse_query_26(self):
         """
         CREATE TABLE types (
         a float(2), b float(49),
         c NUMERIC(2, 3), d character(4), e char(5),
         f varchar(6), g character varying(7))
+% OK %
+        CREATE TABLE types (
+            a pg_catalog.float4,
+            b pg_catalog.float8,
+            c pg_catalog.numeric,
+            d pg_catalog.bpchar,
+            e pg_catalog.bpchar,
+            f pg_catalog.varchar,
+            g pg_catalog.varchar
+        )
         """
 
     def test_sql_parse_query_27(self):
@@ -1055,6 +1067,11 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_query_48(self):
         """
         RESET ALL
+        """
+
+    def test_sql_parse_query_49(self):
+        """
+        SELECT nullif(a, 3) FROM b
         """
 
     # The transaction_* settings are always on transaction level

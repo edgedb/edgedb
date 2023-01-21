@@ -184,6 +184,8 @@ def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
             "TransactionStmt": _build_transaction_stmt,
             "PrepareStmt": _build_prepare,
             "ExecuteStmt": _build_execute,
+            "CreateStmt": _build_create,
+            "CreateTableAsStmt": _build_create_table_as,
         },
         [_build_query],
     )
@@ -408,6 +410,65 @@ def _build_execute(n: Node, c: Context) -> pgast.ExecuteStmt:
     )
 
 
+def _build_create_table_as(n: Node, c: Context) -> pgast.CreateTableAsStmt:
+    print(n)
+
+    return pgast.CreateTableAsStmt(
+        into=_build_create(n['into'], c),
+        query=_build_query(n['query'], c),
+        with_no_data=_bool_or_false(n['into'], 'skipData'),
+    )
+
+
+def _build_create(n: Node, c: Context) -> pgast.CreateStmt:
+    def _build_on_commit(n: str, _c: Context) -> Optional[str]:
+        on_commit = n[9:]
+        return on_commit if on_commit != 'NOOP' else None
+
+    relation = n['relation'] if 'relation' in n else n['rel']
+
+    return pgast.CreateStmt(
+        relation=_build_relation(relation, c),
+        table_elements=_maybe_list(n, c, 'tableElts', _build_table_element)
+        or [],
+        context=_build_context(n, c),
+        on_commit=_maybe(n, c, 'oncommit', _build_on_commit),
+    )
+
+
+def _build_table_element(n: Node, c: Context) -> pgast.TableElement:
+    return _enum(
+        pgast.TableElement,
+        n,
+        c,
+        {
+            "ColumnDef": _build_column_def,
+        },
+    )
+
+
+def _build_column_def(n: Node, c: Context) -> pgast.ColumnDef:
+    is_not_null = False
+    default_expr = None
+    if 'constraints' in n:
+        for constraint in n['constraints']:
+            constraint = _unwrap(constraint, 'Constraint')
+
+            if constraint['contype'] == 'CONSTR_NOTNULL':
+                is_not_null = True
+            if constraint['contype'] == 'CONSTR_DEFAULT':
+                is_not_null = True
+                default_expr = _maybe(n, c, 'raw_expr', _build_base_expr)
+
+    return pgast.ColumnDef(
+        name=n['colname'],
+        typename=_build_type_name(n['typeName'], c),
+        default_expr=default_expr,
+        is_not_null=is_not_null,
+        context=_build_context(n, c),
+    )
+
+
 def _build_base(n: Node, c: Context) -> pgast.Base:
     return _enum(
         pgast.Base,
@@ -473,8 +534,15 @@ def _build_indirection_op(n: Node, c: Context) -> pgast.IndirectionOp:
             'A_Indices': _build_index_or_slice,
             'Star': _build_star,
             'ColumnRef': _build_column_ref,
+            'String': _build_record_indirection_op,
         },
     )
+
+
+def _build_record_indirection_op(
+    n: Node, c: Context
+) -> pgast.RecordIndirectionOp:
+    return pgast.RecordIndirectionOp(name=_build_str(n, c))
 
 
 def _build_ctes(n: Node, c: Context) -> List[pgast.CommonTableExpr]:
@@ -755,6 +823,7 @@ def _build_relation(n: Node, c: Context) -> pgast.Relation:
         name=_maybe(n, c, "relname", _build_str),
         catalogname=_maybe(n, c, "catalogname", _build_str),
         schemaname=_maybe(n, c, "schemaname", _build_str),
+        is_temporary=_maybe(n, c, "relpersistence", lambda n, _c: n == 't'),
         context=_build_context(n, c),
     )
 
@@ -799,6 +868,14 @@ def _build_a_expr(n: Node, c: Context) -> pgast.BaseExpr:
             test_expr=_maybe(n, c, "lexpr", _build_base_expr),
             expr=_build_base_expr(n["rexpr"], c),
             context=_build_context(n, c),
+        )
+    elif n['kind'] == 'AEXPR_NULLIF':
+        return pgast.FuncCall(
+            name=('nullif',),
+            args=[
+                _build_base_expr(n['lexpr'], c),
+                _build_base_expr(n['rexpr'], c),
+            ],
         )
     else:
         raise PSqlUnsupportedError(n)

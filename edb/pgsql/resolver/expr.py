@@ -378,6 +378,15 @@ def resolve_Indirection(
 
 
 @dispatch._resolve.register
+def resolve_RecordIndirectionOp(
+    expr: pgast.RecordIndirectionOp,
+    *,
+    ctx: Context,
+) -> pgast.RecordIndirectionOp:
+    return expr
+
+
+@dispatch._resolve.register
 def resolve_Slice(
     expr: pgast.Slice,
     *,

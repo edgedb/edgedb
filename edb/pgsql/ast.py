@@ -226,6 +226,7 @@ class Relation(BaseRelation):
 
     catalogname: typing.Optional[str] = None
     schemaname: typing.Optional[str] = None
+    is_temporary: typing.Optional[bool] = None
 
 
 class CommonTableExpr(Base):
@@ -699,7 +700,11 @@ class VariadicArgument(ImmutableBaseExpr):
     nullable: bool = False
 
 
-class ColumnDef(ImmutableBase):
+class TableElement(ImmutableBase):
+    pass
+
+
+class ColumnDef(TableElement):
 
     # name of column
     name: str
@@ -709,6 +714,9 @@ class ColumnDef(ImmutableBase):
     default_expr: typing.Optional[BaseExpr] = None
     # COLLATE clause, if any
     coll_clause: typing.Optional[BaseExpr] = None
+
+    # NOT NULL
+    is_not_null: bool = False
 
 
 class FuncCall(ImmutableBaseExpr):
@@ -767,7 +775,11 @@ class Slice(ImmutableBaseExpr):
     ridx: typing.Optional[BaseExpr]
 
 
-IndirectionOp = Slice | Index | ColumnRef | Star
+class RecordIndirectionOp(ImmutableBase):
+    name: str
+
+
+IndirectionOp = Slice | Index | ColumnRef | Star | RecordIndirectionOp
 
 
 class Indirection(ImmutableBaseExpr):
@@ -1113,3 +1125,18 @@ class SQLValueFunctionOP(enum.IntEnum):
 class SQLValueFunction(BaseExpr):
     op: SQLValueFunctionOP
     arg: typing.Optional[BaseExpr]
+
+
+class CreateStmt(Statement):
+    relation: Relation
+
+    table_elements: typing.List[TableElement]
+
+    on_commit: typing.Optional[str]
+
+
+class CreateTableAsStmt(Statement):
+    into: CreateStmt
+    query: Query
+
+    with_no_data: bool
