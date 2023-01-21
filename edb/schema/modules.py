@@ -54,6 +54,11 @@ class ModuleCommand(
         context: sd.CommandContext,
     ) -> None:
         super()._validate_legal_command(schema, context)
+        if '::' in str(self.classname):
+            enclosing = str(self.classname).rpartition('::')[0]
+            if not schema.has_module(enclosing):
+                raise errors.UnknownModuleError(
+                    f'module {enclosing!r} is not in this schema')
 
         if (
             not context.stdmode and not context.testmode

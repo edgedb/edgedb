@@ -21,7 +21,8 @@ from __future__ import annotations
 
 # Import specific things to avoid name clashes
 from typing import (Dict, FrozenSet, Generator, List, Mapping, Optional,
-                    Union, Set, Tuple, Iterable, Generic, TypeVar, Sequence)
+                    Union, Set, Tuple, Iterable, Generic, TypeVar, Sequence,
+                    AbstractSet)
 
 import functools
 
@@ -267,6 +268,7 @@ def trace_refs(
     module: str,
     objects: Dict[sn.QualName, Optional[ObjectLike]],
     params: Mapping[str, sn.QualName],
+    local_modules: AbstractSet[str]
 ) -> FrozenSet[sn.QualName]:
 
     """Return a list of schema item names used in an expression."""
@@ -281,9 +283,52 @@ def trace_refs(
         modaliases={},
         params=params,
         visited=set(),
+        local_modules=local_modules,
     )
     trace(qltree, ctx=ctx)
     return frozenset(ctx.refs)
+
+
+def get_name(
+    ref: qlast.ObjectRef, *,
+    current_module: str,
+    schema: s_schema.Schema,
+    objects: Dict[sn.QualName, Optional[ObjectLike]],
+    modaliases: Optional[Dict[Optional[str], str]],
+    local_modules: AbstractSet[str],
+) -> sn.QualName:
+    module = ref.module
+
+    no_std = False
+    if module and module.startswith('__current__::'):
+        no_std = True
+        module = f'{current_module}::{module.removeprefix("__current__::")}'
+    elif not module:
+        module = current_module
+    elif modaliases:
+        fq_module = modaliases.get(module)
+        if fq_module is not None:
+            no_std = True
+            module = fq_module
+
+    qname = sn.QualName(module=module, name=ref.name)
+    if type is None:
+        return qname
+
+    # check if there's a name in default module
+    # actually registered to the right type
+    if not no_std and not (
+        ref.module and ref.module in local_modules
+    ) and not (
+        isinstance(objects.get(qname), type)
+        or schema.get(
+            qname, default=None, type=so.Object) is not None
+    ):
+        std_name = sn.QualName(
+            f'std::{ref.module}' if ref.module else 'std', ref.name)
+        if schema.get(std_name, default=None) is not None:
+            return std_name
+    return qname
 
 
 class TracerContext:
@@ -299,6 +344,7 @@ class TracerContext:
         modaliases: Dict[Optional[str], str],
         params: Mapping[str, sn.QualName],
         visited: Set[Union[s_pointers.Pointer, Pointer]],
+        local_modules: AbstractSet[str],
     ) -> None:
         self.schema = schema
         self.refs: Set[sn.QualName] = set()
@@ -309,6 +355,7 @@ class TracerContext:
         self.path_prefix = path_prefix
         self.modaliases = modaliases
         self.params = params
+        self.local_modules = local_modules
         self.visited = visited
 
     def get_ref_name(self, ref: qlast.BaseObjectRef) -> sn.QualName:
@@ -316,24 +363,19 @@ class TracerContext:
         # ObjectRef here.
         assert isinstance(ref, qlast.ObjectRef)
 
-        if ref.module:
-            # replace the module alias with the real name
-            module = self.modaliases.get(ref.module, ref.module)
-            return sn.QualName(module=module, name=ref.name)
-        elif ref.name in self.params:
+        if not ref.module and ref.name in self.params:
             return self.params[ref.name]
-        elif (
-            self.module is not None
-            and (
-                (qname := sn.QualName(self.module, ref.name))
-                in self.objects
-            )
-        ):
-            return qname
-        else:
-            return sn.QualName(module="std", name=ref.name)
 
-    def get_ref_name_starstwith(
+        return get_name(
+            ref,
+            current_module=self.module,
+            schema=self.schema,
+            objects=self.objects,
+            modaliases=self.modaliases,
+            local_modules=self.local_modules,
+        )
+
+    def get_ref_name_startswith(
         self, ref: qlast.ObjectRef
     ) -> Set[sn.QualName]:
         refs = set()
@@ -343,6 +385,7 @@ class TracerContext:
             # replace the module alias with the real name
             module = self.modaliases.get(ref.module, ref.module)
             prefixes.add(f'{module}::{ref.name}')
+            prefixes.add(f'std::{module}::{ref.name}')
         else:
             prefixes.add(f'{self.module}::{ref.name}')
             prefixes.add(f'std::{ref.name}')
@@ -377,6 +420,7 @@ def alias_context(
                 modaliases=dict(ctx.modaliases),
                 params=ctx.params,
                 visited=ctx.visited,
+                local_modules=ctx.local_modules,
             )
             nctx.refs = ctx.refs
 
@@ -431,6 +475,7 @@ def result_alias_context(
             modaliases=ctx.modaliases,
             params=ctx.params,
             visited=ctx.visited,
+            local_modules=ctx.local_modules,
         )
         # use the same refs set
         nctx.refs = ctx.refs
@@ -556,7 +601,7 @@ def trace_FunctionCall(node: qlast.FunctionCall, *,
     # present, so we add all variations of that function name to the
     # dependency list.
 
-    names = ctx.get_ref_name_starstwith(fname)
+    names = ctx.get_ref_name_startswith(fname)
     ctx.refs.update(names)
 
     for arg in node.args:

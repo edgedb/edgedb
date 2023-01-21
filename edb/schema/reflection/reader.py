@@ -110,6 +110,7 @@ def parse_into(
         if isinstance(obj, s_obj.QualifiedObject):
             name_to_id[name] = objid
         else:
+            name = s_name.UnqualName(str(name))
             globalname_to_id[mcls, name] = objid
 
         if isinstance(obj, (s_func.Function, s_oper.Operator)):

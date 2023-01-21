@@ -3339,6 +3339,60 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
+    def test_schema_get_migration_nested_module_01(self):
+        schema = r'''
+        type foo::bar::Y;
+        module foo {
+          module bar {
+            type X {
+                link y -> Y;
+            }
+          }
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_schema_get_migration_nested_module_02(self):
+        schema = r'''
+        module foo {
+          type Z;
+          type Y {
+              link x1 -> foo::bar::X;
+              link x2 := foo::bar::X;
+              link z1 -> Z;
+              link z2 := Z;
+          };
+          module bar {
+            type X;
+          }
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_schema_get_migration_nested_module_03(self):
+        schema = r'''
+        module default {
+            alias x := _test::abs(-1);
+        };
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_schema_get_migration_nested_module_04(self):
+        schema = r'''
+        module _test { };
+        module default {
+            alias x := _test::abs(-1);
+        };
+        '''
+        with self.assertRaisesRegex(
+            errors.InvalidReferenceError,
+            "function '_test::abs' does not exist"
+        ):
+            self._assert_migration_consistency(schema, multi_module=True)
+
     def test_schema_get_migration_default_ptrs_01(self):
         schema = r'''
         type Foo {

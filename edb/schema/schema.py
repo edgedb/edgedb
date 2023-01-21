@@ -61,6 +61,7 @@ STD_MODULES = (
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
     sn.UnqualName('pg'),
+    sn.UnqualName('std::_test'),
 )
 
 # Specifies the order of processing of files and directories in lib/
@@ -1036,12 +1037,13 @@ class FlatSchema(Schema):
         getter: Callable[[FlatSchema, sn.Name], Any],
         default: Any,
         module_aliases: Optional[Mapping[Optional[str], str]],
+        disallow_module: Optional[Callable[[str], bool]],
     ) -> Any:
         if isinstance(name, str):
             name = sn.name_from_string(name)
         shortname = name.name
         module = name.module if isinstance(name, sn.QualName) else None
-        implicit_builtins = module is None
+        orig_module = module
 
         if module == '__std__':
             fqname = sn.QualName('std', shortname)
@@ -1051,9 +1053,17 @@ class FlatSchema(Schema):
             else:
                 return default
 
-        if module_aliases is not None:
+        alias_hit = local = False
+        if module and module.startswith('__current__::'):
+            local = True
+            if not module_aliases or None not in module_aliases:
+                return default
+            cur_module = module_aliases[None]
+            module = f'{cur_module}::{module.removeprefix("__current__::")}'
+        elif module_aliases is not None:
             fq_module = module_aliases.get(module)
             if fq_module is not None:
+                alias_hit = True
                 module = fq_module
 
         if module is not None:
@@ -1062,8 +1072,18 @@ class FlatSchema(Schema):
             if result is not None:
                 return result
 
-        if implicit_builtins:
-            fqname = sn.QualName('std', shortname)
+        # Try something in std, but only if there isn't a module clash
+        if not local and (
+            orig_module is None
+            or (
+                not alias_hit and module and not (
+                    self.has_module(fmod := module.split('::')[0])
+                    or (disallow_module and disallow_module(fmod))
+                )
+            )
+        ):
+            mod_name = 'std' if orig_module is None else f'std::{orig_module}'
+            fqname = sn.QualName(mod_name, shortname)
             result = getter(self, fqname)
             if result is not None:
                 return result
@@ -1078,6 +1098,7 @@ class FlatSchema(Schema):
         ] = so.NoDefault,
         *,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
+        disallow_module: Optional[Callable[[str], bool]] = None,
     ) -> Tuple[s_func.Function, ...]:
         if isinstance(name, str):
             name = sn.name_from_string(name)
@@ -1086,6 +1107,7 @@ class FlatSchema(Schema):
             getter=_get_functions,
             module_aliases=module_aliases,
             default=default,
+            disallow_module=disallow_module,
         )
 
         if funcs is not so.NoDefault:
@@ -1108,12 +1130,14 @@ class FlatSchema(Schema):
         ] = so.NoDefault,
         *,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
+        disallow_module: Optional[Callable[[str], bool]] = None,
     ) -> Tuple[s_oper.Operator, ...]:
         funcs = self._search_with_getter(
             name,
             getter=_get_operators,
             module_aliases=module_aliases,
             default=default,
+            disallow_module=disallow_module,
         )
 
         if funcs is not so.NoDefault:
@@ -1306,6 +1330,7 @@ class FlatSchema(Schema):
         condition: Optional[Callable[[so.Object], bool]],
         label: Optional[str],
         sourcectx: Optional[parsing.ParserContext],
+        disallow_module: Optional[Callable[[str], bool]] = None,
     ) -> Optional[so.Object]:
         def getter(schema: FlatSchema, name: sn.Name) -> Optional[so.Object]:
             obj_id = schema._name_to_id.get(name)
@@ -1323,6 +1348,7 @@ class FlatSchema(Schema):
             getter=getter,
             module_aliases=module_aliases,
             default=default,
+            disallow_module=disallow_module,
         )
 
         if obj is not so.NoDefault:
@@ -1726,7 +1752,9 @@ class ChainedSchema(Schema):
             name, module_aliases=module_aliases, default=())
         if not objs:
             objs = self._base_schema.get_functions(
-                name, default=default, module_aliases=module_aliases)
+                name, default=default, module_aliases=module_aliases,
+                disallow_module=self._top_schema.has_module,
+            )
         return objs
 
     def get_operators(
@@ -1742,7 +1770,9 @@ class ChainedSchema(Schema):
             name, module_aliases=module_aliases, default=())
         if not objs:
             objs = self._base_schema.get_operators(
-                name, default=default, module_aliases=module_aliases)
+                name, default=default, module_aliases=module_aliases,
+                disallow_module=self._top_schema.has_module,
+            )
         return objs
 
     def get_casts_to_type(
@@ -1874,7 +1904,7 @@ class ChainedSchema(Schema):
         label: Optional[str],
         sourcectx: Optional[parsing.ParserContext],
     ) -> Optional[so.Object]:
-        obj = self._top_schema.get(
+        obj = self._top_schema._get(
             name,
             module_aliases=module_aliases,
             type=type,
@@ -1884,7 +1914,7 @@ class ChainedSchema(Schema):
             sourcectx=sourcectx,
         )
         if obj is None:
-            return self._base_schema.get(
+            return self._base_schema._get(
                 name,
                 default=default,
                 module_aliases=module_aliases,
@@ -1892,6 +1922,7 @@ class ChainedSchema(Schema):
                 condition=condition,
                 label=label,
                 sourcectx=sourcectx,
+                disallow_module=self._top_schema.has_module,
             )
         else:
             return obj

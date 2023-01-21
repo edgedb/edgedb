@@ -73,8 +73,13 @@ class TraceContextBase:
     ancestors: Dict[s_name.QualName, Set[s_name.QualName]]
     defdeps: Dict[s_name.QualName, Set[s_name.QualName]]
     constraints: Dict[s_name.QualName, Set[s_name.QualName]]
+    local_modules: AbstractSet[str]
 
-    def __init__(self, schema: s_schema.Schema) -> None:
+    def __init__(
+        self,
+        schema: s_schema.Schema,
+        local_modules: AbstractSet[str],
+    ) -> None:
         self.schema = schema
         self.module = '__not_set__'
         self.depstack = []
@@ -84,6 +89,7 @@ class TraceContextBase:
         self.ancestors = {}
         self.defdeps = defaultdict(set)
         self.constraints = defaultdict(set)
+        self.local_modules = local_modules
 
     def set_module(self, module: str) -> None:
         self.module = module
@@ -92,43 +98,19 @@ class TraceContextBase:
     def get_local_name(
         self,
         ref: qlast.ObjectRef,
-        *,
-        type: Optional[Type[qltracer.NamedObject]] = None
     ) -> s_name.QualName:
-        if isinstance(ref, qlast.ObjectRef):
-            if ref.module:
-                return s_name.QualName(module=ref.module, name=ref.name)
-            else:
-                qname = s_name.QualName(module=self.module, name=ref.name)
-                if type is None:
-                    return qname
-                else:
-                    # check if there's a name in default module
-                    # actually registered to the right type
-                    if isinstance(self.objects.get(qname), type):
-                        return qname
-                    else:
-                        return s_name.QualName('std', ref.name)
-        else:
-            raise TypeError(
-                "ObjectRef expected "
-                "(got type {!r})".format(type(ref).__name__)
-            )
+        return qltracer.get_name(
+            ref,
+            current_module=self.module,
+            schema=self.schema,
+            objects=self.objects,
+            modaliases=None,
+            local_modules=self.local_modules,
+        )
 
     def get_ref_name(self, ref: qlast.BaseObjectRef) -> s_name.QualName:
         if isinstance(ref, qlast.ObjectRef):
-            if ref.module:
-                return s_name.QualName(module=ref.module, name=ref.name)
-
-            qname = s_name.QualName(module=self.module, name=ref.name)
-            if qname in self.objects:
-                return qname
-            else:
-                std_name = s_name.QualName(module="std", name=ref.name)
-                if self.schema.get(std_name, default=None) is not None:
-                    return std_name
-                else:
-                    return qname
+            return self.get_local_name(ref)
         elif isinstance(ref, qlast.AnyType):
             # We pretend `anytype` has a fully-qualified name here, because
             # the tracing machinery really wants to work with fully-qualified
@@ -262,7 +244,6 @@ class InheritanceGraphEntry(TypedDict):
 
 class LayoutTraceContext(TraceContextBase):
 
-    local_modules: AbstractSet[str]
     inh_graph: Dict[
         s_name.QualName,
         topological.DepGraphEntry[
@@ -277,8 +258,7 @@ class LayoutTraceContext(TraceContextBase):
         schema: s_schema.Schema,
         local_modules: AbstractSet[str],
     ) -> None:
-        super().__init__(schema)
-        self.local_modules = local_modules
+        super().__init__(schema, local_modules)
         self.inh_graph = {}
 
 
@@ -299,8 +279,9 @@ class DepTraceContext(TraceContextBase):
         ancestors: Dict[s_name.QualName, Set[s_name.QualName]],
         defdeps: Dict[s_name.QualName, Set[s_name.QualName]],
         constraints: Dict[s_name.QualName, Set[s_name.QualName]],
+        local_modules: AbstractSet[str],
     ) -> None:
-        super().__init__(schema)
+        super().__init__(schema, local_modules)
         self.ddlgraph = ddlgraph
         self.objects = objects
         self.parents = parents
@@ -350,10 +331,7 @@ def sdl_to_ddl(
     ddlgraph: DDLGraph = {}
     mods: List[qlast.DDLCommand] = []
 
-    ctx = LayoutTraceContext(
-        schema,
-        local_modules=frozenset(mod for mod in documents),
-    )
+    ctx = LayoutTraceContext(schema, frozenset(mod for mod in documents))
 
     ctx.objects[s_name.QualName('std', 'anytype')] = (
         schema.get_global(s_pseudo.PseudoType, 'anytype'))
@@ -408,13 +386,20 @@ def sdl_to_ddl(
 
     tracectx = DepTraceContext(
         schema, ddlgraph, ctx.objects, ctx.parents, ctx.ancestors,
-        ctx.defdeps, ctx.constraints
+        ctx.defdeps, ctx.constraints, ctx.local_modules,
     )
+
+    created_modules = set()
     for module_name, declarations in documents.items():
         tracectx.set_module(module_name)
-        # module needs to be created regardless of whether its
-        # contents are empty or not
-        mods.append(qlast.CreateModule(name=qlast.ObjectRef(name=module_name)))
+        # module (and any encosing modules) needs to be created
+        # regardless of whether its contents are empty or not
+        parts = module_name.split('::')
+        for i in range(len(parts)):
+            n = '::'.join(parts[:i + 1])
+            if n not in created_modules:
+                created_modules.add(n)
+                mods.append(qlast.CreateModule(name=qlast.ObjectRef(name=n)))
         for decl_ast in declarations:
             trace_dependencies(decl_ast, ctx=tracectx)
 
@@ -725,6 +710,7 @@ def trace_SetField(
         schema=ctx.schema,
         module=ctx.module,
         objects=ctx.objects,
+        local_modules=ctx.local_modules,
         params={},
     ):
         # ignore std module dependencies
@@ -1007,13 +993,11 @@ def _register_item(
         for cmd in ast_subcommands:
             # include dependency on constraints or annotations if present
             if isinstance(cmd, qlast.CreateConcreteConstraint):
-                cmd_name = ctx.get_local_name(
-                    cmd.name, type=qltracer.Constraint)
+                cmd_name = ctx.get_local_name(cmd.name)
                 if cmd_name.get_module_name() not in s_schema.STD_MODULES:
                     deps.add(cmd_name)
             elif isinstance(cmd, qlast.CreateAnnotationValue):
-                cmd_name = ctx.get_local_name(
-                    cmd.name, type=qltracer.Annotation)
+                cmd_name = ctx.get_local_name(cmd.name)
                 if cmd_name.get_module_name() not in s_schema.STD_MODULES:
                     deps.add(cmd_name)
 
@@ -1078,6 +1062,7 @@ def _register_item(
                     path_prefix=source,
                     subject=subject or fq_name,
                     objects=ctx.objects,
+                    local_modules=ctx.local_modules,
                     params=params,
                 )
 

@@ -1426,7 +1426,7 @@ class ModuleDeclaration(SDL):
     # The 'name' is treated same as in CreateModule, for consistency,
     # since this declaration also implies creating a module.
     name: ObjectRef
-    declarations: typing.List[DDL]
+    declarations: typing.List[typing.Union[NamedDDL, ModuleDeclaration]]
 
 
 class Schema(SDL):
