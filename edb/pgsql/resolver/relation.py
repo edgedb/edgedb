@@ -180,7 +180,7 @@ def resolve_relation(
     if relation.catalogname and relation.catalogname != 'postgres':
         raise errors.QueryError(
             f'queries cross databases are not supported',
-            context=relation.context
+            context=relation.context,
         )
 
     # try introspection tables
@@ -196,6 +196,7 @@ def resolve_relation(
             context.Column(name=n, reference_as=n)
             for n, _type in introspection_tables[relation.name]
         ]
+        cols.extend(_construct_system_columns())
         table = context.Table(name=relation.name, columns=cols)
         rel = pgast.Relation(name=relation.name, schemaname='edgedbsql')
 
@@ -269,11 +270,13 @@ def resolve_relation(
 
     # sort by name but put `id` first
     columns.sort(key=lambda c: () if c.name == 'id' else (c.name or '',))
-
     table.columns.extend(columns)
 
-    # compile
-    aspect = 'inhview' if ctx.include_inherited else 'table'
+    if ctx.include_inherited:
+        aspect = 'inhview'
+    else:
+        table.columns.extend(_construct_system_columns())
+        aspect = 'table'
 
     schemaname, dbname = pgcommon.get_backend_name(
         ctx.schema, obj, aspect=aspect, catenate=False
@@ -359,3 +362,10 @@ def _construct_column(p: s_pointers.Pointer, ctx: Context) -> context.Column:
         col.reference_as = dbname
 
     return col
+
+
+def _construct_system_columns() -> List[context.Column]:
+    return [
+        context.Column(name=c, reference_as=c, hidden=True)
+        for c in ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
+    ]

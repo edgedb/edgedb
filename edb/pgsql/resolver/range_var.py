@@ -100,6 +100,7 @@ def _resolve_RelRangeVar(
         context.Column(
             name=alias or col.name,
             reference_as=alias or col.reference_as,
+            hidden=col.hidden,
         )
         for col, alias in _zip_column_alias(
             table.columns, alias, ctx=range_var.context
@@ -270,7 +271,11 @@ def _resolve_RangeFunction(
 
         alias = pgast.Alias(
             aliasname=alias.aliasname,
-            colnames=[cast(str, c.reference_as) for c in table.columns],
+            colnames=[
+                cast(str, c.reference_as)
+                for c in table.columns
+                if not c.hidden
+            ],
         )
 
         node = pgast.RangeFunction(
@@ -290,6 +295,8 @@ def _zip_column_alias(
 ) -> Iterable[Tuple[context.Column, Optional[str]]]:
     if not alias.colnames:
         return map(lambda c: (c, None), columns)
+
+    columns = [c for c in columns if not c.hidden]
 
     if len(columns) != len(alias.colnames):
         raise errors.QueryError(
