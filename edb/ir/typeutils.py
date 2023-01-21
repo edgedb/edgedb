@@ -231,15 +231,20 @@ def type_to_typeref(
             if cached_result.name_hint == t.get_name(schema):
                 return cached_result
 
+    name_hint = typename or t.get_name(schema)
+    orig_name_hint = None if not typename else t.get_name(schema)
+
     if t.is_anytuple(schema):
         result = irast.AnyTupleRef(
             id=t.id,
-            name_hint=typename or t.get_name(schema),
+            name_hint=name_hint,
+            orig_name_hint=orig_name_hint,
         )
     elif t.is_any(schema):
         result = irast.AnyTypeRef(
             id=t.id,
-            name_hint=typename or t.get_name(schema),
+            name_hint=name_hint,
+            orig_name_hint=orig_name_hint,
         )
     elif not isinstance(t, s_types.Collection):
         assert isinstance(t, s_types.InheritingType)
@@ -296,12 +301,6 @@ def type_to_typeref(
         else:
             base_typeref = None
 
-        tname = t.get_name(schema)
-        if typename is not None:
-            name = typename
-        else:
-            name = tname
-
         children: Optional[FrozenSet[irast.TypeRef]]
 
         if material_typeref is None and include_children:
@@ -325,7 +324,8 @@ def type_to_typeref(
 
         result = irast.TypeRef(
             id=t.id,
-            name_hint=name,
+            name_hint=name_hint,
+            orig_name_hint=orig_name_hint,
             material_type=material_typeref,
             base_type=base_typeref,
             children=children,
@@ -349,7 +349,8 @@ def type_to_typeref(
 
         result = irast.TypeRef(
             id=t.id,
-            name_hint=typename or t.get_name(schema),
+            name_hint=name_hint,
+            orig_name_hint=orig_name_hint,
             material_type=material_typeref,
             element_name=_name,
             collection=t.get_schema_name(),
@@ -371,7 +372,8 @@ def type_to_typeref(
 
         result = irast.TypeRef(
             id=t.id,
-            name_hint=typename or t.get_name(schema),
+            name_hint=name_hint,
+            orig_name_hint=orig_name_hint,
             material_type=material_typeref,
             element_name=_name,
             collection=t.get_schema_name(),

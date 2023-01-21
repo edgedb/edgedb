@@ -120,6 +120,9 @@ class TypeRef(ImmutableBase):
     # Full name of the type, not necessarily schema-addressable,
     # used for annotations only.
     name_hint: sn.Name
+    # Name hint of the real underlying type, if the type ref was created
+    # with an explicitly specified typename.
+    orig_name_hint: typing.Optional[sn.Name] = None
     # The ref of the underlying material type, if this is a view type,
     # else None.
     material_type: typing.Optional[TypeRef] = None

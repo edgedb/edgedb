@@ -299,9 +299,10 @@ def pg_type_from_ir_typeref(
         else:
             pg_type = base_type_name_map.get(material.id)
             if pg_type is None:
+                real_name_hint = material.orig_name_hint or material.name_hint
                 # User-defined scalar type
                 pg_type = common.get_scalar_backend_name(
-                    material.id, material.name_hint.module, catenate=False)
+                    material.id, real_name_hint.module, catenate=False)
 
             return pg_type
 
