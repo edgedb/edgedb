@@ -30,6 +30,11 @@ from . import annos as s_anno
 from . import delta as sd
 from . import schema as s_schema
 
+RESERVED_MODULE_NAMES = {
+    'ext',
+    'super',
+}
+
 
 class Module(
     s_anno.AnnotationSubject,
@@ -54,11 +59,17 @@ class ModuleCommand(
         context: sd.CommandContext,
     ) -> None:
         super()._validate_legal_command(schema, context)
+
+        last = str(self.classname)
         if '::' in str(self.classname):
-            enclosing = str(self.classname).rpartition('::')[0]
+            enclosing, _, last = str(self.classname).rpartition('::')
             if not schema.has_module(enclosing):
                 raise errors.UnknownModuleError(
                     f'module {enclosing!r} is not in this schema')
+
+        if last in RESERVED_MODULE_NAMES:
+            raise errors.SchemaDefinitionError(
+                f"module {last!r} is a reserved module name")
 
         if (
             not context.stdmode and not context.testmode

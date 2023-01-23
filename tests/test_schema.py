@@ -746,6 +746,28 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "module 'super' is a reserved module name"
+    )
+    def test_schema_module_reserved_01(self):
+        """
+            module foo {
+                module super {}
+            }
+        """
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "module 'ext' is a reserved module name"
+    )
+    def test_schema_module_reserved_02(self):
+        """
+            module foo {
+                module ext {}
+            }
+        """
+
     def test_schema_refs_01(self):
         schema = self.load_schema("""
             type Object1;
