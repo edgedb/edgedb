@@ -204,26 +204,24 @@ class UpdateExpr:
 class RefIdExpr:
     refid : int
 
-@data 
-class EmptyUnionExpr:
-    name : str
-    var : str
-    res : Expr
 
 Expr = (PrimVal | UnionExpr | TypeCastExpr | FunAppExpr | BinProdExpr | BinProdUnitExpr 
         | VarExpr | ProdProjExpr | WithExpr | ForExpr | SelectExpr | InsertExpr | UpdateExpr
-        | RefIdExpr  | EmptyUnionExpr
+        | RefIdExpr  
         )
 
 @data 
 class DBEntry:
     tp : Tp
-    data : Dict[str, Expr] ## actually values
+    data : Dict[str, List[Expr]] ## actually values
 
 @data
 class DB:
     data: Dict[int, DBEntry] 
     # subtp : List[Tuple[TypeExpr, TypeExpr]]
+
+def empty_db():
+    return DB({})
 
 BuiltinFuncTp : Dict[str, FunType] = {
         "+" : FunType([[IntTp, ParamSingleton], [IntTp, ParamSingleton]], [IntTp, CardOne])
@@ -233,13 +231,13 @@ BuiltinFuncTp : Dict[str, FunType] = {
 
 def add_fun(x, y):
     match x, y:
-        case IntVal(a), IntVal(b):
-            return IntVal(a + b)
+        case [IntVal(a)], [IntVal(b)]:
+            return [IntVal(a + b)]
     raise ValueError("cannot add ", x , y)
 
 
 
-BuiltinFuncOp : Dict[str, Callable[..., ResulTp]] = {
+BuiltinFuncOp : Dict[str, Callable[..., List[Expr]]] = {
     "+" : add_fun,
 }
 

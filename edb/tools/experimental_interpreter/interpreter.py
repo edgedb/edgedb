@@ -1721,9 +1721,6 @@ class AbstractConnection():
         print("Executing Command in Experimental Interperter: ", cmd)
     async def aclose(self):
         print("Closing Experimental Interperter ")
-    # def retrying_transaction(self) -> Retry:
-    #     return Retry(self)
-
 
 default_connection = AbstractConnection()
     
