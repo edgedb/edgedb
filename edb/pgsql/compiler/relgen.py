@@ -397,6 +397,9 @@ def _get_set_rvar(
         # {}
         return process_set_as_empty(ir_set, ctx=ctx)
 
+    if ir_set.path_id in ctx.env.external_rels:
+        return process_external_rel(ir_set, ctx=ctx)
+
     # Regular non-computable path start.
     return process_set_as_root(ir_set, ctx=ctx)
 
@@ -722,6 +725,15 @@ def process_set_as_empty(
 ) -> SetRVars:
 
     rvar = relctx.new_empty_rvar(ir_set, ctx=ctx)
+    return new_source_set_rvar(ir_set, rvar)
+
+
+def process_external_rel(
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    rel = ctx.env.external_rels[ir_set.path_id]
+
+    rvar = relctx.rvar_for_rel(rel, ctx=ctx)
     return new_source_set_rvar(ir_set, rvar)
 
 

@@ -123,7 +123,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         )
 
     def gen_ctes(self, ctes: List[pgast.CommonTableExpr]) -> None:
-        self.write('WITH')
         count = len(ctes)
         for i, cte in enumerate(ctes):
             self.new_lines = 1
@@ -211,6 +210,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                     self.indentation += 1
 
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         # If reordered is True, we try to put the FROM clause *before* SELECT,
@@ -338,6 +338,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_InsertStmt(self, node: pgast.InsertStmt) -> None:
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         self.write('INSERT INTO ')
@@ -397,6 +398,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_UpdateStmt(self, node: pgast.UpdateStmt) -> None:
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         self.write('UPDATE ')
@@ -439,6 +441,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_DeleteStmt(self, node: pgast.DeleteStmt) -> None:
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         self.write('DELETE FROM ')

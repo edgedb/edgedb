@@ -2874,16 +2874,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             """
         )
 
-        self.assertEqual(len(await self.con.query("SELECT Hello")), 8)
+        self.assertEqual(len(await self.con.query("SELECT Hello")), 9)
 
         res = await self.con.query(
             "SELECT World { hell: { id }, heaven: { id } }"
         )
         self.assertEqual(len(res), 2)
-        set_of_hellos = {world["hell"].target.id for world in res}.union(
-            {world["heaven"].target.id for world in res}
-        )
-        print(set_of_hellos)
+        set_of_hellos = {
+            world.hell.id for world in res
+        }.union({
+            world.heaven.id for world in res
+        })
         self.assertEqual(len(set_of_hellos), 4)
 
     async def test_edgeql_ddl_ptr_using_dml_02(self):
@@ -2915,21 +2916,40 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE LINK hell -> Hello;
             };
             INSERT World { hell:= (INSERT Hello) };
+            INSERT World {};
+            ALTER TYPE World {
+                ALTER LINK hell SET TYPE Goodbye USING (INSERT Goodbye);
+            }
             """
         )
 
-        async with self.assertRaisesRegexTx(
-            edgedb.SchemaError,
-            "USING clause for the type conversion of link '.*' of object type "
-            "'.*::.*' cannot include mutating statements"
-        ):
-            await self.con.execute(
-                r"""
-                ALTER TYPE World {
-                    ALTER LINK hell SET TYPE Goodbye USING (INSERT Goodbye);
-                }
-                """
-            )
+        await self.assert_query_result(
+            'select Goodbye',
+            [{}, {}]
+        )
+
+    async def test_edgeql_ddl_ptr_using_dml_04(self):
+        await self.con.execute(
+            r"""
+            CREATE TYPE Box {
+                CREATE PROPERTY chance_of_success -> str;
+            };
+            INSERT Box { chance_of_success := 'low' };
+            INSERT Box { chance_of_success := 'high' };
+            INSERT Box { chance_of_success := 'none' };
+            ALTER TYPE Box {
+                ALTER PROPERTY chance_of_success
+                    SET TYPE float64 
+                    USING (random());
+            }
+            """
+        )
+
+        res = await self.con.query('select Box { chance_of_success }')
+        self.assertEqual(len(res), 3)
+        self.assertNotEqual(res[0].chance_of_success, res[1].chance_of_success)
+        self.assertNotEqual(res[1].chance_of_success, res[2].chance_of_success)
+        self.assertNotEqual(res[2].chance_of_success, res[0].chance_of_success)
 
     async def test_edgeql_ddl_ptr_set_cardinality_01(self):
         await self.con.execute(r'''

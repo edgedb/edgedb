@@ -2345,13 +2345,6 @@ class SetPointerType(
                         context=self.source_context,
                     )
 
-                if irutils.contains_dml(self.cast_expr.ir_statement):
-                    raise errors.SchemaError(
-                        f'USING clause for the type conversion of {vn} '
-                        f'cannot include mutating statements',
-                        context=self.source_context,
-                    )
-
             schema = self._propagate_if_expr_refs(
                 schema,
                 context,
