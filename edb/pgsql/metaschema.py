@@ -5017,7 +5017,9 @@ def _generate_schema_alias_view(
 
 def _generate_sql_information_schema() -> List[dbops.Command]:
 
-    # a helper table used in many other views
+    # A helper view that contains all data tables we expose over SQL, excluding
+    # introspection tables.
+    # It contains table & schema names and associated module id.
     virtual_tables = dbops.View(
         name=('edgedbsql', 'virtual_tables'),
         query='''
@@ -5061,9 +5063,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             AND prop.internal IS NOT TRUE
             AND prop.cardinality = 'Many'
         ))
-        SELECT at.id, schema_name, table_name, sm.id as module_id, module_name
+        SELECT at.id, schema_name, table_name, sm.id as module_id
         FROM all_tables at
-        JOIN edgedb."_SchemaModule" sm ON sm.name = module_name
+        JOIN edgedb."_SchemaModule" sm ON sm.name = at.module_name
         WHERE schema_name not in ('cfg', 'sys', 'schema', 'std')
         '''
     )
@@ -5085,7 +5087,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         volatility='immutable',
         text="""
             SELECT (
-                ('x' || substring(id::text, 0, 4))::bit(32)::bigint
+                ('x' || substring(id::text, 2, 7))::bit(28)::bigint
                  + 40000)::oid;
         """
     )
