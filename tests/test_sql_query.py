@@ -558,10 +558,10 @@ class TestSQL(tb.SQLQueryTestCase):
                 ['Movie', 'title', 'NO', 5],
                 ['Movie.actors', 'role', 'YES', 1],
                 ['Movie.actors', 'source', 'NO', 2],
-                ['Movie.actors', 'target', 'YES', 3],
+                ['Movie.actors', 'target', 'NO', 3],
                 ['Movie.director', 'bar', 'YES', 1],
                 ['Movie.director', 'source', 'NO', 2],
-                ['Movie.director', 'target', 'YES', 3],
+                ['Movie.director', 'target', 'NO', 3],
                 ['Person', 'id', 'NO', 1],
                 ['Person', 'first_name', 'NO', 2],
                 ['Person', 'last_name', 'YES', 3],
@@ -575,7 +575,6 @@ class TestSQL(tb.SQLQueryTestCase):
             ],
         )
 
-    @test.xerror('asyncpg type inspection query not supported')
     async def test_sql_query_introspection_02(self):
         tables = await self.squery_values(
             '''
