@@ -165,3 +165,24 @@ class P_DOUBLECOLON(Precedence, assoc='left', tokens=('DOUBLECOLON',)):
 
 class P_AT(Precedence, assoc='left', tokens=('AT',)):
     pass
+
+
+# XXX: I don't remember why this helps.
+
+class P_REQUIRED(Precedence, assoc='right', tokens=('REQUIRED',)):
+    pass
+
+
+class P_MULTI(Precedence, assoc='right', tokens=('MULTI',),
+              rel_to_last='='):
+    pass
+
+
+class P_OPTIONAL(Precedence, assoc='right', tokens=('OPTIONAL',),
+                 rel_to_last='='):
+    pass
+
+
+class P_SINGLE(Precedence, assoc='right', tokens=('SINGLE',),
+               rel_to_last='='):
+    pass

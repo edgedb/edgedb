@@ -1012,6 +1012,10 @@ class CreateConcretePointer(CreateObject, BasesMixin):
     cardinality: qltypes.SchemaCardinality
 
 
+class CreateConcreteUnknownPointer(CreateConcretePointer):
+    pass
+
+
 class CreateConcreteProperty(CreateConcretePointer, PropertyCommand):
     pass
 

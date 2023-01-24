@@ -438,6 +438,27 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
+    def test_eschema_syntax_type_23b(self):
+        """
+        module test {
+            type Foo {
+                property -> Foo;
+                single foo -> Foo;
+                multi bar -> Bar {
+                    prop -> int64;
+                };
+                required property multi -> Bar;
+                required single baz -> Baz;
+                required multi spam -> Spam;
+                overloaded required single ham -> Ham;
+                overloaded required multi eggs -> Egg;
+                overloaded ham2 -> Ham;
+                constraint exclusive on (.asdf) except (.baz);
+                index on (.asdf) except (.baz);
+            };
+        };
+        """
+
     def test_eschema_syntax_type_24(self):
         """
         module test {
