@@ -355,7 +355,9 @@ def delta_schemas(
             result.add(cmd)
 
     if include_module_diff:
-        for dropped_module in sorted(dropped_modules):
+        # Process dropped modules in *reverse* sorted order, so that
+        # `foo::bar` gets dropped before `foo`.
+        for dropped_module in reversed(sorted(dropped_modules)):
             if (
                 guidance is None
                 or (

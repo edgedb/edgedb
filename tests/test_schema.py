@@ -3415,7 +3415,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         ):
             self._assert_migration_consistency(schema, multi_module=True)
 
-    def test_schema_get_migration_nested_module_02(self):
+    def test_schema_get_migration_nested_module_05(self):
         schema = r'''
         module foo {
           module bar {
@@ -7731,6 +7731,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             r"""
             """,
         ])
+
+    def test_schema_migrations_equivalence_nested_module_01(self):
+        self._assert_migration_equivalence([r"""
+            module foo { module bar {} }
+        """, r"""
+            module foo { module bar { module baz {} } }
+        """])
 
 
 class TestDescribe(tb.BaseSchemaLoadTest):
