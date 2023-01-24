@@ -3,17 +3,19 @@ from typing import *
 
 from dataclasses import dataclass
 
+
 import uuid
 
 def data(f):
     return dataclass(f, frozen=True)
 
 
-def bsid(n: int) -> uuid.UUID:
-    return uuid.UUID(f'ffffffff-ffff-ffff-ffff-{n:012x}')
+# def bsid(n: int) -> uuid.UUID:
+#     return uuid.UUID(f'ffffffff-ffff-ffff-ffff-{n:012x}')
 
 
 ### DEFINE TYPES
+
 
 @data
 class BinProdTp:
@@ -42,63 +44,145 @@ class VarTp:
 
 Tp = BinProdTp | BinProdUnitTp | PrimTp | VarTp
 
+
+@data
+class Visible:
+    pass
+
+@data
+class Invisible:
+    pass
+
+Marker = Visible | Invisible
+
+    
+    
 ### DEFINE CARDINALITIES
 
 @data
-class ClosedCardinality:
-    lower : int
-    upper : int
-
+class FiniteCardinal:
+    value : int
     def __add__(self, other):
-        sum_cardinality_modes(self, other)
+        match other:
+            case FiniteCardinal(otherCard):
+                return FiniteCardinal(self.value + otherCard)
+            case InfiniteCardinal():
+                return InfiniteCardinal()
+        raise ValueError()
 
-    def __mul__(self, other):
-        prod_cardinality_modes(self, other)
-
+    def __mul__(self, other : Cardinal):
+        match other:
+            case FiniteCardinal(otherCard):
+                return FiniteCardinal(self.value * otherCard)
+            case InfiniteCardinal():
+                return InfiniteCardinal()
+        raise ValueError()
 
 @data
-class OpenCardinality:
-    lower : int
-
+class InfiniteCardinal:
     def __add__(self, other):
-        sum_cardinality_modes(self, other)
+        match other:
+            case FiniteCardinal(otherCard):
+                return InfiniteCardinal()
+            case InfiniteCardinal():
+                return InfiniteCardinal()
+        raise ValueError()
 
-    def __mul__(self, other):
-        prod_cardinality_modes(self, other)
+    def __mul__(self, other : Cardinal):
+        match other:
+            case FiniteCardinal(otherCard):
+                return InfiniteCardinal()
+            case InfiniteCardinal():
+                return InfiniteCardinal()
+        raise ValueError()
 
-CardinalityModes = ClosedCardinality | OpenCardinality
+Cardinal = FiniteCardinal | InfiniteCardinal
 
-def sum_cardinality_modes(card1 : CardinalityModes, card2 : CardinalityModes) -> CardinalityModes:
-    match card1, card2:
-        case ClosedCardinality(c1l, c1u), ClosedCardinality(c2l, c2u):
-                return ClosedCardinality(c1l + c2l, c1u + c2u)
-        case ClosedCardinality(c1l, c1u), OpenCardinality(c2l):
-                return OpenCardinality(c1l + c2l)
-        case OpenCardinality(c1l), ClosedCardinality(c2l, c2u):
-                return OpenCardinality(c1l + c2l)
-        case OpenCardinality(c1l), OpenCardinality(c2l):
-                return OpenCardinality(c1l + c2l)
-    raise ValueError("Cannot compute sums over", card1, "and", card2)
+def Inf():
+    return InfiniteCardinal()
 
-def prod_cardinality_modes(card1 : CardinalityModes, card2 : CardinalityModes) -> CardinalityModes:
-    match card1, card2:
-        case ClosedCardinality(c1l, c1u), ClosedCardinality(c2l, c2u):
-                return ClosedCardinality(c1l * c2l, c1u * c2u)
-        case ClosedCardinality(c1l, c1u), OpenCardinality(c2l):
-                return OpenCardinality(c1l * c2l)
-        case OpenCardinality(c1l), ClosedCardinality(c2l, c2u):
-                return OpenCardinality(c1l * c2l)
-        case OpenCardinality(c1l), OpenCardinality(c2l):
-                return OpenCardinality(c1l * c2l)
-    raise ValueError("Cannot compute prods over", card1, "and", card2)
+def Fin(i):
+    return FiniteCardinal(i)
+    
+# @data
+# class ClosedCardinality:
+#     lower : int
+#     upper : int
+
+#     def __add__(self, other):
+#         sum_cardinality_modes(self, other)
+
+#     def __mul__(self, other):
+#         prod_cardinality_modes(self, other)
+
+
+# @data
+# class OpenCardinality:
+#     lower : int
+
+#     def __add__(self, other):
+#         sum_cardinality_modes(self, other)
+
+#     def __mul__(self, other):
+#         prod_cardinality_modes(self, other)
+
+# CardinalityModes = ClosedCardinality | OpenCardinality
+
+# def sum_cardinality_modes(card1 : CardinalityModes, card2 : CardinalityModes) -> CardinalityModes:
+#     match card1, card2:
+#         case ClosedCardinality(c1l, c1u), ClosedCardinality(c2l, c2u):
+#                 return ClosedCardinality(c1l + c2l, c1u + c2u)
+#         case ClosedCardinality(c1l, c1u), OpenCardinality(c2l):
+#                 return OpenCardinality(c1l + c2l)
+#         case OpenCardinality(c1l), ClosedCardinality(c2l, c2u):
+#                 return OpenCardinality(c1l + c2l)
+#         case OpenCardinality(c1l), OpenCardinality(c2l):
+#                 return OpenCardinality(c1l + c2l)
+#     raise ValueError("Cannot compute sums over", card1, "and", card2)
+
+# def prod_cardinality_modes(card1 : CardinalityModes, card2 : CardinalityModes) -> CardinalityModes:
+#     match card1, card2:
+#         case ClosedCardinality(c1l, c1u), ClosedCardinality(c2l, c2u):
+#                 return ClosedCardinality(c1l * c2l, c1u * c2u)
+#         case ClosedCardinality(c1l, c1u), OpenCardinality(c2l):
+#                 return OpenCardinality(c1l * c2l)
+#         case OpenCardinality(c1l), ClosedCardinality(c2l, c2u):
+#                 return OpenCardinality(c1l * c2l)
+#         case OpenCardinality(c1l), OpenCardinality(c2l):
+#                 return OpenCardinality(c1l * c2l)
+#     raise ValError("Cannot compute prods over", card1, "and", card2)
         
 
-CardOne = ClosedCardinality(1,1)
-CardAtMostOne = ClosedCardinality(0,1)
-CardAtLeastOne = OpenCardinality(1)
-CardAny = OpenCardinality(0)
+@data
+class CMMode:
+    lower : Cardinal
+    upper : Cardinal
+    multiplicity : Cardinal = None
 
-ResulTp = Tuple[Tp, CardinalityModes]
+    def __post_init__(self):
+        if self.multiplicity == None:
+            object.__setattr__(self, 'multiplicity', self.upper)
+
+    def __add__(self, other : CMMode):
+        return CMMode(self.lower + other.lower, 
+                      self.upper + other.upper, 
+                      self.multiplicity + other.multiplicity)
+
+    def __mul__(self, other : CMMode):
+        return CMMode(self.lower * other.lower, 
+                      self.upper * other.upper, 
+                      self.multiplicity * other.multiplicity)
+
+
+
+CardOne = CMMode(Fin(1),Fin(1))
+CardAtMostOne = CMMode(Fin(0),Fin(1))
+CardAtLeastOne = CMMode(Fin(1), Inf())
+CardAny = CMMode(Fin(0), Inf())
+
+ResulTp = Tuple[Tp, CMMode]
+
+
 ### DEFINE PARAMETER MODIFIERS
 
 @data
@@ -137,10 +221,14 @@ PrimVal = StrVal | IntVal | FunVal
 
 ## DEFINE EXPRESSIONS
 
+# @data
+# class UnionExpr:
+#     left : Expr
+#     right : Expr
+
 @data
-class UnionExpr:
-    left : Expr
-    right : Expr
+class MultiSetExpr:
+    val : List[Expr]
 
 @data 
 class TypeCastExpr:
@@ -156,6 +244,7 @@ class FunAppExpr:
 @data
 class BinProdExpr:
     label : str
+    marker : Marker
     this : Expr
     next : Expr
 
@@ -205,19 +294,63 @@ class RefIdExpr:
     refid : int
 
 
-Expr = (PrimVal | UnionExpr | TypeCastExpr | FunAppExpr | BinProdExpr | BinProdUnitExpr 
+Expr = (PrimVal | TypeCastExpr | FunAppExpr | BinProdExpr | BinProdUnitExpr 
         | VarExpr | ProdProjExpr | WithExpr | ForExpr | SelectExpr | InsertExpr | UpdateExpr
-        | RefIdExpr  
+        | RefIdExpr  | MultiSetExpr
         )
+
+#### VALUES
+
+@data
+class BinProdVal:
+    label : str
+    marker : Marker
+    this : Expr
+    next : Expr
+
+@data
+class BinProdUnitVal:
+    pass
+
+
+@data
+class FreeVal:
+    val : DictVal
+    
+@data
+class RefVal:
+    refid : int
+    val : DictVal
+
+@data
+class RefLinkVal:
+    from_id : int
+    to_id : int
+    val : DictVal
+
+@data
+class MultiSetVal:
+    val : List[DictVal]
+
+@data 
+class LinkWithPropertyVal:
+    subject : Val
+    link_properties : Val
+
+    
+
+
+DictVal = BinProdVal | BinProdUnitVal
+Val = RefVal | FreeVal | MultiSetVal  | RefLinkVal | LinkWithPropertyVal
 
 @data 
 class DBEntry:
     tp : Tp
-    data : Dict[str, List[Expr]] ## actually values
+    data : Dict[str, DictVal] ## actually values
 
 @data
 class DB:
-    data: Dict[int, DBEntry] 
+    dbdata: Dict[int, DBEntry] 
     # subtp : List[Tuple[TypeExpr, TypeExpr]]
 
 def empty_db():
@@ -248,3 +381,13 @@ def next_id():
     global starting_id
     starting_id += 1
     return starting_id
+
+
+def dict_to_val(data : Dict[str, Val]):
+    result = BinProdUnitVal()
+    [result := BinProdVal(k, Visible, v, result) for k,v in reversed(data.items)]
+    return result
+    reduce(lambda k,v: BinProdVal(k,Visible,v,), data.items(), BinProdUnitVal())
+
+def ref(id):
+    return RefVal(id, BinProdUnitVal)
