@@ -1905,3 +1905,54 @@ annotation test::foo;
             };
         };
         """
+
+    def test_eschema_newsyntax_colon_01(self):
+        """
+        abstract type test::OwnedObject {
+            required link owner: User
+        };
+
+% OK %
+
+        abstract type test::OwnedObject {
+            required link owner -> User;
+        };
+        """
+
+    def test_eschema_newsyntax_function_01(self):
+        """
+        module test {
+            function len(): std::int64
+                using sql function 'length';
+        };
+
+% OK %
+
+        module test {
+            function len() -> std::int64
+                using sql function 'length';
+        };
+        """
+
+    def test_eschema_newsyntax_function_04(self):
+        """
+        module test {
+            function myfunc(arg1: str, arg2: str = 'DEFAULT',
+                            variadic arg3: std::int64): set of int {
+                annotation description := 'myfunc sample';
+                using sql
+                    $$SELECT blarg;$$;
+            };
+        };
+
+% OK %
+
+        module test {
+            function myfunc(arg1: str, arg2: str = 'DEFAULT',
+                            variadic arg3: std::int64) -> set of int {
+                annotation description := 'myfunc sample';
+                using sql
+                    $$SELECT blarg;$$;
+            };
+        };
+        """

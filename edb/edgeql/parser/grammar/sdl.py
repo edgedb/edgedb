@@ -692,6 +692,10 @@ class PtrTarget(Nonterm):
         self.val = kids[1].val
         self.context = kids[1].val.context
 
+    def reduce_COLON_FullTypeExpr(self, *kids):
+        self.val = kids[1].val
+        self.context = kids[1].val.context
+
 
 class OptPtrTarget(Nonterm):
 
@@ -1217,10 +1221,36 @@ class FunctionDeclaration(Nonterm, commondl.ProcessFunctionBlockMixin):
         )
 
 
+    def reduce_CreateFunctionNew(self, *kids):
+        r"""%reduce FUNCTION NodeName CreateFunctionArgs \
+                COLON OptTypeQualifier FunctionType \
+                CreateFunctionSDLCommandsBlock
+        """
+        self.val = qlast.CreateFunction(
+            name=kids[1].val,
+            params=kids[2].val,
+            returning=kids[5].val,
+            returning_typemod=kids[4].val,
+            **self._process_function_body(kids[6]),
+        )
+
 class FunctionDeclarationShort(Nonterm, commondl.ProcessFunctionBlockMixin):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce FUNCTION NodeName CreateFunctionArgs \
                 ARROW OptTypeQualifier FunctionType \
+                CreateFunctionSingleSDLCommandBlock
+        """
+        self.val = qlast.CreateFunction(
+            name=kids[1].val,
+            params=kids[2].val,
+            returning=kids[5].val,
+            returning_typemod=kids[4].val,
+            **self._process_function_body(kids[6]),
+        )
+
+    def reduce_CreateFunctionNew(self, *kids):
+        r"""%reduce FUNCTION NodeName CreateFunctionArgs \
+                COLON OptTypeQualifier FunctionType \
                 CreateFunctionSingleSDLCommandBlock
         """
         self.val = qlast.CreateFunction(
