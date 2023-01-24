@@ -280,12 +280,17 @@ def resolve_FuncCall(
                     and not is_local.val
                 ):
                     return value
-        raise errors.QueryError("unsupported", context=expr.context)
+        raise errors.QueryError(
+            "function set_config is not supported", context=expr.context
+        )
     if expr.name in {
         ("current_setting",),
         ("pg_catalog", "current_setting"),
     }:
-        raise errors.QueryError("unsupported", context=expr.context)
+        raise errors.QueryError(
+            "function pg_catalog.current_setting is not supported",
+            context=expr.context
+        )
 
     if res := static.eval_FuncCall(expr, ctx=ctx):
         return res

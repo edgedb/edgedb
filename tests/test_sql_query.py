@@ -30,11 +30,13 @@ except ImportError:
 class TestSQL(tb.SQLQueryTestCase):
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'movies.esdl')
+    SCHEMA_INVENTORY = os.path.join(
+        os.path.dirname(__file__), 'schemas', 'inventory.esdl'
+    )
 
     SETUP = os.path.join(
         os.path.dirname(__file__), 'schemas', 'movies_setup.edgeql'
     )
-    TRANSACTION_ISOLATION = False
 
     async def test_sql_query_00(self):
         # basic
@@ -601,41 +603,38 @@ class TestSQL(tb.SQLQueryTestCase):
                 raise Exception(f'introspecting {table_name}')
 
     async def test_sql_query_schemas(self):
-        await self.con.execute('''
-            create module my_module;
-            create type my_module::Foo;
-            create type default::Bar;
-        ''')
-        await self.con.query('SELECT my_module::Foo')
-        await self.scon.fetch('SELECT id FROM "my_module"."Foo";')
+        await self.scon.fetch('SELECT id FROM "inventory"."Item";')
         await self.scon.fetch('SELECT id FROM "public"."Person";')
-        await self.scon.fetch('SELECT id FROM "default"."Person";')
-        await self.scon.fetch('SELECT id FROM "public"."Bar";')
-        await self.scon.fetch('SELECT id FROM "default"."Bar";')
 
-        await self.scon.execute('SET search_path TO my_module, public;')
-        await self.scon.fetch('SELECT id FROM "Foo";')
+        await self.scon.execute('SET search_path TO inventory, public;')
+        await self.scon.fetch('SELECT id FROM "Item";')
 
-        await self.scon.execute('SET search_path TO my_module, public;')
+        await self.scon.execute('SET search_path TO inventory, public;')
         await self.scon.fetch('SELECT id FROM "Person";')
 
         await self.scon.execute('SET search_path TO public;')
         await self.scon.fetch('SELECT id FROM "Person";')
 
-        await self.scon.execute('SET search_path TO my_module;')
-        await self.scon.fetch('SELECT id FROM "Foo";')
+        await self.scon.execute('SET search_path TO inventory;')
+        await self.scon.fetch('SELECT id FROM "Item";')
 
         await self.scon.execute('SET search_path TO public;')
         with self.assertRaisesRegex(
             asyncpg.UndefinedTableError, "unknown table"
         ):
-            await self.squery_values('SELECT id FROM "Foo"')
+            await self.squery_values('SELECT id FROM "Item"')
 
-        await self.scon.execute('SET search_path TO my_module;')
+        await self.scon.execute('SET search_path TO inventory;')
         with self.assertRaisesRegex(
             asyncpg.UndefinedTableError, "unknown table"
         ):
             await self.scon.fetch('SELECT id FROM "Person";')
+
+        await self.scon.execute(
+            '''
+            SELECT set_config('search_path', '', FALSE);
+            '''
+        )
 
     async def test_sql_query_static_eval(self):
         res = await self.squery_values('select current_schema;')

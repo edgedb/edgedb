@@ -141,7 +141,7 @@ def eval_SQLValueFunction(
 ) -> pgast.BaseExpr:
     from edb.pgsql.ast import SQLValueFunctionOP as op
 
-    pass_trough = [
+    pass_through = [
         op.CURRENT_DATE,
         op.CURRENT_TIME,
         op.CURRENT_TIME_N,
@@ -152,7 +152,7 @@ def eval_SQLValueFunction(
         op.LOCALTIMESTAMP,
         op.LOCALTIMESTAMP_N,
     ]
-    if expr.op in pass_trough:
+    if expr.op in pass_through:
         return expr
 
     user = [
