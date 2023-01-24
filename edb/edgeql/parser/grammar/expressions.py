@@ -258,7 +258,8 @@ class InternalGroup(Nonterm):
 
 class SimpleInsert(Nonterm):
     def reduce_Insert(self, *kids):
-        r'%reduce INSERT NodeName OptShape OptUnlessConflictClause'
+        r'%reduce INSERT Path OptShape OptUnlessConflictClause'
+        # r'%reduce INSERT NodeName OptShape OptUnlessConflictClause'
         # r'%reduce INSERT BaseAtomicExpr OptShape OptUnlessConflictClause'
         # r'%reduce INSERT BaseStringConstant OptShape OptUnlessConflictClause'
 
