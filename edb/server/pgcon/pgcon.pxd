@@ -81,6 +81,9 @@ cdef class PGMessage:
         object query_unit
         bint be_parse
 
+        object orig_query
+        object fe_settings
+
     cdef inline bint frontend_only(self)
 
 

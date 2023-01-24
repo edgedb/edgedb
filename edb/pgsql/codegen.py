@@ -665,7 +665,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(node.val)
 
     def visit_BooleanConstant(self, node: pgast.BooleanConstant) -> None:
-        self.write(node.val)
+        self.write('TRUE' if node.val else 'FALSE')
 
     def visit_StringConstant(self, node: pgast.StringConstant) -> None:
         self.write(common.quote_literal(node.val))

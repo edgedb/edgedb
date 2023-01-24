@@ -30,6 +30,9 @@ except ImportError:
 class TestSQL(tb.SQLQueryTestCase):
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'movies.esdl')
+    SCHEMA_INVENTORY = os.path.join(
+        os.path.dirname(__file__), 'schemas', 'inventory.esdl'
+    )
 
     SETUP = os.path.join(
         os.path.dirname(__file__), 'schemas', 'movies_setup.edgeql'
@@ -609,54 +612,54 @@ class TestSQL(tb.SQLQueryTestCase):
             except Exception:
                 raise Exception(f'introspecting {table_name}')
 
-    @test.skip("unimplemented")
-    async def test_sql_schemas(self):
-        await self.migrate(
-            '''
-            mod my_module {
-                type Foo;
-            }
-            '''
-        )
-        await self.squery('SELECT id FROM "my_module"."Foo";')
-        await self.squery('SELECT id FROM "public"."Person";')
+    async def test_sql_query_schemas(self):
+        await self.scon.fetch('SELECT id FROM "inventory"."Item";')
+        await self.scon.fetch('SELECT id FROM "public"."Person";')
 
-        await self.squery(
-            '''
-            SET search_path TO my_module, public;
-            SELECT id FROM "Foo";
-            '''
-        )
-        await self.squery(
-            '''
-            SET search_path TO my_module, public;
-            SELECT id FROM "Person";
-            '''
-        )
-        await self.squery(
-            '''
-            SET search_path TO public;
-            SELECT id FROM "Person";
-            '''
-        )
-        await self.squery(
-            '''
-            SET search_path TO my_module;
-            SELECT id FROM "Foo";
-            '''
-        )
+        await self.scon.execute('SET search_path TO inventory, public;')
+        await self.scon.fetch('SELECT id FROM "Item";')
 
-        with self.assertRaisesRegexTx(
+        await self.scon.execute('SET search_path TO inventory, public;')
+        await self.scon.fetch('SELECT id FROM "Person";')
+
+        await self.scon.execute('SET search_path TO public;')
+        await self.scon.fetch('SELECT id FROM "Person";')
+
+        await self.scon.execute('SET search_path TO inventory;')
+        await self.scon.fetch('SELECT id FROM "Item";')
+
+        await self.scon.execute('SET search_path TO public;')
+        with self.assertRaisesRegex(
             asyncpg.UndefinedTableError, "unknown table"
         ):
-            await self.squery('SELECT id FROM "Foo"')
+            await self.squery_values('SELECT id FROM "Item"')
 
-        with self.assertRaisesRegexTx(
+        await self.scon.execute('SET search_path TO inventory;')
+        with self.assertRaisesRegex(
             asyncpg.UndefinedTableError, "unknown table"
         ):
-            await self.squery(
-                '''
-                SET search_path TO my_module;
-                SELECT id FROM "Person";
-                '''
-            )
+            await self.scon.fetch('SELECT id FROM "Person";')
+
+        await self.scon.execute(
+            '''
+            SELECT set_config('search_path', '', FALSE);
+            '''
+        )
+
+    async def test_sql_query_static_eval(self):
+        res = await self.squery_values('select current_schema;')
+        self.assertEqual(res, [['public']])
+
+        await self.squery_values('set search_path to blah;')
+        res = await self.squery_values('select current_schema;')
+        self.assertEqual(res, [['blah']])
+
+        await self.squery_values('set search_path to blah,foo;')
+        res = await self.squery_values('select current_schema;')
+        self.assertEqual(res, [['blah']])
+
+        res = await self.squery_values('select current_catalog;')
+        self.assertEqual(res, [['postgres']])
+
+        res = await self.squery_values('select current_schemas(true);')
+        self.assertEqual(res, [[['pg_catalog', 'blah', 'foo']]])

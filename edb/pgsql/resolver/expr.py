@@ -27,6 +27,7 @@ from edb.pgsql import ast as pgast
 
 from . import dispatch
 from . import context
+from . import static
 
 Context = context.ResolverContextLevel
 
@@ -264,15 +265,41 @@ def resolve_FuncCall(
     expr: pgast.FuncCall,
     *,
     ctx: Context,
-) -> pgast.FuncCall:
+) -> pgast.BaseExpr:
     # TODO: which functions do we want to expose on the outside?
     if expr.name in {
         ("set_config",),
         ("pg_catalog", "set_config"),
+    }:
+        # HACK: allow set_config('search_path', '', false) to support pg_dump
+        if args := static.eval_list(expr.args, ctx=ctx):
+            name, value, is_local = args
+            if (
+                isinstance(name, pgast.StringConstant)
+                and isinstance(value, pgast.StringConstant)
+                and isinstance(is_local, pgast.BooleanConstant)
+            ):
+                if (
+                    name.val == "search_path"
+                    and value.val == ""
+                    and not is_local.val
+                ):
+                    return value
+        raise errors.QueryError(
+            "function set_config is not supported", context=expr.context
+        )
+    if expr.name in {
         ("current_setting",),
         ("pg_catalog", "current_setting"),
     }:
-        raise errors.QueryError("unsupported", context=expr.context)
+        raise errors.QueryError(
+            "function pg_catalog.current_setting is not supported",
+            context=expr.context
+        )
+
+    if res := static.eval_FuncCall(expr, ctx=ctx):
+        return res
+
     return pgast.FuncCall(
         name=expr.name,
         args=dispatch.resolve_list(expr.args, ctx=ctx),
@@ -415,35 +442,4 @@ def resolve_SQLValueFunction(
     *,
     ctx: Context,
 ) -> pgast.BaseExpr:
-    from edb.pgsql.ast import SQLValueFunctionOP as op
-
-    pass_trough = [
-        op.CURRENT_DATE,
-        op.CURRENT_TIME,
-        op.CURRENT_TIME_N,
-        op.CURRENT_TIMESTAMP,
-        op.CURRENT_TIMESTAMP_N,
-        op.LOCALTIME,
-        op.LOCALTIME_N,
-        op.LOCALTIMESTAMP,
-        op.LOCALTIMESTAMP_N,
-    ]
-    if expr.op in pass_trough:
-        return expr
-
-    user = [
-        op.CURRENT_ROLE,
-        op.CURRENT_USER,
-        op.USER,
-        op.SESSION_USER,
-    ]
-    if expr.op in user:
-        raise errors.QueryError("unsupported", context=expr.context)
-
-    if expr.op == op.CURRENT_CATALOG:
-        raise errors.QueryError("unsupported", context=expr.context)
-
-    if expr.op == op.CURRENT_SCHEMA:
-        raise errors.QueryError("unsupported", context=expr.context)
-
-    raise NotImplementedError()
+    return static.eval_SQLValueFunction(expr, ctx=ctx)
