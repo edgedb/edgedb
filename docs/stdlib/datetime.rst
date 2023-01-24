@@ -101,35 +101,34 @@ Dates and Times
 
 .. _ref_std_datetime_intro:
 
-EdgeDB has two classes of date/time types:
+EdgeDB offers two ways of representing date/time values:
 
 * a timezone-aware :eql:type:`std::datetime` type;
 
-* a set of "local" date/time objects, not attached to any particular
+* a set of "local" date/time types, not attached to any particular
   timezone: :eql:type:`cal::local_datetime`, :eql:type:`cal::local_date`,
   and :eql:type:`cal::local_time`.
 
 There are also two different ways of measuring duration:
 
-* :eql:type:`duration` using absolute and unambiguous units;
+* :eql:type:`duration` for using absolute and unambiguous units;
 
-* :eql:type:`cal::relative_duration` using fuzzy units like years,
+* :eql:type:`cal::relative_duration` for using fuzzy units like years,
   months and days in addition to the absolute units.
 
-All date/time operators and functions and type casts are designed to
-maintain a strict separation between timezone-aware and "local"
-date/time values.
+All related operators, functions, and type casts are designed to maintain a
+strict separation between timezone-aware and "local" date/time values.
 
-EdgeDB stores and outputs timezone-aware values in UTC.
+EdgeDB stores and outputs timezone-aware values in UTC format.
 
 .. note::
 
-    All the date/time types are restricted to years between 1 and
-    9999, including the end points.
+    All date/time types are restricted to years between 1 and 9999, including
+    the years 1 and 9999.
 
-    Although many systems support ISO 8601 date formatting in theory,
+    Although many systems support ISO 8601 date/time formatting in theory,
     in practice the formatting before year 1 and after 9999 tends to
-    be inconsistent. As such dates outside that range are not reliably
+    be inconsistent. As such, dates outside this range are not reliably
     portable.
 
 
@@ -139,7 +138,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 .. eql:type:: std::datetime
 
 
-    A timezone-aware type representing a moment in time.
+    Represents a timezone-aware moment in time.
 
     All dates must correspond to dates that exist in the proleptic Gregorian
     calendar.
@@ -152,8 +151,8 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         select <datetime>'2018-05-07T15:01:22.306916+00';
         select <datetime>'2018-05-07T15:01:22+00';
 
-    Note that when casting from strings, the string should be in ISO
-    8601 format with timezone included:
+    When casting ``datetime`` from strings, the string must follow
+    the ISO 8601 format with a timezone included.
 
     .. code-block:: edgeql-repl
 
@@ -171,11 +170,8 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     All ``datetime`` values are restricted to the range from year 1 to 9999.
 
-    See functions :eql:func:`datetime_get`, :eql:func:`to_datetime`,
-    and :eql:func:`to_str` for more ways of working with
-    :eql:type:`datetime`.
-
-
+    For more information regarding interacting with this type, see
+    :eql:func:`datetime_get`, :eql:func:`to_datetime`, and :eql:func:`to_str`.
 
 
 ----------
@@ -183,7 +179,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:type:: cal::local_datetime
 
-    A type representing date and time without time zone.
+    A type for representing a date and time without a timezone.
 
     :eql:op:`Casting <cast>` is a simple way to obtain a
     :eql:type:`cal::local_datetime` value in an expression:
@@ -193,8 +189,8 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         select <cal::local_datetime>'2018-05-07T15:01:22.306916';
         select <cal::local_datetime>'2018-05-07T15:01:22';
 
-    Note that when casting from strings, the string should be in ISO
-    8601 format without timezone:
+    When casting ``cal::local_datetime`` from strings, the string must follow
+    the ISO 8601 format without timezone:
 
     .. code-block:: edgeql-repl
 
@@ -214,9 +210,9 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     All ``datetime`` values are restricted to the range from year 1 to 9999.
 
-    See functions :eql:func:`datetime_get`, :eql:func:`cal::to_local_datetime`,
-    and :eql:func:`to_str` for more ways of working with
-    :eql:type:`cal::local_datetime`.
+    For more information regarding interacting with this type, see
+    :eql:func:`datetime_get`, :eql:func:`cal::to_local_datetime`, and
+    :eql:func:`to_str`.
 
 
 ----------
@@ -224,7 +220,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:type:: cal::local_date
 
-    A type representing a date without a time zone.
+    A type for representing a date without a timezone.
 
     :eql:op:`Casting <cast>` is a simple way to obtain a
     :eql:type:`cal::local_date` value in an expression:
@@ -233,12 +229,12 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
         select <cal::local_date>'2018-05-07';
 
-    Note that when casting from strings, the string should be in ISO
-    8601 date format.
+    When casting ``cal::local_date`` from strings, the string must follow the
+    ISO 8601 date format.
 
-    See functions :eql:func:`cal::date_get`, :eql:func:`cal::to_local_date`,
-    and :eql:func:`to_str` for more ways of working with
-    :eql:type:`cal::local_date`.
+    For more information regarding interacting with this type, see
+    :eql:func:`cal::date_get`, :eql:func:`cal::to_local_date`, and
+    :eql:func:`to_str`.
 
 
 ----------
@@ -246,7 +242,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:type:: cal::local_time
 
-    A type representing time without a time zone.
+    A type for representing a time without a timezone.
 
     :eql:op:`Casting <cast>` is a simple way to obtain a
     :eql:type:`cal::local_time` value in an expression:
@@ -256,12 +252,12 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         select <cal::local_time>'15:01:22.306916';
         select <cal::local_time>'15:01:22';
 
-    Note that when casting from strings, the string should be in ISO
-    8601 time format.
+    When casting ``cal::local_time`` from strings, the string must follow the
+    ISO 8601 time format.
 
-    See functions :eql:func:`cal::time_get`, :eql:func:`cal::to_local_time`,
-    and :eql:func:`to_str` for more ways of working with
-    :eql:type:`cal::local_time`.
+    For more information regarding interacting with this type, see
+    :eql:func:`cal::time_get`, :eql:func:`cal::to_local_time`, and
+    :eql:func:`to_str`.
 
 
 ----------
@@ -272,21 +268,28 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:type:: std::duration
 
-    A type representing a span of time.
+    A type for representing a span of time.
 
-    Valid units when converting from a string (and combinations of them):
-    ``'microseconds'``,
-    ``'milliseconds'``,
-    ``'seconds'``,
-    ``'minutes'``,
-    ``'hours'``.
+    A :eql:type:`duration` is a fixed number of seconds and microseconds and
+    isn't adjusted by timezone, length of month, or anything else in datetime
+    calculations.
 
-    .. code-block:: edgeql
+    When converting from a string, only units of ``'microseconds'``,
+    ``'milliseconds'``, ``'seconds'``, ``'minutes'``, and ``'hours'`` are
+    valid:
 
-        select <duration>'45.6 seconds';
-        select <duration>'15 milliseconds';
-        select <duration>'48 hours 45 minutes';
-        select <duration>'-7 minutes';
+    .. code-block:: edgeql-repl
+
+        db> select <duration>'45.6 seconds';
+        {<duration>'0:00:45.6'}
+        db> select <duration>'15 milliseconds';
+        {<duration>'0:00:00.015'}
+        db> select <duration>'48 hours 45 minutes';
+        {<duration>'48:45:00'}
+        db> select <duration>'11 months';
+        edgedb error: InvalidValueError: invalid input syntax for type
+        std::duration: '11 months'
+          Hint: Units bigger than hours cannot be used for std::duration.
 
     All date/time types support the ``+`` and ``-`` arithmetic operations
     with durations:
@@ -298,13 +301,9 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         db> select <cal::local_time>'22:00' + <duration>'1 hour';
         {<cal::local_time>'23:00:00'}
 
-    Duration is a fixed number of seconds and microseconds and isn't
-    adjusted by timezone, length of month or anything else in datetime
-    calculations.
-
-    See functions :eql:func:`to_duration`, and :eql:func:`to_str` and
-    date/time :eql:op:`operators <dtminus>` for more ways of working with
-    :eql:type:`duration`.
+    For more information regarding interacting with this type, see
+    :eql:func:`to_duration`, and :eql:func:`to_str` and date/time
+    :eql:op:`operators <dtplus>`.
 
 
 ----------
@@ -312,14 +311,15 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:type:: cal::relative_duration
 
-    A type representing a span of time.
+    A type for representing a relative span of time.
 
-    Unlike :eql:type:`std::duration` a ``relative_duration`` is not a precise
-    measurement because it uses 3 different units under the hood: months, days
-    and seconds. However not all months have the same number of days and not
-    all days have the same number of seconds. For example 2020 was a leap year
-    and had 366 days. Notice how the number of hours in each year below is
-    different.
+    Unlike :eql:type:`std::duration`, ``cal::relative_duration`` is an
+    imprecise form of measurement. When months and days are used, the same
+    relative duration could have a different absolute duration depending on
+    the date you're measuring from.
+
+    For example 2020 was a leap year and had 366 days. Notice how the number
+    of hours in each year below is different:
 
     .. code-block:: edgeql-repl
 
@@ -336,19 +336,22 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         ... select first_day_of_next_year - first_day_of_2019;
         {<duration>'8760:00:00'}
 
-    Valid units when converting from a string (and combinations of them):
-    ``'microseconds'``,
-    ``'milliseconds'``,
-    ``'seconds'``,
-    ``'minutes'``,
-    ``'hours'``,
-    ``'days'``,
-    ``'weeks'``,
-    ``'months'``,
-    ``'years'``,
-    ``'decades'``,
-    ``'centuries'``,
-    ``'millennia'``.
+    When converting from a string, only the following units are valid:
+
+    - ``'microseconds'``
+    - ``'milliseconds'``
+    - ``'seconds'``
+    - ``'minutes'``
+    - ``'hours'``
+    - ``'days'``
+    - ``'weeks'``
+    - ``'months'``
+    - ``'years'``
+    - ``'decades'``
+    - ``'centuries'``
+    - ``'millennia'``
+
+    Examples of units usage:
 
     .. code-block:: edgeql
 
@@ -358,7 +361,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         select <cal::relative_duration>'-7 millennia';
 
     All date/time types support the ``+`` and ``-`` arithmetic operations
-    with relative_durations:
+    with ``relative_duration``:
 
     .. code-block:: edgeql-repl
 
@@ -369,8 +372,8 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         ...        <cal::relative_duration>'1 hour';
         {<cal::local_time>'23:00:00'}
 
-    If an arithmetic operation results in a day that doesn't exist in the given
-    month, the last day of the month is used instead.
+    If an arithmetic operation results in a day that doesn't exist in the
+    given month, the last day of the month will be used instead:
 
     .. code-block:: edgeql-repl
 
@@ -378,10 +381,9 @@ EdgeDB stores and outputs timezone-aware values in UTC.
       ...        <cal::relative_duration>"1 month";
       {<cal::local_datetime>'2021-02-28T15:00:00'}
 
-
-    During arithmetic operations involving a ``relative_duration`` consisting
-    of multiple components (units), higher-order components are applied first,
-    followed by lower-order elements.
+    For arithmetic operations involving a ``cal::relative_duration``
+    consisting of multiple components (units), higher-order components are
+    applied first followed by lower-order components.
 
     .. code-block:: edgeql-repl
 
@@ -389,9 +391,9 @@ EdgeDB stores and outputs timezone-aware values in UTC.
       ...        <cal::relative_duration>"1 month 1 day";
       {<cal::local_datetime>'2021-05-31T15:00:00'}
 
-    Compare this to adding up the same duration components separately
-    with higher-order units first and then lower-order, which produces
-    the same result as above:
+    If you add the same components split into separate durations, adding the
+    higher-order units first followed by the lower-order units, the
+    calculation produces the same result as in the previous example:
 
     .. code-block:: edgeql-repl
 
@@ -400,8 +402,8 @@ EdgeDB stores and outputs timezone-aware values in UTC.
       ...        <cal::relative_duration>"1 day";
       {<cal::local_datetime>'2021-05-31T15:00:00'}
 
-    When the order is reversed the result may actually be different
-    for some corner cases:
+    When the order of operations is reversed, the result may be different for
+    some corner cases:
 
     .. code-block:: edgeql-repl
 
@@ -415,7 +417,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     Due to the implementation of ``relative_duration`` logic, arithmetic
     operations may behave counterintuitively.
 
-    Non-associative
+    **Non-associative**
 
     .. code-block:: edgeql-repl
 
@@ -428,7 +430,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
       ...        <cal::relative_duration>'1 month');
       {<cal::local_datetime>'2021-03-31T00:00:00'}
 
-    Lossy
+    **Lossy**
 
     .. code-block:: edgeql-repl
 
@@ -438,7 +440,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
       ...        <cal::local_date>'2021-01-30' + m;
       {true}
 
-    Asymmetric
+    **Asymmetric**
 
     .. code-block:: edgeql-repl
 
@@ -446,7 +448,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
       ... select <cal::local_date>'2021-01-31' + m - m;
       {<cal::local_date>'2021-01-28'}
 
-    Non-monotonic
+    **Non-monotonic**
 
     .. code-block:: edgeql-repl
 
@@ -461,9 +463,9 @@ EdgeDB stores and outputs timezone-aware values in UTC.
       ...        <cal::local_datetime>'2021-01-30T23:00:00' + m;
       {false}
 
-    See functions :eql:func:`cal::to_relative_duration`, and :eql:func:`to_str`
-    and date/time :eql:op:`operators <dtminus>` for more ways of working with
-    :eql:type:`cal::relative_duration`.
+    For more information regarding interacting with this type, see
+    :eql:func:`cal::to_relative_duration`, and :eql:func:`to_str` and
+    date/time :eql:op:`operators <dtplus>`.
 
 
 ----------
@@ -471,19 +473,19 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:type:: cal::date_duration
 
-    A type representing a span of time in days.
+    A type for representing a span of time in days.
 
     .. note::
 
       This type is only available in EdgeDB 2.0 or later.
 
 
-    The ``date_duration`` type is similar to ``relative_duration``, but it
-    only uses 2 different units under the hood: months and days. It is the
-    result of subtracting one :eql:type:`cal::local_date` from another. The
-    purpose of this type is to allow performing ``+`` and ``-`` operations on
-    :eql:type:`cal::local_date` and produce :eql:type:`cal::local_date` as the
-    result.
+    This type is similar to :eql:type:`cal::relative_duration`, except it only
+    uses 2 units: months and days. It is the result of subtracting one
+    :eql:type:`cal::local_date` from another. The purpose of this type is to
+    allow performing ``+`` and ``-`` operations on a
+    :eql:type:`cal::local_date` and to produce a :eql:type:`cal::local_date`
+    as the result:
 
     .. code-block:: edgeql-repl
 
@@ -498,14 +500,15 @@ EdgeDB stores and outputs timezone-aware values in UTC.
       {<cal::local_date>'2022-06-20'}
 
 
-    Valid units when converting from a string (and combinations of them):
-    ``'days'``,
-    ``'weeks'``,
-    ``'months'``,
-    ``'years'``,
-    ``'decades'``,
-    ``'centuries'``,
-    ``'millennia'``.
+    When converting from a string, only the following units are valid:
+
+    - ``'days'``,
+    - ``'weeks'``,
+    - ``'months'``,
+    - ``'years'``,
+    - ``'decades'``,
+    - ``'centuries'``,
+    - ``'millennia'``.
 
     .. code-block:: edgeql
 
@@ -513,15 +516,15 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         select <cal::date_duration>'3 weeks 5 days';
         select <cal::date_duration>'-7 millennia';
 
-    Generally ``date_duration`` is fully compatible with
-    :eql:type:`cal::relative_duration` and has the same general behaviour and
-    caveats. It will even to implicitly cast to
-    :eql:type:`cal::relative_duration` in any situation where only
-    :eql:type:`cal::relative_duration` is expected.
+    In most cases, ``date_duration`` is fully compatible with
+    :eql:type:`cal::relative_duration` and shares the same general behavior
+    and caveats. EdgeDB will apply type coercion in the event it expects a
+    :eql:type:`cal::relative_duration` and finds a ``cal::date_duration``
+    instead.
 
-    See function :eql:func:`cal::to_date_duration` and date/time
-    :eql:op:`operators <dtminus>` for more ways of working with
-    :eql:type:`cal::date_duration`.
+    For more information regarding interacting with this type, see
+    :eql:func:`cal::to_date_duration` and date/time :eql:op:`operators
+    <dtplus>`.
 
 
 ----------
@@ -550,7 +553,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
                               -> cal::local_datetime
                           cal::local_date + duration -> cal::local_datetime
 
-    Time interval addition.
+    Adds a duration and any other datetime value.
 
     This operator is commutative.
 
@@ -598,7 +601,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
                            cal::relative_duration - duration\
                                 -> cal::relative_duration
 
-    Time interval and date/time subtraction.
+    Subtracts two compatible datetime or duration values.
 
     .. code-block:: edgeql-repl
 
@@ -612,7 +615,27 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         ...   <duration>'2 hours';
         {-3600s}
 
-    It is an error to subtract a date/time object from a time interval:
+    When subtracting a :eql:type:`cal::local_date` type from another, the
+    result is given as a whole number of days using the
+    :eql:type:`cal::date_duration` type:
+
+    .. code-block:: edgeql-repl
+
+        db> select <cal::local_date>'2022-06-25' -
+        ...   <cal::local_date>'2019-02-01';
+        {<cal::date_duration>'P1240D'}
+
+    .. note::
+
+        Subtraction doesn't make sense for some type combinations. You
+        couldn't subtract a point in time from a duration, so neither can
+        EdgeDB (although the inverse — subtracting a duration from a point in
+        time — is perfectly fine). You also couldn't subtract a timezone-aware
+        datetime from a local one or vice versa. If you attempt any of these,
+        EdgeDB will raise an exception as shown in these examples.
+
+    When subtracting a date/time object from a time interval, an exception
+    will be raised:
 
     .. code-block:: edgeql-repl
 
@@ -620,23 +643,18 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         ...   <datetime>'2019-01-01T01:02:03+00';
         QueryError: operator '-' cannot be applied to operands ...
 
-    It is also an error to subtract timezone-aware :eql:type:`std::datetime`
-    to or from :eql:type:`cal::local_datetime`:
+    An exception will also be raised when trying to subtract a timezone-aware
+    :eql:type:`std::datetime` type from :eql:type:`cal::local_datetime` or
+    vice versa:
 
     .. code-block:: edgeql-repl
 
         db> select <datetime>'2019-01-01T01:02:03+00' -
         ...   <cal::local_datetime>'2019-02-01T01:02:03';
-        QueryError: operator '-' cannot be applied to operands ...
-
-    When subtracting one :eql:type:`cal::local_date` from another the result
-    is given in whole number of days using :eql:type:`cal::date_duration`:
-
-    .. code-block:: edgeql-repl
-
-      db> select <cal::local_date>'2022-06-25' -
-      ...   <cal::local_date>'2019-02-01';
-      {<cal::date_duration>'P1240D'}
+        QueryError: operator '-' cannot be applied to operands...
+        db> select <cal::local_datetime>'2019-02-01T01:02:03' -
+        ...   <datetime>'2019-01-01T01:02:03+00';
+        QueryError: operator '-' cannot be applied to operands...
 
 
 ----------
@@ -645,7 +663,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     :index: now
 
-    Return the current server date and time.
+    Returns the server's current date and time.
 
     .. code-block:: edgeql-repl
 
@@ -664,7 +682,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     :index: now
 
-    Return the date and time of the start of the current transaction.
+    Returns the date and time of the start of the current transaction.
 
     This function is non-volatile since it returns the current time when the
     transaction is started, not when the function is called. As a result, it
@@ -678,7 +696,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     :index: now
 
-    Return the date and time of the start of the current statement.
+    Returns the date and time of the start of the current statement.
 
     This function is non-volatile since it returns the current time when the
     statement is started, not when the function is called. As a result, it
@@ -692,10 +710,9 @@ EdgeDB stores and outputs timezone-aware values in UTC.
                   std::datetime_get(dt: cal::local_datetime, \
                                     el: str) -> float64
 
-    Extract a specific element of input datetime by name.
+    Returns the element of a date/time given a unit name.
 
-    The :eql:type:`datetime` scalar has the following elements
-    available for extraction:
+    You may pass any of these unit names for *el*:
 
     - ``'epochseconds'`` - the number of seconds since 1970-01-01 00:00:00
       UTC (Unix epoch) for :eql:type:`datetime` or local time for
@@ -758,16 +775,16 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:function:: cal::time_get(dt: cal::local_time, el: str) -> float64
 
-    Extract a specific element of input time by name.
+    Returns the element of a time value given a unit name.
 
-    The :eql:type:`cal::local_time` scalar has the following elements
-    available for extraction:
-    ``'midnightseconds'``,
-    ``'hour'``,
-    ``'microseconds'``,
-    ``'milliseconds'``,
-    ``'minutes'``,
-    ``'seconds'``.
+    You may pass any of these unit names for *el*:
+
+    - ``'midnightseconds'``
+    - ``'hour'``
+    - ``'microseconds'``
+    - ``'milliseconds'``
+    - ``'minutes'``
+    - ``'seconds'``
 
     For full description of what these elements extract see
     :eql:func:`datetime_get`.
@@ -788,7 +805,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:function:: cal::date_get(dt: local_date, el: str) -> float64
 
-    Extract a specific element of input date by name.
+    Returns the element of a date given a unit name.
 
     The :eql:type:`cal::local_date` scalar has the following elements
     available for extraction:
@@ -1005,21 +1022,22 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:function:: std::datetime_truncate(dt: datetime, unit: str) -> datetime
 
-    Truncate the input datetime to a particular precision.
+    Truncates the input datetime to a particular precision.
 
-    The valid *unit* values in order or decreasing precision are:
-    ``'microseconds'``,
-    ``'milliseconds'``,
-    ``'seconds'``,
-    ``'minutes'``,
-    ``'hours'``,
-    ``'days'``,
-    ``'weeks'``,
-    ``'months'``,
-    ``'quarters'``,
-    ``'years'``,
-    ``'decades'``,
-    ``'centuries'``.
+    The valid units in order or decreasing precision are:
+
+    - ``'microseconds'``
+    - ``'milliseconds'``
+    - ``'seconds'``
+    - ``'minutes'``
+    - ``'hours'``
+    - ``'days'``
+    - ``'weeks'``
+    - ``'months'``
+    - ``'quarters'``
+    - ``'years'``
+    - ``'decades'``
+    - ``'centuries'``
 
     .. code-block:: edgeql-repl
 
@@ -1047,23 +1065,25 @@ EdgeDB stores and outputs timezone-aware values in UTC.
                   std::duration_truncate(dt: cal::relative_duration, \
                     unit: str) -> cal::relative_duration
 
-    Truncate the input duration to a particular precision.
+    Truncates the input duration to a particular precision.
 
-    The valid *unit* values for :eql:type:`duration` are:
-    ``'microseconds'``,
-    ``'milliseconds'``,
-    ``'seconds'``,
-    ``'minutes'``,
-    ``'hours'``.
+    The valid units for :eql:type:`duration` are:
+
+    - ``'microseconds'``
+    - ``'milliseconds'``
+    - ``'seconds'``
+    - ``'minutes'``
+    - ``'hours'``
 
     In addition to the above the following are also valid for
     :eql:type:`cal::relative_duration`:
-    ``'days'``,
-    ``'weeks'``,
-    ``'months'``,
-    ``'years'``,
-    ``'decades'``,
-    ``'centuries'``.
+
+    - ``'days'``
+    - ``'weeks'``
+    - ``'months'``
+    - ``'years'``
+    - ``'decades'``
+    - ``'centuries'``
 
     .. code-block:: edgeql-repl
 
@@ -1125,7 +1145,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     Another way to construct a the :eql:type:`datetime` value
     is to specify it in terms of its component parts: *year*, *month*,
-    *day*, *hour*, *min*, *sec*, and *timezone*
+    *day*, *hour*, *min*, *sec*, and *timezone*.
 
     .. code-block:: edgeql-repl
 

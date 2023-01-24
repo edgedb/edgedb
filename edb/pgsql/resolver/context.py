@@ -89,6 +89,11 @@ class Column:
     # Internal SQL
     reference_as: Optional[str] = None
 
+    # When true, column is not included when selecting *
+    # Used for system columns
+    # https://www.postgresql.org/docs/14/ddl-system-columns.html
+    hidden: bool = False
+
     def __str__(self) -> str:
         return self.name or '<unnamed>'
 

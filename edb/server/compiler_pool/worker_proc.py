@@ -102,6 +102,12 @@ def clear_exception_frames(er):
     _clear_exception_frames(er, visited)
 
 
+def listen_for_debugger():
+    if debug.flags.pydebug_listen:
+        import debugpy
+        debugpy.listen(38781)
+
+
 def main(get_handler):
     parser = argparse.ArgumentParser()
     parser.add_argument("--sockname")
@@ -111,6 +117,8 @@ def main(get_handler):
 
     ql_parser.preload(allow_rebuild=False)
     gc.freeze()
+
+    listen_for_debugger()
 
     if args.numproc is None:
         # Run a single worker process

@@ -24,6 +24,7 @@ from typing import *
 
 import collections
 import dataclasses
+import functools
 import json
 import hashlib
 import pickle
@@ -494,7 +495,8 @@ class Compiler:
         database_config: Mapping[str, config.SettingValue],
         system_config: Mapping[str, config.SettingValue],
         query_str: str,
-    ) -> List[str]:
+        tx_state: dbstate.SQLTransactionState,
+    ) -> List[dbstate.SQLQueryUnit]:
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
             global_schema=global_schema,
@@ -510,14 +512,139 @@ class Compiler:
         from edb.pgsql import resolver as pg_resolver
         from edb.pgsql import codegen as pg_codegen
 
-        options = pg_resolver.Options()
+        @functools.cache
+        def parse_search_path(search_path_str: str) -> list[str]:
+            search_path_stmt = pg_parser.parse(
+                f"SET search_path = {search_path_str}"
+            )[0]
+            assert isinstance(search_path_stmt, pgast.VariableSetStmt)
+            return [
+                arg.val for arg in search_path_stmt.args.args
+                if isinstance(arg, pgast.StringConstant)
+            ]
+
+        frontend_only = {'search_path'}
         stmts = pg_parser.parse(query_str)
-        sql_source = []
+        sql_units = []
         for stmt in stmts:
-            resolved = pg_resolver.resolve(stmt, schema, options)
-            source = pg_codegen.generate_source(resolved)
-            sql_source.append(source)
-        return sql_source
+            if isinstance(stmt, pgast.VariableSetStmt):
+                args = {
+                    "query": pg_codegen.generate_source(stmt),
+                    "frontend_only": stmt.name in frontend_only,
+                    "is_local": stmt.scope == pgast.OptionsScope.TRANSACTION,
+                }
+                if stmt.name in frontend_only:
+                    value = pg_codegen.generate_source(stmt.args, pretty=False)
+                    args["set_vars"] = {stmt.name: value}
+                elif stmt.scope == pgast.OptionsScope.SESSION:
+                    if len(stmt.args.args) == 1 and isinstance(
+                        stmt.args.args[0], pgast.StringConstant
+                    ):
+                        # this value is unquoted for restoring state in pgcon
+                        value = stmt.args.args[0].val
+                    else:
+                        value = pg_codegen.generate_source(stmt.args)
+                    args["set_vars"] = {stmt.name: value}
+                unit = dbstate.SQLQueryUnit(**args)
+            elif isinstance(stmt, pgast.VariableResetStmt):
+                args = {
+                    "query": pg_codegen.generate_source(stmt),
+                    "frontend_only": stmt.name in frontend_only,
+                    "is_local": stmt.scope == pgast.OptionsScope.TRANSACTION,
+                }
+                if (
+                    stmt.name in frontend_only
+                    or stmt.scope == pgast.OptionsScope.SESSION
+                ):
+                    args["set_vars"] = {stmt.name: None}
+                unit = dbstate.SQLQueryUnit(**args)
+            elif isinstance(stmt, pgast.VariableShowStmt):
+                source = pg_codegen.generate_source(stmt)
+                unit = dbstate.SQLQueryUnit(
+                    query=source,
+                    get_var=stmt.name,
+                    frontend_only=stmt.name in frontend_only,
+                )
+            elif isinstance(stmt, pgast.SetTransactionStmt):
+                args = {"query": pg_codegen.generate_source(stmt)}
+                if stmt.scope == pgast.OptionsScope.SESSION:
+                    args["set_vars"] = {
+                        f"default_{name}": value.val
+                        if isinstance(value, pgast.StringConstant)
+                        else pg_codegen.generate_source(value)
+                        for name, value in stmt.options.options.items()
+                    }
+                unit = dbstate.SQLQueryUnit(**args)
+            elif isinstance(stmt, (pgast.BeginStmt, pgast.StartStmt)):
+                source = pg_codegen.generate_source(stmt)
+                unit = dbstate.SQLQueryUnit(
+                    query=source,
+                    tx_action=dbstate.TxAction.START,
+                )
+            elif isinstance(stmt, pgast.CommitStmt):
+                source = pg_codegen.generate_source(stmt)
+                unit = dbstate.SQLQueryUnit(
+                    query=source,
+                    tx_action=dbstate.TxAction.COMMIT,
+                    tx_chain=stmt.chain or False,
+                )
+            elif isinstance(stmt, pgast.RollbackStmt):
+                source = pg_codegen.generate_source(stmt)
+                unit = dbstate.SQLQueryUnit(
+                    query=source,
+                    tx_action=dbstate.TxAction.ROLLBACK,
+                    tx_chain=stmt.chain or False,
+                )
+            elif isinstance(stmt, pgast.SavepointStmt):
+                source = pg_codegen.generate_source(stmt)
+                unit = dbstate.SQLQueryUnit(
+                    query=source,
+                    tx_action=dbstate.TxAction.DECLARE_SAVEPOINT,
+                    sp_name=stmt.savepoint_name,
+                )
+            elif isinstance(stmt, pgast.ReleaseStmt):
+                source = pg_codegen.generate_source(stmt)
+                unit = dbstate.SQLQueryUnit(
+                    query=source,
+                    tx_action=dbstate.TxAction.RELEASE_SAVEPOINT,
+                    sp_name=stmt.savepoint_name,
+                )
+            elif isinstance(stmt, pgast.RollbackToStmt):
+                source = pg_codegen.generate_source(stmt)
+                unit = dbstate.SQLQueryUnit(
+                    query=source,
+                    tx_action=dbstate.TxAction.ROLLBACK_TO_SAVEPOINT,
+                    sp_name=stmt.savepoint_name,
+                )
+            elif isinstance(stmt, pgast.TwoPhaseTransactionStmt):
+                raise NotImplementedError(
+                    "two-phase transactions are not supported"
+                )
+            elif isinstance(stmt, pgast.PrepareStmt):
+                raise NotImplementedError
+            elif isinstance(stmt, pgast.ExecuteStmt):
+                raise NotImplementedError
+            else:
+                args = {}
+                try:
+                    search_path = tx_state.get("search_path")
+                except KeyError:
+                    pass
+                else:
+                    args['search_path'] = parse_search_path(search_path)
+                options = pg_resolver.Options(**args)
+                resolved = pg_resolver.resolve(stmt, schema, options)
+                source = pg_codegen.generate_source(resolved)
+                unit = dbstate.SQLQueryUnit(query=source)
+
+            tx_state.apply(unit)
+            unit.stmt_name = b"s" + hashlib.sha1(
+                unit.query.encode("utf-8")).hexdigest().encode("latin1")
+            sql_units.append(unit)
+        if not sql_units:
+            # Cluvio will try to execute an empty query
+            sql_units.append(dbstate.SQLQueryUnit(query=""))
+        return sql_units
 
     def compile(
         self,

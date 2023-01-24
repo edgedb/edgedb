@@ -2337,7 +2337,7 @@ jobs:
               break
             fi
             echo "$resp" | jq -r '."results"[]["name"]'
-          done | grep "^[[:digit:]]\+.*" || :
+          done | grep "^[[:digit:]]\+.*" | grep -v "alpha\|beta\|rc" || :
         )
 
         tags=( "$VERSION_CORE" )

@@ -47,3 +47,4 @@ Your instance can now receive EdgeQL queries over HTTP at
     :hidden:
 
     protocol
+    health-checks

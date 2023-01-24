@@ -18,7 +18,6 @@
 
 from __future__ import annotations
 
-import asyncpg
 import os
 import asyncio
 import json
@@ -28,6 +27,7 @@ from edb.tools.edb import edbcommands
 
 
 async def run():
+    import asyncpg
 
     localdev = os.path.expanduser('~/.local/share/edgedb/_localdev')
 

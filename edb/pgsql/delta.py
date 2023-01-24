@@ -3997,14 +3997,14 @@ class PointerMetaCommand(
             schema, new_target, persistent_tuples=True)
 
         source = source_op.scls
-        using_eql_expr = self.cast_expr
+        cast_expr = self.cast_expr
 
         # For links, when the new type is a supertype of the old, no
         # SQL-level changes are necessary, unless an explicit conversion
         # expression was specified.
         if (
             is_link
-            and using_eql_expr is None
+            and cast_expr is None
             and orig_target.issubclass(orig_schema, new_target)
         ):
             return
@@ -4012,14 +4012,14 @@ class PointerMetaCommand(
         # We actually have work to do, so drop any constraints we have
         self._drop_constraints(pointer, schema, context)
 
-        if using_eql_expr is None and not is_link:
+        if cast_expr is None and not is_link:
             # A lack of an explicit EdgeQL conversion expression means
             # that the new type is assignment-castable from the old type
             # in the EdgeDB schema.  BUT, it would not necessarily be
             # assignment-castable in Postgres, especially if the types are
             # compound.  Thus, generate an explicit cast expression.
             pname = pointer.get_shortname(schema).name
-            using_eql_expr = s_expr.Expression.from_ast(
+            cast_expr = s_expr.Expression.from_ast(
                 ql_ast.TypeCast(
                     expr=ql_ast.Path(
                         partial=True,
@@ -4042,17 +4042,17 @@ class PointerMetaCommand(
         # supports arbitrary queries, but requires a temporary column,
         # which is populated with the transition query and then used as the
         # source for the SQL USING clause.
-        using_eql_expr, using_sql_expr, orig_rel_alias, sql_expr_is_trivial = (
+        cast_expr, cast_sql_expr, orig_rel_alias, sql_expr_is_trivial = (
             self._compile_conversion_expr(
                 pointer=pointer,
-                conv_expr=using_eql_expr,
+                conv_expr=cast_expr,
                 schema=schema,
                 orig_schema=orig_schema,
                 context=context,
             )
         )
 
-        expr_is_nullable = using_eql_expr.cardinality.can_be_zero()
+        expr_is_nullable = cast_expr.cardinality.can_be_zero()
 
         need_temp_col = (
             (is_multi and expr_is_nullable)
@@ -4100,9 +4100,9 @@ class PointerMetaCommand(
                 obj_id_ref = f'{qi(orig_rel_alias)}.id'
 
             if is_required and not is_multi:
-                using_sql_expr = textwrap.dedent(f'''\
+                cast_sql_expr = textwrap.dedent(f'''\
                     edgedb.raise_on_null(
-                        ({using_sql_expr}),
+                        ({cast_sql_expr}),
                         'not_null_violation',
                         msg => 'missing value for required property',
                         detail => '{{"object_id": "' || {obj_id_ref} || '"}}',
@@ -4112,13 +4112,13 @@ class PointerMetaCommand(
 
             update_qry = textwrap.dedent(f'''\
                 UPDATE {tab} AS {qi(orig_rel_alias)}
-                SET {qi(target_col)} = ({using_sql_expr})
+                SET {qi(target_col)} = ({cast_sql_expr})
             ''')
 
             self.pgops.add(dbops.Query(update_qry))
-            actual_using_expr = qi(target_col)
+            actual_cast_expr = qi(target_col)
         else:
-            actual_using_expr = using_sql_expr
+            actual_cast_expr = cast_sql_expr
 
         if changing_col_type or need_temp_col:
             alter_table = source_op.get_alter_table(
@@ -4197,7 +4197,7 @@ class PointerMetaCommand(
             alter_type = dbops.AlterTableAlterColumnType(
                 old_ptr_stor_info.column_name,
                 common.quote_type(new_type),
-                using_expr=actual_using_expr,
+                cast_expr=actual_cast_expr,
             )
 
             alter_table.add_operation(alter_type)
@@ -4248,11 +4248,8 @@ class PointerMetaCommand(
         is_required = pointer.get_required(schema)
 
         new_target = not_none(pointer.get_target(schema))
-        expr_is_trivial = False
 
-        if conv_expr.irast is not None:
-            ir = conv_expr.irast
-        else:
+        if conv_expr.irast is None:
             conv_expr = self._compile_expr(
                 orig_schema,
                 context,
@@ -4260,7 +4257,8 @@ class PointerMetaCommand(
                 target_as_singleton=target_as_singleton,
                 no_query_rewrites=True,
             )
-            ir = conv_expr.irast
+        ir = conv_expr.irast
+        assert ir
 
         if ir.stype != new_target and not is_link:
             # The result of an EdgeQL USING clause does not match

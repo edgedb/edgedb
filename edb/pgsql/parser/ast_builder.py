@@ -184,6 +184,8 @@ def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
             "TransactionStmt": _build_transaction_stmt,
             "PrepareStmt": _build_prepare,
             "ExecuteStmt": _build_execute,
+            "CreateStmt": _build_create,
+            "CreateTableAsStmt": _build_create_table_as,
         },
         [_build_query],
     )
@@ -265,20 +267,52 @@ def _build_delete_stmt(n: Node, c: Context) -> pgast.DeleteStmt:
 
 
 def _build_variable_set_stmt(n: Node, c: Context) -> pgast.Statement:
-    if n["name"] == "TRANSACTION" or n["name"] == "SESSION CHARACTERISTICS":
-        return pgast.SetTransactionStmt(
-            options=_build_transaction_options(n["args"], c),
+    tx_only_vars = {
+        "transaction_isolation",
+        "transaction_read_only",
+        "transaction_deferrable",
+    }
+    if n["kind"] == "VAR_RESET":
+        return pgast.VariableResetStmt(
+            name=n["name"],
             scope=pgast.OptionsScope.TRANSACTION
-            if n["name"] == "TRANSACTION"
+            if n["name"] in tx_only_vars
             else pgast.OptionsScope.SESSION,
+            context=_build_context(n, c),
         )
+
+    if n["kind"] == "VAR_RESET_ALL":
+        return pgast.VariableResetStmt(
+            name=None,
+            scope=pgast.OptionsScope.SESSION,
+            context=_build_context(n, c),
+        )
+
+    if n["kind"] == "VAR_SET_MULTI":
+        name = n["name"]
+        if name == "TRANSACTION" or name == "SESSION CHARACTERISTICS":
+            return pgast.SetTransactionStmt(
+                options=_build_transaction_options(n["args"], c),
+                scope=pgast.OptionsScope.TRANSACTION
+                if name == "TRANSACTION"
+                else pgast.OptionsScope.SESSION,
+            )
 
     if n["kind"] == "VAR_SET_VALUE":
         return pgast.VariableSetStmt(
             name=n["name"],
-            args=_list(n, c, "args", _build_base_expr),
+            args=pgast.ArgsList(args=_list(n, c, "args", _build_base_expr)),
             scope=pgast.OptionsScope.TRANSACTION
-            if "is_local" in n and n["is_local"]
+            if n["name"] in tx_only_vars or "is_local" in n and n["is_local"]
+            else pgast.OptionsScope.SESSION,
+            context=_build_context(n, c),
+        )
+
+    if n["kind"] == "VAR_SET_DEFAULT":
+        return pgast.VariableResetStmt(
+            name=n["name"],
+            scope=pgast.OptionsScope.TRANSACTION
+            if n["name"] in tx_only_vars or "is_local" in n and n["is_local"]
             else pgast.OptionsScope.SESSION,
             context=_build_context(n, c),
         )
@@ -319,6 +353,9 @@ def _build_transaction_stmt(n: Node, c: Context) -> pgast.TransactionStmt:
     def rollback_to(n: Node, _: Context) -> pgast.RollbackToStmt:
         return pgast.RollbackToStmt(savepoint_name=n["savepoint_name"])
 
+    def prepare(n: Node, _: Context) -> pgast.PrepareTransaction:
+        return pgast.PrepareTransaction(gid=n["gid"])
+
     def commit_prepared(n: Node, _: Context) -> pgast.CommitPreparedStmt:
         return pgast.CommitPreparedStmt(gid=n["gid"])
 
@@ -333,6 +370,7 @@ def _build_transaction_stmt(n: Node, c: Context) -> pgast.TransactionStmt:
         "SAVEPOINT": savepoint,
         "RELEASE": release,
         "ROLLBACK_TO": rollback_to,
+        "PREPARE": prepare,
         "COMMIT_PREPARED": commit_prepared,
         "ROLLBACK_PREPARED": rollback_prepared,
     }
@@ -347,45 +385,15 @@ def _build_transaction_stmt(n: Node, c: Context) -> pgast.TransactionStmt:
 def _build_transaction_options(
     nodes: List[Node], c: Context
 ) -> pgast.TransactionOptions:
-    isolation_mode = None
-    access_mode = None
-    deferrable = None
-
+    options = {}
     for n in nodes:
         if "DefElem" not in n:
             continue
         def_e = n["DefElem"]
-        if not ("defname" in def_e or "arg" in def_e):
+        if not ("defname" in def_e and "arg" in def_e):
             continue
-        def_name = def_e["defname"]
-        arg = _build_base_expr(def_e["arg"], c)
-
-        if def_name == "transaction_isolation":
-            if isinstance(arg, pgast.StringConstant):
-                if arg.val == "serializable":
-                    isolation_mode = pgast.IsolationMode.SERIALIZABLE
-                elif arg.val == "repeatable read":
-                    isolation_mode = pgast.IsolationMode.REPEATABLE_READ
-                elif arg.val == "read committed":
-                    isolation_mode = pgast.IsolationMode.READ_COMMITTED
-                elif arg.val == "read uncommitted":
-                    isolation_mode = pgast.IsolationMode.READ_UNCOMMITTED
-
-        elif def_name == "transaction_read_only":
-            if isinstance(arg, pgast.NumericConstant):
-                if arg.val == "1":
-                    access_mode = pgast.AccessMode.READ_ONLY
-
-        elif def_name == "transaction_deferrable":
-            if isinstance(arg, pgast.NumericConstant):
-                if arg.val == "1":
-                    deferrable = True
-
-    return pgast.TransactionOptions(
-        isolation_mode=isolation_mode or pgast.IsolationMode.READ_COMMITTED,
-        access_mode=access_mode or pgast.AccessMode.READ_WRITE,
-        deferrable=deferrable or False,
-    )
+        options[def_e["defname"]] = _build_base_expr(def_e["arg"], c)
+    return pgast.TransactionOptions(options=options)
 
 
 def _build_prepare(n: Node, c: Context) -> pgast.PrepareStmt:
@@ -399,6 +407,65 @@ def _build_prepare(n: Node, c: Context) -> pgast.PrepareStmt:
 def _build_execute(n: Node, c: Context) -> pgast.ExecuteStmt:
     return pgast.ExecuteStmt(
         name=n["name"], params=_maybe_list(n, c, "params", _build_base_expr)
+    )
+
+
+def _build_create_table_as(n: Node, c: Context) -> pgast.CreateTableAsStmt:
+    print(n)
+
+    return pgast.CreateTableAsStmt(
+        into=_build_create(n['into'], c),
+        query=_build_query(n['query'], c),
+        with_no_data=_bool_or_false(n['into'], 'skipData'),
+    )
+
+
+def _build_create(n: Node, c: Context) -> pgast.CreateStmt:
+    def _build_on_commit(n: str, _c: Context) -> Optional[str]:
+        on_commit = n[9:]
+        return on_commit if on_commit != 'NOOP' else None
+
+    relation = n['relation'] if 'relation' in n else n['rel']
+
+    return pgast.CreateStmt(
+        relation=_build_relation(relation, c),
+        table_elements=_maybe_list(n, c, 'tableElts', _build_table_element)
+        or [],
+        context=_build_context(n, c),
+        on_commit=_maybe(n, c, 'oncommit', _build_on_commit),
+    )
+
+
+def _build_table_element(n: Node, c: Context) -> pgast.TableElement:
+    return _enum(
+        pgast.TableElement,
+        n,
+        c,
+        {
+            "ColumnDef": _build_column_def,
+        },
+    )
+
+
+def _build_column_def(n: Node, c: Context) -> pgast.ColumnDef:
+    is_not_null = False
+    default_expr = None
+    if 'constraints' in n:
+        for constraint in n['constraints']:
+            constraint = _unwrap(constraint, 'Constraint')
+
+            if constraint['contype'] == 'CONSTR_NOTNULL':
+                is_not_null = True
+            if constraint['contype'] == 'CONSTR_DEFAULT':
+                is_not_null = True
+                default_expr = _maybe(n, c, 'raw_expr', _build_base_expr)
+
+    return pgast.ColumnDef(
+        name=n['colname'],
+        typename=_build_type_name(n['typeName'], c),
+        default_expr=default_expr,
+        is_not_null=is_not_null,
+        context=_build_context(n, c),
     )
 
 
@@ -467,8 +534,15 @@ def _build_indirection_op(n: Node, c: Context) -> pgast.IndirectionOp:
             'A_Indices': _build_index_or_slice,
             'Star': _build_star,
             'ColumnRef': _build_column_ref,
+            'String': _build_record_indirection_op,
         },
     )
+
+
+def _build_record_indirection_op(
+    n: Node, c: Context
+) -> pgast.RecordIndirectionOp:
+    return pgast.RecordIndirectionOp(name=_build_str(n, c))
 
 
 def _build_ctes(n: Node, c: Context) -> List[pgast.CommonTableExpr]:
@@ -749,6 +823,7 @@ def _build_relation(n: Node, c: Context) -> pgast.Relation:
         name=_maybe(n, c, "relname", _build_str),
         catalogname=_maybe(n, c, "catalogname", _build_str),
         schemaname=_maybe(n, c, "schemaname", _build_str),
+        is_temporary=_maybe(n, c, "relpersistence", lambda n, _c: n == 't'),
         context=_build_context(n, c),
     )
 
@@ -793,6 +868,14 @@ def _build_a_expr(n: Node, c: Context) -> pgast.BaseExpr:
             test_expr=_maybe(n, c, "lexpr", _build_base_expr),
             expr=_build_base_expr(n["rexpr"], c),
             context=_build_context(n, c),
+        )
+    elif n['kind'] == 'AEXPR_NULLIF':
+        return pgast.FuncCall(
+            name=('nullif',),
+            args=[
+                _build_base_expr(n['lexpr'], c),
+                _build_base_expr(n['rexpr'], c),
+            ],
         )
     else:
         raise PSqlUnsupportedError(n)

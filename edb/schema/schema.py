@@ -54,7 +54,6 @@ if TYPE_CHECKING:
     ]
 
 STD_MODULES = (
-    sn.UnqualName('__std_derived__'),
     sn.UnqualName('std'),
     sn.UnqualName('schema'),
     sn.UnqualName('math'),

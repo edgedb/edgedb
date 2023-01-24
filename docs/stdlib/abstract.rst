@@ -4,8 +4,8 @@
 Abstract Types
 ==============
 
-These types are used in definitions of polymorphic (generic) functions
-that can be applied to a broad range of types.
+Abstract types are used to describe polymorphic functions, otherwise known as
+"generic functions," which can be called on a broad range of types.
 
 
 ----------
@@ -15,7 +15,7 @@ that can be applied to a broad range of types.
 
     :index: any anytype
 
-    Generic type.
+    A generic type.
 
     It is a placeholder used in cases where no specific type
     requirements are needed, such as defining polymorphic parameters
@@ -29,7 +29,7 @@ that can be applied to a broad range of types.
 
     :index: any anytype scalar
 
-    Abstract base scalar type.
+    An abstract base scalar type.
 
     All scalar types are derived from this type.
 
@@ -41,7 +41,7 @@ that can be applied to a broad range of types.
 
     :index: any anytype enum
 
-    Abstract base enumerated type.
+    An abstract base enumerated type.
 
     All :eql:type:`enum` types are derived from this type.
 
@@ -53,24 +53,23 @@ that can be applied to a broad range of types.
 
     :index: any anytype anytuple
 
-    Generic tuple.
+    A generic tuple.
 
-    Similarly to ``anytype`` it denotes a generic tuple without going
-    into details of what the components are.  Just as with
-    ``anytype``, this is useful when defining polymorphic parameters
-    in functions and operators.
+    Similarly to :eql:type:`anytype`, this type is used to denote a generic
+    tuple without detailing its component types. This is useful when defining
+    polymorphic parameters in functions and operators.
 
 
 Abstract Numeric Types
 ======================
 
-There are a number of abstract numeric types extending ``anyscalar``:
+These abstract numeric types extend :eql:type:`anyscalar`.
 
 .. eql:type:: std::anyint
 
     :index: any anytype int
 
-    Abstract base scalar type for
+    An abstract base scalar type for
     :eql:type:`int16`, :eql:type:`int32`, and :eql:type:`int64`.
 
 
@@ -81,7 +80,7 @@ There are a number of abstract numeric types extending ``anyscalar``:
 
     :index: any anytype float
 
-    Abstract base scalar type for
+    An abstract base scalar type for
     :eql:type:`float32` and :eql:type:`float64`.
 
 
@@ -92,7 +91,7 @@ There are a number of abstract numeric types extending ``anyscalar``:
 
     :index: any anytype
 
-    Abstract base scalar type for
+    An abstract base scalar type for
     :eql:type:`anyint`, :eql:type:`anyfloat`, and :eql:type:`decimal`.
 
 
@@ -120,12 +119,12 @@ abstract types:
 
 .. eql:type:: std::anydiscrete
 
-    :index: any anydiscrete anyrange
+    :index: any anydiscrete anyrange discrete
 
-    Abstract base type for all valid *discrete* ranges.
+    An abstract base type for all valid *discrete* ranges.
 
-    Abstract base scalar type for :eql:type:`int32`, :eql:type:`int64`,
-    and :eql:type:`cal::local_date`.
+    This is an abstract base scalar type for :eql:type:`int32`,
+    :eql:type:`int64`, and :eql:type:`cal::local_date`.
 
 
 ----------
@@ -135,8 +134,8 @@ abstract types:
 
     :index: any anycontiguous anyrange
 
-    Abstract base type for all valid *contiguous* ranges.
+    An abstract base type for all valid *contiguous* ranges.
 
-    Abstract base scalar type for :eql:type:`float32`, :eql:type:`float64`,
-    :eql:type:`decimal`, :eql:type:`datetime`, and
+    This is an abstract base scalar type for :eql:type:`float32`,
+    :eql:type:`float64`, :eql:type:`decimal`, :eql:type:`datetime`, and
     :eql:type:`cal::local_datetime`.

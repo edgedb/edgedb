@@ -378,6 +378,99 @@ class QueryUnitGroup:
         self.units.append(query_unit)
 
 
+@dataclasses.dataclass
+class SQLQueryUnit:
+    query: str
+
+    tx_action: Optional[TxAction] = None
+    tx_chain: bool = False
+    sp_name: Optional[str] = None
+
+    set_vars: Optional[dict[str, Optional[str | list[str]]]] = None
+    is_local: bool = False
+
+    stmt_name: bytes = b""
+
+    frontend_only: bool = False
+    get_var: Optional[str] = None
+
+
+@dataclasses.dataclass
+class SQLTransactionState:
+    in_tx: bool
+    settings: immutables.Map
+    in_tx_settings: Optional[immutables.Map]
+    in_tx_local_settings: Optional[immutables.Map]
+    savepoints: list[tuple[str, immutables.Map, immutables.Map]]
+
+    def get(self, name):
+        if self.in_tx:
+            return self.in_tx_local_settings[name]
+        else:
+            return self.settings[name]
+
+    def apply(self, query_unit: SQLQueryUnit):
+        if query_unit.tx_action == TxAction.COMMIT:
+            self.in_tx = False
+            self.settings = self.in_tx_settings  # type: ignore
+            self.in_tx_settings = None
+            self.in_tx_local_settings = None
+            self.savepoints.clear()
+        elif query_unit.tx_action == TxAction.ROLLBACK:
+            self.in_tx = False
+            self.in_tx_settings = None
+            self.in_tx_local_settings = None
+            self.savepoints.clear()
+        elif query_unit.tx_action == TxAction.DECLARE_SAVEPOINT:
+            self.savepoints.append((
+                query_unit.sp_name,
+                self.in_tx_settings,
+                self.in_tx_local_settings,
+            ))  # type: ignore
+        elif query_unit.tx_action == TxAction.ROLLBACK_TO_SAVEPOINT:
+            while self.savepoints:
+                sp_name, settings, local_settings = self.savepoints[-1]
+                if query_unit.sp_name == sp_name:
+                    self.in_tx_settings = settings
+                    self.in_tx_local_settings = local_settings
+                    break
+                else:
+                    self.savepoints.pop(0)
+            else:
+                raise errors.TransactionError(
+                    f'savepoint "{query_unit.sp_name}" does not exist'
+                )
+        if not self.in_tx:
+            # Always start an implicit transaction here, because in the
+            # compiler, multiple apply() calls only happen in simple query,
+            # and any query would start an implicit transaction. For example,
+            # we need to support a single ROLLBACK without a matching BEGIN
+            # rolling back an implicit transaction.
+            self.in_tx = True
+            self.in_tx_settings = self.settings
+            self.in_tx_local_settings = self.settings
+        if query_unit.frontend_only and query_unit.set_vars:
+            for name, value in query_unit.set_vars.items():
+                self.set(name, value, query_unit.is_local)
+
+    def set(self, name: str, value, is_local: bool):
+        def _set(attr_name):
+            settings = getattr(self, attr_name)
+            if value is None:
+                if name in settings:
+                    settings = settings.delete(name)
+            else:
+                settings = settings.set(name, value)
+            setattr(self, attr_name, settings)
+
+        if self.in_tx:
+            _set("in_tx_local_settings")
+            if not is_local:
+                _set("in_tx_settings")
+        elif not is_local:
+            _set("settings")
+
+
 #############################
 
 
