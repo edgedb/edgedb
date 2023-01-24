@@ -1968,3 +1968,29 @@ annotation test::foo;
             };
         };
         """
+
+    def test_eschema_newsyntax_colon_01(self):
+        """
+        abstract type test::OwnedObject {
+            required link owner: User
+        };
+
+% OK %
+
+        abstract type test::OwnedObject {
+            required link owner -> User;
+        };
+        """
+
+    def test_eschema_newsyntax_global_1(self):
+        """
+        module test {
+            global foo: str;
+        };
+
+% OK %
+
+        module test {
+            global foo -> str;
+        };
+        """
