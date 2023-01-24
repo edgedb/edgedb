@@ -306,10 +306,15 @@ def get_name(
     elif not module:
         module = current_module
     elif modaliases:
-        fq_module = modaliases.get(module)
+        if module:
+            first, sep, rest = module.partition('::')
+        else:
+            first, sep, rest = module, '', ''
+
+        fq_module = modaliases.get(first)
         if fq_module is not None:
             no_std = True
-            module = fq_module
+            module = fq_module + sep + rest
 
     qname = sn.QualName(module=module, name=ref.name)
     if type is None:

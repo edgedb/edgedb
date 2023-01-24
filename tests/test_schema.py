@@ -3415,6 +3415,20 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         ):
             self._assert_migration_consistency(schema, multi_module=True)
 
+    def test_schema_get_migration_nested_module_02(self):
+        schema = r'''
+        module foo {
+          module bar {
+            type X;
+          }
+        };
+        module default {
+          alias x := (with m as module foo select m::bar::X);
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
     def test_schema_get_migration_default_ptrs_01(self):
         schema = r'''
         type Foo {

@@ -1061,10 +1061,16 @@ class FlatSchema(Schema):
             cur_module = module_aliases[None]
             module = f'{cur_module}::{module.removeprefix("__current__::")}'
         elif module_aliases is not None:
-            fq_module = module_aliases.get(module)
+            first: Optional[str]
+            if module:
+                first, sep, rest = module.partition('::')
+            else:
+                first, sep, rest = module, '', ''
+
+            fq_module = module_aliases.get(first)
             if fq_module is not None:
                 alias_hit = True
-                module = fq_module
+                module = fq_module + sep + rest
 
         if module is not None:
             fqname = sn.QualName(module, shortname)

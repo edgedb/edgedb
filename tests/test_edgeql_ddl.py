@@ -5093,6 +5093,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute('''\
             CREATE MODULE foo;
             CREATE MODULE foo::bar;
+            CREATE TYPE foo::Foo;
             CREATE TYPE foo::bar::Baz;
         ''')
 
@@ -5106,6 +5107,81 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r'''
             with module foo::bar
             select Baz
+            ''',
+            []
+        )
+        await self.con.execute('''\
+            SET MODULE foo::bar;
+        ''')
+        await self.assert_query_result(
+            r'''
+            select foo::bar::Baz
+            ''',
+            []
+        )
+        await self.assert_query_result(
+            r'''
+            select Baz
+            ''',
+            []
+        )
+
+        await self.con.execute('''\
+            SET MODULE foo;
+        ''')
+        # We *don't* support relative references of submodules
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidReferenceError,
+                "'bar::Baz' does not exist"):
+            await self.con.execute('''\
+                SELECT bar::Baz
+            ''')
+        await self.assert_query_result(
+            r'''
+            select Foo
+            ''',
+            []
+        )
+        await self.con.execute('''\
+            RESET MODULE;
+        ''')
+
+        # We *don't* support relative references of submodules
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidReferenceError,
+                "'bar::Baz' does not exist"):
+            await self.con.execute('''\
+                WITH MODULE foo
+                SELECT bar::Baz
+            ''')
+
+        await self.assert_query_result(
+            r'''
+            with m as module foo::bar
+            select m::Baz
+            ''',
+            []
+        )
+
+        await self.assert_query_result(
+            r'''
+            with m as module foo
+            select m::bar::Baz
+            ''',
+            []
+        )
+
+    async def test_edgeql_ddl_module_05(self):
+        await self.con.execute('''\
+            CREATE MODULE foo;
+            CREATE MODULE foo::bar;
+            SET MODULE foo::bar;
+            CREATE TYPE Baz;
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            select foo::bar::Baz
             ''',
             []
         )
