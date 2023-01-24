@@ -430,7 +430,9 @@ def compile_InsertQuery(
 
         with ictx.new() as ectx:
             ectx.expr_exposed = context.Exposure.UNEXPOSED
-            subject = dispatch.compile(qlast.Path(steps=[expr.subject]), ctx=ectx)
+            subject = dispatch.compile(
+                qlast.Path(steps=[expr.subject]), ctx=ectx
+            )
         assert isinstance(subject, irast.Set)
 
         subject_stype = setgen.get_set_type(subject, ctx=ictx)

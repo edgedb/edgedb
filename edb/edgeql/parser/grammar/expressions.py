@@ -278,8 +278,8 @@ class SimpleInsert(Nonterm):
         unless_conflict = kids[3].val
 
         if isinstance(kids[1].val, qlast.Path) and \
-            len(kids[1].val.steps) == 1 and  \
-            isinstance(kids[1].val.steps[0], qlast.ObjectRef):
+                len(kids[1].val.steps) == 1 and  \
+                isinstance(kids[1].val.steps[0], qlast.ObjectRef):
             objtype = kids[1].val.steps[0]
         else:
             raise errors.EdgeQLSyntaxError(

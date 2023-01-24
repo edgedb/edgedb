@@ -186,16 +186,11 @@ def compile_ConfigInsert(
         )
 
     insert_stmt = qlast.InsertQuery(
-        subject=
+        subject=qlast.ObjectRef(name=expr.name.name, module='cfg'),
         # qlast.Path(
         #     steps=[
-                qlast.ObjectRef(
-                    name=expr.name.name,
-                    module='cfg',
-                )
         #     ]
         # )
-        ,
         shape=expr.shape,
     )
 
