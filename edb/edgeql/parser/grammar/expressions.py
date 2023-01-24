@@ -263,7 +263,7 @@ class SimpleInsert(Nonterm):
         # r'%reduce INSERT BaseAtomicExpr OptShape OptUnlessConflictClause'
         # r'%reduce INSERT BaseStringConstant OptShape OptUnlessConflictClause'
 
-        subj = kids[1]
+        subj = kids[1].val
         objtype = None
 
         # check that the insert subject is either a path or a shape
