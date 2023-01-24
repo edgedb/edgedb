@@ -5221,7 +5221,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             typisdefined,
             typdelim,
             typrelid,
-            typsubscript,
             typelem,
             typarray,
             typinput,
