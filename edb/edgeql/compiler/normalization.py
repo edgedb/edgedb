@@ -271,8 +271,7 @@ def normalize_InsertQuery(
 
     # Process the subject expression
     localnames = _normalize_objref(
-        node,
-        'subject',
+        node.subject,
         schema=schema,
         modaliases=modaliases,
         localnames=localnames,
