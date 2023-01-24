@@ -1956,3 +1956,16 @@ annotation test::foo;
             };
         };
         """
+
+    def test_eschema_newsyntax_global_1(self):
+        """
+        module test {
+            global foo: str;
+        };
+
+% OK %
+
+        module test {
+            global foo -> str;
+        };
+        """

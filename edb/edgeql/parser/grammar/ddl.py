@@ -1501,6 +1501,21 @@ class CreateConcretePropertyStmt(Nonterm):
             commands=kids[7].val,
         )
 
+    def reduce_CreateRegularPropertyNew(self, *kids):
+        """%reduce
+            CREATE OptPtrQuals PROPERTY UnqualifiedPointerName
+            OptExtendingSimple COLON FullTypeExpr
+            OptCreateConcretePropertyCommandsBlock
+        """
+        self.val = qlast.CreateConcreteProperty(
+            name=kids[3].val,
+            bases=kids[4].val,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
+            target=kids[6].val,
+            commands=kids[7].val,
+        )
+
     def reduce_CreateComputableProperty(self, *kids):
         """%reduce
             CREATE OptPtrQuals PROPERTY UnqualifiedPointerName ASSIGN Expr
@@ -1793,6 +1808,20 @@ class CreateConcreteLinkStmt(Nonterm):
         """%reduce
             CREATE OptPtrQuals LINK UnqualifiedPointerName OptExtendingSimple
             ARROW FullTypeExpr OptCreateConcreteLinkCommandsBlock
+        """
+        self.val = qlast.CreateConcreteLink(
+            name=kids[3].val,
+            bases=kids[4].val,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
+            target=kids[6].val,
+            commands=kids[7].val
+        )
+
+    def reduce_CreateRegularLinkNew(self, *kids):
+        """%reduce
+            CREATE OptPtrQuals LINK UnqualifiedPointerName OptExtendingSimple
+            COLON FullTypeExpr OptCreateConcreteLinkCommandsBlock
         """
         self.val = qlast.CreateConcreteLink(
             name=kids[3].val,
@@ -2276,6 +2305,19 @@ class CreateFunctionStmt(Nonterm, commondl.ProcessFunctionBlockMixin):
     def reduce_CreateFunction(self, *kids):
         r"""%reduce CREATE FUNCTION NodeName CreateFunctionArgs \
                 ARROW OptTypeQualifier FunctionType \
+                CreateFunctionCommandsBlock
+        """
+        self.val = qlast.CreateFunction(
+            name=kids[2].val,
+            params=kids[3].val,
+            returning=kids[6].val,
+            returning_typemod=kids[5].val,
+            **self._process_function_body(kids[7])
+        )
+
+    def reduce_CreateFunctionNew(self, *kids):
+        r"""%reduce CREATE FUNCTION NodeName CreateFunctionArgs \
+                COLON OptTypeQualifier FunctionType \
                 CreateFunctionCommandsBlock
         """
         self.val = qlast.CreateFunction(
@@ -2821,6 +2863,20 @@ class CreateGlobalStmt(Nonterm):
         """%reduce
             CREATE OptPtrQuals GLOBAL NodeName
             ARROW FullTypeExpr
+            OptCreateGlobalCommandsBlock
+        """
+        self.val = qlast.CreateGlobal(
+            name=kids[3].val,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
+            target=kids[5].val,
+            commands=kids[6].val,
+        )
+
+    def reduce_CreateRegularGlobalNew(self, *kids):
+        """%reduce
+            CREATE OptPtrQuals GLOBAL NodeName
+            COLON FullTypeExpr
             OptCreateGlobalCommandsBlock
         """
         self.val = qlast.CreateGlobal(
