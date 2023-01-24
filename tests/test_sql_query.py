@@ -19,7 +19,6 @@
 import os.path
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 try:
     import asyncpg
@@ -645,6 +644,9 @@ class TestSQL(tb.SQLQueryTestCase):
             SELECT set_config('search_path', '', FALSE);
             '''
         )
+
+        # HACK: Set search_path back to public
+        await self.scon.execute('SET search_path TO public;')
 
     async def test_sql_query_static_eval(self):
         res = await self.squery_values('select current_schema;')
