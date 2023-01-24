@@ -259,21 +259,9 @@ class InternalGroup(Nonterm):
 class SimpleInsert(Nonterm):
     def reduce_Insert(self, *kids):
         r'%reduce INSERT AtomicExpr OptShape OptUnlessConflictClause'
-        # r'%reduce INSERT Path OptShape OptUnlessConflictClause'
-        # r'%reduce INSERT BaseAtomicExpr OptShape OptUnlessConflictClause'
-        # r'%reduce INSERT BaseStringConstant OptShape OptUnlessConflictClause'
 
         subj = kids[1].val
         objtype = None
-
-        # check that the insert subject is either a path or a shape
-        # if isinstance(subj, qlast.Shape):
-        # if isinstance(subj, qlast.ObjectRef):
-        #     objtype = subj.expr
-        #     shape = subj.elements
-        # else:
-        #     objtype = subj
-        #     shape = []
 
         shape = kids[2].val
         unless_conflict = kids[3].val
