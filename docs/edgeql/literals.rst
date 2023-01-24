@@ -252,7 +252,7 @@ numerical data.
       :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
   * - Arithmetic
     - :eql:op:`+ <plus>` :eql:op:`- <minus>` :eql:op:`- <uminus>`
-      :eql:op:`* <mult>` :eql:op:`/ <div>` :eql:op:`/  <floordiv>`
+      :eql:op:`* <mult>` :eql:op:`/ <div>` :eql:op:`//  <floordiv>`
       :eql:op:`% <mod>` :eql:op:`^ <pow>`
   * - Statistics
     - :eql:func:`sum` :eql:func:`min` :eql:func:`max` :eql:func:`math::mean`
