@@ -270,7 +270,7 @@ def normalize_InsertQuery(
     )
 
     # Process the subject expression
-    localnames = _normalize_aliased_field(
+    localnames = _normalize_objref(
         node,
         'subject',
         schema=schema,
