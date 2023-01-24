@@ -459,6 +459,18 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
+    @tb.must_fail(
+        errors.EdgeQLSyntaxError,
+        "Unexpected '->'")
+    def test_eschema_syntax_type_23c(self):
+        """
+        module test {
+            type Foo {
+                required multi -> str;
+            };
+        };
+        """
+
     def test_eschema_syntax_type_24(self):
         """
         module test {

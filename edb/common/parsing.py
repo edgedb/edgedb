@@ -235,7 +235,7 @@ class PrecedenceMeta(type):
             doc = '%%%s' % assoc
 
             last = mcls.last.get((mcls, prec_group))
-            if last:
+            if last and rel_to_last:
                 doc += ' %s%s' % (rel_to_last, last.__name__)
 
             result.__doc__ = doc

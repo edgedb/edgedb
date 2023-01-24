@@ -1800,6 +1800,13 @@ aa';
         };
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected ':='")
+    def test_edgeql_syntax_shape_73(self):
+        """
+        select { required multi := 1 };
+        """
+
     def test_edgeql_syntax_struct_01(self):
         """
         SELECT (

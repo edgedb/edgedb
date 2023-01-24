@@ -590,86 +590,15 @@ class OptPtrQuals(Nonterm):
         self.val = kids[0].val
 
 
-# We have to inline the OptPtrQuals here because the parser generator
-# fails to cope with a shift/reduce on a REQUIRED token, since PtrQuals
-# are followed by an ident in this case (unlike in DDL, where it is followed
-# by a keyword).
 class ComputableShapePointer(Nonterm):
-
-    def reduce_OPTIONAL_SimpleShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_PtrQuals_SimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
+        self.val.required = kids[0].val.required
+        self.val.cardinality = kids[0].val.cardinality
         self.val.compexpr = kids[3].val
-        self.val.required = False
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
             context=kids[2].context,
-        )
-
-    def reduce_REQUIRED_SimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[1].val
-        self.val.compexpr = kids[3].val
-        self.val.required = True
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
-        )
-
-    def reduce_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[1].val
-        self.val.compexpr = kids[3].val
-        self.val.cardinality = qltypes.SchemaCardinality.Many
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
-        )
-
-    def reduce_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[1].val
-        self.val.compexpr = kids[3].val
-        self.val.cardinality = qltypes.SchemaCardinality.One
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
-        )
-
-    def reduce_OPTIONAL_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[2].val
-        self.val.compexpr = kids[4].val
-        self.val.required = False
-        self.val.cardinality = qltypes.SchemaCardinality.Many
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
-        )
-
-    def reduce_OPTIONAL_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[2].val
-        self.val.compexpr = kids[4].val
-        self.val.required = False
-        self.val.cardinality = qltypes.SchemaCardinality.One
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
-        )
-
-    def reduce_REQUIRED_MULTI_SimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[2].val
-        self.val.compexpr = kids[4].val
-        self.val.required = True
-        self.val.cardinality = qltypes.SchemaCardinality.Many
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
-        )
-
-    def reduce_REQUIRED_SINGLE_SimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[2].val
-        self.val.compexpr = kids[4].val
-        self.val.required = True
-        self.val.cardinality = qltypes.SchemaCardinality.One
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
         )
 
     def reduce_SimpleShapePointer_ASSIGN_Expr(self, *kids):
@@ -700,80 +629,14 @@ class ComputableShapePointer(Nonterm):
 # This is the same as the above ComputableShapePointer, except using
 # FreeSimpleShapePointer and not allowing +=/-=.
 class FreeComputableShapePointer(Nonterm):
-    def reduce_OPTIONAL_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_PtrQuals_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
+        self.val.required = kids[0].val.required
+        self.val.cardinality = kids[0].val.cardinality
         self.val.compexpr = kids[3].val
-        self.val.required = False
         self.val.operation = qlast.ShapeOperation(
             op=qlast.ShapeOp.ASSIGN,
             context=kids[2].context,
-        )
-
-    def reduce_REQUIRED_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[1].val
-        self.val.compexpr = kids[3].val
-        self.val.required = True
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
-        )
-
-    def reduce_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[1].val
-        self.val.compexpr = kids[3].val
-        self.val.cardinality = qltypes.SchemaCardinality.Many
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
-        )
-
-    def reduce_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[1].val
-        self.val.compexpr = kids[3].val
-        self.val.cardinality = qltypes.SchemaCardinality.One
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[2].context,
-        )
-
-    def reduce_OPTIONAL_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[2].val
-        self.val.compexpr = kids[4].val
-        self.val.required = False
-        self.val.cardinality = qltypes.SchemaCardinality.Many
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
-        )
-
-    def reduce_OPTIONAL_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[2].val
-        self.val.compexpr = kids[4].val
-        self.val.required = False
-        self.val.cardinality = qltypes.SchemaCardinality.One
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
-        )
-
-    def reduce_REQUIRED_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[2].val
-        self.val.compexpr = kids[4].val
-        self.val.required = True
-        self.val.cardinality = qltypes.SchemaCardinality.Many
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
-        )
-
-    def reduce_REQUIRED_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
-        self.val = kids[2].val
-        self.val.compexpr = kids[4].val
-        self.val.required = True
-        self.val.cardinality = qltypes.SchemaCardinality.One
-        self.val.operation = qlast.ShapeOperation(
-            op=qlast.ShapeOp.ASSIGN,
-            context=kids[3].context,
         )
 
     def reduce_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
