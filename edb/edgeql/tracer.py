@@ -1000,7 +1000,7 @@ def trace_SortExpr(node: qlast.SortExpr, *, ctx: TracerContext) -> None:
 @trace.register
 def trace_InsertQuery(node: qlast.InsertQuery, *, ctx: TracerContext) -> None:
     with alias_context(ctx, node.aliases) as ctx:
-        trace(node.subject, ctx=ctx)
+        trace(qlast.Path(steps=[node.subject]), ctx=ctx)
 
         for element in node.shape:
             trace(element, ctx=ctx)

@@ -77,6 +77,15 @@ class TestInsert(tb.QueryTestCase):
                 INSERT Person { name };
             ''')
 
+    async def test_edgeql_insert_fail_5(self):
+        with self.assertRaisesRegex(
+            edgedb.EdgeQLSyntaxError,
+            r"insert expression must be an object type reference",
+        ):
+            await self.con.execute('''
+                INSERT Person.notes { name := "note1" };
+            ''')
+
     async def test_edgeql_insert_simple_01(self):
         await self.con.execute(r"""
             INSERT InsertTest {

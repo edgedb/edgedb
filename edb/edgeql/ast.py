@@ -573,8 +573,8 @@ class InternalGroupQuery(
     from_desugaring: bool = False
 
 
-class InsertQuery(Query, SubjectMixin):
-    subject: Path
+class InsertQuery(Query):
+    subject: ObjectRef
     shape: typing.List[ShapeElement]
     unless_conflict: typing.Optional[
         typing.Tuple[typing.Optional[Expr], typing.Optional[Expr]]] = None

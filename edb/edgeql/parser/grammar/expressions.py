@@ -261,21 +261,23 @@ class SimpleInsert(Nonterm):
         r'%reduce INSERT Expr OptUnlessConflictClause'
 
         subj = kids[1].val
-
-        # check that the insert subject is either a path or a shape
-        if isinstance(subj, qlast.Shape):
-            objtype = subj.expr
-            shape = subj.elements
-        else:
-            objtype = subj
-            shape = []
-
         unless_conflict = kids[2].val
 
-        if not isinstance(objtype, qlast.Path):
+        if isinstance(subj, qlast.Shape):
+            subj_path = subj.expr
+            shape = subj.elements
+        else:
+            subj_path = subj
+            shape = []
+
+        if isinstance(subj_path, qlast.Path) and \
+                len(subj_path.steps) == 1 and  \
+                isinstance(subj_path.steps[0], qlast.ObjectRef):
+            objtype = subj_path.steps[0]
+        else:
             raise errors.EdgeQLSyntaxError(
                 "insert expression must be an object type reference",
-                context=subj.context)
+                context=subj_path.context)
 
         self.val = qlast.InsertQuery(
             subject=objtype,
