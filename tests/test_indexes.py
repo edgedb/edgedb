@@ -231,3 +231,34 @@ class TestIndexes(tb.DDLTestCase):
                 };
                 """
             )
+
+    async def test_index_06(self):
+        with self.assertRaisesRegex(
+            edgedb.SchemaError,
+            r"index of object type 'default::Foo' already exists"
+        ):
+            await self.con.execute(r"""
+                create type Foo{
+                    create property val -> str;
+                    create index on (.val);
+                    create index on (.val);
+                };
+            """)
+
+    async def test_index_07(self):
+        with self.assertRaisesRegex(
+            edgedb.SchemaError,
+            r"index.+fts::textsearch\(language:='english'\)"
+            r".+of object type 'default::Foo' already exists"
+        ):
+            await self.con.execute(r"""
+                create type Foo{
+                    create property val -> str;
+                    create index fts::textsearch(language := 'english')
+                        on (.val);
+                    create index fts::textsearch(language := 'spanish')
+                        on (.val);
+                    create index fts::textsearch(language := 'english')
+                        on (.val);
+                };
+            """)

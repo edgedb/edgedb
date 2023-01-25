@@ -534,6 +534,30 @@ class TestSchema(tb.BaseSchemaLoadTest):
             scalar type Foo;
         """
 
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "index of object type 'test::Foo' was already declared")
+    def test_schema_bad_type_16(self):
+        """
+            type Foo {
+                property val -> str;
+                index on (.val);
+                index on (.val);
+            };
+        """
+
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "index 'fts::textsearch' of object type 'test::Foo' "
+                  "was already declared")
+    def test_schema_bad_type_17(self):
+        """
+            type Foo {
+                property val -> str;
+                index fts::textsearch(language:='enlgish') on (.val);
+                index fts::textsearch(language:='italian') on (.val);
+                index fts::textsearch(language:='enlgish') on (.val);
+            };
+        """
+
     def test_schema_computable_cardinality_inference_01(self):
         schema = self.load_schema("""
             type Object {
@@ -1463,7 +1487,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             next(iter(obj.get_indexes(
                 schema).objects(schema))).get_verbosename(
                     schema, with_parent=True),
-            "index 'foo_7770702d' of object type 'test::Object1'",
+            "index of object type 'test::Object1'",
         )
 
     def test_schema_advanced_types(self):
