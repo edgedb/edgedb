@@ -5204,7 +5204,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         dbops.View(
             name=("edgedbsql", "pg_type"),
             query="""
-        SELECT 
+        SELECT
             pt.oid,
             pt.typname,
             pt.typnamespace,
