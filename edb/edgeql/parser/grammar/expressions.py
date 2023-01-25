@@ -258,22 +258,26 @@ class InternalGroup(Nonterm):
 
 class SimpleInsert(Nonterm):
     def reduce_Insert(self, *kids):
-        r'%reduce INSERT AtomicExpr OptShape OptUnlessConflictClause'
+        r'%reduce INSERT Expr OptUnlessConflictClause'
 
         subj = kids[1].val
-        objtype = None
+        unless_conflict = kids[2].val
 
-        shape = kids[2].val
-        unless_conflict = kids[3].val
+        if isinstance(subj, qlast.Shape):
+            subj_path = subj.expr
+            shape = subj.elements
+        else:
+            subj_path = subj
+            shape = []
 
-        if isinstance(subj, qlast.Path) and \
-                len(subj.steps) == 1 and  \
-                isinstance(subj.steps[0], qlast.ObjectRef):
-            objtype = subj.steps[0]
+        if isinstance(subj_path, qlast.Path) and \
+                len(subj_path.steps) == 1 and  \
+                isinstance(subj_path.steps[0], qlast.ObjectRef):
+            objtype = subj_path.steps[0]
         else:
             raise errors.EdgeQLSyntaxError(
                 "insert expression must be an object type reference",
-                context=subj.context)
+                context=subj_path.context)
 
         self.val = qlast.InsertQuery(
             subject=objtype,
