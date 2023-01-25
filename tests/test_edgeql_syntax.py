@@ -5609,7 +5609,6 @@ aa';
         };
         """
 
-    @test.xerror('index parameters not implemented yet')
     def test_edgeql_syntax_ddl_index_05(self):
         """
         CREATE TYPE Foo {
