@@ -239,8 +239,10 @@ def json_fixup(
         if alias and alias in info.alias_to_path_id:
             path_id, _ = info.alias_to_path_id[alias]
             obj['DEBUG PATH ID'] = str(path_id)
-            if ptr := path_id.rptr():
-                assert isinstance(ptr.real_material_ptr, irast.PointerRef)
+            if (
+                (ptr := path_id.rptr())
+                and isinstance(ptr.real_material_ptr, irast.PointerRef)
+            ):
                 ptr_name = _obj_to_name(
                     schema.get_by_id(ptr.real_material_ptr.id), schema)
                 obj['Pointer Name'] = ptr_name

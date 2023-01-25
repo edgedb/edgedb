@@ -536,7 +536,8 @@ def ptrref_from_ptrcls(  # NoQA: F811
     target = ptrcls.get_target(schema)
     if target is not None and not isinstance(target, irast.TypeRef):
         assert isinstance(target, s_types.Type)
-        target_ref = type_to_typeref(schema, target, cache=typeref_cache)
+        target_ref = type_to_typeref(
+            schema, target, include_children=True, cache=typeref_cache)
     else:
         target_ref = target
 

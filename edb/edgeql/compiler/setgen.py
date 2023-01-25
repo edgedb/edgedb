@@ -484,7 +484,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
             try:
                 path_tip = type_intersection_set(
-                    path_tip, typ, optional=False, ctx=ctx)
+                    path_tip, typ, optional=False, source_context=step.context,
+                    ctx=ctx)
             except errors.SchemaError as e:
                 e.set_source_context(step.type.context)
                 raise
@@ -843,7 +844,8 @@ def extend_path(
             if not stype.issubclass(ctx.env.schema, source):
                 # Polymorphic link reference
                 source_set = type_intersection_set(
-                    source_set, source, optional=True, ctx=ctx)
+                    source_set, source, optional=True, source_context=srcctx,
+                    ctx=ctx)
 
         src_path_id = source_set.path_id
 
@@ -1079,6 +1081,7 @@ def type_intersection_set(
     stype: s_types.Type,
     *,
     optional: bool,
+    source_context: Optional[parsing.ParserContext] = None,
     ctx: context.ContextLevel,
 ) -> irast.Set:
     """Return an interesection of *source_set* with type *stype*."""
@@ -1089,7 +1092,7 @@ def type_intersection_set(
     if result.stype == arg_type:
         return source_set
 
-    poly_set = new_set(stype=result.stype, ctx=ctx)
+    poly_set = new_set(stype=result.stype, context=source_context, ctx=ctx)
     rptr = source_set.rptr
     rptr_specialization = []
 
