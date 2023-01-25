@@ -19,10 +19,7 @@
 
 import os.path
 
-import edgedb
-
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestEdgeQLFTS(tb.QueryTestCase):
@@ -51,8 +48,7 @@ class TestEdgeQLFTS(tb.QueryTestCase):
                     "the neck of the bottle was a paper label, with the "
                     "words “DRINK ME,” beautifully printed on it in large "
                     "letters."
-            },
-            {
+            }, {
                 "number": 16,
                 "text":
                     "It was all very well to say “Drink me,” but the wise "
@@ -69,8 +65,7 @@ class TestEdgeQLFTS(tb.QueryTestCase):
                     "had never forgotten that, if you drink much from a "
                     "bottle marked “poison,” it is almost certain to "
                     "disagree with you, sooner or later."
-            },
-            {
+            }, {
                 "number": 17,
                 "text":
                     "However, this bottle was _not_ marked “poison,” so "
@@ -101,8 +96,7 @@ class TestEdgeQLFTS(tb.QueryTestCase):
                     "the neck of the bottle was a paper label, with the "
                     "words “DRINK ME,” beautifully printed on it in large "
                     "letters."
-            },
-            {
+            }, {
                 "number": 16,
                 "text":
                     "It was all very well to say “Drink me,” but the wise "
@@ -195,15 +189,13 @@ class TestEdgeQLFTS(tb.QueryTestCase):
                     "in one hand",
                 "number": 8,
                 "rank": 0.06037053465843201,
-            },
-            {
+            }, {
                 "hl":
                     "<b>Rabbit</b>’s little <b>white</b> kid <b>gloves</b> "
                     "while she was talking. “How _can_ I have done",
                 "number": 14,
                 "rank": 0.045594532042741776,
-            },
-            {
+            }, {
                 "hl":
                     "<b>Rabbit</b> actually _took a <b>watch</b> out of its "
                     "waistcoat-pocket_, and looked at it, and then",
@@ -232,15 +224,13 @@ class TestEdgeQLFTS(tb.QueryTestCase):
                     "hand",
                 "number": 8,
                 "rank": 0.041372817009687424
-            },
-            {
+            }, {
                 "hl":
                     "<b>golden</b> <b>key</b>, and Alice’s first thought "
                     "was that it might belong to one of the doors",
                 "number": 13,
                 "rank": 0.03968412801623344
-            },
-            {
+            }, {
                 "hl":
                     "<b>White</b> <b>Rabbit</b> was still in sight, "
                     "hurrying down it. There was not a moment to be lost",
@@ -268,13 +258,11 @@ class TestEdgeQLFTS(tb.QueryTestCase):
                 "ch": 1,
                 "number": 16,
                 "rank": 0.08536771684885025
-            },
-            {
+            }, {
                 "ch": 1,
                 "number": 1,
                 "rank": 9.999999682655224e-21
-            },
-            {
+            }, {
                 "ch": 1,
                 "number": 2,
                 "rank": 9.999999682655224e-21

@@ -785,7 +785,6 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
-    @test.xerror('index parameters not implemented yet')
     def test_eschema_syntax_index_07(self):
         """
         module test {
