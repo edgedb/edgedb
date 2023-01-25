@@ -28,6 +28,7 @@ import types
 import re
 
 import parsing
+from parsing.introspection import parse_docstring  # noqa
 
 from edb.common.exceptions import add_context, get_context
 from edb.common import context as pctx
