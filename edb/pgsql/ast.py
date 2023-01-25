@@ -461,9 +461,9 @@ class InferClause(ImmutableBaseExpr):
 class OnConflictClause(ImmutableBaseExpr):
 
     action: str
-    infer: typing.Optional[InferClause]
+    infer: typing.Optional[InferClause] = None
     target_list: typing.Optional[
-        typing.List[UpdateTarget | MultiAssignRef]
+        typing.List[InsertTarget | MultiAssignRef]
     ] = None
     where: typing.Optional[BaseExpr] = None
 
