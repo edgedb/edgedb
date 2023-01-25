@@ -2284,7 +2284,6 @@ PG_CATALOG: Dict[str, List[Tuple[ColumnName, ColumnType]]] = {
         ("typisdefined", "boolean"),
         ("typdelim", "\"char\""),
         ("typrelid", "oid"),
-        ("typsubscript", "regproc"),
         ("typelem", "oid"),
         ("typarray", "oid"),
         ("typinput", "regproc"),

@@ -5204,45 +5204,27 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         dbops.View(
             name=("edgedbsql", "pg_type"),
             query="""
-        SELECT pg_type.*
-        FROM pg_type
-        JOIN pg_namespace pn ON pg_type.typnamespace = pn.oid
+        SELECT 
+            pt.oid,
+            pt.typname,
+            pt.typnamespace,
+            {0}
+        FROM pg_type pt
+        JOIN pg_namespace pn ON pt.typnamespace = pn.oid
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
         UNION ALL
         SELECT pt.oid,
             vt.table_name,
             edgedbsql.uuid_to_oid(vt.module_id) as typnamespace,
-            typowner,
-            typlen,
-            typbyval,
-            typtype,
-            typcategory,
-            typispreferred,
-            typisdefined,
-            typdelim,
-            typrelid,
-            typelem,
-            typarray,
-            typinput,
-            typoutput,
-            typreceive,
-            typsend,
-            typmodin,
-            typmodout,
-            typanalyze,
-            typalign,
-            typstorage,
-            typnotnull,
-            typbasetype,
-            typtypmod,
-            typndims,
-            typcollation,
-            typdefaultbin,
-            typdefault,
-            typacl
+            {0}
         FROM pg_type pt
         join edgedbsql.virtual_tables vt ON vt.id::text = pt.typname
-        """,
+        """.format(
+                ",".join(
+                    f"pt.{col}"
+                    for col, _ in sql_introspection.PG_CATALOG["pg_type"][3:]
+                )
+            ),
         ),
         dbops.View(
             name=("edgedbsql", "pg_class"),
