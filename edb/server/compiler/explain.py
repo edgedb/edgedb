@@ -34,7 +34,6 @@ from edb.common import debug
 from edb.edgeql import ast as qlast
 
 from edb.ir import ast as irast
-from edb.ir import utils as irutils
 
 from edb.schema import constraints as s_constr
 from edb.schema import indexes as s_indexes
@@ -43,7 +42,6 @@ from edb.schema import pointers as s_pointers
 from edb.schema import schema as s_schema
 
 from edb.pgsql import ast as pgast
-from edb.pgsql.compiler import pathctx
 from edb.pgsql.compiler import astutils
 
 uuid_core = '[a-f0-9]{8}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{12}'
@@ -58,7 +56,7 @@ ContextDesc = dict[str, int]
 
 @dataclasses.dataclass
 class AnalysisInfo:
-    aliases: dict[str, pgast.PathRangeVar]
+    aliases: dict[str, pgast.BaseRangeVar]
     alias_to_path_id: dict[str, tuple[irast.PathId, Optional[int]]]
     alias_contexts: dict[str, list[list[ContextDesc]]]
     sets: dict[irast.PathId, set[irast.Set]]
@@ -86,7 +84,7 @@ def analyze_queries(
             start=context.start, end=context.end, buffer_idx=idx, text=text
         )
 
-    rvars = ast.find_children(pg, pgast.PathRangeVar)
+    rvars = ast.find_children(pg, pgast.BaseRangeVar)
     queries = ast.find_children(pg, pgast.Query)
 
     # Map subqueries back to their rvars
@@ -99,12 +97,20 @@ def analyze_queries(
 
     # Find all *references* to an rvar in path_rvar_maps
     reverse_path_rvar_map: dict[
-        pgast.PathRangeVar,
-        list[tuple[tuple[irast.PathId, str], pgast.Query]]
+        pgast.BaseRangeVar,
+        list[pgast.Query],
     ] = {}
+    # XXX: We should be able to handle subqueries also!
     for qry in queries:
-        for key, rvar in qry.path_rvar_map.items():
-            reverse_path_rvar_map.setdefault(rvar, []).append((key, qry))
+        qrvars = []
+        # Is this what we want?
+        if isinstance(qry, (pgast.SelectStmt, pgast.UpdateStmt)):
+            qrvars.extend(qry.from_clause)
+        # XXX: more
+
+        for orvar in qrvars:
+            for rvar in astutils.each_base_rvar(orvar):
+                reverse_path_rvar_map.setdefault(rvar, []).append(qry)
 
     # Map aliases to rvars and then to path ids
     aliases = {
@@ -124,63 +130,43 @@ def analyze_queries(
         if s.context:
             sets.setdefault(s.path_id, set()).add(s)
 
-    scopes = irutils.find_path_scopes(ir)
-
     alias_contexts: dict[str, list[list[ContextDesc]]] = {}
 
     # Try to produce good contexts
     # KEY FACT: We often duplicate code for with bindings. This means
     # we want to expose that through the contexts we include.
-    for alias, (path_id, scope_id) in path_ids.items():
-        # print("!!!", alias, path_id, scope_id)
-        if scope_id is None:  # ???
-            continue
-        # Strip the ptr path part off if it exists (which it will on
-        # links), since that won't appear in the sets
-        path_id = path_id.tgt_path()
-        # print("???", sets.get(path_id, ()))
-        for s in sets.get(path_id, ()):
-            if scopes.get(s) == scope_id and s.context:
-                asets = [s]
+    for alias, rvar in aliases.items():
+        # print("!!!", alias)
 
-                # Loop back through...
-                cpath = path_id
-                rvar = aliases[alias]
-                while True:
-                    sources = [
-                        s for k, s in
-                        reverse_path_rvar_map.get(rvar, ())
-                        if k == (cpath, 'source')
-                    ]
-                    if debug_spew:
-                        print('SOURCES', sources, cpath)
-                    if sources:
-                        source = sources[0]
-                        cpath = pathctx.reverse_map_path_id(
-                            cpath, source.view_path_id_map)
+        # Run up the tree
+        asets = []
+        while True:
+            ns = cast(list[irast.Set], rvar.ir_origins or [])
+            # if len(ns) == 1 and ns[0].context:
+            if len(ns) >= 1 and ns[0].context:
+                if ns[0] not in asets:
+                    asets.append(ns[0])
 
-                        ns = tuple(sets.get(cpath, ()))
-                        if len(ns) > 1:
-                            ns = tuple(
-                                n for n in ns
-                                if scopes.get(n) == source.path_scope_id)
-                        if len(ns) == 1 and ns[0].context:
-                            if ns[0] not in asets:
-                                asets.append(ns[0])
+            # Find the enclosing
+            sources = reverse_path_rvar_map.get(rvar, ())
+            if debug_spew:
+                print('SOURCES', sources)
+            if sources:
+                source = sources[0]
+                if source not in subq_to_rvar:
+                    break
+            else:
+                break
 
-                        if source not in subq_to_rvar:
-                            break
-                        rvar = subq_to_rvar[source]
-                    else:
-                        break
+            rvar = subq_to_rvar[source]
 
-                sctxs = [get_context(x.context) for x in asets if x.context]
-                if debug_spew:
-                    # print(alias, sctxs)
-                    # print(asets)
-                    for x in asets:
-                        debug.dump(x.context)
-                alias_contexts.setdefault(alias, []).append(sctxs)
+        sctxs = [get_context(x.context) for x in asets if x.context]
+        if debug_spew:
+            print(alias, asets)
+            for x in asets:
+                debug.dump(x.context)
+        if sctxs:
+            alias_contexts.setdefault(alias, []).append(sctxs)
 
     return AnalysisInfo(
         aliases=aliases,

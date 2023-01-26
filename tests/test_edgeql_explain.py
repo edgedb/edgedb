@@ -374,7 +374,6 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             WITH X := Text, select X;
         ''')
 
-        # TODO: Something tying the things together to default::Text
         shape = {
             "Node Type": "Result",
             "Plans": [
@@ -451,6 +450,53 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     ])
                 }
             ]
+        }
+
+        self.assert_plan(res['Plan'], shape)
+
+    async def test_edgeql_explain_type_intersect_01(self):
+        res = await self.explain('''
+            select Text {
+                body,
+                z := [is Issue].name
+            };
+        ''')
+
+        shape = {
+            "Node Type": "Result",
+            "Plans": tb.bag([
+                {
+                    "Node Type": "Append",
+                    "Plans": tb.bag([
+                        {
+                            "Relation Name": "default::LogEntry",
+                            "Original Relation Name": "default::Text",
+                            "Contexts": [[{"text": "Text"}]]
+                        },
+                        {
+                            "Relation Name": "default::Issue",
+                            "Original Relation Name": "default::Text",
+                            "Contexts": [[{"text": "Text"}]]
+                        },
+                        {
+                            "Relation Name": "default::Comment",
+                            "Original Relation Name": "default::Text",
+                            "Contexts": [[{"text": "Text"}]]
+                        }
+                    ])
+                },
+                {
+                    "Node Type": "Index Scan",
+                    "Relation Name": "default::Issue",
+                    "Contexts": [
+                        [
+                            {"text": "[is Issue]"},
+                            {"text": "[is Issue].name"},
+                            {"text": "z := [is Issue].name"},
+                        ]
+                    ]
+                }
+            ])
         }
 
         self.assert_plan(res['Plan'], shape)
