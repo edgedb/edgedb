@@ -195,6 +195,10 @@ async def execute_script(
     data = None
 
     try:
+        if conn.last_state == state:
+            # the current status in be_conn is in sync with dbview, skip the
+            # state restoring
+            state = None
         async with conn.parse_execute_script_context():
             parse_array = [False] * len(unit_group)
             for idx, query_unit in enumerate(unit_group):
