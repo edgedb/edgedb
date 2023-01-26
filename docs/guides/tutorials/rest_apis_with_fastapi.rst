@@ -20,6 +20,19 @@ We'll build a simple event management system where you'll be able to fetch,
 create, update, and delete *events* and *event hosts* via RESTful API
 endpoints.
 
+Watch our video tour of this example project to get a preview of what you'll be
+building in this guide:
+
+.. lint-off
+
+.. raw:: html
+
+    <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+       <iframe src="https://www.youtube.com/embed/OZ_UURzDkow" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+    </div>
+
+.. lint-on
+
 Prerequisites
 =============
 
