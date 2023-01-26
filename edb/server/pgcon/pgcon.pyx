@@ -834,6 +834,7 @@ cdef class PGConnection:
             ssize_t idx = start
 
         out = WriteBuffer.new()
+        parsed = set()
 
         if state is not None and start == 0:
             self._build_apply_state_req(state, out)
@@ -847,13 +848,21 @@ cdef class PGConnection:
             stmt_name = query_unit.sql_hash
             if stmt_name:
                 assert len(query_unit.sql) == 1
-                if self.before_prepare(stmt_name, dbver, out):
+                # The same EdgeQL query may show up twice in the same script.
+                # We just need to know and skip if we've already parsed the
+                # same query within current send batch, because self.prep_stmts
+                # will be updated before the next batch, with maybe a different
+                # dbver after DDL.
+                if stmt_name not in parsed and self.before_prepare(
+                    stmt_name, dbver, out
+                ):
                     buf = WriteBuffer.new_message(b'P')
                     buf.write_bytestring(stmt_name)
                     buf.write_bytestring(query_unit.sql[0])
                     buf.write_int16(0)
                     out.write_buffer(buf.end_message())
                     parse_array[idx] = True
+                    parsed.add(stmt_name)
 
                 buf = WriteBuffer.new_message(b'B')
                 buf.write_bytestring(b'')  # portal name
