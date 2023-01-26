@@ -5017,6 +5017,8 @@ def _generate_schema_alias_view(
 
 def _generate_sql_information_schema() -> List[dbops.Command]:
 
+    system_columns = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
+
     # A helper view that contains all data tables we expose over SQL, excluding
     # introspection tables.
     # It contains table & schema names and associated module id.
@@ -5190,11 +5192,13 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         dbops.View(
             name=("edgedbsql", "pg_namespace"),
             query="""
-        SELECT oid, nspname, nspowner, nspacl
+        SELECT oid, nspname, nspowner, nspacl,
+            tableoid, xmin, cmin, xmax, cmax, ctid
         FROM pg_namespace
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
         UNION ALL
-        SELECT edgedbsql.uuid_to_oid(t.module_id), t.schema_name, 10, NULL
+        SELECT edgedbsql.uuid_to_oid(t.module_id), t.schema_name, 10, NULL,
+            NULL, NULL, NULL, NULL, NULL, NULL
         FROM (
             SELECT DISTINCT schema_name, module_id
             FROM edgedbsql.virtual_tables
@@ -5208,7 +5212,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             pt.oid,
             pt.typname,
             pt.typnamespace,
-            {0}
+            {0},
+            pt.tableoid, pt.xmin, pt.cmin, pt.xmax, pt.cmax, pt.ctid
         FROM pg_type pt
         JOIN pg_namespace pn ON pt.typnamespace = pn.oid
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
@@ -5216,7 +5221,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         SELECT pt.oid,
             vt.table_name,
             edgedbsql.uuid_to_oid(vt.module_id) as typnamespace,
-            {0}
+            {0},
+            pt.tableoid, pt.xmin, pt.cmin, pt.xmax, pt.cmax, pt.ctid
         FROM pg_type pt
         join edgedbsql.virtual_tables vt ON vt.id::text = pt.typname
         """.format(
@@ -5229,9 +5235,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         dbops.View(
             name=("edgedbsql", "pg_class"),
             query="""
-        SELECT pg_class.*
-        FROM pg_class
-        JOIN pg_namespace pn ON pg_class.relnamespace = pn.oid
+        SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
+        FROM pg_class pc
+        JOIN pg_namespace pn ON pc.relnamespace = pn.oid
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
         UNION ALL
         SELECT
@@ -5267,7 +5273,13 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             relminmxid,
             relacl,
             reloptions,
-            relpartbound
+            relpartbound,
+            pc.tableoid,
+            pc.xmin,
+            pc.cmin,
+            pc.xmax,
+            pc.cmax,
+            pc.ctid
         FROM pg_class pc
         JOIN edgedbsql.virtual_tables vt ON vt.id::text = pc.relname
         """,
@@ -5299,7 +5311,13 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             attacl,
             attoptions,
             attfdwoptions,
-            null::int[] as attmissingval
+            null::int[] as attmissingval,
+            pa.tableoid,
+            pa.xmin,
+            pa.cmin,
+            pa.xmax,
+            pa.cmax,
+            pa.ctid
         FROM pg_attribute pa
         JOIN pg_class pc ON pa.atttypid = pc.oid
         JOIN pg_namespace pn ON pc.relnamespace = pn.oid
@@ -5332,7 +5350,13 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             attacl,
             attoptions,
             attfdwoptions,
-            null::int[] as attmissingval
+            null::int[] as attmissingval,
+            pa.tableoid,
+            pa.xmin,
+            pa.cmin,
+            pa.xmax,
+            pa.cmax,
+            pa.ctid
         FROM pg_attribute pa
         JOIN pg_class pc ON pc.oid = pa.attrelid
         JOIN edgedbsql.virtual_tables vt ON vt.id::text = pc.relname
@@ -5344,14 +5368,87 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         dbops.View(
             name=("edgedbsql", "pg_range"),
             query="""
-        SELECT pg_range.*
-        FROM pg_range
-        JOIN pg_type pt ON pt.oid = pg_range.rngtypid
+        SELECT pr.*, pr.tableoid, pr.xmin, pr.cmin, pr.xmax, pr.cmax, pr.ctid
+        FROM pg_range pr
+        JOIN pg_type pt ON pt.oid = pr.rngtypid
         JOIN pg_namespace pn ON pt.typnamespace = pn.oid
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
         """,
         ),
     ]
+
+    def construct_pg_view(table_name: str, columns: List[str]) -> dbops.View:
+        if table_name in (
+            'pg_aggregate',
+            'pg_am',
+            'pg_amop',
+            'pg_amproc',
+            'pg_attrdef',
+            'pg_attribute',
+            'pg_auth_members',
+            'pg_authid',
+            'pg_cast',
+            'pg_class',
+            'pg_collation',
+            'pg_constraint',
+            'pg_conversion',
+            'pg_database',
+            'pg_db_role_setting',
+            'pg_default_acl',
+            'pg_depend',
+            'pg_description',
+            'pg_enum',
+            'pg_event_trigger',
+            'pg_extension',
+            'pg_foreign_data_wrapper',
+            'pg_foreign_server',
+            'pg_foreign_table',
+            'pg_index',
+            'pg_inherits',
+            'pg_init_privs',
+            'pg_language',
+            'pg_largeobject',
+            'pg_largeobject_metadata',
+            'pg_namespace',
+            'pg_opclass',
+            'pg_operator',
+            'pg_opfamily',
+            'pg_partitioned_table',
+            'pg_policy',
+            'pg_proc',
+            'pg_publication',
+            'pg_publication_rel',
+            'pg_range',
+            'pg_replication_origin',
+            'pg_rewrite',
+            'pg_seclabel',
+            'pg_sequence',
+            'pg_shdepend',
+            'pg_shdescription',
+            'pg_shseclabel',
+            'pg_statistic',
+            'pg_statistic_ext',
+            'pg_statistic_ext_data',
+            'pg_subscription',
+            'pg_subscription_rel',
+            'pg_tablespace',
+            'pg_transform',
+            'pg_trigger',
+            'pg_ts_config',
+            'pg_ts_config_map',
+            'pg_ts_dict',
+            'pg_ts_parser',
+            'pg_ts_template',
+            'pg_type',
+            'pg_user_mapping',
+        ):
+            columns = list(columns) + system_columns
+
+        columns_sql = ','.join('o.' + c for c in columns)
+        return dbops.View(
+            name=("edgedbsql", table_name),
+            query=f"SELECT {columns_sql} FROM pg_catalog.{table_name} o",
+        )
 
     # We expose most of the views as empty tables, just to prevent errors when
     # the tools do introspection.
@@ -5372,11 +5469,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         for table_name, columns in sql_introspection.INFORMATION_SCHEMA.items()
         if table_name not in ['tables', 'columns']
     ] + pg_catalog_views + [
-        dbops.View(
-            name=("edgedbsql", table_name),
-            query=f"SELECT * FROM pg_catalog.{table_name}",
-        )
-        for table_name, _columns in sql_introspection.PG_CATALOG.items()
+        construct_pg_view(table_name, [c for c, _ in columns])
+        for table_name, columns in sql_introspection.PG_CATALOG.items()
         if table_name not in [
             'pg_type',
             'pg_attribute',

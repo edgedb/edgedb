@@ -443,3 +443,15 @@ def resolve_SQLValueFunction(
     ctx: Context,
 ) -> pgast.BaseExpr:
     return static.eval_SQLValueFunction(expr, ctx=ctx)
+
+
+@dispatch._resolve.register
+def resolve_CollateClause(
+    expr: pgast.CollateClause,
+    *,
+    ctx: Context,
+) -> pgast.BaseExpr:
+    return pgast.CollateClause(
+        arg=dispatch.resolve(expr.arg, ctx=ctx),
+        collname=expr.collname
+    )
