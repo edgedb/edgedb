@@ -4259,44 +4259,12 @@ class PointerMetaCommand(
         """
         from edb.ir import ast as irast
 
-        old_ptr_stor_info = types.get_pointer_storage_info(
-            pointer, schema=orig_schema)
-
-        ptr_table = old_ptr_stor_info.table_type == 'link'
         is_link = isinstance(pointer, s_links.Link)
         is_lprop = pointer.is_link_property(schema)
-        is_multi = ptr_table and not is_lprop
-        is_required = pointer.get_required(schema)
 
         new_target = not_none(pointer.get_target(schema))
 
         if conv_expr.irast is None:
-            if check_non_null and False:
-                if is_lprop:
-                    obj_id_ref = f'{qi(source_alias)}.source'
-                else:
-                    obj_id_ref = f'{qi(source_alias)}.id'
-
-                conv_expr._qlast = ql_ast.FunctionCall(
-                    func=("std", "assert_exists"),
-                    args=[
-                        conv_expr.qlast,
-                        ql_ast.StringConstant(value='not_null_violation'),
-                    ]
-                )
-
-                sql = textwrap.dedent(f'''\
-                SELECT
-                    edgedb.raise_on_null(
-                        {obj_id_ref},
-                        'not_null_violation',
-                        msg => 'missing value for required property',
-                        detail => '{{"object_id": "' || {obj_id_ref} || '"}}',
-                        "column" => {ql(str(pointer.id))}
-                    )
-                FROM ({sql}) AS {qi(source_alias)}
-                ''')
-
             conv_expr = self._compile_expr(
                 orig_schema,
                 context,
@@ -4343,129 +4311,92 @@ class PointerMetaCommand(
                 f'data in migrations',
                 context=self.source_context,
             )
-        expr_is_nullable = conv_expr.cardinality.can_be_zero()
 
-        refs = irutils.get_longest_paths(ir.expr)
-        ref_tables = schemamech.get_ref_storage_info(ir.schema, refs)
+        # Non-trivial conversion expression means that we
+        # are compiling a full-blown EdgeQL statement as
+        # opposed to compiling a scalar fragment in trivial
+        # expression mode.
 
-        local_table_only = all(
-            t == old_ptr_stor_info.table_name
-            for t in ref_tables
+        if is_lprop:
+            # For linkprops we actually want the source path.
+            # To make it work for abstract links, get the source
+            # path out of the IR's output (to take advantage
+            # of the types we made up for it).
+            # FIXME: Maybe we shouldn't be compiling stuff
+            # for abstract links!
+            tgt_path_id = ir.singletons[0]
+        else:
+            tgt_path_id = irpathid.PathId.from_pointer(
+                orig_schema,
+                pointer,
+            )
+
+        ptr_path_id = tgt_path_id.ptr_path()
+        src_path_id = ptr_path_id.src_path()
+        assert src_path_id
+
+        external_rels = {
+            src_path_id: compiler.new_external_rel(
+                rel_name=(source_alias,),
+                path_id=src_path_id,
+            )
+        }
+
+        # Wrap the expression into a select with iterator, so DML and
+        # volatile expressions are executed once for each object.
+
+        # IR ast wrapping
+        typ = orig_schema.get(f'schema::ObjectType', type=s_types.Type)
+        outer_path = irast.PathId.from_type(
+            orig_schema, typ, typename=sn.QualName("std", "obj")
         )
 
-        # TODO: implement IR complexity inference
-        can_translate_to_sql_value_expr = False
-
-        expr_is_trivial = (
-            # Only allow trivial USING if we can compile the
-            # EdgeQL expression into a trivial SQL value expression.
-            can_translate_to_sql_value_expr
-            # No link expr is trivially translatable into
-            # a USING SQL clause.
-            and not is_link
-            # SQL SET TYPE cannot contain references
-            # outside of the local table.
-            and local_table_only
-            # Changes to a multi-pointer might involve contraction of
-            # the overall cardinality, i.e. the deletion some rows.
-            and not is_multi
-            # If the property is required, and the USING expression
-            # was not proven by the compiler to not return ZERO, we
-            # must inject an explicit NULL guard, as the SQL null
-            # violation error is very nondescript in the context of
-            # a table rewrite, making it hard to pinpoint the failing
-            # object.
-            and (not is_required or not expr_is_nullable)
+        scope_iter = irast.ScopeTreeNode(
+            unique_id=10001,
         )
+        scope_body = irast.ScopeTreeNode(
+            unique_id=10002,
+            fenced=True,
+        )
+        scope_body.children.append(ir.scope_tree)
 
-        if not expr_is_trivial:
-            # Non-trivial conversion expression means that we
-            # are compiling a full-blown EdgeQL statement as
-            # opposed to compiling a scalar fragment in trivial
-            # expression mode.
+        scope_root = irast.ScopeTreeNode(
+            unique_id=10000,
+            path_id=outer_path,
+        )
+        scope_root.children.append(scope_iter)
+        scope_root.children.append(scope_body)
+        ir.scope_tree = scope_root
 
-            if is_lprop:
-                # For linkprops we actually want the source path.
-                # To make it work for abstract links, get the source
-                # path out of the IR's output (to take advantage
-                # of the types we made up for it).
-                # FIXME: Maybe we shouldn't be compiling stuff
-                # for abstract links!
-                tgt_path_id = ir.singletons[0]
-            else:
-                tgt_path_id = irpathid.PathId.from_pointer(
-                    orig_schema,
-                    pointer,
-                )
-
-            ptr_path_id = tgt_path_id.ptr_path()
-            src_path_id = ptr_path_id.src_path()
-            assert src_path_id
-
-            external_rels = {
-                src_path_id: compiler.new_external_rel(
-                    rel_name=(source_alias,),
+        # IR ast wrapping
+        assert isinstance(ir.expr, irast.Set)
+        ir.expr.path_scope_id = 10002
+        ir.expr = irast.Set(
+            path_id=outer_path,
+            typeref=outer_path.target,
+            path_scope_id=10000,
+            expr=irast.SelectStmt(
+                iterator_stmt=irast.Set(
                     path_id=src_path_id,
-                )
-            }
-
-            assert isinstance(ir.expr, irast.Set)
-
-            # Wrap the expression into a select with iterator, so DML and
-            # volatile expressions are executed once for each object.
-
-            # IR ast wrapping
-            typ = orig_schema.get(f'schema::ObjectType', type=s_types.Type)
-            outer_path = irast.PathId.from_type(
-                orig_schema, typ, typename=sn.QualName("std", "obj")
-            )
-
-            scope_iter = irast.ScopeTreeNode(
-                unique_id=10001,
-            )
-            scope_body = irast.ScopeTreeNode(
-                unique_id=10002,
-                fenced=True,
-            )
-            scope_body.children.append(ir.scope_tree)
-
-            scope_root = irast.ScopeTreeNode(
-                unique_id=10000,
-                path_id=outer_path,
-            )
-            scope_root.children.append(scope_iter)
-            scope_root.children.append(scope_body)
-            ir.scope_tree = scope_root
-
-            # IR ast wrapping
-            ir.expr.path_scope_id = 10002
-            ir.expr = irast.Set(
-                path_id=outer_path,
-                typeref=outer_path.target,
-                path_scope_id=10000,
-                expr=irast.SelectStmt(
-                    iterator_stmt=irast.Set(
-                        path_id=src_path_id,
-                        typeref=src_path_id.target,
-                        path_scope_id=10001,
-                        expr=irast.SelectStmt(
-                            result=irast.Set(
-                                path_scope_id=10001,
-                                path_id=src_path_id,
-                                typeref=src_path_id.target,
-                            )
+                    typeref=src_path_id.target,
+                    path_scope_id=10001,
+                    expr=irast.SelectStmt(
+                        result=irast.Set(
+                            path_scope_id=10001,
+                            path_id=src_path_id,
+                            typeref=src_path_id.target,
                         )
-                    ),
+                    )
+                ),
 
-                    # body
-                    result=ir.expr,
-                )
+                # body
+                result=ir.expr,
             )
+        )
 
         (sql_tree, env) = compiler.compile_ir_to_sql_tree(
             ir,
             output_format=compiler.OutputFormat.NATIVE_INTERNAL,
-            singleton_mode=expr_is_trivial,
             external_rels=external_rels,
             backend_runtime_params=context.backend_runtime_params,
         )
@@ -4482,12 +4413,54 @@ class PointerMetaCommand(
         ctes = list(sql_tree.ctes or [])
         if sql_tree.ctes:
             sql_tree.ctes.clear()
+        
+        if check_non_null:
+            # wrap into raise_on_null
+            msg = pg_ast.StringConstant(
+                val="missing value for required property or link"
+            )
+            # Concat to string which is a JSON. Great. Equivalent to SQL:
+            # '{"object_id": "' || {obj_id_ref} || '"}'
+            detail = pg_ast.Expr(
+                name='||',
+                lexpr = pg_ast.StringConstant(val = '{"object_id": "'),
+                rexpr = pg_ast.Expr(
+                    name='||',
+                    lexpr = pg_ast.ColumnRef(name='id'),
+                    rexpr = pg_ast.StringConstant(val = '"}'),
+                )
+            )
+            column = pg_ast.ColumnRef(name=str(pointer.id))
+            null_check = pg_ast.FuncCall(
+                name=("edgedb", "raise_on_null"),
+                args=[
+                    pg_ast.ColumnRef(name = "val"),
+                    pg_ast.StringConstant(val="not_null_violation"),
+                    pg_ast.NamedFuncArg(name="msg", val=msg),
+                    pg_ast.NamedFuncArg(name="detail", val=detail),
+                    pg_ast.NamedFuncArg(name="column", val=column),
+                ],
+            )
+            sql_tree = pg_ast.SelectStmt(
+                target_list = [
+                    pg_ast.ResTarget(val = null_check),
+                    pg_ast.ResTarget(val = pg_ast.ColumnRef(name = "id"))
+                ],
+                from_clause = [
+                    pg_ast.RangeSubselect(
+                        subquery = sql_tree,
+                        alias = pg_ast.Alias(
+                            aliasname = "_inner", colnames = ["val", "id"]
+                        )
+                    )
+                ]
+            )
+
         ctes.append(pg_ast.CommonTableExpr(
             name="_conv_rel",
             aliascolnames=["val", "id"],
             query=sql_tree
         ))
-
         # compile to SQL
         ctes_sql = codegen.SQLSourceGenerator.ctes_to_source(ctes)
 
