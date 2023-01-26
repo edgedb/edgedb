@@ -6,6 +6,11 @@ FastAPI
 
 :edb-alt-title: Building a REST API with EdgeDB and FastAPI
 
+Because FastAPI encourages and facilitates strong typing, it's a natural
+pairing with EdgeDB. Our Python code generation generates not only typed
+query functions but result types you can use to annotate your endpoint handler
+functions.
+
 EdgeDB can help you quickly build REST APIs in Python without getting into the
 rigmarole of using ORM libraries to handle your data effectively. Here, we'll
 be using `FastAPI <https://fastapi.tiangolo.com/>`_ to expose the API endpoints
