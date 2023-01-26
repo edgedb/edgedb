@@ -152,7 +152,7 @@ cdef class PGConnection:
     cdef make_auth_password_md5_message(self, bytes salt)
     cdef send_query_unit_group(
         self, object query_unit_group, object bind_datas, bytes state,
-        ssize_t start, ssize_t end,
+        ssize_t start, ssize_t end, int dbver, object parse_array
     )
 
     cdef _rewrite_copy_data(

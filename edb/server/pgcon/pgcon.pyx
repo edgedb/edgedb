@@ -824,12 +824,14 @@ cdef class PGConnection:
 
     cdef send_query_unit_group(
         self, object query_unit_group, object bind_datas, bytes state,
-        ssize_t start, ssize_t end,
+        ssize_t start, ssize_t end, int dbver, object parse_array
     ):
         cdef:
             WriteBuffer out
             WriteBuffer buf
             WriteBuffer bind_data
+            bytes stmt_name
+            ssize_t idx = start
 
         out = WriteBuffer.new()
 
@@ -842,16 +844,20 @@ cdef class PGConnection:
                 raise RuntimeError(
                     "CONFIGURE INSTANCE command is not allowed in scripts"
                 )
-            for sql in query_unit.sql:
-                buf = WriteBuffer.new_message(b'P')
-                buf.write_bytestring(b'')  # statement name
-                buf.write_bytestring(sql)
-                buf.write_int16(0)
-                out.write_buffer(buf.end_message())
+            stmt_name = query_unit.sql_hash
+            if stmt_name:
+                assert len(query_unit.sql) == 1
+                if self.before_prepare(stmt_name, dbver, out):
+                    buf = WriteBuffer.new_message(b'P')
+                    buf.write_bytestring(stmt_name)
+                    buf.write_bytestring(query_unit.sql[0])
+                    buf.write_int16(0)
+                    out.write_buffer(buf.end_message())
+                    parse_array[idx] = True
 
                 buf = WriteBuffer.new_message(b'B')
                 buf.write_bytestring(b'')  # portal name
-                buf.write_bytestring(b'')  # statement name
+                buf.write_bytestring(stmt_name)
                 buf.write_buffer(bind_data)
                 out.write_buffer(buf.end_message())
 
@@ -859,6 +865,27 @@ cdef class PGConnection:
                 buf.write_bytestring(b'')  # portal name
                 buf.write_int32(0)  # limit: 0 - return all rows
                 out.write_buffer(buf.end_message())
+
+            else:
+                for sql in query_unit.sql:
+                    buf = WriteBuffer.new_message(b'P')
+                    buf.write_bytestring(b'')  # statement name
+                    buf.write_bytestring(sql)
+                    buf.write_int16(0)
+                    out.write_buffer(buf.end_message())
+
+                    buf = WriteBuffer.new_message(b'B')
+                    buf.write_bytestring(b'')  # portal name
+                    buf.write_bytestring(b'')  # statement name
+                    buf.write_buffer(bind_data)
+                    out.write_buffer(buf.end_message())
+
+                    buf = WriteBuffer.new_message(b'E')
+                    buf.write_bytestring(b'')  # portal name
+                    buf.write_int32(0)  # limit: 0 - return all rows
+                    out.write_buffer(buf.end_message())
+
+            idx += 1
 
         if end == len(query_unit_group.units):
             self.write_sync(out)
@@ -878,6 +905,9 @@ cdef class PGConnection:
 
     async def wait_for_command(
         self,
+        object query_unit,
+        bint parse,
+        int dbver,
         *,
         bint ignore_data,
         frontend.AbstractFrontendConnection fe_conn = None,
@@ -927,6 +957,8 @@ cdef class PGConnection:
                 elif mtype == b'1':
                     # ParseComplete
                     self.buffer.discard_message()
+                    if parse:
+                        self.prep_stmts[query_unit.sql_hash] = dbver
 
                 elif mtype == b'E':  ## result
                     # ErrorResponse
@@ -944,6 +976,10 @@ cdef class PGConnection:
 
                 elif mtype == b'2':
                     # BindComplete
+                    self.buffer.discard_message()
+
+                elif mtype == b'3':
+                    # CloseComplete
                     self.buffer.discard_message()
 
                 elif mtype == b'I':  ## result
@@ -1979,10 +2015,14 @@ cdef class PGConnection:
                     'missing the required data packet after a DDL command'
                 )
 
-    async def handle_ddl_in_script(self, object query_unit):
+    async def handle_ddl_in_script(
+        self, object query_unit, bint parse, int dbver
+    ):
         data = None
         for sql in query_unit.sql:
-            data = await self.wait_for_command(ignore_data=bool(data)) or data
+            data = await self.wait_for_command(
+                query_unit, parse, dbver, ignore_data=bool(data)
+            ) or data
         return self.load_ddl_return(query_unit, data)
 
     async def _dump(self, block, output_queue, fragment_suggested_size):
