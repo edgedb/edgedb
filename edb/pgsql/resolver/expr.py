@@ -117,8 +117,7 @@ def _lookup_column(
             ]
         else:
             for table in ctx.scope.tables:
-                if not table.in_parent:
-                    matched_columns.extend(_lookup_in_table(col_name, table))
+                matched_columns.extend(_lookup_in_table(col_name, table))
 
     elif len(name) >= 2:
         # look for the column in the specific table
@@ -142,10 +141,11 @@ def _lookup_column(
 
     # aliased columns have priority before columns or rel vars (tables)
     if len(matched_columns) > 1:
-        local = [(t, c) for t, c in matched_columns if not t.name]
-        if local:
-            matched_columns = local
-
+        max_precedence = max(t.precedence for t, _ in matched_columns)
+        matched_columns = [
+            (t, c)
+            for t, c in matched_columns if t.precedence == max_precedence
+        ]
 
     if len(matched_columns) > 1:
         potential_tables = ', '.join(

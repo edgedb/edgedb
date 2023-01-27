@@ -107,7 +107,7 @@ def resolve_SelectStmt(
     where = dispatch.resolve_opt(stmt.where_clause, ctx=ctx)
 
     # GROUP BY
-    with ctx.lateral() as subctx:
+    with ctx.child() as subctx:
         register_projections(stmt.target_list, ctx=subctx)
 
         group_clause = dispatch.resolve_opt_list(
