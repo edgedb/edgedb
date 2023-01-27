@@ -140,7 +140,14 @@ def _lookup_column(
             f'cannot find column `{col_name}`', context=column_ref.context
         )
 
-    elif len(matched_columns) > 1:
+    # aliased columns have priority before columns or rel vars (tables)
+    if len(matched_columns) > 1:
+        local = [(t, c) for t, c in matched_columns if not t.name]
+        if local:
+            matched_columns = local
+
+
+    if len(matched_columns) > 1:
         potential_tables = ', '.join(
             [t.name or '' for t, _ in matched_columns]
         )
