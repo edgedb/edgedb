@@ -22,7 +22,7 @@ from typing import *
 
 from edb import edgeql
 from edb import errors
-from edb.common import ast
+# from edb.common import ast
 from edb.common import parsing
 from edb.common import verutils
 from edb.edgeql import ast as qlast
@@ -180,43 +180,53 @@ class Index(
         *,
         with_parent: bool = False
     ) -> str:
-        vn = super().get_verbosename(schema, with_parent=with_parent)
+        # baseline name for indexes
+        vn = self.get_displayname(schema)
+
         if self.get_abstract(schema):
-            return f'abstract {vn}'
+            return f"abstract index '{vn}'"
         else:
             # concrete index must have a subject
             assert self.get_subject(schema) is not None
+
+            # add kwargs (if any) to the concrete name
+            kwargs = self.get_kwargs(schema)
+            if kwargs:
+                kw = []
+                for key, val in kwargs.items():
+                    kw.append(f'{key}:={val.text}')
+                vn = f'{vn}({", ".join(kw)})'
+
+            vn = f"index {vn!r}"
+
+            if with_parent:
+                return self.add_parent_name(vn, schema)
             return vn
+
+    def add_parent_name(
+        self,
+        base_name: str,
+        schema: s_schema.Schema,
+    ) -> str:
+        # Remove the placeholder name of the generic index.
+        if base_name == f"index '{DEFAULT_INDEX}'":
+            base_name = 'index'
+
+        return super().add_parent_name(base_name, schema)
 
     def generic(self, schema: s_schema.Schema) -> bool:
         return self.get_subject(schema) is None
 
     @classmethod
     def get_shortname_static(cls, name: sn.Name) -> sn.QualName:
-        quals = sn.quals_from_fullname(name)
-
-        if quals:
-            ptr_qual = quals[2]
-            expr_qual = quals[1]
-            return sn.QualName(
-                module='__',
-                name=f'{ptr_qual}_{expr_qual[:8]}',
-            )
-        else:
-            assert isinstance(name, sn.QualName)
-            return name
-
-    @classmethod
-    def get_displayname_static(cls, name: sn.Name) -> str:
-        shortname = cls.get_shortname_static(name)
-        return shortname.name
+        return sn.shortname_from_fullname(name)
 
     def get_all_kwargs(
         self,
         schema: s_schema.Schema,
     ) -> s_expr.ExpressionDict:
         kwargs = s_expr.ExpressionDict()
-        all_kw = self.__class__.get_field('kwargs').merge_fn(
+        all_kw = type(self).get_field('kwargs').merge_fn(
             self,
             self.get_ancestors(schema).objects(schema),
             'kwargs',
@@ -350,26 +360,25 @@ class IndexCommand(
         context: sd.CommandContext,
     ) -> Tuple[str, ...]:
         assert isinstance(astnode, qlast.ConcreteIndexCommand)
+        exprs = []
+
+        kwargs = cls._index_kwargs_from_ast(schema, astnode, context)
+        for key, val in kwargs.items():
+            exprs.append(f'{key}:={val.text}')
+
         # use the normalized text directly from the expression
         expr = s_expr.Expression.from_ast(
             astnode.expr, schema, context.modaliases)
         expr_text = expr.text
         assert expr_text is not None
-        exprs = [expr_text]
+        exprs.append(expr_text)
 
         if astnode.except_expr:
             expr = s_expr.Expression.from_ast(
                 astnode.except_expr, schema, context.modaliases)
             exprs.append('!' + expr.text)
 
-        expr_qual = cls._name_qual_from_exprs(schema, exprs)
-
-        ptrs = ast.find_children(astnode, qlast.Ptr)
-        ptr_name_qual = '_'.join(ptr.ptr.name for ptr in ptrs)
-        if not ptr_name_qual:
-            ptr_name_qual = 'idx'
-
-        return (expr_qual, ptr_name_qual)
+        return (cls._name_qual_from_exprs(schema, exprs),)
 
     @classmethod
     def _classname_quals_from_name(
@@ -777,7 +786,6 @@ class CreateIndex(
                     context=self.source_context,
                 )
 
-
     def validate_create(
         self,
         schema: s_schema.Schema,
@@ -864,7 +872,6 @@ class CreateIndex(
             # Make sure that kwargs and parameters match in name and type.
             # Also make sure that all parameters have values at this point
             # (either default or provided in kwargs).
-            mcls = self.get_schema_metaclass()
             params = root.get_params(schema)
             inh_kwargs = index.get_all_kwargs(schema)
 
