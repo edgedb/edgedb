@@ -661,7 +661,7 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assertEqual(res, [['blah']])
 
         res = await self.squery_values('select current_catalog;')
-        self.assertEqual(res, [['postgres']])
+        self.assertEqual(res, [['edgedb']])
 
         res = await self.squery_values('select current_schemas(true);')
         self.assertEqual(res, [[['pg_catalog', 'blah', 'foo']]])
