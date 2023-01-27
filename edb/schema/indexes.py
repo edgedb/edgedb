@@ -385,8 +385,10 @@ class IndexCommand(
         cls,
         name: sn.QualName
     ) -> Tuple[str, ...]:
+        # Pull out just the quals we added in _classname_quals_from_name.
+        # N.B: This needs to match _classname_quals_from_name!
         quals = sn.quals_from_fullname(name)
-        return tuple(quals[-2:])
+        return tuple(quals[-1:])
 
     @classmethod
     def _index_kwargs_from_ast(
