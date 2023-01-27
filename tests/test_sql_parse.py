@@ -1091,6 +1091,11 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT * FROM b WHERE (c ILIKE 'blah%' COLLATE collation_name)
         """
 
+    def test_sql_parse_query_53(self):
+        """
+        SELECT GREATEST(x, y, 0), LEAST(x, y, 100) FROM b
+        """
+
     # The transaction_* settings are always on transaction level
 
     def test_sql_parse_transaction_29(self):

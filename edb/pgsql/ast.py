@@ -1138,3 +1138,10 @@ class CreateTableAsStmt(Statement):
     query: Query
 
     with_no_data: bool
+
+class MinMaxExpr(BaseExpr):
+    # GREATEST / LEAST expression
+    # Very similar to FuncCall, except that the name is not escaped
+
+    op: str
+    args: typing.List[BaseExpr]

@@ -506,6 +506,7 @@ def _build_base_expr(node: Node, c: Context) -> pgast.BaseExpr:
             "SetToDefault": _build_keyword("DEFAULT"),
             "SQLValueFunction": _build_sql_value_function,
             "CollateClause": _build_collate_clause,
+            "MinMaxExpr": _build_min_max_expr,
         },
         [_build_base_range_var, _build_indirection_op],  # type: ignore
     )
@@ -589,6 +590,22 @@ def _build_collate_clause(n: Node, c: Context) -> pgast.CollateClause:
     return pgast.CollateClause(
         arg=_build_base_expr(n['arg'], c),
         collname='.'.join(_list(n, c, 'collname', _build_str)),
+        context=_build_context(n, c),
+    )
+
+
+def _build_min_max_expr(n: Node, c: Context) -> pgast.MinMaxExpr:
+
+    if n['op'] == 'IS_GREATEST':
+        op = 'GREATEST'
+    elif n['op'] == 'IS_LEAST':
+        op = 'LEAST'
+    else:
+        raise PSqlUnsupportedError(n)
+
+    return pgast.MinMaxExpr(
+        op=op,
+        args=_list(n, c, 'args', _build_base_expr),
         context=_build_context(n, c),
     )
 

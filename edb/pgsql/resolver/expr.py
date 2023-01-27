@@ -310,7 +310,7 @@ def resolve_FuncCall(
     }:
         raise errors.QueryError(
             "function pg_catalog.current_setting is not supported",
-            context=expr.context
+            context=expr.context,
         )
 
     if res := static.eval_FuncCall(expr, ctx=ctx):
@@ -468,6 +468,17 @@ def resolve_CollateClause(
     ctx: Context,
 ) -> pgast.BaseExpr:
     return pgast.CollateClause(
-        arg=dispatch.resolve(expr.arg, ctx=ctx),
-        collname=expr.collname
+        arg=dispatch.resolve(expr.arg, ctx=ctx), collname=expr.collname
+    )
+
+
+@dispatch._resolve.register
+def resolve_MinMaxExpr(
+    expr: pgast.MinMaxExpr,
+    *,
+    ctx: Context,
+) -> pgast.BaseExpr:
+    return pgast.MinMaxExpr(
+        op=expr.op,
+        args=dispatch.resolve_list(expr.args, ctx=ctx),
     )
