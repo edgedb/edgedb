@@ -505,12 +505,13 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assertEqual(len(res[0]), 6)
 
     async def test_sql_query_34(self):
-        # GROUP BY aliased column
+        # GROUP and ORDER BY aliased column
 
         res = await self.squery_values(
             """
-        SELECT substr(title, 2, 4) AS itl, count(*) FROM "Movie" GROUP BY itl
-        ORDER BY itl
+            SELECT substr(title, 2, 4) AS itl, count(*) FROM "Movie"
+            GROUP BY itl
+            ORDER BY itl
             """
         )
         self.assertEqual(res, [["avin", 1], ["orre", 1]])
@@ -520,10 +521,15 @@ class TestSQL(tb.SQLQueryTestCase):
 
         res = await self.squery_values(
             """
-            SELECT substr(title, 2, 4) AS itl FROM "Movie" ORDER BY title
+            SELECT title AS aliased_title, count(*) FROM "Movie"
+            GROUP BY title
+            ORDER BY title
             """
         )
-        self.assertEqual(res, [["orre"], ["avin"]])
+        self.assertEqual(res, [
+            ['Forrest Gump', 1],
+            ['Saving Private Ryan', 1]
+        ])
 
     async def test_sql_query_introspection_00(self):
         res = await self.squery_values(
