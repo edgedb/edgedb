@@ -634,6 +634,8 @@ def _build_sub_link(n: Node, c: Context) -> pgast.SubLink:
         operator = "= ANY"
     elif typ == "EXPR_SUBLINK":
         operator = None
+    elif typ == "ARRAY_SUBLINK":
+        operator = "ARRAY"
     else:
         raise PSqlUnsupportedError(n)
 
@@ -862,41 +864,6 @@ def _build_a_expr(n: Node, c: Context) -> pgast.BaseExpr:
     if names[0] == 'pg_catalog':
         names.pop(0)
     name = names.pop(0)
-
-    {
-        'A_Expr': {
-            'kind': 'AEXPR_OP',
-            'name': [
-                {'String': {'str': 'pg_catalog'}},
-                {'String': {'str': '~'}},
-            ],
-            'lexpr': {
-                'ColumnRef': {
-                    'fields': [
-                        {'String': {'str': 'c'}},
-                        {'String': {'str': 'relname'}},
-                    ],
-                    'location': 224,
-                }
-            },
-            'rexpr': {
-                'CollateClause': {
-                    'arg': {
-                        'A_Const': {
-                            'val': {'String': {'str': '^(user)$'}},
-                            'location': 257,
-                        }
-                    },
-                    'collname': [
-                        {'String': {'str': 'pg_catalog'}},
-                        {'String': {'str': 'default'}},
-                    ],
-                    'location': 268,
-                }
-            },
-            'location': 234,
-        }
-    }
 
     if n["kind"] == "AEXPR_OP":
         pass
