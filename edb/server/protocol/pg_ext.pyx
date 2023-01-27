@@ -17,9 +17,11 @@
 #
 
 
+import codecs
 import collections
 import contextlib
 import copy
+import encodings.aliases
 import logging
 import hashlib
 import os
@@ -42,6 +44,8 @@ from edb.server.protocol cimport frontend
 cdef object logger = logging.getLogger('edb.server')
 cdef object DEFAULT_SETTINGS = immutables.Map()
 cdef object DEFAULT_FE_SETTINGS = immutables.Map({"search_path": "public"})
+
+encodings.aliases.aliases["sql_ascii"] = "ascii"
 
 
 class ExtendedQueryError(Exception):
@@ -578,7 +582,16 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         user = params["user"]
         database = params.get("database", user)
-        self.client_encoding = params.get("client_encoding", "utf8")
+        encoding = params.get("client_encoding", "utf8")
+        self.client_encoding = encodings.normalize_encoding(encoding).lower()
+        try:
+            codecs.lookup(self.client_encoding)
+        except LookupError:
+            raise pgerror.new(
+                pgerror.ERROR_INVALID_PARAMETER_VALUE,
+                f'invalid value for parameter "client_encoding": "{encoding}"',
+            )
+
         logger.debug('received pg connection request by %s to database %s',
                      user, database)
 
