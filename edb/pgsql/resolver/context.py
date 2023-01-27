@@ -65,7 +65,7 @@ class Table:
     # Internal SQL
     reference_as: Optional[str] = None
 
-    # Set for tables that in a parent scope.
+    # Set for tables that are inherited from a parent scope.
     # This will prevent them from being matched without an explicit table name.
     in_parent: bool = False
 
