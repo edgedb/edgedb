@@ -632,7 +632,11 @@ class Compiler:
                     pass
                 else:
                     args['search_path'] = parse_search_path(search_path)
-                options = pg_resolver.Options(**args)
+                options = pg_resolver.Options(
+                    current_user='edgedb',
+                    current_database='edgedb',
+                    **args
+                )
                 resolved = pg_resolver.resolve(stmt, schema, options)
                 source = pg_codegen.generate_source(resolved)
                 unit = dbstate.SQLQueryUnit(query=source)
