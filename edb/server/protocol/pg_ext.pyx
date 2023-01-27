@@ -18,6 +18,7 @@
 
 
 import collections
+import contextlib
 import copy
 import logging
 import hashlib
@@ -41,6 +42,18 @@ from edb.server.protocol cimport frontend
 cdef object logger = logging.getLogger('edb.server')
 cdef object DEFAULT_SETTINGS = immutables.Map()
 cdef object DEFAULT_FE_SETTINGS = immutables.Map({"search_path": "public"})
+
+
+class ExtendedQueryError(Exception):
+    pass
+
+
+@contextlib.contextmanager
+def managed_error():
+    try:
+        yield
+    except Exception as e:
+        raise ExtendedQueryError(e)
 
 
 @cython.final
@@ -666,14 +679,13 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.buffer.discard_message()
 
         elif mtype == b'Q':  # Query
+            query_str = self.buffer.read_null_str().decode(
+                self.client_encoding
+            )
+            self.buffer.finish_message()
+            if self.debug:
+                self.debug_print("Query", query_str)
             try:
-                query_str = self.buffer.read_null_str().decode(
-                    self.client_encoding
-                )
-                self.buffer.finish_message()
-                if self.debug:
-                    self.debug_print("Query", query_str)
-
                 # Emulate Postgres to close the anonymous stmt/portal
                 # once the Q message is taken
                 self.prepared_stmts.pop("", None)
@@ -704,8 +716,8 @@ cdef class PgConnection(frontend.FrontendConnection):
         ):
             try:
                 actions = await self.extended_query()
-            except Exception as ex:
-                self.write_error(ex)
+            except ExtendedQueryError as ex:
+                self.write_error(ex.args[0])
                 self.flush()
                 self.ignore_till_sync = True
             else:
@@ -753,7 +765,8 @@ cdef class PgConnection(frontend.FrontendConnection):
             if not in_implicit:
                 actions.append(PGMessage(PGAction.START_IMPLICIT))
                 in_implicit = True
-                dbv.start_implicit()
+                with managed_error():
+                    dbv.start_implicit()
             mtype = self.buffer.get_message_type()
 
             if mtype == b'P':  # Parse
@@ -766,42 +779,44 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print("Parse", repr(stmt_name), query_str, data)
 
-                if stmt_name and stmt_name in self.prepared_stmts:
-                    raise pgerror.new(
-                        pgerror.ERROR_DUPLICATE_PREPARED_STATEMENT,
-                        f"prepared statement \"{stmt_name}\" already exists",
-                    )
+                with managed_error():
+                    if stmt_name and stmt_name in self.prepared_stmts:
+                        raise pgerror.new(
+                            pgerror.ERROR_DUPLICATE_PREPARED_STATEMENT,
+                            f"prepared statement \"{stmt_name}\" already "
+                            f"exists",
+                        )
 
-                fe_settings = dbv.current_fe_settings()
-                query_units = await self.compile(query_str, dbv)
-                if len(query_units) > 1:
-                    raise pgerror.new(
-                        pgerror.ERROR_SYNTAX_ERROR,
-                        "cannot insert multiple commands into a prepared "
-                        "statement",
+                    fe_settings = dbv.current_fe_settings()
+                    query_units = await self.compile(query_str, dbv)
+                    if len(query_units) > 1:
+                        raise pgerror.new(
+                            pgerror.ERROR_SYNTAX_ERROR,
+                            "cannot insert multiple commands into a prepared "
+                            "statement",
+                        )
+                    unit = query_units[0]
+                    sql_text = unit.query.encode("utf-8")
+                    parse_hash = hashlib.sha1(sql_text)
+                    parse_hash.update(data)
+                    parse_hash = b'p' + parse_hash.hexdigest().encode("latin1")
+                    actions.append(
+                        PGMessage(
+                            PGAction.PARSE,
+                            stmt_name=parse_hash,
+                            args=(sql_text, data, True),
+                            query_unit=unit,
+                        )
                     )
-                unit = query_units[0]
-                sql_text = unit.query.encode("utf-8")
-                parse_hash = hashlib.sha1(sql_text)
-                parse_hash.update(data)
-                parse_hash = b'p' + parse_hash.hexdigest().encode("latin1")
-                actions.append(
-                    PGMessage(
+                    self.prepared_stmts[stmt_name] = PGMessage(
                         PGAction.PARSE,
                         stmt_name=parse_hash,
-                        args=(sql_text, data, True),
+                        args=(sql_text, data, False),
                         query_unit=unit,
+                        orig_query=query_str,
+                        fe_settings=fe_settings,
                     )
-                )
-                self.prepared_stmts[stmt_name] = PGMessage(
-                    PGAction.PARSE,
-                    stmt_name=parse_hash,
-                    args=(sql_text, data, False),
-                    query_unit=unit,
-                    orig_query=query_str,
-                    fe_settings=fe_settings,
-                )
-                fresh_stmts.add(stmt_name)
+                    fresh_stmts.add(stmt_name)
 
             elif mtype == b'B':  # Bind
                 portal_name = self.buffer.read_null_str().decode(
@@ -816,59 +831,63 @@ cdef class PgConnection(frontend.FrontendConnection):
                         "Bind", repr(portal_name), repr(stmt_name), data
                     )
 
-                if stmt_name not in self.prepared_stmts:
-                    raise pgerror.new(
-                        pgerror.ERROR_INVALID_SQL_STATEMENT_NAME,
-                        f"prepared statement \"{stmt_name}\" does not exist",
-                    )
-
-                # Replay Parse if it wasn't done in this extended_query() call
-                parse_action = self.prepared_stmts[stmt_name]
-                if stmt_name not in fresh_stmts:
-
-                    # HACK: some of the statically compiler-evaluated queries
-                    # like `current_schema` depend on the fe_settings,
-                    # we need to re-compile if the fe_settings mismatch.
-                    fe_settings = dbv.current_fe_settings()
-                    if parse_action.fe_settings is not fe_settings:
-                        query_units = await self.compile(
-                            parse_action.orig_query, dbv
+                with managed_error():
+                    if stmt_name not in self.prepared_stmts:
+                        raise pgerror.new(
+                            pgerror.ERROR_INVALID_SQL_STATEMENT_NAME,
+                            f"prepared statement \"{stmt_name}\" does not "
+                            f"exist",
                         )
-                        if len(query_units) > 1:
-                            raise pgerror.new(
-                                pgerror.ERROR_SYNTAX_ERROR,
-                                "cannot insert multiple commands into a "
-                                "prepared statement",
+
+                    # Replay Parse if it wasn't done in this extended_query()
+                    # call
+                    parse_action = self.prepared_stmts[stmt_name]
+                    if stmt_name not in fresh_stmts:
+
+                        # HACK: some of the statically compiler-evaluated
+                        # queries like `current_schema` depend on the
+                        # fe_settings, we need to re-compile if the fe_settings
+                        # mismatch.
+                        fe_settings = dbv.current_fe_settings()
+                        if parse_action.fe_settings is not fe_settings:
+                            query_units = await self.compile(
+                                parse_action.orig_query, dbv
                             )
-                        unit = query_units[0]
-                        sql_text = unit.query.encode("utf-8")
-                        parse_hash = hashlib.sha1(sql_text)
-                        parse_hash.update(parse_action.args[1])
-                        parse_hash = b'p' + parse_hash.hexdigest().encode(
-                            "latin1"
-                        )
-                        parse_action = PGMessage(
-                            PGAction.PARSE,
-                            stmt_name=parse_hash,
-                            args=(sql_text, parse_action.args[1], False),
-                            query_unit=unit,
-                            orig_query=parse_action.orig_query,
-                            fe_settings=fe_settings,
-                        )
-                        self.prepared_stmts[stmt_name] = parse_action
+                            if len(query_units) > 1:
+                                raise pgerror.new(
+                                    pgerror.ERROR_SYNTAX_ERROR,
+                                    "cannot insert multiple commands into a "
+                                    "prepared statement",
+                                )
+                            unit = query_units[0]
+                            sql_text = unit.query.encode("utf-8")
+                            parse_hash = hashlib.sha1(sql_text)
+                            parse_hash.update(parse_action.args[1])
+                            parse_hash = b'p' + parse_hash.hexdigest().encode(
+                                "latin1"
+                            )
+                            parse_action = PGMessage(
+                                PGAction.PARSE,
+                                stmt_name=parse_hash,
+                                args=(sql_text, parse_action.args[1], False),
+                                query_unit=unit,
+                                orig_query=parse_action.orig_query,
+                                fe_settings=fe_settings,
+                            )
+                            self.prepared_stmts[stmt_name] = parse_action
 
-                    actions.append(parse_action)
-                    fresh_stmts.add(stmt_name)
-                actions.append(
-                    PGMessage(
-                        PGAction.BIND,
-                        stmt_name=parse_action.stmt_name,
-                        portal_name=portal_name,
-                        args=data,
-                        query_unit=parse_action.query_unit,
+                        actions.append(parse_action)
+                        fresh_stmts.add(stmt_name)
+                    actions.append(
+                        PGMessage(
+                            PGAction.BIND,
+                            stmt_name=parse_action.stmt_name,
+                            portal_name=portal_name,
+                            args=data,
+                            query_unit=parse_action.query_unit,
+                        )
                     )
-                )
-                dbv.create_portal(portal_name, parse_action.query_unit)
+                    dbv.create_portal(portal_name, parse_action.query_unit)
 
             elif mtype == b'D':  # Describe
                 kind = self.buffer.read_byte()
@@ -877,37 +896,41 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print("Describe", kind, repr(name))
 
-                if kind == b'S':  # prepared statement
-                    if name not in self.prepared_stmts:
-                        raise pgerror.new(
-                            pgerror.ERROR_INVALID_SQL_STATEMENT_NAME,
-                            f"prepared statement \"{name}\" does not exist",
+                with managed_error():
+                    if kind == b'S':  # prepared statement
+                        if name not in self.prepared_stmts:
+                            raise pgerror.new(
+                                pgerror.ERROR_INVALID_SQL_STATEMENT_NAME,
+                                f"prepared statement \"{name}\" does not "
+                                f"exist",
+                            )
+                        parse_action = self.prepared_stmts[name]
+                        # Replay Parse if it wasn't done
+                        # in this extended_query() call
+                        if name not in fresh_stmts:
+                            fresh_stmts.add(name)
+                            actions.append(parse_action)
+                        actions.append(
+                            PGMessage(
+                                PGAction.DESCRIBE_STMT,
+                                stmt_name=parse_action.stmt_name,
+                                query_unit=parse_action.query_unit,
+                            )
                         )
-                    parse_action = self.prepared_stmts[name]
-                    # Replay Parse if it wasn't done
-                    # in this extended_query() call
-                    if name not in fresh_stmts:
-                        fresh_stmts.add(name)
-                        actions.append(parse_action)
-                    actions.append(
-                        PGMessage(
-                            PGAction.DESCRIBE_STMT,
-                            stmt_name=parse_action.stmt_name,
-                            query_unit=parse_action.query_unit,
-                        )
-                    )
 
-                elif kind == b'P':  # portal
-                    actions.append(
-                        PGMessage(
-                            PGAction.DESCRIBE_PORTAL,
-                            portal_name=name,
-                            query_unit=dbv.find_portal(name),
+                    elif kind == b'P':  # portal
+                        actions.append(
+                            PGMessage(
+                                PGAction.DESCRIBE_PORTAL,
+                                portal_name=name,
+                                query_unit=dbv.find_portal(name),
+                            )
                         )
-                    )
 
-                else:
-                    raise pgerror.ProtocolViolation("invalid Describe kind")
+                    else:
+                        raise pgerror.ProtocolViolation(
+                            "invalid Describe kind"
+                        )
 
             elif mtype == b'E':  # Execute
                 portal_name = self.buffer.read_null_str().decode(
@@ -918,16 +941,17 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print("Execute", repr(portal_name), max_rows)
 
-                unit = dbv.find_portal(portal_name)
-                actions.append(
-                    PGMessage(
-                        PGAction.EXECUTE,
-                        portal_name=portal_name,
-                        args=max_rows,
-                        query_unit=unit,
+                with managed_error():
+                    unit = dbv.find_portal(portal_name)
+                    actions.append(
+                        PGMessage(
+                            PGAction.EXECUTE,
+                            portal_name=portal_name,
+                            args=max_rows,
+                            query_unit=unit,
+                        )
                     )
-                )
-                dbv.on_success(unit)
+                    dbv.on_success(unit)
 
             elif mtype == b'C':  # Close
                 kind = self.buffer.read_byte()
@@ -936,29 +960,31 @@ cdef class PgConnection(frontend.FrontendConnection):
                 if self.debug:
                     self.debug_print("Close", kind, repr(name))
 
-                if kind == b'S':  # prepared statement
-                    if name not in self.prepared_stmts:
-                        raise pgerror.new(
-                            pgerror.ERROR_INVALID_SQL_STATEMENT_NAME,
-                            f"prepared statement \"{name}\" does not exist",
-                        )
-                    # The prepared statement in the backend is managed by the
-                    # LRU cache in pgcon.pyx, we don't close it here
-                    fresh_stmts.discard(name)
-                    self.prepared_stmts.pop(name)
-                    actions.append(PGMessage(PGAction.CLOSE_STMT))
+                with managed_error():
+                    if kind == b'S':  # prepared statement
+                        if name not in self.prepared_stmts:
+                            raise pgerror.new(
+                                pgerror.ERROR_INVALID_SQL_STATEMENT_NAME,
+                                f"prepared statement \"{name}\" does not "
+                                f"exist",
+                            )
+                        # The prepared statement in the backend is managed by
+                        # the LRU cache in pgcon.pyx, we don't close it here
+                        fresh_stmts.discard(name)
+                        self.prepared_stmts.pop(name)
+                        actions.append(PGMessage(PGAction.CLOSE_STMT))
 
-                elif kind == b'P':  # portal
-                    actions.append(
-                        PGMessage(
-                            PGAction.CLOSE_PORTAL,
-                            portal_name=name,
-                            query_unit=dbv.close_portal(name),
+                    elif kind == b'P':  # portal
+                        actions.append(
+                            PGMessage(
+                                PGAction.CLOSE_PORTAL,
+                                portal_name=name,
+                                query_unit=dbv.close_portal(name),
+                            )
                         )
-                    )
 
-                else:
-                    raise pgerror.ProtocolViolation("invalid Close kind")
+                    else:
+                        raise pgerror.ProtocolViolation("invalid Close kind")
 
             elif mtype == b'H':  # Flush
                 self.buffer.finish_message()
@@ -971,8 +997,9 @@ cdef class PgConnection(frontend.FrontendConnection):
                 self.buffer.finish_message()
                 if self.debug:
                     self.debug_print("Sync")
-                actions.append(PGMessage(PGAction.SYNC))
-                dbv.end_implicit()
+                with managed_error():
+                    actions.append(PGMessage(PGAction.SYNC))
+                    dbv.end_implicit()
                 break
 
             else:
