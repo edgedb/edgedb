@@ -776,7 +776,7 @@ def _build_range_function(n: Node, c: Context) -> pgast.RangeFunction:
     return pgast.RangeFunction(
         alias=_maybe(n, c, "alias", _build_alias) or pgast.Alias(aliasname=""),
         lateral=_bool_or_false(n, "lateral"),
-        with_ordinality=_bool_or_false(n, "with_ordinality"),
+        with_ordinality=_bool_or_false(n, "ordinality"),
         is_rowsfrom=_bool_or_false(n, "is_rowsfrom"),
         functions=[
             _build_func_call(fn, c)
