@@ -635,6 +635,7 @@ class Compiler:
                 options = pg_resolver.Options(
                     current_user='edgedb',
                     current_database='edgedb',
+                    current_query=query_str,
                     **args
                 )
                 resolved = pg_resolver.resolve(stmt, schema, options)

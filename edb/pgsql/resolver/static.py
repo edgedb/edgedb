@@ -105,6 +105,12 @@ def eval_FuncCall(
     if fn_name == 'current_schemas':
         return eval_current_schemas(expr, ctx=ctx)
 
+    if fn_name == 'current_database':
+        return pgast.StringConstant(val=ctx.options.current_database)
+
+    if fn_name == 'current_query':
+        return pgast.StringConstant(val=ctx.options.current_query)
+
     return None
 
 
