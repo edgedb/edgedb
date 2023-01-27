@@ -53,7 +53,6 @@ cdef class PgConnection(frontend.FrontendConnection):
         ConnectionView _dbview
 
         bytes secret
-        str client_encoding
         dict prepared_stmts
         bint ignore_till_sync
 

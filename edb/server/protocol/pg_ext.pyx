@@ -582,15 +582,21 @@ cdef class PgConnection(frontend.FrontendConnection):
 
         user = params["user"]
         database = params.get("database", user)
-        encoding = params.get("client_encoding", "utf8")
-        self.client_encoding = encodings.normalize_encoding(encoding).lower()
-        try:
-            codecs.lookup(self.client_encoding)
-        except LookupError:
-            raise pgerror.new(
-                pgerror.ERROR_INVALID_PARAMETER_VALUE,
-                f'invalid value for parameter "client_encoding": "{encoding}"',
+        if "client_encoding" in params:
+            encoding = params["client_encoding"]
+            client_encoding = encodings.normalize_encoding(encoding).upper()
+            try:
+                codecs.lookup(client_encoding)
+            except LookupError:
+                raise pgerror.new(
+                    pgerror.ERROR_INVALID_PARAMETER_VALUE,
+                    f'invalid value for parameter "client_encoding": "{encoding}"',
+                )
+            self._dbview._settings = self._dbview._settings.set(
+                "client_encoding", client_encoding
             )
+        else:
+            client_encoding = "UTF8"
 
         logger.debug('received pg connection request by %s to database %s',
                      user, database)
@@ -629,20 +635,22 @@ cdef class PgConnection(frontend.FrontendConnection):
             for name, value in conn.parameter_status.items():
                 msg_buf = WriteBuffer.new_message(b'S')
                 msg_buf.write_str(name, "utf-8")
-                msg_buf.write_str(value, "utf-8")
+                if name == "client_encoding":
+                    msg_buf.write_str(client_encoding, "utf-8")
+                else:
+                    msg_buf.write_str(value, "utf-8")
                 msg_buf.end_message()
                 buf.write_buffer(msg_buf)
                 if self.debug:
                     self.debug_print(f"ParameterStatus: {name}={value}")
+            self.write(buf)
+            # Try to sync the settings, especially client_encoding.
+            # sql_simple_query() will return a ReadyForQuery and flush the buf.
+            await conn.sql_simple_query(
+                [], self, self.database.dbver, self._dbview
+            )
         finally:
             self.maybe_release_pgcon(conn)
-
-        buf.write_buffer(self.ready_for_query())
-        if self.debug:
-            self.debug_print("ReadyForQuery")
-
-        self.write(buf)
-        self.flush()
 
     cdef inline WriteBuffer ready_for_query(self):
         cdef WriteBuffer msg_buf
@@ -692,9 +700,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.buffer.discard_message()
 
         elif mtype == b'Q':  # Query
-            query_str = self.buffer.read_null_str().decode(
-                self.client_encoding
-            )
+            query_str = self.buffer.read_null_str().decode("utf8")
             self.buffer.finish_message()
             if self.debug:
                 self.debug_print("Query", query_str)
@@ -783,11 +789,9 @@ cdef class PgConnection(frontend.FrontendConnection):
             mtype = self.buffer.get_message_type()
 
             if mtype == b'P':  # Parse
-                stmt_name = self.buffer.read_null_str().decode(
-                    self.client_encoding
-                )
+                stmt_name = self.buffer.read_null_str().decode("utf8")
                 query_bytes = self.buffer.read_null_str()
-                query_str = query_bytes.decode(self.client_encoding)
+                query_str = query_bytes.decode("utf8")
                 data = self.buffer.consume_message()
                 if self.debug:
                     self.debug_print("Parse", repr(stmt_name), query_str, data)
@@ -832,12 +836,8 @@ cdef class PgConnection(frontend.FrontendConnection):
                     fresh_stmts.add(stmt_name)
 
             elif mtype == b'B':  # Bind
-                portal_name = self.buffer.read_null_str().decode(
-                    self.client_encoding
-                )
-                stmt_name = self.buffer.read_null_str().decode(
-                    self.client_encoding
-                )
+                portal_name = self.buffer.read_null_str().decode("utf8")
+                stmt_name = self.buffer.read_null_str().decode("utf8")
                 data = self.buffer.consume_message()
                 if self.debug:
                     self.debug_print(
@@ -904,7 +904,7 @@ cdef class PgConnection(frontend.FrontendConnection):
 
             elif mtype == b'D':  # Describe
                 kind = self.buffer.read_byte()
-                name = self.buffer.read_null_str().decode(self.client_encoding)
+                name = self.buffer.read_null_str().decode("utf8")
                 self.buffer.finish_message()
                 if self.debug:
                     self.debug_print("Describe", kind, repr(name))
@@ -946,9 +946,7 @@ cdef class PgConnection(frontend.FrontendConnection):
                         )
 
             elif mtype == b'E':  # Execute
-                portal_name = self.buffer.read_null_str().decode(
-                    self.client_encoding
-                )
+                portal_name = self.buffer.read_null_str().decode("utf8")
                 max_rows = self.buffer.read_int32()
                 self.buffer.finish_message()
                 if self.debug:
@@ -968,7 +966,7 @@ cdef class PgConnection(frontend.FrontendConnection):
 
             elif mtype == b'C':  # Close
                 kind = self.buffer.read_byte()
-                name = self.buffer.read_null_str().decode(self.client_encoding)
+                name = self.buffer.read_null_str().decode("utf8")
                 self.buffer.finish_message()
                 if self.debug:
                     self.debug_print("Close", kind, repr(name))
