@@ -15,14 +15,15 @@ from elaboration import *
 
 import click
 
-def eval(db : DB, expr : Expr):
-    raise ValueError("Not Implemented", expr)
+from evaluation import *
+import copy
 
-def run_statement(db : DB, stmt : qlast.Expr):
+def run_statement(db : DB, stmt : qlast.Expr) -> DB:
     print("running")
     elaborated = elab(stmt)
-    resultdb = eval(db, elaborated)
-    return resultdb
+    config = RTConfig(db, [copy.deepcopy(db)], elaborated)
+    resultdb = eval_config(config)
+    return resultdb.cur_db
     # debug.dump(stmt)
 
 def run_stmts (db : DB, stmts : List[qlast.Expr]):

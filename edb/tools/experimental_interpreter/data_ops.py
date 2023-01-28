@@ -244,7 +244,6 @@ class FunAppExpr:
 @data
 class BinProdExpr:
     label : str
-    marker : Marker
     this : Expr
     next : Expr
 
@@ -341,12 +340,12 @@ class LinkWithPropertyVal:
 
 
 DictVal = BinProdVal | BinProdUnitVal
-Val = RefVal | FreeVal | MultiSetVal  | RefLinkVal | LinkWithPropertyVal
+Val =  PrimVal | RefVal | FreeVal | MultiSetVal  | RefLinkVal | LinkWithPropertyVal 
 
 @data 
 class DBEntry:
     tp : Tp
-    data : Dict[str, DictVal] ## actually values
+    data : DictVal ## actually values
 
 @data
 class DB:
