@@ -292,11 +292,9 @@ def resolve_relation(
     columns.sort(key=lambda c: () if c.name == 'id' else (c.name or '',))
     table.columns.extend(columns)
 
-    if ctx.include_inherited:
-        aspect = 'inhview'
-    else:
-        table.columns.extend(_construct_system_columns())
-        aspect = 'table'
+    aspect = 'inhview' if ctx.include_inherited else 'table'
+
+    table.columns.extend(_construct_system_columns())
 
     schemaname, dbname = pgcommon.get_backend_name(
         ctx.schema, obj, aspect=aspect, catenate=False
