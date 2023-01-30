@@ -444,7 +444,7 @@ def new_free_object_rvar(
     return rvar_for_rel(qry, typeref=typeref, lateral=lateral, ctx=ctx)
 
 
-def _deep_copy_primitive_rvar_path_var(
+def deep_copy_primitive_rvar_path_var(
     orig_id: irast.PathId, new_id: irast.PathId,
     rvar: pgast.PathRangeVar, *,
     env: context.Environment
@@ -521,7 +521,7 @@ def new_primitive_rvar(
             # to use _lateral_union_join; this means that all of the
             # path bonds need to be valid on each *subquery*, so we
             # need to set them up in each subquery.
-            _deep_copy_primitive_rvar_path_var(
+            deep_copy_primitive_rvar_path_var(
                 flipped_id, prefix_path_id, set_rvar, env=ctx.env)
             pathctx.put_rvar_path_bond(set_rvar, prefix_path_id)
 
@@ -1543,6 +1543,7 @@ def range_for_material_objtype(
             typeref.name_hint,
             lateral=lateral,
             path_id=path_id,
+            typeref=typeref,
             tag='overlay-stack',
             ctx=ctx,
         )
@@ -1630,7 +1631,7 @@ def range_for_typeref(
             )
 
         pathctx.put_path_bond(wrapper, path_id)
-        rvar = rvar_for_rel(wrapper, lateral=lateral, ctx=ctx)
+        rvar = rvar_for_rel(wrapper, lateral=lateral, typeref=typeref, ctx=ctx)
 
     else:
         rvar = range_for_material_objtype(
