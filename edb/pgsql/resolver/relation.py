@@ -107,7 +107,12 @@ def resolve_SelectStmt(
     where = dispatch.resolve_opt(stmt.where_clause, ctx=ctx)
 
     # GROUP BY
-    group_clause = dispatch.resolve_opt_list(stmt.group_clause, ctx=ctx)
+    with ctx.child() as subctx:
+        register_projections(stmt.target_list, ctx=subctx)
+
+        group_clause = dispatch.resolve_opt_list(
+            stmt.group_clause, ctx=subctx
+        )
 
     # SELECT projection
     table = context.Table()
@@ -159,6 +164,21 @@ def resolve_SelectStmt(
         res,
         table,
     )
+
+
+def register_projections(target_list: List[pgast.ResTarget], *, ctx: Context):
+    # add aliases from target_list into scope
+
+    table = context.Table()
+
+    for target in target_list:
+        if not target.name:
+            continue
+
+        table.columns.append(
+            context.Column(name=target.name, reference_as=target.name)
+        )
+    ctx.scope.tables.append(table)
 
 
 @dispatch._resolve_relation.register

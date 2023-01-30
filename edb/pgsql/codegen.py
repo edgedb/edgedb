@@ -704,7 +704,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(common.qname(*node.name))
 
         self.write('(')
-        if node.agg_distinct:
+        if node.agg_star:
+            self.write("*")
+        elif node.agg_distinct:
             self.write('DISTINCT ')
         self.visit_list(node.args, newlines=False)
 

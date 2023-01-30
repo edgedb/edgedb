@@ -504,6 +504,33 @@ class TestSQL(tb.SQLQueryTestCase):
         # this numbers change, so let's just check that there are 6 of them
         self.assertEqual(len(res[0]), 6)
 
+    async def test_sql_query_34(self):
+        # GROUP and ORDER BY aliased column
+
+        res = await self.squery_values(
+            """
+            SELECT substr(title, 2, 4) AS itl, count(*) FROM "Movie"
+            GROUP BY itl
+            ORDER BY itl
+            """
+        )
+        self.assertEqual(res, [["avin", 1], ["orre", 1]])
+
+    async def test_sql_query_35(self):
+        # ORDER BY original column
+
+        res = await self.squery_values(
+            """
+            SELECT title AS aliased_title, count(*) FROM "Movie"
+            GROUP BY title
+            ORDER BY title
+            """
+        )
+        self.assertEqual(res, [
+            ['Forrest Gump', 1],
+            ['Saving Private Ryan', 1]
+        ])
+
     async def test_sql_query_introspection_00(self):
         res = await self.squery_values(
             '''
