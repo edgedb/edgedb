@@ -68,7 +68,7 @@ pg_keywords = {
     "cast": ("CAST", RESERVED_KEYWORD),
     "catalog": ("CATALOG_P", UNRESERVED_KEYWORD),
     "chain": ("CHAIN", UNRESERVED_KEYWORD),
-    "char": ("CHAR_P", TYPE_FUNC_NAME_KEYWORD),
+    "char": ("CHAR_P", COL_NAME_KEYWORD),
     "character": ("CHARACTER", COL_NAME_KEYWORD),
     "characteristics": ("CHARACTERISTICS", UNRESERVED_KEYWORD),
     "check": ("CHECK", RESERVED_KEYWORD),
