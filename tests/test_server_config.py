@@ -1139,6 +1139,41 @@ class TestServerConfig(tb.QueryTestCase):
                 DROP TYPE Foo;
             ''')
 
+    async def test_server_proto_rollback_state(self):
+        con1 = self.con
+        con2 = await self.connect(database=con1.dbname)
+        try:
+            await con2.execute('''
+                CONFIGURE SESSION SET __internal_sess_testvalue := 2;
+            ''')
+            await con1.execute('''
+                CONFIGURE SESSION SET __internal_sess_testvalue := 1;
+            ''')
+            self.assertEqual(
+                await con2.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                2,
+            )
+            self.assertEqual(
+                await con1.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                1,
+            )
+            with self.assertRaises(edgedb.DivisionByZeroError):
+                async for tx in con2.retrying_transaction():
+                    async with tx:
+                        await tx.query_single("SELECT 1/0")
+            self.assertEqual(
+                await con1.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                1,
+            )
+        finally:
+            await con2.aclose()
+
 
 class TestSeparateCluster(tb.TestCase):
 

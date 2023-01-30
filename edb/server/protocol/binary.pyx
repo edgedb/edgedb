@@ -712,6 +712,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             else:
                 assert query_unit.tx_rollback
                 _dbview.abort_tx()
+            if not _dbview.in_tx():
+                conn.last_state = _dbview.serialize_state()
         finally:
             self.maybe_release_pgcon(conn)
 
