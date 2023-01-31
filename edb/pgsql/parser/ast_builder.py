@@ -683,8 +683,14 @@ def _build_type_name(n: Node, c: Context) -> pgast.TypeName:
     def unwrap_int(n: Node, _c: Context):
         return _unwrap(_unwrap(n, 'Integer'), 'ival')
 
+    name: Tuple[str, ...] = tuple(_list(n, c, "names", _build_str))
+
+    # we don't escape char properly, so let's just resolve it during parsing
+    if name == ("char",):
+        name = ("pg_catalog", "char")
+
     return pgast.TypeName(
-        name=tuple(_list(n, c, "names", _build_str)),
+        name=name,
         setof=_bool_or_false(n, "setof"),
         typmods=None,
         array_bounds=_maybe_list(n, c, "arrayBounds", unwrap_int),

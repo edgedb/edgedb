@@ -1074,6 +1074,13 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT nullif(a, 3) FROM b
         """
 
+    def test_sql_parse_query_50(self):
+        """
+        SELECT 'a'::char, 'a'::"char"
+% OK %
+        SELECT ('a')::pg_catalog.bpchar, ('a')::pg_catalog.char
+        """
+
     # The transaction_* settings are always on transaction level
 
     def test_sql_parse_transaction_29(self):
