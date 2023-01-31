@@ -99,7 +99,7 @@ class TraceContextBase:
         self,
         ref: qlast.ObjectRef,
     ) -> s_name.QualName:
-        return qltracer.get_name(
+        return qltracer.resolve_name(
             ref,
             current_module=self.module,
             schema=self.schema,

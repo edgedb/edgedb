@@ -289,7 +289,7 @@ def trace_refs(
     return frozenset(ctx.refs)
 
 
-def get_name(
+def resolve_name(
     ref: qlast.ObjectRef, *,
     current_module: str,
     schema: s_schema.Schema,
@@ -297,6 +297,10 @@ def get_name(
     modaliases: Optional[Dict[Optional[str], str]],
     local_modules: AbstractSet[str],
 ) -> sn.QualName:
+    """Resolve a name into a fully-qualified one.
+
+    This takes into account the current module and modaliases.
+    """
     module = ref.module
 
     no_std = False
@@ -371,7 +375,7 @@ class TracerContext:
         if not ref.module and ref.name in self.params:
             return self.params[ref.name]
 
-        return get_name(
+        return resolve_name(
             ref,
             current_module=self.module,
             schema=self.schema,
