@@ -41,6 +41,8 @@ ReferencedInheritingObjectT = TypeVar('ReferencedInheritingObjectT',
                                       bound='ReferencedInheritingObject')
 
 
+# Q: There are no ReferencedObjects that aren't ReferencedInheritingObject;
+# should we merge them?
 class ReferencedObject(so.DerivableObject):
 
     #: True if the object has an explicit definition and is not
@@ -1588,3 +1590,71 @@ class AlterOwned(
                 schema = self._drop_owned_refs(schema, context, refdict)
 
         return schema
+
+
+class NamedReferencedInheritingObject(
+    ReferencedInheritingObject,
+):
+    """A referenced inheriting object that has an explicit local name.
+
+    That is, things like pointers, access policies, and triggers,
+    which are referenced by another object but have an explicitly
+    specified name.
+    """
+    @classmethod
+    def get_displayname_static(cls, name: sn.Name) -> str:
+        sn = cls.get_shortname_static(name)
+        if sn.module == '__':
+            return sn.name
+        else:
+            return str(sn)
+
+    def get_derived_name_base(
+        self,
+        schema: s_schema.Schema,
+    ) -> sn.QualName:
+        shortname = self.get_shortname(schema)
+        return sn.QualName(module='__', name=shortname.name)
+
+
+class NamedReferencedInheritingObjectCommand(
+    ReferencedInheritingObjectCommand[ReferencedInheritingObjectT],
+):
+    # XXX: Do we want different namespaces for different kinds of objects?
+    @classmethod
+    def _classname_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.NamedDDL,
+        context: sd.CommandContext,
+    ) -> sn.QualName:
+        referrer_ctx = cls.get_referrer_context(context)
+        if referrer_ctx is not None:
+
+            referrer_name = context.get_referrer_name(referrer_ctx)
+
+            shortname = sn.QualName(module='__', name=astnode.name.name)
+
+            name = sn.QualName(
+                module=referrer_name.module,
+                name=sn.get_specialized_name(shortname, str(referrer_name)),
+            )
+        else:
+            name = super()._classname_from_ast(schema, astnode, context)
+
+        return name
+
+    def _deparse_name(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        name: sn.Name,
+    ) -> qlast.ObjectRef:
+
+        ref = super()._deparse_name(schema, context, name)
+        referrer_ctx = self.get_referrer_context(context)
+        if referrer_ctx is None:
+            return ref
+        else:
+            ref.module = ''
+            return ref

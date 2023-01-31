@@ -384,7 +384,7 @@ def is_view_source(
 Pointer_T = TypeVar("Pointer_T", bound="Pointer")
 
 
-class Pointer(referencing.ReferencedInheritingObject,
+class Pointer(referencing.NamedReferencedInheritingObject,
               constraints.ConsistencySubject,
               s_anno.AnnotationSubject,
               s_abc.Pointer):
@@ -1450,24 +1450,9 @@ class PointerCommandOrFragment(
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
 
-    def _deparse_name(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        name: sn.Name,
-    ) -> qlast.ObjectRef:
-
-        ref = super()._deparse_name(schema, context, name)
-        referrer_ctx = self.get_referrer_context(context)
-        if referrer_ctx is None:
-            return ref
-        else:
-            ref.module = ''
-            return ref
-
 
 class PointerCommand(
-    referencing.ReferencedInheritingObjectCommand[Pointer_T],
+    referencing.NamedReferencedInheritingObjectCommand[Pointer_T],
     constraints.ConsistencySubjectCommand[Pointer_T],
     s_anno.AnnotationSubjectCommand[Pointer_T],
     PointerCommandOrFragment[Pointer_T],
@@ -1720,35 +1705,6 @@ class PointerCommand(
                 hint=f'default must be a call to one of: {options}',
                 context=source_context,
             )
-
-    @classmethod
-    def _classname_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
-        context: sd.CommandContext,
-    ) -> sn.QualName:
-        referrer_ctx = cls.get_referrer_context(context)
-        if referrer_ctx is not None:
-
-            referrer_name = context.get_referrer_name(referrer_ctx)
-
-            shortname = sn.QualName(
-                module='__',
-                name=astnode.name.name,
-            )
-
-            name = sn.QualName(
-                module=referrer_name.module,
-                name=sn.get_specialized_name(
-                    shortname,
-                    str(referrer_name),
-                ),
-            )
-        else:
-            name = super()._classname_from_ast(schema, astnode, context)
-
-        return name
 
     @classmethod
     def _cmd_tree_from_ast(
