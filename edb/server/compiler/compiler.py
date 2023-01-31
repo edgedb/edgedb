@@ -632,7 +632,7 @@ class Compiler:
                         "exclusive lock is not supported"
                     )
                 # just ignore
-                unit = dbstate.SQLQueryUnit(query="")
+                unit = dbstate.SQLQueryUnit(query="DO $$ BEGIN END $$;")
             else:
                 args = {}
                 try:
