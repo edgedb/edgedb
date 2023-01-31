@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 
 
 class AccessPolicy(
-    referencing.ReferencedInheritingObject,
+    referencing.NamedReferencedInheritingObject,
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.ACCESS_POLICY,
     data_safe=True,
@@ -91,21 +91,6 @@ class AccessPolicy(
     def get_schema_class_displayname(cls) -> str:
         return 'access policy'
 
-    @classmethod
-    def get_displayname_static(cls, name: sn.Name) -> str:
-        sn = cls.get_shortname_static(name)
-        if sn.module == '__':
-            return sn.name
-        else:
-            return str(sn)
-
-    def get_derived_name_base(
-        self,
-        schema: s_schema.Schema,
-    ) -> sn.QualName:
-        shortname = self.get_shortname(schema)
-        return sn.QualName(module='__', name=shortname.name)
-
     def get_expr_refs(self, schema: s_schema.Schema) -> List[so.Object]:
         objs: List[so.Object] = []
         if (condition := self.get_condition(schema)) and condition.refs:
@@ -137,7 +122,7 @@ class AccessPolicySourceCommandContext(
 
 
 class AccessPolicyCommand(
-    referencing.ReferencedInheritingObjectCommand[AccessPolicy],
+    referencing.NamedReferencedInheritingObjectCommand[AccessPolicy],
     s_anno.AnnotationSubjectCommand[AccessPolicy],
     context_class=AccessPolicyCommandContext,
     referrer_context_class=AccessPolicySourceCommandContext,
@@ -248,40 +233,6 @@ class AccessPolicyCommand(
             return s_expr.Expression(text='false')
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
-
-    @classmethod
-    def _classname_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
-        context: sd.CommandContext,
-    ) -> sn.QualName:
-        referrer_ctx = cls.get_referrer_context(context)
-        if referrer_ctx is not None:
-
-            referrer_name = context.get_referrer_name(referrer_ctx)
-
-            shortname = sn.QualName(module='__', name=astnode.name.name)
-
-            name = sn.QualName(
-                module=referrer_name.module,
-                name=sn.get_specialized_name(shortname, str(referrer_name)),
-            )
-        else:
-            name = super()._classname_from_ast(schema, astnode, context)
-
-        return name
-
-    def _deparse_name(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        name: sn.Name,
-    ) -> qlast.ObjectRef:
-
-        ref = super()._deparse_name(schema, context, name)
-        ref.module = ''
-        return ref
 
     def validate_object(
         self,

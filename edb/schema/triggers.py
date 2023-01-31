@@ -81,21 +81,6 @@ class Trigger(
         compcoef=None,
         inheritable=False)
 
-    @classmethod
-    def get_displayname_static(cls, name: sn.Name) -> str:
-        sn = cls.get_shortname_static(name)
-        if sn.module == '__':
-            return sn.name
-        else:
-            return str(sn)
-
-    def get_derived_name_base(
-        self,
-        schema: s_schema.Schema,
-    ) -> sn.QualName:
-        shortname = self.get_shortname(schema)
-        return sn.QualName(module='__', name=shortname.name)
-
     def get_subject(self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
         subj: s_objtypes.ObjectType = self.get_field_value(schema, 'subject')
         return subj
@@ -114,7 +99,7 @@ class TriggerSourceCommandContext(
 
 
 class TriggerCommand(
-    referencing.ReferencedInheritingObjectCommand[Trigger],
+    referencing.NamedReferencedInheritingObjectCommand[Trigger],
     s_anno.AnnotationSubjectCommand[Trigger],
     context_class=TriggerCommandContext,
     referrer_context_class=TriggerSourceCommandContext,
@@ -223,42 +208,6 @@ class TriggerCommand(
             return s_expr.Expression(text='false')
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
-
-    # XXX: This is duplicated with AccessPolicy (and other places?)
-    # XXX: Name can collide with access policies, other things? Is that right?
-    @classmethod
-    def _classname_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
-        context: sd.CommandContext,
-    ) -> sn.QualName:
-        referrer_ctx = cls.get_referrer_context(context)
-        if referrer_ctx is not None:
-
-            referrer_name = context.get_referrer_name(referrer_ctx)
-
-            shortname = sn.QualName(module='__', name=astnode.name.name)
-
-            name = sn.QualName(
-                module=referrer_name.module,
-                name=sn.get_specialized_name(shortname, str(referrer_name)),
-            )
-        else:
-            name = super()._classname_from_ast(schema, astnode, context)
-
-        return name
-
-    def _deparse_name(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        name: sn.Name,
-    ) -> qlast.ObjectRef:
-
-        ref = super()._deparse_name(schema, context, name)
-        ref.module = ''
-        return ref
 
     def validate_object(
         self,
