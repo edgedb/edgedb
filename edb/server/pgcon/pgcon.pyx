@@ -1559,13 +1559,26 @@ cdef class PGConnection:
                     else:
                         self.buffer.redirect_messages(buf, mtype, 0)
 
-            # CloseComplete is skipped in wait_for_sync()
-            msg_buf = WriteBuffer.new_message(b'Z')
-            msg_buf.write_byte(await self.wait_for_sync())
-            buf.write_buffer(msg_buf.end_message())
+            while True:
+                if not self.buffer.take_message():
+                    if buf.len() > 0:
+                        fe_conn.write(buf)
+                        fe_conn.flush()
+                        buf = WriteBuffer.new()
+                    await self.wait_for_message()
+                mtype = self.buffer.get_message_type()
+                if mtype == b'3':  # CloseComplete
+                    self.buffer.discard_message()
+                elif mtype == b'Z':  # ReadyForQuery
+                    self.buffer.redirect_messages(buf, mtype, 0)
+                    break
+                else:
+                    # Other messages like ParameterStatus should be forwarded
+                    self.buffer.redirect_messages(buf, mtype, 0)
 
-            fe_conn.write(buf)
-            fe_conn.flush()
+            if buf.len() > 0:
+                fe_conn.write(buf)
+                fe_conn.flush()
         finally:
             await self.after_command()
             dbv.end_implicit()
