@@ -46,6 +46,7 @@ from edb.server import compiler as edbcompiler
 from edb.schema import ddl as s_ddl
 from edb.schema import delta as sd
 from edb.schema import migrations as s_migrations  # noqa
+from edb.schema import name as sn
 from edb.schema import reflection as s_refl
 from edb.schema import schema as s_schema
 from edb.schema import std as s_std
@@ -278,7 +279,7 @@ def _load_std_schema():
 
         if schema is None:
             schema = s_schema.FlatSchema()
-            for modname in s_schema.STD_SOURCES:
+            for modname in [*s_schema.STD_SOURCES, sn.UnqualName('_testmode')]:
                 schema = s_std.load_std_module(schema, modname)
             schema, _ = s_std.make_schema_version(schema)
             schema, _ = s_std.make_global_schema_version(schema)

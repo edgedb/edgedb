@@ -272,3 +272,13 @@ std::_datetime_range_buckets(
         hi IS NOT NULL
     $$;
 };
+
+CREATE MODULE std::_test;
+
+
+CREATE FUNCTION
+std::_test::abs(x: std::anyreal) -> std::anyreal
+{
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'abs';
+};

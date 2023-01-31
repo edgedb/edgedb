@@ -330,12 +330,12 @@ class WithBlock(Nonterm):
 class AliasDecl(Nonterm):
     def reduce_MODULE_ModuleName(self, *kids):
         self.val = qlast.ModuleAliasDecl(
-            module='.'.join(kids[1].val))
+            module='::'.join(kids[1].val))
 
     def reduce_Identifier_AS_MODULE_ModuleName(self, *kids):
         self.val = qlast.ModuleAliasDecl(
             alias=kids[0].val,
-            module='.'.join(kids[3].val))
+            module='::'.join(kids[3].val))
 
     def reduce_AliasedExpr(self, *kids):
         self.val = kids[0].val
@@ -1625,7 +1625,23 @@ class AnyIdentifier(Nonterm):
         self.val = name
 
 
-class ModuleName(ListNonterm, element=AnyIdentifier, separator=tokens.T_DOT):
+class DottedIdents(
+        ListNonterm, element=AnyIdentifier, separator=tokens.T_DOT):
+    pass
+
+
+class DotName(Nonterm):
+    def reduce_DottedIdents(self, *kids):
+        self.val = '.'.join(part for part in kids[0].val)
+
+
+class ModuleName(
+        ListNonterm, element=DotName, separator=tokens.T_DOUBLECOLON):
+    pass
+
+
+class ColonedIdents(
+        ListNonterm, element=AnyIdentifier, separator=tokens.T_DOUBLECOLON):
     pass
 
 
@@ -1634,11 +1650,11 @@ class BaseName(Nonterm):
     def reduce_Identifier(self, *kids):
         self.val = [kids[0].val]
 
-    def reduce_Identifier_DOUBLECOLON_AnyIdentifier(self, *kids):
-        self.val = [kids[0].val, kids[2].val]
+    def reduce_Identifier_DOUBLECOLON_ColonedIdents(self, *kids):
+        self.val = [kids[0].val, *kids[2].val]
 
-    def reduce_DUNDERSTD_DOUBLECOLON_AnyIdentifier(self, *kids):
-        self.val = ['__std__', kids[2].val]
+    def reduce_DUNDERSTD_DOUBLECOLON_ColonedIdents(self, *kids):
+        self.val = ['__std__', *kids[2].val]
 
 
 # this can appear in link/property definitions
@@ -1646,11 +1662,11 @@ class PtrName(Nonterm):
     def reduce_PtrIdentifier(self, *kids):
         self.val = [kids[0].val]
 
-    def reduce_Identifier_DOUBLECOLON_AnyIdentifier(self, *kids):
-        self.val = [kids[0].val, kids[2].val]
+    def reduce_Identifier_DOUBLECOLON_ColonedIdents(self, *kids):
+        self.val = [kids[0].val, *kids[2].val]
 
-    def reduce_DUNDERSTD_DOUBLECOLON_AnyIdentifier(self, *kids):
-        self.val = ['__std__', kids[2].val]
+    def reduce_DUNDERSTD_DOUBLECOLON_ColonedIdents(self, *kids):
+        self.val = ['__std__', *kids[2].val]
 
 
 # Non-collection type.
@@ -1802,7 +1818,7 @@ class NodeName(Nonterm):
 
     def reduce_BaseName(self, *kids):
         self.val = qlast.ObjectRef(
-            module='.'.join(kids[0].val[:-1]) or None,
+            module='::'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])
 
 
@@ -1817,7 +1833,7 @@ class PtrNodeName(Nonterm):
 
     def reduce_PtrName(self, *kids):
         self.val = qlast.ObjectRef(
-            module='.'.join(kids[0].val[:-1]) or None,
+            module='::'.join(kids[0].val[:-1]) or None,
             name=kids[0].val[-1])
 
 

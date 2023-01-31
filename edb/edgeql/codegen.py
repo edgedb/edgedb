@@ -74,7 +74,9 @@ def param_to_str(ident: str) -> str:
 
 
 def module_to_str(module: str) -> str:
-    return '.'.join([ident_to_str(part) for part in module.split('.')])
+    return '::'.join([
+        any_ident_to_str(part) for part in module.split('::')
+    ])
 
 
 class EdgeQLSourceGeneratorError(errors.InternalServerError):
@@ -368,7 +370,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._write_keywords('GROUP')
         self._block_ws(1)
         if node.subject_alias:
-            self.write(any_ident_to_str(node.subject_alias), ' := ')
+            self.write(ident_to_str(node.subject_alias), ' := ')
         self.visit(node.subject)
         self._block_ws(-1)
         if node.using is not None:
@@ -418,7 +420,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(ident_to_str(node.alias))
             self._write_keywords(' AS ')
         self._write_keywords('MODULE ')
-        self.write(any_ident_to_str(node.module))
+        self.write(module_to_str(node.module))
 
     def visit_SortExpr(self, node: qlast.SortExpr) -> None:
         self.visit(node.path)

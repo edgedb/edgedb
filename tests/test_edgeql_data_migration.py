@@ -8769,7 +8769,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
         await self.assert_query_result(
             'SELECT (SELECT schema::Module FILTER .name LIKE "%test").name;',
-            ['newtest']
+            {'newtest', 'std::_test'},
         )
 
     async def test_edgeql_migration_inherited_optionality_01(self):

@@ -746,6 +746,28 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "module 'super' is a reserved module name"
+    )
+    def test_schema_module_reserved_01(self):
+        """
+            module foo {
+                module super {}
+            }
+        """
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "module 'ext' is a reserved module name"
+    )
+    def test_schema_module_reserved_02(self):
+        """
+            module foo {
+                module ext {}
+            }
+        """
+
     def test_schema_refs_01(self):
         schema = self.load_schema("""
             type Object1;
@@ -3334,6 +3356,74 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         function other::name_def() -> str {
             using (SELECT 'some_name' ++ <str>uuid_generate_v1mc());
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_schema_get_migration_nested_module_01(self):
+        schema = r'''
+        type foo::bar::Y;
+        module foo {
+          module bar {
+            type X {
+                link y -> Y;
+            }
+          }
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_schema_get_migration_nested_module_02(self):
+        schema = r'''
+        module foo {
+          type Z;
+          type Y {
+              link x1 -> foo::bar::X;
+              link x2 := foo::bar::X;
+              link z1 -> Z;
+              link z2 := Z;
+          };
+          module bar {
+            type X;
+          }
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_schema_get_migration_nested_module_03(self):
+        schema = r'''
+        module default {
+            alias x := _test::abs(-1);
+        };
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_schema_get_migration_nested_module_04(self):
+        schema = r'''
+        module _test { };
+        module default {
+            alias x := _test::abs(-1);
+        };
+        '''
+        with self.assertRaisesRegex(
+            errors.InvalidReferenceError,
+            "function '_test::abs' does not exist"
+        ):
+            self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_schema_get_migration_nested_module_05(self):
+        schema = r'''
+        module foo {
+          module bar {
+            type X;
+          }
+        };
+        module default {
+          alias x := (with m as module foo select m::bar::X);
         }
         '''
 
@@ -7642,6 +7732,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             """,
         ])
 
+    def test_schema_migrations_equivalence_nested_module_01(self):
+        self._assert_migration_equivalence([r"""
+            module foo { module bar {} }
+        """, r"""
+            module foo { module bar { module baz {} } }
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
@@ -8321,9 +8418,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             abstract constraint test::my_constr1(val: std::int64) {
-                using (WITH m AS MODULE math
+                using (
                     SELECT
-                        (m::abs((__subject__ + val)) > 2)
+                        (math::abs((__subject__ + val)) > 2)
                 );
             };
             ''',

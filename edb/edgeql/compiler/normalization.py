@@ -32,6 +32,7 @@ from edb.edgeql import parser as qlparser
 
 from edb.schema import name as sn
 from edb.schema import schema as s_schema
+from edb.schema import utils as s_utils
 
 
 @functools.singledispatch
@@ -170,7 +171,6 @@ def _normalize_with_block(
         if isinstance(alias, qlast.ModuleAliasDecl):
             if alias.alias:
                 modaliases[alias.alias] = alias.module
-                newaliases.append(alias)
             else:
                 modaliases[None] = alias.module
         else:
@@ -451,9 +451,9 @@ def _normalize_objref(
     modaliases: Mapping[Optional[str], str],
     localnames: AbstractSet[str] = frozenset(),
 ) -> None:
-    if not ref.module and ref.name not in localnames:
+    if ref.name not in localnames:
         obj = schema.get(
-            ref.name,
+            s_utils.ast_ref_to_name(ref),
             default=None,
             module_aliases=modaliases,
         )
@@ -461,14 +461,14 @@ def _normalize_objref(
             name = obj.get_name(schema)
             assert isinstance(name, sn.QualName)
             ref.module = name.module
-        elif None in modaliases:
+        elif ref.module in modaliases:
             # Even if the name was not resolved in the
             # schema it may be the name of the object
             # being defined, as such the default module
             # should be used. Names that must be ignored
             # (like aliases and parameters) have already
             # been filtered by the localnames.
-            ref.module = modaliases[None]
+            ref.module = modaliases[ref.module]
 
 
 @normalize.register
@@ -507,9 +507,13 @@ def compile_FunctionCall(
     localnames: AbstractSet[str] = frozenset(),
 ) -> None:
 
-    if isinstance(node.func, str) and node.func not in localnames:
+    if node.func not in localnames:
+        name = (
+            sn.UnqualName(node.func) if isinstance(node.func, str)
+            else sn.QualName(*node.func)
+        )
         funcs = schema.get_functions(
-            node.func, default=tuple(), module_aliases=modaliases)
+            name, default=tuple(), module_aliases=modaliases)
         if funcs:
             # As long as we found some functions, they will be from
             # the same module (the first valid resolved module for the
@@ -549,13 +553,13 @@ def compile_TypeName(
     # Resolve the main type
     if isinstance(node.maintype, qlast.ObjectRef):
         # This is a specific path root, resolve it.
-        if (not node.maintype.module and
+        if (
                 # maintype names 'array', 'tuple', and 'range' specifically
                 # should also be ignored
                 node.maintype.name not in {'array', 'tuple', 'range',
                                            *localnames}):
             maintype = schema.get(
-                node.maintype.name,
+                s_utils.ast_ref_to_name(node.maintype),
                 default=None,
                 module_aliases=modaliases,
             )
@@ -564,13 +568,13 @@ def compile_TypeName(
                 name = maintype.get_name(schema)
                 assert isinstance(name, sn.QualName)
                 node.maintype.module = name.module
-            elif None in modaliases:
+            elif node.maintype.module in modaliases:
                 # Even if the name was not resolved in the schema it
                 # may be the name of the object being defined, as such
                 # the default module should be used. Names that must
                 # be ignored (like aliases and parameters) have
                 # already been filtered by the localnames.
-                node.maintype.module = modaliases[None]
+                node.maintype.module = modaliases[node.maintype.module]
 
     if node.subtypes is not None:
         for st in node.subtypes:
