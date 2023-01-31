@@ -258,6 +258,15 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 variables={'x': None},
             )
 
+    def test_http_edgeql_query_13(self):
+        self.assert_edgeql_query_result(
+            r'''select <array<int64>>$foo''',
+            [[1, 2, 3]],
+            variables=dict(
+                foo=[1, 2, 3],
+            )
+        )
+
     def test_http_edgeql_query_globals_01(self):
         Q = r'''select GlobalTest { gstr, garray, gid, gdef, gdef2 }'''
 
