@@ -887,21 +887,15 @@ def process_set_as_path_type_intersection(
         poly_rvar = relctx.range_for_typeref(
             target_typeref,
             path_id=ir_set.path_id,
+            dml_source=irutils.get_nearest_dml_stmt(ir_set),
             lateral=True,
             ctx=ctx,
         )
 
         prefix_path_id = ir_set.path_id.src_path()
         assert prefix_path_id is not None, 'expected a path'
-        pathctx.put_rvar_path_output(
-            rvar=poly_rvar,
-            path_id=prefix_path_id,
-            aspect='identity',
-            var=pathctx.get_rvar_path_identity_var(
-                poly_rvar, ir_set.path_id, env=ctx.env,
-            ),
-            env=ctx.env,
-        )
+        relctx.deep_copy_primitive_rvar_path_var(
+            ir_set.path_id, prefix_path_id, poly_rvar, env=ctx.env)
         pathctx.put_rvar_path_bond(poly_rvar, prefix_path_id)
         relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
         int_rvar = pgast.IntersectionRangeVar(
