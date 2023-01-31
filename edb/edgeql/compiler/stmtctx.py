@@ -89,6 +89,7 @@ def init_context(
             path_id = compile_anchor('__', singleton, ctx=ctx).path_id
             ctx.env.path_scope.attach_path(path_id, context=None)
             ctx.env.singletons.append(path_id)
+            ctx.iterator_path_ids |= {path_id}
 
     for orig, remapped in options.type_remaps.items():
         rset = compile_anchor('__', remapped, ctx=ctx)
@@ -498,7 +499,7 @@ def _elide_derived_ancestors(
 
 def compile_anchor(
     name: str,
-    anchor: Union[qlast.Expr, irast.Base, s_obj.Object],
+    anchor: Union[qlast.Expr, irast.Base, s_obj.Object, irast.PathId],
     *,
     ctx: context.ContextLevel,
 ) -> irast.Set:
@@ -584,6 +585,11 @@ def compile_anchor(
 
     elif isinstance(anchor, irast.Parameter):
         step = setgen.ensure_set(anchor, ctx=ctx)
+
+    elif isinstance(anchor, irast.PathId):
+        stype = typegen.type_from_typeref(anchor.target, env=ctx.env)
+        step = setgen.class_set(
+            stype, path_id=anchor, ignore_rewrites=True, ctx=ctx)
 
     else:
         raise RuntimeError(f'unexpected anchor value: {anchor!r}')
