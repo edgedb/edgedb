@@ -89,7 +89,7 @@ def _compile_conflict_select(
     constrs: Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
     parser_context: Optional[pctx.ParserContext],
     ctx: context.ContextLevel,
-) -> Optional[qlast.Expr]:
+) -> tuple[Optional[qlast.Expr], bool]:
     """Synthesize a select of conflicting objects
 
     ... for a single object type. This gets called once for each ancestor
@@ -153,7 +153,7 @@ def _compile_conflict_select(
             ptr_anchors[name] = ctx.create_anchor(elem_set, name)
 
     if for_inheritance and not ptrs_in_shape:
-        return None
+        return None, False
 
     # Fill in empty sets for pointers that are needed but not present
     present_ptrs = set(ptr_anchors)
@@ -238,7 +238,7 @@ def _compile_conflict_select(
         conds.append(op)
 
     if not conds:
-        return None
+        return None, False
 
     # We use `any` to compute the disjunction here because some might
     # be empty.
@@ -268,7 +268,15 @@ def _compile_conflict_select(
         expr=qlast.SelectQuery(result=insert_subject, where=cond)
     )
 
-    return select_ast
+    # If one of the pointers we care about is multi, then we have to always
+    # use a conflict CTE check instead of trying to use a constraint.
+    has_multi = False
+    for ptrname in needed_ptrs:
+        ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(ptrname))
+        if not ptr.get_cardinality(ctx.env.schema).is_single():
+            has_multi = True
+
+    return select_ast, has_multi
 
 
 def _constr_matters(
@@ -365,22 +373,25 @@ def compile_conflict_select(
     else:
         type_maps = _split_constraints(obj_constrs, constrs, ctx=ctx)
 
+    always_check = False
+
     # Generate a separate query for each type
     from_parent = False
     frags = []
     for a_obj, (a_constrs, a_obj_constrs) in type_maps.items():
-        frag = _compile_conflict_select(
+        frag, frag_always_check = _compile_conflict_select(
             stmt, a_obj, obj_constrs=a_obj_constrs, constrs=a_constrs,
             for_inheritance=for_inheritance,
             fake_dml_set=fake_dml_set,
             parser_context=parser_context, ctx=ctx,
         )
+        always_check |= frag_always_check
         if frag:
             if a_obj != subject_typ:
                 from_parent = True
             frags.append(frag)
 
-    always_check = from_parent or any(
+    always_check |= from_parent or any(
         not child.is_view(schema) for child in subject_typ.children(schema)
     )
 
@@ -494,18 +505,12 @@ def compile_insert_unless_conflict_on(
             typeutils.ptrcls_from_ptrref(cspec_arg.rptr.ptrref, schema=schema))
         if not isinstance(ptr, s_pointers.Pointer):
             raise errors.QueryError(
-                'UNLESS CONFLICT property must be a property',
+                'UNLESS CONFLICT argument must be a property, link, '
+                'or tuple of properties and links',
                 context=constraint_spec.context,
             )
 
         ptr = ptr.get_nearest_non_derived_parent(schema)
-        ptr_card = ptr.get_cardinality(schema)
-        if not ptr_card.is_single():
-            raise errors.QueryError(
-                'UNLESS CONFLICT property must be a SINGLE property',
-                context=constraint_spec.context,
-            )
-
         ptrs.append(ptr)
 
     obj_constrs = inference.cardinality.get_object_exclusive_constraints(
