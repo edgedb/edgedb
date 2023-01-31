@@ -19,6 +19,7 @@
 import os.path
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 try:
     import asyncpg
@@ -692,3 +693,42 @@ class TestSQL(tb.SQLQueryTestCase):
 
         res = await self.squery_values('select current_schemas(true);')
         self.assertEqual(res, [[['pg_catalog', 'blah', 'foo']]])
+
+    async def test_sql_query_be_state(self):
+        con = await self.connect(database=self.con.dbname)
+        try:
+            await con.execute('''
+                CONFIGURE SESSION SET __internal_sess_testvalue := 1;
+            ''')
+            await self.squery_values(
+                "set default_transaction_isolation to 'read committed'"
+            )
+            self.assertEqual(
+                await con.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                1,
+            )
+            res = await self.squery_values(
+                'show default_transaction_isolation'
+            )
+            self.assertEqual(res, [['read committed']])
+        finally:
+            await con.aclose()
+
+    @test.xfail("https://github.com/MagicStack/py-pgproto/issues/19")
+    async def test_sql_query_client_encoding_1(self):
+        rv1 = await self.squery_values('select * from "Genre" order by id')
+        await self.squery_values("set client_encoding to 'GBK'")
+        rv2 = await self.squery_values('select * from "Genre" order by id')
+        self.assertEqual(rv1, rv2)
+
+    async def test_sql_query_client_encoding_2(self):
+        await self.squery_values("set client_encoding to 'sql-ascii'")
+        await self.squery_values('select * from "Movie"')
+        with self.assertRaises(UnicodeDecodeError):
+            await self.squery_values('select * from "Genre"')
+
+        await self.squery_values("set client_encoding to 'latin1'")
+        with self.assertRaises(asyncpg.UntranslatableCharacterError):
+            await self.squery_values('select * from "Genre"')
