@@ -56,6 +56,7 @@ from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import roles as s_roles
 from edb.schema import sources as s_sources
+from edb.schema import triggers as s_triggers
 from edb.schema import types as s_types
 from edb.schema import version as s_ver
 from edb.schema import utils as s_utils
@@ -775,6 +776,45 @@ class AlterAccessPolicy(
 class DeleteAccessPolicy(
     AccessPolicyCommand,
     adapts=s_policies.DeleteAccessPolicy,
+):
+    pass
+
+
+class TriggerCommand(MetaCommand):
+    pass
+
+
+class CreateTrigger(
+    TriggerCommand,
+    adapts=s_triggers.CreateTrigger,
+):
+    pass
+
+
+class RenameTrigger(
+    TriggerCommand,
+    adapts=s_triggers.RenameTrigger,
+):
+    pass
+
+
+class RebaseTrigger(
+    TriggerCommand,
+    adapts=s_triggers.RebaseTrigger,
+):
+    pass
+
+
+class AlterTrigger(
+    TriggerCommand,
+    adapts=s_triggers.AlterTrigger,
+):
+    pass
+
+
+class DeleteTrigger(
+    TriggerCommand,
+    adapts=s_triggers.DeleteTrigger,
 ):
     pass
 

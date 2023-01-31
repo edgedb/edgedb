@@ -8816,6 +8816,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 CREATE MULTI LINK properties := (
                     .pointers[IS schema::Property]
                 );
+                CREATE MULTI LINK triggers
+                  EXTENDING schema::reference -> schema::Trigger {
+                    ON TARGET DELETE ALLOW;
+                    CREATE CONSTRAINT std::exclusive;
+                };
             };
             """,
 
@@ -8839,6 +8844,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 multi link properties := (
                     .pointers[IS schema::Property]
                 );
+                multi link triggers
+                  extending schema::reference -> schema::Trigger {
+                    on target delete allow;
+                    constraint std::exclusive;
+                };
                 multi link union_of -> schema::ObjectType;
                 property compound_type := (
                     (EXISTS (.union_of) OR EXISTS (.intersection_of))
