@@ -1133,6 +1133,54 @@ class AccessPolicyDeclarationShort(Nonterm):
 
 
 #
+# Triggers
+#
+sdl_commands_block(
+    'CreateTrigger',
+    SetField,
+    SetAnnotation
+)
+
+
+class TriggerDeclarationBlock(Nonterm):
+    def reduce_CreateTrigger(self, *kids):
+        """%reduce
+            TRIGGER NodeName
+            TriggerTiming TriggerKindList
+            FOR TriggerScope
+            DO ParenExpr
+            CreateTriggerSDLCommandsBlock
+        """
+        _, name, timing, kinds, _, scope, _, expr, commands = kids
+        self.val = qlast.CreateTrigger(
+            name=name.val,
+            timing=timing.val,
+            kinds=kinds.val,
+            scope=scope.val,
+            expr=expr.val,
+            commands=commands.val,
+        )
+
+
+class TriggerDeclarationShort(Nonterm):
+    def reduce_CreateTrigger(self, *kids):
+        """%reduce
+            TRIGGER NodeName
+            TriggerTiming TriggerKindList
+            FOR TriggerScope
+            DO ParenExpr
+        """
+        _, name, timing, kinds, _, scope, _, expr = kids
+        self.val = qlast.CreateTrigger(
+            name=name.val,
+            timing=timing.val,
+            kinds=kinds.val,
+            scope=scope.val,
+            expr=expr.val,
+        )
+
+
+#
 # Object Types
 #
 
@@ -1150,6 +1198,8 @@ sdl_commands_block(
     ConcreteIndexDeclarationShort,
     AccessPolicyDeclarationBlock,
     AccessPolicyDeclarationShort,
+    TriggerDeclarationBlock,
+    TriggerDeclarationShort,
 )
 
 

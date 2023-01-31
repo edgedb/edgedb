@@ -206,6 +206,22 @@ class AccessKind(s_enum.StrEnum):
         return self is AccessKind.UpdateWrite or self is AccessKind.Insert
 
 
+class TriggerTiming(s_enum.StrEnum):
+    After = 'After'
+    AfterCommitOf = 'After Commit Of'
+
+
+class TriggerKind(s_enum.StrEnum):
+    Update = 'Update'
+    Delete = 'Delete'
+    Insert = 'Insert'
+
+
+class TriggerScope(s_enum.StrEnum):
+    Each = 'Each'
+    All = 'All'
+
+
 class DescribeLanguage(s_enum.StrEnum):
     DDL = 'DDL'
     SDL = 'SDL'
@@ -238,6 +254,7 @@ class SchemaObjectClass(s_enum.StrEnum):
     RANGE_TYPE = 'RANGE TYPE'
     ROLE = 'ROLE'
     SCALAR_TYPE = 'SCALAR TYPE'
+    TRIGGER = 'TRIGGER'
     TUPLE_TYPE = 'TUPLE TYPE'
     TYPE = 'TYPE'
 

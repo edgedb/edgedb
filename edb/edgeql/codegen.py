@@ -769,6 +769,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_Anchor(self, node: qlast.Anchor) -> None:
         self.write(node.name)
 
+    def visit_SpecialAnchor(self, node: qlast.SpecialAnchor) -> None:
+        self.write(node.name)
+
     def visit_Subject(self, node: qlast.Subject) -> None:
         self.write(node.name)
 
@@ -1492,6 +1495,44 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_DropAccessPolicy(self, node: qlast.DropAccessPolicy) -> None:
         self._visit_DropObject(node, 'ACCESS POLICY', unqualified=True)
+
+    def _format_trigger_kinds(self, kinds: List[qltypes.TriggerKind]) -> str:
+        # Canonicalize the order, since the schema loses track
+        kinds = [k for k in list(qltypes.TriggerKind) if k in kinds]
+        skinds = ', '.join(str(kind).lower() for kind in kinds)
+        return skinds
+
+    def visit_CreateTrigger(
+        self,
+        node: qlast.CreateTrigger
+    ) -> None:
+        def after_name() -> None:
+            self._block_ws(1)
+            self._write_keywords(str(node.timing) + ' ')
+            self._write_keywords(
+                self._format_trigger_kinds(node.kinds) + ' ')
+
+            self._block_ws(0)
+            self._write_keywords('FOR ' + str(node.scope) + ' ')
+
+            self._write_keywords('DO ')
+            self.write('(')
+            self.visit(node.expr)
+            self.write(')')
+
+        keywords = []
+        keywords.extend(['TRIGGER'])
+        self._visit_CreateObject(
+            node, *keywords, after_name=after_name, unqualified=True)
+        # This is left hanging from after_name, so that subcommands
+        # get double indented
+        self.indentation -= 1
+
+    def visit_AlterTrigger(self, node: qlast.AlterTrigger) -> None:
+        self._visit_AlterObject(node, 'TRIGGER', unqualified=True)
+
+    def visit_DropTrigger(self, node: qlast.DropTrigger) -> None:
+        self._visit_DropObject(node, 'TRIGGER', unqualified=True)
 
     def visit_CreateScalarType(self, node: qlast.CreateScalarType) -> None:
         keywords = []

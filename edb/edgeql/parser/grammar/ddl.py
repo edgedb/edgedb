@@ -1917,7 +1917,7 @@ class DropConcreteLinkStmt(Nonterm):
 
 
 #
-# CREATE GLOBAL
+# CREATE ACCESS POLICY
 #
 
 commands_block(
@@ -2022,6 +2022,73 @@ class DropAccessPolicyStmt(Nonterm):
 
 
 #
+# CREATE TRIGGER
+#
+
+commands_block(
+    'CreateTrigger',
+    CreateAnnotationValueStmt,
+    SetFieldStmt,
+)
+
+
+class CreateTriggerStmt(Nonterm):
+    def reduce_CreateTrigger(self, *kids):
+        """%reduce
+            CREATE TRIGGER UnqualifiedPointerName
+            TriggerTiming TriggerKindList
+            FOR TriggerScope
+            DO ParenExpr
+            OptCreateTriggerCommandsBlock
+        """
+        _, _, name, timing, kinds, _, scope, _, expr, commands = kids
+        self.val = qlast.CreateTrigger(
+            name=name.val,
+            timing=timing.val,
+            kinds=kinds.val,
+            scope=scope.val,
+            expr=expr.val,
+            commands=commands.val,
+        )
+
+
+# TODO: commands to change timing/kind/scope?
+commands_block(
+    'AlterTrigger',
+    CreateAnnotationValueStmt,
+    AlterAnnotationValueStmt,
+    DropAnnotationValueStmt,
+    RenameStmt,
+    UsingStmt,
+    SetFieldStmt,
+    ResetFieldStmt,
+    opt=False
+)
+
+
+class AlterTriggerStmt(Nonterm):
+    def reduce_AlterTrigger(self, *kids):
+        r"""%reduce \
+            ALTER TRIGGER UnqualifiedPointerName \
+            AlterTriggerCommandsBlock \
+        """
+        _, _, name, commands = kids
+        self.val = qlast.AlterTrigger(
+            name=name.val,
+            commands=commands.val,
+        )
+
+
+class DropTriggerStmt(Nonterm):
+    def reduce_DropTrigger(self, *kids):
+        r"""%reduce DROP TRIGGER UnqualifiedPointerName"""
+        _, _, name = kids
+        self.val = qlast.DropTrigger(
+            name=name.val
+        )
+
+
+#
 # CREATE TYPE
 #
 
@@ -2040,6 +2107,8 @@ commands_block(
     AlterConcreteIndexStmt,
     CreateAccessPolicyStmt,
     AlterAccessPolicyStmt,
+    CreateTriggerStmt,
+    AlterTriggerStmt,
 )
 
 
@@ -2097,6 +2166,9 @@ commands_block(
     CreateAccessPolicyStmt,
     AlterAccessPolicyStmt,
     DropAccessPolicyStmt,
+    CreateTriggerStmt,
+    AlterTriggerStmt,
+    DropTriggerStmt,
     opt=False
 )
 

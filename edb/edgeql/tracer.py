@@ -254,6 +254,24 @@ class AccessPolicy(NamedObject):
         return self.source
 
 
+class Trigger(NamedObject):
+
+    def __init__(
+        self,
+        name: sn.QualName,
+        *,
+        source: Optional[SourceLike] = None,
+    ) -> None:
+        super().__init__(name)
+        self.source = source
+
+    def get_source(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[SourceLike]:
+        return self.source
+
+
 def qualify_name(name: sn.QualName, qual: str) -> sn.QualName:
     return sn.QualName(name.module, f'{name.name}@{qual}')
 

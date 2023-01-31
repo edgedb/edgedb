@@ -231,6 +231,11 @@ def get_verbosename_from_fqname(
         ofobj, name = str(fq_name).split('@', 1)
         _, name = name.split('::')
         ofobj = f" of object type '{ofobj}'"
+    elif isinstance(traceobj, qltracer.Trigger):
+        clsname = 'trigger'
+        ofobj, name = str(fq_name).split('@', 1)
+        _, name = name.split('::')
+        ofobj = f" of object type '{ofobj}'"
 
     return f"{clsname} '{name}'{ofobj}"
 
@@ -653,6 +658,18 @@ def _trace_item_layout(
             assert isinstance(obj, qltracer.Source)
             ctx.objects[pol_name] = qltracer.AccessPolicy(pol_name, source=obj)
 
+        # XXX: name conflict with triggers, other things??
+        elif isinstance(decl, qlast.CreateTrigger):
+            _, trigger_fq_name = ctx.get_fq_name(decl)
+
+            trigger_name = s_name.QualName(
+                module=fq_name.module,
+                name=f'{fq_name.name}@{trigger_fq_name}',
+            )
+            assert isinstance(obj, qltracer.Source)
+            ctx.objects[trigger_name] = qltracer.Trigger(
+                trigger_name, source=obj)
+
 
 RECURSION_GUARD: Set[s_name.QualName] = set()
 
@@ -782,6 +799,26 @@ def trace_AccessPolicy(
         hard_dep_exprs=exprs,
         source=ctx.depstack[-1][1],
         subject=ctx.depstack[-1][1],
+        ctx=ctx,
+    )
+
+
+@trace_dependencies.register
+def trace_Trigger(
+    node: qlast.CreateTrigger,
+    *,
+    ctx: DepTraceContext,
+) -> None:
+    exprs = [ExprDependency(expr=node.expr)]
+
+    obj = ctx.depstack[-1][1]
+    _register_item(
+        node,
+        deps=set(),
+        hard_dep_exprs=exprs,
+        source=obj,
+        subject=obj,
+        anchors={'__new__': obj, '__old__': obj},
         ctx=ctx,
     )
 
@@ -1106,9 +1143,12 @@ def _register_item(
                         isinstance(decl, (
                             qlast.CreateConcretePointer, qlast.CreateGlobal))
                         and isinstance(decl.target, qlast.Expr)
-                    ) or isinstance(decl, qlast.CreateAccessPolicy):
+                    ) or isinstance(
+                        decl, (qlast.CreateAccessPolicy, qlast.CreateTrigger)
+                    ):
                         # If the declaration is a computable pointer/global
-                        # or access policy, we need to include the
+                        # or access policy (XXX: trigger?),
+                        # we need to include the
                         # possible constraints for every dependency
                         # that it lists. This is so that any other
                         # links/props that this computable uses has

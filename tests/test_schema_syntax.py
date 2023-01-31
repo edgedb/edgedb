@@ -1905,3 +1905,40 @@ annotation test::foo;
             };
         };
         """
+
+    def test_eschema_syntax_trigger_1(self):
+        """
+        module test {
+            type Foo {
+                trigger foo after insert
+                for each
+                do (1);
+            };
+        };
+        """
+
+    def test_eschema_syntax_trigger_2(self):
+        """
+        module test {
+            type Foo {
+                trigger foo after commit of
+                update, delete, insert
+                for all
+                do ((__new__, __old__));
+            };
+        };
+        """
+
+    def test_eschema_syntax_trigger_3(self):
+        """
+        module test {
+            type Foo {
+                trigger foo after commit of
+                update, delete, insert
+                for all
+                do (1) {
+                    annotation title := 'foo';
+                };
+            };
+        };
+        """
