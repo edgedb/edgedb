@@ -254,7 +254,7 @@ class Anchor(Expr):
 
 
 class SpecialAnchor(Anchor):
-    __abstract_node__ = True
+    pass
 
 
 class Source(SpecialAnchor):  # __source__
@@ -1268,6 +1268,28 @@ class AlterAccessPolicy(AlterObject, AccessPolicyCommand):
 
 
 class DropAccessPolicy(DropObject, AccessPolicyCommand):
+    pass
+
+
+class TriggerCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.TRIGGER)
+
+
+class CreateTrigger(CreateObject, TriggerCommand):
+    timing: qltypes.TriggerTiming
+    kinds: typing.List[qltypes.TriggerKind]
+    scope: qltypes.TriggerScope
+    expr: Expr
+
+
+class AlterTrigger(AlterObject, TriggerCommand):
+    pass
+
+
+class DropTrigger(DropObject, TriggerCommand):
     pass
 
 

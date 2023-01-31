@@ -5856,6 +5856,41 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_trigger_01(self):
+        """
+        create type Foo {
+            create trigger foo
+                after insert
+                for each
+                do (1);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_trigger_02(self):
+        """
+        alter type Foo {
+            create trigger foo
+                after commit of update, delete, insert
+                for all
+                do (1);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_trigger_03(self):
+        """
+        alter type Foo {
+            drop trigger foo;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_trigger_04(self):
+        """
+        alter type Foo {
+            alter trigger foo
+                using (1);
+        };
+        """
+
     def test_edgeql_syntax_ddl_empty_01(self):
         """
         CREATE TYPE Foo { };

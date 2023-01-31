@@ -537,6 +537,38 @@ class AccessPolicyAction(Nonterm):
         self.val = qltypes.AccessPolicyAction.Deny
 
 
+class TriggerTiming(Nonterm):
+    def reduce_AFTER(self, *kids):
+        self.val = qltypes.TriggerTiming.After
+
+    def reduce_AFTER_COMMIT_OF(self, *kids):
+        self.val = qltypes.TriggerTiming.AfterCommitOf
+
+
+class TriggerKind(Nonterm):
+    def reduce_UPDATE(self, *kids):
+        self.val = qltypes.TriggerKind.Update
+
+    def reduce_INSERT(self, *kids):
+        self.val = qltypes.TriggerKind.Insert
+
+    def reduce_DELETE(self, *kids):
+        self.val = qltypes.TriggerKind.Delete
+
+
+class TriggerKindList(parsing.ListNonterm, element=TriggerKind,
+                      separator=tokens.T_COMMA):
+    pass
+
+
+class TriggerScope(Nonterm):
+    def reduce_EACH(self, *kids):
+        self.val = qltypes.TriggerScope.Each
+
+    def reduce_ALL(self, *kids):
+        self.val = qltypes.TriggerScope.All
+
+
 class ExtensionVersion(Nonterm):
 
     def reduce_VERSION_BaseStringConstant(self, *kids):
