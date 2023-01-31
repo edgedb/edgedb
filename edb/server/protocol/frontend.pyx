@@ -534,6 +534,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
             raise errors.InternalServerError(
                 f'unimplemented auth method: {authmethod_name}')
 
+        self.username = user
         logger.debug('successfully authenticated %s in database %s',
                      user, database)
 

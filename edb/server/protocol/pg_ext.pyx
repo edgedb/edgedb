@@ -1001,6 +1001,8 @@ cdef class PgConnection(frontend.FrontendConnection):
             self.database._index.get_compilation_system_config(),
             query_str,
             dbv.fe_transaction_state(),
+            self.dbname,
+            self.username,
         )
         self.database.cache_compiled_sql(key, result)
         if self.debug:
