@@ -2633,29 +2633,43 @@ class LocalTimeInFunction(dbops.Function):
     """Cast text into time using ISO8601 spec."""
     text = r'''
         SELECT
-            CASE WHEN val !~ (
-                    '^\s*(' ||
-                        '(\d{2}(:\d{2}(:\d{2}(\.\d+)?)?)?|\d{2,6}(\.\d+)?)' ||
-                    ')\s*$'
-                )
+            CASE WHEN date_part('hour', x.t) = 24
             THEN
                 edgedb.raise(
                     NULL::time,
                     'invalid_datetime_format',
                     msg => (
-                        'invalid input syntax for type time: '
+                        'cal::local_time field value out of range: '
                         || quote_literal(val)
-                    ),
-                    detail => (
-                        '{"hint":"Please use ISO8601 format. Examples: '
-                        || '18:43:27 or 18:43 Alternatively '
-                        || '\"to_local_time\" function provides custom '
-                        || 'formatting options."}'
                     )
                 )
             ELSE
-                val::time
-            END;
+                x.t
+            END
+        FROM (
+            SELECT
+                CASE WHEN val !~ ('^\s*(' ||
+                        '(\d{2}(:\d{2}(:\d{2}(\.\d+)?)?)?|\d{2,6}(\.\d+)?)' ||
+                    ')\s*$')
+                THEN
+                    edgedb.raise(
+                        NULL::time,
+                        'invalid_datetime_format',
+                        msg => (
+                            'invalid input syntax for type time: '
+                            || quote_literal(val)
+                        ),
+                        detail => (
+                            '{"hint":"Please use ISO8601 format. Examples: '
+                            || '18:43:27 or 18:43 Alternatively '
+                            || '\"to_local_time\" function provides custom '
+                            || 'formatting options."}'
+                        )
+                    )
+                ELSE
+                    val::time
+                END as t
+        ) as x;
     '''
 
     def __init__(self) -> None:

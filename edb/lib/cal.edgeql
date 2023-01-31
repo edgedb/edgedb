@@ -212,7 +212,23 @@ cal::to_local_time(hour: std::int64, min: std::int64, sec: std::float64)
     CREATE ANNOTATION std::description := 'Create a `cal::local_time` value.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT make_time("hour"::int, "min"::int, "sec")
+    SELECT
+        CASE WHEN date_part('hour', x.t) = 24
+        THEN
+            edgedb.raise(
+                NULL::time,
+                'invalid_datetime_format',
+                msg => (
+                    'cal::local_time field value out of range: '
+                    || quote_literal(x.t::text)
+                )
+            )
+        ELSE
+            x.t
+        END
+    FROM (
+        SELECT make_time("hour"::int, "min"::int, "sec") as t
+    ) as x
     $$;
 };
 
