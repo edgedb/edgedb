@@ -24,6 +24,7 @@ import copy
 import encodings.aliases
 import logging
 import hashlib
+import json
 import os
 import sys
 from collections import deque
@@ -44,6 +45,7 @@ from edb.server.protocol cimport frontend
 cdef object logger = logging.getLogger('edb.server')
 cdef object DEFAULT_SETTINGS = immutables.Map()
 cdef object DEFAULT_FE_SETTINGS = immutables.Map({"search_path": "public"})
+cdef object DEFAULT_STATE = json.dumps(dict(DEFAULT_SETTINGS)).encode('utf-8')
 
 encodings.aliases.aliases["sql_ascii"] = "ascii"
 
@@ -74,6 +76,7 @@ cdef class ConnectionView:
         self._in_tx_new_portals = set()
         self._in_tx_savepoints = collections.deque()
         self._tx_error = False
+        self._session_state_db_cache = (DEFAULT_SETTINGS, DEFAULT_STATE)
 
     def current_settings(self):
         if self.in_tx():
@@ -311,6 +314,21 @@ cdef class ConnectionView:
                 pgerror.ERROR_INVALID_CURSOR_NAME,
                 f"cursor \"{name}\" does not exist",
             ) from None
+
+    def serialize_state(self):
+        if self.in_tx():
+            raise errors.InternalServerError(
+                'no need to serialize state while in transaction')
+        if self._settings == DEFAULT_SETTINGS:
+            return DEFAULT_STATE
+
+        if self._session_state_db_cache is not None:
+            if self._session_state_db_cache[0] == self._settings:
+                return self._session_state_db_cache[1]
+
+        rv = json.dumps(dict(self._settings)).encode("utf-8")
+        self._session_state_db_cache = (self._settings, rv)
+        return rv
 
 
 cdef class PgConnection(frontend.FrontendConnection):
