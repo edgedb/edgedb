@@ -2082,9 +2082,14 @@ def _extract_params(
         if idx >= user_params:
             continue
 
+        if ctx.json_parameters:
+            schema_type = schema.get('std::json')
+        else:
+            schema_type = param.schema_type
+
         array_tid = None
-        if param.schema_type.is_array():
-            el_type = param.schema_type.get_element_type(schema)
+        if schema_type.is_array():
+            el_type = schema_type.get_element_type(schema)
             array_tid = el_type.id
 
         # NB: We'll need to turn this off for script args
@@ -2099,11 +2104,12 @@ def _extract_params(
 
         oparams[idx] = (
             param.name,
-            param.schema_type,
+            schema_type,
             param.required,
         )
 
         if param.sub_params:
+            assert not ctx.json_parameters
             array_tids = []
             for p in param.sub_params.params:
                 if p.schema_type.is_array():
