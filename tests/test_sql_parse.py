@@ -1096,6 +1096,18 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         SELECT GREATEST(x, y, 0), LEAST(x, y, 100) FROM b
         """
 
+    def test_sql_parse_query_54(self):
+        """
+        SELECT x IS DISTINCT FROM y
+        FROM b
+        """
+
+    def test_sql_parse_query_55(self):
+        """
+        SELECT x IS NOT DISTINCT FROM y
+        FROM b
+        """
+
     # The transaction_* settings are always on transaction level
 
     def test_sql_parse_transaction_29(self):

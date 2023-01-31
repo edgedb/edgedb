@@ -914,6 +914,10 @@ def _build_a_expr(n: Node, c: Context) -> pgast.BaseExpr:
                 _build_base_expr(n['rexpr'], c),
             ],
         )
+    elif n['kind'] == 'AEXPR_DISTINCT':
+        name = 'IS DISTINCT FROM'
+    elif n['kind'] == 'AEXPR_NOT_DISTINCT':
+        name = 'IS NOT DISTINCT FROM'
     else:
         raise PSqlUnsupportedError(n)
 
