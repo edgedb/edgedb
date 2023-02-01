@@ -4,7 +4,6 @@ from typing import *
 from dataclasses import dataclass
 
 
-import uuid
 # to use when we move to 3.11 
 # and https://peps.python.org/pep-0681/ is implemented in mypy
 # https://github.com/python/mypy/issues/14293
@@ -241,19 +240,27 @@ class FunAppExpr:
     fun : Expr
     args : List[Expr]
 
-@dataclass(frozen=True)
-class BinProdExpr:
-    label : str
-    this : Expr
-    next : Expr
+# @dataclass(frozen=True)
+# class BinProdExpr:
+#     label : str
+#     this : Expr
+#     next : Expr
+
+# @dataclass(frozen=True)
+# class BinProdUnitExpr:
+#     pass
 
 @dataclass(frozen=True)
-class BinProdUnitExpr:
-    pass
+class ProdExpr:
+    val : Dict[str, Expr]
 
 @dataclass(frozen=True)
-class VarExpr:
+class FreeVarExpr:
     var : str
+
+@dataclass(frozen=True)
+class BoundVarExpr:
+    var : int
 
 @dataclass(frozen=True) 
 class ProdProjExpr:
@@ -297,38 +304,33 @@ class ShapedExpr:
     expr : Expr
     shape : Shape
 
-@dataclass(frozen=True)
-class UnitShape:
-    pass
 
-@dataclass(frozen=True)
-class ComputedShape:
-    bind : str
-    this : Expr
-    next : Shape
+class BindingExpr: 
+    body : Expr
 
 
-Shape = UnitShape | ComputedShape
 
 
-Expr = (PrimVal | TypeCastExpr | FunAppExpr | BinProdExpr | BinProdUnitExpr 
-        | VarExpr | ProdProjExpr | WithExpr | ForExpr | SelectExpr | InsertExpr | UpdateExpr
+Expr = (PrimVal | TypeCastExpr | FunAppExpr 
+        | FreeVarExpr | BoundVarExpr| ProdProjExpr | WithExpr | ForExpr | SelectExpr | InsertExpr | UpdateExpr
         # | RefIdExpr  
-        | MultiSetExpr | ShapedExpr
+        | MultiSetExpr | ShapedExpr | BindingExpr 
         )
+
+Shape = Dict[str, Expr]
 
 #### VALUES
 
-@dataclass(frozen=True)
-class BinProdVal:
-    label : str
-    marker : Marker
-    this : Val
-    next : DictVal
+# @dataclass(frozen=True)
+# class BinProdVal:
+#     label : str
+#     marker : Marker
+#     this : Val
+#     next : DictVal
 
-@dataclass(frozen=True)
-class BinProdUnitVal:
-    pass
+# @dataclass(frozen=True)
+# class BinProdUnitVal:
+#     pass
 
 
 @dataclass(frozen=True)
@@ -358,8 +360,8 @@ class LinkWithPropertyVal:
     
 
 
-DictVal = BinProdVal | BinProdUnitVal
 Val =  PrimVal | RefVal | FreeVal | MultiSetVal  | RefLinkVal | LinkWithPropertyVal 
+DictVal = Dict[str, Val]
 
 @dataclass(frozen=True) 
 class DBEntry:
@@ -401,10 +403,10 @@ def next_id():
     return starting_id
 
 
-def dict_to_val(data : Dict[str, Val]) -> DictVal:
-    result : DictVal = BinProdUnitVal()
-    [result := BinProdVal(k, Visible(), v, result) for k,v in reversed(data.items())]
-    return result
+# def dict_to_val(data : Dict[str, Val]) -> DictVal:
+#     result : DictVal = {}
+#     [result := BinProdVal(k, Visible(), v, result) for k,v in reversed(data.items())]
+#     return result
 
 def ref(id):
-    return RefVal(id, BinProdUnitVal)
+    return RefVal(id, {})
