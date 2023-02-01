@@ -16,15 +16,10 @@ from dataclasses import dataclass
 ### DEFINE TYPES
 
 
-@dataclass(frozen=True)
-class BinProdTp:
-    label : str
-    this : Tp
-    next : Tp
 
 @dataclass(frozen=True)
-class BinProdUnitTp:
-    pass
+class ProdTp:
+    val : Dict[str, Tp]
 
 @dataclass(frozen=True)
 class StrTp:
@@ -41,7 +36,7 @@ PrimTp = StrTp | IntTp
 class VarTp:
     name : str
 
-Tp = BinProdTp | BinProdUnitTp | PrimTp | VarTp
+Tp = ProdTp | PrimTp | VarTp
 
 
 @dataclass(frozen=True)
@@ -240,16 +235,6 @@ class FunAppExpr:
     fun : Expr
     args : List[Expr]
 
-# @dataclass(frozen=True)
-# class BinProdExpr:
-#     label : str
-#     this : Expr
-#     next : Expr
-
-# @dataclass(frozen=True)
-# class BinProdUnitExpr:
-#     pass
-
 @dataclass(frozen=True)
 class ProdExpr:
     val : Dict[str, Expr]
@@ -300,24 +285,18 @@ class UpdateExpr:
 #     refid : int
 
 @dataclass(frozen=True) 
-class ShapedExpr:
+class ShapedExprExpr:
     expr : Expr
-    shape : Shape
+    shape : ShapeExpr
 
 
+@dataclass(frozen=True) 
 class BindingExpr: 
     body : Expr
 
 
 
 
-Expr = (PrimVal | TypeCastExpr | FunAppExpr 
-        | FreeVarExpr | BoundVarExpr| ProdProjExpr | WithExpr | ForExpr | SelectExpr | InsertExpr | UpdateExpr
-        # | RefIdExpr  
-        | MultiSetExpr | ShapedExpr | BindingExpr 
-        )
-
-Shape = Dict[str, Expr]
 
 #### VALUES
 
@@ -332,6 +311,10 @@ Shape = Dict[str, Expr]
 # class BinProdUnitVal:
 #     pass
 
+
+@dataclass(frozen=True)
+class ProdVal:
+    val : Dict[str, Val]
 
 @dataclass(frozen=True)
 class FreeVal:
@@ -358,10 +341,22 @@ class LinkWithPropertyVal:
     link_properties : Val
 
     
+@dataclass(frozen=True)
+class ShapeExpr:
+    shape : Dict[str, BindingExpr]
 
 
 Val =  PrimVal | RefVal | FreeVal | MultiSetVal  | RefLinkVal | LinkWithPropertyVal 
-DictVal = Dict[str, Val]
+DictVal = ProdVal
+
+VarExpr = (FreeVarExpr | BoundVarExpr)
+
+Expr = (PrimVal | TypeCastExpr | FunAppExpr 
+        | FreeVarExpr | BoundVarExpr| ProdProjExpr | WithExpr | ForExpr | SelectExpr | InsertExpr | UpdateExpr
+        | MultiSetExpr | ShapedExprExpr | ShapeExpr | ProdExpr | BindingExpr
+        | Val
+        )
+
 
 @dataclass(frozen=True) 
 class DBEntry:

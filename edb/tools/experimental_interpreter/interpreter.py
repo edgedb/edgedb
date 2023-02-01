@@ -1,5 +1,5 @@
 # mypy: no-ignore-errors, strict-optional, disallow-any-generics
-
+# type: ignore
 
 """Toy evaluator model for an edgeql subset.
 

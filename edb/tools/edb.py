@@ -71,3 +71,4 @@ from . import wipe  # noqa
 from . import gen_test_dumps  # noqa
 from . import gen_sql_introspection  # noqa
 from .profiling import cli as prof_cli  # noqa
+from .experimental_interpreter import edb_entry
