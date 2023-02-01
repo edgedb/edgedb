@@ -262,8 +262,7 @@ def trace_refs(
     qltree: qlast.Base,
     *,
     schema: s_schema.Schema,
-    source: Optional[sn.QualName] = None,
-    subject: Optional[sn.QualName] = None,
+    anchors: Optional[Mapping[str, sn.QualName]] = None,
     path_prefix: Optional[sn.QualName] = None,
     module: str,
     objects: Dict[sn.QualName, Optional[ObjectLike]],
@@ -277,8 +276,7 @@ def trace_refs(
         schema=schema,
         module=module,
         objects=objects,
-        source=source,
-        subject=subject,
+        anchors=anchors or {},
         path_prefix=path_prefix,
         modaliases={},
         params=params,
@@ -347,8 +345,7 @@ class TracerContext:
         schema: s_schema.Schema,
         module: str,
         objects: Dict[sn.QualName, Optional[ObjectLike]],
-        source: Optional[sn.QualName],
-        subject: Optional[sn.QualName],
+        anchors: Mapping[str, sn.QualName],
         path_prefix: Optional[sn.QualName],
         modaliases: Dict[Optional[str], str],
         params: Mapping[str, sn.QualName],
@@ -359,8 +356,7 @@ class TracerContext:
         self.refs: Set[sn.QualName] = set()
         self.module = module
         self.objects = objects
-        self.source = source
-        self.subject = subject
+        self.anchors = anchors
         self.path_prefix = path_prefix
         self.modaliases = modaliases
         self.params = params
@@ -423,8 +419,7 @@ def alias_context(
                 schema=ctx.schema,
                 module=ctx.module,
                 objects=dict(ctx.objects),
-                source=ctx.source,
-                subject=ctx.subject,
+                anchors=ctx.anchors,
                 path_prefix=ctx.path_prefix,
                 modaliases=dict(ctx.modaliases),
                 params=ctx.params,
@@ -478,8 +473,7 @@ def result_alias_context(
             schema=ctx.schema,
             module=ctx.module,
             objects=dict(ctx.objects),
-            source=ctx.source,
-            subject=ctx.subject,
+            anchors=ctx.anchors,
             path_prefix=ctx.path_prefix,
             modaliases=ctx.modaliases,
             params=ctx.params,
@@ -807,22 +801,11 @@ def trace_Path(
 
 
 @trace.register
-def trace_Source(node: qlast.Source, *, ctx: TracerContext) -> ObjectLike:
-    assert ctx.source is not None
-    source = ctx.objects[ctx.source]
-    assert source is not None
-    return source
-
-
-@trace.register
-def trace_Subject(
-    node: qlast.Subject,
-    *,
-    ctx: TracerContext,
+def trace_SpecialAnchor(
+    node: qlast.SpecialAnchor, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
-    # Apparently for some paths (of length 1) ctx.subject may be None.
-    if ctx.subject is not None:
-        return ctx.objects[ctx.subject]
+    if name := ctx.anchors.get(node.name):
+        return ctx.objects[name]
     return None
 
 

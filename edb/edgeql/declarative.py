@@ -925,6 +925,7 @@ def _register_item(
     deps: Optional[AbstractSet[s_name.QualName]] = None,
     hard_dep_exprs: Optional[Iterable[Dependency]] = None,
     loop_control: Optional[s_name.QualName] = None,
+    anchors: Optional[Mapping[str, s_name.QualName]] = None,
     source: Optional[s_name.QualName] = None,
     subject: Optional[s_name.QualName] = None,
     ctx: DepTraceContext,
@@ -1044,6 +1045,12 @@ def _register_item(
             ctx.depstack.pop()
 
     if hard_dep_exprs:
+        anchors = dict(anchors or {})
+        if source:
+            anchors['__source__'] = source
+        if subject or fq_name:
+            anchors['__subject__'] = subject or fq_name
+
         for expr in hard_dep_exprs:
             if isinstance(expr, TypeDependency):
                 deps |= _get_hard_deps(expr.texpr, ctx=ctx)
@@ -1058,9 +1065,8 @@ def _register_item(
                     qlexpr,
                     schema=ctx.schema,
                     module=ctx.module,
-                    source=source,
                     path_prefix=source,
-                    subject=subject or fq_name,
+                    anchors=anchors,
                     objects=ctx.objects,
                     local_modules=ctx.local_modules,
                     params=params,
