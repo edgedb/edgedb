@@ -1,12 +1,10 @@
+.. versionadded:: 2.0
+
 .. _ref_datamodel_access_policies:
 
-====================
-Access Policies #New
-====================
-
-.. note::
-
-  This type is only available in EdgeDB 2.0 or later.
+===============
+Access Policies
+===============
 
 Object types can contain security policies that restrict the set of objects
 that can be selected, inserted, updated, or deleted by a particular query.
@@ -320,6 +318,11 @@ making the current user able to see their own ``User`` record.
   It is possible (and recommended) to enable this :ref:`future
   <ref_eql_sdl_future>` behavior in EdgeDB 2.6 and later by adding the
   following to the schema: ``using future nonrecursive_access_policies;``
+
+.. versionadded:: 3.0
+
+  As of EdgeDB 3.0 access policy restrictions do **not** apply to any access
+  policy expression.
 
 
 Examples

@@ -414,12 +414,19 @@ class BaseEQLDirective(s_directives.ObjectDescription):
         if desc_cnt is None or not desc_cnt.children:
             raise self.error('the directive must include a description')
 
-        first_node = desc_cnt.children[0]
+        first_node_index = 0
+        first_node = desc_cnt.children[first_node_index]
+
         if isinstance(first_node, d_nodes.field_list):
             if len(desc_cnt.children) < 2:
                 raise self.error('the directive must include a description')
 
-            first_node = desc_cnt.children[1]
+            first_node_index += 1
+            first_node = desc_cnt.children[first_node_index]
+
+        if isinstance(first_node, s_nodes.versionmodified):
+            first_node_index += 1
+            first_node = desc_cnt.children[first_node_index]
 
         if not isinstance(first_node, d_nodes.paragraph):
             raise self.error(

@@ -364,11 +364,9 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
                       JsonEmpty.ReturnEmpty) \
                   -> optional json
 
+    .. versionadded:: 2.0
+
     Returns an updated JSON target with a new value.
-
-    .. note::
-
-      This function is only available in EdgeDB 2.0 or later.
 
     .. code-block:: edgeql-repl
 

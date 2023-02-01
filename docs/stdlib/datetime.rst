@@ -473,12 +473,9 @@ EdgeDB stores and outputs timezone-aware values in UTC format.
 
 .. eql:type:: cal::date_duration
 
+    .. versionadded:: 2.0
+
     A type for representing a span of time in days.
-
-    .. note::
-
-      This type is only available in EdgeDB 2.0 or later.
-
 
     This type is similar to :eql:type:`cal::relative_duration`, except it only
     uses 2 units: months and days. It is the result of subtracting one
@@ -856,11 +853,9 @@ EdgeDB stores and outputs timezone-aware values in UTC format.
                   std::duration_get(dt: cal::date_duration, \
                                     el: str) -> float64
 
+    .. versionadded:: 2.0
+
     Returns the element of a duration given a unit name.
-
-    .. note::
-
-      Only available in EdgeDB 2.0 or later.
 
     You may pass any of these unit names as ``el``:
 
@@ -1394,11 +1389,9 @@ EdgeDB stores and outputs timezone-aware values in UTC format.
 
     :index: justify_hours
 
+    .. versionadded:: 2.0
+
     Convert 24-hour chunks into days.
-
-    .. warning::
-
-      Only available in EdgeDB 2.0 or later.
 
     This function converts all 24-hour chunks into day units. The resulting
     :eql:type:`cal::relative_duration` is guaranteed to have less than 24
@@ -1428,11 +1421,9 @@ EdgeDB stores and outputs timezone-aware values in UTC format.
 
     :index: justify_days
 
+    .. versionadded:: 2.0
+
     Convert 30-day chunks into months.
-
-    .. note::
-
-      Only available in EdgeDB 2.0 or later.
 
     This function converts all 30-day chunks into month units. The resulting
     :eql:type:`cal::relative_duration` or :eql:type:`cal::date_duration` is
