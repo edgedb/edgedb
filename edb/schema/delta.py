@@ -491,14 +491,16 @@ class Command(
     def is_data_safe(self) -> bool:
         return False
 
-    def get_required_user_input(self) -> Dict[str, str]:
-        return {}
+    def get_required_user_input(self) -> list[dict[str, str]]:
+        return []
 
     def record_diff_annotations(
-        self,
+        self, *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,
+        orig_object: Optional[so.Object],
+        object: Optional[so.Object],
     ) -> None:
         """Record extra information on a delta obtained by diffing schemas.
 
@@ -1776,14 +1778,12 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 for subcmd in self.get_subcommands()
             )
 
-    def get_required_user_input(self) -> Dict[str, str]:
-        result: Dict[str, str] = self.get_annotation('required_input')
-        if result is None:
-            result = {}
+    def get_required_user_input(self) -> list[dict[str, str]]:
+        result: list[dict[str, str]] = []
+        if ann := self.get_annotation('required_input'):
+            result.append(ann)
         for cmd in self.get_subcommands():
-            subresult = cmd.get_required_user_input()
-            if subresult:
-                result.update(subresult)
+            result.extend(cmd.get_required_user_input())
         return result
 
     def get_friendly_description(

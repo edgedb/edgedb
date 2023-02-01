@@ -29,6 +29,7 @@ from edb.common import enum as s_enum
 from edb.common import struct
 from edb.common import parsing
 from edb.common import ast
+from edb.common.typeutils import not_none
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -379,6 +380,35 @@ def is_view_source(
         source: Optional[so.Object], schema: s_schema.Schema) -> bool:
     source = get_root_source(source, schema)
     return isinstance(source, s_types.Type) and source.is_view(schema)
+
+
+def _get_target_name_in_diff(
+    *,
+    schema: s_schema.Schema,
+    orig_schema: Optional[s_schema.Schema],
+    object: Optional[so.Object],
+    orig_object: Optional[so.Object],
+) -> sn.Name:
+    """Compute the target type name for a fill/conv expr
+
+    Called from record_diff_annotations to produce annotation
+    information for migrations.
+    The trickiness here is that this information is generated
+    when producing the diff, where we have somewhat limited
+    information.
+    """
+    # Prefer getting the target type from the original object instead
+    # of the new one, for a cheesy reason: if we change both
+    # required/cardinality and target type, we do the cardinality
+    # change before the cast, for reasons of alphabetical order.
+    if isinstance(orig_object, Pointer):
+        assert orig_schema
+        target = orig_object.get_target(orig_schema)
+        return not_none(target).get_name(orig_schema)
+    else:
+        assert isinstance(object, Pointer)
+        target = object.get_target(schema)
+        return not_none(target).get_name(schema)
 
 
 Pointer_T = TypeVar("Pointer_T", bound="Pointer")
@@ -891,7 +921,13 @@ class Pointer(referencing.NamedReferencedInheritingObject,
             top_op.add(required)
 
             context.parent_ops.append(delta)
-            top_op.record_diff_annotations(schema, None, context)
+            top_op.record_diff_annotations(
+                schema=schema,
+                orig_schema=None,
+                object=self,
+                orig_object=None,
+                context=context,
+            )
             context.parent_ops.pop()
 
         return delta
@@ -2097,15 +2133,19 @@ class SetPointerType(
         return False
 
     def record_diff_annotations(
-        self,
+        self, *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,
+        object: Optional[so.Object],
+        orig_object: Optional[so.Object],
     ) -> None:
         super().record_diff_annotations(
             schema=schema,
             orig_schema=orig_schema,
             context=context,
+            orig_object=orig_object,
+            object=object,
         )
 
         if orig_schema is None:
@@ -2166,9 +2206,12 @@ class SetPointerType(
             placeholder_name = context.get_placeholder('cast_expr')
             desc = self.get_friendly_description(schema=schema)
             prompt = f'Please specify a conversion expression to {desc}'
-            self.set_annotation('required_input', {
-                placeholder_name: prompt,
-            })
+            self.set_annotation('required_input', dict(
+                placeholder=placeholder_name,
+                prompt=prompt,
+                old_type=str(old_type.get_name(schema)) if old_type else None,
+                new_type=str(new_type.get_name(schema)),
+            ))
 
             self.cast_expr = s_expr.Expression.from_ast(
                 qlast.Placeholder(name=placeholder_name),
@@ -2492,15 +2535,19 @@ class AlterPointerUpperCardinality(
         return schema
 
     def record_diff_annotations(
-        self,
+        self, *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,
+        object: Optional[so.Object],
+        orig_object: Optional[so.Object],
     ) -> None:
         super().record_diff_annotations(
             schema=schema,
             orig_schema=orig_schema,
             context=context,
+            orig_object=orig_object,
+            object=object,
         )
 
         if orig_schema is None:
@@ -2526,9 +2573,16 @@ class AlterPointerUpperCardinality(
             prompt = (
                 f'Please specify an expression in order to {desc}'
             )
-            self.set_annotation('required_input', {
-                placeholder_name: prompt,
-            })
+
+            type_name = _get_target_name_in_diff(
+                schema=schema, orig_schema=orig_schema,
+                object=object, orig_object=orig_object,
+            )
+            self.set_annotation('required_input', dict(
+                placeholder=placeholder_name,
+                prompt=prompt,
+                type=str(type_name)
+            ))
 
             self.conv_expr = s_expr.Expression.from_ast(
                 qlast.Placeholder(name=placeholder_name),
@@ -2717,15 +2771,19 @@ class AlterPointerLowerCardinality(
         return schema
 
     def record_diff_annotations(
-        self,
+        self, *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,
+        object: Optional[so.Object],
+        orig_object: Optional[so.Object],
     ) -> None:
         super().record_diff_annotations(
             schema=schema,
             orig_schema=orig_schema,
             context=context,
+            orig_object=orig_object,
+            object=object,
         )
 
         if not context.generate_prompts:
@@ -2751,9 +2809,17 @@ class AlterPointerLowerCardinality(
                 f'Please specify an expression to populate existing objects '
                 f'in order to {desc}'
             )
-            self.set_annotation('required_input', {
-                placeholder_name: prompt,
-            })
+
+            type_name = _get_target_name_in_diff(
+                schema=schema, orig_schema=orig_schema,
+                object=object, orig_object=orig_object,
+            )
+
+            self.set_annotation('required_input', dict(
+                placeholder=placeholder_name,
+                prompt=prompt,
+                type=str(type_name),
+            ))
 
             self.fill_expr = s_expr.Expression.from_ast(
                 qlast.Placeholder(name=placeholder_name),
