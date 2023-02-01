@@ -546,6 +546,16 @@ class TestSQL(tb.SQLQueryTestCase):
             ['Saving Private Ryan', 1]
         ])
 
+    async def test_sql_query_36(self):
+        # ColumnRef to relation
+
+        res = await self.squery_values(
+            """
+            select rel from (select 1 as a, 2 as b) rel
+            """
+        )
+        self.assertEqual(res, [[(1, 2)]])
+
     async def test_sql_query_introspection_00(self):
         res = await self.squery_values(
             '''

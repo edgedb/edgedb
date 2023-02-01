@@ -119,6 +119,15 @@ def _lookup_column(
             for table in ctx.scope.tables:
                 matched_columns.extend(_lookup_in_table(col_name, table))
 
+        if not matched_columns:
+            # is it a reference to a rel var?
+            try:
+                tab = _lookup_table(col_name, ctx)
+                col = context.Column(reference_as=tab.reference_as)
+                return [(context.Table(), col)]
+            except errors.QueryError:
+                pass
+
     elif len(name) >= 2:
         # look for the column in the specific table
         tab_name, col_name = name[-2:]
