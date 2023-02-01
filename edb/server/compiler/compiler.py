@@ -496,6 +496,8 @@ class Compiler:
         system_config: Mapping[str, config.SettingValue],
         query_str: str,
         tx_state: dbstate.SQLTransactionState,
+        current_database: str,
+        current_user: str,
     ) -> List[dbstate.SQLQueryUnit]:
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
@@ -632,7 +634,12 @@ class Compiler:
                     pass
                 else:
                     args['search_path'] = parse_search_path(search_path)
-                options = pg_resolver.Options(**args)
+                options = pg_resolver.Options(
+                    current_user=current_user,
+                    current_database=current_database,
+                    current_query=query_str,
+                    **args
+                )
                 resolved = pg_resolver.resolve(stmt, schema, options)
                 source = pg_codegen.generate_source(resolved)
                 unit = dbstate.SQLQueryUnit(query=source)

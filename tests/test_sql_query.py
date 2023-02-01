@@ -537,7 +537,7 @@ class TestSQL(tb.SQLQueryTestCase):
             '''
             SELECT table_name
             FROM information_schema.tables
-            WHERE table_schema = 'public'
+            WHERE table_catalog = 'sql' AND table_schema = 'public'
             ORDER BY table_name
             '''
         )
@@ -689,7 +689,7 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assertEqual(res, [['blah']])
 
         res = await self.squery_values('select current_catalog;')
-        self.assertEqual(res, [['postgres']])
+        self.assertEqual(res, [['sql']])
 
         res = await self.squery_values('select current_schemas(true);')
         self.assertEqual(res, [[['pg_catalog', 'blah', 'foo']]])

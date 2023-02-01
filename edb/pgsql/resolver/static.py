@@ -105,6 +105,12 @@ def eval_FuncCall(
     if fn_name == 'current_schemas':
         return eval_current_schemas(expr, ctx=ctx)
 
+    if fn_name == 'current_database':
+        return pgast.StringConstant(val=ctx.options.current_database)
+
+    if fn_name == 'current_query':
+        return pgast.StringConstant(val=ctx.options.current_query)
+
     return None
 
 
@@ -162,10 +168,10 @@ def eval_SQLValueFunction(
         op.SESSION_USER,
     ]
     if expr.op in user:
-        raise errors.QueryError("unsupported", context=expr.context)
+        return pgast.StringConstant(val=ctx.options.current_user)
 
     if expr.op == op.CURRENT_CATALOG:
-        return pgast.StringConstant(val='postgres')
+        return pgast.StringConstant(val=ctx.options.current_database)
 
     if expr.op == op.CURRENT_SCHEMA:
         # note: PG also does a check that this schema exists and proceeds to

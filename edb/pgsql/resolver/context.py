@@ -29,6 +29,12 @@ from edb.schema import schema as s_schema
 
 @dataclass(frozen=True)
 class Options:
+    current_database: str
+
+    current_user: str
+
+    current_query: str
+
     # schemas that will be searched when idents don't have an explicit one
     search_path: Sequence[str] = ("public",)
 

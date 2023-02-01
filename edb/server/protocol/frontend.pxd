@@ -35,6 +35,7 @@ cdef class FrontendConnection(AbstractFrontendConnection):
         object server
         object loop
         str dbname
+        str username
         dbview.Database database
 
         pgcon.PGConnection _pinned_pgcon

@@ -5389,6 +5389,29 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
         """,
         ),
+        dbops.View(
+            name=("edgedbsql", "pg_database"),
+            query="""
+        SELECT
+            oid,
+            edgedb.get_current_database()::name as datname,
+            datdba,
+            encoding,
+            datcollate,
+            datctype,
+            datistemplate,
+            datallowconn,
+            datconnlimit,
+            datlastsysoid,
+            datfrozenxid,
+            datminmxid,
+            dattablespace,
+            datacl,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_database
+        WHERE datname LIKE '%_edgedb'
+        """,
+        ),
     ]
 
     def construct_pg_view(table_name: str, columns: List[str]) -> dbops.View:
@@ -5491,6 +5514,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_namespace',
             'pg_range',
             'pg_class',
+            'pg_database',
 
             # Some tables contain abstract columns (i.e. anyarray) so they
             # cannot be created into a view. So let's just hide these tables.
