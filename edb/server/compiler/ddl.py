@@ -646,9 +646,9 @@ def _describe_current_migration(
                         for p in ast.find_children(ddl_ast, qlast.Placeholder)
                     }
                     required_user_input = tuple(
-                        (k, v)
-                        for k, v in (top_op.get_required_user_input().items())
-                        if k in used_placeholders
+                        inp
+                        for inp in top_op.get_required_user_input()
+                        if inp['placeholder'] in used_placeholders
                     )
 
                     # The prompt_id still needs to come from

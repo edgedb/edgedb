@@ -481,26 +481,19 @@ class ProposedMigrationStep(NamedTuple):
     prompt: str
     prompt_id: str
     data_safe: bool
-    required_user_input: Tuple[Tuple[str, str], ...]
+    required_user_input: tuple[dict[str, str], ...]
     # This isn't part of the output data, but is used to figure out
     # what to prohibit when something is rejected.
     operation_key: s_delta.CommandKey
 
     def to_json(self) -> Dict[str, Any]:
-        user_input_list = []
-        for var_name, var_desc in self.required_user_input:
-            user_input_list.append({
-                'placeholder': var_name,
-                'prompt': var_desc,
-            })
-
         return {
             'statements': [{'text': stmt} for stmt in self.statements],
             'confidence': self.confidence,
             'prompt': self.prompt,
             'prompt_id': self.prompt_id,
             'data_safe': self.data_safe,
-            'required_user_input': user_input_list,
+            'required_user_input': list(self.required_user_input)
         }
 
 

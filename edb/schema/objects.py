@@ -1869,6 +1869,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             schema=schema,
             orig_schema=orig_schema,
             context=context,
+            object=self,
+            orig_object=orig_object,
         )
         context.parent_ops.pop()
 
@@ -3173,6 +3175,8 @@ class InheritingObject(SubclassableObject):
             schema=schema,
             orig_schema=orig_schema,
             context=context,
+            object=self,
+            orig_object=orig_object,
         )
         context.parent_ops.pop()
 
