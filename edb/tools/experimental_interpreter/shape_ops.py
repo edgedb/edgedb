@@ -13,8 +13,6 @@ def to_expr(node: qlast.Base):
     debug.dump(node)
     raise ValueError("Not Implemented! (to expr)", node)
 @to_expr.register(qlast.StringConstant)
-def to_expr_string_constant(e : qlast.StringConstant) -> Expr: 
-    return StrVal(val=e.value)
 
 
 def to_named_expr_shape_element(e : qlast.ShapeElement) -> Tuple[str, Expr]:

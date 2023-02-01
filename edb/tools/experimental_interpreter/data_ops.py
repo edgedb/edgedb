@@ -5,51 +5,51 @@ from dataclasses import dataclass
 
 
 import uuid
+# to use when we move to 3.11 
+# and https://peps.python.org/pep-0681/ is implemented in mypy
+# https://github.com/python/mypy/issues/14293
+# @dataclass_transformer
+# def data(f):
+#     return dataclass(f, frozen=True)
 
-def data(f):
-    return dataclass(f, frozen=True)
-
-
-# def bsid(n: int) -> uuid.UUID:
-#     return uuid.UUID(f'ffffffff-ffff-ffff-ffff-{n:012x}')
 
 
 ### DEFINE TYPES
 
 
-@data
+@dataclass(frozen=True)
 class BinProdTp:
     label : str
     this : Tp
     next : Tp
 
-@data
+@dataclass(frozen=True)
 class BinProdUnitTp:
     pass
 
-@data
+@dataclass(frozen=True)
 class StrTp:
     pass
 
-@data
+@dataclass(frozen=True)
 class IntTp:
     pass
 
 
 PrimTp = StrTp | IntTp 
 
-@data
+@dataclass(frozen=True)
 class VarTp:
     name : str
 
 Tp = BinProdTp | BinProdUnitTp | PrimTp | VarTp
 
 
-@data
+@dataclass(frozen=True)
 class Visible:
     pass
 
-@data
+@dataclass(frozen=True)
 class Invisible:
     pass
 
@@ -59,7 +59,7 @@ Marker = Visible | Invisible
     
 ### DEFINE CARDINALITIES
 
-@data
+@dataclass(frozen=True)
 class FiniteCardinal:
     value : int
     def __add__(self, other):
@@ -78,7 +78,7 @@ class FiniteCardinal:
                 return InfiniteCardinal()
         raise ValueError()
 
-@data
+@dataclass(frozen=True)
 class InfiniteCardinal:
     def __add__(self, other):
         match other:
@@ -104,7 +104,7 @@ def Inf():
 def Fin(i):
     return FiniteCardinal(i)
     
-# @data
+# @dataclass(frozen=True)
 # class ClosedCardinality:
 #     lower : int
 #     upper : int
@@ -116,7 +116,7 @@ def Fin(i):
 #         prod_cardinality_modes(self, other)
 
 
-# @data
+# @dataclass(frozen=True)
 # class OpenCardinality:
 #     lower : int
 
@@ -153,11 +153,11 @@ def Fin(i):
 #     raise ValError("Cannot compute prods over", card1, "and", card2)
         
 
-@data
+@dataclass(frozen=True)
 class CMMode:
     lower : Cardinal
     upper : Cardinal
-    multiplicity : Cardinal = None
+    multiplicity : Cardinal = None # type: ignore
 
     def __post_init__(self):
         if self.multiplicity == None:
@@ -185,35 +185,35 @@ ResulTp = Tuple[Tp, CMMode]
 
 ### DEFINE PARAMETER MODIFIERS
 
-@data
+@dataclass(frozen=True)
 class ParamSingleton:
     pass
 
-@data
+@dataclass(frozen=True)
 class ParamOptional:
     pass
 
-@data 
+@dataclass(frozen=True) 
 class ParamSetOf:
     pass
 
 ParamModifier = ParamSingleton | ParamOptional | ParamSetOf
 
-@data
+@dataclass(frozen=True)
 class FunType:
-    args : List[Tuple[ParamModifier, Tp]]
+    args : List[Tuple[Tp, ParamModifier]]
     ret : ResulTp
 
 ### DEFINE PRIM VALUES
-@data
+@dataclass(frozen=True)
 class StrVal:
     val : str
 
-@data 
+@dataclass(frozen=True) 
 class IntVal:
     val : int
 
-@data 
+@dataclass(frozen=True) 
 class FunVal:
     fname : str
 
@@ -221,117 +221,136 @@ PrimVal = StrVal | IntVal | FunVal
 
 ## DEFINE EXPRESSIONS
 
-# @data
+# @dataclass(frozen=True)
 # class UnionExpr:
 #     left : Expr
 #     right : Expr
 
-@data
+@dataclass(frozen=True)
 class MultiSetExpr:
     val : List[Expr]
 
-@data 
+@dataclass(frozen=True) 
 class TypeCastExpr:
     tp : Tp
     arg : Expr
 
 
-@data
+@dataclass(frozen=True)
 class FunAppExpr:
     fun : Expr
     args : List[Expr]
 
-@data
+@dataclass(frozen=True)
 class BinProdExpr:
     label : str
     this : Expr
     next : Expr
 
-@data
+@dataclass(frozen=True)
 class BinProdUnitExpr:
     pass
 
-@data
+@dataclass(frozen=True)
 class VarExpr:
     var : str
 
-@data 
+@dataclass(frozen=True) 
 class ProdProjExpr:
     subject : Expr
     label : str
 
 
-@data
+@dataclass(frozen=True)
 class WithExpr:
     bound : Expr
     var : str
     next : Expr
 
-@data
+@dataclass(frozen=True)
 class ForExpr:
     bound : Expr
     var : str
     next : Expr
 
-@data 
+@dataclass(frozen=True) 
 class SelectExpr:
     name : str
     
-@data
+@dataclass(frozen=True)
 class InsertExpr:
     name : str
     new : Expr
 
-@data 
+@dataclass(frozen=True) 
 class UpdateExpr:
     name : str
     var : str
     res : Expr
 
-@data
-class RefIdExpr:
-    refid : int
+# @dataclass(frozen=True)
+# class RefIdExpr:
+#     refid : int
+
+@dataclass(frozen=True) 
+class ShapedExpr:
+    expr : Expr
+    shape : Shape
+
+@dataclass(frozen=True)
+class UnitShape:
+    pass
+
+@dataclass(frozen=True)
+class ComputedShape:
+    bind : str
+    this : Expr
+    next : Shape
+
+
+Shape = UnitShape | ComputedShape
 
 
 Expr = (PrimVal | TypeCastExpr | FunAppExpr | BinProdExpr | BinProdUnitExpr 
         | VarExpr | ProdProjExpr | WithExpr | ForExpr | SelectExpr | InsertExpr | UpdateExpr
-        | RefIdExpr  | MultiSetExpr
+        # | RefIdExpr  
+        | MultiSetExpr | ShapedExpr
         )
 
 #### VALUES
 
-@data
+@dataclass(frozen=True)
 class BinProdVal:
     label : str
     marker : Marker
-    this : Expr
-    next : Expr
+    this : Val
+    next : DictVal
 
-@data
+@dataclass(frozen=True)
 class BinProdUnitVal:
     pass
 
 
-@data
+@dataclass(frozen=True)
 class FreeVal:
     val : DictVal
     
-@data
+@dataclass(frozen=True)
 class RefVal:
     refid : int
     val : DictVal
 
-@data
+@dataclass(frozen=True)
 class RefLinkVal:
     from_id : int
     to_id : int
     val : DictVal
 
-@data
+@dataclass(frozen=True)
 class MultiSetVal:
     val : List[DictVal]
 
-@data 
+@dataclass(frozen=True) 
 class LinkWithPropertyVal:
     subject : Val
     link_properties : Val
@@ -342,12 +361,12 @@ class LinkWithPropertyVal:
 DictVal = BinProdVal | BinProdUnitVal
 Val =  PrimVal | RefVal | FreeVal | MultiSetVal  | RefLinkVal | LinkWithPropertyVal 
 
-@data 
+@dataclass(frozen=True) 
 class DBEntry:
     tp : Tp
     data : DictVal ## actually values
 
-@data
+@dataclass(frozen=True)
 class DB:
     dbdata: Dict[int, DBEntry] 
     # subtp : List[Tuple[TypeExpr, TypeExpr]]
@@ -356,7 +375,7 @@ def empty_db():
     return DB({})
 
 BuiltinFuncTp : Dict[str, FunType] = {
-        "+" : FunType([[IntTp, ParamSingleton], [IntTp, ParamSingleton]], [IntTp, CardOne])
+        "+" : FunType([(IntTp(), ParamSingleton()), (IntTp(), ParamSingleton())], (IntTp(), CardOne))
     }
 
 
@@ -382,11 +401,10 @@ def next_id():
     return starting_id
 
 
-def dict_to_val(data : Dict[str, Val]):
-    result = BinProdUnitVal()
-    [result := BinProdVal(k, Visible, v, result) for k,v in reversed(data.items)]
+def dict_to_val(data : Dict[str, Val]) -> DictVal:
+    result : DictVal = BinProdUnitVal()
+    [result := BinProdVal(k, Visible(), v, result) for k,v in reversed(data.items())]
     return result
-    reduce(lambda k,v: BinProdVal(k,Visible,v,), data.items(), BinProdUnitVal())
 
 def ref(id):
     return RefVal(id, BinProdUnitVal)

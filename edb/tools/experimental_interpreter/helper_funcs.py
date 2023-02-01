@@ -11,9 +11,9 @@ class EdbJSONEncoder(json.JSONEncoder):
             return str(x)
         return super().default(x)
 
-def parse(querystr: str) -> qlast.Expr:
+def parse(querystr: str) -> List[qlast.Expr]:
     source = edgeql.Source.from_string(querystr)
-    statements = edgeql.parse_block(source)
+    statements = edgeql.parse_block(source) # type : List[Expr]
     # # assert len(statements) == 1
     # # assert isinstance(statements[0], qlast.Expr)
     # return statements[0]

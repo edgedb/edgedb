@@ -33,3 +33,6 @@ def elab_InsertQuery(expr : qlast.InsertQuery):
     return InsertExpr(name=subject_type, new=object_expr)
 
 
+@elab.register(qlast.StringConstant)
+def elab_string_constant(e : qlast.StringConstant) -> Expr: 
+    return StrVal(val=e.value)
