@@ -5520,8 +5520,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             attcacheoff,
             atttypmod,
             attbyval,
-            attstorage,
             attalign,
+            attstorage,
+            attcompression,
             attnotnull,
             atthasdef,
             atthasmissing,
@@ -5559,8 +5560,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             attcacheoff,
             atttypmod,
             attbyval,
-            attstorage,
             attalign,
+            attstorage,
+            attcompression,
             attnotnull,
             atthasdef,
             atthasmissing,
@@ -5621,6 +5623,144 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE datname LIKE '%_edgedb'
         """,
         ),
+        dbops.View(
+            name=("edgedbsql", "pg_stats"),
+            query="""
+        SELECT n.nspname AS schemaname,
+            c.relname AS tablename,
+            a.attname,
+            s.stainherit AS inherited,
+            s.stanullfrac AS null_frac,
+            s.stawidth AS avg_width,
+            s.stadistinct AS n_distinct,
+            NULL::real[] AS most_common_vals,
+            s.stanumbers1 AS most_common_freqs,
+            s.stanumbers1 AS histogram_bounds,
+            s.stanumbers1[1] AS correlation,
+            NULL::real[] AS most_common_elems,
+            s.stanumbers1 AS most_common_elem_freqs,
+            s.stanumbers1 AS elem_count_histogram
+        FROM pg_statistic s
+        JOIN pg_class c ON c.oid = s.starelid
+        JOIN pg_attribute a ON c.oid = a.attrelid and a.attnum = s.staattnum
+        LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE FALSE
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_statistic"),
+            query="""
+        SELECT
+            starelid,
+            staattnum,
+            stainherit,
+            stanullfrac,
+            stawidth,
+            stadistinct,
+            stakind1,
+            stakind2,
+            stakind3,
+            stakind4,
+            stakind5,
+            staop1,
+            staop2,
+            staop3,
+            staop4,
+            staop5,
+            stacoll1,
+            stacoll2,
+            stacoll3,
+            stacoll4,
+            stacoll5,
+            stanumbers1,
+            stanumbers2,
+            stanumbers3,
+            stanumbers4,
+            stanumbers5,
+            NULL::real[] AS stavalues1,
+            NULL::real[] AS stavalues2,
+            NULL::real[] AS stavalues3,
+            NULL::real[] AS stavalues4,
+            NULL::real[] AS stavalues5,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_statistic
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_statistic_ext"),
+            query="""
+        SELECT
+            oid,
+            stxrelid,
+            stxname,
+            stxnamespace,
+            stxowner,
+            stxstattarget,
+            stxkeys,
+            stxkind,
+            stxexprs,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_statistic_ext
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_statistic_ext_data"),
+            query="""
+        SELECT
+            stxoid,
+            stxdndistinct,
+            stxddependencies,
+            stxdmcv,
+            NULL::oid AS stxdexpr,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_statistic_ext_data
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_stats_ext_exprs"),
+            query="""
+        SELECT
+            schemaname,
+            tablename,
+            statistics_schemaname,
+            statistics_name,
+            statistics_owner,
+            expr,
+            null_frac,
+            avg_width,
+            n_distinct,
+            NULL::real[] AS most_common_vals,
+            most_common_freqs,
+            NULL::real[] AS histogram_bounds,
+            correlation,
+            NULL::real[] AS most_common_elems,
+            most_common_elem_freqs,
+            elem_count_histogram
+        FROM pg_stats_ext_exprs
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_proc"),
+            query="""
+        SELECT *, tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_proc
+        WHERE pronamespace IN (
+            SELECT edgedbsql.uuid_to_oid(module_id)
+            FROM edgedbsql.virtual_tables
+        )
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_operator"),
+            query="""
+        SELECT *, tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_operator
+        WHERE oprnamespace IN (
+            SELECT edgedbsql.uuid_to_oid(module_id)
+            FROM edgedbsql.virtual_tables
+        )
+        """,
+        ),
     ]
 
     def construct_pg_view(table_name: str, columns: List[str]) -> dbops.View:
@@ -5661,7 +5801,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_opfamily',
             'pg_partitioned_table',
             'pg_policy',
-            'pg_proc',
             'pg_publication',
             'pg_publication_rel',
             'pg_range',
@@ -5732,9 +5871,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_range',
             'pg_class',
             'pg_database',
-
-            # Some tables contain abstract columns (i.e. anyarray) so they
-            # cannot be created into a view. So let's just hide these tables.
+            'pg_proc',
+            'pg_operator',
             'pg_pltemplate',
             'pg_stats',
             'pg_stats_ext_exprs',
