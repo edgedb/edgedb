@@ -626,6 +626,13 @@ class Compiler:
                 raise NotImplementedError
             elif isinstance(stmt, pgast.ExecuteStmt):
                 raise NotImplementedError
+            elif isinstance(stmt, pgast.LockStmt):
+                if stmt.mode not in ('ACCESS SHARE', 'ROW SHARE', 'SHARE'):
+                    raise NotImplementedError(
+                        "exclusive lock is not supported"
+                    )
+                # just ignore
+                unit = dbstate.SQLQueryUnit(query="DO $$ BEGIN END $$;")
             else:
                 args = {}
                 try:

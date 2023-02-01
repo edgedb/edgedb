@@ -3,7 +3,7 @@
 #
 # Copyright 2012-present MagicStack Inc. and the EdgeDB authors.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
+# Licensed under the Apache License, Version 2.0 (the "License")
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
@@ -1105,6 +1105,61 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         """
         SELECT (x IS NOT DISTINCT FROM y) FROM b
         """
+
+    def test_sql_parse_lock_01(self):
+        '''
+        LOCK TABLE films IN ACCESS SHARE MODE
+        '''
+
+    def test_sql_parse_lock_02(self):
+        '''
+        LOCK TABLE films IN ACCESS SHARE MODE NOWAIT
+        '''
+
+    def test_sql_parse_lock_03(self):
+        '''
+        LOCK TABLE ONLY (films) IN ACCESS SHARE MODE
+        '''
+
+    def test_sql_parse_lock_04(self):
+        '''
+        LOCK TABLE ONLY (films) IN ACCESS SHARE MODE NOWAIT
+        '''
+
+    def test_sql_parse_lock_05(self):
+        '''
+        LOCK TABLE films IN ROW SHARE MODE
+        '''
+
+    def test_sql_parse_lock_06(self):
+        '''
+        LOCK TABLE films IN ROW EXCLUSIVE MODE
+        '''
+
+    def test_sql_parse_lock_07(self):
+        '''
+        LOCK TABLE films IN SHARE UPDATE EXCLUSIVE MODE
+        '''
+
+    def test_sql_parse_lock_08(self):
+        '''
+        LOCK TABLE films IN SHARE MODE
+        '''
+
+    def test_sql_parse_lock_09(self):
+        '''
+        LOCK TABLE films IN SHARE ROW EXCLUSIVE MODE
+        '''
+
+    def test_sql_parse_lock_10(self):
+        '''
+        LOCK TABLE films IN EXCLUSIVE MODE
+        '''
+
+    def test_sql_parse_lock_11(self):
+        '''
+        LOCK TABLE films IN ACCESS EXCLUSIVE MODE
+        '''
 
     # The transaction_* settings are always on transaction level
 

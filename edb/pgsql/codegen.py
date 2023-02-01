@@ -1066,5 +1066,14 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.args)
         self.write(')')
 
+    def visit_LockStmt(self, node: pgast.LockStmt) -> None:
+        self.write('LOCK TABLE ')
+        self.visit_list(node.relations)
+        self.write(' IN ')
+        self.write(node.mode)
+        self.write(' MODE')
+        if node.no_wait:
+            self.write(' NOWAIT')
+
 
 generate_source = SQLSourceGenerator.to_source

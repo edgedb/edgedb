@@ -186,6 +186,7 @@ def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
             "ExecuteStmt": _build_execute,
             "CreateStmt": _build_create,
             "CreateTableAsStmt": _build_create_table_as,
+            "LockStmt": _build_lock,
         },
         [_build_query],
     )
@@ -263,6 +264,25 @@ def _build_delete_stmt(n: Node, c: Context) -> pgast.DeleteStmt:
         where_clause=_maybe(n, c, "whereClause", _build_base_expr),
         using_clause=_maybe_list(n, c, "usingClause", _build_base_range_var)
         or [],
+    )
+
+
+def _build_lock(n: Node, c: Context) -> pgast.LockStmt:
+    MODES = {
+        1: 'ACCESS SHARE',
+        2: 'ROW SHARE',
+        3: 'ROW EXCLUSIVE',
+        4: 'SHARE UPDATE EXCLUSIVE',
+        5: 'SHARE',
+        6: 'SHARE ROW EXCLUSIVE',
+        7: 'EXCLUSIVE',
+        8: 'ACCESS EXCLUSIVE',
+    }
+
+    return pgast.LockStmt(
+        relations=_list(n, c, "relations", _build_base_range_var),
+        mode=MODES[n['mode']],
+        no_wait=_bool_or_false(n, 'nowait'),
     )
 
 
@@ -411,8 +431,6 @@ def _build_execute(n: Node, c: Context) -> pgast.ExecuteStmt:
 
 
 def _build_create_table_as(n: Node, c: Context) -> pgast.CreateTableAsStmt:
-    print(n)
-
     return pgast.CreateTableAsStmt(
         into=_build_create(n['into'], c),
         query=_build_query(n['query'], c),
