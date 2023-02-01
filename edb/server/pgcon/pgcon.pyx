@@ -103,6 +103,7 @@ cdef dict POSTGRES_SHUTDOWN_ERR_CODES = {
 }
 
 cdef bytes INIT_CON_SCRIPT = None
+cdef object EMPTY_SQL_STATE = json.dumps({}).encode('utf-8')
 
 cdef object logger = logging.getLogger('edb.server')
 
@@ -747,7 +748,7 @@ cdef class PGConnection:
             buf.write_int32(0)  # limit: 0 - return all rows
             out.write_buffer(buf.end_message())
 
-    def _build_apply_sql_state_req(self, settings, WriteBuffer out):
+    def _build_apply_sql_state_req(self, bytes state, WriteBuffer out):
         cdef:
             WriteBuffer buf
 
@@ -764,17 +765,16 @@ cdef class PGConnection:
         buf.write_int32(0)  # limit: 0 - return all rows
         out.write_buffer(buf.end_message())
 
-        if settings:
-            serstate = json.dumps(dict(settings)).encode("utf-8")
+        if state != EMPTY_SQL_STATE:
             buf = WriteBuffer.new_message(b'B')
             buf.write_bytestring(b'')  # portal name
             buf.write_bytestring(b'_apply_sql_state')  # statement name
             buf.write_int16(1)  # number of format codes
             buf.write_int16(1)  # binary
             buf.write_int16(1)  # number of parameters
-            buf.write_int32(len(serstate) + 1)
+            buf.write_int32(len(state) + 1)
             buf.write_byte(1)  # jsonb format version
-            buf.write_bytes(serstate)
+            buf.write_bytes(state)
             buf.write_int16(0)  # number of result columns
             out.write_buffer(buf.end_message())
 
@@ -1386,17 +1386,21 @@ cdef class PGConnection:
             char mtype, field_type
             WriteBuffer buf, msg_buf
             bytes stmt_name, query
-            bint sync_received = 0
+            bint sync_received = 0, state_synced = 0
 
-        settings = None if dbv.in_tx() else dbv.current_settings()
-        if self.debug:
-            self.debug_print("pg_ext settings:", settings)
+        state = None
+        if not dbv.in_tx():
+            state = dbv.serialize_state()
+            if self.last_state == state:
+                state = None
         dbv.start_implicit()
         self.before_command()
         try:
             buf = WriteBuffer.new()
-            if settings is not None:
-                self._build_apply_sql_state_req(settings, buf)
+            if state is not None:
+                if self.debug:
+                    self.debug_print("pg_ext state:", state)
+                self._build_apply_sql_state_req(state, buf)
                 # We need to close the implicit transaction with a SYNC here
                 # because the next command may be "BEGIN DEFERRABLE".
                 self.write_sync(buf)
@@ -1440,9 +1444,13 @@ cdef class PGConnection:
             self.write_sync(buf)
             self.write(buf)
 
-            if settings is not None:
-                await self._parse_apply_state_resp(2 if settings else 1)
+            if state is not None:
+                await self._parse_apply_state_resp(
+                    2 if state != EMPTY_SQL_STATE else 1
+                )
                 await self.wait_for_sync()
+                self.last_state = state
+            state_synced = 1
 
             buf = WriteBuffer.new()
             for unit in query_units:
@@ -1551,16 +1559,33 @@ cdef class PGConnection:
                     else:
                         self.buffer.redirect_messages(buf, mtype, 0)
 
-            # CloseComplete is skipped in wait_for_sync()
-            msg_buf = WriteBuffer.new_message(b'Z')
-            msg_buf.write_byte(await self.wait_for_sync())
-            buf.write_buffer(msg_buf.end_message())
+            while True:
+                if not self.buffer.take_message():
+                    if buf.len() > 0:
+                        fe_conn.write(buf)
+                        fe_conn.flush()
+                        buf = WriteBuffer.new()
+                    await self.wait_for_message()
+                mtype = self.buffer.get_message_type()
+                if mtype == b'3':  # CloseComplete
+                    self.buffer.discard_message()
+                elif mtype == b'Z':  # ReadyForQuery
+                    self.buffer.redirect_messages(buf, mtype, 0)
+                    break
+                else:
+                    # Other messages like ParameterStatus should be forwarded
+                    self.buffer.redirect_messages(buf, mtype, 0)
 
-            fe_conn.write(buf)
-            fe_conn.flush()
+            if buf.len() > 0:
+                fe_conn.write(buf)
+                fe_conn.flush()
         finally:
             await self.after_command()
             dbv.end_implicit()
+            # There could be multiple transactions in the same simple query, so
+            # last_state should be always updated after the initial state sync
+            if state_synced and not dbv.in_tx():
+                self.last_state = dbv.serialize_state()
 
     async def sql_extended_query(
         self,
@@ -1571,10 +1596,20 @@ cdef class PGConnection:
     ):
         self.before_command()
         try:
-            self._write_sql_extended_query(actions, dbver, dbv)
-            return await self._parse_sql_extended_query(
-                actions, fe_conn, dbver, dbv
-            )
+            state = self._write_sql_extended_query(actions, dbver, dbv)
+            if state is not None:
+                await self._parse_apply_state_resp(
+                    2 if state != EMPTY_SQL_STATE else 1
+                )
+                await self.wait_for_sync()
+                self.last_state = state
+            try:
+                return await self._parse_sql_extended_query(
+                    actions, fe_conn, dbver, dbv
+                )
+            finally:
+                if not dbv.in_tx():
+                    self.last_state = dbv.serialize_state()
         finally:
             await self.after_command()
 
@@ -1584,8 +1619,10 @@ cdef class PGConnection:
             PGMessage action
 
         buf = WriteBuffer.new()
+        state = None
         if not dbv.in_tx():
-            self._build_apply_sql_state_req(dbv.current_settings(), buf)
+            state = dbv.serialize_state()
+            self._build_apply_sql_state_req(state, buf)
             # We need to close the implicit transaction with a SYNC here
             # because the next command may be e.g. "BEGIN DEFERRABLE".
             self.write_sync(buf)
@@ -1660,6 +1697,7 @@ cdef class PGConnection:
             buf.write_buffer(msg_buf.end_message())
 
         self.write(buf)
+        return state
 
     async def _parse_sql_extended_query(
         self,
@@ -1672,12 +1710,6 @@ cdef class PGConnection:
             WriteBuffer buf, msg_buf
             PGMessage action
             bint ignore_till_sync = False
-
-        if not dbv.in_tx():
-            await self._parse_apply_state_resp(
-                2 if dbv.current_settings() else 1
-            )
-            await self.wait_for_sync()
 
         buf = WriteBuffer.new()
         rv = True
