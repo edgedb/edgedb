@@ -1147,6 +1147,7 @@ class MinMaxExpr(BaseExpr):
     op: str
     args: typing.List[BaseExpr]
 
+
 class LockStmt(Statement):
     relations: typing.List[BaseRangeVar]
     mode: str
