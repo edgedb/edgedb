@@ -125,7 +125,7 @@ def _lookup_column(
                 tab = _lookup_table(col_name, ctx)
                 col = context.Column(reference_as=tab.reference_as)
                 return [(context.Table(), col)]
-            except:
+            except errors.QueryError:
                 pass
 
     elif len(name) >= 2:
