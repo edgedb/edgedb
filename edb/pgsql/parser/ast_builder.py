@@ -506,6 +506,7 @@ def _build_base_expr(node: Node, c: Context) -> pgast.BaseExpr:
             "SetToDefault": _build_keyword("DEFAULT"),
             "SQLValueFunction": _build_sql_value_function,
             "CollateClause": _build_collate_clause,
+            "MinMaxExpr": _build_min_max_expr,
         },
         [_build_base_range_var, _build_indirection_op],  # type: ignore
     )
@@ -593,6 +594,22 @@ def _build_collate_clause(n: Node, c: Context) -> pgast.CollateClause:
     )
 
 
+def _build_min_max_expr(n: Node, c: Context) -> pgast.MinMaxExpr:
+
+    if n['op'] == 'IS_GREATEST':
+        op = 'GREATEST'
+    elif n['op'] == 'IS_LEAST':
+        op = 'LEAST'
+    else:
+        raise PSqlUnsupportedError(n)
+
+    return pgast.MinMaxExpr(
+        op=op,
+        args=_list(n, c, 'args', _build_base_expr),
+        context=_build_context(n, c),
+    )
+
+
 def _build_sql_value_function(n: Node, c: Context) -> pgast.SQLValueFunction:
     op = n["op"].removeprefix("SVFOP_")
 
@@ -634,6 +651,8 @@ def _build_sub_link(n: Node, c: Context) -> pgast.SubLink:
         operator = "= ANY"
     elif typ == "EXPR_SUBLINK":
         operator = None
+    elif typ == "ARRAY_SUBLINK":
+        operator = "ARRAY"
     else:
         raise PSqlUnsupportedError(n)
 
@@ -863,41 +882,6 @@ def _build_a_expr(n: Node, c: Context) -> pgast.BaseExpr:
         names.pop(0)
     name = names.pop(0)
 
-    {
-        'A_Expr': {
-            'kind': 'AEXPR_OP',
-            'name': [
-                {'String': {'str': 'pg_catalog'}},
-                {'String': {'str': '~'}},
-            ],
-            'lexpr': {
-                'ColumnRef': {
-                    'fields': [
-                        {'String': {'str': 'c'}},
-                        {'String': {'str': 'relname'}},
-                    ],
-                    'location': 224,
-                }
-            },
-            'rexpr': {
-                'CollateClause': {
-                    'arg': {
-                        'A_Const': {
-                            'val': {'String': {'str': '^(user)$'}},
-                            'location': 257,
-                        }
-                    },
-                    'collname': [
-                        {'String': {'str': 'pg_catalog'}},
-                        {'String': {'str': 'default'}},
-                    ],
-                    'location': 268,
-                }
-            },
-            'location': 234,
-        }
-    }
-
     if n["kind"] == "AEXPR_OP":
         pass
     elif n["kind"] in ("AEXPR_LIKE", "AEXPR_ILIKE"):
@@ -930,6 +914,10 @@ def _build_a_expr(n: Node, c: Context) -> pgast.BaseExpr:
                 _build_base_expr(n['rexpr'], c),
             ],
         )
+    elif n['kind'] == 'AEXPR_DISTINCT':
+        name = 'IS DISTINCT FROM'
+    elif n['kind'] == 'AEXPR_NOT_DISTINCT':
+        name = 'IS NOT DISTINCT FROM'
     else:
         raise PSqlUnsupportedError(n)
 
