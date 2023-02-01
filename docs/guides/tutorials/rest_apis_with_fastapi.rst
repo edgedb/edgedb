@@ -344,10 +344,8 @@ the following code:
     from fastapi import APIRouter, HTTPException, Query
     from pydantic import BaseModel
 
-    from .queries import (
-        get_user_by_name_async_edgeql,
-        get_users_async_edgeql,
-    )
+    from .queries import get_user_by_name_async_edgeql as get_user_by_name_qry
+    from .queries import get_users_async_edgeql as get_users_qry
 
     router = APIRouter()
     client = edgedb.create_async_client()
@@ -360,18 +358,19 @@ the following code:
     @router.get("/users")
     async def get_users(
         name: str = Query(None, max_length=50)
-    ) -> List[
-        get_users_async_edgeql.GetUsersResult
-    ] | get_user_by_name_async_edgeql.UserResult:
+    ) -> List[get_users_qry.GetUsersResult] | get_user_by_name_qry.GetUserByNameResult:
 
         if not name:
-            users = await get_users_async_edgeql.get_users(client)
+            users = await get_users_qry.get_users(client)
             return users
         else:
-            user = await get_user_by_name_async_edgeql.get_user_by_name(client, name=name)
+            user = await get_user_by_name_qry.get_user_by_name(client, name=name)
             return user
 
 .. lint-on
+
+We've imported the generated code and aliased it (using ``as <new-name>``) to
+make the module names we use in our code a bit neater.
 
 The ``APIRouter`` instance does the actual work of exposing the API. We also
 create an async EdgeDB client instance to communicate with the database.
@@ -400,10 +399,10 @@ will send the 404 (not found) response to the user.
     # app/users.py
     ...
     if not name:
-        users = await get_users_async_edgeql.get_users(client)
+        users = await get_users_qry.get_users(client)
         return users
     else:
-        user = await get_user_by_name_async_edgeql.get_user_by_name(client, name=name)
+        user = await get_user_by_name_qry.get_user_by_name(client, name=name)
         if not user:
             raise HTTPException(
                 status_code=HTTPStatus.NOT_FOUND,
@@ -519,12 +518,10 @@ import the generated function for the new query:
 
     # app/users.py
     ...
-    from .queries import (
-        get_user_by_name_async_edgeql,
-        get_users_async_edgeql,
-        create_user_async_edgeql,
-    )
-   ...
+    from .queries import create_user_async_edgeql as create_user_qry
+    from .queries import get_user_by_name_async_edgeql as get_user_by_name_qry
+    from .queries import get_users_async_edgeql as get_users_qry
+    ...
 
 Then write the endpoint to call that function:
 
@@ -535,12 +532,10 @@ Then write the endpoint to call that function:
     # app/users.py
     ...
     @router.post("/users", status_code=HTTPStatus.CREATED)
-    async def post_user(user: RequestData) -> create_user_async_edgeql.CreateUserResult:
+    async def post_user(user: RequestData) -> create_user_qry.CreateUserResult:
 
         try:
-            created_user = await create_user_async_edgeql.create_user(
-                client, name=user.name
-            )
+            created_user = await create_user_qry.create_user(client, name=user.name)
         except edgedb.errors.ConstraintViolationError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
@@ -618,19 +613,17 @@ and add the endpoint over in ``app/users.py``.
 
     # app/users.py
     ...
-    from .queries import (
-        get_user_by_name_async_edgeql,
-        get_users_async_edgeql,
-        create_user_async_edgeql,
-        update_user_async_edgeql,
-    )
+    from .queries import create_user_async_edgeql as create_user_qry
+    from .queries import get_user_by_name_async_edgeql as get_user_by_name_qry
+    from .queries import get_users_async_edgeql as get_users_qry
+    from .queries import update_user_async_edgeql as update_user_qry
     ...
     @router.put("/users")
     async def put_user(
         user: RequestData, current_name: str
-    ) -> update_user_async_edgeql.UpdateUserResult:
+    ) -> update_user_qry.UpdateUserResult:
         try:
-            updated_user = await update_user_async_edgeql.update_user(
+            updated_user = await update_user_qry.update_user(
                 client,
                 new_name=user.name,
                 current_name=current_name,
@@ -729,18 +722,16 @@ we've already written:
 
     # app/users.py
     ...
-    from .queries import (
-        get_user_by_name_async_edgeql,
-        get_users_async_edgeql,
-        create_user_async_edgeql,
-        update_user_async_edgeql,
-        delete_user_async_edgeql,
-    )
+    from .queries import create_user_async_edgeql as create_user_qry
+    from .queries import delete_user_async_edgeql as delete_user_qry
+    from .queries import get_user_by_name_async_edgeql as get_user_by_name_qry
+    from .queries import get_users_async_edgeql as get_users_qry
+    from .queries import update_user_async_edgeql as update_user_qry
     ...
     @router.delete("/users")
-    async def delete_user(name: str) -> delete_user_async_edgeql.DeleteUserResult:
+    async def delete_user(name: str) -> delete_user_qry.DeleteUserResult:
         try:
-            deleted_user = await delete_user_async_edgeql.delete_user(
+            deleted_user = await delete_user_qry.delete_user(
                 client,
                 name=name,
             )
@@ -832,9 +823,7 @@ time to code up the endpoint to use that freshly generated query.
     from fastapi import APIRouter, HTTPException, Query
     from pydantic import BaseModel
 
-    from .queries import (
-        create_event_async_edgeql,
-    )
+    from .queries import create_event_async_edgeql as create_event_qry
 
     router = APIRouter()
     client = edgedb.create_async_client()
@@ -848,9 +837,9 @@ time to code up the endpoint to use that freshly generated query.
 
 
     @router.post("/events", status_code=HTTPStatus.CREATED)
-    async def post_event(event: RequestData) -> create_event_async_edgeql.CreateEventResult:
+    async def post_event(event: RequestData) -> create_event_qry.CreateEventResult:
         try:
-            created_event = await create_event_async_edgeql.create_event(
+            created_event = await create_event_qry.create_event(
                 client,
                 name=event.name,
                 address=event.address,
@@ -999,25 +988,21 @@ coding GET. Import the newly generated queries and write the GET endpoint in
 
     # app/events.py
     ...
-    from .queries import (
-        create_event_async_edgeql,
-        delete_event_async_edgeql,
-        get_event_by_name_async_edgeql,
-        get_events_async_edgeql,
-        update_event_async_edgeql,
-    )
+    from .queries import create_event_async_edgeql as create_event_qry
+    from .queries import delete_event_async_edgeql as delete_event_qry
+    from .queries import get_event_by_name_async_edgeql as get_event_by_name_qry
+    from .queries import get_events_async_edgeql as get_events_qry
+    from .queries import update_event_async_edgeql as update_event_qry
     ...
     @router.get("/events")
     async def get_events(
         name: str = Query(None, max_length=50)
-    ) -> List[
-        get_events_async_edgeql.GetEventsResult
-    ] | get_event_by_name_async_edgeql.GetEventByNameResult:
+    ) -> List[get_events_qry.GetEventsResult] | get_event_by_name_qry.GetEventByNameResult:
         if not name:
-            events = await get_events_async_edgeql.get_events(client)
+            events = await get_events_qry.get_events(client)
             return events
         else:
-            event = await get_event_by_name_async_edgeql.get_event_by_name(
+            event = await get_event_by_name_qry.get_event_by_name(client, name=name)
                 client, name=name
             )
             if not event:
@@ -1095,10 +1080,9 @@ Let's finish off the events API with the PUT and DELETE endpoints. Open
     @router.put("/events")
     async def put_event(
         event: RequestData, current_name: str
-    ) -> update_event_async_edgeql.UpdateEventResult:
-
+    ) -> update_event_qry.UpdateEventResult:
         try:
-            updated_event = await update_event_async_edgeql.update_event(
+            updated_event = await update_event_qry.update_event(
                 client,
                 current_name=current_name,
                 name=event.name,
@@ -1132,8 +1116,8 @@ Let's finish off the events API with the PUT and DELETE endpoints. Open
 
 
     @router.delete("/events")
-    async def delete_event(name: str) -> delete_event_async_edgeql.DeleteEventResult:
-        deleted_event = await delete_event_async_edgeql.delete_event(client, name=name)
+    async def delete_event(name: str) -> delete_event_qry.DeleteEventResult:
+        deleted_event = await delete_event_qry.delete_event(client, name=name)
 
         if not deleted_event:
             raise HTTPException(
