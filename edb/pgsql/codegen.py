@@ -1066,4 +1066,5 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.args)
         self.write(')')
 
+
 generate_source = SQLSourceGenerator.to_source

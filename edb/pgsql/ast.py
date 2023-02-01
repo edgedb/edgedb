@@ -1139,6 +1139,7 @@ class CreateTableAsStmt(Statement):
 
     with_no_data: bool
 
+
 class MinMaxExpr(BaseExpr):
     # GREATEST / LEAST expression
     # Very similar to FuncCall, except that the name is not escaped
