@@ -90,7 +90,7 @@ Query behavior
 
 :eql:synopsis:`apply_access_policies -> bool`
   Determines whether access policies should be applied when running queries.
-  Setting this to ``false`` effctively puts you into super-user mode, ignoring
+  Setting this to ``false`` effectively puts you into super-user mode, ignoring
   any access policies that might otherwise limit you on the instance.
 
   .. note::
