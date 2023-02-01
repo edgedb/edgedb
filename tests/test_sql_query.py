@@ -505,6 +505,20 @@ class TestSQL(tb.SQLQueryTestCase):
         # this numbers change, so let's just check that there are 6 of them
         self.assertEqual(len(res[0]), 6)
 
+        res = await self.squery_values(
+            '''
+            SELECT tableoid, xmin, cmin, xmax, cmax, ctid FROM "Content"
+            '''
+        )
+        self.assertEqual(len(res[0]), 6)
+
+        res = await self.squery_values(
+            '''
+            SELECT tableoid, xmin, cmin, xmax, cmax, ctid FROM "Movie.actors"
+            '''
+        )
+        self.assertEqual(len(res[0]), 6)
+
     async def test_sql_query_34(self):
         # GROUP and ORDER BY aliased column
 

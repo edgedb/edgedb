@@ -2890,10 +2890,21 @@ class CompositeMetaCommand(MetaCommand):
         ptrnames: Dict[sn.UnqualName, Tuple[str, Tuple[str, ...]]],
         pg_schema: Optional[str] = None,
     ) -> Optional[str]:
+
+        cols = []
+
+        if pg_schema not in ('edgedbss',):
+            cols.extend([
+                ('tableoid', 'tableoid', True),
+                ('xmin', 'xmin', True),
+                ('cmin', 'cmin', True),
+                ('xmax', 'xmax', True),
+                ('cmax', 'cmax', True),
+                ('ctid', 'ctid', True),
+            ])
+
         if isinstance(obj, s_sources.Source):
             ptrs = dict(obj.get_pointers(schema).items(schema))
-
-            cols = []
 
             for ptrname, (alias, pgtype) in ptrnames.items():
                 ptr = ptrs.get(ptrname)
@@ -2912,10 +2923,10 @@ class CompositeMetaCommand(MetaCommand):
                 else:
                     return None
         else:
-            cols = [
+            cols.extend(
                 (str(ptrname), alias, True)
                 for ptrname, (alias, _) in ptrnames.items()
-            ]
+            )
 
         tabname = common.get_backend_name(
             schema,
