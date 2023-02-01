@@ -66,13 +66,13 @@ class ConfigOp(Nonterm):
 
 class ConfigStmt(Nonterm):
 
-    def reduce_CONFIGURE_DATABASE_ConfigOp(self, keyword, config):
+    def reduce_CONFIGURE_DATABASE_ConfigOp(self, configure, database, _config):
         raise errors.EdgeQLSyntaxError(
-            f"'{keyword.val} {config.val}' is invalid syntax. Did you mean "
-            f"'{keyword.val} "
-            f"{'current' if config.val[0] == 'd' else 'CURRENT'} "
-            f"{config.val}'?",
-            context=config.context)
+            f"'{configure.val} {database.val}' is invalid syntax. Did you mean "
+            f"'{configure.val} "
+            f"{'current' if database.val[0] == 'd' else 'CURRENT'} "
+            f"{database.val}'?",
+            context=database.context)
 
     def reduce_CONFIGURE_ConfigScope_ConfigOp(self, _, scope, op):
         self.val = op.val
