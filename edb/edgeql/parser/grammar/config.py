@@ -33,7 +33,7 @@ class ConfigScope(Nonterm):
     def reduce_SESSION(self, _):
         self.val = qltypes.ConfigScope.SESSION
 
-    def reduce_CURRENT_DATABASE(self, _):
+    def reduce_CURRENT_DATABASE(self, _c, _d):
         self.val = qltypes.ConfigScope.DATABASE
 
     def reduce_SYSTEM(self, _):

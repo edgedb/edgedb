@@ -517,10 +517,10 @@ class AccessKind(Nonterm):
         self.val = [
             qltypes.AccessKind.UpdateRead, qltypes.AccessKind.UpdateWrite]
 
-    def reduce_UPDATE_READ(self, _):
+    def reduce_UPDATE_READ(self, _u, _r):
         self.val = [qltypes.AccessKind.UpdateRead]
 
-    def reduce_UPDATE_WRITE(self, _):
+    def reduce_UPDATE_WRITE(self, _u, _w):
         self.val = [qltypes.AccessKind.UpdateWrite]
 
     def reduce_INSERT(self, _):
