@@ -68,8 +68,8 @@ class ConfigStmt(Nonterm):
 
     def reduce_CONFIGURE_DATABASE_ConfigOp(self, configure, database, _config):
         raise errors.EdgeQLSyntaxError(
-            f"'{configure.val} {database.val}' is invalid syntax. Did you mean "
-            f"'{configure.val} "
+            f"'{configure.val} {database.val}' is invalid syntax. "
+            f"Did you mean '{configure.val} "
             f"{'current' if database.val[0] == 'd' else 'CURRENT'} "
             f"{database.val}'?",
             context=database.context)
