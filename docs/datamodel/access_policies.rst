@@ -300,7 +300,7 @@ making the current user able to see their own ``User`` record.
 .. _ref_datamodel_access_policies_nonrecursive:
 .. _nonrecursive:
 
-.. warning::
+.. versionchanged:: 3.0
 
   Starting with the upcoming EdgeDB 3.0, access policy restrictions will
   **not**
@@ -318,11 +318,6 @@ making the current user able to see their own ``User`` record.
   It is possible (and recommended) to enable this :ref:`future
   <ref_eql_sdl_future>` behavior in EdgeDB 2.6 and later by adding the
   following to the schema: ``using future nonrecursive_access_policies;``
-
-.. versionadded:: 3.0
-
-  As of EdgeDB 3.0 access policy restrictions do **not** apply to any access
-  policy expression.
 
 
 Examples

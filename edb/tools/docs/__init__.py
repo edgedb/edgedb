@@ -67,6 +67,20 @@ class VersionAdded(d_rst.Directive):
         return [node]
 
 
+class VersionChanged(d_rst.Directive):
+
+    has_content = True
+    optional_arguments = 0
+    required_arguments = 1
+
+    def run(self):
+        node = s_nodes.versionmodified()
+        node['type'] = 'versionchanged'
+        node['version'] = self.arguments[0]
+        self.state.nested_parse(self.content, self.content_offset, node)
+        return [node]
+
+
 def setup(app):
     cli.setup_domain(app)
     eql.setup_domain(app)
@@ -75,5 +89,6 @@ def setup(app):
     graphql.setup_domain(app)
 
     app.add_directive('versionadded', VersionAdded, True)
+    app.add_directive('versionchanged', VersionChanged, True)
 
     app.add_transform(ProhibitedNodeTransform)
