@@ -75,6 +75,33 @@ Query planning
   An estimate of the effective size of the disk
   cache available to a single query.
 
+
+Query behavior
+--------------
+
+:eql:synopsis:`allow_bare_ddl -> cfg::AllowBareDDL`
+  Allows for running bare DDL outside a migration. Possible values are
+  ``cfg::AllowBareDDL.AlwaysAllow`` and ``cfg::AllowBareDDL.NeverAllow``.
+
+  When you create an instance, this is set to ``cfg::AllowBareDDL.AlwaysAllow``
+  until you run a migration. At that point it is set to
+  ``cfg::AllowBareDDL.NeverAllow`` because it's generally a bad idea to mix
+  migrations with bare DDL.
+
+:eql:synopsis:`apply_access_policies -> bool`
+  Determines whether access policies should be applied when running queries.
+  Setting this to ``false`` effectively puts you into super-user mode, ignoring
+  any access policies that might otherwise limit you on the instance.
+
+  .. note::
+
+      This setting can also be conveniently accessed via the "Config" dropdown
+      menu at the top of the EdgeDB UI (accessible by running the CLI command
+      ``edgedb ui`` from within a project). The setting will apply only to your
+      UI session, so you won't have to remember to re-enable it when you're
+      done.
+
+
 Client connections
 ------------------
 

@@ -322,6 +322,19 @@ making the current user able to see their own ``User`` record.
   following to the schema: ``using future nonrecursive_access_policies;``
 
 
+Disabling policies
+^^^^^^^^^^^^^^^^^^
+
+You may disable all access policies by setting the ``apply_access_policies``
+:ref:`configuration parameter <ref_std_cfg>` to ``false``.
+
+You may also toggle access policies using the "Disable Access Policies"
+checkbox in the "Config" dropdown in the EdgeDB UI (accessible by running
+the CLI command ``edgedb ui`` from inside your project). This is the most
+convenient way to temporarily disable access policies since it applies only to
+your UI session.
+
+
 Examples
 ^^^^^^^^
 
