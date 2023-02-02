@@ -1807,6 +1807,9 @@ def _try_compile(
     for i, stmt in enumerate(statements):
         is_trailing_stmt = i == statements_len - 1
         stmt_ctx = ctx if is_trailing_stmt else non_trailing_ctx
+
+        _check_force_database_error(stmt_ctx, stmt)
+
         comp, capabilities = _compile_dispatch_ql(
             stmt_ctx,
             stmt,
@@ -2326,6 +2329,46 @@ def _get_data_mending_desc(
                 and any(elements)
             )
         )
+
+
+def _check_force_database_error(
+    ctx: CompileContext,
+    ql: qlast.Base,
+) -> None:
+    if isinstance(ql, qlast.ConfigOp):
+        return
+
+    try:
+        val = _get_config_val(ctx, 'force_database_error')
+        # Check the string directly for false to skip a deserialization
+        if val is None or val == 'false':
+            return
+        err = json.loads(val)
+        if not err:
+            return
+
+        errcls = errors.EdgeDBError.get_error_class_from_name(err['type'])
+        if context := err.get('context'):
+            filename = context.get('filename')
+            position = tuple(
+                context.get(k) for k in ('line', 'col', 'start', 'end')
+            )
+        else:
+            filename = None
+            position = None
+
+        errval = errcls(
+            msg=err.get('message'),
+            hint=err.get('hint'),
+            details=err.get('details'),
+            filename=filename,
+            position=position,
+        )
+    except Exception:
+        raise errors.ConfigurationError(
+            "invalid 'force_database_error' value'")
+
+    raise errval
 
 
 def _is_dev_instance(ctx: CompileContext) -> bool:

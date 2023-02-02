@@ -35,6 +35,7 @@ import edgedb
 from edb import buildmeta
 from edb import errors
 from edb.edgeql import qltypes
+from edb.edgeql import quote as qlquote
 
 from edb.testbase import server as tb
 from edb.schema import objects as s_obj
@@ -1172,6 +1173,50 @@ class TestServerConfig(tb.QueryTestCase):
                 1,
             )
         finally:
+            await con2.aclose()
+
+    async def test_server_proto_configure_error(self):
+        con1 = self.con
+        con2 = await self.connect(database=con1.dbname)
+        try:
+            await con2.execute('''
+                select 1;
+            ''')
+
+            err = {
+                'type': 'SchemaError',
+                'message': 'danger',
+                'context': {'start': 42},
+            }
+            await con1.execute(f'''
+                configure current database set force_database_error :=
+                  {qlquote.quote_literal(json.dumps(err))};
+            ''')
+
+            with self.assertRaisesRegex(edgedb.SchemaError, 'danger'):
+                async for tx in con1.retrying_transaction():
+                    async with tx:
+                        await tx.query('select schema::Object')
+
+            # It might take a bit before con2 sees the error config
+            async for tr in self.try_until_succeeds(
+                    ignore=AssertionError):
+                async with tr:
+                    with self.assertRaisesRegex(edgedb.SchemaError, 'danger',
+                                                _position=42):
+                        async for tx in con2.retrying_transaction():
+                            async with tx:
+                                await tx.query('select schema::Object')
+
+            await con2.execute(f'''
+                configure session set force_database_error := "false";
+            ''')
+            await con2.query('select schema::Object')
+
+        finally:
+            await con1.execute(f'''
+                configure current database reset force_database_error;
+            ''')
             await con2.aclose()
 
 
