@@ -388,7 +388,6 @@ class IndexCommand(
         from edb.ir import utils as irutils
         from edb.ir import ast as irast
 
-        singletons: List[s_types.Type]
         if field.name in {'expr', 'except_expr'}:
             # type ignore below, for the class is used as mixin
             parent_ctx = context.get_ancestor(
