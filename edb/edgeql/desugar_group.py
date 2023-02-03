@@ -218,8 +218,9 @@ def try_group_rewrite(
     # immediately used, so that we can apply the other optimizations.
     match node:
         case qlast.SelectQuery(
-            aliases=[*_, qlast.AliasedExpr(
-                alias=alias, expr=qlast.GroupQuery() as grp)
+            aliases=[
+                *_,
+                qlast.AliasedExpr(alias=alias, expr=qlast.GroupQuery() as grp)
             ] as qaliases,
             result=qlast.Shape(
                 expr=qlast.Path(steps=[
@@ -234,8 +235,9 @@ def try_group_rewrite(
             )
 
         case qlast.ForQuery(
-            aliases=[*_, qlast.AliasedExpr(
-                alias=alias, expr=qlast.GroupQuery() as grp)
+            aliases=[
+                *_,
+                qlast.AliasedExpr(alias=alias, expr=qlast.GroupQuery() as grp)
             ] as qaliases,
             iterator=qlast.Path(steps=[
                 qlast.ObjectRef(module=None, name=alias2)
