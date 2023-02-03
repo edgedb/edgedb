@@ -209,6 +209,20 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             "group has unnecessary uuid_generate",
         )
 
+    def test_codegen_group_binding(self):
+        sql = self._compile('''
+        with g := (group Issue by .status)
+        select g {
+            name := .key.status.name,
+            num := count(.elements),
+        } order by .name
+        ''')
+
+        self.assertNotIn(
+            "array_agg", sql,
+            "group has unnecessary array_agg",
+        )
+
     def test_codegen_in_array_unpack_no_dupe(self):
         sql = self._compile('''
             select 1 in array_unpack(
