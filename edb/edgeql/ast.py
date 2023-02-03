@@ -1293,6 +1293,29 @@ class DropTrigger(DropObject, TriggerCommand):
     pass
 
 
+class RewriteCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.REWRITE
+    )
+
+
+class CreateRewrite(CreateObject, RewriteCommand):
+    kinds: typing.List[qltypes.RewriteKind]
+    expr: Expr
+
+
+class AlterRewrite(AlterObject, RewriteCommand):
+    kinds: typing.List[qltypes.RewriteKind]
+    pass
+
+
+class DropRewrite(DropObject, RewriteCommand):
+    kinds: typing.List[qltypes.RewriteKind]
+    pass
+
+
 class Language(s_enum.StrEnum):
     SQL = 'SQL'
     EdgeQL = 'EDGEQL'

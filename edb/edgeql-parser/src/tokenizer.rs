@@ -885,6 +885,7 @@ pub fn is_keyword(s: &str) -> bool {
         | "__edgedbtpl__"
         | "__new__"
         | "__old__"
+        | "__specified__"
         | "alter"
         | "and"
         | "anytuple"

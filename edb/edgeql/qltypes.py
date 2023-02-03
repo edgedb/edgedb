@@ -222,6 +222,11 @@ class TriggerScope(s_enum.StrEnum):
     All = 'All'
 
 
+class RewriteKind(s_enum.StrEnum):
+    Update = 'Update'
+    Insert = 'Insert'
+
+
 class DescribeLanguage(s_enum.StrEnum):
     DDL = 'DDL'
     SDL = 'SDL'
@@ -252,6 +257,7 @@ class SchemaObjectClass(s_enum.StrEnum):
     PROPERTY = 'PROPERTY'
     PSEUDO_TYPE = 'PSEUDO TYPE'
     RANGE_TYPE = 'RANGE TYPE'
+    REWRITE = 'REWRITE'
     ROLE = 'ROLE'
     SCALAR_TYPE = 'SCALAR TYPE'
     TRIGGER = 'TRIGGER'

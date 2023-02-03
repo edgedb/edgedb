@@ -4046,7 +4046,7 @@ aa';
         ALTER CURRENT MIGRATION REJECT PROPOSED;
         """
 
-    def test_edgeql_syntax_ddl_rewrite_01(self):
+    def test_edgeql_syntax_ddl_migration_rewrite_01(self):
         """
         START MIGRATION REWRITE;
         ABORT MIGRATION REWRITE;
@@ -5888,6 +5888,47 @@ aa';
         alter type Foo {
             alter trigger foo
                 using (1);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_01(self):
+        """
+        create type Foo {
+            create property foo -> i64 {
+                create rewrite update, insert using (1);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_02(self):
+        """
+        alter type Foo {
+            create property name_updated_at -> i64 {
+                create rewrite update using ((
+                    datetime_current()
+                    if __specified__.name
+                    else .name_updated_at
+                ));
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_03(self):
+        """
+        alter type Foo {
+            alter property foo {
+                drop rewrite update;
+                alter rewrite insert using (3);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_04(self):
+        """
+        alter type Foo {
+            alter property foo {
+                alter rewrite insert using (1);
+            };
         };
         """
 

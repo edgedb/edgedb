@@ -824,6 +824,26 @@ def trace_Trigger(
 
 
 @trace_dependencies.register
+def trace_Rewrite(
+    node: qlast.CreateRewrite,
+    *,
+    ctx: DepTraceContext,
+) -> None:
+    exprs = [ExprDependency(expr=node.expr)]
+
+    obj = ctx.depstack[-1][1]
+    _register_item(
+        node,
+        deps=set(),
+        hard_dep_exprs=exprs,
+        source=obj,
+        subject=obj,
+        anchors={'__specified__': obj},
+        ctx=ctx,
+    )
+
+
+@trace_dependencies.register
 def trace_Index(
     node: qlast.CreateConcreteIndex,
     *,
