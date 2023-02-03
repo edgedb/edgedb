@@ -576,6 +576,19 @@ class TriggerScope(Nonterm):
         self.val = qltypes.TriggerScope.All
 
 
+class RewriteKind(Nonterm):
+    def reduce_UPDATE(self, *kids):
+        self.val = qltypes.RewriteKind.Update
+
+    def reduce_INSERT(self, *kids):
+        self.val = qltypes.RewriteKind.Insert
+
+
+class RewriteKindList(parsing.ListNonterm, element=RewriteKind,
+                      separator=tokens.T_COMMA):
+    pass
+
+
 class ExtensionVersion(Nonterm):
 
     def reduce_VERSION_BaseStringConstant(self, _, const):

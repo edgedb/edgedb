@@ -930,7 +930,7 @@ class BaseAtomicExpr(Nonterm):
     # { ... } | Constant | '(' Expr ')' | FuncExpr
     # | Tuple | NamedTuple | Collection | Set
     # | '__source__' | '__subject__'
-    # | '__new__' | '__old__'
+    # | '__new__' | '__old__' | '__specified__'
     # | NodeName | PathStep
 
     def reduce_FreeShape(self, *kids):
@@ -950,6 +950,11 @@ class BaseAtomicExpr(Nonterm):
 
     def reduce_DUNDEROLD(self, *kids):
         self.val = qlast.Path(steps=[qlast.SpecialAnchor(name='__old__')])
+
+    def reduce_DUNDERSPECIFIED(self, _):
+        self.val = qlast.Path(
+            steps=[qlast.SpecialAnchor(name='__specified__')]
+        )
 
     @parsing.precedence(precedence.P_UMINUS)
     def reduce_ParenExpr(self, *kids):

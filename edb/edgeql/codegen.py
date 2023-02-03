@@ -152,6 +152,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 f'No method to generate code for {node.__class__.__name__}')
 
     def _block_ws(self, change: int, newlines: bool = True) -> None:
+        """Block whitespace"""
         if newlines:
             self.indentation += change
             self.new_lines = 1
@@ -1533,6 +1534,54 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_DropTrigger(self, node: qlast.DropTrigger) -> None:
         self._visit_DropObject(node, 'TRIGGER', unqualified=True)
+
+    def _format_rewrite_kinds(self, kinds: List[qltypes.RewriteKind]) -> str:
+        # Canonicalize the order, since the schema loses track
+        kinds = [k for k in list(qltypes.RewriteKind) if k in kinds]
+        skinds = ', '.join(str(kind).lower() for kind in kinds)
+        return skinds
+
+    def visit_CreateRewrite(
+        self,
+        node: qlast.CreateRewrite
+    ) -> None:
+        def an() -> None:
+            self._block_ws(1)
+            self._write_keywords(self._format_rewrite_kinds(node.kinds) + ' ')
+
+            self._block_ws(0)
+
+            self._write_keywords('USING ')
+            self.write('(')
+            self.visit(node.expr)
+            self.write(')')
+
+        keywords = []
+        keywords.extend(['REWRITE'])
+        self._visit_CreateObject(
+            node, *keywords, after_name=an, unqualified=True, named=False
+        )
+        # This is left hanging from after_name, so that subcommands
+        # get double indented
+        self.indentation -= 1
+
+    def visit_AlterRewrite(self, node: qlast.AlterRewrite) -> None:
+        def an() -> None:
+            self._block_ws(1)
+            self._write_keywords(self._format_rewrite_kinds(node.kinds) + ' ')
+
+        self._visit_AlterObject(
+            node, 'REWRITE', after_name=an, unqualified=True, named=False
+        )
+
+    def visit_DropRewrite(self, node: qlast.DropRewrite) -> None:
+        def an() -> None:
+            self._block_ws(1)
+            self._write_keywords(self._format_rewrite_kinds(node.kinds) + ' ')
+
+        self._visit_DropObject(
+            node, 'REWRITE', after_name=an, unqualified=True, named=False
+        )
 
     def visit_CreateScalarType(self, node: qlast.CreateScalarType) -> None:
         keywords = []

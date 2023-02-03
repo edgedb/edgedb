@@ -1405,6 +1405,65 @@ class DropConcreteIndexStmt(Nonterm):
 
 
 #
+# CREATE REWRITE
+#
+
+commands_block(
+    'CreateRewrite',
+    CreateAnnotationValueStmt,
+    SetFieldStmt,
+)
+
+
+class CreateRewriteStmt(Nonterm):
+    def reduce_CreateRewrite(self, *kids):
+        """%reduce
+            CREATE REWRITE RewriteKindList
+            USING ParenExpr
+            OptCreateRewriteCommandsBlock
+        """
+        _, _, kinds, _, expr, commands = kids
+        print(expr.val)
+        self.val = qlast.CreateRewrite(
+            kinds=kinds.val,
+            expr=expr.val,
+            commands=commands.val,
+        )
+
+
+commands_block(
+    'AlterRewrite',
+    CreateAnnotationValueStmt,
+    AlterAnnotationValueStmt,
+    DropAnnotationValueStmt,
+    SetFieldStmt,
+    ResetFieldStmt,
+    UsingStmt,
+    opt=False
+)
+
+
+class AlterRewriteStmt(Nonterm):
+    def reduce_AlterRewrite(self, _a, _r, kinds, commands):
+        r"""%reduce \
+            ALTER REWRITE RewriteKindList \
+            AlterRewriteCommandsBlock \
+        """
+        self.val = qlast.AlterRewrite(
+            kinds=kinds.val,
+            commands=commands.val,
+        )
+
+
+class DropRewriteStmt(Nonterm):
+    def reduce_DropRewrite(self, _d, _r, kinds):
+        r"""%reduce DROP REWRITE RewriteKindList"""
+        self.val = qlast.DropRewrite(
+            kinds=kinds.val
+        )
+
+
+#
 # CREATE PROPERTY
 #
 class CreatePropertyStmt(Nonterm):
@@ -1432,6 +1491,9 @@ commands_block(
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
+    CreateRewriteStmt,
+    AlterRewriteStmt,
+    DropRewriteStmt,
     opt=False
 )
 
@@ -1481,7 +1543,8 @@ commands_block(
     SetRequiredInCreateStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
-    CreateConcreteConstraintStmt
+    CreateConcreteConstraintStmt,
+    CreateRewriteStmt,
 )
 
 
@@ -1647,6 +1710,9 @@ commands_block(
     CreateConcreteConstraintStmt,
     AlterConcreteConstraintStmt,
     DropConcreteConstraintStmt,
+    CreateRewriteStmt,
+    AlterRewriteStmt,
+    DropRewriteStmt,
     opt=False
 )
 
@@ -1689,6 +1755,7 @@ commands_block(
     CreateConcreteConstraintStmt,
     CreateConcretePropertyStmt,
     CreateConcreteIndexStmt,
+    CreateRewriteStmt,
 )
 
 
@@ -1728,6 +1795,9 @@ commands_block(
     CreateConcreteIndexStmt,
     AlterConcreteIndexStmt,
     DropConcreteIndexStmt,
+    CreateRewriteStmt,
+    AlterRewriteStmt,
+    DropRewriteStmt,
     opt=False
 )
 
@@ -1785,6 +1855,7 @@ commands_block(
     CreateConcreteIndexStmt,
     commondl.OnTargetDeleteStmt,
     commondl.OnSourceDeleteStmt,
+    CreateRewriteStmt,
 )
 
 
@@ -1881,6 +1952,9 @@ commands_block(
     commondl.OnSourceDeleteStmt,
     OnTargetDeleteResetStmt,
     OnSourceDeleteResetStmt,
+    CreateRewriteStmt,
+    AlterRewriteStmt,
+    DropRewriteStmt,
     opt=False
 )
 
