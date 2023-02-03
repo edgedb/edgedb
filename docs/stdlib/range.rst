@@ -1,14 +1,12 @@
+.. versionadded:: 2.0
+
 .. _ref_std_range:
 
-===========
-Ranges #New
-===========
+======
+Ranges
+======
 
 :edb-alt-title: Range Functions and Operators
-
-.. note::
-
-  This type is only available in EdgeDB 2.0 or later.
 
 Ranges represent some interval of values. The intervals can include or exclude
 their boundaries or can even omit one or both boundaries. Only some scalar

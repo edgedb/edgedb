@@ -1,12 +1,10 @@
+.. versionadded:: 2.0
+
 .. _ref_datamodel_access_policies:
 
-====================
-Access Policies #New
-====================
-
-.. note::
-
-  This type is only available in EdgeDB 2.0 or later.
+===============
+Access Policies
+===============
 
 Object types can contain security policies that restrict the set of objects
 that can be selected, inserted, updated, or deleted by a particular query.
@@ -302,7 +300,7 @@ making the current user able to see their own ``User`` record.
 .. _ref_datamodel_access_policies_nonrecursive:
 .. _nonrecursive:
 
-.. warning::
+.. versionchanged:: 3.0
 
   Starting with the upcoming EdgeDB 3.0, access policy restrictions will
   **not**
