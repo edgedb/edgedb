@@ -86,3 +86,7 @@ def get_object_val(val : Val) -> DictVal:
         case RefVal(_, dictval):
             return dictval
     raise ValueError("Cannot get object val", val)
+
+def coerce_to_storage(val : DictVal, fmt : ProdTp) -> DictVal:
+    print("WARNING: coerce_to_storage not yet implemented")
+    return val

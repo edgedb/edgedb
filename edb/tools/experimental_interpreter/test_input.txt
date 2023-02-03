@@ -1,3 +1,5 @@
-insert I {n := 
-
-"e1", n2 := "e2", n3 := { n4 := { n5 := "e"}}};
+select Person {name, last_name} order by .last_name desc then .name then 2 then count(Person.friends);
+select Person {name, last_name} order by .last_name desc then .name;
+select Person {name};
+select Person {name := -2};
+select Person {name : { length, title}};

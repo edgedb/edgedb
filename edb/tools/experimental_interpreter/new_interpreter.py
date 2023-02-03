@@ -18,7 +18,7 @@ import copy
 
 def run_statement(db : DB, stmt : qlast.Expr, should_print : bool) -> DB:
     if should_print:
-        print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Running")
+        print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
         debug.dump_edgeql(stmt)
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Elaborating")
 
@@ -30,12 +30,15 @@ def run_statement(db : DB, stmt : qlast.Expr, should_print : bool) -> DB:
 
     config = RTExpr(
             RTData(DB(db.dbdata), 
-                [DB({**db.dbdata})]
+                [DB({**db.dbdata})],
+                DBSchema({})
             ), elaborated)
-    resultdb = eval_config(config)
+    result = eval_config(config)
     if should_print:
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
+        debug.print(result.val)
         print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
-    return resultdb.data.cur_db
+    return result.data.cur_db
     # debug.dump(stmt)
 
 def run_stmts (db : DB, stmts : List[qlast.Expr], debug_print : bool) -> DB:

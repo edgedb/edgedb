@@ -211,7 +211,16 @@ class IntVal:
 class FunVal:
     fname : str
 
-PrimVal = StrVal | IntVal | FunVal
+@dataclass(frozen=True) 
+class IntInfVal: 
+    """ the infinite integer, used as the default value for limit """
+    pass
+
+@dataclass(frozen=True)
+class BoolVal:
+    val: bool
+
+PrimVal = StrVal | IntVal | FunVal | IntInfVal | BoolVal
 
 ## DEFINE EXPRESSIONS
 
@@ -266,8 +275,16 @@ class ForExpr:
     next : Expr
 
 @dataclass(frozen=True) 
-class SelectExpr:
-    name : str
+class FilterOrderExpr:
+    subject : Expr
+    filter : Expr
+    order : Expr
+
+@dataclass(frozen=True) 
+class OffsetLimitExpr:
+    subject : Expr
+    offset : Expr
+    limit : Expr
     
 @dataclass(frozen=True)
 class InsertExpr:
@@ -295,6 +312,18 @@ class BindingExpr:
     body : Expr
 
 
+@dataclass(frozen=True)
+class ShapeExpr:
+    shape : Dict[str, BindingExpr]
+
+
+@dataclass(frozen=True)
+class UnnamedTupleExpr:
+    val : List[Expr]
+
+@dataclass(frozen=True)
+class NamedTupleExpr:
+    val : Dict[str, Expr]
 
 
 
@@ -314,7 +343,7 @@ class BindingExpr:
 
 @dataclass(frozen=True)
 class ProdVal:
-    val : Dict[str, Val]
+    val : Dict[str, MultiSetVal]
 
 @dataclass(frozen=True)
 class FreeVal:
@@ -331,30 +360,36 @@ class RefLinkVal:
     to_id : int
     val : DictVal
 
-@dataclass(frozen=True)
-class MultiSetVal:
-    val : List[DictVal]
 
 @dataclass(frozen=True) 
 class LinkWithPropertyVal:
     subject : Val
     link_properties : Val
 
-    
 @dataclass(frozen=True)
-class ShapeExpr:
-    shape : Dict[str, BindingExpr]
+class UnnamedTupleVal:
+    val : List[Val]
 
+@dataclass(frozen=True)
+class NamedTupleVal:
+    val : Dict[str, Val]
 
-Val =  PrimVal | RefVal | FreeVal | MultiSetVal  | RefLinkVal | LinkWithPropertyVal 
-DictVal = ProdVal
+@dataclass(frozen=True)
+class MultiSetVal: # U
+    val : List[Val]
+    
+
+Val =  (PrimVal | RefVal | FreeVal | RefLinkVal | LinkWithPropertyVal 
+        | UnnamedTupleVal | NamedTupleVal ) # V
+DictVal = ProdVal # W
 
 VarExpr = (FreeVarExpr | BoundVarExpr)
 
 Expr = (PrimVal | TypeCastExpr | FunAppExpr 
-        | FreeVarExpr | BoundVarExpr| ProdProjExpr | WithExpr | ForExpr | SelectExpr | InsertExpr | UpdateExpr
+        | FreeVarExpr | BoundVarExpr| ProdProjExpr | WithExpr | ForExpr 
+        | FilterOrderExpr | OffsetLimitExpr | InsertExpr | UpdateExpr
         | MultiSetExpr | ShapedExprExpr | ShapeExpr | ProdExpr | BindingExpr
-        | Val
+        | Val | UnnamedTupleExpr | NamedTupleExpr
         )
 
 
@@ -367,6 +402,11 @@ class DBEntry:
 class DB:
     dbdata: Dict[int, DBEntry] 
     # subtp : List[Tuple[TypeExpr, TypeExpr]]
+
+@dataclass(frozen=True)
+class DBSchema: 
+    val : Dict[str, ProdTp]
+    
 
 def empty_db():
     return DB({})

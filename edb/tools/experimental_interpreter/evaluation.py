@@ -12,6 +12,7 @@ from .data.expr_ops import *
 class RTData:
     cur_db : DB
     read_snapshots: List[DB]
+    schema : DBSchema
 
 # RTExpr = Tuple[RTData, Expr]
 # RTVal = Tuple[RTData, Val]
@@ -25,7 +26,7 @@ class RTExpr(NamedTuple):
 # @dataclass(frozen=False)
 class RTVal(NamedTuple):
     data : RTData
-    val: Val
+    val: MultiSetVal
 
 # def rtexpr_new_expr(config : RTConfig, expr : Expr) -> RTConfig: 
 #     return RTConfig(config.cur_data, expr)
@@ -42,18 +43,24 @@ class RTVal(NamedTuple):
 def eval_config(rt : RTExpr) -> RTVal:
     match rt.expr:
         case StrVal(s):
-            return RTVal(rt.data, StrVal(s))
+            return RTVal(rt.data, MultiSetVal([StrVal(s)]))
         case ProdExpr(val=dic):
             cur_data = rt.data
-            result : Dict[str, Val] = {} 
+            result : Dict[str, MultiSetVal] = {} 
             for (key, expr) in dic.items(): #type: ignore[has-type]
                 [cur_data, val] = eval_config(RTExpr(cur_data, expr))
                 result = {**result, key : val}
-            return RTVal(cur_data, FreeVal(ProdVal(result)))
+            return RTVal(cur_data, MultiSetVal([FreeVal(ProdVal(result))]))
         case InsertExpr(tname, arg):
-            [new_data, argv] = eval_config(RTExpr(rt.data, arg))
+            (new_data, argmv) = eval_config(RTExpr(rt.data, arg))
+            [argv] = argmv.val
             id = next_id()
-            new_object = get_object_val(argv)
+            new_object = coerce_to_storage(get_object_val(argv), ProdTp({}))
             new_db = DB(dbdata={**new_data.cur_db.dbdata, id : DBEntry(tp=VarTp(tname), data=new_object)})
-            return RTVal(RTData(new_db, new_data.read_snapshots), RefVal(id, DictVal({}))) # inserts return empty dict
+            return RTVal(RTData(new_db, new_data.read_snapshots, new_data.schema), MultiSetVal([RefVal(id, DictVal({}))])) # inserts return empty dict
+        case FilterOrderExpr(subject=subject, filter=filter, order=order):
+            (new_data, argmv) = eval_config(RTExpr(rt.data, subject))
+            raise ValueError("Not Implemented", rt.expr)
+
+
     raise ValueError("Not Implemented", rt.expr)
