@@ -1583,7 +1583,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             node, 'REWRITE', after_name=an, unqualified=True, named=False
         )
 
-
     def visit_CreateScalarType(self, node: qlast.CreateScalarType) -> None:
         keywords = []
         if node.abstract:
