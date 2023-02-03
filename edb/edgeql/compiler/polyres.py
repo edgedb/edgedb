@@ -402,8 +402,8 @@ def try_bind_call_args(
             break
 
     # Handle yet unprocessed POSITIONAL & VARIADIC arguments.
-    for pi in range(pi, nparams):
-        param = params[pi]
+    for i in range(pi, nparams):
+        param = params[i]
         param_kind = param.get_kind(schema)
 
         if param_kind is _POSITIONAL:
