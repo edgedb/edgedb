@@ -32,6 +32,7 @@ from edb.common import ordered
 from edb.common.compiler import AliasGenerator
 
 from edb.edgeql import ast as qlast
+from edb.edgeql.compiler import astutils
 
 
 def key_name(s: str) -> str:
@@ -173,9 +174,7 @@ def _count_alias_uses(
     uses = 0
     for child in ast.find_children(node, qlast.Path):
         match child:
-            case qlast.Path(steps=[
-                qlast.ObjectRef(module=None, name=alias2)
-            ]) if alias == alias2:
+            case astutils.alias_view(alias2) if alias == alias2:
                 uses += 1
     return uses
 
@@ -223,9 +222,7 @@ def try_group_rewrite(
                 qlast.AliasedExpr(alias=alias, expr=qlast.GroupQuery() as grp)
             ] as qaliases,
             result=qlast.Shape(
-                expr=qlast.Path(steps=[
-                    qlast.ObjectRef(module=None, name=alias2)
-                ]),
+                expr=astutils.alias_view(alias2),
                 elements=elements,
             ) as result,
         ) if alias == alias2 and _count_alias_uses(result, alias) == 1:
@@ -239,9 +236,7 @@ def try_group_rewrite(
                 *_,
                 qlast.AliasedExpr(alias=alias, expr=qlast.GroupQuery() as grp)
             ] as qaliases,
-            iterator=qlast.Path(steps=[
-                qlast.ObjectRef(module=None, name=alias2)
-            ]),
+            iterator=astutils.alias_view(alias2),
             result=result,
         ) if alias == alias2 and _count_alias_uses(result, alias) == 0:
             node = node.replace(
