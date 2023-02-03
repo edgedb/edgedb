@@ -1300,19 +1300,18 @@ class RewriteCommand(ObjectDDL):
         qltypes.SchemaObjectClass.REWRITE
     )
 
+    kinds: typing.List[qltypes.RewriteKind]
+
 
 class CreateRewrite(CreateObject, RewriteCommand):
-    kinds: typing.List[qltypes.RewriteKind]
     expr: Expr
 
 
 class AlterRewrite(AlterObject, RewriteCommand):
-    kinds: typing.List[qltypes.RewriteKind]
     pass
 
 
 class DropRewrite(DropObject, RewriteCommand):
-    kinds: typing.List[qltypes.RewriteKind]
     pass
 
 

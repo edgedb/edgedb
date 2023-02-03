@@ -1217,7 +1217,7 @@ class AlterReferencedInheritingObject(
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> AlterReferencedInheritingObject[ReferencedInheritingObjectT]:
+    ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
         refctx = cls.get_referrer_context(context)
