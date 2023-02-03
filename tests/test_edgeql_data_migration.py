@@ -142,7 +142,7 @@ class EdgeQLDataMigrationTestCase(tb.DDLTestCase):
                     curddl = stmt['text']
 
                     if interpolations:
-                        def _replace(match):
+                        def _replace(match, interpolations=interpolations):
                             var_name = match.group(1)
                             var_value = interpolations.get(var_name)
                             if var_value is None:

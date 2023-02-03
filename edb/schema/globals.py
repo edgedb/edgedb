@@ -39,7 +39,6 @@ from . import utils
 
 if TYPE_CHECKING:
     from edb.schema import schema as s_schema
-    from . import pointers as s_pointers
 
 
 class Global(
@@ -397,8 +396,6 @@ class CreateGlobal(
             )
 
         assert astnode.target is not None
-        target_ref: Union[
-            s_types.TypeShell[s_types.Type], s_pointers.ComputableRef]
 
         if isinstance(astnode.target, qlast.TypeExpr):
             type_ref = utils.ast_to_type_shell(
