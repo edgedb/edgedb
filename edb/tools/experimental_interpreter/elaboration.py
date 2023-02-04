@@ -75,6 +75,8 @@ def elab_single_name(p : qlast.Path) -> str:
     match p:
         case qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=pname), direction=s_pointers.PointerDirection.Outbound)]):
             return pname
+        case qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=pname), type='property')]):
+            return "@" + pname #TODO: handle link properties
     return elab_not_implemented(p, "single_name")
 
 
@@ -93,36 +95,15 @@ def elab_ShapeElement(s : qlast.ShapeElement) -> Tuple[str, BindingExpr]:
                 return (name, val)
         elif s.elements:
             # l : S -> l := x. (x ⋅ l) s if S -> s
-            return elab_not_implemented(s, "no_op")
+            name = elab_single_name(s.expr)
+            return (name, BindingExpr(
+                ShapedExprExpr(ProdProjExpr(BoundVarExpr(1), name),
+                    elab_Shape(s.elements)
+                )))
         else:
             # l -> l := x. (x ⋅ l)
             name = elab_single_name(s.expr)
             return (name, BindingExpr(ProdProjExpr(BoundVarExpr(1), name)))
-
-
-                
-
-
-    # match e.expr:
-    #     case qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=pname), direction=s_pointers.PointerDirection.Outbound)]):
-    #         comp = e.compexpr
-    #         if comp is not None:
-    #             return (pname, abstract_over_expr(elab(comp)))
-    #         else: 
-    #             return elab_not_implemented(e.expr)
-    #         # if isinstance(comp, qlast.Shape):
-    #         #     return [pname, shapeToObjectExpr(comp)]
-    #         # else:
-    #         #     raise ValueError("No Imp", comp)
-    #     case qlast.Path(steps=st):
-    #         return elab_not_implemented(e.expr)
-
-
-    # raise errors.QueryError(
-    #          "mutation queries must specify values with ':='",
-    #          context=e.context,
-    #      )
-    
 
 
 
@@ -155,7 +136,7 @@ def elab_IntegerConstant(e : qlast.IntegerConstant) -> IntVal:
         abs_val = -abs_val
     return IntVal(val=abs_val)
 
-def elab_orderby(qle : List[qlast.SortExpr]) -> Expr:
+def elab_orderby(qle : List[qlast.SortExpr]) -> BindingExpr:
     result : List[Expr] = []
 
 
@@ -172,7 +153,7 @@ def elab_orderby(qle : List[qlast.SortExpr]) -> Expr:
         else: 
             raise elab_not_implemented(sort_expr, "direction not known")
 
-    return UnnamedTupleExpr(result)
+    return abstract_over_expr(UnnamedTupleExpr(result), DEFAULT_HEAD_NAME)
 
 @elab.register(qlast.SelectQuery)
 def elab_SelectExpr(qle : qlast.SelectQuery) -> Expr:
@@ -185,8 +166,8 @@ def elab_SelectExpr(qle : qlast.SelectQuery) -> Expr:
     else:
         return FilterOrderExpr(
             subject=elab(qle.result),
-            filter=elab(qle.where) if qle.where else BoolVal(True),
-            order=elab_orderby(qle.orderby) if qle.orderby else UnnamedTupleExpr([]),
+            filter=abstract_over_expr(elab(qle.where), DEFAULT_HEAD_NAME) if qle.where else abstract_over_expr(BoolVal(True)),
+            order=elab_orderby(qle.orderby) if qle.orderby else abstract_over_expr(UnnamedTupleExpr([])),
         )
     
 @elab.register(qlast.FunctionCall)
@@ -201,6 +182,10 @@ def elab_FunctionCall(fcall : qlast.FunctionCall) -> FunAppExpr :
     
 
 
-# @to_expr.register(qlast.Shape)
-# def to_expr_shape(shape : qlast.Shape) -> Expr:
-    
+@elab.register(qlast.BinOp)
+def elab_BinOp(binop : qlast.BinOp) -> FunAppExpr: 
+    if binop.rebalanced:
+        return elab_not_implemented(binop)
+    left_expr = elab(binop.left)
+    right_expr = elab(binop.right)
+    return FunAppExpr(fun=FreeVarExpr(binop.op), args=[left_expr, right_expr])

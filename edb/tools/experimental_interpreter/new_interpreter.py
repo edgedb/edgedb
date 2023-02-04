@@ -31,7 +31,8 @@ def run_statement(db : DB, stmt : qlast.Expr, should_print : bool) -> DB:
     config = RTExpr(
             RTData(DB(db.dbdata), 
                 [DB({**db.dbdata})],
-                DBSchema({})
+                DBSchema({}),
+                False
             ), elaborated)
     result = eval_config(config)
     if should_print:

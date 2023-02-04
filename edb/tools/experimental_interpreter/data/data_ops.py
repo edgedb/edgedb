@@ -277,8 +277,8 @@ class ForExpr:
 @dataclass(frozen=True) 
 class FilterOrderExpr:
     subject : Expr
-    filter : Expr
-    order : Expr
+    filter : BindingExpr
+    order : BindingExpr
 
 @dataclass(frozen=True) 
 class OffsetLimitExpr:
@@ -343,22 +343,22 @@ class NamedTupleExpr:
 
 @dataclass(frozen=True)
 class ProdVal:
-    val : Dict[str, MultiSetVal]
+    val : Dict[str, Tuple[Marker, MultiSetVal]]
 
 @dataclass(frozen=True)
 class FreeVal:
-    val : DictVal
+    val : ProdVal
     
 @dataclass(frozen=True)
 class RefVal:
     refid : int
-    val : DictVal
+    val : ProdVal
 
 @dataclass(frozen=True)
 class RefLinkVal:
     from_id : int
     to_id : int
-    val : DictVal
+    val : ProdVal
 
 
 @dataclass(frozen=True) 
@@ -381,7 +381,6 @@ class MultiSetVal: # U
 
 Val =  (PrimVal | RefVal | FreeVal | RefLinkVal | LinkWithPropertyVal 
         | UnnamedTupleVal | NamedTupleVal ) # V
-DictVal = ProdVal # W
 
 VarExpr = (FreeVarExpr | BoundVarExpr)
 
@@ -395,8 +394,8 @@ Expr = (PrimVal | TypeCastExpr | FunAppExpr
 
 @dataclass(frozen=True) 
 class DBEntry:
-    tp : Tp
-    data : DictVal ## actually values
+    tp : VarTp
+    data : ProdVal ## actually values
 
 @dataclass(frozen=True)
 class DB:
