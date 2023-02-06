@@ -88,9 +88,14 @@ your set of ``User`` objects.
 The reason ``with`` works here even though the alias ``U`` refers to the exact
 same set is that we only assume you want the path factored in this way when you
 use the same *symbol* to refer to a set. This means operations with
-``User.first_name`` and ``User.last_name`` do get the common path factored
-while ``U.first_name`` and ``User.last_name`` do not and are resolved with
+``User.first_name`` and ``User.last_name`` *do* get the common path factored
+while ``U.first_name`` and ``User.last_name`` *do not* and are resolved with
 cartesian multiplication.
+
+That may leave you still wondering why ``U`` and ``User`` did not get a common
+path factored. ``U`` is just an alias of ``select User`` and ``User`` is the
+same symbol that we use in our name query. That's true, but EdgeDB doesn't
+factor in this case because of the queries' scopes.
 
 Scopes
 ------
