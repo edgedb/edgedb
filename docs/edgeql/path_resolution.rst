@@ -34,7 +34,7 @@ using cartesian multiplication.
     {'Mina Murray', 'Jonathan Harker', 'Lucy Westenra', 'John Seward'}
 
 We assume this is what you want, but if your goal is to get the cartesian
-product, you can accomplish it one of two ways. You could use
+product, you can accomplish it one of three ways. You could use
 :eql:op:`detached`.
 
 .. code-block:: edgeql-repl
@@ -59,7 +59,7 @@ product, you can accomplish it one of two ways. You could use
       'John Seward',
     }
 
-Or you could use :ref:`with <ref_eql_with>` to attach a different symbol to
+You could use :ref:`with <ref_eql_with>` to attach a different symbol to
 your set of ``User`` objects.
 
 .. code-block:: edgeql-repl
@@ -85,6 +85,9 @@ your set of ``User`` objects.
       'John Seward',
     }
 
+Or you could leverage the effect scopes have on path resolution. More on that
+:ref:`in the Scopes section <ref_eql_path_resolution_scopes>`.
+
 The reason ``with`` works here even though the alias ``U`` refers to the exact
 same set is that we only assume you want the path factored in this way when you
 use the same *symbol* to refer to a set. This means operations with
@@ -96,6 +99,8 @@ That may leave you still wondering why ``U`` and ``User`` did not get a common
 path factored. ``U`` is just an alias of ``select User`` and ``User`` is the
 same symbol that we use in our name query. That's true, but EdgeDB doesn't
 factor in this case because of the queries' scopes.
+
+.. _ref_eql_path_resolution_scopes:
 
 Scopes
 ------
