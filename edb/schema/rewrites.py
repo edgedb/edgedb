@@ -202,6 +202,11 @@ class RewriteCommand(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.Command:
+        """
+        Converts a single `qlast.RewriteCommand` into multiple
+        `schema.RewriteCommand`s, one for each kind.
+        """
+
         group = sd.CommandGroup()
 
         assert isinstance(astnode, qlast.RewriteCommand)

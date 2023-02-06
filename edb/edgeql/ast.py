@@ -1294,6 +1294,15 @@ class DropTrigger(DropObject, TriggerCommand):
 
 
 class RewriteCommand(ObjectDDL):
+    """
+    Mutation rewrite command.
+
+    Note that kinds are basically identifiers of the command, so they need to
+    be present for all commands.
+
+    List of kinds is converted into multiple commands when creating delta
+    commands in `_cmd_tree_from_ast`.
+    """
 
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
