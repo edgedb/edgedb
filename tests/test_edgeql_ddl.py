@@ -2908,25 +2908,28 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         )
 
     async def test_edgeql_ddl_ptr_using_dml_03(self):
-        await self.con.execute(
-            r"""
-            CREATE TYPE Hello;
-            CREATE TYPE Goodbye;
-            CREATE TYPE World {
-                CREATE LINK hell -> Hello;
-            };
-            INSERT World { hell:= (INSERT Hello) };
-            INSERT World {};
-            ALTER TYPE World {
-                ALTER LINK hell SET TYPE Goodbye USING (INSERT Goodbye);
-            }
-            """
-        )
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError, r"cannot include mutating statements"
+        ):
+            await self.con.execute(
+                r"""
+                CREATE TYPE Hello;
+                CREATE TYPE Goodbye;
+                CREATE TYPE World {
+                    CREATE LINK hell -> Hello;
+                };
+                INSERT World { hell:= (INSERT Hello) };
+                INSERT World {};
+                ALTER TYPE World {
+                    ALTER LINK hell SET TYPE Goodbye USING (INSERT Goodbye);
+                }
+                """
+            )
 
-        await self.assert_query_result(
-            'select Goodbye',
-            [{}, {}]
-        )
+            await self.assert_query_result(
+                'select Goodbye',
+                [{}, {}]
+            )
 
     async def test_edgeql_ddl_ptr_using_dml_04(self):
         await self.con.execute(
@@ -2939,7 +2942,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             INSERT Box { chance_of_success := 'none' };
             ALTER TYPE Box {
                 ALTER PROPERTY chance_of_success
-                    SET TYPE float64 
+                    SET TYPE float64
                     USING (random());
             }
             """
@@ -2950,6 +2953,29 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         self.assertNotEqual(res[0].chance_of_success, res[1].chance_of_success)
         self.assertNotEqual(res[1].chance_of_success, res[2].chance_of_success)
         self.assertNotEqual(res[2].chance_of_success, res[0].chance_of_success)
+
+    async def test_edgeql_ddl_ptr_using_dml_05(self):
+        await self.con.execute(
+            r"""
+            CREATE TYPE Hello {
+                CREATE PROPERTY bar -> str;
+            };
+            CREATE TYPE World {
+                CREATE PROPERTY foo -> str;
+                CREATE LINK hell -> Hello;
+            };
+            INSERT World { foo := 'hello' };
+            """
+        )
+
+        await self.con.execute(
+            r"""
+            ALTER TYPE World {
+                ALTER LINK hell SET REQUIRED
+                    USING (INSERT Hello { bar := World.foo });
+            }
+            """
+        )
 
     async def test_edgeql_ddl_ptr_set_cardinality_01(self):
         await self.con.execute(r'''
