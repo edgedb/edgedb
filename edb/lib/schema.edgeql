@@ -58,6 +58,8 @@ CREATE SCALAR TYPE schema::TriggerKind
 CREATE SCALAR TYPE schema::TriggerScope
     EXTENDING enum<All, Each>;
 
+CREATE SCALAR TYPE schema::RewriteKind
+    EXTENDING enum<`Update`, `Insert`>;
 
 CREATE SCALAR TYPE schema::MigrationGeneratedBy
     EXTENDING enum<DevMode, DDLStatement>;
@@ -300,6 +302,11 @@ CREATE TYPE schema::Trigger
         schema::InheritingObject, schema::AnnotationSubject;
 
 
+CREATE TYPE schema::Rewrite
+    EXTENDING
+        schema::InheritingObject, schema::AnnotationSubject;
+
+
 ALTER TYPE schema::Source {
     CREATE MULTI LINK pointers EXTENDING schema::reference -> schema::Pointer {
         CREATE CONSTRAINT std::exclusive;
@@ -443,6 +450,11 @@ ALTER TYPE schema::Trigger {
   CREATE PROPERTY expr -> std::str;
 };
 
+ALTER TYPE schema::Rewrite {
+  CREATE REQUIRED LINK subject -> schema::Pointer;
+  CREATE REQUIRED PROPERTY kind -> schema::TriggerKind;
+  CREATE REQUIRED PROPERTY expr -> std::str;
+};
 
 CREATE TYPE schema::Link EXTENDING schema::Pointer, schema::Source;
 
@@ -454,7 +466,12 @@ ALTER TYPE schema::Pointer {
     CREATE LINK source -> schema::Source;
     CREATE LINK target -> schema::Type {
         ON TARGET DELETE DEFERRED RESTRICT;
-    }
+    };
+    CREATE MULTI LINK rewrites
+            EXTENDING schema::reference -> schema::Rewrite {
+        CREATE CONSTRAINT std::exclusive;
+        ON TARGET DELETE ALLOW;
+    };
 };
 
 
