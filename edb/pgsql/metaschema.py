@@ -5039,17 +5039,24 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     virtual_tables = dbops.View(
         name=('edgedbsql', 'virtual_tables'),
         query='''
-        WITH obj_ty AS (
+        WITH obj_ty_pre AS (
             SELECT
                 id,
-                CASE SPLIT_PART(name, '::', 1)
-                    WHEN 'default' THEN 'public'
-                    ELSE SPLIT_PART(name, '::', 1)
-                END AS schema_name,
-                SPLIT_PART(name, '::', 1) AS module_name,
-                SPLIT_PART(name, '::', 2) AS table_name
+                REGEXP_REPLACE(name, '::[^:]*$', '') AS module_name,
+                SPLIT_PART(name, '::', -1) AS table_name
             FROM edgedb."_SchemaObjectType"
             WHERE internal IS NOT TRUE
+        ),
+        obj_ty AS (
+            SELECT
+                id,
+                CASE module_name
+                    WHEN 'default' THEN 'public'
+                    ELSE module_name
+                END AS schema_name,
+                module_name,
+                table_name
+            FROM obj_ty_pre
         ),
         all_tables (id, schema_name, module_name, table_name) AS ((
             SELECT * FROM obj_ty
