@@ -5,7 +5,7 @@ EdgeQL
 
 EdgeQL is the query language of EdgeDB. It's intended as a spiritual successor
 to SQL that solves some of its biggest design limitations. This page is
-indended as a rapid-fire overview so you can hit the ground running with
+intended as a rapid-fire overview so you can hit the ground running with
 EdgeDB. Refer to the linked pages for more in-depth documentation.
 
 Want to follow along with the queries below? Open the `Interactive
