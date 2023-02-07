@@ -4364,11 +4364,11 @@ class PointerMetaCommand(
                 external_rvars[ptr_path_id, 'source'] = rvar
                 external_rvars[ptr_path_id, 'value'] = rvar
                 external_rvars[src_path_id, 'identity'] = rvar
+                external_rvars[tgt_path_id, 'identity'] = rvar
                 if local_table_only and not is_lprop:
                     external_rvars[src_path_id, 'source'] = rvar
                     external_rvars[src_path_id, 'value'] = rvar
                 elif is_lprop:
-                    external_rvars[tgt_path_id, 'identity'] = rvar
                     external_rvars[tgt_path_id, 'value'] = rvar
             else:
                 src_rvar = compiler.new_external_rvar(
