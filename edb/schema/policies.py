@@ -254,9 +254,7 @@ class AccessPolicyCommand(
                     and obj.is_link_property(schema)
                     and obj.get_default(schema)
                     and any(
-                        # XXX: apparently we don't do this coercion
-                        # automatically!
-                        qltypes.AccessKind(kind).is_data_check()
+                        kind.is_data_check()
                         for kind in self.scls.get_access_kinds(schema)
                     )
                 ):
