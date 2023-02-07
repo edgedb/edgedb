@@ -4392,44 +4392,48 @@ class PointerMetaCommand(
             orig_schema, typ, typename=sn.QualName("std", "obj")
         )
 
+        root_uid = -1
+        iter_uid = -2
+        body_uid = -3
         # scope tree wrapping is roughy equivalent to:
-        # "(std::obj) uid:10000": {
-        #   "BRANCH uid:10001",
-        #   "FENCE uid:10002": { ... compiled scope children ... }
+        # "(std::obj) uid:-1": {
+        #   "BRANCH uid:-2",
+        #   "FENCE uid:-3": { ... compiled scope children ... }
         # }
         scope_iter = irast.ScopeTreeNode(
-            unique_id=10001,
+            unique_id=iter_uid,
         )
         scope_body = irast.ScopeTreeNode(
-            unique_id=10002,
+            unique_id=body_uid,
             fenced=True
         )
-        scope_body.children.extend(ir.scope_tree.children)
+        for child in ir.scope_tree.children:
+            scope_body.attach_child(child)
 
         scope_root = irast.ScopeTreeNode(
-            unique_id=10000,
+            unique_id=root_uid,
             path_id=outer_path,
         )
-        scope_root.children.append(scope_iter)
-        scope_root.children.append(scope_body)
+        scope_root.attach_child(scope_iter)
+        scope_root.attach_child(scope_body)
         ir.scope_tree = scope_root
 
         # IR ast wrapping
         assert isinstance(ir.expr, irast.Set)
         for_body = ir.expr
-        for_body.path_scope_id = 10002
+        for_body.path_scope_id = body_uid
         ir.expr = irast.Set(
             path_id=outer_path,
             typeref=outer_path.target,
-            path_scope_id=10000,
+            path_scope_id=root_uid,
             expr=irast.SelectStmt(
                 iterator_stmt=irast.Set(
                     path_id=src_path_id,
                     typeref=src_path_id.target,
-                    path_scope_id=10001,
+                    path_scope_id=iter_uid,
                     expr=irast.SelectStmt(
                         result=irast.Set(
-                            path_scope_id=10001,
+                            path_scope_id=iter_uid,
                             path_id=src_path_id,
                             typeref=src_path_id.target,
                         )
