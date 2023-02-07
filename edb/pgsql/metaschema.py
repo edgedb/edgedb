@@ -5050,10 +5050,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         obj_ty AS (
             SELECT
                 id,
-                CASE module_name
-                    WHEN 'default' THEN 'public'
-                    ELSE module_name
-                END AS schema_name,
+                REGEXP_REPLACE(module_name, '^default(?=::|$)', 'public')
+                    AS schema_name,
                 module_name,
                 table_name
             FROM obj_ty_pre

@@ -559,25 +559,27 @@ class TestSQL(tb.SQLQueryTestCase):
     async def test_sql_query_introspection_00(self):
         res = await self.squery_values(
             '''
-            SELECT table_name
+            SELECT table_schema, table_name
             FROM information_schema.tables
-            WHERE table_catalog = 'sql' AND table_schema = 'public'
-            ORDER BY table_name
+            WHERE table_catalog = 'sql' AND table_schema ILIKE 'public%'
+            ORDER BY table_schema, table_name
             '''
         )
         self.assertEqual(
             res,
             [
-                ['Book'],
-                ['Book.chapters'],
-                ['Content'],
-                ['Genre'],
-                ['Movie'],
-                ['Movie.actors'],
-                ['Movie.director'],
-                ['Person'],
-                ['novel'],
-                ['novel.chapters'],
+                ['public', 'Book'],
+                ['public', 'Book.chapters'],
+                ['public', 'Content'],
+                ['public', 'Genre'],
+                ['public', 'Movie'],
+                ['public', 'Movie.actors'],
+                ['public', 'Movie.director'],
+                ['public', 'Person'],
+                ['public', 'novel'],
+                ['public', 'novel.chapters'],
+                ['public::nested', 'Hello'],
+                ['public::nested::deep', 'Rolling'],
             ],
         )
 
@@ -636,7 +638,8 @@ class TestSQL(tb.SQLQueryTestCase):
                 tbl_name, array_agg(column_name)
             FROM (
                 SELECT
-                    table_schema || '."' || table_name || '"' as tbl_name,
+                    '"' || table_schema || '"."' || table_name || '"'
+                        AS tbl_name,
                     column_name
                 FROM information_schema.columns
                 ORDER BY tbl_name, ordinal_position
