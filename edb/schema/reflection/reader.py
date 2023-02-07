@@ -26,6 +26,7 @@ import uuid
 
 import immutables
 
+from edb.common import checked
 from edb.common import verutils
 from edb.common import uuidgen
 
@@ -196,6 +197,17 @@ def parse_into(
                     if type(v) is not ftype:
                         if issubclass(ftype, verutils.Version):
                             objdata[findex] = _parse_version(v)
+                        elif (
+                            issubclass(ftype, checked.ParametricContainer)
+                            and ftype.types
+                            and len(ftype.types) == 1
+                        ):
+                            # Coerce the elements in a parametric container
+                            # type.
+                            # XXX: Or should we do it in the container?
+                            subtyp = ftype.types[0]
+                            objdata[findex] = ftype(
+                                subtyp(x) for x in v)  # type: ignore
                         else:
                             objdata[findex] = ftype(v)
                     else:
