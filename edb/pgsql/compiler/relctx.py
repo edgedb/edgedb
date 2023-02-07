@@ -260,11 +260,7 @@ def include_specific_rvar(
     """
 
     if not has_rvar(stmt, rvar, ctx=ctx):
-        if not (
-            ctx.env.external_rvars
-            and has_external_rvar(rvar, ctx=ctx)
-        ):
-            rel_join(stmt, rvar, ctx=ctx)
+        rel_join(stmt, rvar, ctx=ctx)
         # Make sure that the path namespace of *rvar* is mapped
         # onto the path namespace of *stmt*.
         if pull_namespace:
@@ -298,6 +294,9 @@ def has_rvar(
 
     curstmt: Optional[pgast.Query] = stmt
 
+    if ctx.env.external_rvars and has_external_rvar(rvar, ctx=ctx):
+        return True
+
     while curstmt is not None:
         if pathctx.has_rvar(curstmt, rvar, env=ctx.env):
             return True
@@ -322,6 +321,10 @@ def _maybe_get_path_rvar(
     aspect: str,
     ctx: context.CompilerContextLevel,
 ) -> Optional[Tuple[pgast.PathRangeVar, irast.PathId]]:
+    rvar = ctx.env.external_rvars.get((path_id, aspect))
+    if rvar:
+        return rvar, path_id
+
     qry: Optional[pgast.Query] = stmt
     while qry is not None:
         rvar = pathctx.maybe_get_path_rvar(
