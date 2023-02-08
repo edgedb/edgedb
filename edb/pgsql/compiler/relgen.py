@@ -212,6 +212,9 @@ def get_set_rvar(
             rvars = finalize_optional_rel(ir_set, optrel=optrel,
                                           rvars=rvars, ctx=subctx)
         elif not is_optional and is_empty_set:
+            # In most cases it is totally fine for us to represent an
+            # empty set as an empty relation.
+            # (except when it needs to be fed to an optional argument)
             null_query = rvars.main.rvar.query
             assert isinstance(
                 null_query, (pgast.SelectStmt, pgast.NullRelation))
@@ -428,6 +431,9 @@ def _get_set_rvar(
     elif isinstance(ir_set, irast.EmptySet):
         # {}
         rvars = process_set_as_empty(ir_set, stmt, ctx=ctx)
+
+    elif ir_set.path_id in ctx.env.external_rels:
+        return process_external_rel(ir_set, ctx=ctx)
 
     else:
         # Regular non-computable path start.
@@ -757,6 +763,15 @@ def process_set_as_empty(
         ctx: context.CompilerContextLevel) -> SetRVars:
 
     rvar = relctx.new_empty_rvar(ir_set, ctx=ctx)
+    return new_source_set_rvar(ir_set, rvar)
+
+
+def process_external_rel(
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    rel = ctx.env.external_rels[ir_set.path_id]
+
+    rvar = relctx.rvar_for_rel(rel, ctx=ctx)
     return new_source_set_rvar(ir_set, rvar)
 
 

@@ -2230,6 +2230,8 @@ class SetPointerType(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        from edb.ir import utils as irutils
+
         orig_schema = schema
         orig_rec = context.current().enable_recursion
         context.current().enable_recursion = False
@@ -2312,6 +2314,13 @@ class SetPointerType(
                     raise errors.SchemaError(
                         f'result of USING clause for the alteration of '
                         f'{vn} may not include a shape',
+                        context=self.source_context,
+                    )
+
+                if irutils.contains_dml(self.cast_expr.ir_statement):
+                    raise errors.SchemaError(
+                        f'USING clause for the alteration of type of {vn} '
+                        f'cannot include mutating statements',
                         context=self.source_context,
                     )
 
@@ -2660,8 +2669,6 @@ class AlterPointerLowerCardinality(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        from edb.ir import utils as irutils
-
         orig_schema = schema
         schema = super()._alter_begin(schema, context)
         scls = self.scls
@@ -2711,13 +2718,6 @@ class AlterPointerLowerCardinality(
                     raise errors.SchemaError(
                         f'result of USING clause for the alteration of '
                         f'{vn} may not include a shape',
-                        context=self.source_context,
-                    )
-
-                if irutils.contains_dml(self.fill_expr.ir_statement):
-                    raise errors.SchemaError(
-                        f'USING clause for the alteration of {vn} '
-                        f'cannot include mutating statements',
                         context=self.source_context,
                     )
 

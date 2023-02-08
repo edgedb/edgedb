@@ -82,18 +82,32 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             exceptions.add_context(e, ctx)
             raise
 
+    @classmethod
+    def ctes_to_source(cls, ctes) -> str:
+        generator = cls()
+        generator.gen_ctes(ctes)
+        return ''.join(generator.result)
+
     def generic_visit(self, node):
         raise SQLSourceGeneratorError(
             'No method to generate code for %s' % node.__class__.__name__)
 
     def gen_ctes(self, ctes):
-        self.write('WITH')
         count = len(ctes)
         for i, cte in enumerate(ctes):
             self.new_lines = 1
             if getattr(cte, 'recursive', None):
                 self.write('RECURSIVE ')
             self.write(common.quote_ident(cte.name))
+
+            if cte.aliascolnames:
+                self.write('(')
+                for (index, col_name) in enumerate(cte.aliascolnames):
+                    self.write(common.qname(col_name))
+                    if index + 1 < len(cte.aliascolnames):
+                        self.write(',')
+                self.write(')')
+
             self.write(' AS ')
             if cte.materialized is not None:
                 if cte.materialized:
@@ -163,6 +177,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.indentation += 1
 
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         # If reordered is True, we try to put the FROM clause *before* SELECT,
@@ -289,6 +304,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_InsertStmt(self, node):
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         self.write('INSERT INTO ')
@@ -344,6 +360,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_UpdateStmt(self, node):
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         self.write('UPDATE ')
@@ -386,6 +403,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_DeleteStmt(self, node):
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         self.write('DELETE FROM ')

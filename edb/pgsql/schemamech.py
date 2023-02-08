@@ -103,7 +103,7 @@ class ConstraintMech:
 
     @classmethod
     def _edgeql_ref_to_pg_constr(cls, subject, origin_subject, tree, schema):
-        sql_tree = compiler.compile_ir_to_sql_tree(
+        sql_tree, _ = compiler.compile_ir_to_sql_tree(
             tree, singleton_mode=True)
 
         if isinstance(sql_tree, pg_ast.SelectStmt):
@@ -195,7 +195,7 @@ class ConstraintMech:
                 schema,
                 options=options,
             )
-            except_sql = compiler.compile_ir_to_sql_tree(
+            except_sql, _ = compiler.compile_ir_to_sql_tree(
                 except_ir, singleton_mode=True)
             except_data = cls._edgeql_tree_to_exprdata(except_sql)
 
@@ -275,7 +275,7 @@ class ConstraintMech:
                     schema,
                     options=origin_options,
                 )
-                except_sql = compiler.compile_ir_to_sql_tree(
+                except_sql, _ = compiler.compile_ir_to_sql_tree(
                     except_ir, singleton_mode=True)
                 origin_except_data = cls._edgeql_tree_to_exprdata(except_sql)
 
@@ -567,7 +567,7 @@ def ptr_default_to_col_default(schema, ptr, expr):
         return None
 
     try:
-        sql_expr = compiler.compile_ir_to_sql_tree(ir, singleton_mode=True)
+        sql_expr, _ = compiler.compile_ir_to_sql_tree(ir, singleton_mode=True)
     except errors.UnsupportedFeatureError:
         return None
     sql_text = codegen.SQLSourceGenerator.to_source(sql_expr)
