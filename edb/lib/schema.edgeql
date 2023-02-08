@@ -268,6 +268,10 @@ CREATE TYPE schema::Index
 {
     CREATE PROPERTY expr -> std::str;
     CREATE PROPERTY except_expr -> std::str;
+    CREATE MULTI LINK params EXTENDING schema::ordered -> schema::Parameter {
+        ON TARGET DELETE ALLOW;
+    };
+    CREATE PROPERTY kwargs -> array<tuple<name: str, expr: str>>;
 };
 
 
