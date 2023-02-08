@@ -142,6 +142,8 @@ def fini_expression(
     # Collect all of the expressions stored in various side sets
     # that can make it into the output, so that we can make sure
     # to catch them all in our fixups and analyses.
+    # IMPORTANT: Any new expressions that are sent to the backend
+    # but don't appear in `ir` must be added here.
     extra_exprs = []
     extra_exprs += [
         rw for rw in ctx.env.type_rewrites.values()
@@ -185,7 +187,7 @@ def fini_expression(
 
     ctx.path_scope.validate_unique_ids()
 
-    # ConfigSet and ConfigReset don't like being part of a Set
+    # ConfigSet and ConfigReset don't like being part of a Set, so bail early
     if isinstance(ir.expr, (irast.ConfigSet, irast.ConfigReset)):
         ir.expr.scope_tree = ctx.path_scope
         ir.expr.globals = list(ctx.env.query_globals.values())
@@ -193,14 +195,12 @@ def fini_expression(
         return ir.expr
 
     volatility = inference.infer_volatility(ir, env=ctx.env)
-
     expr_type = inference.infer_type(ir, ctx.env)
 
     in_polymorphic_func = (
         ctx.env.options.func_params is not None and
         ctx.env.options.func_params.has_polymorphic(ctx.env.schema)
     )
-
     if (
         not in_polymorphic_func
         and not ctx.env.options.allow_generic_type_output
@@ -220,15 +220,18 @@ def fini_expression(
             context=srcctx,
         )
 
+    # Clear out exprs that we decided to omit from the IR
     for ir_set in exprs_to_clear:
         ir_set.expr = None
 
+    # Analyze GROUP statements to find aggregates that can be optimized
     group.infer_group_aggregates(ir, ctx=ctx)
 
-    # If we are compiling a schema view
+    # If we are producing a schema view, clean up the result types
     if ctx.env.options.schema_view_mode:
         _fixup_schema_view(ctx=ctx)
 
+    # Collect query parameters
     assert isinstance(ir, irast.Set)
     lparams = [
         p for p in ctx.env.query_parameters.values()
