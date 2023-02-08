@@ -111,13 +111,18 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             exceptions.add_context(e, ctx)
             raise
 
+    @classmethod
+    def ctes_to_source(cls, ctes: List[pgast.CommonTableExpr]) -> str:
+        generator = cls()
+        generator.gen_ctes(ctes)
+        return ''.join(generator.result)
+
     def generic_visit(self, node):  # type: ignore
         raise SQLSourceGeneratorError(
             'No method to generate code for %s' % node.__class__.__name__
         )
 
     def gen_ctes(self, ctes: List[pgast.CommonTableExpr]) -> None:
-        self.write('WITH')
         count = len(ctes)
         for i, cte in enumerate(ctes):
             self.new_lines = 1
@@ -205,6 +210,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                     self.indentation += 1
 
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         # If reordered is True, we try to put the FROM clause *before* SELECT,
@@ -332,6 +338,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_InsertStmt(self, node: pgast.InsertStmt) -> None:
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         self.write('INSERT INTO ')
@@ -391,6 +398,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_UpdateStmt(self, node: pgast.UpdateStmt) -> None:
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         self.write('UPDATE ')
@@ -433,6 +441,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_DeleteStmt(self, node: pgast.DeleteStmt) -> None:
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         self.write('DELETE FROM ')

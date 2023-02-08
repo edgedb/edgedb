@@ -386,6 +386,7 @@ class Environment:
     type_rewrites: Dict[RewriteKey, irast.Set]
     scope_tree_nodes: Dict[int, irast.ScopeTreeNode]
     external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
+    external_rels: Mapping[irast.PathId, pgast.BaseRelation]
     materialized_views: Dict[uuid.UUID, irast.Set]
     backend_runtime_params: pgparams.BackendRuntimeParams
 
@@ -409,6 +410,9 @@ class Environment:
         external_rvars: Optional[
             Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
         ] = None,
+        external_rels: Optional[
+            Mapping[irast.PathId, pgast.BaseRelation]
+        ] = None,
         backend_runtime_params: pgparams.BackendRuntimeParams,
     ) -> None:
         self.aliases = aliases.AliasGenerator()
@@ -424,6 +428,7 @@ class Environment:
         self.type_rewrites = type_rewrites
         self.scope_tree_nodes = scope_tree_nodes
         self.external_rvars = external_rvars or {}
+        self.external_rels = external_rels or {}
         self.materialized_views = {}
         self.check_ctes = []
         self.backend_runtime_params = backend_runtime_params
