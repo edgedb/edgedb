@@ -139,33 +139,11 @@ def fini_expression(
     ):
         ir = setgen.scoped_set(ir, ctx=ctx)
 
-    # exprs_to_clear collects sets where we should never need to use
-    # their expr in pgsql compilation, so we strip it out to make this
-    # more evident in debug output. We have to do the clearing at the
-    # end, because multiplicity/cardinality inference needs to be able
-    # to look through those pointers.
-    exprs_to_clear = _fixup_materialized_sets(ir, ctx=ctx)
-    exprs_to_clear.extend(_find_visible_binding_refs(ir, ctx=ctx))
-
-    # The inference context object will be shared between
-    # cardinality and multiplicity inferrers.
-    inf_ctx = inference.make_ctx(env=ctx.env)
-    cardinality = inference.infer_cardinality(
-        ir,
-        scope_tree=ctx.path_scope,
-        ctx=inf_ctx,
-    )
-
-    multiplicity = inference.infer_multiplicity(
-        ir, scope_tree=ctx.path_scope, ctx=inf_ctx
-    )
-
-    # Fix up weak namespaces
-    _rewrite_weak_namespaces(ir, ctx)
-
-    ctx.path_scope.validate_unique_ids()
-
-    # Infer cardinalities and multiplicities of various sets in side tables
+    # Collect all of the expressions stored in various side sets
+    # that can make it into the output, so that we can make sure
+    # to catch them all in our fixups and analyses.
+    # IMPORTANT: Any new expressions that are sent to the backend
+    # but don't appear in `ir` must be added here.
     extra_exprs = []
     extra_exprs += [
         rw for rw in ctx.env.type_rewrites.values()
@@ -175,13 +153,41 @@ def fini_expression(
         p.sub_params.decoder_ir for p in ctx.env.query_parameters.values()
         if p.sub_params and p.sub_params.decoder_ir
     ]
+
+    all_exprs = [ir] + extra_exprs
+
+    # exprs_to_clear collects sets where we should never need to use
+    # their expr in pgsql compilation, so we strip it out to make this
+    # more evident in debug output. We have to do the clearing at the
+    # end, because multiplicity/cardinality inference needs to be able
+    # to look through those pointers.
+    exprs_to_clear = _fixup_materialized_sets(all_exprs, ctx=ctx)
+    for expr in all_exprs:
+        exprs_to_clear.extend(_find_visible_binding_refs(expr, ctx=ctx))
+
+    # The inference context object will be shared between
+    # cardinality and multiplicity inferrers.
+    inf_ctx = inference.make_ctx(env=ctx.env)
+    cardinality = inference.infer_cardinality(
+        ir, scope_tree=ctx.path_scope, ctx=inf_ctx
+    )
+    multiplicity = inference.infer_multiplicity(
+        ir, scope_tree=ctx.path_scope, ctx=inf_ctx
+    )
+
     for extra in extra_exprs:
         inference.infer_cardinality(
             extra, scope_tree=ctx.path_scope, ctx=inf_ctx)
         inference.infer_multiplicity(
             extra, scope_tree=ctx.path_scope, ctx=inf_ctx)
 
-    # ConfigSet and ConfigReset don't like being part of a Set
+    # Fix up weak namespaces
+    for expr in all_exprs:
+        _rewrite_weak_namespaces(expr, ctx)
+
+    ctx.path_scope.validate_unique_ids()
+
+    # ConfigSet and ConfigReset don't like being part of a Set, so bail early
     if isinstance(ir.expr, (irast.ConfigSet, irast.ConfigReset)):
         ir.expr.scope_tree = ctx.path_scope
         ir.expr.globals = list(ctx.env.query_globals.values())
@@ -189,59 +195,12 @@ def fini_expression(
         return ir.expr
 
     volatility = inference.infer_volatility(ir, env=ctx.env)
-
-    if ctx.env.options.schema_view_mode:
-        for view in ctx.view_nodes.values():
-            if view.is_collection():
-                continue
-
-            assert isinstance(view, s_types.InheritingType)
-            _elide_derived_ancestors(view, ctx=ctx)
-
-            if not isinstance(view, s_sources.Source):
-                continue
-
-            view_own_pointers = view.get_pointers(ctx.env.schema)
-            for vptr in view_own_pointers.objects(ctx.env.schema):
-                _elide_derived_ancestors(vptr, ctx=ctx)
-                ctx.env.schema = vptr.set_field_value(
-                    ctx.env.schema,
-                    'from_alias',
-                    True,
-                )
-
-                tgt = vptr.get_target(ctx.env.schema)
-                assert tgt is not None
-
-                if (tgt.is_union_type(ctx.env.schema)
-                        and tgt.get_is_opaque_union(ctx.env.schema)):
-                    # Opaque unions should manifest as std::BaseObject
-                    # in schema views.
-                    ctx.env.schema = vptr.set_target(
-                        ctx.env.schema,
-                        ctx.env.schema.get(
-                            'std::BaseObject', type=s_types.Type),
-                    )
-
-                if not isinstance(vptr, s_sources.Source):
-                    continue
-
-                vptr_own_pointers = vptr.get_pointers(ctx.env.schema)
-                for vlprop in vptr_own_pointers.objects(ctx.env.schema):
-                    _elide_derived_ancestors(vlprop, ctx=ctx)
-                    ctx.env.schema = vlprop.set_field_value(
-                        ctx.env.schema,
-                        'from_alias',
-                        True,
-                    )
-
     expr_type = inference.infer_type(ir, ctx.env)
 
     in_polymorphic_func = (
         ctx.env.options.func_params is not None and
         ctx.env.options.func_params.has_polymorphic(ctx.env.schema)
     )
-
     if (
         not in_polymorphic_func
         and not ctx.env.options.allow_generic_type_output
@@ -261,11 +220,18 @@ def fini_expression(
             context=srcctx,
         )
 
+    # Clear out exprs that we decided to omit from the IR
     for ir_set in exprs_to_clear:
         ir_set.expr = None
 
+    # Analyze GROUP statements to find aggregates that can be optimized
     group.infer_group_aggregates(ir, ctx=ctx)
 
+    # If we are producing a schema view, clean up the result types
+    if ctx.env.options.schema_view_mode:
+        _fixup_schema_view(ctx=ctx)
+
+    # Collect query parameters
     assert isinstance(ir, irast.Set)
     lparams = [
         p for p in ctx.env.query_parameters.values()
@@ -316,19 +282,14 @@ def fini_expression(
 
 
 def _fixup_materialized_sets(
-    ir: irast.Base, *, ctx: context.ContextLevel
+    irs: Sequence[irast.Base], *, ctx: context.ContextLevel
 ) -> List[irast.Set]:
     # Make sure that all materialized sets have their views compiled
     skips = {'materialized_sets'}
-    children = ast_visitor.find_children(ir, irast.Stmt, extra_skips=skips)
-    for nobe in ctx.env.source_map.values():
-        if nobe.irexpr:
-            children += ast_visitor.find_children(
-                nobe.irexpr, irast.Stmt, extra_skips=skips)
-    for node in ctx.env.type_rewrites.values():
-        if isinstance(node, irast.Set):
-            children += ast_visitor.find_children(
-                node, irast.Stmt, extra_skips=skips)
+    children = []
+    for ir in irs:
+        children += ast_visitor.find_children(
+            ir, irast.Stmt, extra_skips=skips)
 
     to_clear = []
     for stmt in ordered.OrderedSet(children):
@@ -468,6 +429,59 @@ def _rewrite_weak_namespaces(
             # in temporary scopes, so we need to just skip those.
             if scope := ctx.env.scope_tree_nodes.get(path_scope_id):
                 _try_namespace_fix(scope, ir_set)
+
+
+def _fixup_schema_view(
+    *, ctx: context.ContextLevel
+) -> None:
+    """Finalize schema view types for inclusion in the real schema.
+
+    This includes setting from_alias flags and collapsing opaque
+    unions to BaseObject.
+    """
+    for view in ctx.view_nodes.values():
+        if view.is_collection():
+            continue
+
+        assert isinstance(view, s_types.InheritingType)
+        _elide_derived_ancestors(view, ctx=ctx)
+
+        if not isinstance(view, s_sources.Source):
+            continue
+
+        view_own_pointers = view.get_pointers(ctx.env.schema)
+        for vptr in view_own_pointers.objects(ctx.env.schema):
+            _elide_derived_ancestors(vptr, ctx=ctx)
+            ctx.env.schema = vptr.set_field_value(
+                ctx.env.schema,
+                'from_alias',
+                True,
+            )
+
+            tgt = vptr.get_target(ctx.env.schema)
+            assert tgt is not None
+
+            if (tgt.is_union_type(ctx.env.schema)
+                    and tgt.get_is_opaque_union(ctx.env.schema)):
+                # Opaque unions should manifest as std::BaseObject
+                # in schema views.
+                ctx.env.schema = vptr.set_target(
+                    ctx.env.schema,
+                    ctx.env.schema.get(
+                        'std::BaseObject', type=s_types.Type),
+                )
+
+            if not isinstance(vptr, s_sources.Source):
+                continue
+
+            vptr_own_pointers = vptr.get_pointers(ctx.env.schema)
+            for vlprop in vptr_own_pointers.objects(ctx.env.schema):
+                _elide_derived_ancestors(vlprop, ctx=ctx)
+                ctx.env.schema = vlprop.set_field_value(
+                    ctx.env.schema,
+                    'from_alias',
+                    True,
+                )
 
 
 def _elide_derived_ancestors(
