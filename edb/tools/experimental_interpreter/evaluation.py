@@ -41,25 +41,25 @@ def eval_order_by(after_condition : List[Val], orders : List[UnnamedTupleVal]) -
     return [elem for (_, elem) in result]
 
 def apply_shape(ctx : RTData, shape : ShapeExpr, value : Val) -> Val:
-    def apply_shape_to_prodval(shape : ShapeExpr, prodval : ProdVal) -> ProdVal:
-        result : Dict[str, Tuple[Marker, MultiSetVal]]= {}
-        for (key, (_, pval)) in prodval.val.items():
+    def apply_shape_to_prodval(shape : ShapeExpr, objectval : ObjectVal) -> ObjectVal:
+        result : Dict[Label, Tuple[Marker, MultiSetVal]]= {}
+        for (key, (_, pval)) in objectval.val.items():
             if key in shape.shape.keys():
                 new_val : MultiSetVal = eval_config(RTExpr(make_eval_only(ctx), 
                     instantiate_expr(value, shape.shape[key]))).val ### instantiate with value not pval !! (see semantics)
-                result = {**result, key : (Visible, new_val)}
+                result = {**result, key : (Visible(), new_val)}
             else:
-                result = {**result, key: (Invisible, pval)}
+                result = {**result, key: (Invisible(), pval)}
         for (key, shape_elem) in shape.shape.items():
-            if key in prodval.val.keys():
+            if key in objectval.val.keys():
                 pass
             else:
                 new_val = eval_config(RTExpr(make_eval_only(ctx), 
                         instantiate_expr(value, shape_elem)
                     )).val
-                result = {**result, key : (Visible, new_val)}
+                result = {**result, key : (Visible(), new_val)}
         
-        return ProdVal(result)
+        return ObjectVal(result)
 
 
 
@@ -76,22 +76,22 @@ def eval_config(rt : RTExpr) -> RTVal:
     match rt.expr:
         case StrVal(s):
             return RTVal(rt.data, MultiSetVal([StrVal(s)]))
-        case ProdExpr(val=dic):
+        case ObjectExpr(val=dic):
             cur_data = rt.data
-            result : Dict[str, MultiSetVal] = {} 
+            result : Dict[Label, Tuple[Marker, MultiSetVal]] = {} 
             for (key, expr) in dic.items(): #type: ignore[has-type]
                 (cur_data, val) = eval_config(RTExpr(cur_data, expr))
-                result = {**result, key : val}
-            return RTVal(cur_data, MultiSetVal([FreeVal(ProdVal(result))]))
+                result = {**result, key : (Visible(), val)}
+            return RTVal(cur_data, MultiSetVal([FreeVal(ObjectVal(result))]))
         case InsertExpr(tname, arg):
             if rt.data.eval_only:
                 eval_error(rt.expr, "Attempting to Insert in an Eval-Only evaluation")
             (new_data, argmv) = eval_config(RTExpr(rt.data, arg))
             [argv] = argmv.val
             id = next_id()
-            new_object = coerce_to_storage(get_object_val(argv), ProdTp({}))
+            new_object = coerce_to_storage(get_object_val(argv), ObjectTp({}))
             new_db = DB(dbdata={**new_data.cur_db.dbdata, id : DBEntry(tp=VarTp(tname), data=new_object)})
-            return RTVal(RTData(new_db, new_data.read_snapshots, new_data.schema, new_data.eval_only), MultiSetVal([RefVal(id, ProdVal({}))])) # inserts return empty dict
+            return RTVal(RTData(new_db, new_data.read_snapshots, new_data.schema, new_data.eval_only), MultiSetVal([RefVal(id, ObjectVal({}))])) # inserts return empty dict
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
             (new_data, selected) = eval_config(RTExpr(rt.data, subject))
             # assume data unchaged throught the evaluation of conditions
@@ -110,7 +110,7 @@ def eval_config(rt : RTExpr) -> RTVal:
             return RTVal(new_data, MultiSetVal(after_shape))
         case FreeVarExpr(var=name):
             cur_db_data = rt.data.read_snapshots[0].dbdata
-            all_ids : List[Val] = [RefVal(id, ProdVal({})) for (id, item) in cur_db_data.items() 
+            all_ids : List[Val] = [RefVal(id, ObjectVal({})) for (id, item) in cur_db_data.items() 
                                                 if item.tp.name == name]
             return RTVal(rt.data, MultiSetVal(all_ids))
 

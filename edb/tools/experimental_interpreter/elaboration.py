@@ -60,28 +60,31 @@ def elab_Path(p : qlast.Path) -> Expr:
                     result = FreeVarExpr(var=name)
                 else:
                     raise ValueError("Unexpected ObjectRef in Path")
-            case qlast.Ptr(ptr=qlast.ObjectRef(name=path_name), direction=PointerDirection.Outbound):
+            case qlast.Ptr(ptr=qlast.ObjectRef(name=path_name), direction=PointerDirection.Outbound, type=ptr_type):
                 if result is None:
                     raise ValueError("should not be")
                 else:
-                    result = ProdProjExpr(result, path_name)
+                    if ptr_type == 'property':
+                        result = LinkPropProjExpr(result, path_name)
+                    else:
+                        result = ObjectProjExpr(result, path_name)
             case _:
                 elab_not_implemented(step, "in path")
     return result
 
 
-def elab_single_name(p : qlast.Path) -> str:
+def elab_label(p : qlast.Path) -> Label:
     """ Elaborates a single name e.g. in the left hand side of a shape """
     match p:
         case qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=pname), direction=s_pointers.PointerDirection.Outbound)]):
-            return pname
+            return StrLabel(pname)
         case qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=pname), type='property')]):
-            return "@" + pname #TODO: handle link properties
-    return elab_not_implemented(p, "single_name")
+            return LinkPropLabel(pname)
+    return elab_not_implemented(p, "label")
 
 
 @elab.register(qlast.ShapeElement)
-def elab_ShapeElement(s : qlast.ShapeElement) -> Tuple[str, BindingExpr]:
+def elab_ShapeElement(s : qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
     if s.orderby or s.where:
         return elab_not_implemented(s)
     else:
@@ -90,20 +93,30 @@ def elab_ShapeElement(s : qlast.ShapeElement) -> Tuple[str, BindingExpr]:
             if s.operation.op != qlast.ShapeOp.ASSIGN:
                 return elab_not_implemented(s)
             else:
-                name = elab_single_name(s.expr)
+                name = elab_label(s.expr)
                 val = abstract_over_expr(elab(s.compexpr), DEFAULT_HEAD_NAME)
                 return (name, val)
         elif s.elements:
             # l : S -> l := x. (x ⋅ l) s if S -> s
-            name = elab_single_name(s.expr)
-            return (name, BindingExpr(
-                ShapedExprExpr(ProdProjExpr(BoundVarExpr(1), name),
-                    elab_Shape(s.elements)
-                )))
+            name = elab_label(s.expr)
+            match name:
+                case StrLabel(_):
+                    return (name, BindingExpr(
+                        ShapedExprExpr(ObjectProjExpr(BoundVarExpr(1), name.label),
+                            elab_Shape(s.elements)
+                        )))
+                case _:
+                    return elab_not_implemented(s, "link property with shapes")
         else:
             # l -> l := x. (x ⋅ l)
-            name = elab_single_name(s.expr)
-            return (name, BindingExpr(ProdProjExpr(BoundVarExpr(1), name)))
+            name = elab_label(s.expr)
+            match name:
+                case StrLabel(_):
+                    return (name, BindingExpr(ObjectProjExpr(BoundVarExpr(1), name.label)))
+                case LinkPropLabel(_):
+                    return (name, BindingExpr(LinkPropProjExpr(BoundVarExpr(1), name.label)))
+                case _:
+                    return elab_not_implemented(s)
 
 
 

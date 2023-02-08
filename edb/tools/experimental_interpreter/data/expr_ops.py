@@ -32,8 +32,8 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
                 return BindingExpr(body=map_expr(f, body, level+1)) # type: ignore[has-type]
             case UnnamedTupleExpr(val=val):
                 return UnnamedTupleExpr(val=[map_expr(f, e, level) for e in val])
-            case ProdProjExpr(subject=subject, label=label):
-                return ProdProjExpr(subject=map_expr(f, subject, level=level), label=label)
+            case ObjectProjExpr(subject=subject, label=label):
+                return ObjectProjExpr(subject=map_expr(f, subject, level=level), label=label)
             case FunAppExpr(fun=fname, args=args):
                 return FunAppExpr(fun=map_expr(f, fname, level), args=[map_expr(f, arg, level) for arg in args])
             case FilterOrderExpr(subject=subject, filter=filter, order=order):
@@ -107,7 +107,7 @@ def binding_is_unnamed(expr : BindingExpr) -> bool:
 
     
 
-def get_object_val(val : Val) -> ProdVal:
+def get_object_val(val : Val) -> ObjectVal:
     match val:
         case FreeVal(dictval):
             return dictval
@@ -115,6 +115,6 @@ def get_object_val(val : Val) -> ProdVal:
             return dictval
     raise ValueError("Cannot get object val", val)
 
-def coerce_to_storage(val : ProdVal, fmt : ProdTp) -> ProdVal:
+def coerce_to_storage(val : ObjectVal, fmt : ObjectTp) -> ObjectVal:
     print("WARNING: coerce_to_storage not yet implemented")
     return val

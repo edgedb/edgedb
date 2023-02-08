@@ -12,14 +12,25 @@ from dataclasses import dataclass
 #     return dataclass(f, frozen=True)
 
 
+### LABELS
+
+@dataclass(frozen=True)
+class StrLabel:
+    label: str
+
+@dataclass(frozen=True)
+class LinkPropLabel:
+    label: str
+
+Label =  StrLabel | LinkPropLabel
 
 ### DEFINE TYPES
 
 
 
 @dataclass(frozen=True)
-class ProdTp:
-    val : Dict[str, Tp]
+class ObjectTp:
+    val : Dict[str, ResulTp]
 
 @dataclass(frozen=True)
 class StrTp:
@@ -36,7 +47,15 @@ PrimTp = StrTp | IntTp
 class VarTp:
     name : str
 
-Tp = ProdTp | PrimTp | VarTp
+@dataclass(frozen=True)
+class NamedTupleTp:
+    val : Dict[str, Tp]
+
+@dataclass(frozen=True)
+class UnnamedTupleTp:
+    val : List[Tp]
+
+Tp = ObjectTp | PrimTp | VarTp | NamedTupleTp | UnnamedTupleTp
 
 
 @dataclass(frozen=True)
@@ -245,8 +264,8 @@ class FunAppExpr:
     args : List[Expr]
 
 @dataclass(frozen=True)
-class ProdExpr:
-    val : Dict[str, Expr]
+class ObjectExpr:
+    val : Dict[Label, Expr]
 
 @dataclass(frozen=True)
 class FreeVarExpr:
@@ -257,10 +276,15 @@ class BoundVarExpr:
     var : int
 
 @dataclass(frozen=True) 
-class ProdProjExpr:
+class ObjectProjExpr:
     subject : Expr
     label : str
 
+
+@dataclass(frozen=True) 
+class LinkPropProjExpr:
+    subject : Expr
+    linkprop : str
 
 @dataclass(frozen=True)
 class WithExpr:
@@ -314,7 +338,7 @@ class BindingExpr:
 
 @dataclass(frozen=True)
 class ShapeExpr:
-    shape : Dict[str, BindingExpr]
+    shape : Dict[Label, BindingExpr]
 
 
 @dataclass(frozen=True)
@@ -342,23 +366,23 @@ class NamedTupleExpr:
 
 
 @dataclass(frozen=True)
-class ProdVal:
-    val : Dict[str, Tuple[Marker, MultiSetVal]]
+class ObjectVal:
+    val : Dict[Label, Tuple[Marker, MultiSetVal]]
 
 @dataclass(frozen=True)
 class FreeVal:
-    val : ProdVal
+    val : ObjectVal
     
 @dataclass(frozen=True)
 class RefVal:
     refid : int
-    val : ProdVal
+    val : ObjectVal
 
 @dataclass(frozen=True)
 class RefLinkVal:
     from_id : int
     to_id : int
-    val : ProdVal
+    val : ObjectVal
 
 
 @dataclass(frozen=True) 
@@ -385,9 +409,9 @@ Val =  (PrimVal | RefVal | FreeVal | RefLinkVal | LinkWithPropertyVal
 VarExpr = (FreeVarExpr | BoundVarExpr)
 
 Expr = (PrimVal | TypeCastExpr | FunAppExpr 
-        | FreeVarExpr | BoundVarExpr| ProdProjExpr | WithExpr | ForExpr 
+        | FreeVarExpr | BoundVarExpr| ObjectProjExpr | LinkPropProjExpr |  WithExpr | ForExpr 
         | FilterOrderExpr | OffsetLimitExpr | InsertExpr | UpdateExpr
-        | MultiSetExpr | ShapedExprExpr | ShapeExpr | ProdExpr | BindingExpr
+        | MultiSetExpr | ShapedExprExpr | ShapeExpr | ObjectExpr | BindingExpr
         | Val | UnnamedTupleExpr | NamedTupleExpr
         )
 
@@ -395,7 +419,7 @@ Expr = (PrimVal | TypeCastExpr | FunAppExpr
 @dataclass(frozen=True) 
 class DBEntry:
     tp : VarTp
-    data : ProdVal ## actually values
+    data : ObjectVal ## actually values
 
 @dataclass(frozen=True)
 class DB:
@@ -404,7 +428,7 @@ class DB:
 
 @dataclass(frozen=True)
 class DBSchema: 
-    val : Dict[str, ProdTp]
+    val : Dict[str, ObjectTp]
     
 
 def empty_db():
