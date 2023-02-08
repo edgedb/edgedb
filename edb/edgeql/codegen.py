@@ -1620,46 +1620,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self,
         node: qlast.CreateConcreteProperty
     ) -> None:
-        keywords = []
-        if self.sdlmode and node.declared_overloaded:
-            keywords.append('OVERLOADED')
-            if node.is_required:
-                keywords.append('REQUIRED')
-        else:
-            if node.is_required is True:
-                keywords.append('REQUIRED')
-            elif node.is_required is False:
-                keywords.append('OPTIONAL')
-            # else: `is_required` is None
-        if node.cardinality:
-            keywords.append(node.cardinality.as_ptr_qual().upper())
-        keywords.append('PROPERTY')
-
-        pure_computable = (
-            len(node.commands) == 0
-            or (
-                len(node.commands) == 1
-                and isinstance(node.commands[0], qlast.SetField)
-                and node.commands[0].name == 'expr'
-                and not isinstance(node.target, qlast.TypeExpr)
-            )
-        )
-
-        def after_name() -> None:
-            self._ddl_visit_bases(node)
-            if node.target is not None:
-                if isinstance(node.target, qlast.TypeExpr):
-                    self.write(' -> ')
-                    self.visit(node.target)
-                elif pure_computable:
-                    # computable
-                    self.write(' := (')
-                    self.visit(node.target)
-                    self.write(')')
-
-        self._visit_CreateObject(
-            node, *keywords, after_name=after_name, unqualified=True,
-            render_commands=not pure_computable)
+        self.visit_CreateConcretePointer(node, kind='PROPERTY')
 
     def _process_AlterConcretePointer_for_SDL(
         self,
@@ -1731,9 +1692,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropLink(self, node: qlast.DropLink) -> None:
         self._visit_DropObject(node, 'ABSTRACT LINK')
 
-    def visit_CreateConcreteLink(
+    def visit_CreateConcretePointer(
         self,
-        node: qlast.CreateConcreteLink
+        node: qlast.CreateConcretePointer,
+        kind: Optional[str],
     ) -> None:
         keywords = []
 
@@ -1749,7 +1711,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             # else: node.is_required is None
         if node.cardinality:
             keywords.append(node.cardinality.as_ptr_qual().upper())
-        keywords.append('LINK')
+        if kind:
+            keywords.append(kind)
 
         def after_name() -> None:
             self._ddl_visit_bases(node)
@@ -1776,6 +1739,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_CreateObject(
             node, *keywords, after_name=after_name, unqualified=True,
             render_commands=not pure_computable)
+
+    def visit_CreateConcreteUnknownPointer(
+        self,
+        node: qlast.CreateConcreteLink
+    ) -> None:
+        self.visit_CreateConcretePointer(node, kind=None)
+
+    def visit_CreateConcreteLink(
+        self,
+        node: qlast.CreateConcreteLink
+    ) -> None:
+        self.visit_CreateConcretePointer(node, kind='LINK')
 
     def visit_AlterConcreteLink(self, node: qlast.AlterConcreteLink) -> None:
         keywords = []

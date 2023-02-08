@@ -34,6 +34,7 @@ from edb.schema import ddl as s_ddl
 from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
+from edb.schema import properties as s_props
 
 from edb.testbase import lang as tb
 from edb.tools import test
@@ -3503,6 +3504,30 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         '''
 
         self._assert_migration_consistency(schema)
+
+    def test_schema_pointer_kind_infer_01(self):
+        tschema = r'''
+        type Bar;
+        scalar type scl extending str;
+        type Foo {
+            name: str;
+            foo: Foo;
+            bar: Bar;
+            or_: Foo | Bar;
+            array1: array<str>;
+            array2: array<scl>;
+        };
+        '''
+
+        schema = self._assert_migration_consistency(tschema)
+
+        obj = schema.get('default::Foo')
+        obj.getptr(schema, s_name.UnqualName('name'), type=s_props.Property)
+        obj.getptr(schema, s_name.UnqualName('array1'), type=s_props.Property)
+        obj.getptr(schema, s_name.UnqualName('array2'), type=s_props.Property)
+        obj.getptr(schema, s_name.UnqualName('foo'), type=s_links.Link)
+        obj.getptr(schema, s_name.UnqualName('bar'), type=s_links.Link)
+        obj.getptr(schema, s_name.UnqualName('or_'), type=s_links.Link)
 
     def test_schema_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""
