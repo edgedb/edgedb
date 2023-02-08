@@ -262,3 +262,106 @@ class TestIndexes(tb.DDLTestCase):
                         on (.val);
                 };
             """)
+
+    async def test_index_08(self):
+        await self.con.execute(r"""
+            # setup delta
+            create type ObjIndex3 {
+                create property name -> str;
+                create index fts::textsearch(language := 'english')
+                    on (.name);
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select
+                    schema::ObjectType {
+                        indexes: {
+                            name,
+                            kwargs,
+                            expr,
+                            abstract,
+                        }
+                    }
+                filter .name = 'default::ObjIndex3';
+            """,
+            [{
+                'indexes': [{
+                    'name': 'fts::textsearch',
+                    'kwargs': [{'name': 'language', 'expr': '\'english\''}],
+                    'expr': '.name',
+                    'abstract': False,
+                }]
+            }],
+        )
+
+    async def test_index_09(self):
+        await self.con.execute(r"""
+            # setup delta
+            create abstract index MyIndex(language := 'english')
+                extending fts::textsearch;
+
+            create type ObjIndex4 {
+                create property name -> str;
+                create index MyIndex on (.name);
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select
+                    schema::ObjectType {
+                        indexes: {
+                            name,
+                            kwargs,
+                            expr,
+                            abstract,
+                        }
+                    }
+                filter .name = 'default::ObjIndex4';
+            """,
+            [{
+                'indexes': [{
+                    'name': 'default::MyIndex',
+                    'kwargs': [],
+                    'expr': '.name',
+                    'abstract': False,
+                }]
+            }],
+        )
+
+        await self.assert_query_result(
+            r"""
+                select
+                    schema::Index {
+                        name,
+                        kwargs,
+                        abstract,
+                        ancestors[is schema::Index]: {
+                            name,
+                            params: {
+                                name,
+                                type_name := .type.name,
+                                default,
+                            },
+                            abstract,
+                        },
+                    }
+                filter .name = 'default::MyIndex' and .abstract = true;
+            """,
+            [{
+                'name': 'default::MyIndex',
+                'kwargs': [{'name': 'language', 'expr': '\'english\''}],
+                'abstract': True,
+                'ancestors': [{
+                    'name': 'fts::textsearch',
+                    'params': [{
+                        'name': 'language',
+                        'type_name': 'std::str',
+                        'default': None,
+                    }],
+                    'abstract': True,
+                }],
+            }],
+        )
