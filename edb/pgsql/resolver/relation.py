@@ -110,9 +110,7 @@ def resolve_SelectStmt(
     with ctx.child() as subctx:
         register_projections(stmt.target_list, ctx=subctx)
 
-        group_clause = dispatch.resolve_opt_list(
-            stmt.group_clause, ctx=subctx
-        )
+        group_clause = dispatch.resolve_opt_list(stmt.group_clause, ctx=subctx)
 
     # SELECT projection
     table = context.Table()
@@ -233,9 +231,17 @@ def resolve_relation(
             table = context.Table(name=cte.name, columns=cte.columns.copy())
             return pgast.Relation(name=cte.name, schemaname=None), table
 
+    def public_to_default(s: str) -> str:
+        # make sure to match `public`, `public::blah`, but not `public_blah`
+        if s == 'public':
+            return 'default'
+        if s.startswith('public::'):
+            return 'default' + s[6:]
+        return s
+
     # lookup the object in schema
     schemas = [schema_name] if schema_name else ctx.options.search_path
-    modules = ['default' if s == 'public' else s for s in schemas]
+    modules = [public_to_default(s) for s in schemas]
 
     obj: Optional[s_sources.Source | s_properties.Property] = None
     for module in modules:

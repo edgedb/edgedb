@@ -49,3 +49,15 @@ type Book extending Content {
 type novel extending Book {
     property foo -> str;
 }
+
+module nested {
+    type Hello {
+        property hello -> str;
+    };
+
+    module deep {
+        type Rolling {
+            property rolling -> str;
+        };
+    };
+}
