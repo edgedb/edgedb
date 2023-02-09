@@ -2773,30 +2773,13 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_unused_with_def_01(self):
 
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"unused alias definition: 'foo'",
-                _position=48):
-            await self.con.query("""\
-                WITH
-                    foo := 1
+        await self.assert_query_result(
+            """
+                WITH foo := 1
                 SELECT 1;
-            """)
-
-    async def test_edgeql_scope_unused_with_def_02(self):
-
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"unused alias definition: 'foo'",
-                _position=48):
-            await self.con.query("""\
-                WITH
-                    foo := 1
-                SELECT (
-                    WITH foo := 2
-                    SELECT foo
-                )
-            """)
+            """,
+            [1]
+        )
 
     async def test_edgeql_scope_nested_computable_01(self):
         # This is a test for a bug where the outside filter would get

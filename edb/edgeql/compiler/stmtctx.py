@@ -211,14 +211,6 @@ def fini_expression(
                 hint='Consider using an explicit type cast.',
                 context=ctx.env.type_origins.get(anytype))
 
-    must_use_views = [val for val in ctx.env.must_use_views.values() if val]
-    if must_use_views:
-        alias, srcctx = must_use_views[0]
-        raise errors.QueryError(
-            f'unused alias definition: {str(alias)!r}',
-            context=srcctx,
-        )
-
     # Clear out exprs that we decided to omit from the IR
     for ir_set in exprs_to_clear:
         ir_set.expr = None
@@ -630,7 +622,6 @@ def declare_view(
     *,
     factoring_fence: bool=False,
     fully_detached: bool=False,
-    must_be_used: bool=False,
     binding_kind: irast.BindingKind,
     path_id_namespace: Optional[FrozenSet[str]]=None,
     ctx: context.ContextLevel,
@@ -701,9 +692,6 @@ def declare_view(
         view_type = setgen.get_set_type(view_set, ctx=ctx)
         ctx.aliased_views[alias] = view_type
         ctx.env.expr_view_cache[expr, alias] = view_set
-
-        if must_be_used and view_type not in ctx.env.must_use_views:
-            ctx.env.must_use_views[view_type] = (alias, expr.context)
 
     return view_set
 
