@@ -37,6 +37,7 @@ from . import schema as s_schema
 from . import types as s_types
 
 
+
 class Rewrite(
     referencing.ReferencedInheritingObject,
     s_anno.AnnotationSubject,
@@ -61,6 +62,12 @@ class Rewrite(
         so.InheritingObject, compcoef=None, inheritable=False
     )
 
+    def should_propagate(self, schema: s_schema.Schema) -> bool:
+        # Rewrites should override rewrites on properties of an extended object
+        # type. But overriding *objects* would be hard, so we just disable
+        # inheritance for rewrites, and do lookups into parent object types
+        # when retrieving them.
+        return False
 
 class RewriteCommandContext(
     sd.ObjectCommandContext[Rewrite],
@@ -121,9 +128,12 @@ class RewriteCommand(
     ) -> s_expr.CompiledExpression:
         if field.name == 'expr':
             from edb.ir import pathid
+            from . import pointers
 
             parent_ctx = self.get_referrer_context_or_die(context)
-            source = parent_ctx.op.get_object(schema, context)
+            pointer = parent_ctx.op.get_object(schema, context)
+            assert isinstance(pointer, pointers.Pointer)
+            source = pointer.get_source(schema)
             assert isinstance(source, s_types.Type)
             # XXX: in_ddl_context_name is disabled for now because
             # it causes the compiler to reject DML; we might actually
@@ -150,6 +160,11 @@ class RewriteCommand(
                     module='__derived__', name='__specified__'
                 ),
             )
+            anchors["__subject__"] = pathid.PathId.from_type(
+                schema,
+                source,
+                typename=sn.QualName(module="__derived__", name="__subject__"),
+            )
 
             singletons = frozenset(anchors.values())
 
@@ -161,6 +176,7 @@ class RewriteCommand(
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
                     schema_object_context=self.get_schema_metaclass(),
+                    path_prefix_anchor="__subject__",
                     anchors=anchors,
                     singletons=singletons,
                     apply_query_rewrites=not context.stdmode,
@@ -197,6 +213,7 @@ class RewriteCommand(
         # the *real* operations)
         pass
 
+
     @classmethod
     def _cmd_tree_from_ast(
         cls,
@@ -214,6 +231,9 @@ class RewriteCommand(
         assert isinstance(astnode, qlast.RewriteCommand)
 
         for kind in astnode.kinds:
+            # use kind for the name
+            astnode.name = qlast.ObjectRef(name=str(kind))
+
             cmd = super()._cmd_tree_from_ast(schema, astnode, context)
             assert isinstance(cmd, RewriteCommand)
 

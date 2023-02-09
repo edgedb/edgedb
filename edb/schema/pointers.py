@@ -944,6 +944,16 @@ class Pointer(referencing.NamedReferencedInheritingObject,
 
         return delta
 
+    def get_rewrite(
+        self, schema: s_schema.Schema, kind: qltypes.RewriteKind
+    ) -> Optional[s_rewrites.Rewrite]:
+        rewrites = self.get_rewrites(schema)
+        if rewrites:
+            for rewrite in rewrites.objects(schema):
+                if rewrite.get_kind(schema) == kind:
+                    return rewrite
+        return None
+
 
 class PseudoPointer(s_abc.Pointer):
     # An abstract base class for pointer-like objects, i.e.

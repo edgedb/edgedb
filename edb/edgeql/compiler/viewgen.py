@@ -407,20 +407,35 @@ def _process_view(
         pointers[pointer] = EarlyShapePtr(
             pointer, ptr_set, qlast.ShapeOrigin.MATERIALIZATION)
 
-    if s_ctx.exprtype.is_insert():
-        explicit_ptrs = {
-            ptrcls.get_local_name(ctx.env.schema) for ptrcls in pointers
-        }
+    specified_ptrs = {
+        ptrcls.get_local_name(ctx.env.schema) for ptrcls in pointers
+    }
 
-        pointers.update(
-            gen_pointers_from_defaults(
-                explicit_ptrs,
-                view_scls,
-                ir_set,
-                stype,
-                s_ctx,
-                ctx,
-            )
+    # defaults
+    if s_ctx.exprtype.is_insert():
+        defaults_ptrs = _gen_pointers_from_defaults(
+            specified_ptrs, view_scls, ir_set, stype, s_ctx, ctx
+        )
+        pointers.update(defaults_ptrs)
+
+    # rewrites
+    rewrite_kind = (
+        qltypes.RewriteKind.Insert
+        if s_ctx.exprtype.is_insert()
+        else qltypes.RewriteKind.Insert
+        if s_ctx.exprtype.is_update()
+        else None
+    )
+
+    if rewrite_kind:
+        _apply_rewrites(
+            pointers,
+            specified_ptrs,
+            rewrite_kind,
+            view_scls,
+            ir_set,
+            stype,
+            s_ctx,
         )
 
     set_shape = []
@@ -682,8 +697,8 @@ def _expand_splat(
     return elements
 
 
-def gen_pointers_from_defaults(
-    explicit_ptrs: Set[sn.UnqualName],
+def _gen_pointers_from_defaults(
+    specified_ptrs: Set[sn.UnqualName],
     view_scls: s_objtypes.ObjectType,
     ir_set: irast.Set,
     stype: s_objtypes.ObjectType,
@@ -695,7 +710,7 @@ def gen_pointers_from_defaults(
 
     scls_pointers = stype.get_pointers(ctx.env.schema)
     for pn, ptrcls in scls_pointers.items(ctx.env.schema):
-        if pn in explicit_ptrs or ptrcls.is_pure_computable(ctx.env.schema):
+        if pn in specified_ptrs or ptrcls.is_pure_computable(ctx.env.schema):
             continue
 
         default_expr = ptrcls.get_default(ctx.env.schema)
@@ -792,6 +807,136 @@ def gen_pointers_from_defaults(
 
     return {v.ptrcls: v for v in ordered}
 
+
+def _apply_rewrites(
+    pointers: Dict[s_pointers.Pointer, EarlyShapePtr],
+    specified_ptrs: Set[sn.UnqualName],
+    rewrite_kind: qltypes.RewriteKind,
+    view_scls: s_objtypes.ObjectType,
+    ir_set: irast.Set,
+    stype: s_objtypes.ObjectType,
+    s_ctx: ShapeContext,
+) -> List[Tuple[s_pointers.Pointer, irast.Set | None]]:
+    result: List[Tuple[s_pointers.Pointer, irast.Set | None]] = []
+
+    ctx = s_ctx.ctx
+    path_id = ir_set.path_id
+    scls_pointers = stype.get_pointers(ctx.env.schema)
+
+    # init set that will be used for __subject__
+    subject_path = irast.PathId.from_type(
+        ctx.env.schema,
+        stype,
+        typename=sn.QualName(module="__derived__", name="__subject__"),
+    )
+    subject_set = irast.Set(
+        path_id=subject_path,
+        typeref=subject_path.target,
+        shape=tuple(
+            [
+                (ptr_set.target_set, qlast.ShapeOp.ASSIGN)
+                for ptr_set in pointers.values()
+                if ptr_set.target_set
+            ]
+        ),
+    )
+    ctx.env.set_types[subject_set] = stype
+
+    # init reference to std::bool
+    bool_type = ctx.env.schema.get("std::bool", type=s_types.Type)
+    bool_path = irast.PathId.from_type(
+        ctx.env.schema,
+        bool_type,
+        typename=sn.QualName(module="std", name="bool"),
+    )
+
+    # init set that will be used for __specified__
+    specified_path = irast.PathId.from_type(
+        ctx.env.schema,
+        stype,  # TODO: what's the type of this? named tuple?
+        typename=sn.QualName(module="__derived__", name="__specified__"),
+    )
+    specified_set = irast.Set(
+        path_id=specified_path,
+        typeref=specified_path.target,
+        expr=irast.Tuple(
+            named=True,
+            typeref=specified_path.target,
+            elements=[
+                irast.TupleElement(
+                    name=pn.name,
+                    val=irast.Set(
+                        path_id=bool_path,
+                        typeref=bool_path.target,
+                        expr=irast.BooleanConstant(
+                            value="true" if pn in specified_ptrs else "false",
+                            typeref=bool_path.target,
+                        ),
+                    ),
+                )
+                for pn, _ in scls_pointers.items(ctx.env.schema)
+            ],
+        ),
+    )
+    ctx.env.set_types[specified_set] = stype
+
+    for _, ptrcls in scls_pointers.items(ctx.env.schema):
+        rewrite = ptrcls.get_rewrite(ctx.env.schema, rewrite_kind)
+        if not rewrite:
+            continue
+
+        rewrite_expr = rewrite.get_expr(ctx.env.schema)
+        assert rewrite_expr
+
+        # if pn in specified_ptrs or ptrcls.is_pure_computable(ctx.env.schema):
+        #     continue
+
+        with ctx.new() as scopectx:
+            scopectx.anchors["__specified__"] = specified_set
+            scopectx.anchors["__subject__"] = subject_set
+            scopectx.partial_path_prefix = subject_set
+
+            # scopectx.env.path_scope.attach_path(subject_set.path_id, context=None)
+            scopectx.env.singletons.append(subject_set.path_id)
+            # scopectx.iterator_path_ids |= {subject_set.path_id}
+
+            s_scopectx = dataclasses.replace(s_ctx, ctx=scopectx)
+
+            ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
+            shape_ql = qlast.ShapeElement(
+                expr=qlast.Path(
+                    steps=[
+                        qlast.Ptr(
+                            ptr=qlast.ObjectRef(
+                                name=ptrcls_sn.name,
+                                module=ptrcls_sn.module,
+                            ),
+                        ),
+                    ],
+                ),
+                compexpr=qlast.DetachedExpr(
+                    expr=rewrite_expr.qlast,
+                    preserve_path_prefix=True,
+                ),
+            )
+
+            shape_ql_desc = _shape_el_ql_to_shape_el_desc(
+                shape_ql, source=view_scls, s_ctx=s_ctx
+            )
+
+            pointer, ptr_set = _normalize_view_ptr_expr(
+                ir_set,
+                shape_ql_desc,
+                view_scls,
+                path_id=path_id,
+                from_default=True,
+                s_ctx=s_scopectx,
+            )
+            pointers[pointer] = EarlyShapePtr(
+                pointer, ptr_set, qlast.ShapeOrigin.DEFAULT
+            )
+
+    return result
 
 def _maybe_fixup_lprop(
     path_id: irast.PathId,
