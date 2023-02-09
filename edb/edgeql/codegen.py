@@ -371,7 +371,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(any_ident_to_str(node.subject_alias), ' := ')
         self.visit(node.subject)
         self._block_ws(-1)
-        if node.using is not None:
+        if node.using:
             self._write_keywords('USING')
             self._block_ws(1)
             self.visit_list(node.using, newlines=False)

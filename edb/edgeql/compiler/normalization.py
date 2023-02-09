@@ -184,7 +184,7 @@ def _normalize_with_block(
             newaliases.append(alias)
             localnames = {alias.alias} | localnames
 
-    node.aliases = newaliases
+    setattr(node, field, newaliases)
 
     return modaliases, localnames
 

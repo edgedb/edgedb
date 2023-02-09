@@ -1170,6 +1170,28 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 };
             ''')
 
+    async def test_edgeql_group_policies_02(self):
+        await self.con.execute(
+            '''
+                create type T {
+                    create multi property vals -> int64;
+                    create access policy foo allow all using (
+                    # This is pretty pointless but should always be true
+                      sum(((
+                        (group x := .vals using v := x by v))
+                        { x := count(.elements) }).x)
+                      = count(.vals)
+                    )
+                };
+                insert T { vals := {1,1,2,3} };
+            '''
+        )
+
+        await self.assert_query_result(
+            r'''select T { vals }''',
+            [{'vals': tb.bag([1, 1, 2, 3])}],
+        )
+
     async def test_edgeql_group_rebind_filter_01(self):
         await self.assert_query_result(
             '''
