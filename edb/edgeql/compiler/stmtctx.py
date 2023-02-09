@@ -182,8 +182,7 @@ def fini_expression(
             extra, scope_tree=ctx.path_scope, ctx=inf_ctx)
 
     # Fix up weak namespaces
-    for expr in all_exprs:
-        _rewrite_weak_namespaces(expr, ctx)
+    _rewrite_weak_namespaces(all_exprs, ctx)
 
     ctx.path_scope.validate_unique_ids()
 
@@ -225,7 +224,7 @@ def fini_expression(
         ir_set.expr = None
 
     # Analyze GROUP statements to find aggregates that can be optimized
-    group.infer_group_aggregates(ir, ctx=ctx)
+    group.infer_group_aggregates(all_exprs, ctx=ctx)
 
     # If we are producing a schema view, clean up the result types
     if ctx.env.options.schema_view_mode:
@@ -399,7 +398,7 @@ def _try_namespace_fix(
 
 
 def _rewrite_weak_namespaces(
-    ir: irast.Base, ctx: context.ContextLevel
+    irs: Sequence[irast.Base], ctx: context.ContextLevel
 ) -> None:
     """Rewrite weak namespaces in path ids to be usable by the backend.
 
@@ -420,7 +419,7 @@ def _rewrite_weak_namespaces(
     for node in tree.strict_descendants:
         _try_namespace_fix(node, node)
 
-    scopes = irutils.find_path_scopes(ir)
+    scopes = irutils.find_path_scopes(irs)
 
     for ir_set in ctx.env.set_types:
         path_scope_id: Optional[int] = scopes.get(ir_set)
