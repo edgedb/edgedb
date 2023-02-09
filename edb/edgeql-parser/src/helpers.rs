@@ -44,6 +44,10 @@ pub fn quote_string(s: &str) -> String {
                 buf.push('\\');
                 buf.push('"');
             }
+            '\\' => {
+                buf.push('\\');
+                buf.push('\\');
+            }
             '\x00'..='\x08' | '\x0B' | '\x0C' | '\x0E'..='\x1F' |
             '\u{007F}' | '\u{0080}'..='\u{009F}'
             => {
@@ -183,6 +187,12 @@ aa \
         aa").unwrap(), "bbaa");
     assert_eq!(_unquote_string("bb\\\r   aa").unwrap(), "bbaa");
     assert_eq!(_unquote_string("bb\\\r\n   aa").unwrap(), "bbaa");
+}
+
+#[test]
+fn test_quote_string() {
+    assert_eq!(quote_string(r"\n"), r#""\\n""#);
+    assert_eq!(unquote_string(&quote_string(r"\n")).unwrap(), r"\n");
 }
 
 #[test]
