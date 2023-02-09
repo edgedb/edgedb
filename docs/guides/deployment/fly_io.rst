@@ -128,7 +128,7 @@ this command:
 
 .. code-block:: bash
 
-    $ flyctl machine update <machine-id> --memory 512 --app %PG_APP -y
+    $ flyctl machine update <machine-id> --memory 512 --app $PG_APP -y
     Searching for image 'flyio/postgres:14.6' remotely...
     image found: img_0lq747j0ym646x35
     Image: registry-1.docker.io/flyio/postgres:14.6
