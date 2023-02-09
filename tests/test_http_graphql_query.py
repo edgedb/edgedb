@@ -4136,6 +4136,20 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 use_http_post=use_http_post,
             )
 
+    def test_graphql_func_01(self):
+        Q = r'''query { FuncTest { fstr } }'''
+
+        for use_http_post in [True, False]:
+            self.assert_graphql_query_result(
+                Q,
+                {
+                    "FuncTest": [{
+                        'fstr': 'test',
+                    }]
+                },
+                use_http_post=use_http_post,
+            )
+
 
 class TestGraphQLInit(tb.GraphQLTestCase):
     """Test GraphQL initialization on an empty database."""

@@ -400,7 +400,7 @@ async def parse_execute_json(
     query: str,
     *,
     variables: Mapping[str, Any] = immutables.Map(),
-    globals_: Mapping[str, Any] = immutables.Map(),
+    globals_: Optional[Mapping[str, Any]] = None,
     output_format: compiler.OutputFormat = compiler.OutputFormat.JSON,
     query_cache_enabled: Optional[bool] = None,
 ) -> bytes:
@@ -443,20 +443,19 @@ async def execute_json(
     dbv: dbview.DatabaseConnectionView,
     compiled: dbview.CompiledQuery,
     variables: Mapping[str, Any] = immutables.Map(),
-    globals_: Mapping[str, Any] = immutables.Map(),
+    globals_: Optional[Mapping[str, Any]] = None,
     *,
     fe_conn: Optional[frontend.AbstractFrontendConnection] = None,
     use_prep_stmt: bint = False,
 ) -> bytes:
-    if globals_:
-        dbv.set_globals(immutables.Map({
-            "__::__edb_json_globals__": config.SettingValue(
-                name="__::__edb_json_globals__",
-                value=_encode_json_value(globals_),
-                source='global',
-                scope=qltypes.ConfigScope.GLOBAL,
-            )
-        }))
+    dbv.set_globals(immutables.Map({
+        "__::__edb_json_globals__": config.SettingValue(
+            name="__::__edb_json_globals__",
+            value=_encode_json_value(globals_),
+            source='global',
+            scope=qltypes.ConfigScope.GLOBAL,
+        )
+    }))
 
     qug = compiled.query_unit_group
 
