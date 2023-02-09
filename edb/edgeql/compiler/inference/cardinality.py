@@ -557,6 +557,7 @@ def _infer_set_inner(
     if rptr is not None:
         rptrref = rptr.ptrref
 
+        assert ir is not rptr.source, "self-referential pointer"
         source_card = infer_cardinality(
             rptr.source, scope_tree=scope_tree, ctx=ctx,
         )
