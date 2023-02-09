@@ -127,6 +127,8 @@
 0x_05_03_01_01   TransactionSerializationError
 0x_05_03_01_02   TransactionDeadlockError
 
+0x_05_04_00_00   WatchError
+
 
 ####
 
