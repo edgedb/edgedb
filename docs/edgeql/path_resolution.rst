@@ -148,6 +148,22 @@ object because it has been factored.
       default::User {name: 'John Seward'},
     }
 
+If you have two common scopes and only *one* of them is in a nested scope, the
+paths are still factored.
+
+.. code-block:: edgeql-repl
+
+    edgedb> select (Person.name, count(Person.friends));
+    {('Fran', 3), ('Bam', 2), ('Emma', 3), ('Geoff', 1), ('Tyra', 1)}
+
+In this example, ``count``, like all aggregate function, creates a nested
+scope, but this doesn't prevent the paths from being factored as you can see
+from the results. If the paths were *not* factored, the friend count would be
+the same for all the result tuples and it would reflect the total number of
+``Person`` objects that are in *all* ``friends`` links rather than the number
+of ``Person`` objects that are in the named ``Person`` object's ``friends``
+link.
+
 Clauses & Nesting
 ^^^^^^^^^^^^^^^^^
 
