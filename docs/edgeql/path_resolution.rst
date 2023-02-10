@@ -105,7 +105,7 @@ factor in this case because of the queries' scopes.
 Scopes
 ------
 
-Scopes change the was path resolution works. Two sibling select queries — that
+Scopes change the way path resolution works. Two sibling select queries — that
 is, queries at the same level — do not have their paths factored even when they
 use a common symbol.
 
