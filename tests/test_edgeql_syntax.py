@@ -2466,6 +2466,17 @@ aa';
             spam,
             ham := baz
         } FILTER (foo = 'special');
+
+% OK %
+
+        WITH
+            extra AS MODULE `lib.extra`,
+            foo := Bar.foo,
+            baz := (SELECT extra::Foo.baz)
+        SELECT Bar {
+            spam,
+            ham := baz
+        } FILTER (foo = 'special');
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=5, col=9)
@@ -2496,15 +2507,17 @@ aa';
         WITH MODULE abstract SELECT Foo;
         WITH MODULE all SELECT Foo;
         WITH MODULE all.abstract.bar SELECT Foo;
+
+% OK %
+
+        WITH MODULE abstract SELECT Foo;
+        WITH MODULE all SELECT Foo;
+        WITH MODULE `all.abstract.bar` SELECT Foo;
         """
 
     def test_edgeql_syntax_with_07(self):
         """
         WITH MODULE `all.abstract.bar` SELECT Foo;
-
-% OK %
-
-        WITH MODULE all.abstract.bar SELECT Foo;
         """
 
     def test_edgeql_syntax_with_08(self):

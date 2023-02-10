@@ -194,7 +194,10 @@ def parse_into(
                         elif issubclass(ftype, s_obj.Object):
                             val = val.id
                         elif issubclass(ftype, s_name.Name):
-                            val = s_name.name_from_string(val)
+                            if isinstance(obj, s_obj.QualifiedObject):
+                                val = s_name.name_from_string(val)
+                            else:
+                                val = s_name.UnqualName(val)
                         else:
                             val = ftype(val)
 
