@@ -1,3 +1,6 @@
+update Person filter .name = "t2" set {name := "t3"};
+select <Person>{};
+select <std::json>"e";
 select Person.friends@since;
 select Person {name, last_name} order by .last_name desc then .name then 2 then count(Person.friends);
 select Person {name, last_name} order by .last_name desc then .name;

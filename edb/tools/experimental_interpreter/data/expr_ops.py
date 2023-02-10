@@ -34,14 +34,22 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
                 return UnnamedTupleExpr(val=[map_expr(f, e, level) for e in val])
             case ObjectProjExpr(subject=subject, label=label):
                 return ObjectProjExpr(subject=map_expr(f, subject, level=level), label=label)
-            case FunAppExpr(fun=fname, args=args):
-                return FunAppExpr(fun=map_expr(f, fname, level), args=[map_expr(f, arg, level) for arg in args])
+            case FunAppExpr(fun=fname, args=args, overloading_index = idx):
+                return FunAppExpr(fun=fname, args=[map_expr(f, arg, level) for arg in args], overloading_index=idx)
             case FilterOrderExpr(subject=subject, filter=filter, order=order):
                 return FilterOrderExpr(subject=recur(subject), filter=recur(filter), order=recur(order)) 
             case ShapedExprExpr(expr=expr, shape=shape):
                 return ShapedExprExpr(expr=recur(expr), shape=recur(shape))
             case ShapeExpr(shape=shape):
                 return ShapeExpr(shape=shape)
+            case TypeCastExpr(tp=tp, arg=arg):
+                return TypeCastExpr(tp=tp, arg=recur(arg))
+            case UnionExpr(left=left, right=right):
+                return UnionExpr(left=recur(left), right=recur(right))
+            case ArrayExpr(elems=arr):
+                return ArrayExpr(elems=[recur(e) for e in arr])
+            case MultiSetExpr(expr=arr):
+                return MultiSetExpr(expr=[recur(e) for e in arr])
 
     raise ValueError("Not Implemented: map_expr ", expr) 
 
@@ -118,3 +126,30 @@ def get_object_val(val : Val) -> ObjectVal:
 def coerce_to_storage(val : ObjectVal, fmt : ObjectTp) -> ObjectVal:
     print("WARNING: coerce_to_storage not yet implemented")
     return val
+
+
+def val_is_primitive(rt : Val) -> bool:
+    match rt:
+        case StrVal(_) | IntVal(_):
+            return True
+        case RefVal(_) | FreeVal(_):
+            return False
+    raise ValueError("not implemented")
+
+def val_is_ref_val(rt : Val) -> bool:
+    match rt:
+        case RefVal(_):
+            return True
+    return False
+
+def remove_link_props(rt : Val) -> Val:
+    match rt:
+        case RefVal(refid=id, val=ObjectVal(val=dic)):
+            return RefVal(refid=id, val=ObjectVal(val=
+                {k : v for (k,v) in dic.items() if isinstance(k, StrLabel)}
+            ))
+    raise ValueError("Expected RefVal")
+
+def combine_object_val(o1 : ObjectVal, o2 : ObjectVal) -> ObjectVal:
+    return ObjectVal({**o1.val, **o2.val})
+

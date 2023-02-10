@@ -2,9 +2,11 @@
 from dataclasses import *
 from functools import singledispatch
 from typing import *
+import itertools
 
 from .data.data_ops import *
 from .data.expr_ops import *
+from .data.casts import *
 
 # RT Stands for Run Time 
 
@@ -26,7 +28,7 @@ class RTVal(NamedTuple):
 def make_eval_only(data : RTData) -> RTData:
     return RTData(data.cur_db, data.read_snapshots, data.schema, True)
 
-def eval_error(expr : Val | Expr, msg : str ="") -> Any:
+def eval_error(expr : Val | Expr | List[Val], msg : str ="") -> Any:
     raise ValueError("Eval Error", msg, expr)
 
 def eval_order_by(after_condition : List[Val], orders : List[UnnamedTupleVal]) -> List[Val]:
@@ -61,9 +63,6 @@ def apply_shape(ctx : RTData, shape : ShapeExpr, value : Val) -> Val:
         
         return ObjectVal(result)
 
-
-
-
     match value:
         case FreeVal(val=dictval):
             return FreeVal(val=apply_shape_to_prodval(shape, dictval))
@@ -72,46 +71,159 @@ def apply_shape(ctx : RTData, shape : ShapeExpr, value : Val) -> Val:
         case _:
             return eval_error(value, "Cannot apply shape to value")
 
+def eval_expr_list(init_data : RTData, exprs : List[Expr]) -> Tuple[RTData, List[MultiSetVal]] :
+    cur_data = init_data
+    result : List[MultiSetVal] = []
+    for expr in exprs: 
+        (cur_data, val) = eval_config(RTExpr(cur_data, expr))
+        result = [*result, val]
+    return (cur_data, result)
+    
+# not sure why the semantics says to produce empty set when label not present
+def singular_proj(data : RTData, subject : Val, label : Label) -> MultiSetVal :
+    match subject:
+        case FreeVal(val=objVal):
+            if label in objVal.val.keys():
+                return objVal.val[label][1]
+            else:
+                raise ValueError("Label not found")
+        case RefVal(refid=id, val=objVal):
+            entry_obj = data.read_snapshots[0].dbdata[id].data
+            if label in objVal.val.keys():
+                return objVal.val[label][1]
+            elif label in entry_obj.val.keys():
+                return entry_obj.val[label][1]
+            else:
+                raise ValueError("Label not found")
+    raise ValueError("Cannot project, unknown subject")
+
+
+def object_dedup(val : List[Val]) -> List[Val]:
+    temp : Dict[int, Val]= {}
+    for v in val:
+        match v:
+            case RefVal(refid=id, val=_):
+                temp[id] = v
+            case FreeVal(_):
+                temp[next_id()] = v ### Should link dedup apply to free objects?
+            case _:
+                raise ValueError("must pass in objects")
+    return list(temp.values())
+        
+            
+
+
 def eval_config(rt : RTExpr) -> RTVal:
     match rt.expr:
         case StrVal(s):
-            return RTVal(rt.data, MultiSetVal([StrVal(s)]))
+            return RTVal(rt.data, [StrVal(s)])
+        case IntVal(i):
+            return RTVal(rt.data, [IntVal(i)])
+        case BoolVal(b):
+            return RTVal(rt.data, [BoolVal(b)])
         case ObjectExpr(val=dic):
             cur_data = rt.data
             result : Dict[Label, Tuple[Marker, MultiSetVal]] = {} 
             for (key, expr) in dic.items(): #type: ignore[has-type]
                 (cur_data, val) = eval_config(RTExpr(cur_data, expr))
                 result = {**result, key : (Visible(), val)}
-            return RTVal(cur_data, MultiSetVal([FreeVal(ObjectVal(result))]))
+            return RTVal(cur_data, [FreeVal(ObjectVal(result))])
         case InsertExpr(tname, arg):
             if rt.data.eval_only:
                 eval_error(rt.expr, "Attempting to Insert in an Eval-Only evaluation")
             (new_data, argmv) = eval_config(RTExpr(rt.data, arg))
-            [argv] = argmv.val
+            [argv] = argmv
             id = next_id()
             new_object = coerce_to_storage(get_object_val(argv), ObjectTp({}))
             new_db = DB(dbdata={**new_data.cur_db.dbdata, id : DBEntry(tp=VarTp(tname), data=new_object)})
-            return RTVal(RTData(new_db, new_data.read_snapshots, new_data.schema, new_data.eval_only), MultiSetVal([RefVal(id, ObjectVal({}))])) # inserts return empty dict
+            return RTVal(RTData(new_db, new_data.read_snapshots, new_data.schema, new_data.eval_only), [RefVal(id, ObjectVal({}))]) # inserts return empty dict
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
             (new_data, selected) = eval_config(RTExpr(rt.data, subject))
             # assume data unchaged throught the evaluation of conditions
-            conditions : List[MultiSetVal] = [eval_config(RTExpr(make_eval_only(new_data), instantiate_expr(select_i, filter))).val for select_i in selected.val]
-            after_condition : List[Val] = [select_i for (select_i, condition) in zip(selected.val, conditions) if BoolVal(True) in condition.val]
-            orders : List[UnnamedTupleVal] = [ raw_order.val[0] if type(raw_order.val[0]) is UnnamedTupleVal else eval_error(raw_order.val[0])
+            conditions : List[MultiSetVal] = [eval_config(RTExpr(make_eval_only(new_data), instantiate_expr(select_i, filter))).val for select_i in selected]
+            after_condition : List[Val] = [select_i for (select_i, condition) in zip(selected, conditions) if BoolVal(True) in condition]
+            orders : List[UnnamedTupleVal] = [ raw_order[0] if type(raw_order[0]) is UnnamedTupleVal else eval_error(raw_order[0])
                         for after_condition_i in after_condition
                         for raw_order in [eval_config(RTExpr(make_eval_only(new_data), instantiate_expr(after_condition_i,order))).val]
-                        if len(raw_order.val) == 1
+                        if len(raw_order) == 1
                     ]
             after_order = eval_order_by(after_condition, orders)
-            return RTVal(new_data, MultiSetVal(after_order))
+            return RTVal(new_data, after_order)
         case ShapedExprExpr(expr=subject, shape=shape):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
-            after_shape : List[Val]= [apply_shape(rt.data, shape, v) for v in subjectv.val]
-            return RTVal(new_data, MultiSetVal(after_shape))
+            after_shape : List[Val]= [apply_shape(new_data, shape, v) for v in subjectv]
+            return RTVal(new_data, after_shape)
         case FreeVarExpr(var=name):
             cur_db_data = rt.data.read_snapshots[0].dbdata
             all_ids : List[Val] = [RefVal(id, ObjectVal({})) for (id, item) in cur_db_data.items() 
                                                 if item.tp.name == name]
-            return RTVal(rt.data, MultiSetVal(all_ids))
+            return RTVal(rt.data, all_ids)
+        case FunAppExpr(fun=fname, args=args, overloading_index=idx):
+            (new_data, argsv) = eval_expr_list(rt.data, args)
+            looked_up_fun = rt.data.schema.fun_defs[fname][idx or 0]
+            f_modifier = looked_up_fun.tp.args_mod
+            assert len(f_modifier) == len(argsv)
+            argv_final : List[List[MultiSetVal]]= []
+            for i in range(len(f_modifier)):
+                mod_i = f_modifier[i]
+                argv_i : MultiSetVal = argsv[i]
+                match mod_i:
+                    case ParamSingleton():
+                        argv_final = [[*cur, [new]] for cur in argv_final for new in argv_i]
+                    case ParamOptional():
+                        if len(argv_i) == 0:
+                            argv_final = [[*cur, []] for cur in argv_final]
+                        else:
+                            argv_final = [[*cur, [new]] for cur in argv_final for new in argv_i]
+                    case ParamSetOf():
+                        argv_final = [[*cur, argv_i] for cur in argv_final]
+                    case _ :
+                        raise ValueError()
+            after_fun_vals : List[Val]= [v for arg in argv_final for v in looked_up_fun.impl(arg)]
+            return RTVal(new_data, after_fun_vals)
+        case ObjectProjExpr(subject=subject, label=label):
+            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            projected = [p for v in subjectv for p in singular_proj(new_data, v, StrLabel(label))]
+            if all([val_is_primitive(v) for v in projected]) or len(subjectv) == 1 :
+                return RTVal(new_data, projected)
+            elif all([not val_is_primitive(v) for v in projected]):
+                return RTVal(new_data, object_dedup(projected))
+            else:
+                return eval_error(projected, "Returned objects are not uniform")
+        case TypeCastExpr(tp=tp, arg=arg):
+            (new_data, argv2) = eval_config(RTExpr(rt.data, arg))
+            casted = [type_cast(tp, v) for v in argv2]
+            return RTVal(new_data, casted)
+        case UnnamedTupleExpr(val=tuples):
+            (new_data, tuplesv) = eval_expr_list(rt.data, tuples)
+            return RTVal(new_data, [UnnamedTupleVal(list(p)) for p in itertools.product(*tuplesv)])
+        case UnionExpr(left=l, right=r):
+            (new_data, lvals) = eval_config(RTExpr(rt.data, l))
+            (new_data2, rvals) = eval_config(RTExpr(new_data, r))
+            return RTVal(new_data2, [*lvals, *rvals])
+        case ArrayExpr(elems=elems):
+            (new_data, elemsv) = eval_expr_list(rt.data, elems)
+            return RTVal(new_data, [ArrayVal(list(el)) for el in itertools.product(*elemsv)])
+        case UpdateExpr(subject=subject, shape=shape):
+            if rt.data.eval_only:
+                eval_error(rt.expr, "Attempting to Update in an Eval-Only evaluation")
+            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            if all([val_is_ref_val(v) for v in subjectv]):
+                updated : List[Val]= [apply_shape(new_data, shape, v) for v in subjectv] #type: ignore[misc]
+                old_dbdata = rt.data.cur_db.dbdata
+                new_dbdata = {**old_dbdata, **{u.refid : DBEntry(old_dbdata[u.refid].tp, 
+                                                                 combine_object_val(old_dbdata[u.refid].data, u.val)) 
+                                                    for u in cast(List[RefVal], updated)}}
+                return RTVal(RTData(DB(new_dbdata), rt.data.read_snapshots, rt.data.schema, rt.data.eval_only), updated)
+            else:
+                return eval_error(rt.expr, "expecting all references")
+        case MultiSetExpr(expr=elems):
+            (new_data, elemsv) = eval_expr_list(rt.data, elems)
+            return RTVal(new_data, [e for el in elemsv for e in el])
+
+
+            
+
+
 
     raise ValueError("Not Implemented", rt.expr)

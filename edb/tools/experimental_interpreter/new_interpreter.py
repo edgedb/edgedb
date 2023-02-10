@@ -8,7 +8,7 @@ import traceback
 from edb.edgeql import ast as qlast
 from edb import edgeql
 import pprint
-
+from .data.built_in_ops import all_builtin_funcs
 from edb.common import debug
 from .elaboration import *
 
@@ -31,7 +31,7 @@ def run_statement(db : DB, stmt : qlast.Expr, should_print : bool) -> DB:
     config = RTExpr(
             RTData(DB(db.dbdata), 
                 [DB({**db.dbdata})],
-                DBSchema({}),
+                DBSchema({}, all_builtin_funcs),
                 False
             ), elaborated)
     result = eval_config(config)

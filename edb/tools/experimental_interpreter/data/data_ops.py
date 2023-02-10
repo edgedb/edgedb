@@ -37,11 +37,25 @@ class StrTp:
     pass
 
 @dataclass(frozen=True)
+class BoolTp:
+    pass
+
+
+@dataclass(frozen=True)
 class IntTp:
     pass
 
 
-PrimTp = StrTp | IntTp 
+@dataclass(frozen=True)
+class DateTimeTp:
+    pass
+
+@dataclass(frozen=True)
+class JsonTp:
+    pass
+
+
+PrimTp = StrTp | IntTp | BoolTp | DateTimeTp | JsonTp
 
 @dataclass(frozen=True)
 class VarTp:
@@ -55,7 +69,11 @@ class NamedTupleTp:
 class UnnamedTupleTp:
     val : List[Tp]
 
-Tp = ObjectTp | PrimTp | VarTp | NamedTupleTp | UnnamedTupleTp
+@dataclass(frozen=True)
+class ArrayTp:
+    tp : Tp
+
+Tp = ObjectTp | PrimTp | VarTp | NamedTupleTp | UnnamedTupleTp | ArrayTp
 
 
 @dataclass(frozen=True)
@@ -214,7 +232,8 @@ ParamModifier = ParamSingleton | ParamOptional | ParamSetOf
 
 @dataclass(frozen=True)
 class FunType:
-    args : List[Tuple[Tp, ParamModifier]]
+    args_tp : List[Tp]
+    args_mod : List[ParamModifier]
     ret : ResulTp
 
 ### DEFINE PRIM VALUES
@@ -225,6 +244,15 @@ class StrVal:
 @dataclass(frozen=True) 
 class IntVal:
     val : int
+
+
+@dataclass(frozen=True) 
+class DateTimeVal:
+    val : str
+
+@dataclass(frozen=True) 
+class JsonVal:
+    val : str
 
 @dataclass(frozen=True) 
 class FunVal:
@@ -239,18 +267,18 @@ class IntInfVal:
 class BoolVal:
     val: bool
 
-PrimVal = StrVal | IntVal | FunVal | IntInfVal | BoolVal
+PrimVal = StrVal | IntVal | FunVal | IntInfVal | BoolVal | DateTimeVal | JsonVal
 
 ## DEFINE EXPRESSIONS
 
-# @dataclass(frozen=True)
-# class UnionExpr:
-#     left : Expr
-#     right : Expr
+@dataclass(frozen=True)
+class UnionExpr:
+    left : Expr
+    right : Expr
 
 @dataclass(frozen=True)
 class MultiSetExpr:
-    val : List[Expr]
+    expr : List[Expr]
 
 @dataclass(frozen=True) 
 class TypeCastExpr:
@@ -260,7 +288,8 @@ class TypeCastExpr:
 
 @dataclass(frozen=True)
 class FunAppExpr:
-    fun : Expr
+    fun : str
+    overloading_index : Optional[int]
     args : List[Expr]
 
 @dataclass(frozen=True)
@@ -317,9 +346,8 @@ class InsertExpr:
 
 @dataclass(frozen=True) 
 class UpdateExpr:
-    name : str
-    var : str
-    res : Expr
+    subject : Expr
+    shape : ShapeExpr
 
 # @dataclass(frozen=True)
 # class RefIdExpr:
@@ -349,6 +377,9 @@ class UnnamedTupleExpr:
 class NamedTupleExpr:
     val : Dict[str, Expr]
 
+@dataclass(frozen=True)
+class ArrayExpr:
+    elems : List[Expr]
 
 
 #### VALUES
@@ -399,20 +430,28 @@ class NamedTupleVal:
     val : Dict[str, Val]
 
 @dataclass(frozen=True)
-class MultiSetVal: # U
+class ArrayVal:
     val : List[Val]
+
+# @dataclass(frozen=True)
+# class MultiSetVal: # U
+#     val : List[Val]
     
 
 Val =  (PrimVal | RefVal | FreeVal | RefLinkVal | LinkWithPropertyVal 
-        | UnnamedTupleVal | NamedTupleVal ) # V
+        | UnnamedTupleVal | NamedTupleVal  | ArrayVal ) # V
+
+MultiSetVal = List[Val]
 
 VarExpr = (FreeVarExpr | BoundVarExpr)
 
 Expr = (PrimVal | TypeCastExpr | FunAppExpr 
         | FreeVarExpr | BoundVarExpr| ObjectProjExpr | LinkPropProjExpr |  WithExpr | ForExpr 
         | FilterOrderExpr | OffsetLimitExpr | InsertExpr | UpdateExpr
-        | MultiSetExpr | ShapedExprExpr | ShapeExpr | ObjectExpr | BindingExpr
-        | Val | UnnamedTupleExpr | NamedTupleExpr
+        | MultiSetExpr 
+        | ShapedExprExpr | ShapeExpr | ObjectExpr | BindingExpr
+        | Val | UnnamedTupleExpr | NamedTupleExpr | ArrayExpr
+        | Tp | UnionExpr  
         )
 
 
@@ -426,31 +465,34 @@ class DB:
     dbdata: Dict[int, DBEntry] 
     # subtp : List[Tuple[TypeExpr, TypeExpr]]
 
+
+
+@dataclass(frozen=True)
+class BuiltinFuncDef():
+    tp : FunType
+    impl : Callable[[List[List[Val]]], List[Val]]
+
 @dataclass(frozen=True)
 class DBSchema: 
     val : Dict[str, ObjectTp]
+    fun_defs : Dict[str, List[BuiltinFuncDef]] # list of definitions to support overloading
     
 
 def empty_db():
     return DB({})
 
-BuiltinFuncTp : Dict[str, FunType] = {
-        "+" : FunType([(IntTp(), ParamSingleton()), (IntTp(), ParamSingleton())], (IntTp(), CardOne))
-    }
+
+# def add_fun(x, y):
+#     match x, y:
+#         case [IntVal(a)], [IntVal(b)]:
+#             return [IntVal(a + b)]
+#     raise ValueError("cannot add ", x , y)
 
 
 
-def add_fun(x, y):
-    match x, y:
-        case [IntVal(a)], [IntVal(b)]:
-            return [IntVal(a + b)]
-    raise ValueError("cannot add ", x , y)
-
-
-
-BuiltinFuncOp : Dict[str, Callable[..., List[Expr]]] = {
-    "+" : add_fun,
-}
+# BuiltinFuncOp : Dict[str, Callable[..., List[Expr]]] = {
+#     "+" : add_fun,
+# }
 
 
 starting_id = 0

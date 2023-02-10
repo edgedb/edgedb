@@ -189,9 +189,9 @@ def elab_FunctionCall(fcall : qlast.FunctionCall) -> FunAppExpr :
         return elab_not_implemented(fcall)
     if type(fcall.func) is not str:
         return elab_not_implemented(fcall)
-    fname = FreeVarExpr(fcall.func)
+    fname = fcall.func
     args = [elab(arg) for arg in fcall.args]
-    return FunAppExpr(fname, args)
+    return FunAppExpr(fname, None, args)
     
 
 
@@ -201,4 +201,57 @@ def elab_BinOp(binop : qlast.BinOp) -> FunAppExpr:
         return elab_not_implemented(binop)
     left_expr = elab(binop.left)
     right_expr = elab(binop.right)
-    return FunAppExpr(fun=FreeVarExpr(binop.op), args=[left_expr, right_expr])
+    if binop.op == "UNION":
+        return UnionExpr(left_expr, right_expr)
+    else:
+        return FunAppExpr(fun=binop.op, args=[left_expr, right_expr], overloading_index=None)
+
+@elab.register(qlast.TypeName)
+def elab_TypeName(qle : qlast.TypeName) -> Tp:
+    if qle.name:
+        return elab_not_implemented()
+    if qle.subtypes:
+        return elab_not_implemented()
+    if qle.dimensions:
+        return elab_not_implemented()
+    basetp : qlast.ObjectRef = qle.maintype
+    if basetp.module != "std" and basetp.module:
+        return elab_not_implemented()
+    if basetp.itemclass:
+        return elab_not_implemented()
+    match basetp.name:
+        case "str":
+            return StrTp()
+        case "datetime":
+            return DateTimeTp()
+        case "datetime":
+            return JsonTp()
+        case _:
+            return elab_not_implemented(basetp, "unrecognized type " + basetp.name)
+
+@elab.register(qlast.TypeCast)
+def elab_TypeCast(qle : qlast.TypeCast) -> TypeCastExpr:
+    if qle.cardinality_mod:
+        return elab_not_implemented(qle)
+    tp = elab_TypeName(qle.type)
+    expr = elab(qle.expr)
+    return TypeCastExpr(tp=tp, arg=expr)
+
+@elab.register(qlast.Array)
+def elab_Array(qle : qlast.Array) -> TypeCastExpr:
+    return ArrayExpr(elems=[elab(elem) for elem in qle.elements])
+
+
+@elab.register(qlast.UpdateQuery)
+def elab_UpdateQuery(qle : qlast.UpdateQuery):
+    subject = FilterOrderExpr(
+            subject=elab(qle.subject),
+            filter=abstract_over_expr(elab(qle.where), DEFAULT_HEAD_NAME) if qle.where else abstract_over_expr(BoolVal(True)),
+            order=abstract_over_expr(UnnamedTupleExpr([])),
+        )
+    shape = elab_Shape(qle.shape)
+    return UpdateExpr(subject=subject, shape=shape)
+
+@elab.register(qlast.Set)
+def elab_Set(qle : qlast.Set):
+    return MultiSetExpr(expr=[elab(e) for e in qle.elements])
