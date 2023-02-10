@@ -277,8 +277,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 'could not resolve partial path ',
                 context=expr.context)
 
-    computables = []
-    path_sets = []
+    computables: list[irast.Set] = []
+    path_sets: list[irast.Set] = []
 
     for i, step in enumerate(expr.steps):
         is_computable = False
@@ -542,7 +542,10 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if pathctx.path_is_inserting(path_tip.path_id, ctx=ctx):
             raise_self_insert_error(stype, step.context, ctx=ctx)
 
-        path_sets.append(path_tip)
+        # Don't track this step of the path if it didn't change the set
+        # (probably because of do-nothing intersection)
+        if not path_sets or path_sets[-1] != path_tip:
+            path_sets.append(path_tip)
 
     path_tip.context = expr.context
     pathctx.register_set_in_scope(path_tip, ctx=ctx)

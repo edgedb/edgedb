@@ -1684,6 +1684,19 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_select_polymorphic_14(self):
+        # This one isn't *really* polymorphic, and that caused some trouble
+        await self.assert_query_result(
+            r'''
+            select Issue { number, related_to }
+            filter exists .related_to;
+            ''',
+            tb.bag([
+                {'number': "3", 'related_to': [{}]},
+                {'number': "4", 'related_to': [{}]},
+            ]),
+        )
+
     async def test_edgeql_select_id_01(self):
         # allow assigning id to a computed (#4781)
         await self.con.query('SELECT schema::Type { XYZ := .id};')
