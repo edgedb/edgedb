@@ -33,8 +33,17 @@ class DumpTestCaseMixin:
             await tx.rollback()
 
     async def _ensure_schema_data_integrity(self):
-        # Nothing yet
-        pass
+        await self.assert_query_result(
+            r'''
+            SELECT _ := schema::Module.name
+            FILTER _ LIKE 'default%'
+            ''',
+            {'default', 'default::nested', 'default::back`ticked'},
+        )
+
+        # We don't bother to validate these but we need them to work
+        await self.con.query('describe schema as sdl')
+        await self.con.query('describe schema as ddl')
 
 
 class TestDumpV3(tb.StableDumpTestCase, DumpTestCaseMixin):

@@ -11315,6 +11315,16 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Bar extending Foo;
         """)
 
+    async def test_edgeql_migration_nested_backticks_01(self):
+        await self.migrate(r"""
+            module nested { type Test };
+        """)
+
+        await self.migrate(r"""
+            module nested { type Test };
+            module `back``ticked` { type Test };
+        """)
+
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False

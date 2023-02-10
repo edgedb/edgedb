@@ -32,7 +32,6 @@ from . import quote as edgeql_quote
 from . import qltypes
 
 
-_module_name_re = re.compile(r'^(?!=\d)\w+(\.(?!=\d)\w+)*$')
 _BYTES_ESCAPE_RE = re.compile(b'[\\\'\x00-\x1f\x7e-\xff]')
 _NON_PRINTABLE_RE = re.compile(
     r'[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u0080-\u009F\n]')
@@ -57,25 +56,15 @@ def _bytes_escape(match: Match[bytes]) -> bytes:
         return b'\\x%02x' % char[0]
 
 
-def any_ident_to_str(ident: str) -> str:
-    if _module_name_re.match(ident):
-        return ident
-    else:
-        return ident_to_str(ident)
-
-
-def ident_to_str(ident: str, allow_num: bool=False) -> str:
-    return edgeql_quote.quote_ident(ident, allow_num=allow_num)
-
-
 def param_to_str(ident: str) -> str:
     return '$' + edgeql_quote.quote_ident(
         ident, allow_reserved=True, allow_num=True)
 
 
-def module_to_str(module: str) -> str:
+def ident_to_str(ident: str, allow_num: bool=False) -> str:
     return '::'.join([
-        any_ident_to_str(part) for part in module.split('::')
+        edgeql_quote.quote_ident(part, allow_num=allow_num)
+        for part in ident.split('::')
     ])
 
 
@@ -421,7 +410,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(ident_to_str(node.alias))
             self._write_keywords(' AS ')
         self._write_keywords('MODULE ')
-        self.write(module_to_str(node.module))
+        self.write(ident_to_str(node.module))
 
     def visit_SortExpr(self, node: qlast.SortExpr) -> None:
         self.visit(node.path)
@@ -916,7 +905,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         render_commands: bool = True,
         unqualified: bool = False,
         named: bool = True,
-        group_by_system_comment: bool = False
+        group_by_system_comment: bool = False,
     ) -> None:
         self._visit_aliases(node)
         if self.sdlmode:
@@ -951,7 +940,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         unqualified: bool = False,
         named: bool = True,
         ignored_cmds: Optional[AbstractSet[qlast.DDLOperation]] = None,
-        group_by_system_comment: bool = False
+        group_by_system_comment: bool = False,
     ) -> None:
         self._visit_aliases(node)
         if self.sdlmode:
@@ -986,7 +975,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         *object_keywords: str,
         unqualified: bool = False,
         after_name: Optional[Callable[[], None]] = None,
-        named: bool = True
+        named: bool = True,
     ) -> None:
         self._visit_aliases(node)
         self._write_keywords('DROP', *object_keywords)
@@ -2328,10 +2317,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._write_keywords(' ALIAS ')
             self.write(ident_to_str(node.alias))
             self._write_keywords(' AS MODULE ')
-            self.write(node.module)
+            self.write(ident_to_str(node.module))
         else:
             self._write_keywords(' MODULE ')
-            self.write(node.module)
+            self.write(ident_to_str(node.module))
 
     def visit_SessionResetAllAliases(
         self,

@@ -41,6 +41,9 @@ class Module(
     qlkind=qltypes.SchemaObjectClass.MODULE,
     data_safe=False,
 ):
+    # N.B: Modules are not "qualified" objects, even though they can
+    # be nested (because they might *not* be nested) and we arrange
+    # for their names to always be represented with an UnqualName.
     pass
 
 
