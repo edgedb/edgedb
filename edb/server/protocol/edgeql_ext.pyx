@@ -125,7 +125,7 @@ async def handle_request(
             db,
             query,
             variables=variables or {},
-            globals_=globals_ or {},
+            globals_=globals_,
         )
     except Exception as ex:
         if debug.flags.server:
