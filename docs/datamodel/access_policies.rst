@@ -305,7 +305,7 @@ making the current user able to see their own ``User`` record.
   Starting with the upcoming EdgeDB 3.0, access policy restrictions will
   **not**
   apply to any access policy expression. This means that when reasoning about
-  access policies it is no longer necesary to take other policies into
+  access policies it is no longer necessary to take other policies into
   account. Instead, all data is visible for the purpose of *defining* an access
   policy.
 
