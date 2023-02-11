@@ -2466,6 +2466,17 @@ aa';
             spam,
             ham := baz
         } FILTER (foo = 'special');
+
+% OK %
+
+        WITH
+            extra AS MODULE `lib.extra`,
+            foo := Bar.foo,
+            baz := (SELECT extra::Foo.baz)
+        SELECT Bar {
+            spam,
+            ham := baz
+        } FILTER (foo = 'special');
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=5, col=9)
@@ -2496,15 +2507,17 @@ aa';
         WITH MODULE abstract SELECT Foo;
         WITH MODULE all SELECT Foo;
         WITH MODULE all.abstract.bar SELECT Foo;
+
+% OK %
+
+        WITH MODULE abstract SELECT Foo;
+        WITH MODULE all SELECT Foo;
+        WITH MODULE `all.abstract.bar` SELECT Foo;
         """
 
     def test_edgeql_syntax_with_07(self):
         """
         WITH MODULE `all.abstract.bar` SELECT Foo;
-
-% OK %
-
-        WITH MODULE all.abstract.bar SELECT Foo;
         """
 
     def test_edgeql_syntax_with_08(self):
@@ -4046,7 +4059,7 @@ aa';
         ALTER CURRENT MIGRATION REJECT PROPOSED;
         """
 
-    def test_edgeql_syntax_ddl_rewrite_01(self):
+    def test_edgeql_syntax_ddl_migration_rewrite_01(self):
         """
         START MIGRATION REWRITE;
         ABORT MIGRATION REWRITE;
@@ -5609,7 +5622,6 @@ aa';
         };
         """
 
-    @test.xerror('index parameters not implemented yet')
     def test_edgeql_syntax_ddl_index_05(self):
         """
         CREATE TYPE Foo {
@@ -5651,7 +5663,6 @@ aa';
                   myindex1;
         """
 
-    @test.xerror('index extending not implemented yet')
     def test_edgeql_syntax_ddl_index_08(self):
         """
         CREATE ABSTRACT INDEX myindex1 EXTENDING fts;
@@ -5852,6 +5863,82 @@ aa';
                 reset when;
                 allow all;
                 using (true);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_trigger_01(self):
+        """
+        create type Foo {
+            create trigger foo
+                after insert
+                for each
+                do (1);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_trigger_02(self):
+        """
+        alter type Foo {
+            create trigger foo
+                after commit of update, delete, insert
+                for all
+                do (1);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_trigger_03(self):
+        """
+        alter type Foo {
+            drop trigger foo;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_trigger_04(self):
+        """
+        alter type Foo {
+            alter trigger foo
+                using (1);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_01(self):
+        """
+        create type Foo {
+            create property foo -> i64 {
+                create rewrite update, insert using (1);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_02(self):
+        """
+        alter type Foo {
+            create property name_updated_at -> i64 {
+                create rewrite update using ((
+                    datetime_current()
+                    if __specified__.name
+                    else .name_updated_at
+                ));
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_03(self):
+        """
+        alter type Foo {
+            alter property foo {
+                drop rewrite update;
+                alter rewrite insert using (3);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_04(self):
+        """
+        alter type Foo {
+            alter property foo {
+                alter rewrite insert using (1);
             };
         };
         """

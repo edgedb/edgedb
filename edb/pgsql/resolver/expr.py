@@ -117,8 +117,16 @@ def _lookup_column(
             ]
         else:
             for table in ctx.scope.tables:
-                if not table.in_parent:
-                    matched_columns.extend(_lookup_in_table(col_name, table))
+                matched_columns.extend(_lookup_in_table(col_name, table))
+
+        if not matched_columns:
+            # is it a reference to a rel var?
+            try:
+                tab = _lookup_table(col_name, ctx)
+                col = context.Column(reference_as=tab.reference_as)
+                return [(context.Table(), col)]
+            except errors.QueryError:
+                pass
 
     elif len(name) >= 2:
         # look for the column in the specific table
@@ -140,7 +148,16 @@ def _lookup_column(
             f'cannot find column `{col_name}`', context=column_ref.context
         )
 
-    elif len(matched_columns) > 1:
+    # apply precedence
+    if len(matched_columns) > 1:
+        max_precedence = max(t.precedence for t, _ in matched_columns)
+        matched_columns = [
+            (t, c)
+            for t, c in matched_columns
+            if t.precedence == max_precedence
+        ]
+
+    if len(matched_columns) > 1:
         potential_tables = ', '.join(
             [t.name or '' for t, _ in matched_columns]
         )
@@ -162,14 +179,22 @@ def _lookup_in_table(
 
 
 def _lookup_table(tab_name: str, ctx: Context) -> context.Table:
-    matched_tables = []
+    matched_tables: List[context.Table] = []
     for t in ctx.scope.tables:
         if t.name == tab_name or t.alias == tab_name:
             matched_tables.append(t)
 
     if not matched_tables:
         raise errors.QueryError(f'cannot find table `{tab_name}`')
-    elif len(matched_tables) > 1:
+
+    # apply precedence
+    if len(matched_tables) > 1:
+        max_precedence = max(t.precedence for t in matched_tables)
+        matched_tables = [
+            t for t in matched_tables if t.precedence == max_precedence
+        ]
+
+    if len(matched_tables) > 1:
         raise errors.QueryError(f'ambiguous table `{tab_name}`')
 
     table = matched_tables[0]
@@ -294,7 +319,7 @@ def resolve_FuncCall(
     }:
         raise errors.QueryError(
             "function pg_catalog.current_setting is not supported",
-            context=expr.context
+            context=expr.context,
         )
 
     if res := static.eval_FuncCall(expr, ctx=ctx):
@@ -452,6 +477,17 @@ def resolve_CollateClause(
     ctx: Context,
 ) -> pgast.BaseExpr:
     return pgast.CollateClause(
-        arg=dispatch.resolve(expr.arg, ctx=ctx),
-        collname=expr.collname
+        arg=dispatch.resolve(expr.arg, ctx=ctx), collname=expr.collname
+    )
+
+
+@dispatch._resolve.register
+def resolve_MinMaxExpr(
+    expr: pgast.MinMaxExpr,
+    *,
+    ctx: Context,
+) -> pgast.BaseExpr:
+    return pgast.MinMaxExpr(
+        op=expr.op,
+        args=dispatch.resolve_list(expr.args, ctx=ctx),
     )

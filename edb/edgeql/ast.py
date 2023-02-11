@@ -254,7 +254,7 @@ class Anchor(Expr):
 
 
 class SpecialAnchor(Anchor):
-    __abstract_node__ = True
+    pass
 
 
 class Source(SpecialAnchor):  # __source__
@@ -1012,6 +1012,10 @@ class CreateConcretePointer(CreateObject, BasesMixin):
     cardinality: qltypes.SchemaCardinality
 
 
+class CreateConcreteUnknownPointer(CreateConcretePointer):
+    pass
+
+
 class CreateConcreteProperty(CreateConcretePointer, PropertyCommand):
     pass
 
@@ -1271,6 +1275,59 @@ class DropAccessPolicy(DropObject, AccessPolicyCommand):
     pass
 
 
+class TriggerCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.TRIGGER)
+
+
+class CreateTrigger(CreateObject, TriggerCommand):
+    timing: qltypes.TriggerTiming
+    kinds: typing.List[qltypes.TriggerKind]
+    scope: qltypes.TriggerScope
+    expr: Expr
+
+
+class AlterTrigger(AlterObject, TriggerCommand):
+    pass
+
+
+class DropTrigger(DropObject, TriggerCommand):
+    pass
+
+
+class RewriteCommand(ObjectDDL):
+    """
+    Mutation rewrite command.
+
+    Note that kinds are basically identifiers of the command, so they need to
+    be present for all commands.
+
+    List of kinds is converted into multiple commands when creating delta
+    commands in `_cmd_tree_from_ast`.
+    """
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.REWRITE
+    )
+
+    kinds: typing.List[qltypes.RewriteKind]
+
+
+class CreateRewrite(CreateObject, RewriteCommand):
+    expr: Expr
+
+
+class AlterRewrite(AlterObject, RewriteCommand):
+    pass
+
+
+class DropRewrite(DropObject, RewriteCommand):
+    pass
+
+
 class Language(s_enum.StrEnum):
     SQL = 'SQL'
     EdgeQL = 'EDGEQL'
@@ -1426,7 +1483,7 @@ class ModuleDeclaration(SDL):
     # The 'name' is treated same as in CreateModule, for consistency,
     # since this declaration also implies creating a module.
     name: ObjectRef
-    declarations: typing.List[DDL]
+    declarations: typing.List[typing.Union[NamedDDL, ModuleDeclaration]]
 
 
 class Schema(SDL):

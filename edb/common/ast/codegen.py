@@ -73,6 +73,8 @@ class SourceGenerator(NodeVisitor):
         *x: str,
         delimiter: Optional[str] = None
     ) -> None:
+        if not x:
+            return
         if self.new_lines:
             if self.result and self.pretty:
                 self.current_line += self.new_lines

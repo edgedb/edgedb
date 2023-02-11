@@ -111,13 +111,18 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             exceptions.add_context(e, ctx)
             raise
 
+    @classmethod
+    def ctes_to_source(cls, ctes: List[pgast.CommonTableExpr]) -> str:
+        generator = cls()
+        generator.gen_ctes(ctes)
+        return ''.join(generator.result)
+
     def generic_visit(self, node):  # type: ignore
         raise SQLSourceGeneratorError(
             'No method to generate code for %s' % node.__class__.__name__
         )
 
     def gen_ctes(self, ctes: List[pgast.CommonTableExpr]) -> None:
-        self.write('WITH')
         count = len(ctes)
         for i, cte in enumerate(ctes):
             self.new_lines = 1
@@ -205,6 +210,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                     self.indentation += 1
 
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         # If reordered is True, we try to put the FROM clause *before* SELECT,
@@ -332,6 +338,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_InsertStmt(self, node: pgast.InsertStmt) -> None:
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         self.write('INSERT INTO ')
@@ -391,6 +398,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_UpdateStmt(self, node: pgast.UpdateStmt) -> None:
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         self.write('UPDATE ')
@@ -433,6 +441,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_DeleteStmt(self, node: pgast.DeleteStmt) -> None:
         if node.ctes:
+            self.write('WITH ')
             self.gen_ctes(node.ctes)
 
         self.write('DELETE FROM ')
@@ -704,7 +713,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(common.qname(*node.name))
 
         self.write('(')
-        if node.agg_distinct:
+        if node.agg_star:
+            self.write("*")
+        elif node.agg_distinct:
             self.write('DISTINCT ')
         self.visit_list(node.args, newlines=False)
 
@@ -1057,6 +1068,21 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         if node.with_no_data:
             self.write(' WITH NO DATA')
+
+    def visit_MinMaxExpr(self, node: pgast.MinMaxExpr) -> None:
+        self.write(node.op)
+        self.write('(')
+        self.visit_list(node.args)
+        self.write(')')
+
+    def visit_LockStmt(self, node: pgast.LockStmt) -> None:
+        self.write('LOCK TABLE ')
+        self.visit_list(node.relations)
+        self.write(' IN ')
+        self.write(node.mode)
+        self.write(' MODE')
+        if node.no_wait:
+            self.write(' NOWAIT')
 
 
 generate_source = SQLSourceGenerator.to_source

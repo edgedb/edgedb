@@ -34,6 +34,7 @@ from edb.schema import ddl as s_ddl
 from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
+from edb.schema import properties as s_props
 
 from edb.testbase import lang as tb
 from edb.tools import test
@@ -534,6 +535,30 @@ class TestSchema(tb.BaseSchemaLoadTest):
             scalar type Foo;
         """
 
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "index of object type 'test::Foo' was already declared")
+    def test_schema_bad_type_16(self):
+        """
+            type Foo {
+                property val -> str;
+                index on (.val);
+                index on (.val);
+            };
+        """
+
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "index 'fts::textsearch' of object type 'test::Foo' "
+                  "was already declared")
+    def test_schema_bad_type_17(self):
+        """
+            type Foo {
+                property val -> str;
+                index fts::textsearch(language:='enlgish') on (.val);
+                index fts::textsearch(language:='italian') on (.val);
+                index fts::textsearch(language:='enlgish') on (.val);
+            };
+        """
+
     def test_schema_computable_cardinality_inference_01(self):
         schema = self.load_schema("""
             type Object {
@@ -744,6 +769,28 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 access policy foo allow all using (true);
                 access policy foo allow all using (true);
             };
+        """
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "module 'super' is a reserved module name"
+    )
+    def test_schema_module_reserved_01(self):
+        """
+            module foo {
+                module super {}
+            }
+        """
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "module 'ext' is a reserved module name"
+    )
+    def test_schema_module_reserved_02(self):
+        """
+            module foo {
+                module ext {}
+            }
         """
 
     def test_schema_refs_01(self):
@@ -1463,7 +1510,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             next(iter(obj.get_indexes(
                 schema).objects(schema))).get_verbosename(
                     schema, with_parent=True),
-            "index 'foo_7770702d' of object type 'test::Object1'",
+            "index of object type 'test::Object1'",
         )
 
     def test_schema_advanced_types(self):
@@ -3339,6 +3386,74 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema, multi_module=True)
 
+    def test_schema_get_migration_nested_module_01(self):
+        schema = r'''
+        type foo::bar::Y;
+        module foo {
+          module bar {
+            type X {
+                link y -> Y;
+            }
+          }
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_schema_get_migration_nested_module_02(self):
+        schema = r'''
+        module foo {
+          type Z;
+          type Y {
+              link x1 -> foo::bar::X;
+              link x2 := foo::bar::X;
+              link z1 -> Z;
+              link z2 := Z;
+          };
+          module bar {
+            type X;
+          }
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_schema_get_migration_nested_module_03(self):
+        schema = r'''
+        module default {
+            alias x := _test::abs(-1);
+        };
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_schema_get_migration_nested_module_04(self):
+        schema = r'''
+        module _test { };
+        module default {
+            alias x := _test::abs(-1);
+        };
+        '''
+        with self.assertRaisesRegex(
+            errors.InvalidReferenceError,
+            "function '_test::abs' does not exist"
+        ):
+            self._assert_migration_consistency(schema, multi_module=True)
+
+    def test_schema_get_migration_nested_module_05(self):
+        schema = r'''
+        module foo {
+          module bar {
+            type X;
+          }
+        };
+        module default {
+          alias x := (with m as module foo select m::bar::X);
+        }
+        '''
+
+        self._assert_migration_consistency(schema, multi_module=True)
+
     def test_schema_get_migration_default_ptrs_01(self):
         schema = r'''
         type Foo {
@@ -3413,6 +3528,30 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         '''
 
         self._assert_migration_consistency(schema)
+
+    def test_schema_pointer_kind_infer_01(self):
+        tschema = r'''
+        type Bar;
+        scalar type scl extending str;
+        type Foo {
+            name: str;
+            foo: Foo;
+            bar: Bar;
+            or_: Foo | Bar;
+            array1: array<str>;
+            array2: array<scl>;
+        };
+        '''
+
+        schema = self._assert_migration_consistency(tschema)
+
+        obj = schema.get('default::Foo')
+        obj.getptr(schema, s_name.UnqualName('name'), type=s_props.Property)
+        obj.getptr(schema, s_name.UnqualName('array1'), type=s_props.Property)
+        obj.getptr(schema, s_name.UnqualName('array2'), type=s_props.Property)
+        obj.getptr(schema, s_name.UnqualName('foo'), type=s_links.Link)
+        obj.getptr(schema, s_name.UnqualName('bar'), type=s_links.Link)
+        obj.getptr(schema, s_name.UnqualName('or_'), type=s_links.Link)
 
     def test_schema_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""
@@ -5819,7 +5958,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property last_name -> str;
                 property name := .first_name ++ ' ' ++ .last_name;
                 # an index on a computable
-                index on (.name);
+                index fts::textsearch(language := 'english') on (.name);
             }
         """])
 
@@ -7642,6 +7781,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             """,
         ])
 
+    def test_schema_migrations_equivalence_nested_module_01(self):
+        self._assert_migration_equivalence([r"""
+            module foo { module bar {} }
+        """, r"""
+            module foo { module bar { module baz {} } }
+        """])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
@@ -8321,9 +8467,9 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             abstract constraint test::my_constr1(val: std::int64) {
-                using (WITH m AS MODULE math
+                using (
                     SELECT
-                        (m::abs((__subject__ + val)) > 2)
+                        (math::abs((__subject__ + val)) > 2)
                 );
             };
             ''',
@@ -8719,6 +8865,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 CREATE MULTI LINK properties := (
                     .pointers[IS schema::Property]
                 );
+                CREATE MULTI LINK triggers
+                  EXTENDING schema::reference -> schema::Trigger {
+                    ON TARGET DELETE ALLOW;
+                    CREATE CONSTRAINT std::exclusive;
+                };
             };
             """,
 
@@ -8742,6 +8893,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 multi link properties := (
                     .pointers[IS schema::Property]
                 );
+                multi link triggers
+                  extending schema::reference -> schema::Trigger {
+                    on target delete allow;
+                    constraint std::exclusive;
+                };
                 multi link union_of -> schema::ObjectType;
                 property compound_type := (
                     (EXISTS (.union_of) OR EXISTS (.intersection_of))

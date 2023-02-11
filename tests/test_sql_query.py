@@ -19,6 +19,7 @@
 import os.path
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 try:
     import asyncpg
@@ -504,28 +505,81 @@ class TestSQL(tb.SQLQueryTestCase):
         # this numbers change, so let's just check that there are 6 of them
         self.assertEqual(len(res[0]), 6)
 
+        res = await self.squery_values(
+            '''
+            SELECT tableoid, xmin, cmin, xmax, cmax, ctid FROM "Content"
+            '''
+        )
+        self.assertEqual(len(res[0]), 6)
+
+        res = await self.squery_values(
+            '''
+            SELECT tableoid, xmin, cmin, xmax, cmax, ctid FROM "Movie.actors"
+            '''
+        )
+        self.assertEqual(len(res[0]), 6)
+
+    async def test_sql_query_34(self):
+        # GROUP and ORDER BY aliased column
+
+        res = await self.squery_values(
+            """
+            SELECT substr(title, 2, 4) AS itl, count(*) FROM "Movie"
+            GROUP BY itl
+            ORDER BY itl
+            """
+        )
+        self.assertEqual(res, [["avin", 1], ["orre", 1]])
+
+    async def test_sql_query_35(self):
+        # ORDER BY original column
+
+        res = await self.squery_values(
+            """
+            SELECT title AS aliased_title, count(*) FROM "Movie"
+            GROUP BY title
+            ORDER BY title
+            """
+        )
+        self.assertEqual(res, [
+            ['Forrest Gump', 1],
+            ['Saving Private Ryan', 1]
+        ])
+
+    async def test_sql_query_36(self):
+        # ColumnRef to relation
+
+        res = await self.squery_values(
+            """
+            select rel from (select 1 as a, 2 as b) rel
+            """
+        )
+        self.assertEqual(res, [[(1, 2)]])
+
     async def test_sql_query_introspection_00(self):
         res = await self.squery_values(
             '''
-            SELECT table_name
+            SELECT table_schema, table_name
             FROM information_schema.tables
-            WHERE table_schema = 'public'
-            ORDER BY table_name
+            WHERE table_catalog = 'sql' AND table_schema ILIKE 'public%'
+            ORDER BY table_schema, table_name
             '''
         )
         self.assertEqual(
             res,
             [
-                ['Book'],
-                ['Book.chapters'],
-                ['Content'],
-                ['Genre'],
-                ['Movie'],
-                ['Movie.actors'],
-                ['Movie.director'],
-                ['Person'],
-                ['novel'],
-                ['novel.chapters'],
+                ['public', 'Book'],
+                ['public', 'Book.chapters'],
+                ['public', 'Content'],
+                ['public', 'Genre'],
+                ['public', 'Movie'],
+                ['public', 'Movie.actors'],
+                ['public', 'Movie.director'],
+                ['public', 'Person'],
+                ['public', 'novel'],
+                ['public', 'novel.chapters'],
+                ['public::nested', 'Hello'],
+                ['public::nested::deep', 'Rolling'],
             ],
         )
 
@@ -584,7 +638,8 @@ class TestSQL(tb.SQLQueryTestCase):
                 tbl_name, array_agg(column_name)
             FROM (
                 SELECT
-                    table_schema || '."' || table_name || '"' as tbl_name,
+                    '"' || table_schema || '"."' || table_name || '"'
+                        AS tbl_name,
                     column_name
                 FROM information_schema.columns
                 ORDER BY tbl_name, ordinal_position
@@ -661,7 +716,46 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assertEqual(res, [['blah']])
 
         res = await self.squery_values('select current_catalog;')
-        self.assertEqual(res, [['postgres']])
+        self.assertEqual(res, [['sql']])
 
         res = await self.squery_values('select current_schemas(true);')
         self.assertEqual(res, [[['pg_catalog', 'blah', 'foo']]])
+
+    async def test_sql_query_be_state(self):
+        con = await self.connect(database=self.con.dbname)
+        try:
+            await con.execute('''
+                CONFIGURE SESSION SET __internal_sess_testvalue := 1;
+            ''')
+            await self.squery_values(
+                "set default_transaction_isolation to 'read committed'"
+            )
+            self.assertEqual(
+                await con.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                1,
+            )
+            res = await self.squery_values(
+                'show default_transaction_isolation'
+            )
+            self.assertEqual(res, [['read committed']])
+        finally:
+            await con.aclose()
+
+    @test.xfail("https://github.com/MagicStack/py-pgproto/issues/19")
+    async def test_sql_query_client_encoding_1(self):
+        rv1 = await self.squery_values('select * from "Genre" order by id')
+        await self.squery_values("set client_encoding to 'GBK'")
+        rv2 = await self.squery_values('select * from "Genre" order by id')
+        self.assertEqual(rv1, rv2)
+
+    async def test_sql_query_client_encoding_2(self):
+        await self.squery_values("set client_encoding to 'sql-ascii'")
+        await self.squery_values('select * from "Movie"')
+        with self.assertRaises(UnicodeDecodeError):
+            await self.squery_values('select * from "Genre"')
+
+        await self.squery_values("set client_encoding to 'latin1'")
+        with self.assertRaises(asyncpg.UntranslatableCharacterError):
+            await self.squery_values('select * from "Genre"')

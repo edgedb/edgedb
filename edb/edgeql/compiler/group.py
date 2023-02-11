@@ -220,11 +220,11 @@ class FindAggregatingUses(ast_visitor.NodeVisitor):
 
 
 def infer_group_aggregates(
-    ir: irast.Base,
+    irs: Sequence[irast.Base],
     *,
     ctx: context.ContextLevel,
 ) -> None:
-    groups = ast_visitor.find_children(ir, irast.GroupStmt)
+    groups = ast_visitor.find_children(irs, irast.GroupStmt)
     for stmt in groups:
         visitor = FindAggregatingUses(
             stmt.group_binding.path_id,

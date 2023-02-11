@@ -431,6 +431,72 @@ class ExpressionList(checked.FrozenCheckedList[Expression]):
         return basecoef + (1 - basecoef) * compcoef
 
 
+class ExpressionDict(checked.CheckedDict[str, Expression]):
+
+    @staticmethod
+    def merge_values(target: so.Object,
+                     sources: Sequence[so.Object],
+                     field_name: str,
+                     *,
+                     ignore_local: bool = False,
+                     schema: s_schema.Schema) -> Any:
+        result = None
+        # Assume that sources are given in MRO order, so we need to reverse
+        # them to figure out the merged vaue.
+        for source in reversed(sources):
+            theirs = source.get_explicit_field_value(schema, field_name, None)
+            if theirs:
+                if result is None:
+                    result = dict(theirs)
+                else:
+                    result.update(theirs)
+
+        # Finally merge the most relevant data.
+        if not ignore_local:
+            ours = target.get_explicit_field_value(schema, field_name, None)
+            if result is None:
+                result = ours
+            elif ours:
+                result.update(ours)
+
+        return result
+
+    @classmethod
+    def compare_values(cls: Type[ExpressionDict],
+                       ours: Optional[ExpressionDict],
+                       theirs: Optional[ExpressionDict],
+                       *,
+                       our_schema: s_schema.Schema,
+                       their_schema: s_schema.Schema,
+                       context: so.ComparisonContext,
+                       compcoef: float) -> float:
+        """See the comment in Object.compare_values"""
+        if not ours and not theirs:
+            basecoef = 1.0
+        elif (not ours or not theirs) or (len(ours) != len(theirs)):
+            basecoef = 0.2
+        elif set(ours.keys()) != set(theirs.keys()):
+            # Same length dicts can still have different keys, which is
+            # similar to having mismatched length.
+            basecoef = 0.2
+        else:
+            # We have the same keys, so just compare the values.
+            similarity = []
+
+            for ((_, expr1), (_, expr2)) in zip(
+                sorted(ours.items()), sorted(theirs.items())
+            ):
+                similarity.append(
+                    Expression.compare_values(
+                        expr1, expr2, our_schema=our_schema,
+                        their_schema=their_schema, context=context,
+                        compcoef=compcoef))
+
+            basecoef = sum(similarity) / len(similarity)
+
+        return basecoef + (1 - basecoef) * compcoef
+
+
 def imprint_expr_context(
     qltree: qlast_.Base,
     modaliases: Mapping[Optional[str], str],

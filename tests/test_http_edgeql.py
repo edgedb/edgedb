@@ -258,6 +258,16 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 variables={'x': None},
             )
 
+    def test_http_edgeql_query_13(self):
+        self.assert_edgeql_query_result(
+            r'''select (<array<int64>>$foo, <tuple<int64, str>>$bar)''',
+            [[[1, 2, 3], [1, 'test']]],
+            variables=dict(
+                foo=[1, 2, 3],
+                bar=(1, 'test'),
+            )
+        )
+
     def test_http_edgeql_query_globals_01(self):
         Q = r'''select GlobalTest { gstr, garray, gid, gdef, gdef2 }'''
 
@@ -315,5 +325,25 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 Q,
                 ['foo'],
                 globals={'default::test_global_str': 'foo'},
+                use_http_post=use_http_post,
+            )
+
+    def test_http_edgeql_query_globals_04(self):
+        Q = r'''select get_glob()'''
+
+        for use_http_post in [True, False]:
+            self.assert_edgeql_query_result(
+                Q,
+                [],
+                use_http_post=use_http_post,
+            )
+
+    def test_http_edgeql_query_func_01(self):
+        Q = r'''select id_func('foo')'''
+
+        for use_http_post in [True, False]:
+            self.assert_edgeql_query_result(
+                Q,
+                ['foo'],
                 use_http_post=use_http_post,
             )

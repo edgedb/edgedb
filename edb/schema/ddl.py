@@ -355,7 +355,9 @@ def delta_schemas(
             result.add(cmd)
 
     if include_module_diff:
-        for dropped_module in sorted(dropped_modules):
+        # Process dropped modules in *reverse* sorted order, so that
+        # `foo::bar` gets dropped before `foo`.
+        for dropped_module in reversed(sorted(dropped_modules)):
             if (
                 guidance is None
                 or (
@@ -411,17 +413,40 @@ def apply_sdl(
     documents[defines.DEFAULT_MODULE_ALIAS] = []
     extensions = {}
     futures = {}
-    for decl in sdl_document.declarations:
+
+    def collect(
+        decl: qlast.NamedDDL | qlast.ModuleDeclaration,
+        module: Optional[str],
+    ) -> None:
         # declarations are either in a module block or fully-qualified
         if isinstance(decl, qlast.ModuleDeclaration):
-            documents[decl.name.name].extend(decl.declarations)
+            new_mod = (
+                f'{module}::{decl.name.name}' if module else decl.name.name)
+            # make sure the new one is present
+            documents.setdefault(new_mod, [])
+            for sdecl in decl.declarations:
+                collect(sdecl, new_mod)
         elif isinstance(decl, qlast.CreateExtension):
+            assert not module
             extensions[decl.name.name] = decl
         elif isinstance(decl, qlast.CreateFuture):
+            assert not module
             futures[decl.name.name] = decl
         else:
-            assert decl.name.module is not None
-            documents[decl.name.module].append(decl)
+            assert isinstance(decl, qlast.NamedDDL)
+            assert module or decl.name.module is not None
+            if decl.name.module is None:
+                assert module
+                name = module
+            else:
+                name = (
+                    f'{module}::{decl.name.name}'
+                    if module else decl.name.module)
+
+            documents[name].append(decl)
+
+    for decl in sdl_document.declarations:
+        collect(decl, None)
 
     ddl_stmts = s_decl.sdl_to_ddl(current_schema, documents)
     context = sd.CommandContext(

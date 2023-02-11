@@ -48,11 +48,6 @@ Options
     The project directory can be specified explicitly. Defaults to the
     current directory.
 
-:cli:synopsis:`--server-install-method=<server-install-method>`
-    Specifies which server should be used for this project: server
-    installed via the local package system (``package``) or as a docker
-    image (``docker``).
-
 :cli:synopsis:`--server-instance=<server-instance>`
     Specifies the EdgeDB server instance to be associated with the
     project.

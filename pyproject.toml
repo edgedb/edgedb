@@ -24,10 +24,10 @@ dependencies = [
 test = [
     'black~=21.7b0',
     'coverage~=5.5',
-    'flake8~=3.9.2',
-    'flake8-bugbear~=21.4.3',
-    'pycodestyle~=2.7.0',
-    'pyflakes~=2.3.1',
+    'flake8~=6.0.0',
+    'flake8-bugbear~=23.1.20',
+    'pycodestyle~=2.10.0',
+    'pyflakes~=3.0.1',
     'asyncpg~=0.26.0',
 
     # Needed for test_docs_sphinx_ext
@@ -72,7 +72,7 @@ docs = [
 requires = [
     "Cython (>=0.29.32, <0.30.0)",
     "packaging >= 21.0",
-    "setuptools >= 54",
+    "setuptools >= 67",
     "setuptools-rust ~= 0.12.1",
     "wheel",
 

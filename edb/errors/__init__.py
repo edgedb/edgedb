@@ -82,6 +82,7 @@ __all__ = base.__all__ + (  # type: ignore
     'TransactionConflictError',
     'TransactionSerializationError',
     'TransactionDeadlockError',
+    'WatchError',
     'ConfigurationError',
     'AccessError',
     'AuthenticationError',
@@ -384,6 +385,10 @@ class TransactionSerializationError(TransactionConflictError):
 
 class TransactionDeadlockError(TransactionConflictError):
     _code = 0x_05_03_01_02
+
+
+class WatchError(ExecutionError):
+    _code = 0x_05_04_00_00
 
 
 class ConfigurationError(EdgeDBError):

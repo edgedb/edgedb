@@ -30,63 +30,63 @@ from .expressions import *  # NOQA
 
 class ConfigScope(Nonterm):
 
-    def reduce_SESSION(self, *kids):
+    def reduce_SESSION(self, _):
         self.val = qltypes.ConfigScope.SESSION
 
-    def reduce_CURRENT_DATABASE(self, *kids):
+    def reduce_CURRENT_DATABASE(self, _c, _d):
         self.val = qltypes.ConfigScope.DATABASE
 
-    def reduce_SYSTEM(self, *kids):
+    def reduce_SYSTEM(self, _):
         self.val = qltypes.ConfigScope.INSTANCE
 
-    def reduce_INSTANCE(self, *kids):
+    def reduce_INSTANCE(self, _):
         self.val = qltypes.ConfigScope.INSTANCE
 
 
 class ConfigOp(Nonterm):
 
-    def reduce_SET_NodeName_ASSIGN_Expr(self, *kids):
+    def reduce_SET_NodeName_ASSIGN_Expr(self, _s, name, _a, expr):
         self.val = qlast.ConfigSet(
-            name=kids[1].val,
-            expr=kids[3].val,
+            name=name.val,
+            expr=expr.val,
         )
 
-    def reduce_INSERT_NodeName_Shape(self, *kids):
+    def reduce_INSERT_NodeName_Shape(self, _, name, shape):
         self.val = qlast.ConfigInsert(
-            name=kids[1].val,
-            shape=kids[2].val,
+            name=name.val,
+            shape=shape.val,
         )
 
-    def reduce_RESET_NodeName_OptFilterClause(self, *kids):
+    def reduce_RESET_NodeName_OptFilterClause(self, _, name, where):
         self.val = qlast.ConfigReset(
-            name=kids[1].val,
-            where=kids[2].val,
+            name=name.val,
+            where=where.val,
         )
 
 
 class ConfigStmt(Nonterm):
 
-    def reduce_CONFIGURE_DATABASE_ConfigOp(self, *kids):
+    def reduce_CONFIGURE_DATABASE_ConfigOp(self, configure, database, _config):
         raise errors.EdgeQLSyntaxError(
-            f"'{kids[0].val} {kids[1].val}' is invalid syntax. Did you mean "
-            f"'{kids[0].val} "
-            f"{'current' if kids[1].val[0] == 'd' else 'CURRENT'} "
-            f"{kids[1].val}'?",
-            context=kids[1].context)
+            f"'{configure.val} {database.val}' is invalid syntax. "
+            f"Did you mean '{configure.val} "
+            f"{'current' if database.val[0] == 'd' else 'CURRENT'} "
+            f"{database.val}'?",
+            context=database.context)
 
-    def reduce_CONFIGURE_ConfigScope_ConfigOp(self, *kids):
-        self.val = kids[2].val
-        self.val.scope = kids[1].val
+    def reduce_CONFIGURE_ConfigScope_ConfigOp(self, _, scope, op):
+        self.val = op.val
+        self.val.scope = scope.val
 
-    def reduce_SET_GLOBAL_NodeName_ASSIGN_Expr(self, *kids):
+    def reduce_SET_GLOBAL_NodeName_ASSIGN_Expr(self, _s, _g, name, _a, expr):
         self.val = qlast.ConfigSet(
-            name=kids[2].val,
-            expr=kids[4].val,
+            name=name.val,
+            expr=expr.val,
             scope=qltypes.ConfigScope.GLOBAL,
         )
 
-    def reduce_RESET_GLOBAL_NodeName(self, *kids):
+    def reduce_RESET_GLOBAL_NodeName(self, _r, _g, name):
         self.val = qlast.ConfigReset(
-            name=kids[2].val,
+            name=name.val,
             scope=qltypes.ConfigScope.GLOBAL,
         )

@@ -496,6 +496,8 @@ class Compiler:
         system_config: Mapping[str, config.SettingValue],
         query_str: str,
         tx_state: dbstate.SQLTransactionState,
+        current_database: str,
+        current_user: str,
     ) -> List[dbstate.SQLQueryUnit]:
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
@@ -624,6 +626,13 @@ class Compiler:
                 raise NotImplementedError
             elif isinstance(stmt, pgast.ExecuteStmt):
                 raise NotImplementedError
+            elif isinstance(stmt, pgast.LockStmt):
+                if stmt.mode not in ('ACCESS SHARE', 'ROW SHARE', 'SHARE'):
+                    raise NotImplementedError(
+                        "exclusive lock is not supported"
+                    )
+                # just ignore
+                unit = dbstate.SQLQueryUnit(query="DO $$ BEGIN END $$;")
             else:
                 args = {}
                 try:
@@ -632,7 +641,12 @@ class Compiler:
                     pass
                 else:
                     args['search_path'] = parse_search_path(search_path)
-                options = pg_resolver.Options(**args)
+                options = pg_resolver.Options(
+                    current_user=current_user,
+                    current_database=current_database,
+                    current_query=query_str,
+                    **args
+                )
                 resolved = pg_resolver.resolve(stmt, schema, options)
                 source = pg_codegen.generate_source(resolved)
                 unit = dbstate.SQLQueryUnit(query=source)
@@ -1793,6 +1807,9 @@ def _try_compile(
     for i, stmt in enumerate(statements):
         is_trailing_stmt = i == statements_len - 1
         stmt_ctx = ctx if is_trailing_stmt else non_trailing_ctx
+
+        _check_force_database_error(stmt_ctx, stmt)
+
         comp, capabilities = _compile_dispatch_ql(
             stmt_ctx,
             stmt,
@@ -2082,9 +2099,14 @@ def _extract_params(
         if idx >= user_params:
             continue
 
+        if ctx.json_parameters:
+            schema_type = schema.get('std::json')
+        else:
+            schema_type = param.schema_type
+
         array_tid = None
-        if param.schema_type.is_array():
-            el_type = param.schema_type.get_element_type(schema)
+        if schema_type.is_array():
+            el_type = schema_type.get_element_type(schema)
             array_tid = el_type.id
 
         # NB: We'll need to turn this off for script args
@@ -2099,11 +2121,12 @@ def _extract_params(
 
         oparams[idx] = (
             param.name,
-            param.schema_type,
+            schema_type,
             param.required,
         )
 
         if param.sub_params:
+            assert not ctx.json_parameters
             array_tids = []
             for p in param.sub_params.params:
                 if p.schema_type.is_array():
@@ -2306,6 +2329,46 @@ def _get_data_mending_desc(
                 and any(elements)
             )
         )
+
+
+def _check_force_database_error(
+    ctx: CompileContext,
+    ql: qlast.Base,
+) -> None:
+    if isinstance(ql, qlast.ConfigOp):
+        return
+
+    try:
+        val = _get_config_val(ctx, 'force_database_error')
+        # Check the string directly for false to skip a deserialization
+        if val is None or val == 'false':
+            return
+        err = json.loads(val)
+        if not err:
+            return
+
+        errcls = errors.EdgeDBError.get_error_class_from_name(err['type'])
+        if context := err.get('context'):
+            filename = context.get('filename')
+            position = tuple(
+                context.get(k) for k in ('line', 'col', 'start', 'end')
+            )
+        else:
+            filename = None
+            position = None
+
+        errval = errcls(
+            msg=err.get('message'),
+            hint=err.get('hint'),
+            details=err.get('details'),
+            filename=filename,
+            position=position,
+        )
+    except Exception:
+        raise errors.ConfigurationError(
+            "invalid 'force_database_error' value'")
+
+    raise errval
 
 
 def _is_dev_instance(ctx: CompileContext) -> bool:

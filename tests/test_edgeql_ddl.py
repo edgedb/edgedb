@@ -2839,6 +2839,144 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER TYPE Foo ALTER LINK l SET TYPE Spam USING (SELECT Spam)
             """)
 
+    async def test_edgeql_ddl_ptr_using_dml_01(self):
+        await self.con.execute(
+            r"""
+            CREATE TYPE Hello;
+            CREATE TYPE World {
+                CREATE LINK hell -> Hello;
+                CREATE MULTI LINK heaven -> Hello;
+            };
+            INSERT World {
+                heaven := {
+                    (INSERT Hello),
+                    (INSERT Hello),
+                    (INSERT Hello),
+                }
+            };
+            INSERT World {
+                hell := (INSERT Hello),
+                heaven := {
+                    (INSERT Hello),
+                    (INSERT Hello),
+                }
+            };
+            """
+        )
+        self.assertEqual(len(await self.con.query("SELECT Hello")), 6)
+
+        await self.con.execute(
+            r"""
+            ALTER TYPE World {
+                ALTER LINK hell SET REQUIRED USING (INSERT Hello);
+                ALTER LINK heaven SET SINGLE USING (INSERT Hello);
+            }
+            """
+        )
+
+        self.assertEqual(len(await self.con.query("SELECT Hello")), 9)
+
+        res = await self.con.query(
+            "SELECT World { hell: { id }, heaven: { id } }"
+        )
+        self.assertEqual(len(res), 2)
+        set_of_hellos = {
+            world.hell.id for world in res
+        }.union({
+            world.heaven.id for world in res
+        })
+        self.assertEqual(len(set_of_hellos), 4)
+
+    async def test_edgeql_ddl_ptr_using_dml_02(self):
+        await self.con.execute(
+            r"""
+            CREATE TYPE Hello;
+            CREATE TYPE World {
+                CREATE LINK hell -> Hello;
+                CREATE MULTI LINK heaven -> Hello;
+            };
+            """
+        )
+
+        await self.con.execute(
+            r"""
+            ALTER TYPE World {
+                ALTER LINK hell SET REQUIRED USING (INSERT Hello);
+                ALTER LINK heaven SET SINGLE USING (INSERT Hello);
+            }
+            """
+        )
+
+    async def test_edgeql_ddl_ptr_using_dml_03(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError, r"cannot include mutating statements"
+        ):
+            await self.con.execute(
+                r"""
+                CREATE TYPE Hello;
+                CREATE TYPE Goodbye;
+                CREATE TYPE World {
+                    CREATE LINK hell -> Hello;
+                };
+                INSERT World { hell:= (INSERT Hello) };
+                INSERT World {};
+                ALTER TYPE World {
+                    ALTER LINK hell SET TYPE Goodbye USING (INSERT Goodbye);
+                }
+                """
+            )
+
+            await self.assert_query_result(
+                'select Goodbye',
+                [{}, {}]
+            )
+
+    async def test_edgeql_ddl_ptr_using_dml_04(self):
+        await self.con.execute(
+            r"""
+            CREATE TYPE Box {
+                CREATE PROPERTY chance_of_success -> str;
+            };
+            INSERT Box { chance_of_success := 'low' };
+            INSERT Box { chance_of_success := 'high' };
+            INSERT Box { chance_of_success := 'none' };
+            ALTER TYPE Box {
+                ALTER PROPERTY chance_of_success
+                    SET TYPE float64
+                    USING (random());
+            }
+            """
+        )
+
+        res = await self.con.query('select Box { chance_of_success }')
+        self.assertEqual(len(res), 3)
+        self.assertNotEqual(res[0].chance_of_success, res[1].chance_of_success)
+        self.assertNotEqual(res[1].chance_of_success, res[2].chance_of_success)
+        self.assertNotEqual(res[2].chance_of_success, res[0].chance_of_success)
+
+    async def test_edgeql_ddl_ptr_using_dml_05(self):
+        await self.con.execute(
+            r"""
+            CREATE TYPE Hello {
+                CREATE PROPERTY bar -> str;
+            };
+            CREATE TYPE World {
+                CREATE PROPERTY foo -> str;
+                CREATE LINK hell -> Hello;
+            };
+            INSERT World { foo := 'hello' };
+            """
+        )
+
+        await self.con.execute(
+            r"""
+            ALTER TYPE World {
+                ALTER LINK hell SET REQUIRED
+                    USING (INSERT Hello { bar := World.foo });
+            }
+            """
+        )
+
     async def test_edgeql_ddl_ptr_set_cardinality_01(self):
         await self.con.execute(r'''
             CREATE TYPE Foo {
@@ -5064,6 +5202,127 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             # make something inside it.
             CREATE TYPE spam::Test;
         ''')
+
+    async def test_edgeql_ddl_module_03(self):
+        await self.assert_query_result(
+            r'''
+            select _test::abs(-1)
+            ''',
+            [1]
+        )
+        await self.con.execute('''\
+            CREATE MODULE _test
+        ''')
+        with self.assertRaisesRegex(
+                edgedb.InvalidReferenceError,
+                "'_test::abs' does not exist"):
+            await self.con.execute('''\
+            select _test::abs(-1)
+            ''')
+
+    async def test_edgeql_ddl_module_04(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.UnknownModuleError,
+                "module 'foo' is not in this schema"):
+            await self.con.execute('''\
+                CREATE MODULE foo::bar;
+            ''')
+
+        await self.con.execute('''\
+            CREATE MODULE foo;
+            CREATE MODULE foo::bar;
+            CREATE TYPE foo::Foo;
+            CREATE TYPE foo::bar::Baz;
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            select foo::bar::Baz
+            ''',
+            []
+        )
+        await self.assert_query_result(
+            r'''
+            with module foo::bar
+            select Baz
+            ''',
+            []
+        )
+        await self.con.execute('''\
+            SET MODULE foo::bar;
+        ''')
+        await self.assert_query_result(
+            r'''
+            select foo::bar::Baz
+            ''',
+            []
+        )
+        await self.assert_query_result(
+            r'''
+            select Baz
+            ''',
+            []
+        )
+
+        await self.con.execute('''\
+            SET MODULE foo;
+        ''')
+        # We *don't* support relative references of submodules
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidReferenceError,
+                "'bar::Baz' does not exist"):
+            await self.con.execute('''\
+                SELECT bar::Baz
+            ''')
+        await self.assert_query_result(
+            r'''
+            select Foo
+            ''',
+            []
+        )
+        await self.con.execute('''\
+            RESET MODULE;
+        ''')
+
+        # We *don't* support relative references of submodules
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidReferenceError,
+                "'bar::Baz' does not exist"):
+            await self.con.execute('''\
+                WITH MODULE foo
+                SELECT bar::Baz
+            ''')
+
+        await self.assert_query_result(
+            r'''
+            with m as module foo::bar
+            select m::Baz
+            ''',
+            []
+        )
+
+        await self.assert_query_result(
+            r'''
+            with m as module foo
+            select m::bar::Baz
+            ''',
+            []
+        )
+
+    async def test_edgeql_ddl_module_05(self):
+        await self.con.execute('''\
+            CREATE MODULE foo;
+            CREATE MODULE foo::bar;
+            SET MODULE foo::bar;
+            CREATE TYPE Baz;
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            select foo::bar::Baz
+            ''',
+            []
+        )
 
     async def test_edgeql_ddl_operator_01(self):
         await self.con.execute('''

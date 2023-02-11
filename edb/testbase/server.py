@@ -1264,6 +1264,12 @@ class SQLQueryTestCase(BaseQueryTestCase):
         finally:
             super().tearDownClass()
 
+    def tearDown(self):
+        try:
+            self.loop.run_until_complete(self.scon.execute('RESET ALL'))
+        finally:
+            super().tearDown()
+
     async def squery_values(self, query):
         res = await self.scon.fetch(query)
         return [list(r.values()) for r in res]

@@ -143,7 +143,7 @@ class EdgeQLDataMigrationTestCase(tb.DDLTestCase):
                     curddl = stmt['text']
 
                     if interpolations:
-                        def _replace(match):
+                        def _replace(match, interpolations=interpolations):
                             var_name = match.group(1)
                             var_value = interpolations.get(var_name)
                             if var_value is None:
@@ -8769,7 +8769,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
         await self.assert_query_result(
             'SELECT (SELECT schema::Module FILTER .name LIKE "%test").name;',
-            ['newtest']
+            {'newtest', 'std::_test'},
         )
 
     async def test_edgeql_migration_inherited_optionality_01(self):
@@ -9882,6 +9882,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                         "Please specify a conversion expression"
                         " to alter the type of property 'foo'"
                     ),
+                    'old_type': 'std::str',
+                    'new_type': 'std::int64',
                 }],
             },
         })
@@ -9913,6 +9915,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                         " property 'foo' of object type 'test::Bar' to"
                         " 'single' cardinality"
                     ),
+                    'type': 'std::str',
                 }],
             },
         })
@@ -9954,6 +9957,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                         "objects in order to make property 'bar' of object "
                         "type 'test::Bar' required"
                     ),
+                    'type': 'std::str',
                 }],
             },
         })
@@ -10041,17 +10045,62 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             '''
         )
 
-        async with self.assertRaisesRegexTx(
-            edgedb.SchemaError, "cannot include mutating statements"
-        ):
-            try:
-                await self.fast_forward_describe_migration(
-                    user_input=[
-                        'insert test::Organization { name := "default" }'
-                    ]
-                )
-            except Exception as e:
-                raise e.__cause__
+        await self.fast_forward_describe_migration(
+            user_input=[
+                'insert test::Organization { name := "default" }'
+            ]
+        )
+
+    async def test_edgeql_migration_user_input_06(self):
+        await self.migrate('''
+            type Bar {
+                property foo -> int64;
+            };
+        ''')
+        await self.con.execute('''
+            SET MODULE test;
+            INSERT Bar { foo := 42 };
+            INSERT Bar;
+        ''')
+
+        await self.start_migration('''
+            type Bar {
+                required property foo -> str;
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'proposed': {
+                'required_user_input': [
+                    {
+                        'placeholder': 'fill_expr',
+                        'type': 'std::int64',
+                    },
+                    {
+                        'placeholder': 'cast_expr',
+                        'old_type': 'std::int64',
+                        'new_type': 'std::str',
+                    },
+                ],
+            },
+        })
+
+        await self.fast_forward_describe_migration(
+            user_input=[
+                "0",
+                "<str>.foo",
+            ]
+        )
+
+        await self.assert_query_result(
+            '''
+                SELECT Bar {foo} ORDER BY .foo
+            ''',
+            [
+                {'foo': "0"},
+                {'foo': "42"},
+            ],
+        )
 
     async def test_edgeql_migration_union_01(self):
         async with self.assertRaisesRegexTx(
@@ -11264,6 +11313,16 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
             abstract type Foo extending A, B;
             type Bar extending Foo;
+        """)
+
+    async def test_edgeql_migration_nested_backticks_01(self):
+        await self.migrate(r"""
+            module nested { type Test };
+        """)
+
+        await self.migrate(r"""
+            module nested { type Test };
+            module `back``ticked` { type Test };
         """)
 
 

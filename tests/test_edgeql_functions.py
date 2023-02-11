@@ -2565,6 +2565,54 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                         cal::to_local_datetime('00:00:00 0715');
                 ''')
 
+    async def test_edgeql_functions_to_local_time_05(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'cal::local_time field value out of range'
+        ):
+            async with self.con.transaction():
+                # including time zone
+                await self.con.query(r'''
+                    SELECT
+                        cal::to_local_time('24:00:00');
+                ''')
+
+    async def test_edgeql_functions_to_local_time_06(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'cal::local_time field value out of range'
+        ):
+            async with self.con.transaction():
+                # including time zone
+                await self.con.query(r'''
+                    SELECT
+                        cal::to_local_time(23, 59, 60);
+                ''')
+
+    async def test_edgeql_functions_to_local_time_07(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'cal::local_time field value out of range'
+        ):
+            async with self.con.transaction():
+                # including time zone
+                await self.con.query(r'''
+                    SELECT
+                        <cal::local_time>'23:59:59.999999999999';
+                ''')
+
+    async def test_edgeql_functions_to_local_time_08(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            'cal::local_time field value out of range'
+        ):
+            async with self.con.transaction():
+                # including time zone
+                await self.con.query(r'''
+                    SELECT
+                        <cal::local_time><json>'24:00:00';
+                ''')
+
     async def test_edgeql_functions_to_duration_01(self):
         await self.assert_query_result(
             r'''SELECT <str>to_duration(hours:=20);''',

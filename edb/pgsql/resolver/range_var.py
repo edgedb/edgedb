@@ -78,7 +78,7 @@ def _resolve_RelRangeVar(
     *,
     ctx: Context,
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
-    with ctx.empty() as subctx:
+    with ctx.child() as subctx:
         subctx.include_inherited = range_var.include_inherited
 
         relation: Union[pgast.BaseRelation, pgast.CommonTableExpr]
@@ -118,7 +118,7 @@ def _resolve_RangeSubselect(
     *,
     ctx: Context,
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
-    with ctx.lateral() if range_var.lateral else ctx.empty() as subctx:
+    with ctx.lateral() if range_var.lateral else ctx.child() as subctx:
         subquery, subtable = dispatch.resolve_relation(
             range_var.subquery, ctx=subctx
         )
@@ -165,10 +165,10 @@ def _resolve_JoinExpr(
 
     if range_var.using_clause:
         for c in range_var.using_clause:
-            with ctx.empty() as subctx:
+            with ctx.child() as subctx:
                 subctx.scope.tables = [ltable]
                 l_expr = dispatch.resolve(c, ctx=subctx)
-            with ctx.empty() as subctx:
+            with ctx.child() as subctx:
                 subctx.scope.tables = [rtable]
                 r_expr = dispatch.resolve(c, ctx=subctx)
             quals = pgastutils.extend_binop(
@@ -239,7 +239,7 @@ def _resolve_RangeFunction(
     *,
     ctx: Context,
 ) -> Tuple[pgast.BaseRangeVar, context.Table]:
-    with ctx.lateral() if range_var.lateral else ctx.empty() as subctx:
+    with ctx.lateral() if range_var.lateral else ctx.child() as subctx:
 
         functions = []
         col_names = []
@@ -256,6 +256,11 @@ def _resolve_RangeFunction(
             functions.append(dispatch.resolve(function, ctx=subctx))
 
         inferred_columns = [context.Column(name=name) for name in col_names]
+
+        if range_var.with_ordinality:
+            inferred_columns.append(
+                context.Column(name='ordinality', reference_as='ordinality')
+            )
 
         table = context.Table(
             columns=[

@@ -103,7 +103,7 @@ Then create a new PostgreSQL cluster. This may take a few minutes to complete.
 .. code-block:: bash
 
     $ PG_APP=myorg-postgres
-    $ flyctl pg create --name $PG_APP --vm-size dedicated-cpu-1x
+    $ flyctl pg create --name $PG_APP --vm-size shared-cpu-1x
     ? Select region: sea (Seattle, Washington (US))
     ? Specify the initial cluster size: 1
     ? Volume size (GB): 10
@@ -120,7 +120,29 @@ Then create a new PostgreSQL cluster. This may take a few minutes to complete.
     ...
     --> v0 deployed successfully
 
-Attach the PostgreSQL cluster to the EdgeDB app:
+In the output, you'll notice a line that says ``Machine <machine-id> is
+created``. The ID in that line is the ID of the virtual machine created for
+your Postgres cluster. We now need to use that ID to scale the cluster since
+the ``shared-cpu-1x`` VM doesn't have enough memory by default. Scale it with
+this command:
+
+.. code-block:: bash
+
+    $ flyctl machine update <machine-id> --memory 512 --app $PG_APP -y
+    Searching for image 'flyio/postgres:14.6' remotely...
+    image found: img_0lq747j0ym646x35
+    Image: registry-1.docker.io/flyio/postgres:14.6
+    Image size: 361 MB
+
+    Updating machine <machine-id>
+      Waiting for <machine-id> to become healthy (started, 3/3)
+    Machine <machine-id> updated successfully!
+    ==> Monitoring health checks
+      Waiting for <machine-id> to become healthy (started, 3/3)
+    ...
+
+With the VM scaled sufficiently, we can now attach the PostgreSQL cluster to
+the EdgeDB app:
 
 .. code-block:: bash
 

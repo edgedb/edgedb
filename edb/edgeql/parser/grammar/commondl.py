@@ -99,41 +99,41 @@ class Semicolons(Nonterm):
     def reduce_SEMICOLON(self, tok):
         self.val = tok
 
-    def reduce_Semicolons_SEMICOLON(self, *kids):
-        self.val = kids[0].val
+    def reduce_Semicolons_SEMICOLON(self, semicolons, _):
+        self.val = semicolons.val
 
 
 class OptSemicolons(Nonterm):
-    def reduce_Semicolons(self, *kids):
-        self.val = kids[0].val
+    def reduce_Semicolons(self, semicolons):
+        self.val = semicolons.val
 
     def reduce_empty(self):
         self.val = None
 
 
 class ExtendingSimple(Nonterm):
-    def reduce_EXTENDING_SimpleTypeNameList(self, *kids):
-        self.val = kids[1].val
+    def reduce_EXTENDING_SimpleTypeNameList(self, _, list):
+        self.val = list.val
 
 
 class OptExtendingSimple(Nonterm):
-    def reduce_ExtendingSimple(self, *kids):
-        self.val = kids[0].val
+    def reduce_ExtendingSimple(self, extending):
+        self.val = extending.val
 
-    def reduce_empty(self, *kids):
+    def reduce_empty(self):
         self.val = []
 
 
 class Extending(Nonterm):
-    def reduce_EXTENDING_TypeNameList(self, *kids):
-        self.val = kids[1].val
+    def reduce_EXTENDING_TypeNameList(self, _, list):
+        self.val = list.val
 
 
 class OptExtending(Nonterm):
-    def reduce_Extending(self, *kids):
-        self.val = kids[0].val
+    def reduce_Extending(self, extending):
+        self.val = extending.val
 
-    def reduce_empty(self, *kids):
+    def reduce_empty(self):
         self.val = []
 
 
@@ -141,37 +141,37 @@ class OnExpr(Nonterm):
     # NOTE: the reason why we need parentheses around the expression
     # is to disambiguate whether the '{' following the expression is
     # meant to be a shape or a nested DDL/SDL block.
-    def reduce_ON_ParenExpr(self, *kids):
-        self.val = kids[1].val
+    def reduce_ON_ParenExpr(self, _, expr):
+        self.val = expr.val
 
 
 class OptOnExpr(Nonterm):
-    def reduce_empty(self, *kids):
+    def reduce_empty(self):
         self.val = None
 
-    def reduce_OnExpr(self, *kids):
-        self.val = kids[0].val
+    def reduce_OnExpr(self, expr):
+        self.val = expr.val
 
 
 class OptOnTypeExpr(Nonterm):
-    def reduce_empty(self, *kids):
+    def reduce_empty(self):
         self.val = None
 
-    def reduce_ON_FullTypeExpr(self, *kids):
-        self.val = kids[1].val
+    def reduce_ON_FullTypeExpr(self, _, expr):
+        self.val = expr.val
 
 
 class OptExceptExpr(Nonterm):
-    def reduce_empty(self, *kids):
+    def reduce_empty(self):
         self.val = None
 
-    def reduce_EXCEPT_ParenExpr(self, *kids):
-        self.val = kids[1].val
+    def reduce_EXCEPT_ParenExpr(self, _, expr):
+        self.val = expr.val
 
 
 class OptConcreteConstraintArgList(Nonterm):
-    def reduce_LPAREN_OptPosCallArgList_RPAREN(self, *kids):
-        self.val = kids[1].val
+    def reduce_LPAREN_OptPosCallArgList_RPAREN(self, _lparen, list, _rparen):
+        self.val = list.val
 
     def reduce_empty(self):
         self.val = []
@@ -181,19 +181,24 @@ class OptDefault(Nonterm):
     def reduce_empty(self):
         self.val = None
 
-    def reduce_EQUALS_Expr(self, *kids):
-        self.val = kids[1].val
+    def reduce_EQUALS_Expr(self, _, expr):
+        self.val = expr.val
+
+
+class ParameterKind(Nonterm):
+    def reduce_VARIADIC(self, *kids):
+        self.val = qltypes.ParameterKind.VariadicParam
+
+    def reduce_NAMEDONLY(self, _):
+        self.val = qltypes.ParameterKind.NamedOnlyParam
 
 
 class OptParameterKind(Nonterm):
     def reduce_empty(self):
         self.val = qltypes.ParameterKind.PositionalParam
 
-    def reduce_VARIADIC(self, kid):
-        self.val = qltypes.ParameterKind.VariadicParam
-
-    def reduce_NAMEDONLY(self, *kids):
-        self.val = qltypes.ParameterKind.NamedOnlyParam
+    def reduce_ParameterKind(self, *kids):
+        self.val = kids[0].val
 
 
 class FuncDeclArgName(Nonterm):
@@ -214,22 +219,25 @@ class FuncDeclArgName(Nonterm):
 
 
 class FuncDeclArg(Nonterm):
-    def reduce_kwarg(self, *kids):
+    def reduce_kwarg(self, kind, name, _, typemod, type, default):
         r"""%reduce OptParameterKind FuncDeclArgName COLON \
                 OptTypeQualifier FullTypeExpr OptDefault \
         """
         self.val = qlast.FuncParam(
-            kind=kids[0].val,
-            name=kids[1].val,
-            typemod=kids[3].val,
-            type=kids[4].val,
-            default=kids[5].val
+            kind=kind.val,
+            name=name.val,
+            typemod=typemod.val,
+            type=type.val,
+            default=default.val
         )
 
-    def reduce_OptParameterKind_FuncDeclArgName_OptDefault(self, *kids):
+    def reduce_OptParameterKind_FuncDeclArgName_OptDefault(
+        self, kind, name, default
+    ):
         raise EdgeQLSyntaxError(
-            f'missing type declaration for the `{kids[1].val}` parameter',
-            context=kids[1].context)
+            f'missing type declaration for the `{name.val}` parameter',
+            context=name.context
+        )
 
 
 class FuncDeclArgList(parsing.ListNonterm, element=FuncDeclArg,
@@ -238,11 +246,11 @@ class FuncDeclArgList(parsing.ListNonterm, element=FuncDeclArg,
 
 
 class FuncDeclArgs(Nonterm):
-    def reduce_FuncDeclArgList_COMMA(self, *kids):
-        self.val = kids[0].val
+    def reduce_FuncDeclArgList_COMMA(self, list, _):
+        self.val = list.val
 
-    def reduce_FuncDeclArgList(self, *kids):
-        self.val = kids[0].val
+    def reduce_FuncDeclArgList(self, list):
+        self.val = list.val
 
 
 class ProcessFunctionParamsMixin:
@@ -313,20 +321,20 @@ class ProcessFunctionParamsMixin:
 
 
 class CreateFunctionArgs(Nonterm, ProcessFunctionParamsMixin):
-    def reduce_LPAREN_RPAREN(self, *kids):
+    def reduce_LPAREN_RPAREN(self, _lparen, _rparen):
         self.val = []
 
-    def reduce_LPAREN_FuncDeclArgs_RPAREN(self, *kids):
-        args = kids[1].val
+    def reduce_LPAREN_FuncDeclArgs_RPAREN(self, _lparen, args, _rparen):
+        args = args.val
         self._validate_params(args)
         self.val = args
 
 
 class OptTypeQualifier(Nonterm):
-    def reduce_SET_OF(self, *kids):
+    def reduce_SET_OF(self, _s, _o):
         self.val = qltypes.TypeModifier.SetOfType
 
-    def reduce_OPTIONAL(self, *kids):
+    def reduce_OPTIONAL(self, _):
         self.val = qltypes.TypeModifier.OptionalType
 
     def reduce_empty(self):
@@ -334,38 +342,42 @@ class OptTypeQualifier(Nonterm):
 
 
 class FunctionType(Nonterm):
-    def reduce_FullTypeExpr(self, *kids):
-        self.val = kids[0].val
+    def reduce_FullTypeExpr(self, expr):
+        self.val = expr.val
 
 
 class FromFunction(Nonterm):
-    def reduce_USING_ParenExpr(self, *kids):
+    def reduce_USING_ParenExpr(self, _, expr):
         lang = qlast.Language.EdgeQL
         self.val = qlast.FunctionCode(
             language=lang,
-            nativecode=kids[1].val)
+            nativecode=expr.val)
 
-    def reduce_USING_Identifier_BaseStringConstant(self, *kids):
-        lang = _parse_language(kids[1])
-        code = kids[2].val.value
+    def reduce_USING_Identifier_BaseStringConstant(self, _, ident, const):
+        lang = _parse_language(ident)
+        code = const.val.value
         self.val = qlast.FunctionCode(language=lang, code=code)
 
-    def reduce_USING_Identifier_FUNCTION_BaseStringConstant(self, *kids):
-        lang = _parse_language(kids[1])
+    def reduce_USING_Identifier_FUNCTION_BaseStringConstant(
+        self, _using, ident, _function, const
+    ):
+        lang = _parse_language(ident)
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
                 f'{lang} language is not supported in USING FUNCTION clause',
-                context=kids[1].context) from None
+                context=ident.context) from None
 
-        self.val = qlast.FunctionCode(language=lang,
-                                      from_function=kids[3].val.value)
+        self.val = qlast.FunctionCode(
+            language=lang,
+            from_function=const.val.value
+        )
 
-    def reduce_USING_Identifier_EXPRESSION(self, *kids):
-        lang = _parse_language(kids[1])
+    def reduce_USING_Identifier_EXPRESSION(self, _using, ident, _expression):
+        lang = _parse_language(ident)
         if lang != qlast.Language.SQL:
             raise EdgeQLSyntaxError(
                 f'{lang} language is not supported in USING clause',
-                context=kids[1].context) from None
+                context=ident.context) from None
 
         self.val = qlast.FunctionCode(language=lang)
 
@@ -451,75 +463,75 @@ class ProcessFunctionBlockMixin:
 # CREATE TYPE ... { CREATE LINK ... { ON TARGET DELETE ...
 #
 class OnTargetDeleteStmt(Nonterm):
-    def reduce_ON_TARGET_DELETE_RESTRICT(self, *kids):
+    def reduce_ON_TARGET_DELETE_RESTRICT(self, *_):
         self.val = qlast.OnTargetDelete(
             cascade=qltypes.LinkTargetDeleteAction.Restrict)
 
-    def reduce_ON_TARGET_DELETE_DELETE_SOURCE(self, *kids):
+    def reduce_ON_TARGET_DELETE_DELETE_SOURCE(self, *_):
         self.val = qlast.OnTargetDelete(
             cascade=qltypes.LinkTargetDeleteAction.DeleteSource)
 
-    def reduce_ON_TARGET_DELETE_ALLOW(self, *kids):
+    def reduce_ON_TARGET_DELETE_ALLOW(self, *_):
         self.val = qlast.OnTargetDelete(
             cascade=qltypes.LinkTargetDeleteAction.Allow)
 
-    def reduce_ON_TARGET_DELETE_DEFERRED_RESTRICT(self, *kids):
+    def reduce_ON_TARGET_DELETE_DEFERRED_RESTRICT(self, *_):
         self.val = qlast.OnTargetDelete(
             cascade=qltypes.LinkTargetDeleteAction.DeferredRestrict)
 
 
 class OnSourceDeleteStmt(Nonterm):
-    def reduce_ON_SOURCE_DELETE_DELETE_TARGET(self, *kids):
+    def reduce_ON_SOURCE_DELETE_DELETE_TARGET(self, *_):
         self.val = qlast.OnSourceDelete(
             cascade=qltypes.LinkSourceDeleteAction.DeleteTarget)
 
-    def reduce_ON_SOURCE_DELETE_ALLOW(self, *kids):
+    def reduce_ON_SOURCE_DELETE_ALLOW(self, *_):
         self.val = qlast.OnSourceDelete(
             cascade=qltypes.LinkSourceDeleteAction.Allow)
 
-    def reduce_ON_SOURCE_DELETE_DELETE_TARGET_IF_ORPHAN(self, *kids):
+    def reduce_ON_SOURCE_DELETE_DELETE_TARGET_IF_ORPHAN(self, *_):
         self.val = qlast.OnSourceDelete(
             cascade=qltypes.LinkSourceDeleteAction.DeleteTargetIfOrphan)
 
 
 class OptWhenBlock(Nonterm):
-    def reduce_WHEN_ParenExpr(self, *kids):
-        self.val = kids[1].val
+    def reduce_WHEN_ParenExpr(self, _, expr):
+        self.val = expr.val
 
-    def reduce_empty(self, *kids):
+    def reduce_empty(self):
         self.val = None
 
 
 class OptUsingBlock(Nonterm):
-    def reduce_USING_ParenExpr(self, *kids):
-        self.val = kids[1].val
+    def reduce_USING_ParenExpr(self, _, expr):
+        self.val = expr.val
 
-    def reduce_empty(self, *kids):
+    def reduce_empty(self):
         self.val = None
 
 
 class AccessKind(Nonterm):
 
-    def reduce_ALL(self, *kids):
+    def reduce_ALL(self, _):
         self.val = list(qltypes.AccessKind)
 
-    def reduce_SELECT(self, *kids):
+    def reduce_SELECT(self, _):
         self.val = [qltypes.AccessKind.Select]
 
-    def reduce_UPDATE(self, *kids):
+    def reduce_UPDATE(self, _):
         self.val = [
             qltypes.AccessKind.UpdateRead, qltypes.AccessKind.UpdateWrite]
 
-    def reduce_UPDATE_READ(self, *kids):
+    def reduce_UPDATE_READ(self, _u, _r):
         self.val = [qltypes.AccessKind.UpdateRead]
 
-    def reduce_UPDATE_WRITE(self, *kids):
+    def reduce_UPDATE_WRITE(self, _u, _w):
         self.val = [qltypes.AccessKind.UpdateWrite]
 
-    def reduce_INSERT(self, *kids):
+    def reduce_INSERT(self, _):
         self.val = [qltypes.AccessKind.Insert]
 
-    def reduce_DELETE(self, *kids):
+    def reduce_DELETE(self, _):
         self.val = [qltypes.AccessKind.Delete]
 
 
@@ -530,17 +542,62 @@ class AccessKindList(parsing.ListNonterm, element=AccessKind,
 
 class AccessPolicyAction(Nonterm):
 
-    def reduce_ALLOW(self, *kids):
+    def reduce_ALLOW(self, _):
         self.val = qltypes.AccessPolicyAction.Allow
 
-    def reduce_DENY(self, *kids):
+    def reduce_DENY(self, _):
         self.val = qltypes.AccessPolicyAction.Deny
+
+
+class TriggerTiming(Nonterm):
+    def reduce_AFTER(self, *kids):
+        self.val = qltypes.TriggerTiming.After
+
+    def reduce_AFTER_COMMIT_OF(self, *kids):
+        self.val = qltypes.TriggerTiming.AfterCommitOf
+
+
+class TriggerKind(Nonterm):
+    def reduce_UPDATE(self, *kids):
+        self.val = qltypes.TriggerKind.Update
+
+    def reduce_INSERT(self, *kids):
+        self.val = qltypes.TriggerKind.Insert
+
+    def reduce_DELETE(self, *kids):
+        self.val = qltypes.TriggerKind.Delete
+
+
+class TriggerKindList(parsing.ListNonterm, element=TriggerKind,
+                      separator=tokens.T_COMMA):
+    pass
+
+
+class TriggerScope(Nonterm):
+    def reduce_EACH(self, *kids):
+        self.val = qltypes.TriggerScope.Each
+
+    def reduce_ALL(self, *kids):
+        self.val = qltypes.TriggerScope.All
+
+
+class RewriteKind(Nonterm):
+    def reduce_UPDATE(self, *kids):
+        self.val = qltypes.RewriteKind.Update
+
+    def reduce_INSERT(self, *kids):
+        self.val = qltypes.RewriteKind.Insert
+
+
+class RewriteKindList(parsing.ListNonterm, element=RewriteKind,
+                      separator=tokens.T_COMMA):
+    pass
 
 
 class ExtensionVersion(Nonterm):
 
-    def reduce_VERSION_BaseStringConstant(self, *kids):
-        version = kids[1].val
+    def reduce_VERSION_BaseStringConstant(self, _, const):
+        version = const.val
 
         try:
             verutils.parse_version(version.value)
@@ -556,37 +613,50 @@ class ExtensionVersion(Nonterm):
 
 class OptExtensionVersion(Nonterm):
 
-    def reduce_ExtensionVersion(self, *kids):
-        self.val = kids[0].val
+    def reduce_ExtensionVersion(self, version):
+        self.val = version.val
 
-    def reduce_empty(self, *kids):
+    def reduce_empty(self):
         self.val = None
 
 
 class IndexArg(Nonterm):
-    def reduce_kwarg_definition(self, *kids):
+    def reduce_kwarg_bad_definition(self, *kids):
         r"""%reduce FuncDeclArgName COLON \
                 OptTypeQualifier FullTypeExpr OptDefault \
         """
-        self.val = qlast.FuncParam(
-            kind=qltypes.ParameterKind.PositionalParam,
-            name=kids[0].val,
-            typemod=kids[2].val,
-            type=kids[3].val,
-            default=kids[4].val
-        )
-
-    def reduce_AnyIdentifier_ASSIGN_Expr(self, *kids):
-        self.val = (
-            kids[0].val,
-            kids[0].context,
-            kids[2].val,
-        )
-
-    def reduce_FuncDeclArgName_OptDefault(self, *kids):
         raise EdgeQLSyntaxError(
-            f'missing type declaration for the `{kids[0].val}` parameter',
+            f'index parameters have to be NAMED ONLY',
             context=kids[0].context)
+
+    def reduce_kwarg_definition(self, kind, name, _, typemod, type, default):
+        r"""%reduce ParameterKind FuncDeclArgName COLON \
+                OptTypeQualifier FullTypeExpr OptDefault \
+        """
+        if kind.val is not qltypes.ParameterKind.NamedOnlyParam:
+            raise EdgeQLSyntaxError(
+                f'index parameters have to be NAMED ONLY',
+                context=kind.context)
+
+        self.val = qlast.FuncParam(
+            kind=kind.val,
+            name=name.val,
+            typemod=typemod.val,
+            type=type.val,
+            default=default.val
+        )
+
+    def reduce_AnyIdentifier_ASSIGN_Expr(self, ident, _, expr):
+        self.val = (
+            ident.val,
+            ident.context,
+            expr.val,
+        )
+
+    def reduce_FuncDeclArgName_OptDefault(self, name, default):
+        raise EdgeQLSyntaxError(
+            f'missing type declaration for the `{name.val}` parameter',
+            context=name.context)
 
 
 class IndexArgList(parsing.ListNonterm, element=IndexArg,
@@ -595,32 +665,32 @@ class IndexArgList(parsing.ListNonterm, element=IndexArg,
 
 
 class OptIndexArgList(Nonterm):
-    def reduce_IndexArgList_COMMA(self, *kids):
-        self.val = kids[0].val
+    def reduce_IndexArgList_COMMA(self, list, _):
+        self.val = list.val
 
-    def reduce_IndexArgList(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_empty(self, *kids):
-        self.val = []
-
-
-class IndexExtArgList(Nonterm):
-
-    def reduce_LPAREN_OptIndexArgList_RPAREN(self, *kids):
-        self.val = kids[1].val
-
-
-class OptIndexExtArgList(Nonterm):
-
-    def reduce_IndexExtArgList(self, *kids):
-        self.val = kids[0].val
+    def reduce_IndexArgList(self, list):
+        self.val = list.val
 
     def reduce_empty(self):
         self.val = []
 
 
-class ProcessIndexMixin:
+class IndexExtArgList(Nonterm):
+
+    def reduce_LPAREN_OptIndexArgList_RPAREN(self, _l, list, _r):
+        self.val = list.val
+
+
+class OptIndexExtArgList(Nonterm):
+
+    def reduce_IndexExtArgList(self, list):
+        self.val = list.val
+
+    def reduce_empty(self):
+        self.val = []
+
+
+class ProcessIndexMixin(ProcessFunctionParamsMixin):
     def _process_arguments(self, arguments):
         kwargs = {}
         for argval in arguments:
@@ -638,6 +708,20 @@ class ProcessIndexMixin:
             kwargs[argname] = arg
 
         return kwargs
+
+    def _process_params_or_kwargs(self, bases, arguments):
+        params = []
+        kwargs = dict()
+
+        # If the definition is extending another abstract index, then we
+        # cannot define new parameters, but can only supply some arguments.
+        if bases:
+            kwargs = self._process_arguments(arguments)
+        else:
+            params = arguments
+            self._validate_params(params)
+
+        return params, kwargs
 
     def _process_sql_body(self, block, *, optional_using: bool=False):
         props: typing.Dict[str, typing.Any] = {}
@@ -663,12 +747,14 @@ class ProcessIndexMixin:
 
 class IndexType(Nonterm, ProcessIndexMixin):
 
-    def reduce_NodeName_LPAREN_OptIndexArgList_RPAREN(self, *kids):
-        kwargs = self._process_arguments(kids[2].val)
-        self.val = qlast.IndexType(name=kids[0], kwargs=kwargs)
+    def reduce_NodeName_LPAREN_OptIndexArgList_RPAREN(
+        self, name, _l, args, _r
+    ):
+        kwargs = self._process_arguments(args.val)
+        self.val = qlast.IndexType(name=name, kwargs=kwargs)
 
-    def reduce_NodeName(self, *kids):
-        self.val = qlast.IndexType(name=kids[0], kwargs={})
+    def reduce_NodeName(self, name):
+        self.val = qlast.IndexType(name=name, kwargs={})
 
 
 class IndexTypeList(parsing.ListNonterm, element=IndexType,
@@ -678,8 +764,8 @@ class IndexTypeList(parsing.ListNonterm, element=IndexType,
 
 class OptIndexTypeList(Nonterm):
 
-    def reduce_USING_IndexTypeList(self, *kids):
-        self.val = kids[1].val
+    def reduce_USING_IndexTypeList(self, _, list):
+        self.val = list.val
 
     def reduce_empty(self):
         self.val = []
@@ -687,7 +773,7 @@ class OptIndexTypeList(Nonterm):
 
 class UsingSQLIndex(Nonterm):
 
-    def reduce_USING_Identifier_BaseStringConstant(self, *kids):
-        lang = _parse_language(kids[1])
-        code = kids[2].val.value
+    def reduce_USING_Identifier_BaseStringConstant(self, _, ident, const):
+        lang = _parse_language(ident)
+        code = const.val.value
         self.val = qlast.IndexCode(language=lang, code=code)

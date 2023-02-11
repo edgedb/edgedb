@@ -2633,29 +2633,43 @@ class LocalTimeInFunction(dbops.Function):
     """Cast text into time using ISO8601 spec."""
     text = r'''
         SELECT
-            CASE WHEN val !~ (
-                    '^\s*(' ||
-                        '(\d{2}(:\d{2}(:\d{2}(\.\d+)?)?)?|\d{2,6}(\.\d+)?)' ||
-                    ')\s*$'
-                )
+            CASE WHEN date_part('hour', x.t) = 24
             THEN
                 edgedb.raise(
                     NULL::time,
                     'invalid_datetime_format',
                     msg => (
-                        'invalid input syntax for type time: '
+                        'cal::local_time field value out of range: '
                         || quote_literal(val)
-                    ),
-                    detail => (
-                        '{"hint":"Please use ISO8601 format. Examples: '
-                        || '18:43:27 or 18:43 Alternatively '
-                        || '\"to_local_time\" function provides custom '
-                        || 'formatting options."}'
                     )
                 )
             ELSE
-                val::time
-            END;
+                x.t
+            END
+        FROM (
+            SELECT
+                CASE WHEN val !~ ('^\s*(' ||
+                        '(\d{2}(:\d{2}(:\d{2}(\.\d+)?)?)?|\d{2,6}(\.\d+)?)' ||
+                    ')\s*$')
+                THEN
+                    edgedb.raise(
+                        NULL::time,
+                        'invalid_datetime_format',
+                        msg => (
+                            'invalid input syntax for type time: '
+                            || quote_literal(val)
+                        ),
+                        detail => (
+                            '{"hint":"Please use ISO8601 format. Examples: '
+                            || '18:43:27 or 18:43 Alternatively '
+                            || '\"to_local_time\" function provides custom '
+                            || 'formatting options."}'
+                        )
+                    )
+                ELSE
+                    val::time
+                END as t
+        ) as x;
     '''
 
     def __init__(self) -> None:
@@ -4134,6 +4148,131 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
         )
 
 
+class FTSParseQueryFunction(dbops.Function):
+    """Return tsquery representing the given FTS input query."""
+
+    text = r'''
+    DECLARE
+        parts text[];
+        exclude text;
+        term text;
+        rest text;
+        cur_op text := NULL;
+        default_op text;
+        tsq tsquery;
+        el tsquery;
+        result tsquery := ''::tsquery;
+
+    BEGIN
+        -- Break up the query string into the current term, optional next
+        -- operator and the rest.
+        parts := regexp_match(
+            q, $$^(-)?((?:"[^"]*")|(?:\S+))\s*(OR|AND)?\s*(.*)$$
+        );
+        exclude := parts[1];
+        term := parts[2];
+        cur_op := parts[3];
+        rest := parts[4];
+
+        IF starts_with(term, '"') THEN
+            -- match as a phrase
+            tsq := phraseto_tsquery(language, trim(both '"' from term));
+        ELSE
+            tsq := to_tsquery(language, term);
+        END IF;
+
+        IF exclude IS NOT NULL THEN
+            tsq := !!tsq;
+        END IF;
+
+        -- setup the default operator for the current term
+        IF starts_with(term, '"') OR exclude IS NOT NULL THEN
+            -- phrases and exclusions are "must" by default
+            default_op := 'AND';
+        ELSE
+            -- regular terms are "should" by default
+            default_op := 'OR';
+        END IF;
+
+        -- figure out the operator between the current term and the next one
+        IF rest = '' THEN
+            -- base case, one one term left, so we ignore the cur_op even if
+            -- present
+
+            IF coalesce(prev_op, default_op) = 'OR' THEN
+                should := array_append(should, tsq);
+            ELSE
+                must := array_append(must, tsq);
+            END IF;
+
+        ELSE
+            -- recursion
+
+            IF starts_with(term, '"') OR exclude IS NOT NULL THEN
+                -- if at least one of the suprrounding operators is 'OR', then
+                -- the phrase is put into "should" category
+
+                IF
+                    coalesce(prev_op, default_op) = 'OR'
+                    OR coalesce(cur_op, default_op) = 'OR'
+                THEN
+                    should := array_append(should, tsq);
+                ELSE
+                    must := array_append(must, tsq);
+                END IF;
+
+            ELSE
+                -- if at least one of the suprrounding operators is 'AND',
+                -- then the phrase is put into "must" category
+
+                IF
+                    coalesce(prev_op, default_op) = 'OR'
+                    AND coalesce(cur_op, default_op) = 'OR'
+                THEN
+                    should := array_append(should, tsq);
+                ELSE
+                    must := array_append(must, tsq);
+                END IF;
+
+            END IF;
+
+            RETURN edgedb.fts_parse_query(
+                rest, language, must, should, cur_op);
+        END IF;
+
+        FOREACH el IN ARRAY should
+        LOOP
+            result := result || el;
+        END LOOP;
+
+        FOREACH el IN ARRAY must
+        LOOP
+            result := result && el;
+        END LOOP;
+
+        RETURN result;
+
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'fts_parse_query'),
+            args=[
+
+                ('q', ('text',)),
+                ('language', ('regconfig',), "'english'"),
+                ('must', ('tsquery[]',), 'array[]::tsquery[]'),
+                ('should', ('tsquery[]',), 'array[]::tsquery[]'),
+                ('prev_op', ('text',), 'NULL'),
+            ],
+            returns=('tsquery',),
+            volatility='immutable',
+            language='plpgsql',
+            text=self.text,
+        )
+
+
 async def bootstrap(
     conn: pgcon.PGConnection,
     config_spec: edbconfig.Spec
@@ -4253,6 +4392,7 @@ async def bootstrap(
         dbops.CreateFunction(RangeValidateFunction()),
         dbops.CreateFunction(RangeUnpackLowerValidateFunction()),
         dbops.CreateFunction(RangeUnpackUpperValidateFunction()),
+        dbops.CreateFunction(FTSParseQueryFunction()),
     ]
     commands = dbops.CommandGroup()
     commands.add_commands(cmds)
@@ -5025,17 +5165,22 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     virtual_tables = dbops.View(
         name=('edgedbsql', 'virtual_tables'),
         query='''
-        WITH obj_ty AS (
+        WITH obj_ty_pre AS (
             SELECT
                 id,
-                CASE SPLIT_PART(name, '::', 1)
-                    WHEN 'default' THEN 'public'
-                    ELSE SPLIT_PART(name, '::', 1)
-                END AS schema_name,
-                SPLIT_PART(name, '::', 1) AS module_name,
-                SPLIT_PART(name, '::', 2) AS table_name
+                REGEXP_REPLACE(name, '::[^:]*$', '') AS module_name,
+                SPLIT_PART(name, '::', -1) AS table_name
             FROM edgedb."_SchemaObjectType"
             WHERE internal IS NOT TRUE
+        ),
+        obj_ty AS (
+            SELECT
+                id,
+                REGEXP_REPLACE(module_name, '^default(?=::|$)', 'public')
+                    AS schema_name,
+                module_name,
+                table_name
+            FROM obj_ty_pre
         ),
         all_tables (id, schema_name, module_name, table_name) AS ((
             SELECT * FROM obj_ty
@@ -5375,6 +5520,29 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
         """,
         ),
+        dbops.View(
+            name=("edgedbsql", "pg_database"),
+            query="""
+        SELECT
+            oid,
+            edgedb.get_current_database()::name as datname,
+            datdba,
+            encoding,
+            datcollate,
+            datctype,
+            datistemplate,
+            datallowconn,
+            datconnlimit,
+            datlastsysoid,
+            datfrozenxid,
+            datminmxid,
+            dattablespace,
+            datacl,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_database
+        WHERE datname LIKE '%_edgedb'
+        """,
+        ),
     ]
 
     def construct_pg_view(table_name: str, columns: List[str]) -> dbops.View:
@@ -5477,6 +5645,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_namespace',
             'pg_range',
             'pg_class',
+            'pg_database',
 
             # Some tables contain abstract columns (i.e. anyarray) so they
             # cannot be created into a view. So let's just hide these tables.

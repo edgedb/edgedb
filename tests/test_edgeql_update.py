@@ -3697,3 +3697,34 @@ class TestUpdate(tb.QueryTestCase):
             """,
             [True],
         )
+
+    async def test_edgeql_update_poly_overlay_01(self):
+        await self.con.execute(r"""
+            insert UpdateTestSubType { name := 'update-test4' };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select (
+                  update UpdateTest filter .name = 'update-test4'
+                  set { name := '!' }
+                ) { c1 := .name, c2 := [is UpdateTestSubType].name };
+            """,
+            [{"c1": "!", "c2": "!"}]
+        )
+
+    async def test_edgeql_update_poly_overlay_02(self):
+        await self.con.execute(r"""
+            insert UpdateTestSubType { name := 'update-test4' };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                with X := (
+                  update UpdateTest filter .name = 'update-test4'
+                  set { name := '!' }
+                ),
+                select X[is UpdateTestSubType] { name };
+            """,
+            [{"name": "!"}]
+        )

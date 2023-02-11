@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2020-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2022-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,5 +16,23 @@
 # limitations under the License.
 #
 
-module nested { type T }
-module `back``ticked` { type T }
+
+abstract type Ordered {
+    required property number -> int64;
+}
+
+type Chapter extending Ordered {
+    required property title -> str;
+
+    multi link paragraphs := .<chapter[is Paragraph];
+
+    index fts::textsearch(language := 'english') on (.title);
+}
+
+type Paragraph extending Ordered {
+    required link chapter -> Chapter;
+
+    required property text -> str;
+
+    index fts::textsearch(language := 'english') on (.text);
+}
