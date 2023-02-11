@@ -6,6 +6,7 @@ import itertools
 
 from .data.data_ops import *
 from .data.expr_ops import *
+from edb.common import debug
 from .data.casts import *
 
 # RT Stands for Run Time 
@@ -110,7 +111,21 @@ def object_dedup(val : List[Val]) -> List[Val]:
                 raise ValueError("must pass in objects")
     return list(temp.values())
         
-            
+def offset_vals(val : List[Val], offset: Val):
+    match offset:
+        case IntVal(val=v):
+            return val[v:]
+        case _:
+            raise ValueError("offset must be an int")
+
+def limit_vals(val : List[RTVal], limit: Val):
+    match limit:
+        case IntVal(val=v):
+            return val[:v]
+        case IntInfVal():
+            return val
+        case _:
+            raise ValueError("offset must be an int")
 
 
 def eval_config(rt : RTExpr) -> RTVal:
@@ -121,6 +136,8 @@ def eval_config(rt : RTExpr) -> RTVal:
             return RTVal(rt.data, [IntVal(i)])
         case BoolVal(b):
             return RTVal(rt.data, [BoolVal(b)])
+        case RefVal(_):
+            return RTVal(rt.data, [rt.expr])
         case ObjectExpr(val=dic):
             cur_data = rt.data
             result : Dict[Label, Tuple[Marker, MultiSetVal]] = {} 
@@ -220,7 +237,19 @@ def eval_config(rt : RTExpr) -> RTVal:
         case MultiSetExpr(expr=elems):
             (new_data, elemsv) = eval_expr_list(rt.data, elems)
             return RTVal(new_data, [e for el in elemsv for e in el])
-
+        case WithExpr(bound=bound, next=next):
+            (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
+            (new_data2, nextv) = eval_config(RTExpr(new_data, instantiate_expr(MultiSetExpr(cast(List[Expr], boundv)), next)))
+            return RTVal(new_data2, nextv)
+        case OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
+            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            (new_data2, [offsetv]) = eval_config(RTExpr(new_data, offset))
+            (new_data3, [limitv]) = eval_config(RTExpr(new_data2, limit))
+            return RTVal(new_data3, limit_vals(offset_vals(subjectv, offsetv), limitv))
+        case DetachedExpr(expr=expr):
+            (new_data, exprv) = eval_config(RTExpr(rt.data, expr))
+            return RTVal(new_data, exprv)
+            
 
             
 

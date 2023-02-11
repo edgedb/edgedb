@@ -134,7 +134,7 @@ def elab_InsertQuery(expr : qlast.InsertQuery) -> InsertExpr:
     subject_type = expr.subject.name
     object_shape = elab_Shape(expr.shape)
     object_expr = shape_to_expr(object_shape)
-    return InsertExpr(name=subject_type, new=object_expr)
+    return elab_aliases(expr.aliases, InsertExpr(name=subject_type, new=object_expr))
 
 
 
@@ -171,17 +171,17 @@ def elab_orderby(qle : List[qlast.SortExpr]) -> BindingExpr:
 @elab.register(qlast.SelectQuery)
 def elab_SelectExpr(qle : qlast.SelectQuery) -> Expr:
     if qle.offset is not None or qle.limit is not None:
-        return OffsetLimitExpr(
+        return elab_aliases(qle.aliases, OffsetLimitExpr(
             subject=elab(qle.result),
             offset=elab(qle.offset) if qle.offset is not None else IntVal(0),
             limit=elab(qle.limit) if qle.limit is not None else IntInfVal(),
-        )
+        ))
     else:
-        return FilterOrderExpr(
+        return elab_aliases(qle.aliases, FilterOrderExpr(
             subject=elab(qle.result),
             filter=abstract_over_expr(elab(qle.where), DEFAULT_HEAD_NAME) if qle.where else abstract_over_expr(BoolVal(True)),
             order=elab_orderby(qle.orderby) if qle.orderby else abstract_over_expr(UnnamedTupleExpr([])),
-        )
+        ))
     
 @elab.register(qlast.FunctionCall)
 def elab_FunctionCall(fcall : qlast.FunctionCall) -> FunAppExpr :
@@ -250,8 +250,22 @@ def elab_UpdateQuery(qle : qlast.UpdateQuery):
             order=abstract_over_expr(UnnamedTupleExpr([])),
         )
     shape = elab_Shape(qle.shape)
-    return UpdateExpr(subject=subject, shape=shape)
+    return elab_aliases(qle.aliases, UpdateExpr(subject=subject, shape=shape))
 
 @elab.register(qlast.Set)
 def elab_Set(qle : qlast.Set):
     return MultiSetExpr(expr=[elab(e) for e in qle.elements])
+
+def elab_aliases(aliases : List[qlast.AliasedExpr], tail_expr : Expr) -> WithExpr:
+    if aliases is None:
+        return tail_expr
+    result = tail_expr
+    for i in reversed(range(len(aliases))):
+        result = WithExpr(elab(aliases[i].expr), abstract_over_expr(result, aliases[i].alias))
+    return result
+    
+@elab.register(qlast.DetachedExpr)
+def elab_DetachedExpr(qle : qlast.DetachedExpr):
+    if qle.preserve_path_prefix:
+        return elab_not_implemented(qle)
+    return DetachedExpr(expr=elab(qle.expr))

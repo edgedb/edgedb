@@ -1,3 +1,6 @@
+with X := Person select X filter .name = "p1" offset 1 limit 1;
+with X := Person, Y := X select X; 
+
 update Person filter .name = "t2" set {name := "t3"};
 select <Person>{};
 select <std::json>"e";

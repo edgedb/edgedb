@@ -316,10 +316,13 @@ class LinkPropProjExpr:
     linkprop : str
 
 @dataclass(frozen=True)
+class DetachedExpr:
+    expr : Expr
+
+@dataclass(frozen=True)
 class WithExpr:
     bound : Expr
-    var : str
-    next : Expr
+    next : BindingExpr
 
 @dataclass(frozen=True)
 class ForExpr:

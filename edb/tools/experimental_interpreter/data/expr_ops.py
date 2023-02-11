@@ -50,6 +50,14 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
                 return ArrayExpr(elems=[recur(e) for e in arr])
             case MultiSetExpr(expr=arr):
                 return MultiSetExpr(expr=[recur(e) for e in arr])
+            case OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
+                return OffsetLimitExpr(subject=recur(subject), offset=recur(offset), limit=recur(limit))
+            case WithExpr(bound=bound, next=next):
+                return WithExpr(bound=recur(bound), next=recur(next))
+            case InsertExpr(name=name, new=new):
+                return InsertExpr(name=name, new=recur(new))
+            case ObjectExpr(val=val):
+                return ObjectExpr(val={label : recur(item) for (label, item) in val.items()})
 
     raise ValueError("Not Implemented: map_expr ", expr) 
 

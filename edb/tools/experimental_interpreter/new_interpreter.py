@@ -84,7 +84,7 @@ def repl(*, init_ql_file = None, debug_print=False) -> None:
             if not s:
                 return
         try:
-            db = run(db, s)
+            db = run(db, s, print_asts=debug_print)
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
