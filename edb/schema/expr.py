@@ -176,6 +176,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         *,
         options: Optional[qlcompiler.CompilerOptions] = None,
         as_fragment: bool = False,
+        ignored_refs: AbstractSet[so.Object] = frozenset()
     ) -> CompiledExpression:
 
         from edb.ir import ast as irast_
@@ -196,7 +197,10 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         assert isinstance(ir, irast_.Statement)
 
         # XXX: ref stuff - why doesn't it go into the delta tree? - temporary??
-        srefs = {ref for ref in ir.schema_refs if schema.has_object(ref.id)}
+        srefs = {
+            ref for ref in ir.schema_refs
+            if schema.has_object(ref.id) and ref not in ignored_refs
+        }
 
         return CompiledExpression(
             text=self.text,

@@ -1558,6 +1558,8 @@ class FunctionCommand(
         return_typemod = self._get_attribute_value(
             schema, context, 'return_typemod')
 
+        ignored_refs = {self.scls} if hasattr(self, 'scls') else frozenset()
+
         expr = compile_function(
             schema,
             context,
@@ -1567,6 +1569,7 @@ class FunctionCommand(
             return_type=return_type,
             return_typemod=return_typemod,
             track_schema_ref_exprs=track_schema_ref_exprs,
+            ignored_refs=ignored_refs,
         )
 
         ir = expr.irast
@@ -2292,7 +2295,9 @@ def compile_function(
     return_type: s_types.Type,
     return_typemod: ft.TypeModifier,
     track_schema_ref_exprs: bool=False,
+    ignored_refs: AbstractSet[so.Object]=frozenset(),
 ) -> s_expr.CompiledExpression:
+
     assert language is qlast.Language.EdgeQL
 
     has_inlined_defaults = bool(params.find_named_only(schema))
@@ -2311,6 +2316,7 @@ def compile_function(
             apply_query_rewrites=not context.stdmode,
             track_schema_ref_exprs=track_schema_ref_exprs,
         ),
+        ignored_refs=ignored_refs,
     )
 
     ir = compiled.irast
