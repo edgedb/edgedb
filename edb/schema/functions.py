@@ -1284,18 +1284,7 @@ class Function(
         """Return a minimal function body that satisfies its return type."""
         rt = self.get_return_type(schema)
 
-        if rt.is_scalar():
-            # scalars and enums can be cast from a string
-            text = f'SELECT <{rt.get_displayname(schema)}>""'
-        elif rt.is_object_type():
-            # just grab an object of the appropriate type
-            text = f'SELECT {rt.get_displayname(schema)} LIMIT 1'
-        else:
-            # Can't easily create a valid cast, so just cast empty set
-            # into the given type. Technically this potentially breaks
-            # cardinality requirement, but since this is a dummy
-            # expression it doesn't matter at the moment.
-            text = f'SELECT <{rt.get_displayname(schema)}>{{}}'
+        text = f'SELECT assert_exists(<{rt.get_displayname(schema)}>{{}})'
 
         return s_expr.Expression(text=text)
 
@@ -1413,6 +1402,44 @@ class Function(
             return None
         else:
             return (overloads, diff_param)
+
+    def as_create_delta(
+        self,
+        schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[Function]:
+        if not self.get_nativecode(schema):
+            return super().as_create_delta(schema, context)
+
+        group = sd.CommandGroup()
+        # norm = super().as_create_delta(schema, context)
+        # breakpoint()
+
+        dummy = self.get_dummy_body(schema)
+        dummy = s_expr.Expression(
+            text=dummy.text,
+            # We don't actually care
+            refs=so.ObjectSet.create(schema, set()),
+        )
+
+        dummy_schema = self.update(schema, dict(nativecode=dummy))
+
+        create = super().as_create_delta(dummy_schema, context)
+        alter = super().as_alter_delta(
+            self,
+            self_schema=dummy_schema,
+            other_schema=schema,
+            confidence=1.0,
+            context=context,
+        )
+
+        group.add(create)
+        group.add(alter)
+
+        group.dump()
+
+        return group  # type: ignore
+
 
 
 class FunctionCommandContext(CallableCommandContext):

@@ -427,27 +427,79 @@ def sdl_to_ddl(
         ddlentry.deps = OrderedSet(sorted(ddlentry.deps))
         ddlentry.weak_deps = OrderedSet(sorted(ddlentry.weak_deps))
 
-    try:
-        ordered = topological.sort(ddlgraph, allow_unresolved=False)
-    except topological.CycleError as e:
-        assert isinstance(e.item, s_name.QualName)
-        node = tracectx.ddlgraph[e.item].item
-        item_vn = get_verbosename_from_fqname(e.item, tracectx)
+    while True:
+        try:
+            ordered = topological.sort(ddlgraph, allow_unresolved=False)
+        except topological.CycleError as e:
+            assert isinstance(e.item, s_name.QualName)
+            if _repair_function_cycle(ddlgraph, e):
+                continue
 
-        if e.path is not None and len(e.path):
-            # Recursion involving more than one schema object.
-            rec_vn = get_verbosename_from_fqname(e.path[-1], tracectx)
-            msg = (
-                f'definition dependency cycle between {rec_vn} '
-                f'and {item_vn}'
-            )
-        else:
-            # A single schema object with a recursive definition.
-            msg = f'{item_vn} is defined recursively'
+            node = tracectx.ddlgraph[e.item].item
+            item_vn = get_verbosename_from_fqname(e.item, tracectx)
 
-        raise errors.InvalidDefinitionError(msg, context=node.context) from e
+            if e.path is not None and len(e.path):
+                # Recursion involving more than one schema object.
+                rec_vn = get_verbosename_from_fqname(e.path[-1], tracectx)
+                msg = (
+                    f'definition dependency cycle between {rec_vn} '
+                    f'and {item_vn}'
+                )
+            else:
+                # A single schema object with a recursive definition.
+                msg = f'{item_vn} is defined recursively'
+
+            raise errors.InvalidDefinitionError(
+                msg, context=node.context) from e
+        break
+
 
     return tuple(mods) + tuple(ordered)
+
+
+def _repair_function_cycle(
+    ddlgraph: DDLGraph, e: topological.CycleError
+) -> bool:
+    assert isinstance(e.item, s_name.QualName)
+    assert e.path is not None
+    path: list[s_name.QualName] = [e.item] + e.path
+    names = set(path)
+    nodes = [(x, ddlgraph[x]) for x in path]
+    if not all(isinstance(x.item, qlast.CreateFunction) for _, x in nodes):
+        return False
+    for name, node in nodes:
+        assert isinstance(node.item, qlast.CreateFunction)
+        ast = node.item
+        alter = qlast.AlterFunction(
+            aliases=ast.aliases,
+            name=ast.name,
+            params=ast.params,
+            nativecode=ast.nativecode,
+            object_class=qlast.AlterFunction.object_class,
+        )
+        new_name = s_name.QualName(
+            '__', s_name.get_specialized_name(name, 'body'))
+        ddlgraph[new_name] = topological.DepGraphEntry(
+            item=alter,
+            deps=OrderedSet(node.deps),
+            extra=False,
+        )
+
+        fake_body = qlast.FunctionCall(
+            func=('__std__', 'assert_exists'),
+            args=[
+                qlast.TypeCast(
+                    type=ast.returning,
+                    expr=qlast.Set(elements=[])
+                ),
+            ]
+        )
+
+        new_ast = ast.replace(nativecode=fake_body)
+        node.item = new_ast
+        node.deps -= names
+
+    return True
 
 
 def _graph_merge_cb(
@@ -993,11 +1045,11 @@ def trace_Function(
     # from types.
     _register_item(node, ctx=ctx, hard_dep_exprs=deps)
 
-    # Recursive functions are allowed, so delete the self dep if it
-    # exists.
-    _, fq_name = ctx.get_fq_name(node)
-    depnode = ctx.ddlgraph[fq_name]
-    depnode.deps.discard(fq_name)
+    # # Recursive functions are allowed, so delete the self dep if it
+    # # exists.
+    # _, fq_name = ctx.get_fq_name(node)
+    # depnode = ctx.ddlgraph[fq_name]
+    # depnode.deps.discard(fq_name)
 
 
 @trace_dependencies.register

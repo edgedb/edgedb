@@ -256,7 +256,12 @@ def delta_objects(
                 confidence = full_matrix_x[x][0]
             else:
                 confidence = 1.0
-            create.set_annotation('confidence', confidence)
+            if isinstance(create, CommandGroup): # XXX
+                for sub in create.get_subcommands():
+                    assert isinstance(sub, ObjectCommand)
+                    sub.set_annotation('confidence', confidence)
+            else:
+                create.set_annotation('confidence', confidence)
             delta.add(create)
 
     delta.update(alters)
