@@ -1355,6 +1355,18 @@ class CommandContext:
                    and getattr(ctx.op, 'scls', None) == obj
                    for ctx in self.stack)
 
+    def is_altering(self, obj: so.Object) -> bool:
+        """Return True if *obj* is being altered in this context.
+
+        :param obj:
+            The object in question.
+
+        :returns:
+            True if *obj* is being created in this context.
+        """
+        return any(isinstance(ctx.op, AlterObject)
+                   for ctx in self.stack)
+
     def push(self, token: CommandContextToken[Command]) -> None:
         self.stack.append(token)
 
@@ -1975,6 +1987,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         if filter is not None:
             expr_refs = {
                 k: v for k, v in expr_refs.items() if isinstance(k, filter)}
+        # XXX: is this... correct?
+        expr_refs = {
+            k: v for k, v in expr_refs.items() if not context.is_altering(k)
+        }
 
         if expr_refs:
             try:
