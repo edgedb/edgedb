@@ -826,6 +826,8 @@ cdef class PGConnection:
         self, object query_unit_group, object bind_datas, bytes state,
         ssize_t start, ssize_t end, int dbver, object parse_array
     ):
+        # parse_array is an array of booleans for output with the same size as
+        # the query_unit_group, indicating if each unit is freshly parsed
         cdef:
             WriteBuffer out
             WriteBuffer buf
