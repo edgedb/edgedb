@@ -551,7 +551,11 @@ def _trace_op(
         ref: so.Object,
         obj: so.Object,
         this_name_str: str,
+        tags: str,
     ) -> None:
+        if tag not in ('create', 'alter', 'rename'):
+            return
+
         ref_name = ref.get_name(new_schema)
         if ref_name in renames_r:
             ref_name = renames_r[ref_name]
@@ -575,15 +579,13 @@ def _trace_op(
 
         write_dep_matrix(
             dependent=ref_name_str,
-            dependent_tags=('create', 'alter', 'rebase'),
+            dependent_tags=('create', 'alter', 'rebase',),
             dependency=this_name_str,
-            dependency_tags=('create', 'alter', 'rename'),
+            dependency_tags=(tag,),
         )
 
         item = get_deps(('rename', ref_name_str))
-        item.deps.add(('create', this_name_str))
-        item.deps.add(('alter', this_name_str))
-        item.deps.add(('rename', this_name_str))
+        item.deps.add((tag, this_name_str))
 
         if isinstance(ref, s_pointers.Pointer):
             # The current item is a type referred to by
@@ -605,7 +607,7 @@ def _trace_op(
                         dependent=desc_name,
                         dependent_tags=('create', 'alter'),
                         dependency=this_name_str,
-                        dependency_tags=('create', 'alter', 'rename'),
+                        dependency_tags=(tag,),
                         as_weak=True,
                     )
 
@@ -794,7 +796,7 @@ def _trace_op(
 
         refs = _get_referrers(new_schema, obj, strongrefs)
         for ref in refs:
-            write_ref_deps(ref, obj, this_name_str)
+            write_ref_deps(ref, obj, this_name_str, tag)
 
         if tag in ('create', 'alter'):
             # In a delete/create cycle, deletion must obviously
@@ -841,7 +843,7 @@ def _trace_op(
                 ):
                     refs = _get_referrers(new_schema, referrer, strongrefs)
                     for ref in refs:
-                        write_ref_deps(ref, referrer, this_name_str)
+                        write_ref_deps(ref, referrer, this_name_str, tag)
 
                 if (
                     isinstance(obj, referencing.ReferencedInheritingObject)
