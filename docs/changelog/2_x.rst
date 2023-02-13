@@ -924,8 +924,8 @@ Other changes
 * Get rid of the "unused alias definition" error.
   (:eql:gh:`#4819`)
 
-* Support mutation in ``USING`` expressions when setting a link to ``required``
-  or to ``single``
+* Support mutation in ``USING`` expressions when changing a link to ``required``
+  or to ``single`` during a migration
   (:eql:gh:`#4873`)
 
 * Fix custom function calls on the HTTP interface
