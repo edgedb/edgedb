@@ -2068,6 +2068,13 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
 
     astnode = qlast.AlterFunction
 
+    def is_pure_code_change(self) -> bool:
+        return (
+            # not self.has_subcommands()
+            self.get_nonattr_subcommand_count() == 0
+            and self.enumerate_attributes() == ('nativecode',)
+        )
+
     def _alter_begin(
         self,
         schema: s_schema.Schema,

@@ -72,6 +72,9 @@ def linearize_delta(
         commands.
     """
 
+    # print('============')
+    # delta.dump()
+
     # We take the scatter-sort-gather approach here, where the original
     # tree is broken up into linear branches, which are then sorted
     # and reassembled back into a tree.
@@ -110,9 +113,18 @@ def linearize_delta(
         item.deps &= everything
         item.weak_deps &= everything
 
-    sortedlist = [i[1] for i in topological.sort_ex(depgraph)]
+    try:
+        sortedlist = [i[1] for i in topological.sort_ex(depgraph)]
+    except Exception as e:
+        # breakpoint()
+        raise
     reconstructed = reconstruct_tree(sortedlist, depgraph)
     delta.replace_all(reconstructed.get_subcommands())
+
+    # print('============ DONE')
+    # delta.dump()
+    # breakpoint()
+
     return delta
 
 
@@ -561,6 +573,8 @@ def _trace_op(
             ref_name = renames_r[ref_name]
         ref_name_str = str(ref_name)
 
+        # breakpoint()
+
         if ((isinstance(ref, referencing.ReferencedObject)
                 and ref.get_referrer(new_schema) == obj)
                 or (isinstance(obj, referencing.ReferencedObject)
@@ -579,7 +593,7 @@ def _trace_op(
 
         write_dep_matrix(
             dependent=ref_name_str,
-            dependent_tags=('create', 'alter', 'rebase',),
+            dependent_tags=('create', 'alter', 'tweak', 'rebase',),
             dependency=this_name_str,
             dependency_tags=(tag,),
         )
@@ -617,6 +631,8 @@ def _trace_op(
 
     if isinstance(op, sd.CreateObject):
         tag = 'create'
+    elif isinstance(op, s_func.AlterFunction) and op.is_pure_code_change():
+        tag = 'tweak'
     elif isinstance(op, sd.AlterObject):
         tag = 'alter'
     elif isinstance(op, sd.RenameObject):
@@ -636,6 +652,9 @@ def _trace_op(
         raise RuntimeError(
             f'unexpected delta command type at top level: {op!r}'
         )
+
+    # op.dump()
+    # breakpoint()
 
     if isinstance(op, (sd.DeleteObject, referencing.AlterOwned)):
         assert old_schema is not None
@@ -794,7 +813,10 @@ def _trace_op(
             for ref in _get_referrers(old_schema, old_obj, strongrefs):
                 deps.add(('delete', str(ref.get_name(old_schema))))
 
-        refs = _get_referrers(new_schema, obj, strongrefs)
+        is_rec_function = isinstance(op, s_func.CreateFunction)
+        # is_rec_function = False
+        refs = _get_referrers(
+            new_schema, obj, strongrefs, is_rec_function=is_rec_function)
         for ref in refs:
             write_ref_deps(ref, obj, this_name_str, tag)
 
@@ -813,7 +835,7 @@ def _trace_op(
                 for old_func in old_funcs:
                     deps.add(('delete', str(old_func.get_name(old_schema))))
 
-        if tag == 'alter':
+        if tag in ('alter', 'tweak'):
             # Alteration must happen after creation, if any.
             deps.add(('create', this_name_str))
             deps.add(('rename', this_name_str))
@@ -909,6 +931,46 @@ def _get_referrers(
     schema: s_schema.Schema,
     obj: so.Object,
     strongrefs: Dict[sn.Name, sn.Name],
+    is_rec_function: bool=False,
+) -> List[so.Object]:
+    refs = schema.get_referrers_ex(obj, scls_type=so.Object)
+    result: Set[so.Object] = set()
+
+    # if is_rec_function:
+    #     breakpoint()
+
+    for k, vrefs in refs.items():
+        if is_rec_function and k == (s_func.Function, 'nativecode'):
+            continue
+        # if k == (s_func.Function, 'nativecode'):
+        #     breakpoint()
+
+        for ref in vrefs:
+            if not ref.is_blocking_ref(schema, obj):
+                continue
+
+            referrer: so.Object | None = None
+
+            parent_ref = strongrefs.get(ref.get_name(schema))
+            if parent_ref is not None:
+                referrer = schema.get(parent_ref, default=None)
+
+            if not referrer or obj == referrer:
+                referrer = ref
+
+            result.add(referrer)
+
+    return list(sorted(
+        result,
+        key=lambda o: (type(o).__name__, o.get_name(schema)),
+    ))
+
+
+def _get_referrers2(
+    schema: s_schema.Schema,
+    obj: so.Object,
+    strongrefs: Dict[sn.Name, sn.Name],
+    is_rec_function: bool=False,
 ) -> List[so.Object]:
     refs = schema.get_referrers(obj)
     result: Set[so.Object] = set()
