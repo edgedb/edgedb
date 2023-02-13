@@ -1219,6 +1219,28 @@ class TestServerConfig(tb.QueryTestCase):
             ''')
             await con2.aclose()
 
+    async def test_server_proto_non_transactional_pg_14_7(self):
+        con1 = self.con
+        con2 = await self.connect(database=con1.dbname)
+        try:
+            await con2.execute('''
+                CONFIGURE SESSION SET __internal_sess_testvalue := 2;
+            ''')
+            await con1.execute('''
+                CONFIGURE SESSION SET __internal_sess_testvalue := 1;
+            ''')
+            await con2.execute('''
+                CREATE DATABASE pg_14_7;
+            ''')
+        finally:
+            await con2.aclose()
+            await con1.execute('''
+                CONFIGURE SESSION RESET __internal_sess_testvalue;
+            ''')
+            await con1.execute('''
+                DROP DATABASE pg_14_7;
+            ''')
+
 
 class TestSeparateCluster(tb.TestCase):
 
