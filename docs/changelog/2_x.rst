@@ -909,14 +909,8 @@ Other changes
 * Fix polymorphic type tests on result of update
   (:eql:gh:`#4954`)
 
-* Upgrade our python linters
-  (:eql:gh:`#4977`)
-
 * Optimize trivial ``WITH`` -bound ``GROUP`` uses
   (:eql:gh:`#4978`)
-
-* Update setuptools version
-  (:eql:gh:`#4985`)
 
 * Fix a category of confusing scoping related bugs in access policies
   (:eql:gh:`#4994`)
