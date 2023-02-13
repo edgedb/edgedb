@@ -935,11 +935,13 @@ cdef class PGConnection:
 
         if state is not None:
             self._build_apply_state_req(state, out)
-            if query.tx_id:
-                # This query has START TRANSACTION in it.
+            if query.tx_id or not query.is_transactional:
+                # This query has START TRANSACTION or non-transactional command
+                # like CREATE DATABASE in it.
                 # Restoring state must be performed in a separate
-                # implicit transaction (otherwise START TRANSACTION DEFERRABLE)
-                # would fail. Hence - inject a SYNC after a state restore step.
+                # implicit transaction (otherwise START TRANSACTION DEFERRABLE
+                # or CREATE DATABASE (since PG 14.7) would fail).
+                # Hence - inject a SYNC after a state restore step.
                 state_sync = 1
                 self.write_sync(out)
 
