@@ -63,10 +63,7 @@ def handle_request(scheme, auth_str, response, server):
         response.close_connection = True
         return
 
-    if (
-        not server.get_jwe_key().has_public
-        or not server.get_jws_key().has_private
-    ):
+    if not server.get_jws_key().has_private:
         response.body = b"Server doesn't support HTTP SCRAM authentication"
         response.status = http.HTTPStatus.FORBIDDEN
         response.close_connection = True
@@ -240,7 +237,7 @@ def handle_request(scheme, auth_str, response, server):
         ).decode("ascii")
 
         try:
-            response.body = generate_jwt_token(username, server)
+            response.body = b"edbt_" + generate_jwt_token(username, server)
         except ValueError as ex:
             if debug.flags.server:
                 markup.dump(ex)
@@ -284,27 +281,15 @@ def get_scram_verifier(user, server):
 
 
 def generate_jwt_token(user, server):
-    rolerec = server.get_roles().get(user)
-    if rolerec is None or rolerec["password"] is None:
-        raise ValueError(f"invalid user: {user!r}")
-    ekey = server.get_jwe_key()
     skey = server.get_jws_key()
 
     namespace = "edgedb.server"
     token = jwt.JWT(
         header={"alg": "ES256" if skey["kty"] == "EC" else "RS256"},
         claims={
-            f"{namespace}.roles": {user: rolerec["password"]},
+            f"{namespace}.roles": [user],
             "iat": int(time.time()),
         },
     )
     token.make_signed_token(skey)
-    encrypted_token = jwt.JWT(
-        header={
-            "alg": "ECDH-ES" if ekey["kty"] == "EC" else "RSA-OAEP-256",
-            "enc": "A256GCM",
-        },
-        claims=token.serialize(),
-    )
-    encrypted_token.make_encrypted_token(ekey)
-    return encrypted_token.serialize().encode("ascii")
+    return token.serialize().encode("ascii")

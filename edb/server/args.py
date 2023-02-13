@@ -793,7 +793,8 @@ _server_options = [
         hidden=True,
         help='Specifies a path to a file containing a private key in PEM '
              'format used to decrypt JWE tokens. The file could also contain '
-             'a public key to encrypt JWE tokens for local testing.'),
+             'a public key to encrypt JWE tokens for local testing. '
+             '(deprecated, will be no-op in 3.0)'),
     click.option(
         '--jose-key-mode',
         type=click.Choice(
