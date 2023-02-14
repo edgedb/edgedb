@@ -238,13 +238,15 @@ def collapse_type_intersection(
     return source, result
 
 
-def get_nearest_dml_stmt(ir_set: irast.Set) -> Optional[irast.MutatingStmt]:
+def get_nearest_dml_stmt(
+    ir_set: irast.Set
+) -> Optional[irast.MutatingLikeStmt]:
     """For a given *ir_set* representing a Path, return the nearest path
        step that is a DML expression.
     """
     cur_set: Optional[irast.Set] = ir_set
     while cur_set is not None:
-        if isinstance(cur_set.expr, irast.MutatingStmt):
+        if isinstance(cur_set.expr, irast.MutatingLikeStmt):
             return cur_set.expr
         elif isinstance(cur_set.expr, irast.SelectStmt):
             cur_set = cur_set.expr.result

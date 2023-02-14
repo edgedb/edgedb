@@ -391,6 +391,9 @@ def _get_set_rvar(
             # {<const>[, <const> ...]}
             return process_set_as_const_set(ir_set, ctx=ctx)
 
+        if isinstance(expr, irast.TriggerAnchor):
+            return process_set_as_trigger_anchor(ir_set, ctx=ctx)
+
         # All other expressions.
         return process_set_as_expr(ir_set, ctx=ctx)
 
@@ -2190,6 +2193,16 @@ def process_set_as_oper_expr(
     )
 
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
+
+
+def process_set_as_trigger_anchor(
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    # XXX: This will need to grow more things
+    if ir_set.path_id in ctx.external_rels:
+        return process_external_rel(ir_set, ctx=ctx)
+
+    return process_set_as_root(ir_set, ctx=ctx)
 
 
 def process_set_as_expr(

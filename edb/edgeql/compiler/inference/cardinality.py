@@ -1412,6 +1412,16 @@ def __infer_tuple(
     )
 
 
+@_infer_cardinality.register
+def __infer_trigger_anchor(
+    ir: irast.TriggerAnchor,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    return MANY
+
+
 def infer_cardinality(
     ir: irast.Base,
     *,

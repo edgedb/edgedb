@@ -371,6 +371,14 @@ def merge_iterator(
         # otherwise.
         select.path_id_mask.discard(iterator.path_id)
 
+        # HACK: This is a hack for triggers, to stick __old__ in
+        # as a reference to __new__'s identity for updates/deletes
+        for other_path, aspect in iterator.other_paths:
+            pathctx.put_path_rvar(
+                select, other_path, iterator_rvar,
+                aspect=aspect, env=ctx.env,
+            )
+
 
 def fini_dml_stmt(
     ir_stmt: irast.MutatingStmt,
@@ -428,9 +436,20 @@ def fini_dml_stmt(
         process_update_conflicts(
             ir_stmt=ir_stmt, update_cte=union_cte, dml_parts=parts, ctx=ctx)
     elif isinstance(ir_stmt, irast.DeleteStmt):
-        relctx.add_type_rel_overlay(
-            ir_stmt.subject.typeref, 'except', union_cte,
-            dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
+        base_typeref = ir_stmt.subject.typeref.real_material_type
+
+        for typeref, (cte, _) in parts.dml_ctes.items():
+            # see above, re: stop_ref
+            if typeref.id == base_typeref.id:
+                cte = union_cte
+                stop_ref = None
+            else:
+                stop_ref = base_typeref
+
+            relctx.add_type_rel_overlay(
+                typeref, 'except', cte,
+                stop_ref=stop_ref,
+                dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
 
     clauses.compile_output(ir_stmt.result, ctx=ctx)
 
@@ -814,6 +833,28 @@ def process_insert_body(
         )
 
 
+def merge_overlays_globally(
+    ir_stmts: Collection[irast.MutatingLikeStmt | None],
+    *,
+    ctx: context.CompilerContextLevel,
+) -> None:
+    relctx.clone_type_rel_overlays(ctx=ctx)
+    relctx.clone_ptr_rel_overlays(ctx=ctx)
+
+    type_overlay = ctx.type_rel_overlays[None]
+    ptr_overlay = ctx.ptr_rel_overlays[None]
+
+    for ir_stmt in ir_stmts:
+        if not ir_stmt:
+            continue
+        for k, v in ctx.type_rel_overlays[ir_stmt].items():
+            els = set(type_overlay[k])
+            type_overlay[k].extend([e for e in v if e not in els])
+        for k2, v2 in ctx.ptr_rel_overlays[ir_stmt].items():
+            els = set(ptr_overlay[k2])
+            ptr_overlay[k2].extend([e for e in v2 if e not in els])
+
+
 def compile_policy_check(
     dml_cte: pgast.CommonTableExpr,
     ir_stmt: irast.MutatingStmt,
@@ -826,6 +867,10 @@ def compile_policy_check(
 
     with ctx.newrel() as ictx:
         # Pull in ptr rel overlays, so we can see the pointers
+        # XXX: I wanted to try to just do
+        # merge_overlays_globally((ir_stmt,), ctx=ictx)
+        # but we generated invalid code in some cases.
+
         ictx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
         ictx.ptr_rel_overlays[None] = ictx.ptr_rel_overlays[None].copy()
         ictx.ptr_rel_overlays[None].update(
@@ -2498,3 +2543,176 @@ def process_link_values(
     )
 
     return link_rows, specified_cols
+
+
+# Trigger compilation
+def compile_triggers(
+    triggers: tuple[irast.Trigger, ...],
+    stmt: pgast.Base,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> None:
+    if not triggers:
+        return
+    assert isinstance(stmt, pgast.Query)
+
+    if stmt.ctes is None:
+        stmt.ctes = []
+    start_ctes = len(stmt.ctes)
+
+    with ctx.new() as ictx:
+        # Clear out type_ctes so that we will recompile them all with
+        # our overlays baked in (trigger_mode = True causes the
+        # overlays to be included), so that access policies still
+        # apply to our "new view" of the database.
+        # FIXME: I think we actually need to keep the old type_ctes
+        # available for pointers off of __old__ to use.
+        ictx.trigger_mode = True
+        ictx.type_ctes = {}
+        ictx.toplevel_stmt = stmt
+
+        for trigger in triggers:
+            ictx.path_scope = ctx.path_scope.new_child()
+            compile_trigger(trigger, ctx=ictx)
+
+    # Install any newly created type CTEs before the CTEs created from
+    # this trigger compilation but after anything compiled before.
+    stmt.ctes[start_ctes:start_ctes] = list(ictx.type_ctes.values())
+
+
+def compile_trigger(
+    trigger: irast.Trigger,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> None:
+    # N.B: The *base type* overlays have the whole union, while subtypes
+    # just have subtype things.
+    # The things we produce for `affected` take this into account.
+
+    new_path = trigger.new_set.path_id
+    old_path = trigger.old_set.path_id if trigger.old_set else None
+
+    # We use overlays to drive the trigger, since with a bit of
+    # tweaking, they contain all the relevant information.
+    overlays = []
+    for typeref, dml in trigger.affected:
+        toverlays = ctx.type_rel_overlays[dml]
+        if ov := toverlays.get(typeref.id):
+            overlays.extend(ov)
+
+    # Handle deletions by turning except into union
+    # Drop 'filter', which is included by update but doesn't help us here
+    overlays = [
+        ('union', *x[1:]) if x[0] == 'except' else x
+        for x in overlays
+        if x[0] != 'filter'
+    ]
+    # Replace an initial union with 'replace', since we *don't* want whatever
+    # already existed
+    assert overlays and overlays[0][0] == 'union'
+    overlays[0] = ('replace', *overlays[0][1:])
+
+    # Produce a CTE containing all of the affected objects for this trigger
+    with ctx.newrel() as ictx:
+        ictx.type_rel_overlays = ctx.type_rel_overlays.copy()
+        ictx.type_rel_overlays.clear()
+        ictx.type_rel_overlays[None][trigger.source_type.id] = overlays
+
+        ictx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
+        ictx.ptr_rel_overlays.clear()
+
+        # The range produced here will be driven just by the overlays
+        rvar = relctx.range_for_material_objtype(
+            trigger.source_type,
+            new_path,
+            include_overlays=True,
+            ignore_rewrites=True,
+            ctx=ictx,
+        )
+        relctx.include_rvar(
+            ictx.rel, rvar, path_id=new_path, ctx=ictx
+        )
+
+        # If __old__ is available, we register its identity/value,
+        # but *not* its source.
+        if old_path:
+            new_ident = pathctx.get_path_identity_var(
+                ictx.rel, new_path, env=ctx.env)
+            pathctx.put_path_identity_var(
+                ictx.rel, old_path, new_ident, env=ctx.env)
+            pathctx.put_path_value_var(
+                ictx.rel, old_path, new_ident, env=ctx.env)
+
+        contents_cte = pgast.CommonTableExpr(
+            query=ictx.rel,
+            name=ctx.env.aliases.get('trig_contents'),
+            materialized=True,  # XXX: or not?
+        )
+        ictx.toplevel_stmt.append_cte(contents_cte)
+
+    # Actually compile the trigger
+    with ctx.newrel() as tctx:
+        # With FOR EACH, we use the iterator machinery to iterate over
+        # all of the objects
+        if trigger.scope == qltypes.TriggerScope.Each:
+            tctx.enclosing_cte_iterator = pgast.IteratorCTE(
+                path_id=new_path,
+                cte=contents_cte,
+                parent=None,
+                # old_path gets registered as also appearing in the
+                # iterator cte, and so will get included whenever
+                # merged
+                other_paths=(
+                    ((old_path, 'identity'),) if old_path else ()
+                ),
+            )
+            merge_iterator(tctx.enclosing_cte_iterator, tctx.rel, ctx=ctx)
+            tctx.volatility_ref = ()
+
+        # While with FOR ALL, we register the sets as external rels
+        else:
+            tctx.external_rels = dict(tctx.external_rels)
+            # new_path is just the contents_cte
+            tctx.external_rels[new_path] = (
+                contents_cte, ('value', 'source'))
+            if old_path:
+                # old_path is *also* the contents_cte, but without a source
+                # aspect, so we need to include the real database back in.
+                tctx.external_rels[old_path] = (
+                    contents_cte, ('value', 'identity',))
+
+        # TODO: clear everything but None out? nothing else should ever
+        # come up.
+
+        # This is somewhat subtle: we merge *every* DML into
+        # the "None" overlay, so that all the new database state shows
+        # up everywhere...  but __old__ has a TriggerAnchor set up in
+        # it, which acts like a dml statement, and *diverts* __old__
+        # away from the new data!
+        # TODO: We should consider building a dedicated __new__overlay
+        # in order to reduce overlay sizes in common cases
+        merge_overlays_globally(tctx.type_rel_overlays.keys(), ctx=tctx)
+
+        dispatch.compile(trigger.expr, ctx=tctx)
+        # Force the value to get output so that if it might error
+        # it will be forced up by check_ctes
+        pathctx.get_path_value_output(
+            tctx.rel, trigger.expr.path_id, env=ctx.env)
+        pathctx.get_path_serialized_output(
+            tctx.rel, trigger.expr.path_id, env=ctx.env)
+
+        # If the expression is *just* DML, as an optimization, skip
+        # generating a CTE for the expression and forcing its evaluation
+        # with check_ctes. The actual work is all in a DML CTE so we
+        # don't need to worry about anything more.
+        if (
+            not isinstance(trigger.expr.expr, irast.MutatingStmt)
+            and not trigger.expr.shape
+        ):
+            trigger_cte = pgast.CommonTableExpr(
+                query=tctx.rel,
+                name=ctx.env.aliases.get('trig_body'),
+                materialized=True,  # XXX: or not?
+            )
+            tctx.toplevel_stmt.append_cte(trigger_cte)
+            tctx.env.check_ctes.append(trigger_cte)

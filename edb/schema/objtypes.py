@@ -219,6 +219,14 @@ class ObjectType(
 
         return ptrs
 
+    def get_relevant_triggers(
+        self, kind: qltypes.TriggerKind, schema: s_schema.Schema
+    ) -> list[triggers.Trigger]:
+        return [
+            t for t in self.get_triggers(schema).objects(schema)
+            if kind in t.get_kinds(schema)
+        ]
+
     def implicitly_castable_to(
         self,
         other: s_types.Type,
