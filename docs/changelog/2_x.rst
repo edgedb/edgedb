@@ -943,6 +943,9 @@ Other changes
 
 * Update packaged Postgres to 14.7
 
+* Fix ``set single`` on required properties
+  (:eql:gh:`#5031`)
+
 .. lint-off
 
 .. _group:
