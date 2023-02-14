@@ -3,7 +3,7 @@
 Connection
 ----------
 
-There are a couple ways to provide connection information to a client
+There are several ways to provide connection information to a client
 library.
 
 - Use **projects**. This is the recommended approach for *local
