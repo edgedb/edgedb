@@ -34,7 +34,7 @@ class TestEdgeQLFTS(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             select Paragraph {number, text}
-            filter fts::test(.text, 'drink poison');
+            filter fts::test('drink poison', .text, language := 'english');
             ''',
             [{
                 "number": 15,
@@ -82,7 +82,7 @@ class TestEdgeQLFTS(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             select Paragraph {number, text}
-            filter fts::test(.text, 'drink me');
+            filter fts::test('drink me', .text, language := 'english');
             ''',
             [{
                 "number": 15,
@@ -121,7 +121,8 @@ class TestEdgeQLFTS(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             select Paragraph {number, text}
-            filter fts::test(.text, 'drink AND poison');
+            filter fts::test(
+                'drink AND poison', .text, language := 'english');
             ''',
             [{
                 "number": 16,
@@ -147,7 +148,7 @@ class TestEdgeQLFTS(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             select Paragraph {number, text}
-            filter fts::test(.text, 'drink "poison"');
+            filter fts::test('drink "poison"', .text, language := 'english');
             ''',
             [{
                 "number": 16,
@@ -177,8 +178,16 @@ class TestEdgeQLFTS(tb.QueryTestCase):
             with q := 'white rabbit gloves watch'
             select Paragraph {
                 number,
-                rank := fts::match_rank(.text, q, 'english'),
-                hl := fts::highlight_match(.text, q, 'english')
+                fts := fts::match(
+                    q,
+                    .text,
+                    language := 'english',
+                    highlight_opts := 'default',
+                ),
+            } {
+                number,
+                rank := .fts.rank,
+                hl := .fts.highlights[0],
             }
             order by .rank desc limit 3;
             ''',
@@ -188,19 +197,19 @@ class TestEdgeQLFTS(tb.QueryTestCase):
                     "dressed, with a pair of <b>white</b> kid <b>gloves</b> "
                     "in one hand",
                 "number": 8,
-                "rank": 0.06037053465843201,
+                "rank": 0.6037054061889648,
             }, {
                 "hl":
                     "<b>Rabbit</b>’s little <b>white</b> kid <b>gloves</b> "
                     "while she was talking. “How _can_ I have done",
                 "number": 14,
-                "rank": 0.045594532042741776,
+                "rank": 0.4559453129768371,
             }, {
                 "hl":
                     "<b>Rabbit</b> actually _took a <b>watch</b> out of its "
                     "waistcoat-pocket_, and looked at it, and then",
                 "number": 3,
-                "rank": 0.04063401371240616,
+                "rank": 0.4063401818275452,
             }]
         )
 
@@ -212,8 +221,16 @@ class TestEdgeQLFTS(tb.QueryTestCase):
             with q := '"golden key" OR "white rabbit"'
             select Paragraph {
                 number,
-                rank := fts::match_rank(.text, q, 'english'),
-                hl := fts::highlight_match(.text, q, 'english')
+                fts := fts::match(
+                    q,
+                    .text,
+                    language := 'english',
+                    highlight_opts := 'default',
+                ),
+            } {
+                number,
+                rank := .fts.rank,
+                hl := .fts.highlights[0],
             }
             order by .rank desc limit 3;
             ''',
@@ -223,19 +240,19 @@ class TestEdgeQLFTS(tb.QueryTestCase):
                     "dressed, with a pair of <b>white</b> kid gloves in one "
                     "hand",
                 "number": 8,
-                "rank": 0.041372817009687424
+                "rank": 0.4137281775474548
             }, {
                 "hl":
                     "<b>golden</b> <b>key</b>, and Alice’s first thought "
                     "was that it might belong to one of the doors",
                 "number": 13,
-                "rank": 0.03968412801623344
+                "rank": 0.3968413174152374
             }, {
                 "hl":
                     "<b>White</b> <b>Rabbit</b> was still in sight, "
                     "hurrying down it. There was not a moment to be lost",
                 "number": 11,
-                "rank": 0.034195899963378906
+                "rank": 0.34195899963378906
             }]
         )
 
@@ -248,16 +265,23 @@ class TestEdgeQLFTS(tb.QueryTestCase):
             r'''
             with q := 'drink AND poison'
             select Paragraph {
-                ch := .chapter.number,
                 number,
-                rank := fts::match_rank(.text, q, 'english'),
+                fts := fts::match(
+                    q,
+                    .text,
+                    language := 'english',
+                ),
+            } {
+                number,
+                ch := .chapter.number,
+                rank := .fts.rank,
             }
             order by .rank desc then .ch then .number limit 3;
             ''',
             [{
                 "ch": 1,
                 "number": 16,
-                "rank": 0.08536771684885025
+                "rank": 0.8530858159065247
             }, {
                 "ch": 1,
                 "number": 1,

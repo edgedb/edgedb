@@ -4185,55 +4185,39 @@ class FTSParseQueryFunction(dbops.Function):
             tsq := !!tsq;
         END IF;
 
-        -- setup the default operator for the current term
-        IF starts_with(term, '"') OR exclude IS NOT NULL THEN
-            -- phrases and exclusions are "must" by default
-            default_op := 'AND';
-        ELSE
-            -- regular terms are "should" by default
-            default_op := 'OR';
-        END IF;
-
         -- figure out the operator between the current term and the next one
         IF rest = '' THEN
             -- base case, one one term left, so we ignore the cur_op even if
             -- present
-
-            IF coalesce(prev_op, default_op) = 'OR' THEN
+            IF prev_op = 'OR' THEN
+                -- explicit 'OR' terms are "should"
                 should := array_append(should, tsq);
-            ELSE
+            ELSIF starts_with(term, '"')
+               OR exclude IS NOT NULL
+               OR prev_op = 'AND' THEN
+                -- phrases, exclusions and 'AND' terms are "must"
                 must := array_append(must, tsq);
+            ELSE
+                -- regular terms are "should" by default
+                should := array_append(should, tsq);
             END IF;
-
         ELSE
             -- recursion
 
-            IF starts_with(term, '"') OR exclude IS NOT NULL THEN
-                -- if at least one of the suprrounding operators is 'OR', then
-                -- the phrase is put into "should" category
-
-                IF
-                    coalesce(prev_op, default_op) = 'OR'
-                    OR coalesce(cur_op, default_op) = 'OR'
-                THEN
-                    should := array_append(should, tsq);
-                ELSE
-                    must := array_append(must, tsq);
-                END IF;
-
-            ELSE
+            IF prev_op = 'OR' OR cur_op = 'OR' THEN
+                -- if at least one of the suprrounding operators is 'OR',
+                -- then the phrase is put into "should" category
+                should := array_append(should, tsq);
+            ELSIF prev_op = 'AND' OR cur_op = 'AND' THEN
                 -- if at least one of the suprrounding operators is 'AND',
                 -- then the phrase is put into "must" category
-
-                IF
-                    coalesce(prev_op, default_op) = 'OR'
-                    AND coalesce(cur_op, default_op) = 'OR'
-                THEN
-                    should := array_append(should, tsq);
-                ELSE
-                    must := array_append(must, tsq);
-                END IF;
-
+                must := array_append(must, tsq);
+            ELSIF starts_with(term, '"') OR exclude IS NOT NULL THEN
+                -- phrases and exclusions are "must"
+                must := array_append(must, tsq);
+            ELSE
+                -- regular terms are "should" by default
+                should := array_append(should, tsq);
             END IF;
 
             RETURN edgedb.fts_parse_query(
@@ -4259,7 +4243,6 @@ class FTSParseQueryFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'fts_parse_query'),
             args=[
-
                 ('q', ('text',)),
                 ('language', ('regconfig',), "'english'"),
                 ('must', ('tsquery[]',), 'array[]::tsquery[]'),
@@ -4269,6 +4252,107 @@ class FTSParseQueryFunction(dbops.Function):
             returns=('tsquery',),
             volatility='immutable',
             language='plpgsql',
+            text=self.text,
+        )
+
+
+class FTSNormalizeWeightFunction(dbops.Function):
+    """Normalize an array of weights to be a 4-value weight array."""
+
+    text = r'''
+    SELECT
+        CASE COALESCE(array_length(weights, 1), 0)
+            WHEN 0 THEN array[1, 1, 1, 1]::float4[]
+            WHEN 1 THEN array[0, 0, 0, weights[1]]::float4[]
+            WHEN 2 THEN array[0, 0, weights[2], weights[1]]::float4[]
+            WHEN 3 THEN array[0, weights[3], weights[2], weights[1]]::float4[]
+            ELSE (
+                WITH raw as (
+                    SELECT w
+                    FROM UNNEST(weights) AS w
+                    ORDER BY w DESC
+                )
+                SELECT array_prepend(rest.w, first.arrw)::float4[]
+                FROM
+                (
+                    SELECT array_agg(rw1.w) as arrw
+                    FROM (
+                        SELECT w
+                        FROM (SELECT w FROM raw LIMIT 3) as rw0
+                        ORDER BY w ASC
+                    ) as rw1
+                ) AS first,
+                (
+                    SELECT avg(rw2.w) as w
+                    FROM (SELECT w FROM raw OFFSET 3) as rw2
+                ) AS rest
+            )
+        END
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'fts_normalize_weights'),
+            args=[
+                ('weights', ('float8[]',)),
+            ],
+            returns=('float4[]',),
+            volatility='immutable',
+            text=self.text,
+        )
+
+
+class FTSNormalizeDocFunction(dbops.Function):
+    """Normalize a document based on an array of weights."""
+
+    text = r'''
+    SELECT
+        CASE COALESCE(array_length(doc, 1), 0)
+            WHEN 0 THEN ''::tsvector
+            WHEN 1 THEN setweight(to_tsvector(language, doc[1]), 'A')
+            WHEN 2 THEN (
+                setweight(to_tsvector(language, doc[1]), 'A') ||
+                setweight(to_tsvector(language, doc[2]), 'B')
+            )
+            WHEN 3 THEN (
+                setweight(to_tsvector(language, doc[1]), 'A') ||
+                setweight(to_tsvector(language, doc[2]), 'B') ||
+                setweight(to_tsvector(language, doc[3]), 'C')
+            )
+            ELSE (
+                WITH raw as (
+                    SELECT d.v as t
+                    FROM UNNEST(doc) WITH ORDINALITY AS d(v, n)
+                    LEFT JOIN UNNEST(weights) WITH ORDINALITY AS w(v, n)
+                    ON d.n = w.n
+                    ORDER BY w.v DESC
+                )
+                SELECT
+                    setweight(to_tsvector(language, d.arr[1]), 'A') ||
+                    setweight(to_tsvector(language, d.arr[2]), 'B') ||
+                    setweight(to_tsvector(language, d.arr[3]), 'C') ||
+                    setweight(to_tsvector(language,
+                                          array_to_string(d.arr[4:], ' ')),
+                              'D')
+                FROM
+                (
+                    SELECT array_agg(raw.t) as arr
+                    FROM raw
+                ) AS d
+            )
+        END
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'fts_normalize_doc'),
+            args=[
+                ('doc', ('text[]',)),
+                ('weights', ('float8[]',)),
+                ('language', ('regconfig',)),
+            ],
+            returns=('tsvector',),
+            volatility='stable',
             text=self.text,
         )
 
@@ -4393,6 +4477,8 @@ async def bootstrap(
         dbops.CreateFunction(RangeUnpackLowerValidateFunction()),
         dbops.CreateFunction(RangeUnpackUpperValidateFunction()),
         dbops.CreateFunction(FTSParseQueryFunction()),
+        dbops.CreateFunction(FTSNormalizeWeightFunction()),
+        dbops.CreateFunction(FTSNormalizeDocFunction()),
     ]
     commands = dbops.CommandGroup()
     commands.add_commands(cmds)
