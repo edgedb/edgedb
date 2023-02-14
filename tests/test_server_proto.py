@@ -2195,26 +2195,28 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             server_args['adjacent_to'] = self.con
         async with tb.start_edgedb_server(**server_args) as sd:
 
-            await self.con.execute('''
-                CREATE DATABASE test_db_prop;
-            ''')
+            # Run twice to make sure there is no lingering accessibility state
+            for _ in range(2):
+                await self.con.execute('''
+                    CREATE DATABASE test_db_prop;
+                ''')
 
-            # Make sure the adjacent server picks up on the new db
-            async for tr in self.try_until_succeeds(
-                ignore=edgedb.UnknownDatabaseError,
-                timeout=30,
-            ):
-                async with tr:
-                    con2 = await sd.connect(
-                        user=conargs.get('user'),
-                        password=conargs.get('password'),
-                        database="test_db_prop",
-                    )
+                # Make sure the adjacent server picks up on the new db
+                async for tr in self.try_until_succeeds(
+                    ignore=edgedb.UnknownDatabaseError,
+                    timeout=30,
+                ):
+                    async with tr:
+                        con2 = await sd.connect(
+                            user=conargs.get('user'),
+                            password=conargs.get('password'),
+                            database="test_db_prop",
+                        )
 
-                    await con2.query("select 1")
-                    await con2.aclose()
+                        await con2.query("select 1")
+                        await con2.aclose()
 
-            await tb.drop_db(self.con, 'test_db_prop')
+                await tb.drop_db(self.con, 'test_db_prop')
 
             # Now, recreate the DB and try the other way around
             con2 = await sd.connect(
@@ -2226,6 +2228,15 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             await con2.execute('''
                 CREATE DATABASE test_db_prop;
             ''')
+
+            # Accessible from the adjacent server
+            con3 = await sd.connect(
+                user=conargs.get('user'),
+                password=conargs.get('password'),
+                database="test_db_prop",
+            )
+            await con3.query("select 1")
+            await con3.aclose()
 
             async for tr in self.try_until_succeeds(
                 ignore=edgedb.UnknownDatabaseError,
