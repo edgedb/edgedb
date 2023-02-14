@@ -3266,6 +3266,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 }
             """)
 
+    async def test_edgeql_ddl_ptr_set_required_02(self):
+        await self.con.execute(
+            r"""
+            create type X { create required multi property foo -> str };
+            insert X { foo := "test" };
+            alter type X alter property foo set single
+                using (assert_single(.foo));
+            """
+        )
+        await self.assert_query_result("select X { foo }", [{"foo": "test"}])
+
     async def test_edgeql_ddl_link_property_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyDefinitionError,

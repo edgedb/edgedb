@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 from typing import *
+from copy import copy
 
 import collections.abc
 import itertools
@@ -3795,14 +3796,20 @@ class PointerMetaCommand(
         if not is_multi:
             # Moving from pointer table to source table.
             cols = self.get_columns(ptr, schema)
+
+            # create columns
             alter_table = source_op.get_alter_table(
                 schema, context, manual=True)
-
+            cols_required: List[dbops.Column] = []
             for col in cols:
                 cond = dbops.ColumnExists(
                     ptr_stor_info.table_name,
                     column_name=col.name,
                 )
+                if col.required:
+                    cols_required.append(copy(col))
+
+                col.required = False
                 op = (dbops.AlterTableAddColumn(col), None, (cond, ))
                 alter_table.add_operation(op)
 
@@ -3817,6 +3824,16 @@ class PointerMetaCommand(
                 FROM _conv_rel WHERE _update.id = _conv_rel.id
             ''')
             self.pgops.add(dbops.Query(update_qry))
+
+            # set NOT NULL
+            if cols_required:
+                alter_table = source_op.get_alter_table(
+                    schema, context, manual=True
+                )
+                for col in cols_required:
+                    op2 = dbops.AlterTableAlterColumnNull(col.name, False)
+                    alter_table.add_operation(op2)
+                self.pgops.add(alter_table)
 
             # A link might still own a table if it has properties.
             if not has_table(ptr, schema):
