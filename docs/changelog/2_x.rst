@@ -890,7 +890,7 @@ Other changes
 * Properly forbid aggregation in index expressions
   (:eql:gh:`#4869`)
 
-* Fix `grouping` field when grouping by one key or nothing
+* Fix ``grouping`` field when grouping by one key or nothing
   (:eql:gh:`#4906`)
 
 * Fix two issues with mutation in free objects
@@ -918,8 +918,8 @@ Other changes
 * Get rid of the "unused alias definition" error.
   (:eql:gh:`#4819`)
 
-* Support mutation in ``USING`` expressions when changing a link to ``required``
-  or to ``single`` during a migration
+* Support mutation in ``USING`` expressions when changing a link to
+  ``required`` or to ``single`` during a migration
   (:eql:gh:`#4873`)
 
 * Fix custom function calls on the HTTP interface
@@ -937,8 +937,11 @@ Other changes
 * Use prepared statement cache in EdgeQL script execution
   (:eql:gh:`#4931`)
 
-* Fix non-transactional commands like ``DROP DATABASE`` when using Postgres 14.7
+* Fix non-transactional commands like ``DROP DATABASE`` when using
+  Postgres 14.7
   (:eql:gh:`#5026`)
+
+* Update packaged Postgres to 14.7
 
 .. lint-off
 
