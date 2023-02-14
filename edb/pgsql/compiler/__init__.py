@@ -40,6 +40,7 @@ from . import stmt as _stmt_compiler  # NOQA
 from . import clauses
 from . import context
 from . import dispatch
+from . import dml
 
 from .context import OutputFormat as OutputFormat # NOQA
 
@@ -70,6 +71,7 @@ def compile_ir_to_sql_tree(
         query_params = []
         query_globals = []
         type_rewrites = {}
+        triggers: tuple[irast.Trigger, ...] = ()
 
         singletons = []
         if isinstance(ir_expr, irast.Statement):
@@ -78,6 +80,7 @@ def compile_ir_to_sql_tree(
             query_globals = list(ir_expr.globals)
             type_rewrites = ir_expr.type_rewrites
             singletons = ir_expr.singletons
+            triggers = ir_expr.triggers
             ir_expr = ir_expr.expr
         elif isinstance(ir_expr, irast.ConfigCommand):
             assert ir_expr.scope_tree
@@ -129,6 +132,8 @@ def compile_ir_to_sql_tree(
         clauses.populate_argmap(query_params, query_globals, ctx=ctx)
 
         qtree = dispatch.compile(ir_expr, ctx=ctx)
+        dml.compile_triggers(triggers, qtree, ctx=ctx)
+
         if isinstance(ir_expr, irast.Set) and not singleton_mode:
             assert isinstance(qtree, pgast.Query)
             clauses.fini_toplevel(qtree, ctx)

@@ -19,6 +19,7 @@
 
 type Subordinate {
     required property name -> str;
+    property val -> int64;
 }
 
 type InsertTest {

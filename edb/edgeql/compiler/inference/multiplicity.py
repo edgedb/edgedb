@@ -846,6 +846,16 @@ def __infer_tuple(
     )
 
 
+@_infer_multiplicity.register
+def __infer_trigger_anchor(
+    ir: irast.TriggerAnchor,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    return UNIQUE
+
+
 def infer_multiplicity(
     ir: irast.Base,
     *,

@@ -81,6 +81,9 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: whether compiling in singleton expression mode
     singleton_mode: bool
 
+    #: whether compiling a trigger
+    trigger_mode: bool
+
     #: the top-level SQL statement
     toplevel_stmt: pgast.Query
 
@@ -162,12 +165,12 @@ class CompilerContextLevel(compiler.ContextLevel):
 
     #: A stack of dml statements currently being compiled. Used for
     #: figuring out what to record in type_rel_overlays.
-    dml_stmt_stack: List[irast.MutatingStmt]
+    dml_stmt_stack: List[irast.MutatingLikeStmt]
 
     #: Relations used to "overlay" the main table for
     #: the type.  Mostly used with DML statements.
     type_rel_overlays: DefaultDict[
-        Optional[irast.MutatingStmt],
+        Optional[irast.MutatingLikeStmt],
         DefaultDict[
             uuid.UUID,
             List[
@@ -183,7 +186,7 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: Relations used to "overlay" the main table for
     #: the pointer.  Mostly used with DML statements.
     ptr_rel_overlays: DefaultDict[
-        Optional[irast.MutatingStmt],
+        Optional[irast.MutatingLikeStmt],
         DefaultDict[
             Tuple[uuid.UUID, str],
             List[
@@ -262,6 +265,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.enclosing_cte_iterator = None
             self.shapes_needed_by_dml = set()
 
+            self.trigger_mode = False
+
         else:
             self.env = prevlevel.env
             self.argmap = prevlevel.argmap
@@ -298,6 +303,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.enclosing_cte_iterator = prevlevel.enclosing_cte_iterator
             self.shapes_needed_by_dml = prevlevel.shapes_needed_by_dml
             self.external_rels = prevlevel.external_rels
+
+            self.trigger_mode = prevlevel.trigger_mode
 
             if mode is ContextSwitchMode.SUBSTMT:
                 if self.pending_query is not None:
