@@ -196,6 +196,12 @@ class CompilerContextLevel(compiler.ContextLevel):
         ],
     ]
 
+    #: Mapping from path ids to "external" rels given by a particular relation
+    external_rels: Mapping[
+        irast.PathId,
+        Tuple[pgast.BaseRelation | pgast.CommonTableExpr, Tuple[str, ...]]
+    ]
+
     #: The CTE and some metadata of any enclosing iterator-like
     #: construct (which includes iterators, insert/update, and INSERT
     #: ELSE select clauses) currently being compiled.
@@ -251,6 +257,8 @@ class CompilerContextLevel(compiler.ContextLevel):
                 lambda: collections.defaultdict(list))
             self.ptr_rel_overlays = collections.defaultdict(
                 lambda: collections.defaultdict(list))
+
+            self.external_rels = {}
             self.enclosing_cte_iterator = None
             self.shapes_needed_by_dml = set()
 
@@ -289,6 +297,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ptr_rel_overlays = prevlevel.ptr_rel_overlays
             self.enclosing_cte_iterator = prevlevel.enclosing_cte_iterator
             self.shapes_needed_by_dml = prevlevel.shapes_needed_by_dml
+            self.external_rels = prevlevel.external_rels
 
             if mode is ContextSwitchMode.SUBSTMT:
                 if self.pending_query is not None:
@@ -386,7 +395,6 @@ class Environment:
     type_rewrites: Dict[RewriteKey, irast.Set]
     scope_tree_nodes: Dict[int, irast.ScopeTreeNode]
     external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
-    external_rels: Mapping[irast.PathId, pgast.BaseRelation]
     materialized_views: Dict[uuid.UUID, irast.Set]
     backend_runtime_params: pgparams.BackendRuntimeParams
 
@@ -410,9 +418,6 @@ class Environment:
         external_rvars: Optional[
             Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
         ] = None,
-        external_rels: Optional[
-            Mapping[irast.PathId, pgast.BaseRelation]
-        ] = None,
         backend_runtime_params: pgparams.BackendRuntimeParams,
     ) -> None:
         self.aliases = aliases.AliasGenerator()
@@ -428,7 +433,6 @@ class Environment:
         self.type_rewrites = type_rewrites
         self.scope_tree_nodes = scope_tree_nodes
         self.external_rvars = external_rvars or {}
-        self.external_rels = external_rels or {}
         self.materialized_views = {}
         self.check_ctes = []
         self.backend_runtime_params = backend_runtime_params
