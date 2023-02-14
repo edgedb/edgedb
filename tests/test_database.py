@@ -84,3 +84,45 @@ class TestDatabase(tb.ConnectedTestCase):
                 edgedb.UnknownDatabaseError,
                 r'database "databasename" does not exist'):
             await self.con.execute('DROP DATABASE databasename;')
+
+    async def test_database_drop_recreate(self):
+        if not self.has_create_database:
+            self.skipTest("create database is not supported by the backend")
+
+        with self.assertRaises(edgedb.UnknownDatabaseError):
+            await self.con.execute('DROP DATABASE test_db_drop;')
+
+        await self.con.execute('CREATE DATABASE test_db_drop;')
+        try:
+            conn = await self.connect(database='test_db_drop')
+
+            try:
+                dbname = await conn.query(
+                    'SELECT sys::get_current_database();')
+                self.assertEqual(dbname, ['test_db_drop'])
+            finally:
+                await conn.aclose()
+
+        finally:
+            await self.con.execute('DROP DATABASE test_db_drop;')
+
+    async def test_database_non_exist_template(self):
+        if not self.has_create_database:
+            self.skipTest("create database is not supported by the backend")
+
+        with self.assertRaises(edgedb.UnknownDatabaseError):
+            await self.con.execute('CREATE DATABASE _dummy FROM test_tpl')
+
+        await self.con.execute('CREATE DATABASE test_tpl;')
+        try:
+            conn = await self.connect(database='test_tpl')
+
+            try:
+                dbname = await conn.query(
+                    'SELECT sys::get_current_database();')
+                self.assertEqual(dbname, ['test_tpl'])
+            finally:
+                await conn.aclose()
+
+        finally:
+            await self.con.execute('DROP DATABASE test_tpl;')
