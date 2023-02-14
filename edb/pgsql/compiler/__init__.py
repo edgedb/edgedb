@@ -58,7 +58,10 @@ def compile_ir_to_sql_tree(
         Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
     ] = None,
     external_rels: Optional[
-        Mapping[irast.PathId, pgast.BaseRelation]
+        Mapping[
+            irast.PathId,
+            Tuple[pgast.BaseRelation | pgast.CommonTableExpr, Tuple[str, ...]],
+        ]
     ] = None,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
 ) -> Tuple[pgast.Base, context.Environment]:
@@ -104,7 +107,6 @@ def compile_ir_to_sql_tree(
             singleton_mode=singleton_mode,
             scope_tree_nodes=scope_tree_nodes,
             external_rvars=external_rvars,
-            external_rels=external_rels,
             backend_runtime_params=backend_runtime_params,
         )
 
@@ -122,6 +124,8 @@ def compile_ir_to_sql_tree(
         ctx.expr_exposed = True
         for sing in singletons:
             ctx.path_scope[sing] = ctx.rel
+        if external_rels:
+            ctx.external_rels = external_rels
         clauses.populate_argmap(query_params, query_globals, ctx=ctx)
 
         qtree = dispatch.compile(ir_expr, ctx=ctx)

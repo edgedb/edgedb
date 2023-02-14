@@ -4417,7 +4417,7 @@ class PointerMetaCommand(
             external_rels[src_path_id] = compiler.new_external_rel(
                 rel_name=(source_alias,),
                 path_id=src_path_id,
-            )
+            ), ('value', 'source')
         else:
             if ptr_table:
                 rvar = compiler.new_external_rvar(
