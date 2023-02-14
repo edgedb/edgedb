@@ -238,7 +238,17 @@ def json_fixup(
                 obj['Original Relation Name'] = path_name
 
         if alias and alias in info.alias_contexts:
-            obj['Contexts'] = info.alias_contexts[alias]
+            obj['Contexts'] = info.alias_contexts[alias][0]
+
+        if 'Actual Total Time' in obj:
+            obj['FullTotalTime'] = (
+                obj["Actual Total Time"] * obj.get("Actual Loops", 1))
+            obj['SelfTime'] = obj['FullTotalTime'] - (
+                sum([subplan['FullTotalTime'] for subplan in obj['Plans']])
+                if 'Plans' in obj else 0)
+        obj['SelfCost'] = obj['Total Cost'] - (
+            sum([subplan['Total Cost'] for subplan in obj['Plans']])
+            if 'Plans' in obj else 0)
 
         return obj
     elif isinstance(obj, str):
@@ -260,6 +270,99 @@ def json_fixup(
         return obj
     else:
         return obj
+
+
+# Finds all the direct descendents of the given plan node that have been
+# annotated with 'Contexts', and creates a new collapsed tree of those under
+# the 'CollapsedPlans' key.
+# Also for 'Aggregate' type plan nodes, that do not already have 'Contexts',
+# try to find the nearest descendent plan node with 'Contexts' and
+# attach that as 'NearestContextPlan'.
+# The original plan tree remains under the 'Plans' key, but plan nodes
+# de-duplicated as so:
+# - Plan node in 'NearestContextPlan' replaced with 0
+# - Plan nodes in 'CollapsedPlans' replaced with their 1-based index in the
+#   'CollapsedPlans' list.
+def collapse_plan(
+    plan,
+    find_nearest_ctx: bool = False
+):
+    subplans = []
+    found_nearest = None
+
+    unvisited = [(subplan, plan) for subplan in plan.get('Plans', [])]
+    while unvisited:
+        subplan, parent = unvisited.pop(0)
+        if 'Contexts' in subplan:
+            if find_nearest_ctx and found_nearest is None:
+                found_nearest = subplan
+                parent['Plans'][parent['Plans'].index(subplan)] = 0
+            else:
+                subplans.append(subplan)
+                parent['Plans'][parent['Plans'].index(subplan)] = len(subplans)
+
+            collapse_plan(subplan)
+        else:
+            if subplan['Node Type'] == "Aggregate":
+                nearest_plan = collapse_plan(subplan, True)
+                if nearest_plan:
+                    subplan['NearestContextPlan'] = nearest_plan
+                    subplans.append(subplan)
+                    parent['Plans'][parent['Plans'].index(subplan)] = len(subplans)
+            else:
+                unvisited += [
+                    (subsubplan, subplan) for subsubplan
+                    in subplan.get('Plans', [])
+                ]
+
+    if subplans or found_nearest:
+        all_subplans = (
+            (list(subplans) if subplans else []) +
+            (found_nearest.get('CollapsedPlans', []) if found_nearest else [])
+        )
+        if 'FullTotalTime' in plan:
+            plan['CollapsedSelfTime'] = plan['FullTotalTime'] - (
+                sum([subplan['FullTotalTime'] for subplan in all_subplans])
+            )
+        plan['CollapsedSelfCost'] = plan['Total Cost'] - (
+            sum([subplan['Total Cost'] for subplan in all_subplans])
+        )
+
+    if subplans:
+        plan['CollapsedPlans'] = subplans
+
+        # For each plan with contexts, try to pick the widest context that the
+        # plan node does not share with sibling or parent nodes, to suggest
+        # for display in UI
+        parent_ctxs = (found_nearest['Contexts'] if
+            found_nearest else plan.get('Contexts'))
+        ctx_subplans = [
+            subplan.get('NearestContextPlan') or subplan
+            for subplan in subplans
+        ]
+        for subplan in ctx_subplans:
+            plan_ctxs = subplan['Contexts']
+            sibling_ctxs = list(parent_ctxs) if parent_ctxs else []
+            for sib_plan in ctx_subplans:
+                if sib_plan != subplan:
+                    sibling_ctxs += sib_plan['Contexts']
+            if sibling_ctxs:
+                for ctx in reversed(plan_ctxs):
+                    if not ctx_in_ctxs(ctx, sibling_ctxs):
+                        subplan['SuggestedDisplayCtxIdx'] = plan_ctxs.index(ctx)
+                        break
+            else:
+                subplan['SuggestedDisplayCtxIdx'] = len(plan_ctxs) - 1
+
+    return found_nearest
+
+def ctx_in_ctxs(ctx, ctxs):
+    for c in ctxs:
+        if (c['buffer_idx'] == ctx['buffer_idx']
+          and c['start'] == ctx['start']
+          and c['end'] == ctx['end']):
+            return True
+    return False
 
 
 def analyze_explain_output(
@@ -291,6 +394,8 @@ def analyze_explain_output(
 
     info = analyze_queries(ql, ir, pg, schema=schema)
     plan = json_fixup(plan, info, schema)
+
+    collapse_plan(plan)
 
     output = {
         'Buffers': info.buffers,
