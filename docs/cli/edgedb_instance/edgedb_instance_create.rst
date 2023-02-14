@@ -55,3 +55,23 @@ Options
     Specifies the version of the EdgeDB server to be used to run the
     new instance. To list the currently available options use
     :ref:`ref_cli_edgedb_server_list_versions`.
+
+    By default, when you specify a version, the CLI will use the latest release
+    in the major version specified. This command, for example, will install the
+    latest 2.x release:
+
+    .. code-block:: bash
+
+        $ edgedb instance create --version 2.6 demo26
+
+    You may pin to a specific version by prepending the version number with an
+    equals sign. This command will install version 2.6:
+
+    .. code-block:: bash
+
+        $ edgedb instance create --version =2.6 demo26
+
+    .. note::
+
+        Some shells like ZSH may require you to escape the equals sign (e.g.,
+        ``\=2.6``) or quote the version string (e.g., ``"=2.6"``).
