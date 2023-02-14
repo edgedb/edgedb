@@ -14,6 +14,7 @@ from .elaboration import *
 
 
 from .evaluation import *
+from .back_to_ql import reverse_elab
 import copy
 
 def run_statement(db : DB, stmt : qlast.Expr, should_print : bool) -> DB:
@@ -26,6 +27,8 @@ def run_statement(db : DB, stmt : qlast.Expr, should_print : bool) -> DB:
 
     if should_print:
         debug.print(elaborated)
+        # debug.dump(reverse_elab(elaborated))
+        debug.dump_edgeql(reverse_elab(elaborated))
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
 
     config = RTExpr(

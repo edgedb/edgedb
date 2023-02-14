@@ -161,3 +161,6 @@ def remove_link_props(rt : Val) -> Val:
 def combine_object_val(o1 : ObjectVal, o2 : ObjectVal) -> ObjectVal:
     return ObjectVal({**o1.val, **o2.val})
 
+
+def object_to_shape(expr : ObjectExpr) -> ShapeExpr:
+    return ShapeExpr(shape={lbl : abstract_over_expr(e) for (lbl, e) in expr.val.items()})

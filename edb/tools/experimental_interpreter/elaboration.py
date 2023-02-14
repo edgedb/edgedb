@@ -69,7 +69,10 @@ def elab_Path(p : qlast.Path) -> Expr:
                     else:
                         result = ObjectProjExpr(result, path_name)
             case _:
-                elab_not_implemented(step, "in path")
+                if result is None:
+                    result = elab(step)
+                else:
+                    elab_not_implemented(step, "in path")
     return result
 
 
@@ -124,7 +127,7 @@ def elab_ShapeElement(s : qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
 def elab_ShapedExpr(shape : qlast.Shape) -> ShapedExprExpr:
 
     return ShapedExprExpr(
-            expr=elab(shape.expr) if shape.expr is not None else elab_error("Not Implemented, Emtpy Expr in Shape", shape.context), 
+            expr=elab(shape.expr) if shape.expr is not None else ObjectExpr({}), 
             shape=elab_Shape(shape.elements)
             )
 
@@ -134,7 +137,7 @@ def elab_InsertQuery(expr : qlast.InsertQuery) -> InsertExpr:
     subject_type = expr.subject.name
     object_shape = elab_Shape(expr.shape)
     object_expr = shape_to_expr(object_shape)
-    return elab_aliases(expr.aliases, InsertExpr(name=subject_type, new=object_expr))
+    return cast(InsertExpr, elab_aliases(expr.aliases, InsertExpr(name=subject_type, new=object_expr)))
 
 
 
@@ -148,6 +151,10 @@ def elab_IntegerConstant(e : qlast.IntegerConstant) -> IntVal:
     if e.is_negative:
         abs_val = -abs_val
     return IntVal(val=abs_val)
+
+@elab.register(qlast.BooleanConstant)
+def elab_BooleanConstant(e : qlast.BooleanConstant) -> BoolVal: 
+    return BoolVal(val=bool(e.value))
 
 def elab_orderby(qle : List[qlast.SortExpr]) -> BindingExpr:
     result : List[Expr] = []
@@ -196,7 +203,7 @@ def elab_FunctionCall(fcall : qlast.FunctionCall) -> FunAppExpr :
 
 
 @elab.register(qlast.BinOp)
-def elab_BinOp(binop : qlast.BinOp) -> FunAppExpr: 
+def elab_BinOp(binop : qlast.BinOp) -> FunAppExpr | UnionExpr: 
     if binop.rebalanced:
         return elab_not_implemented(binop)
     left_expr = elab(binop.left)
@@ -209,36 +216,41 @@ def elab_BinOp(binop : qlast.BinOp) -> FunAppExpr:
 @elab.register(qlast.TypeName)
 def elab_TypeName(qle : qlast.TypeName) -> Tp:
     if qle.name:
-        return elab_not_implemented()
+        return elab_not_implemented(qle)
     if qle.subtypes:
-        return elab_not_implemented()
+        return elab_not_implemented(qle)
     if qle.dimensions:
-        return elab_not_implemented()
-    basetp : qlast.ObjectRef = qle.maintype
+        return elab_not_implemented(qle)
+    basetp : qlast.ObjectRef = cast(qlast.ObjectRef, qle.maintype)
     if basetp.module != "std" and basetp.module:
-        return elab_not_implemented()
+        return elab_not_implemented(qle)
     if basetp.itemclass:
-        return elab_not_implemented()
+        return elab_not_implemented(qle)
     match basetp.name:
         case "str":
             return StrTp()
         case "datetime":
             return DateTimeTp()
-        case "datetime":
+        case "json":
             return JsonTp()
         case _:
-            return elab_not_implemented(basetp, "unrecognized type " + basetp.name)
+            return VarTp(basetp.name)
+            # raise ValueError("Unrecognized conversion type", basetp.name)
+            # return elab_not_implemented(basetp, "unrecognized type " + basetp.name)
 
 @elab.register(qlast.TypeCast)
 def elab_TypeCast(qle : qlast.TypeCast) -> TypeCastExpr:
     if qle.cardinality_mod:
         return elab_not_implemented(qle)
-    tp = elab_TypeName(qle.type)
-    expr = elab(qle.expr)
-    return TypeCastExpr(tp=tp, arg=expr)
+    if isinstance(qle.type, qlast.TypeName):
+        tp = elab_TypeName(qle.type)
+        expr = elab(qle.expr)
+        return TypeCastExpr(tp=tp, arg=expr)
+    else:
+        return elab_not_implemented(qle)
 
 @elab.register(qlast.Array)
-def elab_Array(qle : qlast.Array) -> TypeCastExpr:
+def elab_Array(qle : qlast.Array) -> ArrayExpr:
     return ArrayExpr(elems=[elab(elem) for elem in qle.elements])
 
 
@@ -256,12 +268,16 @@ def elab_UpdateQuery(qle : qlast.UpdateQuery):
 def elab_Set(qle : qlast.Set):
     return MultiSetExpr(expr=[elab(e) for e in qle.elements])
 
-def elab_aliases(aliases : List[qlast.AliasedExpr], tail_expr : Expr) -> WithExpr:
+def elab_aliases(aliases : Optional[List[qlast.AliasedExpr | qlast.ModuleAliasDecl]], tail_expr : Expr) -> Expr:
     if aliases is None:
         return tail_expr
     result = tail_expr
     for i in reversed(range(len(aliases))):
-        result = WithExpr(elab(aliases[i].expr), abstract_over_expr(result, aliases[i].alias))
+        cur_alias = aliases[i]
+        if isinstance(cur_alias, qlast.AliasedExpr):
+            result = WithExpr(elab(cur_alias.expr), abstract_over_expr(result, cur_alias.alias))
+        else:
+            raise ValueError("Module Aliases")
     return result
     
 @elab.register(qlast.DetachedExpr)
@@ -269,3 +285,16 @@ def elab_DetachedExpr(qle : qlast.DetachedExpr):
     if qle.preserve_path_prefix:
         return elab_not_implemented(qle)
     return DetachedExpr(expr=elab(qle.expr))
+
+@elab.register(qlast.NamedTuple)
+def elab_NamedTuple(qle : qlast.NamedTuple) -> NamedTupleExpr : 
+    return NamedTupleExpr(val=
+    {(element.name.name if (element.name.module is None and element.name.itemclass is None) else elab_error("not implemented", qle.context)) 
+        : elab(element.val) 
+        for element in qle.elements 
+    } )
+
+
+@elab.register(qlast.Tuple)
+def elab_UnnamedTuple(qle : qlast.Tuple) -> UnnamedTupleExpr : 
+    return UnnamedTupleExpr(val= [elab(e) for e in qle.elements])

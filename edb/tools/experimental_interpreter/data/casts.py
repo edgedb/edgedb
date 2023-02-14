@@ -4,7 +4,9 @@ def type_cast(tp : Tp, arg : Val) -> Val:
     match (tp, arg):
         case (DateTimeTp(), StrVal(datestr)):
             return DateTimeVal(datestr)
+        case (JsonTp(), StrVal(datestr)):
+            return JsonVal(datestr) #TODO!
 
-    raise ValueError("cannot cast")
+    raise ValueError("cannot cast", tp, arg)
     
 

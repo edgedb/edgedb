@@ -95,8 +95,16 @@ def singular_proj(data : RTData, subject : Val, label : Label) -> MultiSetVal :
             elif label in entry_obj.val.keys():
                 return entry_obj.val[label][1]
             else:
-                raise ValueError("Label not found")
-    raise ValueError("Cannot project, unknown subject")
+                raise ValueError("Label not found", label)
+        case NamedTupleVal(val=dic):
+            match label:
+                case StrLabel(l):
+                    if l in dic.keys():
+                        return [dic[l]]
+                    else:
+                        raise ValueError("key DNE")
+            raise ValueError("Label not Str")
+    raise ValueError("Cannot project, unknown subject", subject)
 
 
 def object_dedup(val : List[Val]) -> List[Val]:
@@ -128,6 +136,19 @@ def limit_vals(val : List[RTVal], limit: Val):
             raise ValueError("offset must be an int")
 
 
+def trace_input_output(func):
+    def wrapper(rt):
+        indent = "| " * wrapper.depth
+        print(f"{indent}input: {rt.expr} ")
+        wrapper.depth += 1
+        result = func(rt)
+        wrapper.depth -= 1
+        print(f"{indent}output: {result.val}")
+        return result
+    wrapper.depth = 0
+    return wrapper
+
+# @trace_input_output
 def eval_config(rt : RTExpr) -> RTVal:
     match rt.expr:
         case StrVal(s):
@@ -180,7 +201,7 @@ def eval_config(rt : RTExpr) -> RTVal:
             looked_up_fun = rt.data.schema.fun_defs[fname][idx or 0]
             f_modifier = looked_up_fun.tp.args_mod
             assert len(f_modifier) == len(argsv)
-            argv_final : List[List[MultiSetVal]]= []
+            argv_final : List[List[MultiSetVal]]= [[]]
             for i in range(len(f_modifier)):
                 mod_i = f_modifier[i]
                 argv_i : MultiSetVal = argsv[i]
@@ -204,7 +225,7 @@ def eval_config(rt : RTExpr) -> RTVal:
             if all([val_is_primitive(v) for v in projected]) or len(subjectv) == 1 :
                 return RTVal(new_data, projected)
             elif all([not val_is_primitive(v) for v in projected]):
-                return RTVal(new_data, object_dedup(projected))
+                return RTVal(new_data, object_dedup([remove_link_props(p) for p in projected]))
             else:
                 return eval_error(projected, "Returned objects are not uniform")
         case TypeCastExpr(tp=tp, arg=arg):
@@ -214,6 +235,17 @@ def eval_config(rt : RTExpr) -> RTVal:
         case UnnamedTupleExpr(val=tuples):
             (new_data, tuplesv) = eval_expr_list(rt.data, tuples)
             return RTVal(new_data, [UnnamedTupleVal(list(p)) for p in itertools.product(*tuplesv)])
+        case NamedTupleExpr(val=tuples):
+            (new_data, tuplesv) = eval_expr_list(rt.data, list(tuples.values()))
+            return RTVal(new_data, [NamedTupleVal({k : p } ) 
+                for prod in  itertools.product(*tuplesv)
+                for (k, p) in zip(tuples.keys(),prod, strict=True) 
+            ])
+            # (new_data, tuplesv) = eval_expr_list(rt.data, list(tuples.values()))
+            # return RTVal(new_data, [NamedTupleVal({k : p } ) 
+            #     for prod in  itertools.product(*tuplesv)
+            #     for (k, p) in zip(tuples.keys(),prod, strict=True) 
+            # ])
         case UnionExpr(left=l, right=r):
             (new_data, lvals) = eval_config(RTExpr(rt.data, l))
             (new_data2, rvals) = eval_config(RTExpr(new_data, r))
@@ -249,6 +281,10 @@ def eval_config(rt : RTExpr) -> RTVal:
         case DetachedExpr(expr=expr):
             (new_data, exprv) = eval_config(RTExpr(rt.data, expr))
             return RTVal(new_data, exprv)
+        case LinkPropProjExpr(subject=subject, linkprop=label):
+            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            projected = [p for v in subjectv for p in singular_proj(new_data, v, LinkPropLabel(label))]
+            return RTVal(new_data, projected)
             
 
             

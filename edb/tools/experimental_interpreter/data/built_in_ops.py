@@ -19,10 +19,20 @@ eq_tp_str_str = FunType([StrTp(), StrTp()],
                     (BoolTp(), CardOne))
 def eq_impl_str_str (arg : List[MultiSetVal]) -> MultiSetVal:
     match arg:
-        case [[StrVal(s1)], [IntVal(s2)]]:
+        case [[StrVal(s1)], [StrVal(s2)]]:
             return [BoolVal(s1 == s2)]
     raise FunCallErr()
 
+
+in_tp = FunType([StrTp(), StrTp()], 
+                [ParamSingleton(), ParamSetOf()], # TODO: System F?
+                (BoolTp(), CardOne)) 
+
+def in_impl (arg : List[MultiSetVal]) -> MultiSetVal:
+    match arg:
+        case [[singleton], l]:
+            return [BoolVal(singleton in l)]
+    raise FunCallErr()
 
 
 all_builtin_funcs : Dict[str, List[BuiltinFuncDef]] = {
@@ -30,7 +40,10 @@ all_builtin_funcs : Dict[str, List[BuiltinFuncDef]] = {
             [BuiltinFuncDef (tp =add_tp_int_int,impl=add_impl_int_int)],
 
         "=" : 
-            [BuiltinFuncDef (tp =eq_tp_str_str,impl=eq_impl_str_str)]
+            [BuiltinFuncDef (tp =eq_tp_str_str,impl=eq_impl_str_str)], 
+
+        "IN":
+            [BuiltinFuncDef(tp=in_tp, impl=in_impl)]
     }
 
 
