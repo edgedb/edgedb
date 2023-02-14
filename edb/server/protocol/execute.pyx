@@ -158,6 +158,13 @@ async def execute(
                 #   2. The state is synced with dbview (orig_state is None)
                 #   3. We came out from a transaction (orig_state is None)
                 be_conn.last_state = state
+    finally:
+        if query_unit.drop_db:
+            server._allow_database_connections(query_unit.drop_db)
+        if query_unit.create_db_template:
+            server._allow_database_connections(
+                query_unit.create_db_template,
+            )
 
     return data
 
