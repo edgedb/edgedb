@@ -1169,6 +1169,9 @@ class Server(ha_base.ClusterProtocol):
         if current_dbname == dbname:
             raise errors.ExecutionError(
                 f'cannot drop the currently open database {dbname!r}')
+        if not self._dbindex.has_db(dbname):
+            raise errors.UnknownDatabaseError(
+                f'database {dbname!r} does not exist')
 
         await self._ensure_database_not_connected(dbname)
 
@@ -1181,6 +1184,9 @@ class Server(ha_base.ClusterProtocol):
             raise errors.ExecutionError(
                 f'cannot create database using currently open database '
                 f'{dbname!r} as a template database')
+        if not self._dbindex.has_db(dbname):
+            raise errors.UnknownDatabaseError(
+                f'database {dbname!r} does not exist')
 
         await self._ensure_database_not_connected(dbname)
 
