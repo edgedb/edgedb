@@ -152,7 +152,7 @@ class TestCaseMeta(type(unittest.TestCase)):
                 except (edgedb.TransactionSerializationError,
                         edgedb.TransactionDeadlockError):
                     if (
-                        try_no == 6
+                        try_no == 10
                         # Only do a retry loop when we have a transaction
                         or not getattr(self, 'TRANSACTION_ISOLATION', False)
                     ):
