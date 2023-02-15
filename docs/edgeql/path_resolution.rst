@@ -64,7 +64,7 @@ your set of ``User`` objects.
 
 .. code-block:: edgeql-repl
 
-    edgedb> with U := (select User)
+    edgedb> with U := User
     ....... select U.first_name ++ ' ' ++ User.last_name;
     {
       'Mina Murray',
@@ -171,7 +171,7 @@ Most clauses are nested and are subjected to the same rules described above:
 common symbols are factored and assumed to refer to the same object as the
 outer query. This is because clauses like :ref:`filter
 <ref_eql_select_filter>` and :ref:`order by <ref_eql_select_order>` need to
-be applied to each row.
+be applied to each value in the result.
 
 The :ref:`limit <ref_eql_select_pagination>` clause is not nested in the scope
-because it needs to be applied globally to your query.
+because it needs to be applied globally to the entire result set of your query.
