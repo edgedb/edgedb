@@ -946,6 +946,9 @@ Other changes
 * Fix ``set single`` on required properties
   (:eql:gh:`#5031`)
 
+* Fix a ISE when using assert_exists and linkprops using query builder
+  (:eql:gh:`#4961`)
+
 .. lint-off
 
 .. _group:
