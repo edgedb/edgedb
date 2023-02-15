@@ -164,7 +164,7 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
     .. note::
 
         This type is backed by the Postgres ``jsonb`` type which has a size
-        limit of 255MB. The EdgeDB ``json`` type is also subject to this
+        limit of 256MiB minus one byte. The EdgeDB ``json`` type is also subject to this
         limitation.
 
 
