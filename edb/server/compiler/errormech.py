@@ -93,6 +93,7 @@ directly_mappable = {
     pgerrors.ERROR_INSUFFICIENT_PRIVILEGE: errors.AccessPolicyError,
     pgerrors.ERROR_PROGRAM_LIMIT_EXCEEDED: errors.InvalidValueError,
     pgerrors.ERROR_DATA_EXCEPTION: errors.InvalidValueError,
+    pgerrors.ASSERT_FAILURE: errors.QueryAssertionError,
 }
 
 

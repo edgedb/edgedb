@@ -73,6 +73,27 @@ std::assert_distinct(
     USING SQL EXPRESSION;
 };
 
+# std::assert -- boolean assertion
+# --------------------------------
+CREATE FUNCTION
+std::assert(
+    input: bool,
+    NAMED ONLY message: OPTIONAL str = <str>{},
+) -> bool
+{
+    CREATE ANNOTATION std::description :=
+        "Assert that a boolean value is true.";
+    SET volatility := 'Stable';
+    USING SQL $$
+    SELECT (
+        edgedb.raise_on_null(
+            nullif("input", false),
+            'assert_failure',
+            msg => coalesce("message", 'assertion failed')
+        )
+    )
+    $$;
+};
 
 # std::len
 # --------
