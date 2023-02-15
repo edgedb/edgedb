@@ -18,7 +18,7 @@ from .back_to_ql import reverse_elab
 from .data.path_factor import select_hoist
 import copy
 
-def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print : bool) -> DB:
+def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print : bool) -> Tuple[MultiSetVal, DB]:
     if should_print:
         print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
         debug.dump_edgeql(stmt)
@@ -51,34 +51,46 @@ def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print 
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
         debug.print(result.val)
         print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
-    return result.data.cur_db
+    return (result.val, result.data.cur_db)
     # debug.dump(stmt)
 
-def run_stmts (db : DB, stmts : List[qlast.Expr],dbschema : DBSchema, debug_print : bool) -> DB:
+def run_stmts (db : DB, stmts : List[qlast.Expr],dbschema : DBSchema, debug_print : bool) -> Tuple[List[MultiSetVal], DB]:
     match stmts:
         case []:
-            return db
+            return ([], db)
         case current, *rest:
-            return run_stmts(run_statement(db, current, dbschema, should_print=debug_print), rest, dbschema, debug_print)
+            (cur_val, next_db) = run_statement(db, current, dbschema, should_print=debug_print)
+            (rest_val, final_db) = run_stmts(next_db, rest, dbschema, debug_print)
+            return ([cur_val, *rest_val], final_db)
     raise ValueError("Not Possible")
 
-def run(
+def run_str(
     db: DB,
     s: str,
-    print_asts: bool = False, output_mode: Optional[str] = None
-) -> DB:
+    print_asts: bool = False
+) -> Tuple[List[MultiSetVal], DB]:
     q = parse(s)
     # if print_asts:
     #     debug.dump(q)
-    res = run_stmts(db, q, DBSchema({}, all_builtin_funcs), print_asts)
-    if output_mode == 'pprint':
-        pprint.pprint(res)
-    elif output_mode == 'json':
-        print(EdbJSONEncoder().encode(res))
-    elif output_mode == 'debug':
-        debug.dump(res)
-    return res
+    (res, next_db) = run_stmts(db, q, DBSchema({}, all_builtin_funcs), print_asts)
+    # if output_mode == 'pprint':
+    #     pprint.pprint(res)
+    # elif output_mode == 'json':
+    #     print(EdbJSONEncoder().encode(res))
+    # elif output_mode == 'debug':
+    #     debug.dump(res)
+    return (res, next_db)
 
+def run_single_str(
+    db: DB,
+    s: str,
+    print_asts: bool = False
+) -> Tuple[MultiSetVal, DB]:
+    q = parse(s)
+    if len(q) != 1:
+        raise ValueError("Not a single query")
+    (res, next_db) = run_statement(db, q[0], DBSchema({}, all_builtin_funcs), print_asts)
+    return (res, next_db)
 
 
 def repl(*, init_ql_file = None, debug_print=False) -> None:
@@ -87,7 +99,7 @@ def repl(*, init_ql_file = None, debug_print=False) -> None:
     db = empty_db()
     if init_ql_file is not None:
         initial_queries = open(init_ql_file).read()
-        db = run(db, initial_queries, print_asts=debug_print)
+        db = run_str(db, initial_queries, print_asts=debug_print)
     while True:
         print("> ", end="", flush=True)
         s = ""
@@ -96,9 +108,15 @@ def repl(*, init_ql_file = None, debug_print=False) -> None:
             if not s:
                 return
         try:
-            db = run(db, s, print_asts=debug_print)
+            (_, db) = run_str(db, s, print_asts=debug_print)
         except Exception:
             traceback.print_exception(*sys.exc_info())
+
+def db_with_initilial_queries(initial_queries : str, debug_print=False) -> DB:
+    db = empty_db()
+    (_, db) = run_str(db, initial_queries, print_asts=debug_print)
+    return db
+
 
 if __name__ == "__main__":
     repl()

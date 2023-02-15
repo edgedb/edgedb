@@ -22,7 +22,7 @@ import os.path
 import edgedb
 import unittest
 
-import edb.tools.experimental_interpreter.interpreter as model
+import edb.tools.experimental_interpreter.new_interpreter as model
 
 from edb.common import assert_data_shape
 
@@ -36,11 +36,12 @@ class TestEdgeQLSelectInterpreter(unittest.TestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'issues_setup.edgeql')
 
-    DB1 = model.issues_db
 
     def assert_query_result(
-        self, query, expected, *, db=DB1, sort=None, singleton_cheating=False
+        self, query, expected, *, db, sort=None, singleton_cheating=False
     ):
+        if db is None:
+            db = model.db_with_initilial_queries(open(TestEdgeQLSelectInterpreter.SETUP).read())
         qltree = model.parse(query)
         result = model.go(qltree, db, singleton_cheating)
         if sort:
