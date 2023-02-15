@@ -3764,6 +3764,39 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ])
         )
 
+    async def test_edgeql_scope_linkprop_rebinding_01(self):
+        # This is a lot like code the querybuilder generates
+        # See issue #4961
+        await self.assert_query_result(
+            r'''
+            select assert_exists((WITH
+              __user := DETACHED User
+            SELECT __user {
+              deck := (
+                WITH
+                  __user2 := (
+                    SELECT __user.deck {
+                      __linkprop_count := __user.deck@count
+                    }
+                  )
+                SELECT __user2 {
+                  single @count := __user2.__linkprop_count
+                }
+              )
+            } filter .name = 'Alice'));
+            ''',
+            [
+                {
+                    "deck": tb.bag([
+                        {"@count": 2},
+                        {"@count": 2},
+                        {"@count": 3},
+                        {"@count": 3},
+                    ])
+                }
+            ]
+        )
+
     async def test_edgeql_scope_for_with_computable_01(self):
         await self.assert_query_result(
             r'''

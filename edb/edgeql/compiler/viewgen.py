@@ -1020,6 +1020,8 @@ def _normalize_view_ptr_expr(
                 ptrcls = existing
             elif ptr_target.implicitly_castable_to(
                     existing_target, ctx.env.schema):
+
+                ctx.env.ptr_ref_cache.pop(existing, None)
                 ctx.env.schema = existing.set_target(
                     ctx.env.schema, ptr_target)
                 ptrcls = existing
@@ -1047,6 +1049,7 @@ def _normalize_view_ptr_expr(
                 ctx=ctx)
 
     elif ptrcls.get_target(ctx.env.schema) != ptr_target:
+        ctx.env.ptr_ref_cache.pop(ptrcls, None)
         ctx.env.schema = ptrcls.set_target(ctx.env.schema, ptr_target)
 
     assert ptrcls is not None
