@@ -584,17 +584,12 @@ def resolve_special_anchor(
     # starting path label syntactically and must be pre-populated
     # by the compile() caller.
 
-    if isinstance(anchor, qlast.SpecialAnchor):
-        token = anchor.name
-    else:
-        raise errors.InternalServerError(
-            f'unexpected special anchor kind: {anchor!r}'
-        )
+    assert isinstance(anchor, qlast.SpecialAnchor)
+    token = anchor.name
 
-    anchors = ctx.anchors
-    path_tip = anchors.get(token)
+    path_tip = ctx.anchors.get(token)
 
-    if path_tip is None:
+    if not path_tip:
         raise errors.InvalidReferenceError(
             f'{token} cannot be used in this expression',
             context=anchor.context,

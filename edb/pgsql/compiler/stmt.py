@@ -55,19 +55,19 @@ def compile_SelectStmt(
 
         iterator_set = stmt.iterator_stmt
         last_iterator: Optional[irast.Set] = None
-        if iterator_set and irutils.contains_dml(stmt):
-            # If we have iterators and we contain nested DML
-            # statements, we need to hoist the iterators into CTEs and
-            # then explicitly join them back into the query.
-            iterator = dml.compile_iterator_cte(iterator_set, ctx=ctx)
-            ctx.path_scope = ctx.path_scope.new_child()
-            dml.merge_iterator(iterator, ctx.rel, ctx=ctx)
+        if iterator_set:
+            if irutils.contains_dml(stmt):
+                # If we have iterators and we contain nested DML
+                # statements, we need to hoist the iterators into CTEs and
+                # then explicitly join them back into the query.
+                iterator = dml.compile_iterator_cte(iterator_set, ctx=ctx)
+                ctx.path_scope = ctx.path_scope.new_child()
+                dml.merge_iterator(iterator, ctx.rel, ctx=ctx)
 
-            ctx.enclosing_cte_iterator = iterator
-            last_iterator = stmt.iterator_stmt
+                ctx.enclosing_cte_iterator = iterator
+                last_iterator = stmt.iterator_stmt
 
-        else:
-            if iterator_set:
+            else:
                 # Process FOR clause.
                 with ctx.new() as ictx:
                     clauses.setup_iterator_volatility(last_iterator, ctx=ictx)

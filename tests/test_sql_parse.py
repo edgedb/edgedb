@@ -698,8 +698,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_transaction_05(self):
         """
         START TRANSACTION ISOLATION LEVEL READ COMMITTED
-% OK %
-        START TRANSACTION
         """
 
     def test_sql_parse_transaction_06(self):
@@ -710,8 +708,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_transaction_07(self):
         """
         START TRANSACTION READ WRITE
-% OK %
-        START TRANSACTION
         """
 
     def test_sql_parse_transaction_08(self):
@@ -722,8 +718,6 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_transaction_09(self):
         """
         START TRANSACTION NOT DEFERRABLE
-% OK %
-        START TRANSACTION
         """
 
     def test_sql_parse_transaction_10(self):
@@ -806,6 +800,11 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_transaction_23(self):
         """
         ROLLBACK TO SAVEPOINT savepoint_name
+        """
+
+    def test_sql_parse_transaction_24(self):
+        """
+        PREPARE TRANSACTION 'transaction_id'
         """
 
     def test_sql_parse_transaction_25(self):
@@ -898,26 +897,38 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         CREATE FOREIGN TABLE ft1 () SERVER no_server
         """
 
-    @test.xerror("unsupported")
     def test_sql_parse_query_24(self):
         """
-        CREATE TEMPORARY TABLE my_temp_table
-        (test_id integer NOT NULL) ON COMMIT DROP
+        CREATE TEMPORARY TABLE my_temp_table (
+            test_id integer NOT NULL
+        ) ON COMMIT DROP
+% OK %
+        CREATE TEMPORARY TABLE my_temp_table (
+            test_id pg_catalog.int4 NOT NULL
+        ) ON COMMIT DROP
         """
 
-    @test.xerror("unsupported")
     def test_sql_parse_query_25(self):
         """
-        CREATE TEMPORARY TABLE my_temp_table AS SELECT 1
+        CREATE TEMPORARY TABLE my_temp_table AS (SELECT 1) WITH NO DATA
         """
 
-    @test.xerror("unsupported")
     def test_sql_parse_query_26(self):
         """
         CREATE TABLE types (
         a float(2), b float(49),
         c NUMERIC(2, 3), d character(4), e char(5),
         f varchar(6), g character varying(7))
+% OK %
+        CREATE TABLE types (
+            a pg_catalog.float4,
+            b pg_catalog.float8,
+            c pg_catalog.numeric,
+            d pg_catalog.bpchar,
+            e pg_catalog.bpchar,
+            f pg_catalog.varchar,
+            g pg_catalog.varchar
+        )
         """
 
     def test_sql_parse_query_27(self):
@@ -1032,4 +1043,56 @@ class TestEdgeQLSelect(tb.BaseDocTest):
     def test_sql_parse_query_44(self):
         """
         SELECT ($1)::oid[5][6]
+        """
+
+    def test_sql_parse_query_45(self):
+        """
+        SET LOCAL search_path TO DEFAULT
+        """
+
+    def test_sql_parse_query_46(self):
+        """
+        SET SESSION search_path TO DEFAULT
+% OK %
+        SET search_path TO DEFAULT
+        """
+
+    def test_sql_parse_query_47(self):
+        """
+        RESET search_path
+% OK %
+        SET search_path TO DEFAULT
+        """
+
+    def test_sql_parse_query_48(self):
+        """
+        RESET ALL
+        """
+
+    def test_sql_parse_query_49(self):
+        """
+        SELECT nullif(a, 3) FROM b
+        """
+
+    # The transaction_* settings are always on transaction level
+
+    def test_sql_parse_transaction_29(self):
+        """
+        SET SESSION transaction_isolation = serializable
+% OK %
+        SET LOCAL transaction_isolation TO 'serializable'
+        """
+
+    def test_sql_parse_transaction_30(self):
+        """
+        RESET transaction_deferrable
+% OK %
+        SET LOCAL transaction_deferrable TO DEFAULT
+        """
+
+    def test_sql_parse_transaction_31(self):
+        """
+        SET transaction_read_only TO DEFAULT
+% OK %
+        SET LOCAL transaction_read_only TO DEFAULT
         """

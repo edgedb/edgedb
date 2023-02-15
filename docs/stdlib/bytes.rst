@@ -30,10 +30,10 @@ Bytes
       - Returns the number of bytes.
 
     * - :eql:func:`contains`
-      - Check if the byte sequence contains a subsequence.
+      - Checks if the byte sequence contains a given subsequence.
 
     * - :eql:func:`find`
-      - Find the index of the first occurrence of a subsequence.
+      - Finds the index of the first occurrence of a subsequence.
 
     * - :eql:func:`bytes_get_bit`
       - :eql:func-desc:`bytes_get_bit`
@@ -46,7 +46,7 @@ Bytes
 
     A sequence of bytes representing raw data.
 
-    There's a special byte literal:
+    Bytes can be represented as a literal using this syntax: ``b''``.
 
     .. code-block:: edgeql-repl
 
@@ -63,8 +63,10 @@ Bytes
         db> select contains(b'qwerty', b'42');
         {false}
 
-    It is possible to :eql:op:`cast <cast>` between :eql:type:`bytes` and
-    :eql:type:`json`. Bytes are represented as base64 encoded strings in json.:
+    Bytes are rendered as base64-encoded strings in JSON. When you cast a
+    ``bytes`` value into JSON, that's what you'll get. In order to
+    :eql:op:`cast <cast>` a :eql:type:`json` value into bytes, it must be a
+    base64-encoded string.
 
     .. code-block:: edgeql-repl
 
@@ -78,12 +80,14 @@ Bytes
 
 .. eql:operator:: bytesidx: bytes [ int64 ] -> bytes
 
-    Bytes indexing.
+    Accesses a byte at a given index.
 
     Examples:
 
     .. code-block:: edgeql-repl
 
+        db> select b'binary \x01\x02\x03\x04 ftw!'[2];
+        {b'n'}
         db> select b'binary \x01\x02\x03\x04 ftw!'[8];
         {b'\x02'}
 
@@ -93,7 +97,7 @@ Bytes
 
 .. eql:operator:: bytesslice: bytes [ int64 : int64 ] -> bytes
 
-    Bytes slicing.
+    Produces a bytes sub-sequence from an existing bytes value.
 
     Examples:
 
@@ -110,7 +114,7 @@ Bytes
 
 .. eql:operator:: bytesplus: bytes ++ bytes -> bytes
 
-    Bytes concatenation.
+    Concatenates two bytes values into one.
 
     .. code-block:: edgeql-repl
 
@@ -123,9 +127,9 @@ Bytes
 
 .. eql:function:: std::bytes_get_bit(bytes: bytes, nth: int64) -> int64
 
-    Get the *nth* bit of the *bytes* value.
+    Returns the specified bit of the bytes value.
 
-    When looking for the *nth* bit, this function enumerates bits from
+    When looking for the *nth* bit, this function will enumerate bits from
     least to most significant in each byte.
 
     .. code-block:: edgeql-repl

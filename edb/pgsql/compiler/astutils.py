@@ -151,18 +151,18 @@ def get_leftmost_query(query: pgast.Query) -> pgast.Query:
     return result
 
 
-def for_each_query_in_set(
-    qry: pgast.Query,
-    cb: Callable[[pgast.Query], Any],
-) -> List[Any]:
-    if is_set_op_query(qry):
-        assert qry.larg and qry.rarg
-        result = for_each_query_in_set(qry.larg, cb)
-        result.extend(for_each_query_in_set(qry.rarg, cb))
-    else:
-        result = [cb(qry)]
-
-    return result
+def each_query_in_set(qry: pgast.Query) -> Iterator[pgast.Query]:
+    # We do this iteratively instead of recursively (with yield from)
+    # to avoid being pointlessly quadratic.
+    stack = [qry]
+    while stack:
+        qry = stack.pop()
+        if is_set_op_query(qry):
+            assert qry.larg and qry.rarg
+            stack.append(qry.rarg)
+            stack.append(qry.larg)
+        else:
+            yield qry
 
 
 def new_binop(
@@ -326,11 +326,10 @@ def get_column(
                 nullables = []
                 ser_safes = []
 
-                def _cb(q: pgast.Query) -> None:
+                for q in each_query_in_set(rvar.subquery):
                     nullables.append(q.target_list[col_idx].nullable)
                     ser_safes.append(q.target_list[col_idx].ser_safe)
 
-                for_each_query_in_set(rvar.subquery, _cb)
                 nullable = any(nullables)
                 ser_safe = all(ser_safes)
             else:

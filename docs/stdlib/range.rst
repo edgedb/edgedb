@@ -40,9 +40,9 @@ For example:
     {range(2.2, 3.3, inc_lower := true, inc_upper := false)}
 
 Broadly there are two kinds of ranges: :eql:type:`discrete <anydiscrete>` and
-:eql:type:`contiguous <anycontiguous>`. The discrete ranges are:
+:eql:type:`contiguous <anycontiguous>`. The discrete ranges are
 ``range<int32>``, ``range<int64>``, and ``range<cal::local_date>``. All ranges
-over discrete types get normalized in a way where the lower bound is included
+over discrete types get normalized such that the lower bound is included
 (if present) and the upper bound is excluded:
 
 .. code-block:: edgeql-repl
@@ -101,7 +101,7 @@ each other (as long as the types are compatible):
 JSON representation
 ^^^^^^^^^^^^^^^^^^^
 
-Much like :ref:`arrays<ref_std_array>` and :ref:`tuples<ref_std_tuple>` the
+Much like :ref:`arrays<ref_std_array>` and :ref:`tuples<ref_std_tuple>`, the
 range types cannot be directly cast to a :eql:type:`str`, but instead can be
 cast into a :eql:type:`json` structure:
 

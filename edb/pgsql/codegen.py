@@ -55,7 +55,8 @@ class SQLSourceGeneratorContext(markup.MarkupExceptionContext):
 
         if self.chunks_generated:
             code = markup.serializer.serialize_code(
-                ''.join(self.chunks_generated), lexer='sql')
+                ''.join(self.chunks_generated), lexer='sql'
+            )
             body.append(
                 me.doc.Section(
                     title='SQL generated so far', body=[code]  # type: ignore
@@ -99,9 +100,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     ) -> str:
         try:
             return super().to_source(
-                node, indent_with=indent_with,
+                node,
+                indent_with=indent_with,
                 reordered=reordered,
-                add_line_information=add_line_information, pretty=pretty)
+                add_line_information=add_line_information,
+                pretty=pretty,
+            )
         except SQLSourceGeneratorError as e:
             ctx = SQLSourceGeneratorContext(node)
             exceptions.add_context(e, ctx)
@@ -109,7 +113,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def generic_visit(self, node):  # type: ignore
         raise SQLSourceGeneratorError(
-            'No method to generate code for %s' % node.__class__.__name__)
+            'No method to generate code for %s' % node.__class__.__name__
+        )
 
     def gen_ctes(self, ctes: List[pgast.CommonTableExpr]) -> None:
         self.write('WITH')
@@ -210,8 +215,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write('SELECT')
             if node.distinct_clause:
                 self.write(' DISTINCT')
-                if (len(node.distinct_clause) > 1 or
-                        not isinstance(node.distinct_clause[0], pgast.Star)):
+                if len(node.distinct_clause) > 1 or not isinstance(
+                    node.distinct_clause[0], pgast.Star
+                ):
                     self.write(' ON (')
                     self.visit_list(node.distinct_clause, newlines=False)
                     self.write(')')
@@ -523,7 +529,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(common.quote_ident(rel.name))
         else:
             raise SQLSourceGeneratorError(
-                'unexpected relation in RelRangeVar: {!r}'.format(rel))
+                'unexpected relation in RelRangeVar: {!r}'.format(rel)
+            )
 
         if not node.include_inherited:
             self.write(')')
@@ -583,6 +590,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(' ')
             self.visit(node.typename)
 
+        if node.is_not_null:
+            self.write(' NOT NULL')
+        if node.default_expr:
+            self.write(' DEFAULT ')
+            self.visit(node.default_expr)
+
     def visit_GroupingOperation(self, node: pgast.GroupingOperation) -> None:
         if node.operation:
             self.write(node.operation)
@@ -604,8 +617,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             else:
                 self.write(join_type + ' JOIN ')
             nested_join = (
-                isinstance(node.rarg, pgast.JoinExpr) and
-                node.rarg.rarg is not None
+                isinstance(node.rarg, pgast.JoinExpr)
+                and node.rarg.rarg is not None
             )
             if nested_join:
                 self.write('(')
@@ -757,7 +770,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.write(' NULLS LAST')
             else:
                 raise SQLSourceGeneratorError(
-                    'unexpected NULLS order: {}'.format(node.nulls))
+                    'unexpected NULLS order: {}'.format(node.nulls)
+                )
 
     def visit_TypeCast(self, node: pgast.TypeCast) -> None:
         # '::' has very high precedence, so parenthesize the expression.
@@ -827,6 +841,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
         self._visit_indirection_ops(node.indirection)
 
+    def visit_RecordIndirectionOp(
+        self, node: pgast.RecordIndirectionOp
+    ) -> None:
+        self.write('.')
+        self.write(node.name)
+
     def _visit_indirection_ops(
         self, ops: Sequence[pgast.IndirectionOp]
     ) -> None:
@@ -886,7 +906,21 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write("LOCAL ")
         self.write(node.name)
         self.write(" TO ")
+        self.visit(node.args)
+
+    def visit_ArgsList(self, node: pgast.ArgsList) -> None:
         self.visit_list(node.args)
+
+    def visit_VariableResetStmt(self, node: pgast.VariableResetStmt) -> None:
+        if node.name is None:
+            assert node.scope == pgast.OptionsScope.SESSION
+            self.write("RESET ALL")
+        else:
+            self.write("SET ")
+            if node.scope == pgast.OptionsScope.TRANSACTION:
+                self.write("LOCAL ")
+            self.write(node.name)
+            self.write(" TO DEFAULT")
 
     def visit_SetTransactionStmt(self, node: pgast.SetTransactionStmt) -> None:
         self.write("SET ")
@@ -929,6 +963,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_RollbackToStmt(self, node: pgast.RollbackToStmt) -> None:
         self.write(f"ROLLBACK TO SAVEPOINT {node.savepoint_name}")
 
+    def visit_PrepareTransaction(self, node: pgast.PrepareTransaction) -> None:
+        self.write(f"PREPARE TRANSACTION '{node.gid}'")
+
     def visit_CommitPreparedStmt(self, node: pgast.CommitPreparedStmt) -> None:
         self.write(f"COMMIT PREPARED '{node.gid}'")
 
@@ -938,20 +975,22 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(f"ROLLBACK PREPARED '{node.gid}'")
 
     def visit_TransactionOptions(self, node: pgast.TransactionOptions) -> None:
-        if node.isolation_mode == pgast.IsolationMode.SERIALIZABLE:
-            self.write(" ISOLATION LEVEL SERIALIZABLE")
-        elif node.isolation_mode == pgast.IsolationMode.REPEATABLE_READ:
-            self.write(" ISOLATION LEVEL REPEATABLE READ")
-        elif node.isolation_mode == pgast.IsolationMode.READ_COMMITTED:
-            # this is the default
-            pass
-        elif node.isolation_mode == pgast.IsolationMode.READ_UNCOMMITTED:
-            self.write(" ISOLATION LEVEL READ UNCOMMITTED")
-
-        if node.access_mode != pgast.AccessMode.READ_WRITE:
-            self.write(" READ ONLY")
-        if node.deferrable:
-            self.write(" DEFERRABLE")
+        for def_name, arg in node.options.items():
+            if def_name == "transaction_isolation":
+                self.write(" ISOLATION LEVEL ")
+                if isinstance(arg, pgast.StringConstant):
+                    self.write(arg.val.upper())
+            elif def_name == "transaction_read_only":
+                if isinstance(arg, pgast.NumericConstant):
+                    if arg.val == "1":
+                        self.write(" READ ONLY")
+                    else:
+                        self.write(" READ WRITE")
+            elif def_name == "transaction_deferrable":
+                if isinstance(arg, pgast.NumericConstant):
+                    if arg.val != "1":
+                        self.write(" NOT")
+                    self.write(" DEFERRABLE")
 
     def visit_PrepareStmt(self, node: pgast.PrepareStmt) -> None:
         self.write(f"PREPARE {node.name}")
@@ -995,6 +1034,30 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write("(")
             self.visit(node.arg)
             self.write(")")
+
+    def visit_CreateStmt(self, node: pgast.CreateStmt) -> None:
+        self.write('CREATE ')
+        if node.relation.is_temporary:
+            self.write('TEMPORARY ')
+        self.write('TABLE ')
+        self.visit_Relation(node.relation)
+
+        if node.table_elements:
+            self.write(' (')
+            self.visit_list(node.table_elements)
+            self.write(')')
+
+        if node.on_commit:
+            self.write(' ON COMMIT ')
+            self.write(node.on_commit)
+
+    def visit_CreateTableAsStmt(self, node: pgast.CreateTableAsStmt) -> None:
+        self.visit(node.into)
+        self.write(' AS ')
+        self.visit(node.query)
+
+        if node.with_no_data:
+            self.write(' WITH NO DATA')
 
 
 generate_source = SQLSourceGenerator.to_source

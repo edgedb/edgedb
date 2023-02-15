@@ -17,10 +17,14 @@
 #
 
 import os.path
-import asyncpg
 
 from edb.testbase import server as tb
 from edb.tools import test
+
+try:
+    import asyncpg
+except ImportError:
+    pass
 
 
 class TestSQL(tb.SQLQueryTestCase):
@@ -448,7 +452,6 @@ class TestSQL(tb.SQLQueryTestCase):
                 '''
             )
 
-    @test.xerror('asyncpg type inspection query not supported')
     async def test_sql_query_32(self):
         # range functions
 
@@ -487,6 +490,17 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assert_shape(
             res, 3, 5, ['a', 'b', 'unnested_a', 'unnested_b', 'computed']
         )
+
+    async def test_sql_query_33(self):
+        # system columns
+
+        res = await self.squery_values(
+            '''
+            SELECT tableoid, xmin, cmin, xmax, cmax, ctid FROM ONLY "Content"
+            '''
+        )
+        # this numbers change, so let's just check that there are 6 of them
+        self.assertEqual(len(res[0]), 6)
 
     async def test_sql_query_introspection_00(self):
         res = await self.squery_values(
@@ -544,10 +558,10 @@ class TestSQL(tb.SQLQueryTestCase):
                 ['Movie', 'title', 'NO', 5],
                 ['Movie.actors', 'role', 'YES', 1],
                 ['Movie.actors', 'source', 'NO', 2],
-                ['Movie.actors', 'target', 'YES', 3],
+                ['Movie.actors', 'target', 'NO', 3],
                 ['Movie.director', 'bar', 'YES', 1],
                 ['Movie.director', 'source', 'NO', 2],
-                ['Movie.director', 'target', 'YES', 3],
+                ['Movie.director', 'target', 'NO', 3],
                 ['Person', 'id', 'NO', 1],
                 ['Person', 'first_name', 'NO', 2],
                 ['Person', 'last_name', 'YES', 3],
@@ -561,7 +575,6 @@ class TestSQL(tb.SQLQueryTestCase):
             ],
         )
 
-    @test.xerror('asyncpg type inspection query not supported')
     async def test_sql_query_introspection_02(self):
         tables = await self.squery_values(
             '''

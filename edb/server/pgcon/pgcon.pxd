@@ -59,14 +59,29 @@ cdef enum PGAuthenticationState:
 
 
 cdef enum PGAction:
+    START_IMPLICIT = 0
     PARSE = 1
     BIND = 2
-    DESCRIBE = 3
-    EXECUTE = 4
-    CLOSE_STMT = 5
-    CLOSE_PORTAL = 6
-    FLUSH = 7
-    SYNC = 8
+    DESCRIBE_STMT = 3
+    DESCRIBE_PORTAL = 4
+    EXECUTE = 5
+    CLOSE_STMT = 6
+    CLOSE_PORTAL = 7
+    FLUSH = 8
+    SYNC = 9
+
+
+cdef class PGMessage:
+    cdef:
+        PGAction action
+        bytes stmt_name
+        bytes portal_name
+        str orig_portal_name
+        object args
+        object query_unit
+        bint be_parse
+
+    cdef inline bint frontend_only(self)
 
 
 @cython.final
@@ -155,3 +170,6 @@ cdef class PGConnection:
         object mending_desc,
         dict type_id_map,
     )
+
+    cdef _write_sql_extended_query(self, actions, int dbver, dbv)
+    cdef _rewrite_sql_error_response(self, PGMessage action, WriteBuffer buf)

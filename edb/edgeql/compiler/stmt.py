@@ -430,7 +430,9 @@ def compile_InsertQuery(
 
         with ictx.new() as ectx:
             ectx.expr_exposed = context.Exposure.UNEXPOSED
-            subject = dispatch.compile(expr.subject, ctx=ectx)
+            subject = dispatch.compile(
+                qlast.Path(steps=[expr.subject]), ctx=ectx
+            )
         assert isinstance(subject, irast.Set)
 
         subject_stype = setgen.get_set_type(subject, ctx=ictx)
@@ -1075,8 +1077,17 @@ def init_stmt(
             (dv := ctx.defining_view) is not None
             and dv.get_expr_type(ctx.env.schema) is s_types.ExprType.Select
             and not (
+                # We allow DML in trivial *top-level* free objects
                 ctx.partial_path_prefix
                 and irutils.is_trivial_free_object(ctx.partial_path_prefix)
+                # Find the enclosing context at the point the free object
+                # was defined.
+                and (outer_ctx := next((
+                    x for x in reversed(ctx._stack.stack)
+                    if isinstance(x, context.ContextLevel)
+                    and x.partial_path_prefix != ctx.partial_path_prefix
+                ), None))
+                and outer_ctx.expr_exposed
             )
         ):
             # This is some shape in a regular query. Although

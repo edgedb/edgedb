@@ -157,6 +157,11 @@ class flags(metaclass=FlagsMeta):
     disable_docs_edgeql_validation = Flag(
         doc="Disable validation of edgeql in docs (for site build)")
 
+    pydebug_listen = Flag(
+        doc="Enable listening for Debug Adapter Protocol connections. "
+            "Requires pydebug to be installed."
+    )
+
 
 @contextlib.contextmanager
 def timeit(title='block'):

@@ -221,3 +221,10 @@ instance.
 
    The command groups ``edgedb instance`` and ``edgedb project`` are not
    intended to manage production instances.
+
+Health Checks
+=============
+
+Using an HTTP client, you can perform health checks to monitor the status of
+your EdgeDB instance. Learn how to use them with our :ref:`health checks guide
+<ref_guide_deployment_health_checks>`.

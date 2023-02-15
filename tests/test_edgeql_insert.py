@@ -77,6 +77,15 @@ class TestInsert(tb.QueryTestCase):
                 INSERT Person { name };
             ''')
 
+    async def test_edgeql_insert_fail_5(self):
+        with self.assertRaisesRegex(
+            edgedb.EdgeQLSyntaxError,
+            r"insert expression must be an object type reference",
+        ):
+            await self.con.execute('''
+                INSERT Person.notes { name := "note1" };
+            ''')
+
     async def test_edgeql_insert_simple_01(self):
         await self.con.execute(r"""
             INSERT InsertTest {
@@ -5786,6 +5795,21 @@ class TestInsert(tb.QueryTestCase):
             [{"obj": {'name': "insert simple 02", 'l2': 0}}],
         )
 
+        await self.assert_query_result(
+            r"""
+                select {
+                    objs := (
+                        for name in {'one', 'two'} union (
+                            INSERT InsertTest {
+                                name := name, l2 := 0,
+                            }
+                        )
+                    )
+                }
+            """,
+            [{"objs": [{"id": str}, {"id": str}]}],
+        )
+
     async def test_edgeql_insert_in_free_object_02(self):
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
@@ -5812,6 +5836,20 @@ class TestInsert(tb.QueryTestCase):
                         }
                      )
                 };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "mutations are invalid in a shape's computed expression"):
+            await self.con.query('''
+                with X := {
+                    obj := (
+                        INSERT InsertTest {
+                            name := 'insert simple 01',
+                            l2 := 0,
+                        }
+                     )
+                }, select X;
             ''')
 
     async def test_edgeql_insert_rebind_with_typenames_01(self):
