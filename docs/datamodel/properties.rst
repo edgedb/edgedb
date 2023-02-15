@@ -66,14 +66,6 @@ particular order. If order is important, use an :ref:`array
 more involved discussion, see :ref:`EdgeQL > Sets
 <ref_eql_set_array_conversion>`.
 
-**Unsetting properties**
-
-To explicitly unset a property that is not required, set it to an empty set.
-
-.. code-block:: edgeql
-
-   update Person filter .id = <uuid>$id set { middle_name := {} };
-
 Default values
 --------------
 
