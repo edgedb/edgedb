@@ -35,13 +35,13 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
             case BindingExpr(body=body):
                 return BindingExpr(body=map_expr(f, body, level+1)) # type: ignore[has-type]
             case UnnamedTupleExpr(val=val):
-                return UnnamedTupleExpr(val=[map_expr(f, e, level) for e in val])
+                return UnnamedTupleExpr(val=[recur(e) for e in val])
             case NamedTupleExpr(val=val):
                 return NamedTupleExpr(val={k : recur(e) for (k,e) in val.items()})
             case ObjectProjExpr(subject=subject, label=label):
-                return ObjectProjExpr(subject=map_expr(f, subject, level=level), label=label)
+                return ObjectProjExpr(subject=recur(subject), label=label)
             case FunAppExpr(fun=fname, args=args, overloading_index = idx):
-                return FunAppExpr(fun=fname, args=[map_expr(f, arg, level) for arg in args], overloading_index=idx)
+                return FunAppExpr(fun=fname, args=[recur(arg) for arg in args], overloading_index=idx)
             case FilterOrderExpr(subject=subject, filter=filter, order=order):
                 return FilterOrderExpr(subject=recur(subject), filter=recur(filter), order=recur(order)) 
             case ShapedExprExpr(expr=expr, shape=shape):
@@ -92,14 +92,22 @@ def map_var(f : Callable[[ VarExpr, int], Expr], expr : Expr) -> Expr :
     
 def instantiate_expr(e2 : Expr, e : BindingExpr) -> Expr:
     def map_func(e : VarExpr, level : int) -> Expr:
+        # print("instantiating ", e, " at level ", level)
         match e:
-            case BoundVarExpr(1):
-                return e2
             case BoundVarExpr(i):
-                return BoundVarExpr(i-1)
+                if i == level:
+                    return e2
+                else:
+                    return BoundVarExpr(i)
+                    # if i < level:
+                    #     return BoundVarExpr(i-1)
+                    # else:
+                    #     raise ValueError("Locally named forms do not allow bound variables to reach outside")
             case _:
                 return e
-    return map_var(map_func, e.body)
+    result = map_var(map_func, e.body)
+    # print("using", e2, "to instantiate", e, "has resulted in", result)
+    return result
 
 def abstract_over_expr(expr : Expr, var : Optional[str] = None) -> BindingExpr :
     """Construct a BindingExpr that binds var"""

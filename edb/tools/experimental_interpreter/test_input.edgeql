@@ -1,4 +1,4 @@
-select Person filter User.name = "t1";
+select Person filter Person.name = "t1";
 # for X in {1,2,3} union X;
 # with Y:= {1,2,3} for X in Y union X;
 # select (1, 2);

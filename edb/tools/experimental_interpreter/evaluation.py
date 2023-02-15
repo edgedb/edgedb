@@ -135,7 +135,6 @@ def limit_vals(val : List[RTVal], limit: Val):
         case _:
             raise ValueError("offset must be an int")
 
-
 def trace_input_output(func):
     def wrapper(rt):
         indent = "| " * wrapper.depth
@@ -148,7 +147,8 @@ def trace_input_output(func):
     wrapper.depth = 0
     return wrapper
 
-@trace_input_output
+
+# @trace_input_output
 def eval_config(rt : RTExpr) -> RTVal:
     match rt.expr:
         case StrVal(s):

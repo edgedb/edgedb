@@ -136,10 +136,23 @@ def toppath_for_factoring(e : Expr, dbschema : DBSchema) -> List[Expr]:
     c_i = [common_longest_path_prefix_in_set(all_paths + [b]) for b in top_level_paths]
     return sorted(list(set([p for c in c_i for p in c])), key=path_lexicographic_key)
 
+def trace_input_output(func):
+    def wrapper(e, s):
+        indent = "| " * wrapper.depth
+        print(f"{indent}input: {e} ")
+        wrapper.depth += 1
+        result = func(e, s)
+        wrapper.depth -= 1
+        print(f"{indent}output: {result}")
+        return result
+    wrapper.depth = 0
+    return wrapper
 
+# @trace_input_output
 def select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
     top_paths = toppath_for_factoring(e, dbschema)
     fresh_names : List[str] = [next_name() for p in top_paths]
+    # print("Paths and Names:", top_paths, fresh_names)
     fresh_vars : List[Expr] = [FreeVarExpr(n) for n in fresh_names]
     after_e = iterative_subst_expr_for_expr(fresh_vars, top_paths, e)
     def sub_select_hoist(e : Expr) -> Expr:
@@ -155,10 +168,11 @@ def select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
         else:
             return select_hoist(e, dbschema)
     after_after_e = map_sub_and_semisub_queries(sub_select_hoist, after_e, dbschema)
-    for_paths = [iterative_subst_expr_for_expr(fresh_vars[:i-1], top_paths[:i-1], p_i) for (i, p_i) in enumerate(top_paths)]
+    for_paths = [iterative_subst_expr_for_expr(fresh_vars[:i], top_paths[:i], p_i) for (i, p_i) in enumerate(top_paths)]
 
     result = after_after_e
     for i in reversed(list(range(len(for_paths)))):
+        # print ("abstracting over path = ", for_paths[i], "on result", result)
         result = ForExpr(for_paths[i], abstract_over_expr(result, fresh_names[i]))
 
     return result
