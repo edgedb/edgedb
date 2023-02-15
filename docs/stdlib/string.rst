@@ -153,6 +153,15 @@ Strings
         ...         world';
         {'"Hello, world"'}
 
+    .. note::
+
+        This type is subject to `the Postgres maximum field size`_
+        of 1GB.
+
+
+.. lint-off
+.. _the Postgres maximum field size: https://wiki.postgresql.org/wiki/FAQ#What_is_the_maximum_size_for_a_row.2C_a_table.2C_and_a_database.3F>
+.. lint-on
 
 ----------
 
