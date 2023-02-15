@@ -72,7 +72,7 @@ To explicitly unset a property that is not required set it to an empty set.
 
 .. code-block:: edgeql
 
-   update Person filter .id = <uuid>&id set { middle_name := {} };
+   update Person filter .id = <uuid>$id set { middle_name := {} };
 
 Default values
 --------------
