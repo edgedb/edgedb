@@ -9884,6 +9884,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     ),
                     'old_type': 'std::str',
                     'new_type': 'std::int64',
+                    'pointer_name': 'foo',
                 }],
             },
         })
@@ -9916,6 +9917,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                         " 'single' cardinality"
                     ),
                     'type': 'std::str',
+                    'pointer_name': 'foo',
                 }],
             },
         })
@@ -9958,6 +9960,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                         "type 'test::Bar' required"
                     ),
                     'type': 'std::str',
+                    'pointer_name': 'bar',
                 }],
             },
         })
