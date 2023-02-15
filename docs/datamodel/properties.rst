@@ -68,7 +68,7 @@ more involved discussion, see :ref:`EdgeQL > Sets
 
 **Unsetting properties**
 
-To explicitly unset a property that is not required set it to an empty set.
+To explicitly unset a property that is not required, set it to an empty set.
 
 .. code-block:: edgeql
 
