@@ -148,7 +148,7 @@ def trace_input_output(func):
     wrapper.depth = 0
     return wrapper
 
-# @trace_input_output
+@trace_input_output
 def eval_config(rt : RTExpr) -> RTVal:
     match rt.expr:
         case StrVal(s):
@@ -285,6 +285,10 @@ def eval_config(rt : RTExpr) -> RTVal:
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
             projected = [p for v in subjectv for p in singular_proj(new_data, v, LinkPropLabel(label))]
             return RTVal(new_data, projected)
+        case ForExpr(bound=bound, next=next):
+            (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
+            (new_data2, vv) = eval_expr_list(new_data, [instantiate_expr(v, next) for v in boundv])
+            return RTVal(new_data2, [p for v in vv for p in v])
             
 
             

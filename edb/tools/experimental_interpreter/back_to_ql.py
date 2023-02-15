@@ -7,8 +7,6 @@ from edb.schema.pointers import PointerDirection
 from edb.edgeql import ast as qlast
 from .data.built_in_ops import all_builtin_funcs
 
-def next_name() -> str:
-    return "n" + str(next_id())
 
 def reverse_elab_label(lbl : Label) -> qlast.Path :
     match lbl:
@@ -122,13 +120,18 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
         case WithExpr(bound=bound, next=next):
             name = next_name()
             body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
-            if isinstance(body, qlast.SelectQuery) or isinstance(body, qlast.InsertQuery) or isinstance(body, qlast.UpdateQuery):
+            if isinstance(body, qlast.SelectQuery) or isinstance(body, qlast.InsertQuery) or isinstance(body, qlast.UpdateQuery) or isinstance(body, qlast.ForQuery):
                 if body.aliases is None:
                     body.aliases = []
                 body.aliases = [*body.aliases, qlast.AliasedExpr(alias=name, expr=reverse_elab(bound))]
                 return body
             else:
                 raise ValueError("Expression does not suppor alias", body)
+        case ForExpr(bound=bound, next=next):
+            name = next_name()
+            bound = reverse_elab(bound)
+            body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
+            return qlast.ForQuery(iterator=bound, iterator_alias=name, result=body)
         case DetachedExpr(expr=expr):
             return qlast.DetachedExpr(expr=reverse_elab(expr))
             

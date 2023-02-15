@@ -298,3 +298,9 @@ def elab_NamedTuple(qle : qlast.NamedTuple) -> NamedTupleExpr :
 @elab.register(qlast.Tuple)
 def elab_UnnamedTuple(qle : qlast.Tuple) -> UnnamedTupleExpr : 
     return UnnamedTupleExpr(val= [elab(e) for e in qle.elements])
+
+@elab.register(qlast.ForQuery)
+def elab_ForQuery(qle : qlast.ForQuery) -> ForExpr:
+    if qle.result_alias:
+        raise elab_not_implemented(qle)
+    return cast(ForExpr, elab_aliases(qle.aliases, ForExpr(bound=elab(qle.iterator), next=abstract_over_expr(elab(qle.result), qle.iterator_alias))))

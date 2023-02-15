@@ -21,7 +21,7 @@ def eq_impl_str_str (arg : List[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[StrVal(s1)], [StrVal(s2)]]:
             return [BoolVal(s1 == s2)]
-    raise FunCallErr()
+    raise FunCallErr(arg)
 
 
 in_tp = FunType([StrTp(), StrTp()], 

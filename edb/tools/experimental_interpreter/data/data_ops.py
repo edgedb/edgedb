@@ -327,8 +327,7 @@ class WithExpr:
 @dataclass(frozen=True)
 class ForExpr:
     bound : Expr
-    var : str
-    next : Expr
+    next : BindingExpr
 
 @dataclass(frozen=True) 
 class FilterOrderExpr:
@@ -454,7 +453,7 @@ Expr = (PrimVal | TypeCastExpr | FunAppExpr
         | MultiSetExpr 
         | ShapedExprExpr | ShapeExpr | ObjectExpr | BindingExpr
         | Val | UnnamedTupleExpr | NamedTupleExpr | ArrayExpr
-        | Tp | UnionExpr  
+        | Tp | UnionExpr   | DetachedExpr
         )
 
 
@@ -505,6 +504,8 @@ def next_id():
     starting_id += 1
     return starting_id
 
+def next_name() -> str:
+    return "n" + str(next_id())
 
 # def dict_to_val(data : Dict[str, Val]) -> DictVal:
 #     result : DictVal = {}

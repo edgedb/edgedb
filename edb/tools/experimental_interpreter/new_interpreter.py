@@ -15,9 +15,10 @@ from .elaboration import *
 
 from .evaluation import *
 from .back_to_ql import reverse_elab
+from .data.path_factor import select_hoist
 import copy
 
-def run_statement(db : DB, stmt : qlast.Expr, should_print : bool) -> DB:
+def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print : bool) -> DB:
     if should_print:
         print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
         debug.dump_edgeql(stmt)
@@ -29,14 +30,22 @@ def run_statement(db : DB, stmt : qlast.Expr, should_print : bool) -> DB:
         debug.print(elaborated)
         # debug.dump(reverse_elab(elaborated))
         debug.dump_edgeql(reverse_elab(elaborated))
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Preprocessing")
+
+    factored = select_hoist(elaborated, dbschema)
+
+    if should_print:
+        debug.print(factored)
+        # debug.dump(reverse_elab(factored))
+        debug.dump_edgeql(reverse_elab(factored))
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
 
     config = RTExpr(
             RTData(DB(db.dbdata), 
                 [DB({**db.dbdata})],
-                DBSchema({}, all_builtin_funcs),
+                dbschema,
                 False
-            ), elaborated)
+            ), factored)
     result = eval_config(config)
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
@@ -45,12 +54,12 @@ def run_statement(db : DB, stmt : qlast.Expr, should_print : bool) -> DB:
     return result.data.cur_db
     # debug.dump(stmt)
 
-def run_stmts (db : DB, stmts : List[qlast.Expr], debug_print : bool) -> DB:
+def run_stmts (db : DB, stmts : List[qlast.Expr],dbschema : DBSchema, debug_print : bool) -> DB:
     match stmts:
         case []:
             return db
         case current, *rest:
-            return run_stmts(run_statement(db, current, should_print=debug_print), rest, debug_print)
+            return run_stmts(run_statement(db, current, dbschema, should_print=debug_print), rest, dbschema, debug_print)
     raise ValueError("Not Possible")
 
 def run(
@@ -61,7 +70,7 @@ def run(
     q = parse(s)
     # if print_asts:
     #     debug.dump(q)
-    res = run_stmts(db, q, print_asts)
+    res = run_stmts(db, q, DBSchema({}, all_builtin_funcs), print_asts)
     if output_mode == 'pprint':
         pprint.pprint(res)
     elif output_mode == 'json':

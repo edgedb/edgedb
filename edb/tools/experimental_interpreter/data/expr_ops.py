@@ -7,6 +7,8 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
     """ maps a function over free variables and bound variables, 
     and does not modify other nodes
 
+    f : called with current expression and the current level, which refers to the first binder 
+        outside of the entire expression expr
     level : this value refers to the first binder OUTSIDE of the expression
             being mapped, it should be called with initially = 1.
             Increases as we encounter abstractions
@@ -28,10 +30,14 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
                 return expr
             case IntVal(_):
                 return expr
+            case RefVal(_):
+                return expr
             case BindingExpr(body=body):
                 return BindingExpr(body=map_expr(f, body, level+1)) # type: ignore[has-type]
             case UnnamedTupleExpr(val=val):
                 return UnnamedTupleExpr(val=[map_expr(f, e, level) for e in val])
+            case NamedTupleExpr(val=val):
+                return NamedTupleExpr(val={k : recur(e) for (k,e) in val.items()})
             case ObjectProjExpr(subject=subject, label=label):
                 return ObjectProjExpr(subject=map_expr(f, subject, level=level), label=label)
             case FunAppExpr(fun=fname, args=args, overloading_index = idx):
@@ -41,7 +47,7 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
             case ShapedExprExpr(expr=expr, shape=shape):
                 return ShapedExprExpr(expr=recur(expr), shape=recur(shape))
             case ShapeExpr(shape=shape):
-                return ShapeExpr(shape=shape)
+                return ShapeExpr(shape={k : recur(e_1) for (k, e_1) in shape.items()})
             case TypeCastExpr(tp=tp, arg=arg):
                 return TypeCastExpr(tp=tp, arg=recur(arg))
             case UnionExpr(left=left, right=right):
@@ -58,6 +64,12 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
                 return InsertExpr(name=name, new=recur(new))
             case ObjectExpr(val=val):
                 return ObjectExpr(val={label : recur(item) for (label, item) in val.items()})
+            case DetachedExpr(expr=expr):
+                return DetachedExpr(expr=recur(expr))
+            case UpdateExpr(subject=subject, shape=shape):
+                return UpdateExpr(subject=recur(subject), shape=recur(shape))
+            case ForExpr(bound=bound, next=next):
+                return ForExpr(bound=recur(bound), next=recur(next))
 
     raise ValueError("Not Implemented: map_expr ", expr) 
 
@@ -101,6 +113,42 @@ def abstract_over_expr(expr : Expr, var : Optional[str] = None) -> BindingExpr :
         return inner
 
     return BindingExpr(body=map_var(replace_if_match, expr))
+
+def subst_expr_for_expr(expr2 : Expr, replace : Expr, subject : Expr):
+    def map_func(candidate : Expr, level : int) -> Optional[Expr]:
+        if candidate == replace:
+            return expr2
+        else:
+            return None
+    return map_expr(map_func, subject)
+
+def iterative_subst_expr_for_expr(expr2 : List[Expr], replace : List[Expr], subject : Expr):
+    """ Iteratively perform substitution from right to left, 
+        comptues: [expr2[0]/replace[0]]...[expr[n-1]/replace[n-1]]subject """
+
+    assert len(expr2) == len(replace)
+    result = subject
+    for i in reversed(list(range(len(replace)))):
+        result = subst_expr_for_expr(expr2[i], replace[i], result)
+    return result
+
+
+
+def appears_in_expr(search : Expr, subject : Expr):
+    flag = False
+    def map_func(candidate : Expr, level : int) -> Optional[Expr]:
+        nonlocal flag
+        if flag == True:
+            return candidate
+        if candidate == search:
+            flag = True
+            return candidate
+        else:
+            return None
+    map_expr(map_func, subject)
+    return flag
+
+
     
 def binding_is_unnamed(expr : BindingExpr) -> bool:
     class ReturnFalse(Exception):
