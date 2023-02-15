@@ -129,9 +129,9 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
                 raise ValueError("Expression does not suppor alias", body)
         case ForExpr(bound=bound, next=next):
             name = next_name()
-            bound = reverse_elab(bound)
+            bound_v = reverse_elab(bound)
             body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
-            return qlast.ForQuery(iterator=bound, iterator_alias=name, result=body)
+            return qlast.ForQuery(iterator=bound_v, iterator_alias=name, result=body)
         case DetachedExpr(expr=expr):
             return qlast.DetachedExpr(expr=reverse_elab(expr))
             
