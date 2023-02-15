@@ -164,6 +164,18 @@ the same for all the result tuples and it would reflect the total number of
 of ``Person`` objects that are in the named ``Person`` object's ``friends``
 link.
 
+If you have two aggregate functions creating *sibling* nested scopes, the paths
+are *not* factored.
+
+.. code-block:: edgeql-repl
+
+    edgedb> select (array_agg(distinct Person.name), count(Person.friends));
+    {(['Fran', 'Bam', 'Emma', 'Geoff'], 3)}
+
+This query selects a tuple containing two nested scopes. Here, EdgeDB assumes
+you want an array of all unique names and a count of the total number of people
+who are anyone's friend.
+
 Clauses & Nesting
 ^^^^^^^^^^^^^^^^^
 
