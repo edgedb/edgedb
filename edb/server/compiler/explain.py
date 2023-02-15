@@ -284,9 +284,9 @@ def json_fixup(
 # - Plan nodes in 'CollapsedPlans' replaced with their 1-based index in the
 #   'CollapsedPlans' list.
 def collapse_plan(
-    plan,
+    plan: Any,
     find_nearest_ctx: bool = False
-):
+) -> Any:
     subplans = []
     found_nearest = None
 
@@ -308,7 +308,8 @@ def collapse_plan(
                 if nearest_plan:
                     subplan['NearestContextPlan'] = nearest_plan
                     subplans.append(subplan)
-                    parent['Plans'][parent['Plans'].index(subplan)] = len(subplans)
+                    parent['Plans'][parent['Plans'].index(subplan)] = (
+                        len(subplans))
             else:
                 unvisited += [
                     (subsubplan, subplan) for subsubplan
@@ -335,7 +336,7 @@ def collapse_plan(
         # plan node does not share with sibling or parent nodes, to suggest
         # for display in UI
         parent_ctxs = (found_nearest['Contexts'] if
-            found_nearest else plan.get('Contexts'))
+                       found_nearest else plan.get('Contexts'))
         ctx_subplans = [
             subplan.get('NearestContextPlan') or subplan
             for subplan in subplans
@@ -349,18 +350,20 @@ def collapse_plan(
             if sibling_ctxs:
                 for ctx in reversed(plan_ctxs):
                     if not ctx_in_ctxs(ctx, sibling_ctxs):
-                        subplan['SuggestedDisplayCtxIdx'] = plan_ctxs.index(ctx)
+                        subplan['SuggestedDisplayCtxIdx'] = (
+                            plan_ctxs.index(ctx))
                         break
             else:
                 subplan['SuggestedDisplayCtxIdx'] = len(plan_ctxs) - 1
 
     return found_nearest
 
-def ctx_in_ctxs(ctx, ctxs):
+
+def ctx_in_ctxs(ctx: Any, ctxs: Any) -> bool:
     for c in ctxs:
         if (c['buffer_idx'] == ctx['buffer_idx']
-          and c['start'] == ctx['start']
-          and c['end'] == ctx['end']):
+                and c['start'] == ctx['start']
+                and c['end'] == ctx['end']):
             return True
     return False
 

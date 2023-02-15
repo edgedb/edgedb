@@ -125,7 +125,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         self.assert_plan(res['Plan'], {
             'Node Type': 'Index Scan',
             'Relation Name': 'default::User',
-            'Contexts': [[{'start': 28, 'end': 32, 'buffer_idx': 0}]],
+            'Contexts': [{'start': 28, 'end': 32, 'buffer_idx': 0}],
         })
 
     async def test_edgeql_explain_with_bound_01(self):
@@ -140,81 +140,80 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         shape = {
             "Node Type": "Subquery Scan",
             "Plans": tb.bag([
-                {
-                    "Node Type": "Aggregate",
-                    "Plans": [
-                        {
-                            # XXX: If we don't run ANALYZE in the test setup,
-                            # we sometimes get this plan using bitmap scans
-                            # instead of just the index scan?
-                            # "Node Type": "Bitmap Heap Scan",
-                            # "Plans": [
-                            #     {
-                            #         "Node Type": "Bitmap Index Scan",
-                            #         "Parent Relationship": "Outer",
-                            #         "Index Name": str,
-                            #     }
-                            # ],
-
-                            "Node Type": "Index Scan",
-                            "Parent Relationship": "Outer",
-                            "Relation Name": "default::User",
-                            "Contexts": [
-                                [
-                                    {
-                                        "start": 31,
-                                        "end": 35,
-                                        "buffer_idx": 0
-                                    },
-                                    {
-                                        "start": 91,
-                                        "end": 92,
-                                        "buffer_idx": 0
-                                    },
-                                    {
-                                        "start": 74,
-                                        "end": 116,
-                                        "buffer_idx": 0
-                                    }
-                                ]
-                            ]
-                        }
-                    ]
-                },
-                {
-                    "Node Type": "Aggregate",
-                    "Plans": [
-                        {
-                            "Node Type": "Seq Scan",
-                            "Relation Name": "default::User",
-                            "Contexts": [
-                                [
-                                    {
-                                        "start": 31,
-                                        "end": 35,
-                                        "buffer_idx": 0
-                                    },
-                                    {
-                                        "start": 150,
-                                        "end": 151,
-                                        "buffer_idx": 0
-                                    },
-                                    {
-                                        "start": 134,
-                                        "end": 174,
-                                        "buffer_idx": 0
-                                    }
-                                ]
-                            ]
-                        }
-                    ]
-                },
+                1,
+                2,
                 {
                     "Node Type": "Result",
                     "Output": [
                         "edgedbext.uuid_generate_v4()"
                     ]
                 }
+            ]),
+            "CollapsedPlans": tb.bag([
+                {
+                    "Node Type": "Aggregate",
+                    "Plans": [0],
+                    # XXX: If we don't run ANALYZE in the test setup,
+                    # we sometimes get this plan using bitmap scans
+                    # instead of just the index scan?
+                    # "Node Type": "Bitmap Heap Scan",
+                    # "Plans": [
+                    #     {
+                    #         "Node Type": "Bitmap Index Scan",
+                    #         "Parent Relationship": "Outer",
+                    #         "Index Name": str,
+                    #     }
+                    # ],
+                    "NearestContextPlan": {
+                        "Node Type": "Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Relation Name": "default::User",
+                        "Contexts": [
+                            {
+                                "start": 31,
+                                "end": 35,
+                                "buffer_idx": 0
+                            },
+                            {
+                                "start": 91,
+                                "end": 92,
+                                "buffer_idx": 0
+                            },
+                            {
+                                "start": 74,
+                                "end": 116,
+                                "buffer_idx": 0
+                            }
+                        ],
+                        "SuggestedDisplayCtxIdx": 2,
+                    }
+                },
+                {
+                    "Node Type": "Aggregate",
+                    "Plans": [0],
+                    "NearestContextPlan": {
+                        "Node Type": "Seq Scan",
+                        "Relation Name": "default::User",
+                        "Contexts": [
+                            {
+                                "start": 31,
+                                "end": 35,
+                                "buffer_idx": 0
+                            },
+                            {
+                                "start": 150,
+                                "end": 151,
+                                "buffer_idx": 0
+                            },
+                            {
+                                "start": 134,
+                                "end": 174,
+                                "buffer_idx": 0
+                            }
+                        ],
+                        "SuggestedDisplayCtxIdx": 2
+                    }
+                },
             ])
         }
         self.assert_plan(res['Plan'], shape)
@@ -224,12 +223,14 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             select User { name, todo: {name, number} }
             filter .name = 'Elvis';
         ''')
+
         shape = {
             "Node Type": "Index Scan",
             "Index Name": (
                 "index 'name_9d90cf37' of object type 'default::User' index"),
             "Relation Name": "default::User",
-            "Plans": [
+            "Plans": [1],
+            "CollapsedPlans": [
                 {
                     "Node Type": "Aggregate",
                     "Strategy": "Plain",
@@ -241,57 +242,52 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "Parent Relationship": "Outer",
                             "Join Type": "Inner",
                             "Inner Unique": True,
-                            "Plans": [
+                            "Plans": [0, 1]
+                        }
+                    ],
+                    "CollapsedPlans": [
+                        {
+                            "Node Type": "Index Scan",
+                            "Parent Relationship": "Inner",
+                            "Index Name": (
+                                "constraint 'std::exclusive' of "
+                                "property 'id' of object type '"
+                                "default::Issue' exclusive constraint "
+                                "index"
+                            ),
+                            "Relation Name": "default::Issue",
+                            "Contexts": [
                                 {
-                                    "Node Type": "Index Only Scan",
-                                    "Parent Relationship": "Outer",
-                                    "Index Name": (
-                                        "default::User.todo forward link index"
-                                    ),
-                                    "Relation Name": "default::User.todo",
-                                    "Contexts": [
-                                        [
-                                            {
-                                                "start": 41,
-                                                "end": 45,
-                                                "buffer_idx": 0
-                                            }
-                                        ]
-                                    ]
-                                },
-                                {
-                                    "Node Type": "Index Scan",
-                                    "Parent Relationship": "Inner",
-                                    "Index Name": (
-                                        "constraint 'std::exclusive' of "
-                                        "property 'id' of object type '"
-                                        "default::Issue' exclusive constraint "
-                                        "index"
-                                    ),
-                                    "Relation Name": "default::Issue",
-                                    "Contexts": [
-                                        [
-                                            {
-                                                "start": 41,
-                                                "end": 45,
-                                                "buffer_idx": 0
-                                            }
-                                        ]
-                                    ]
+                                    "start": 41,
+                                    "end": 45,
+                                    "buffer_idx": 0
                                 }
                             ]
                         }
-                    ]
+                    ],
+                    "NearestContextPlan": {
+                        "Node Type": "Index Only Scan",
+                        "Parent Relationship": "Outer",
+                        "Index Name": (
+                            "default::User.todo forward link index"
+                        ),
+                        "Relation Name": "default::User.todo",
+                        "Contexts": [
+                            {
+                                "start": 41,
+                                "end": 45,
+                                "buffer_idx": 0
+                            }
+                        ]
+                    },
                 }
             ],
             "Contexts": [
-                [
-                    {
-                        "start": 28,
-                        "end": 32,
-                        "buffer_idx": 0
-                    }
-                ]
+                {
+                    "start": 28,
+                    "end": 32,
+                    "buffer_idx": 0
+                }
             ]
         }
         self.assert_plan(res['Plan'], shape)
@@ -307,7 +303,8 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             "Index Name": (
                 "index 'name_9d90cf37' of object type 'default::User' index"),
             "Relation Name": "default::User",
-            "Plans": [
+            "Plans": [1],
+            "CollapsedPlans": [
                 {
                     "Node Type": "Aggregate",
                     "Parent Relationship": "SubPlan",
@@ -315,53 +312,49 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                         {
                             "Node Type": "Result",
                             "Parent Relationship": "Outer",
-                            "Plans": [
-                                {
-                                    "Node Type": "Bitmap Heap Scan",
-                                    "Parent Relationship": "Outer",
-                                    "Relation Name": "default::Issue",
-                                    "Plans": [
-                                        {
-                                            "Node Type": "Bitmap Index Scan",
-                                            "Parent Relationship": "Outer",
-                                            "Index Name": (
-                                                "default::Issue.owner index"),
-                                        }
-                                    ],
-                                    # We get a stack of contexts back
-                                    "Contexts": [
-                                        [
-                                            {
-                                                "start": 0,
-                                                "end": 7,
-                                                "buffer_idx": 1
-                                            },
-                                            {
-                                                "start": 0,
-                                                "end": 26,
-                                                "buffer_idx": 1
-                                            },
-                                            {
-                                                "start": 41,
-                                                "end": 53,
-                                                "buffer_idx": 0
-                                            }
-                                        ]
-                                    ]
-                                }
-                            ]
+                            "Plans": [0]
                         }
-                    ]
+                    ],
+                    "NearestContextPlan": {
+                        "Node Type": "Bitmap Heap Scan",
+                        "Parent Relationship": "Outer",
+                        "Relation Name": "default::Issue",
+                        "Plans": [
+                            {
+                                "Node Type": "Bitmap Index Scan",
+                                "Parent Relationship": "Outer",
+                                "Index Name": (
+                                    "default::Issue.owner index"),
+                            }
+                        ],
+                        # We get a stack of contexts back
+                        "Contexts": [
+                            {
+                                "start": 0,
+                                "end": 7,
+                                "buffer_idx": 1
+                            },
+                            {
+                                "start": 0,
+                                "end": 26,
+                                "buffer_idx": 1
+                            },
+                            {
+                                "start": 41,
+                                "end": 53,
+                                "buffer_idx": 0
+                            }
+                        ],
+                        "SuggestedDisplayCtxIdx": 2
+                    }
                 }
             ],
             "Contexts": [
-                [
-                    {
-                        "start": 28,
-                        "end": 32,
-                        "buffer_idx": 0
-                    }
-                ]
+                {
+                    "start": 28,
+                    "end": 32,
+                    "buffer_idx": 0
+                }
             ]
         }
         self.assert_plan(res['Plan'], shape)
@@ -380,76 +373,71 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 {
                     "Node Type": "Append",
                     "Parent Relationship": "Outer",
-                    "Plans": tb.bag([
-                        {
-                            "Node Type": "Seq Scan",
-                            "Parent Relationship": "Member",
-                            "Relation Name": "default::Issue",
-                            "Original Relation Name": "default::Text",
-                            "Contexts": [
-                                [
-                                    {
-                                        "start": 31,
-                                        "end": 35,
-                                        "buffer_idx": 0,
-                                        "text": "Text"
-                                    },
-                                    {
-                                        "start": 44,
-                                        "end": 45,
-                                        "buffer_idx": 0,
-                                        "text": "X"
-                                    }
-                                ]
-                            ]
-                        },
-                        {
-                            "Node Type": "Seq Scan",
-                            "Parent Relationship": "Member",
-                            "Relation Name": "default::Comment",
-                            "Original Relation Name": "default::Text",
-                            "Contexts": [
-                                [
-                                    {
-                                        "start": 31,
-                                        "end": 35,
-                                        "buffer_idx": 0,
-                                        "text": "Text"
-                                    },
-                                    {
-                                        "start": 44,
-                                        "end": 45,
-                                        "buffer_idx": 0,
-                                        "text": "X"
-                                    }
-                                ]
-                            ]
-                        },
-                        {
-                            "Node Type": "Seq Scan",
-                            "Parent Relationship": "Member",
-                            "Relation Name": "default::LogEntry",
-                            "Original Relation Name": "default::Text",
-                            "Contexts": [
-                                [
-                                    {
-                                        "start": 31,
-                                        "end": 35,
-                                        "buffer_idx": 0,
-                                        "text": "Text"
-                                    },
-                                    {
-                                        "start": 44,
-                                        "end": 45,
-                                        "buffer_idx": 0,
-                                        "text": "X"
-                                    }
-                                ]
-                            ]
-                        }
-                    ])
+                    "Plans": tb.bag([1, 2, 3])
                 }
-            ]
+            ],
+            "CollapsedPlans": tb.bag([
+                {
+                    "Node Type": "Seq Scan",
+                    "Parent Relationship": "Member",
+                    "Relation Name": "default::Issue",
+                    "Original Relation Name": "default::Text",
+                    "Contexts": [
+                        {
+                            "start": 31,
+                            "end": 35,
+                            "buffer_idx": 0,
+                            "text": "Text"
+                        },
+                        {
+                            "start": 44,
+                            "end": 45,
+                            "buffer_idx": 0,
+                            "text": "X"
+                        }
+                    ]
+                },
+                {
+                    "Node Type": "Seq Scan",
+                    "Parent Relationship": "Member",
+                    "Relation Name": "default::Comment",
+                    "Original Relation Name": "default::Text",
+                    "Contexts": [
+                        {
+                            "start": 31,
+                            "end": 35,
+                            "buffer_idx": 0,
+                            "text": "Text"
+                        },
+                        {
+                            "start": 44,
+                            "end": 45,
+                            "buffer_idx": 0,
+                            "text": "X"
+                        }
+                    ]
+                },
+                {
+                    "Node Type": "Seq Scan",
+                    "Parent Relationship": "Member",
+                    "Relation Name": "default::LogEntry",
+                    "Original Relation Name": "default::Text",
+                    "Contexts": [
+                        {
+                            "start": 31,
+                            "end": 35,
+                            "buffer_idx": 0,
+                            "text": "Text"
+                        },
+                        {
+                            "start": 44,
+                            "end": 45,
+                            "buffer_idx": 0,
+                            "text": "X"
+                        }
+                    ]
+                }
+            ])
         }
 
         self.assert_plan(res['Plan'], shape)
@@ -467,34 +455,35 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             "Plans": tb.bag([
                 {
                     "Node Type": "Append",
-                    "Plans": tb.bag([
-                        {
-                            "Relation Name": "default::LogEntry",
-                            "Original Relation Name": "default::Text",
-                            "Contexts": [[{"text": "Text"}]]
-                        },
-                        {
-                            "Relation Name": "default::Issue",
-                            "Original Relation Name": "default::Text",
-                            "Contexts": [[{"text": "Text"}]]
-                        },
-                        {
-                            "Relation Name": "default::Comment",
-                            "Original Relation Name": "default::Text",
-                            "Contexts": [[{"text": "Text"}]]
-                        }
-                    ])
+                    "Plans": tb.bag([2, 3, 4])
                 },
+                1
+            ]),
+            "CollapsedPlans": tb.bag([
                 {
                     "Node Type": "Index Scan",
                     "Relation Name": "default::Issue",
                     "Contexts": [
-                        [
-                            {"text": "[is Issue]"},
-                            {"text": "[is Issue].name"},
-                            {"text": "z := [is Issue].name"},
-                        ]
-                    ]
+                        {"text": "[is Issue]"},
+                        {"text": "[is Issue].name"},
+                        {"text": "z := [is Issue].name"},
+                    ],
+                    "SuggestedDisplayCtxIdx": 2
+                },
+                {
+                    "Relation Name": "default::LogEntry",
+                    "Original Relation Name": "default::Text",
+                    "Contexts": [{"text": "Text"}]
+                },
+                {
+                    "Relation Name": "default::Issue",
+                    "Original Relation Name": "default::Text",
+                    "Contexts": [{"text": "Text"}]
+                },
+                {
+                    "Relation Name": "default::Comment",
+                    "Original Relation Name": "default::Text",
+                    "Contexts": [{"text": "Text"}]
                 }
             ])
         }
