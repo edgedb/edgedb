@@ -2211,6 +2211,7 @@ class SetPointerType(
                 prompt=prompt,
                 old_type=str(old_type.get_name(schema)) if old_type else None,
                 new_type=str(new_type.get_name(schema)),
+                pointer_name=self.get_displayname(),
             ))
 
             self.cast_expr = s_expr.Expression.from_ast(
@@ -2590,7 +2591,8 @@ class AlterPointerUpperCardinality(
             self.set_annotation('required_input', dict(
                 placeholder=placeholder_name,
                 prompt=prompt,
-                type=str(type_name)
+                type=str(type_name),
+                pointer_name=self.get_displayname(),
             ))
 
             self.conv_expr = s_expr.Expression.from_ast(
@@ -2819,6 +2821,7 @@ class AlterPointerLowerCardinality(
                 placeholder=placeholder_name,
                 prompt=prompt,
                 type=str(type_name),
+                pointer_name=self.get_displayname(),
             ))
 
             self.fill_expr = s_expr.Expression.from_ast(
