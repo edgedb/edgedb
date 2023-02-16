@@ -139,7 +139,7 @@ def _bool_or_false(node: Node, name: str) -> bool:
     return node[name] if name in node else False
 
 
-def _unwrap(node: Node, name: str) -> pgast.Query:
+def _unwrap(node: Node, name: str) -> Node:
     if isinstance(node, dict) and name in node:
         return node[name]
     return node
