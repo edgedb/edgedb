@@ -127,7 +127,8 @@ async def execute(
                             query_unit.query_asts, data
                         )
                         buf = WriteBuffer.new_message(b'D')
-                        buf.write_bytes(r)
+                        buf.write_int16(1)  # 1 column
+                        buf.write_len_prefixed_bytes(r)
                         fe_conn.write(buf.end_message())
 
                 if state is not None:

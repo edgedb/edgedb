@@ -25,7 +25,6 @@ import json
 import re
 import pickle
 import uuid
-import struct
 
 from edb.common import ast
 from edb.common import context as pctx
@@ -414,14 +413,4 @@ def analyze_explain_output(
     if debug.flags.edgeql_explain:
         debug.dump(output)
 
-    return make_message([output])
-
-
-def make_message(obj: Any) -> bytes:
-    omsg = json.dumps(obj).encode('utf-8')
-    msg = struct.pack(
-        "!hi",
-        1,  # jsonb format version
-        len(omsg),  # string length
-    ) + omsg
-    return msg
+    return json.dumps([output]).encode('utf-8')
