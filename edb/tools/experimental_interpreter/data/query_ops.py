@@ -62,7 +62,7 @@ def map_query(f : Callable[[Expr, QueryLevel], Optional[Expr]], expr : Expr, sch
                 return ObjectProjExpr(subject=recur(subject), label=label)
             case FunAppExpr(fun=fname, args=args, overloading_index = idx):
                 mapped_args : List[Expr] = []
-                params = schema.fun_defs[fname][idx or 0].tp.args_mod
+                params = schema.fun_defs[fname].tp.args_mod
                 for i in range(len(args)):
                     match params[i]:
                         case ParamSingleton():

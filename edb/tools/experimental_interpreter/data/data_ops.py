@@ -231,10 +231,14 @@ class ParamSetOf:
 ParamModifier = ParamSingleton | ParamOptional | ParamSetOf
 
 @dataclass(frozen=True)
-class FunType:
+class FunArgRetType:
     args_tp : List[Tp]
-    args_mod : List[ParamModifier]
-    ret : ResulTp
+    ret_tp : ResulTp
+
+@dataclass(frozen=True)
+class FunType:
+    args_ret_types : List[FunArgRetType]
+    args_mod : List[ParamModifier] # all (overloaded) args need to have the same modifier
 
 ### DEFINE PRIM VALUES
 @dataclass(frozen=True)
@@ -478,7 +482,7 @@ class BuiltinFuncDef():
 @dataclass(frozen=True)
 class DBSchema: 
     val : Dict[str, ObjectTp]
-    fun_defs : Dict[str, List[BuiltinFuncDef]] # list of definitions to support overloading
+    fun_defs : Dict[str, BuiltinFuncDef] # list of definitions to support overloading
     
 
 def empty_db():

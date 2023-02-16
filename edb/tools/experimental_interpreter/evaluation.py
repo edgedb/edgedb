@@ -198,7 +198,7 @@ def eval_config(rt : RTExpr) -> RTVal:
             return RTVal(rt.data, all_ids)
         case FunAppExpr(fun=fname, args=args, overloading_index=idx):
             (new_data, argsv) = eval_expr_list(rt.data, args)
-            looked_up_fun = rt.data.schema.fun_defs[fname][idx or 0]
+            looked_up_fun = rt.data.schema.fun_defs[fname]
             f_modifier = looked_up_fun.tp.args_mod
             assert len(f_modifier) == len(argsv)
             argv_final : List[List[MultiSetVal]]= [[]]

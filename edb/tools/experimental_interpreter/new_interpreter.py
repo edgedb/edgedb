@@ -97,7 +97,7 @@ def run_single_str_get_json(
     db: DB,
     s: str,
     print_asts: bool = False
-) -> Tuple[json_like, ]:
+) -> Tuple[json_like, DB]:
     (res, next_db) = run_single_str(db, s, print_asts=print_asts)
     return (multi_set_val_to_json_like(res), next_db)
 
