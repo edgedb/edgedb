@@ -56,8 +56,11 @@ def compile_ir_to_sql_tree(
     external_rvars: Optional[
         Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
     ] = None,
+    external_rels: Optional[
+        Mapping[irast.PathId, pgast.BaseRelation]
+    ] = None,
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
-) -> pgast.Base:
+) -> Tuple[pgast.Base, context.Environment]:
     try:
         # Transform to sql tree
         query_params = []
@@ -100,6 +103,7 @@ def compile_ir_to_sql_tree(
             singleton_mode=singleton_mode,
             scope_tree_nodes=scope_tree_nodes,
             external_rvars=external_rvars,
+            external_rels=external_rels,
             backend_runtime_params=backend_runtime_params,
         )
 
@@ -136,7 +140,7 @@ def compile_ir_to_sql_tree(
             args = []
         raise errors.InternalServerError(*args) from e
 
-    return qtree
+    return (qtree, env)
 
 
 def compile_ir_to_sql(
@@ -152,7 +156,7 @@ def compile_ir_to_sql(
     backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
 ) -> Tuple[str, Dict[str, pgast.Param]]:
 
-    qtree = compile_ir_to_sql_tree(
+    qtree, _ = compile_ir_to_sql_tree(
         ir_expr,
         output_format=output_format,
         ignore_shapes=ignore_shapes,
@@ -239,21 +243,10 @@ def new_external_rvar(
     resulting range var as a ``(path_id, tuple-of-aspects): attribute name``
     mapping.
     """
-    if len(rel_name) == 1:
-        table_name = rel_name[0]
-        schema_name = None
-    elif len(rel_name) == 2:
-        schema_name, table_name = rel_name
-    else:
-        raise AssertionError(f'unexpected rvar name: {rel_name}')
+    rel = new_external_rel(rel_name=rel_name, path_id=path_id)
+    assert rel.name
 
-    rel = pgast.Relation(
-        name=table_name,
-        schemaname=schema_name,
-        path_id=path_id,
-    )
-
-    alias = pgast.Alias(aliasname=table_name)
+    alias = pgast.Alias(aliasname=rel.name)
 
     if not path_id.is_ptr_path():
         rvar = pgast.RelRangeVar(
@@ -268,3 +261,23 @@ def new_external_rvar(
             rel.path_outputs[output_pid, aspect] = var
 
     return rvar
+
+
+def new_external_rel(
+    *,
+    rel_name: Tuple[str, ...],
+    path_id: irast.PathId,
+) -> pgast.Relation:
+    if len(rel_name) == 1:
+        table_name = rel_name[0]
+        schema_name = None
+    elif len(rel_name) == 2:
+        schema_name, table_name = rel_name
+    else:
+        raise AssertionError(f'unexpected rvar name: {rel_name}')
+
+    return pgast.Relation(
+        name=table_name,
+        schemaname=schema_name,
+        path_id=path_id,
+    )

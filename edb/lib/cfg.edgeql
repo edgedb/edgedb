@@ -186,6 +186,14 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
         CREATE ANNOTATION std::description :=
             'The default data statistics target for the planner.';
     };
+
+    CREATE PROPERTY force_database_error -> std::str {
+        SET default := 'false';
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION std::description :=
+            'A hook to force all queries to produce an error.';
+    };
+
 };
 
 

@@ -88,7 +88,7 @@ def compile_ConfigSet(
             args=[
                 pgast.StringConstant(val=op.backend_setting),
                 val,
-                pgast.BooleanConstant(val='false'),
+                pgast.BooleanConstant(val=False),
             ],
         )
 
@@ -276,7 +276,7 @@ def compile_ConfigReset(
             args=[
                 pgast.StringConstant(val=op.backend_setting),
                 pgast.NullConstant(),
-                pgast.BooleanConstant(val='false'),
+                pgast.BooleanConstant(val=False),
             ],
         )
 
@@ -383,7 +383,7 @@ def compile_ConfigReset(
         )
     elif op.scope is qltypes.ConfigScope.GLOBAL:
         stmt = pgast.SelectStmt(
-            where_clause=pgast.BooleanConstant(val='false')
+            where_clause=pgast.BooleanConstant(val=False)
         )
     else:
         raise AssertionError(f'unexpected configuration scope: {op.scope}')

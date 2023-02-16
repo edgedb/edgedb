@@ -161,6 +161,12 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         db> select to_str(<json>[1, 2]);
         {'[1, 2]'}
 
+    .. note::
+
+        This type is backed by the Postgres ``jsonb`` type which has a size
+        limit of 256MiB minus one byte. The EdgeDB ``json`` type is also
+        subject to this limitation.
+
 
 ----------
 
@@ -364,11 +370,9 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
                       JsonEmpty.ReturnEmpty) \
                   -> optional json
 
+    .. versionadded:: 2.0
+
     Returns an updated JSON target with a new value.
-
-    .. note::
-
-      This function is only available in EdgeDB 2.0 or later.
 
     .. code-block:: edgeql-repl
 

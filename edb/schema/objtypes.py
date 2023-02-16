@@ -40,16 +40,17 @@ from . import pointers
 from . import policies
 from . import schema as s_schema
 from . import sources
+from . import triggers
 from . import types as s_types
 from . import utils
 
 
-class AccessPolicySubject(so.Object):
-    # AccessPolicySubject being its own class (instead of inlined into
-    # ObjectType) is mostly done as a hack, to allow us to ensure that
-    # access_policies comes later in the refdicts list than pointers
-    # does, so that pointers are always created before access policies
-    # when creating an inherited type.
+class ObjectTypeRefMixin(so.Object):
+    # We stick access policies and triggers in their own class as a
+    # hack, to allow us to ensure that access_policies comes later in
+    # the refdicts list than pointers does, so that pointers are
+    # always created before access policies when creating an inherited
+    # type.
     access_policies_refs = so.RefDict(
         attr='access_policies',
         requires_explicit_overloaded=True,
@@ -61,12 +62,23 @@ class AccessPolicySubject(so.Object):
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.857,
         default=so.DEFAULT_CONSTRUCTOR)
 
+    triggers_refs = so.RefDict(
+        attr='triggers',
+        requires_explicit_overloaded=True,
+        backref_attr='subject',
+        ref_cls=triggers.Trigger)
+
+    triggers = so.SchemaField(
+        so.ObjectIndexByUnqualifiedName[triggers.Trigger],
+        inheritable=False, ephemeral=True, coerce=True, compcoef=0.857,
+        default=so.DEFAULT_CONSTRUCTOR)
+
 
 class ObjectType(
     s_types.InheritingType,
     sources.Source,
     constraints.ConsistencySubject,
-    AccessPolicySubject,
+    ObjectTypeRefMixin,
     s_abc.ObjectType,
     qlkind=qltypes.SchemaObjectClass.TYPE,
     data_safe=False,
@@ -441,6 +453,7 @@ class ObjectTypeCommandContext(
     links.LinkSourceCommandContext[ObjectType],
     properties.PropertySourceContext[ObjectType],
     policies.AccessPolicySourceCommandContext[ObjectType],
+    triggers.TriggerSourceCommandContext[ObjectType],
     sd.ObjectCommandContext[ObjectType],
     constraints.ConsistencySubjectCommandContext,
     s_anno.AnnotationSubjectCommandContext,

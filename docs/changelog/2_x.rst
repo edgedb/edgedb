@@ -876,6 +876,79 @@ Other changes
 
 * UI: Fix loading indicators on tabs
 
+2.10
+====
+
+* Fix mismatch in session state after a ``ROLLBACK``
+
+* Fix ISE when doing set default on an abstract pointer
+  (:eql:gh:`#4843`)
+
+* Fix accesses to ``__type__`` from insert access policies
+  (:eql:gh:`#4865`)
+
+* Properly forbid aggregation in index expressions
+  (:eql:gh:`#4869`)
+
+* Fix ``grouping`` field when grouping by one key or nothing
+  (:eql:gh:`#4906`)
+
+* Fix two issues with mutation in free objects
+  (:eql:gh:`#4902`)
+
+* Only allow type names as the subject of an insert. (Previously dotted paths
+  were allowed, with nonsensical behavior.)
+  (:eql:gh:`#4922`)
+
+* Fix array arguments in HTTP interface
+  (:eql:gh:`#4956`)
+
+* Support multi properties in ``UNLESS CONFLICT ON``
+  (:eql:gh:`#4955`)
+
+* Fix polymorphic type tests on result of update
+  (:eql:gh:`#4954`)
+
+* Optimize trivial ``WITH`` -bound ``GROUP`` uses
+  (:eql:gh:`#4978`)
+
+* Fix a category of confusing scoping related bugs in access policies
+  (:eql:gh:`#4994`)
+
+* Get rid of the "unused alias definition" error.
+  (:eql:gh:`#4819`)
+
+* Support mutation in ``USING`` expressions when changing a link to
+  ``required`` or to ``single`` during a migration
+  (:eql:gh:`#4873`)
+
+* Fix custom function calls on the HTTP interface
+  (:eql:gh:`#4998`)
+
+* Avoid infinite recursion in some do-nothing intersection cases
+  (:eql:gh:`#5007`)
+
+* Don't mangle cast error messages when the cast value contains a type name
+  (:eql:gh:`#5008`)
+
+* Allow JWT token auth in binary protocol
+  (:eql:gh:`#4830`)
+
+* Use prepared statement cache in EdgeQL script execution
+  (:eql:gh:`#4931`)
+
+* Fix non-transactional commands like ``DROP DATABASE`` when using
+  Postgres 14.7
+  (:eql:gh:`#5026`)
+
+* Update packaged Postgres to 14.7
+
+* Fix ``set single`` on required properties
+  (:eql:gh:`#5031`)
+
+* Fix a ISE when using assert_exists and linkprops using query builder
+  (:eql:gh:`#4961`)
+
 .. lint-off
 
 .. _group:

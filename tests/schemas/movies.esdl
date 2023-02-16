@@ -18,34 +18,46 @@
 
 
 type Person {
-    required property first_name -> str;
-    property last_name -> str;
+    required first_name: str;
+    last_name: str;
 }
 
 type Genre {
-    required property name -> str;
+    required name: str;
 }
 
 type Content {
-    required property title -> str;
-    link genre -> Genre;
+    required title: str;
+    genre: Genre;
 }
 
 type Movie extending Content {
-    property release_year -> int64;
-    multi link actors -> Person {
-        property role -> str;
+    release_year: int64;
+    multi actors: Person {
+        role: str;
     };
-    link director -> Person {
-        property bar -> str;
+    director: Person {
+        bar: str;
     };
 }
 
 type Book extending Content {
-    required property pages -> int16;
-    multi property chapters -> str;
+    required pages: int16;
+    multi chapters: str;
 }
 
 type novel extending Book {
-    property foo -> str;
+    foo: str;
+}
+
+module nested {
+    type Hello {
+        property hello -> str;
+    };
+
+    module deep {
+        type Rolling {
+            property rolling -> str;
+        };
+    };
 }

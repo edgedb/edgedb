@@ -2773,30 +2773,13 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_unused_with_def_01(self):
 
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"unused alias definition: 'foo'",
-                _position=48):
-            await self.con.query("""\
-                WITH
-                    foo := 1
+        await self.assert_query_result(
+            """
+                WITH foo := 1
                 SELECT 1;
-            """)
-
-    async def test_edgeql_scope_unused_with_def_02(self):
-
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"unused alias definition: 'foo'",
-                _position=48):
-            await self.con.query("""\
-                WITH
-                    foo := 1
-                SELECT (
-                    WITH foo := 2
-                    SELECT foo
-                )
-            """)
+            """,
+            [1]
+        )
 
     async def test_edgeql_scope_nested_computable_01(self):
         # This is a test for a bug where the outside filter would get
@@ -3779,6 +3762,39 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     ])
                 }
             ])
+        )
+
+    async def test_edgeql_scope_linkprop_rebinding_01(self):
+        # This is a lot like code the querybuilder generates
+        # See issue #4961
+        await self.assert_query_result(
+            r'''
+            select assert_exists((WITH
+              __user := DETACHED User
+            SELECT __user {
+              deck := (
+                WITH
+                  __user2 := (
+                    SELECT __user.deck {
+                      __linkprop_count := __user.deck@count
+                    }
+                  )
+                SELECT __user2 {
+                  single @count := __user2.__linkprop_count
+                }
+              )
+            } filter .name = 'Alice'));
+            ''',
+            [
+                {
+                    "deck": tb.bag([
+                        {"@count": 2},
+                        {"@count": 2},
+                        {"@count": 3},
+                        {"@count": 3},
+                    ])
+                }
+            ]
         )
 
     async def test_edgeql_scope_for_with_computable_01(self):

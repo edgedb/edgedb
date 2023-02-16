@@ -1,11 +1,9 @@
+.. versionadded:: 2.0
+
 .. _ref_eql_group:
 
-Group #New
-==========
-
-.. note::
-
-  The ``group`` statement is only available in EdgeDB 2.0 or later.
+Group
+=====
 
 EdgeQL supports a top-level ``group`` statement. This is used to partition
 sets into subsets based on some parameters. These subsets then can be

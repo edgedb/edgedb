@@ -34,9 +34,13 @@ __all__ = (
 
 class EdgeDBErrorMeta(type):
     _error_map: Dict[int, Type[EdgeDBError]] = {}
+    _name_map: Dict[str, Type[EdgeDBError]] = {}
 
     def __new__(mcls, name, bases, dct):
         cls = super().__new__(mcls, name, bases, dct)
+
+        assert name not in mcls._name_map
+        mcls._name_map[name] = cls
 
         code = dct.get('_code')
         if code is not None:
@@ -53,8 +57,12 @@ class EdgeDBErrorMeta(type):
                 'subclass one of its subclasses in edb.errors')
 
     @classmethod
-    def get_error_class_from_code(mcls, code):
+    def get_error_class_from_code(mcls, code: int) -> Type[EdgeDBError]:
         return mcls._error_map[code]
+
+    @classmethod
+    def get_error_class_from_name(mcls, name: str) -> Type[EdgeDBError]:
+        return mcls._name_map[name]
 
 
 class EdgeDBMessage(Warning):
@@ -82,7 +90,8 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         hint: Optional[str] = None,
         details: Optional[str] = None,
         context=None,
-        position: Optional[Tuple[int, int, int]] = None,
+        position: Optional[tuple[Optional[int], ...]] = None,
+        filename: Optional[str] = None,
         token=None,
         pgext_code: Optional[str] = None,
     ):
@@ -99,6 +108,9 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         elif position:
             self.set_position(*position)
 
+        if filename is not None:
+            self.set_filename(filename)
+
         self.set_hint_and_details(hint, details)
 
         super().__init__(msg)
@@ -110,9 +122,14 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
                 f'EdgeDB message code is not set (type: {cls.__name__})')
         return cls._code
 
+    def set_filename(self, filename):
+        self._attrs[FIELD_FILENAME] = filename
+
     def set_linecol(self, line, col):
-        self._attrs[FIELD_LINE_START] = str(line)
-        self._attrs[FIELD_COLUMN_START] = str(col)
+        if line is not None:
+            self._attrs[FIELD_LINE_START] = str(line)
+        if col is not None:
+            self._attrs[FIELD_COLUMN_START] = str(col)
 
     def set_hint_and_details(self, hint, details=None):
         ex.replace_context(
@@ -141,11 +158,22 @@ class EdgeDBError(Exception, metaclass=EdgeDBErrorMeta):
         self._attrs[FIELD_LINE_END] = str(end.line)
         self._attrs[FIELD_COLUMN_END] = str(end.column)
         self._attrs[FIELD_UTF16_COLUMN_END] = str(end.utf16column)
+        if context.name and context.name != '<string>':
+            self._attrs[FIELD_FILENAME] = context.name
 
-    def set_position(self, line: int, column: int, pointer: int):
+    def set_position(
+        self,
+        line: Optional[int] = None,
+        column: Optional[int] = None,
+        start: Optional[int] = None,
+        end: Optional[int] = None,
+    ):
         self.set_linecol(line, column)
-        self._attrs[FIELD_POSITION_START] = str(pointer)
-        self._attrs[FIELD_POSITION_END] = str(pointer)
+        if start is not None:
+            self._attrs[FIELD_POSITION_START] = str(start)
+        end = end or start
+        if end is not None:
+            self._attrs[FIELD_POSITION_END] = str(end)
 
     @property
     def line(self):
@@ -197,3 +225,4 @@ FIELD_COLUMN_END = 0x_FF_F7
 FIELD_UTF16_COLUMN_END = 0x_FF_F8
 FIELD_CHARACTER_START = 0x_FF_F9
 FIELD_CHARACTER_END = 0x_FF_FA
+FIELD_FILENAME = 0x_FF_FB

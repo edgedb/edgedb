@@ -350,7 +350,9 @@ class FindPathScopes(ast.NodeVisitor):
         return None
 
 
-def find_path_scopes(stmt: irast.Base) -> Dict[irast.Set, Optional[int]]:
+def find_path_scopes(
+    stmt: irast.Base | Sequence[irast.Base]
+) -> Dict[irast.Set, Optional[int]]:
     visitor = FindPathScopes()
     visitor.visit(stmt)
     return visitor.scopes

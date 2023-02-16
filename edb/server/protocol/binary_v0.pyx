@@ -1250,8 +1250,12 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                             # see the same comments in _legacy_execute()
                             conn.last_state = state
                 finally:
+                    if query_unit.drop_db:
+                        self.server._allow_database_connections(
+                            query_unit.drop_db,
+                        )
                     if query_unit.create_db_template:
-                        await self.server._allow_database_connections(
+                        self.server._allow_database_connections(
                             query_unit.create_db_template,
                         )
         finally:

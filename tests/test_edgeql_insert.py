@@ -182,6 +182,32 @@ class TestInsert(tb.QueryTestCase):
             [{'num': 101}, {'num': 102}, {'num': 103}],
         )
 
+    async def test_edgeql_insert_unused_01(self):
+        await self.con.execute(r"""
+            with _ := (
+                INSERT InsertTest {
+                    name := 'insert simple 01',
+                    l2 := 0,
+                }
+            ), select 1;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    InsertTest {
+                        l2
+                    }
+                FILTER
+                    InsertTest.name = 'insert simple 01'
+            """,
+            [
+                {
+                    'l2': 0,
+                },
+            ]
+        )
+
     async def test_edgeql_insert_nested_01(self):
         await self.con.execute('''
             INSERT Subordinate {
@@ -2604,14 +2630,6 @@ class TestInsert(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                "UNLESS CONFLICT property must be a SINGLE property"):
-            await self.con.query(r'''
-                INSERT Person {name := "hello", multi_prop := "lol"}
-                UNLESS CONFLICT ON .multi_prop;
-            ''')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
                 "object type 'std::Object' has no link or property 'name'"):
             await self.con.query(r'''
                 SELECT (
@@ -3430,6 +3448,31 @@ class TestInsert(tb.QueryTestCase):
                 variables=(person,),
                 msg=f'check {(friend, person)}',
             )
+
+    async def test_edgeql_insert_unless_conflict_28(self):
+        await self.con.execute('''
+            create type T {
+                create multi property name -> str {
+                    create constraint exclusive; } };
+            insert T { name := {'foo', 'bar'} };
+        ''')
+
+        await self.assert_query_result(
+            '''
+            insert T { name := {'baz', 'bar'} } unless conflict
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            '''
+            select (
+                insert T { name := {'baz', 'bar'} }
+                unless conflict on (.name) else (T)
+            ) { name }
+            ''',
+            [{'name': {'foo', 'bar'}}],
+        )
 
     async def test_edgeql_insert_dependent_01(self):
         query = r'''

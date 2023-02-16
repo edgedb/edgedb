@@ -27,6 +27,7 @@ from edb.pgsql import ast as pgast
 
 from . import dispatch
 from . import context
+from . import static
 
 Context = context.ResolverContextLevel
 
@@ -116,8 +117,16 @@ def _lookup_column(
             ]
         else:
             for table in ctx.scope.tables:
-                if not table.in_parent:
-                    matched_columns.extend(_lookup_in_table(col_name, table))
+                matched_columns.extend(_lookup_in_table(col_name, table))
+
+        if not matched_columns:
+            # is it a reference to a rel var?
+            try:
+                tab = _lookup_table(col_name, ctx)
+                col = context.Column(reference_as=tab.reference_as)
+                return [(context.Table(), col)]
+            except errors.QueryError:
+                pass
 
     elif len(name) >= 2:
         # look for the column in the specific table
@@ -139,7 +148,16 @@ def _lookup_column(
             f'cannot find column `{col_name}`', context=column_ref.context
         )
 
-    elif len(matched_columns) > 1:
+    # apply precedence
+    if len(matched_columns) > 1:
+        max_precedence = max(t.precedence for t, _ in matched_columns)
+        matched_columns = [
+            (t, c)
+            for t, c in matched_columns
+            if t.precedence == max_precedence
+        ]
+
+    if len(matched_columns) > 1:
         potential_tables = ', '.join(
             [t.name or '' for t, _ in matched_columns]
         )
@@ -161,14 +179,22 @@ def _lookup_in_table(
 
 
 def _lookup_table(tab_name: str, ctx: Context) -> context.Table:
-    matched_tables = []
+    matched_tables: List[context.Table] = []
     for t in ctx.scope.tables:
         if t.name == tab_name or t.alias == tab_name:
             matched_tables.append(t)
 
     if not matched_tables:
         raise errors.QueryError(f'cannot find table `{tab_name}`')
-    elif len(matched_tables) > 1:
+
+    # apply precedence
+    if len(matched_tables) > 1:
+        max_precedence = max(t.precedence for t in matched_tables)
+        matched_tables = [
+            t for t in matched_tables if t.precedence == max_precedence
+        ]
+
+    if len(matched_tables) > 1:
         raise errors.QueryError(f'ambiguous table `{tab_name}`')
 
     table = matched_tables[0]
@@ -264,15 +290,41 @@ def resolve_FuncCall(
     expr: pgast.FuncCall,
     *,
     ctx: Context,
-) -> pgast.FuncCall:
+) -> pgast.BaseExpr:
     # TODO: which functions do we want to expose on the outside?
     if expr.name in {
         ("set_config",),
         ("pg_catalog", "set_config"),
+    }:
+        # HACK: allow set_config('search_path', '', false) to support pg_dump
+        if args := static.eval_list(expr.args, ctx=ctx):
+            name, value, is_local = args
+            if (
+                isinstance(name, pgast.StringConstant)
+                and isinstance(value, pgast.StringConstant)
+                and isinstance(is_local, pgast.BooleanConstant)
+            ):
+                if (
+                    name.val == "search_path"
+                    and value.val == ""
+                    and not is_local.val
+                ):
+                    return value
+        raise errors.QueryError(
+            "function set_config is not supported", context=expr.context
+        )
+    if expr.name in {
         ("current_setting",),
         ("pg_catalog", "current_setting"),
     }:
-        raise errors.QueryError("unsupported", context=expr.context)
+        raise errors.QueryError(
+            "function pg_catalog.current_setting is not supported",
+            context=expr.context,
+        )
+
+    if res := static.eval_FuncCall(expr, ctx=ctx):
+        return res
+
     return pgast.FuncCall(
         name=expr.name,
         args=dispatch.resolve_list(expr.args, ctx=ctx),
@@ -415,35 +467,27 @@ def resolve_SQLValueFunction(
     *,
     ctx: Context,
 ) -> pgast.BaseExpr:
-    from edb.pgsql.ast import SQLValueFunctionOP as op
+    return static.eval_SQLValueFunction(expr, ctx=ctx)
 
-    pass_trough = [
-        op.CURRENT_DATE,
-        op.CURRENT_TIME,
-        op.CURRENT_TIME_N,
-        op.CURRENT_TIMESTAMP,
-        op.CURRENT_TIMESTAMP_N,
-        op.LOCALTIME,
-        op.LOCALTIME_N,
-        op.LOCALTIMESTAMP,
-        op.LOCALTIMESTAMP_N,
-    ]
-    if expr.op in pass_trough:
-        return expr
 
-    user = [
-        op.CURRENT_ROLE,
-        op.CURRENT_USER,
-        op.USER,
-        op.SESSION_USER,
-    ]
-    if expr.op in user:
-        raise errors.QueryError("unsupported", context=expr.context)
+@dispatch._resolve.register
+def resolve_CollateClause(
+    expr: pgast.CollateClause,
+    *,
+    ctx: Context,
+) -> pgast.BaseExpr:
+    return pgast.CollateClause(
+        arg=dispatch.resolve(expr.arg, ctx=ctx), collname=expr.collname
+    )
 
-    if expr.op == op.CURRENT_CATALOG:
-        raise errors.QueryError("unsupported", context=expr.context)
 
-    if expr.op == op.CURRENT_SCHEMA:
-        raise errors.QueryError("unsupported", context=expr.context)
-
-    raise NotImplementedError()
+@dispatch._resolve.register
+def resolve_MinMaxExpr(
+    expr: pgast.MinMaxExpr,
+    *,
+    ctx: Context,
+) -> pgast.BaseExpr:
+    return pgast.MinMaxExpr(
+        op=expr.op,
+        args=dispatch.resolve_list(expr.args, ctx=ctx),
+    )

@@ -461,9 +461,9 @@ class InferClause(ImmutableBaseExpr):
 class OnConflictClause(ImmutableBaseExpr):
 
     action: str
-    infer: typing.Optional[InferClause]
+    infer: typing.Optional[InferClause] = None
     target_list: typing.Optional[
-        typing.List[UpdateTarget | MultiAssignRef]
+        typing.List[InsertTarget | MultiAssignRef]
     ] = None
     where: typing.Optional[BaseExpr] = None
 
@@ -660,13 +660,11 @@ class ByteaConstant(BaseConstant):
 
 
 class NumericConstant(BaseConstant):
-
     val: str
 
 
 class BooleanConstant(BaseConstant):
-
-    val: str
+    val: bool
 
 
 class LiteralExpr(ImmutableBaseExpr):
@@ -1140,3 +1138,17 @@ class CreateTableAsStmt(Statement):
     query: Query
 
     with_no_data: bool
+
+
+class MinMaxExpr(BaseExpr):
+    # GREATEST / LEAST expression
+    # Very similar to FuncCall, except that the name is not escaped
+
+    op: str
+    args: typing.List[BaseExpr]
+
+
+class LockStmt(Statement):
+    relations: typing.List[BaseRangeVar]
+    mode: str
+    no_wait: bool = False

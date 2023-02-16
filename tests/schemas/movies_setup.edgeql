@@ -18,6 +18,7 @@
 
 insert Genre { name:= 'Fiction' };
 insert Genre { name:= 'Drama' };
+insert Genre { name:= '武侠' };
 
 insert Person { first_name:= 'Tom', last_name:= 'Hanks' };
 insert Person { first_name:= 'Robin' };

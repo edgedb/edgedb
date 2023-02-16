@@ -438,6 +438,27 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
+    def test_eschema_syntax_type_23b(self):
+        """
+        module test {
+            type Foo {
+                property -> Foo;
+                single foo -> Foo;
+                multi bar -> Bar {
+                    prop -> int64;
+                };
+                required property multi -> Bar;
+                required single baz -> Baz;
+                required multi spam -> Spam;
+                overloaded required single ham -> Ham;
+                overloaded required multi eggs -> Egg;
+                overloaded ham2 -> Ham;
+                constraint exclusive on (.asdf) except (.baz);
+                index on (.asdf) except (.baz);
+            };
+        };
+        """
+
     def test_eschema_syntax_type_24(self):
         """
         module test {
@@ -764,7 +785,6 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
-    @test.xerror('index parameters not implemented yet')
     def test_eschema_syntax_index_07(self):
         """
         module test {
@@ -805,7 +825,6 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
-    @test.xerror('index extending not implemented yet')
     def test_eschema_syntax_index_10(self):
         """
         module test {
@@ -1903,5 +1922,94 @@ annotation test::foo;
                 using (true);
                 property x -> str;
             };
+        };
+        """
+
+    def test_eschema_syntax_trigger_1(self):
+        """
+        module test {
+            type Foo {
+                trigger foo after insert
+                for each
+                do (1);
+            };
+        };
+        """
+
+    def test_eschema_syntax_trigger_2(self):
+        """
+        module test {
+            type Foo {
+                trigger foo after commit of
+                update, delete, insert
+                for all
+                do ((__new__, __old__));
+            };
+        };
+        """
+
+    def test_eschema_syntax_trigger_3(self):
+        """
+        module test {
+            type Foo {
+                trigger foo after commit of
+                update, delete, insert
+                for all
+                do (1) {
+                    annotation title := 'foo';
+                };
+            };
+        };
+        """
+
+    def test_eschema_syntax_rewrite_1(self):
+        """
+        module test {
+            type Foo {
+                property foo -> i64 {
+                    rewrite insert using (1);
+                };
+            };
+        };
+        """
+
+    def test_eschema_syntax_rewrite_2(self):
+        """
+        module test {
+            type Foo {
+                property name_updated_at -> i64 {
+                    rewrite update, insert using (
+                        datetime_current()
+                        if __specified__.name
+                        else .name_updated_at
+                    );
+                };
+            };
+        };
+        """
+
+    def test_eschema_newsyntax_colon_01(self):
+        """
+        abstract type test::OwnedObject {
+            required link owner: User
+        };
+
+% OK %
+
+        abstract type test::OwnedObject {
+            required link owner -> User;
+        };
+        """
+
+    def test_eschema_newsyntax_global_1(self):
+        """
+        module test {
+            global foo: str;
+        };
+
+% OK %
+
+        module test {
+            global foo -> str;
         };
         """

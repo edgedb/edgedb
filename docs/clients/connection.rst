@@ -3,7 +3,7 @@
 Connection
 ----------
 
-There are a couple ways to provide connection information to a client
+There are several ways to provide connection information to a client
 library.
 
 - Use **projects**. This is the recommended approach for *local
@@ -13,15 +13,15 @@ library.
   Follow the :ref:`Using projects <ref_guide_using_projects>` guide to get
   started.
 
-- Set the ``EDGEDB_DSN`` environment to a valid DSN (connection string). This
-  is the recommended approach in *production*. A DSN is a
+- Set the ``EDGEDB_DSN`` environment variable to a valid DSN (connection
+  string). This is the recommended approach in *production*. A DSN is a
   connection URL of the form ``edgedb://user:pass@host:port/database``. For a
   guide to DSNs, see the :ref:`DSN Specification <ref_dsn>`.
 
-  The value of ``EDGEDB_DSN`` can also be an :ref:`instance name
-  <ref_reference_connection_instance_name>`. You can create new instances
-  manually with the :ref:`edgedb instance create
-  <ref_cli_edgedb_instance_create>` command.
+- Set the ``EDGEDB_INSTANCE`` environment variable to a :ref:`name
+  <ref_reference_connection_instance_name>` of a local or remote linked
+  instance. You can create new instances manually with the
+  :ref:`edgedb instance create <ref_cli_edgedb_instance_create>` command.
 
 - Explicitly pass a DSN or :ref:`instance name
   <ref_reference_connection_instance_name>`

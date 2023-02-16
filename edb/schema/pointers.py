@@ -29,6 +29,7 @@ from edb.common import enum as s_enum
 from edb.common import struct
 from edb.common import parsing
 from edb.common import ast
+from edb.common.typeutils import not_none
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -381,10 +382,39 @@ def is_view_source(
     return isinstance(source, s_types.Type) and source.is_view(schema)
 
 
+def _get_target_name_in_diff(
+    *,
+    schema: s_schema.Schema,
+    orig_schema: Optional[s_schema.Schema],
+    object: Optional[so.Object],
+    orig_object: Optional[so.Object],
+) -> sn.Name:
+    """Compute the target type name for a fill/conv expr
+
+    Called from record_diff_annotations to produce annotation
+    information for migrations.
+    The trickiness here is that this information is generated
+    when producing the diff, where we have somewhat limited
+    information.
+    """
+    # Prefer getting the target type from the original object instead
+    # of the new one, for a cheesy reason: if we change both
+    # required/cardinality and target type, we do the cardinality
+    # change before the cast, for reasons of alphabetical order.
+    if isinstance(orig_object, Pointer):
+        assert orig_schema
+        target = orig_object.get_target(orig_schema)
+        return not_none(target).get_name(orig_schema)
+    else:
+        assert isinstance(object, Pointer)
+        target = object.get_target(schema)
+        return not_none(target).get_name(schema)
+
+
 Pointer_T = TypeVar("Pointer_T", bound="Pointer")
 
 
-class Pointer(referencing.ReferencedInheritingObject,
+class Pointer(referencing.NamedReferencedInheritingObject,
               constraints.ConsistencySubject,
               s_anno.AnnotationSubject,
               s_abc.Pointer):
@@ -891,7 +921,13 @@ class Pointer(referencing.ReferencedInheritingObject,
             top_op.add(required)
 
             context.parent_ops.append(delta)
-            top_op.record_diff_annotations(schema, None, context)
+            top_op.record_diff_annotations(
+                schema=schema,
+                orig_schema=None,
+                object=self,
+                orig_object=None,
+                context=context,
+            )
             context.parent_ops.pop()
 
         return delta
@@ -1450,24 +1486,9 @@ class PointerCommandOrFragment(
         else:
             raise NotImplementedError(f'unhandled field {field.name!r}')
 
-    def _deparse_name(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        name: sn.Name,
-    ) -> qlast.ObjectRef:
-
-        ref = super()._deparse_name(schema, context, name)
-        referrer_ctx = self.get_referrer_context(context)
-        if referrer_ctx is None:
-            return ref
-        else:
-            ref.module = ''
-            return ref
-
 
 class PointerCommand(
-    referencing.ReferencedInheritingObjectCommand[Pointer_T],
+    referencing.NamedReferencedInheritingObjectCommand[Pointer_T],
     constraints.ConsistencySubjectCommand[Pointer_T],
     s_anno.AnnotationSubjectCommand[Pointer_T],
     PointerCommandOrFragment[Pointer_T],
@@ -1720,35 +1741,6 @@ class PointerCommand(
                 hint=f'default must be a call to one of: {options}',
                 context=source_context,
             )
-
-    @classmethod
-    def _classname_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.NamedDDL,
-        context: sd.CommandContext,
-    ) -> sn.QualName:
-        referrer_ctx = cls.get_referrer_context(context)
-        if referrer_ctx is not None:
-
-            referrer_name = context.get_referrer_name(referrer_ctx)
-
-            shortname = sn.QualName(
-                module='__',
-                name=astnode.name.name,
-            )
-
-            name = sn.QualName(
-                module=referrer_name.module,
-                name=sn.get_specialized_name(
-                    shortname,
-                    str(referrer_name),
-                ),
-            )
-        else:
-            name = super()._classname_from_ast(schema, astnode, context)
-
-        return name
 
     @classmethod
     def _cmd_tree_from_ast(
@@ -2141,15 +2133,19 @@ class SetPointerType(
         return False
 
     def record_diff_annotations(
-        self,
+        self, *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,
+        object: Optional[so.Object],
+        orig_object: Optional[so.Object],
     ) -> None:
         super().record_diff_annotations(
             schema=schema,
             orig_schema=orig_schema,
             context=context,
+            orig_object=orig_object,
+            object=object,
         )
 
         if orig_schema is None:
@@ -2210,9 +2206,13 @@ class SetPointerType(
             placeholder_name = context.get_placeholder('cast_expr')
             desc = self.get_friendly_description(schema=schema)
             prompt = f'Please specify a conversion expression to {desc}'
-            self.set_annotation('required_input', {
-                placeholder_name: prompt,
-            })
+            self.set_annotation('required_input', dict(
+                placeholder=placeholder_name,
+                prompt=prompt,
+                old_type=str(old_type.get_name(schema)) if old_type else None,
+                new_type=str(new_type.get_name(schema)),
+                pointer_name=self.get_displayname(),
+            ))
 
             self.cast_expr = s_expr.Expression.from_ast(
                 qlast.Placeholder(name=placeholder_name),
@@ -2259,6 +2259,8 @@ class SetPointerType(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        from edb.ir import utils as irutils
+
         orig_schema = schema
         orig_rec = context.current().enable_recursion
         context.current().enable_recursion = False
@@ -2341,6 +2343,13 @@ class SetPointerType(
                     raise errors.SchemaError(
                         f'result of USING clause for the alteration of '
                         f'{vn} may not include a shape',
+                        context=self.source_context,
+                    )
+
+                if irutils.contains_dml(self.cast_expr.ir_statement):
+                    raise errors.SchemaError(
+                        f'USING clause for the alteration of type of {vn} '
+                        f'cannot include mutating statements',
                         context=self.source_context,
                     )
 
@@ -2536,15 +2545,19 @@ class AlterPointerUpperCardinality(
         return schema
 
     def record_diff_annotations(
-        self,
+        self, *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,
+        object: Optional[so.Object],
+        orig_object: Optional[so.Object],
     ) -> None:
         super().record_diff_annotations(
             schema=schema,
             orig_schema=orig_schema,
             context=context,
+            orig_object=orig_object,
+            object=object,
         )
 
         if orig_schema is None:
@@ -2570,9 +2583,17 @@ class AlterPointerUpperCardinality(
             prompt = (
                 f'Please specify an expression in order to {desc}'
             )
-            self.set_annotation('required_input', {
-                placeholder_name: prompt,
-            })
+
+            type_name = _get_target_name_in_diff(
+                schema=schema, orig_schema=orig_schema,
+                object=object, orig_object=orig_object,
+            )
+            self.set_annotation('required_input', dict(
+                placeholder=placeholder_name,
+                prompt=prompt,
+                type=str(type_name),
+                pointer_name=self.get_displayname(),
+            ))
 
             self.conv_expr = s_expr.Expression.from_ast(
                 qlast.Placeholder(name=placeholder_name),
@@ -2689,8 +2710,6 @@ class AlterPointerLowerCardinality(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        from edb.ir import utils as irutils
-
         orig_schema = schema
         schema = super()._alter_begin(schema, context)
         scls = self.scls
@@ -2743,13 +2762,6 @@ class AlterPointerLowerCardinality(
                         context=self.source_context,
                     )
 
-                if irutils.contains_dml(self.fill_expr.ir_statement):
-                    raise errors.SchemaError(
-                        f'USING clause for the alteration of {vn} '
-                        f'cannot include mutating statements',
-                        context=self.source_context,
-                    )
-
             schema = self._propagate_if_expr_refs(
                 schema,
                 context,
@@ -2761,15 +2773,19 @@ class AlterPointerLowerCardinality(
         return schema
 
     def record_diff_annotations(
-        self,
+        self, *,
         schema: s_schema.Schema,
         orig_schema: Optional[s_schema.Schema],
         context: so.ComparisonContext,
+        object: Optional[so.Object],
+        orig_object: Optional[so.Object],
     ) -> None:
         super().record_diff_annotations(
             schema=schema,
             orig_schema=orig_schema,
             context=context,
+            orig_object=orig_object,
+            object=object,
         )
 
         if not context.generate_prompts:
@@ -2795,9 +2811,18 @@ class AlterPointerLowerCardinality(
                 f'Please specify an expression to populate existing objects '
                 f'in order to {desc}'
             )
-            self.set_annotation('required_input', {
-                placeholder_name: prompt,
-            })
+
+            type_name = _get_target_name_in_diff(
+                schema=schema, orig_schema=orig_schema,
+                object=object, orig_object=orig_object,
+            )
+
+            self.set_annotation('required_input', dict(
+                placeholder=placeholder_name,
+                prompt=prompt,
+                type=str(type_name),
+                pointer_name=self.get_displayname(),
+            ))
 
             self.fill_expr = s_expr.Expression.from_ast(
                 qlast.Placeholder(name=placeholder_name),

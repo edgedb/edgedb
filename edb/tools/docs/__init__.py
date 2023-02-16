@@ -20,6 +20,8 @@
 from __future__ import annotations
 
 from docutils import nodes as d_nodes
+from docutils.parsers import rst as d_rst
+from sphinx import addnodes as s_nodes
 from sphinx import transforms as s_transforms
 
 from . import cli
@@ -51,11 +53,42 @@ class ProhibitedNodeTransform(s_transforms.SphinxTransform):
                 f'perhaps you wanted to use double backticks?')
 
 
+class VersionAdded(d_rst.Directive):
+
+    has_content = True
+    optional_arguments = 0
+    required_arguments = 1
+
+    def run(self):
+        node = s_nodes.versionmodified()
+        node['type'] = 'versionadded'
+        node['version'] = self.arguments[0]
+        self.state.nested_parse(self.content, self.content_offset, node)
+        return [node]
+
+
+class VersionChanged(d_rst.Directive):
+
+    has_content = True
+    optional_arguments = 0
+    required_arguments = 1
+
+    def run(self):
+        node = s_nodes.versionmodified()
+        node['type'] = 'versionchanged'
+        node['version'] = self.arguments[0]
+        self.state.nested_parse(self.content, self.content_offset, node)
+        return [node]
+
+
 def setup(app):
     cli.setup_domain(app)
     eql.setup_domain(app)
     js.setup_domain(app)
     sdl.setup_domain(app)
     graphql.setup_domain(app)
+
+    app.add_directive('versionadded', VersionAdded, True)
+    app.add_directive('versionchanged', VersionChanged, True)
 
     app.add_transform(ProhibitedNodeTransform)

@@ -48,11 +48,6 @@ Options
     The project directory can be specified explicitly. Defaults to the
     current directory.
 
-:cli:synopsis:`--server-install-method=<server-install-method>`
-    Specifies which server should be used for this project: server
-    installed via the local package system (``package``) or as a docker
-    image (``docker``).
-
 :cli:synopsis:`--server-instance=<server-instance>`
     Specifies the EdgeDB server instance to be associated with the
     project.
@@ -60,3 +55,23 @@ Options
 :cli:synopsis:`--server-version=<server-version>`
     Specifies the EdgeDB server instance to be associated with the
     project.
+
+    By default, when you specify a version, the CLI will use the latest release
+    in the major version specified. This command, for example, will install the
+    latest 2.x release:
+
+    .. code-block:: bash
+
+        $ edgedb project init --server-version 2.6
+
+    You may pin to a specific version by prepending the version number with an
+    equals sign. This command will install version 2.6:
+
+    .. code-block:: bash
+
+        $ edgedb project init --server-version =2.6
+
+    .. note::
+
+        Some shells like ZSH may require you to escape the equals sign (e.g.,
+        ``\=2.6``) or quote the version string (e.g., ``"=2.6"``).

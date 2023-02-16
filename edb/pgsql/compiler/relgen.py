@@ -226,10 +226,13 @@ def get_set_rvar(
             rvars = finalize_optional_rel(ir_set, optrel=optrel,
                                           rvars=rvars, ctx=subctx)
         elif not is_optional and is_empty_set:
+            # In most cases it is totally fine for us to represent an
+            # empty set as an empty relation.
+            # (except when it needs to be fed to an optional argument)
             null_query = rvars.main.rvar.query
             assert isinstance(
                 null_query, (pgast.SelectStmt, pgast.NullRelation))
-            null_query.where_clause = pgast.BooleanConstant(val='FALSE')
+            null_query.where_clause = pgast.BooleanConstant(val=False)
 
         result_rvar = _include_rvars(rvars, scope_stmt=scope_stmt, ctx=subctx)
         for aspect in rvars.main.aspects:
@@ -396,6 +399,9 @@ def _get_set_rvar(
     if isinstance(ir_set, irast.EmptySet):
         # {}
         return process_set_as_empty(ir_set, ctx=ctx)
+
+    if ir_set.path_id in ctx.env.external_rels:
+        return process_external_rel(ir_set, ctx=ctx)
 
     # Regular non-computable path start.
     return process_set_as_root(ir_set, ctx=ctx)
@@ -725,6 +731,15 @@ def process_set_as_empty(
     return new_source_set_rvar(ir_set, rvar)
 
 
+def process_external_rel(
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    rel = ctx.env.external_rels[ir_set.path_id]
+
+    rvar = relctx.rvar_for_rel(rel, ctx=ctx)
+    return new_source_set_rvar(ir_set, rvar)
+
+
 def process_set_as_link_property_ref(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -887,21 +902,15 @@ def process_set_as_path_type_intersection(
         poly_rvar = relctx.range_for_typeref(
             target_typeref,
             path_id=ir_set.path_id,
+            dml_source=irutils.get_nearest_dml_stmt(ir_set),
             lateral=True,
             ctx=ctx,
         )
 
         prefix_path_id = ir_set.path_id.src_path()
         assert prefix_path_id is not None, 'expected a path'
-        pathctx.put_rvar_path_output(
-            rvar=poly_rvar,
-            path_id=prefix_path_id,
-            aspect='identity',
-            var=pathctx.get_rvar_path_identity_var(
-                poly_rvar, ir_set.path_id, env=ctx.env,
-            ),
-            env=ctx.env,
-        )
+        relctx.deep_copy_primitive_rvar_path_var(
+            ir_set.path_id, prefix_path_id, poly_rvar, env=ctx.env)
         pathctx.put_rvar_path_bond(poly_rvar, prefix_path_id)
         relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
         int_rvar = pgast.IntersectionRangeVar(
@@ -1488,7 +1497,7 @@ def process_set_as_membership_expr(
             # A NULL argument to the array variant will produce NULL, so we
             # need to coalesce if that is possible.
             if needs_coalesce:
-                empty_val = str(negated).upper()
+                empty_val = negated
                 set_expr = pgast.CoalesceExpr(args=[
                     set_expr, pgast.BooleanConstant(val=empty_val)])
 

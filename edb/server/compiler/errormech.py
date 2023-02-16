@@ -123,7 +123,8 @@ enum_re = re.compile(
     r'(?P<p>enum) (?P<v>edgedb([\w-]+)."(?P<id>[\w-]+)_domain")')
 
 
-def translate_pgtype(schema, msg):
+def translate_pgtype_inner(schema, msg):
+    """Try to replace any internal pg type name with an edgedb type name"""
     translated = pgtype_re.sub(
         lambda r: str(types.base_type_name_map_r.get(r.group(0), r.group(0))),
         msg,
@@ -143,6 +144,22 @@ def translate_pgtype(schema, msg):
     translated = enum_re.sub(replace, msg)
 
     return translated
+
+
+def translate_pgtype(schema, msg):
+    """Try to translate a message that might refer to internal pg types.
+
+    We *want* to replace internal pg type names with edgedb names, but only
+    when they actually refer to types.
+    The messages aren't really structured well enough to support this properly,
+    so we approximate it by only doing the replacement *before* the first colon
+    in the message, so if a user does `<int64>"bigint"`, and we get the message
+    'invalid input syntax for type bigint: "bigint"', we do the right thing.
+    """
+
+    leading, *rest = msg.split(':')
+    leading_translated = translate_pgtype_inner(schema, leading)
+    return ':'.join([leading_translated, *rest])
 
 
 def get_error_details(fields):

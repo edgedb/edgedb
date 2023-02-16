@@ -158,6 +158,13 @@ async def execute(
                 #   2. The state is synced with dbview (orig_state is None)
                 #   3. We came out from a transaction (orig_state is None)
                 be_conn.last_state = state
+    finally:
+        if query_unit.drop_db:
+            server._allow_database_connections(query_unit.drop_db)
+        if query_unit.create_db_template:
+            server._allow_database_connections(
+                query_unit.create_db_template,
+            )
 
     return data
 
@@ -176,6 +183,8 @@ async def execute_script(
         bint in_tx
         object user_schema, cached_reflection, global_schema
         WriteBuffer bind_data
+        int dbver = dbv.dbver
+        bint parse
 
     user_schema = cached_reflection = global_schema = None
     unit_group = compiled.query_unit_group
@@ -193,7 +202,12 @@ async def execute_script(
     data = None
 
     try:
+        if conn.last_state == state:
+            # the current status in be_conn is in sync with dbview, skip the
+            # state restoring
+            state = None
         async with conn.parse_execute_script_context():
+            parse_array = [False] * len(unit_group)
             for idx, query_unit in enumerate(unit_group):
                 if fe_conn is not None and fe_conn.cancelled:
                     raise ConnectionAbortedError
@@ -219,8 +233,16 @@ async def execute_script(
 
                     bind_array = args_ser.recode_bind_args_for_script(
                         dbv, compiled, bind_args, idx, sent)
+                    dbver = dbv.dbver
                     conn.send_query_unit_group(
-                        unit_group, bind_array, state, idx, sent)
+                        unit_group,
+                        bind_array,
+                        state,
+                        idx,
+                        sent,
+                        dbver,
+                        parse_array,
+                    )
 
                 if idx == 0 and state is not None:
                     await conn.wait_for_state_resp(state, state_sync=0)
@@ -240,9 +262,10 @@ async def execute_script(
                     global_schema = query_unit.global_schema
 
                 if query_unit.sql:
+                    parse = parse_array[idx]
                     if query_unit.ddl_stmt_id:
                         ddl_ret = await conn.handle_ddl_in_script(
-                            query_unit
+                            query_unit, parse, dbver
                         )
                         if ddl_ret and ddl_ret['new_types']:
                             new_types = ddl_ret['new_types']
@@ -250,7 +273,7 @@ async def execute_script(
                         globals_data = []
                         for sql in query_unit.sql:
                             globals_data = await conn.wait_for_command(
-                                ignore_data=False
+                                query_unit, parse, dbver, ignore_data=False
                             )
                         if globals_data:
                             config_ops = [
@@ -260,11 +283,12 @@ async def execute_script(
                     elif query_unit.output_format == FMT_NONE:
                         for sql in query_unit.sql:
                             await conn.wait_for_command(
-                                ignore_data=True
+                                query_unit, parse, dbver, ignore_data=True
                             )
                     else:
                         for sql in query_unit.sql:
                             data = await conn.wait_for_command(
+                                query_unit, parse, dbver,
                                 ignore_data=False,
                                 fe_conn=fe_conn,
                             )
@@ -400,7 +424,7 @@ async def parse_execute_json(
     query: str,
     *,
     variables: Mapping[str, Any] = immutables.Map(),
-    globals_: Mapping[str, Any] = immutables.Map(),
+    globals_: Optional[Mapping[str, Any]] = None,
     output_format: compiler.OutputFormat = compiler.OutputFormat.JSON,
     query_cache_enabled: Optional[bool] = None,
 ) -> bytes:
@@ -443,20 +467,19 @@ async def execute_json(
     dbv: dbview.DatabaseConnectionView,
     compiled: dbview.CompiledQuery,
     variables: Mapping[str, Any] = immutables.Map(),
-    globals_: Mapping[str, Any] = immutables.Map(),
+    globals_: Optional[Mapping[str, Any]] = None,
     *,
     fe_conn: Optional[frontend.AbstractFrontendConnection] = None,
     use_prep_stmt: bint = False,
 ) -> bytes:
-    if globals_:
-        dbv.set_globals(immutables.Map({
-            "__::__edb_json_globals__": config.SettingValue(
-                name="__::__edb_json_globals__",
-                value=_encode_json_value(globals_),
-                source='global',
-                scope=qltypes.ConfigScope.GLOBAL,
-            )
-        }))
+    dbv.set_globals(immutables.Map({
+        "__::__edb_json_globals__": config.SettingValue(
+            name="__::__edb_json_globals__",
+            value=_encode_json_value(globals_),
+            source='global',
+            scope=qltypes.ConfigScope.GLOBAL,
+        )
+    }))
 
     qug = compiled.query_unit_group
 

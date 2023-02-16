@@ -1,12 +1,10 @@
+.. versionadded:: 2.0
+
 .. _ref_datamodel_globals:
 
-============
-Globals #New
-============
-
-.. note::
-
-  ⚠️ Only available in EdgeDB 2.0 or later.
+=======
+Globals
+=======
 
 Schemas can contain scalar-typed *global variables*.
 
@@ -96,7 +94,7 @@ which client library you're using.
 
       fmt.Println(result)
     }
-    
+
   .. code-tab:: edgeql
 
     set global current_user_id := <uuid>'2141a5b4-5634-4ccc-b835-437863534c51';
