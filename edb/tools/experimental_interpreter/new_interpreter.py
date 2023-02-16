@@ -19,6 +19,8 @@ from .data.path_factor import select_hoist
 from .data.val_to_json import *
 import copy
 
+from .elab_schema import schema_from_sdl_file, schema_from_sdl_defs
+
 def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print : bool) -> Tuple[MultiSetVal, DB]:
     if should_print:
         print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
@@ -67,13 +69,14 @@ def run_stmts (db : DB, stmts : List[qlast.Expr],dbschema : DBSchema, debug_prin
 
 def run_str(
     db: DB,
+    dbschema : DBSchema,
     s: str,
     print_asts: bool = False
 ) -> Tuple[List[MultiSetVal], DB]:
-    q = parse(s)
+    q = parse_ql(s)
     # if print_asts:
     #     debug.dump(q)
-    (res, next_db) = run_stmts(db, q, DBSchema({}, all_builtin_funcs), print_asts)
+    (res, next_db) = run_stmts(db, q, dbschema, print_asts)
     # if output_mode == 'pprint':
     #     pprint.pprint(res)
     # elif output_mode == 'json':
@@ -87,7 +90,7 @@ def run_single_str(
     s: str,
     print_asts: bool = False
 ) -> Tuple[MultiSetVal, DB]:
-    q = parse(s)
+    q = parse_ql(s)
     if len(q) != 1:
         raise ValueError("Not a single query")
     (res, next_db) = run_statement(db, q[0], DBSchema({}, all_builtin_funcs), print_asts)
@@ -102,13 +105,18 @@ def run_single_str_get_json(
     return (multi_set_val_to_json_like(res), next_db)
 
 
-def repl(*, init_ql_file = None, debug_print=False) -> None:
+def repl(*, init_sdl_file = None, init_ql_file = None, debug_print=False) -> None:
     # for now users should just invoke this script with rlwrap since I
     # don't want to fiddle with history or anything
     db = empty_db()
+    dbschema : DBSchema
+    if init_sdl_file is not None:
+        dbschema = schema_from_sdl_file(init_sdl_file_path=init_sdl_file)
+    else:
+        dbschema = DBSchema({}, all_builtin_funcs)
     if init_ql_file is not None:
         initial_queries = open(init_ql_file).read()
-        db = run_str(db, initial_queries, print_asts=debug_print)
+        db = run_str(db, dbschema, initial_queries, print_asts=debug_print)
     while True:
         print("> ", end="", flush=True)
         s = ""
@@ -117,13 +125,14 @@ def repl(*, init_ql_file = None, debug_print=False) -> None:
             if not s:
                 return
         try:
-            (_, db) = run_str(db, s, print_asts=debug_print)
+            (_, db) = run_str(db, dbschema, s, print_asts=debug_print)
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
-def db_with_initilial_queries(initial_queries : str, debug_print=False) -> DB:
+def db_with_initilial_schema_and_queries(initial_schema_defs : str, initial_queries : str, debug_print=False) -> DB:
     db = empty_db()
-    (_, db) = run_str(db, initial_queries, print_asts=debug_print)
+    dbschema = schema_from_sdl_defs(initial_schema_defs)
+    (_, db) = run_str(db, dbschema, initial_queries, print_asts=debug_print)
     return db
 
 

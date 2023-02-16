@@ -31,6 +31,24 @@ bag = assert_data_shape.bag
 # Person has name, multi_prop, notes, tag
 # Note has name, note
 # Foo has val, opt
+initial_schema="""
+type Note {
+    required single property name -> str;
+    optional single property note -> str;
+}
+type Person {
+    required single property name -> str;
+    optional multi property multi_prop -> str;
+    multi link notes -> Note {
+        property metanote -> str;
+    }
+    optional single property tag -> str;
+}
+type Foo {
+    required single property val -> str;
+    optional single property opt -> int64;
+}
+"""
 initial_queries = """
 insert Note {name := "boxing", note := {}};
 insert Note {name := "unboxing", note := "lolol"};
@@ -54,7 +72,9 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
         self, query, expected, *, sort=None, singleton_cheating=False
     ):
         if self.db is None:
-            self.db = model.db_with_initilial_queries(initial_queries=initial_queries)
+            self.db = model.db_with_initilial_schema_and_queries(
+                initial_schema_defs=initial_schema,
+                initial_queries=initial_queries)
         # qltree = model.parse(query)
         (result, _) = model.run_single_str_get_json(self.db, query, print_asts=True)
         # if sort:

@@ -43,7 +43,10 @@ class TestEdgeQLSelectInterpreter(unittest.TestCase):
     ):
         if self.db is None:
             with open(TestEdgeQLSelectInterpreter.SETUP) as setup_file:
-                self.db = model.db_with_initilial_queries(setup_file.read())
+                with open(TestEdgeQLSelectInterpreter.SCHEMA) as schema_file:
+                    self.db = model.db_with_initilial_schema_and_queries(
+                        schema_file.read(),
+                        setup_file.read())
         (result, _) = model.run_single_str_get_json(self.db, query)
         if sort:
             assert_data_shape.sort_results(result, sort)
