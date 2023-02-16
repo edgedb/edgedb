@@ -227,7 +227,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         shape = {
             "Node Type": "Index Scan",
             "Index Name": (
-                "index 'name_9d90cf37' of object type 'default::User' index"),
+                "index of object type 'default::User' on (__subject__.name)"),
             "Relation Name": "default::User",
             "Plans": [1],
             "CollapsedPlans": [
@@ -252,8 +252,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "Index Name": (
                                 "constraint 'std::exclusive' of "
                                 "property 'id' of object type '"
-                                "default::Issue' exclusive constraint "
-                                "index"
+                                "default::Issue'"
                             ),
                             "Relation Name": "default::Issue",
                             "Contexts": [
@@ -301,7 +300,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         shape = {
             "Node Type": "Index Scan",
             "Index Name": (
-                "index 'name_9d90cf37' of object type 'default::User' index"),
+                "index of object type 'default::User' on (__subject__.name)"),
             "Relation Name": "default::User",
             "Plans": [1],
             "CollapsedPlans": [

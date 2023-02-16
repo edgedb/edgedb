@@ -189,10 +189,12 @@ def _obj_to_name(
         if not dotted and (src := sobj.get_source(schema)):
             src_name = src.get_name(schema)
             s = f'{src_name}.{s}'
-    elif isinstance(sobj, (s_constr.Constraint, s_indexes.Index)):
-        # XXX: Do we really want verbose names here, they are
-        # kind of awful.
+    elif isinstance(sobj, s_constr.Constraint):
         s = sobj.get_verbosename(schema, with_parent=True)
+    elif isinstance(sobj, s_indexes.Index):
+        s = sobj.get_verbosename(schema, with_parent=True)
+        if expr := sobj.get_expr(schema):
+            s += f' on ({expr.text})'
     else:
         s = str(sobj.get_name(schema))
 
@@ -252,21 +254,28 @@ def json_fixup(
 
         return obj
     elif isinstance(obj, str):
-        if idx == 'Index Name':
-            obj = obj.replace('_source_target_key', ' forward link index')
-            obj = obj.replace(';schemaconstr', ' exclusive constraint index')
-            obj = obj.replace('_target_key', ' backward link index')
-            obj = obj.replace('_index', ' index')
-
         # Try to replace all ids with textual names
+        had_index = False
         for (full, m) in uuid_re.findall(obj):
             uid = uuid.UUID(m)
             sobj = schema.get_by_id(uid, default=None)
             if sobj:
+                had_index |= isinstance(sobj, s_indexes.Index)
                 dotted = full[0] == '.'
                 s = _obj_to_name(sobj, schema, dotted=dotted)
                 obj = uuid_re.sub(s, obj, count=1)
 
+        if idx == 'Index Name':
+            obj = obj.replace('_source_target_key', ' forward link index')
+            obj = obj.replace(';schemaconstr', '')
+            obj = obj.replace('_target_key', ' backward link index')
+            # If the index name is from an actual index or constraint,
+            # the `_index` part of the name just total noise, but if it
+            # is from a link, it might be slightly informative
+            if had_index:
+                obj = obj.replace('_index', '')
+            else:
+                obj = obj.replace('_index', ' index')
         return obj
     else:
         return obj
