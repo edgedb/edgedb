@@ -160,7 +160,8 @@ class TestCaseMeta(type(unittest.TestCase)):
                     else:
                         self.loop.run_until_complete(self.xact.rollback())
                         self.loop.run_until_complete(asyncio.sleep(
-                            (2 ** try_no) * 0.1 + random.randrange(100) * 0.001
+                            min((2 ** try_no) * 0.1, 10)
+                            + random.randrange(100) * 0.001
                         ))
                         self.xact = self.con.transaction()
                         self.loop.run_until_complete(self.xact.start())
