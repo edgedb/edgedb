@@ -27,8 +27,17 @@ from edb.tools.experimental_interpreter.data.data_ops import *
 bag = assert_data_shape.bag
 
 # queries to populate the required data for this test
+# schema summary:
+# Person has name, multi_prop, notes, tag
+# Note has name, note
+# Foo has val, opt
 initial_queries = """
-
+insert Note {name := "boxing", note := {}};
+insert Note {name := "unboxing", note := "lolol"};
+insert Note {name := "dynamic", note := "blarg"};
+insert Person {name := "Phil Emarg", multi_prop:={}, notes:={}, tag:={}};
+insert Person {name := "Madeline Hatch", multi_prop:={}, notes:={}, tag:={}};
+insert Person {name := "Emmanuel Villip", multi_prop:={}, notes:={}, tag:={}};
 """
 
 class TestNewInterpreterModelSmokeTests(unittest.TestCase):
@@ -39,13 +48,15 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
     goal should be that we could run the real tests against the model.
     """
 
-    DB1 = model.db_with_initilial_queries(initial_queries=initial_queries)
 
+    db = None
     def assert_test_query(
-        self, query, expected, *, db=DB1, sort=None, singleton_cheating=False
+        self, query, expected, *, sort=None, singleton_cheating=False
     ):
+        if self.db is None:
+            self.db = model.db_with_initilial_queries(initial_queries=initial_queries)
         # qltree = model.parse(query)
-        (result, _) = model.run_single_str_get_json(db, query)
+        (result, _) = model.run_single_str_get_json(self.db, query, print_asts=True)
         # if sort:
         #     assert_data_shape.sort_results(result, sort)
         # if result != expected:
