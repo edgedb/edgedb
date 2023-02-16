@@ -36,14 +36,15 @@ class TestEdgeQLSelectInterpreter(unittest.TestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'issues_setup.edgeql')
 
+    db = None
 
     def assert_query_result(
-        self, query, expected, *, db, sort=None, singleton_cheating=False
+        self, query, expected, *, sort=None, singleton_cheating=False
     ):
-        if db is None:
-            db = model.db_with_initilial_queries(open(TestEdgeQLSelectInterpreter.SETUP).read())
-        qltree = model.parse(query)
-        result = model.go(qltree, db, singleton_cheating)
+        if self.db is None:
+            with open(TestEdgeQLSelectInterpreter.SETUP) as setup_file:
+                self.db = model.db_with_initilial_queries(setup_file.read())
+        (result, _) = model.run_single_str_get_json(self.db, query)
         if sort:
             assert_data_shape.sort_results(result, sort)
 

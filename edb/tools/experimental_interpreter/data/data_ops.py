@@ -411,17 +411,17 @@ class RefVal:
     refid : int
     val : ObjectVal
 
-@dataclass(frozen=True)
-class RefLinkVal:
-    from_id : int
-    to_id : int
-    val : ObjectVal
+# @dataclass(frozen=True)
+# class RefLinkVal:
+#     from_id : int
+#     to_id : int
+#     val : ObjectVal
 
 
-@dataclass(frozen=True) 
-class LinkWithPropertyVal:
-    subject : Val
-    link_properties : Val
+# @dataclass(frozen=True) 
+# class LinkWithPropertyVal:
+#     subject : Val
+#     link_properties : Val
 
 @dataclass(frozen=True)
 class UnnamedTupleVal:
@@ -440,7 +440,8 @@ class ArrayVal:
 #     val : List[Val]
     
 
-Val =  (PrimVal | RefVal | FreeVal | RefLinkVal | LinkWithPropertyVal 
+Val =  (PrimVal | RefVal | FreeVal 
+        # | RefLinkVal | LinkWithPropertyVal 
         | UnnamedTupleVal | NamedTupleVal  | ArrayVal ) # V
 
 MultiSetVal = List[Val]

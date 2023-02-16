@@ -16,6 +16,7 @@ from .elaboration import *
 from .evaluation import *
 from .back_to_ql import reverse_elab
 from .data.path_factor import select_hoist
+from .data.val_to_json import *
 import copy
 
 def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print : bool) -> Tuple[MultiSetVal, DB]:
@@ -91,6 +92,14 @@ def run_single_str(
         raise ValueError("Not a single query")
     (res, next_db) = run_statement(db, q[0], DBSchema({}, all_builtin_funcs), print_asts)
     return (res, next_db)
+
+def run_single_str_get_json(
+    db: DB,
+    s: str,
+    print_asts: bool = False
+) -> Tuple[json_like, ]:
+    (res, next_db) = run_single_str(db, s, print_asts=print_asts)
+    return (multi_set_val_to_json_like(res), next_db)
 
 
 def repl(*, init_ql_file = None, debug_print=False) -> None:

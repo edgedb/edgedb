@@ -45,18 +45,18 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
         self, query, expected, *, db=DB1, sort=None, singleton_cheating=False
     ):
         # qltree = model.parse(query)
-        (result, _) = model.run_single_str(db, query)
+        (result, _) = model.run_single_str_get_json(db, query)
         # if sort:
         #     assert_data_shape.sort_results(result, sort)
-        if result != expected:
-            raise ValueError("Not Equal!", "Expected", expected, "Actual", result)
+        # if result != expected:
+        #     raise ValueError("Not Equal!", "Expected", expected, "Actual", result)
 
-        # assert_data_shape.assert_data_shape(result, expected, self.fail)
+        assert_data_shape.assert_data_shape(result, expected, self.fail)
 
     def test_model_basic_01(self):
         self.assert_test_query(
             "SELECT 1",
-            [IntVal(1)],
+            [1],
         )
 
     def test_model_basic_02(self):
@@ -64,7 +64,7 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             r"""
             SELECT Person.name
             """,
-            [StrVal('Phil Emarg'), 'Madeline Hatch', 'Emmanuel Villip'],
+            ['Phil Emarg', 'Madeline Hatch', 'Emmanuel Villip'],
         )
 
     def test_model_basic_03(self):
@@ -72,9 +72,9 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             r"""
             SELECT (Person.name, Person.name)
             """,
-            {('Phil Emarg', 'Phil Emarg'),
+            [('Phil Emarg', 'Phil Emarg'),
              ('Madeline Hatch', 'Madeline Hatch'),
-             ('Emmanuel Villip', 'Emmanuel Villip')}
+             ('Emmanuel Villip', 'Emmanuel Villip')]
         )
 
     def test_model_link_dedup(self):
