@@ -69,8 +69,9 @@ class AnalysisInfo:
 def analyze_queries(
     ql: qlast.Base, ir: irast.Statement, pg: pgast.Base,
     *, schema: s_schema.Schema,
-    debug_spew: bool=False,
 ) -> AnalysisInfo:
+    debug_spew = debug.flags.edgeql_explain
+
     assert ql.context
     contexts = {(ql.context.buffer, ql.context.name): 0}
 
@@ -96,17 +97,17 @@ def analyze_queries(
                 subq_to_rvar[subq] = rvar
 
     # Find all *references* to an rvar in path_rvar_maps
+    # Maps rvars to the queries that join them
     reverse_path_rvar_map: dict[
         pgast.BaseRangeVar,
         list[pgast.Query],
     ] = {}
-    # XXX: We should be able to handle subqueries also!
     for qry in queries:
         qrvars = []
-        # Is this what we want?
         if isinstance(qry, (pgast.SelectStmt, pgast.UpdateStmt)):
             qrvars.extend(qry.from_clause)
-        # XXX: more
+        if isinstance(qry, pgast.DeleteStmt):
+            qrvars.extend(qry.using_clause)
 
         for orvar in qrvars:
             for rvar in astutils.each_base_rvar(orvar):
@@ -136,13 +137,11 @@ def analyze_queries(
     # KEY FACT: We often duplicate code for with bindings. This means
     # we want to expose that through the contexts we include.
     for alias, rvar in aliases.items():
-        # print("!!!", alias)
-
-        # Run up the tree
+        # Run up the tree looking both for contexts to associate with
+        # and the next node in the tree to go up to
         asets = []
         while True:
             ns = cast(list[irast.Set], rvar.ir_origins or [])
-            # if len(ns) == 1 and ns[0].context:
             if len(ns) >= 1 and ns[0].context:
                 if ns[0] not in asets:
                     asets.append(ns[0])
@@ -399,7 +398,6 @@ def analyze_explain_output(
         )
 
     assert len(data) == 1 and len(data[0]) == 1
-    # print('DATA', data)
     plan = json.loads(data[0][0])
     assert len(plan) == 1
     plan = plan[0]['Plan']
@@ -416,22 +414,14 @@ def analyze_explain_output(
     if debug.flags.edgeql_explain:
         debug.dump(output)
 
-    # Repeat the analysis if we are doing debug dumping for the silly reason
-    # of having it appear last in the debug spew.
-    if debug.flags.edgeql_explain:
-        analyze_queries(ql, ir, pg, schema=schema, debug_spew=True)
-        # debug.dump(info, _ast_include_meta=False)
-
     return make_message([output])
 
 
 def make_message(obj: Any) -> bytes:
     omsg = json.dumps(obj).encode('utf-8')
     msg = struct.pack(
-        "!hic",
-        1,
-        len(omsg) + 1,
-        # XXX: why isn't it b'\x01'??
-        b' ',
+        "!hi",
+        1,  # jsonb format version
+        len(omsg),  # string length
     ) + omsg
     return msg
