@@ -234,6 +234,7 @@ jobs:
         CACHE_HIT: ${{ steps.parsers-cache.outputs.cache-hit }}
       run: |
         if [[ "$CACHE_HIT" != "true" ]]; then
+          mkdir -p ./build/lib
           python setup.py -v build_parsers --inplace
         fi
         rsync -av ./build/lib/edb/ ./edb/
