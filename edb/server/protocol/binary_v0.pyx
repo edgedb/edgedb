@@ -338,11 +338,14 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
             msg_buf = WriteBuffer.new_message(b'@')
 
-            msg_buf.write_int16(3)  # number of headers
+            msg_buf.write_int16(4)  # number of headers
             msg_buf.write_int16(DUMP_HEADER_BLOCK_TYPE)
             msg_buf.write_len_prefixed_bytes(DUMP_HEADER_BLOCK_TYPE_INFO)
             msg_buf.write_int16(DUMP_HEADER_SERVER_VER)
             msg_buf.write_len_prefixed_utf8(str(buildmeta.get_version()))
+            msg_buf.write_int16(DUMP_HEADER_SERVER_CATALOG_VERSION)
+            msg_buf.write_int32(8)
+            msg_buf.write_int64(buildmeta.EDGEDB_CATALOG_VERSION)
             msg_buf.write_int16(DUMP_HEADER_SERVER_TIME)
             msg_buf.write_len_prefixed_utf8(str(int(time.time())))
 
@@ -456,6 +459,8 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             hdrval = self.buffer.read_len_prefixed_bytes()
             if hdrname == DUMP_HEADER_SERVER_VER:
                 dump_server_ver_str = hdrval.decode('utf-8')
+            if hdrname == DUMP_HEADER_SERVER_CATALOG_VERSION:
+                cat_ver = parse_catalog_version_header(hdrval)
 
         proto_major = self.buffer.read_int16()
         proto_minor = self.buffer.read_int16()
@@ -514,6 +519,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     user_schema,
                     global_schema,
                     dump_server_ver_str,
+                    cat_ver,
                     schema_ddl,
                     schema_ids,
                     blocks,
