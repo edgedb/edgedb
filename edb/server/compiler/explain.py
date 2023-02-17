@@ -56,7 +56,7 @@ ContextDesc = dict[str, int]
 @dataclasses.dataclass
 class AnalysisInfo:
     aliases: dict[str, pgast.BaseRangeVar]
-    alias_to_path_id: dict[str, tuple[irast.PathId, Optional[int]]]
+    alias_to_path_id: dict[str, irast.PathId]
     alias_contexts: dict[str, list[list[ContextDesc]]]
     sets: dict[irast.PathId, set[irast.Set]]
     buffers: list[tuple[str, str]]
@@ -117,7 +117,7 @@ def analyze_queries(
         rvar.alias.aliasname: rvar for rvar in rvars if rvar.alias.aliasname
     }
     path_ids = {
-        alias: (rvar.relation.path_id, rvar.relation.path_scope_id)
+        alias: rvar.relation.path_id
         for alias, rvar in aliases.items()
         if isinstance(rvar, pgast.RelRangeVar)
         and isinstance(rvar.relation, pgast.BaseRelation)
@@ -223,7 +223,7 @@ def json_fixup(
         # indicate what the original type was (since this is probably
         # the result of expansion.)
         if alias and alias in info.alias_to_path_id:
-            path_id, _ = info.alias_to_path_id[alias]
+            path_id = info.alias_to_path_id[alias]
             obj['DEBUG PATH ID'] = str(path_id)
             if (
                 (ptr := path_id.rptr())

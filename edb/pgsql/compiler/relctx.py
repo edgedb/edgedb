@@ -1485,7 +1485,6 @@ def range_for_material_objtype(
             name=table_name,
             path_id=path_id,
             typeref=typeref,
-            path_scope_id=ctx.scope_tree.unique_id,
         )
 
         rvar = pgast.RelRangeVar(
@@ -1779,7 +1778,6 @@ def table_from_ptrref(
     relation = pgast.Relation(
         schemaname=table_schema_name,
         name=table_name,
-        path_scope_id=ctx.scope_tree.unique_id,
         typeref=typeref,
     )
 
