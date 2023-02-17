@@ -930,6 +930,14 @@ class Compiler:
             and dump_server_ver.stage is not verutils.VersionStage.DEV
         )
 
+        dump_with_dunder_type = (
+            (
+                dump_server_ver is None
+                or dump_server_ver < (3, 0),
+            )
+            and dump_server_ver.stage is not verutils.VersionStage.DEV
+        )
+
         schema_ddl_text = schema_ddl.decode('utf-8')
 
         if allow_dml_in_functions:
@@ -1027,6 +1035,9 @@ class Compiler:
                     if (
                         dump_with_extraneous_computables
                         and ptr.is_pure_computable(schema)
+                    ) or (
+                        dump_with_dunder_type
+                        and ptr_name == '__type__'
                     ):
                         elided_col_set.add(ptr_name)
                         mending_desc.append(None)

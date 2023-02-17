@@ -32,6 +32,7 @@ from edb.ir import typeutils as irtyputils
 from edb.schema import pointers as s_pointers
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import common
 from edb.pgsql import types as pg_types
 
 from . import astutils
@@ -746,16 +747,14 @@ def get_rvar_output_var_as_col_list(
 
     cols: List[pgast.OutputVar]
 
-    if isinstance(outvar, pgast.ColumnRef):
-        cols = [outvar]
-    elif isinstance(outvar, pgast.TupleVarBase):
+    if isinstance(outvar, pgast.TupleVarBase):
         cols = []
         for el in outvar.elements:
             col = get_rvar_path_var(rvar, el.path_id, aspect=aspect, env=env)
             cols.extend(get_rvar_output_var_as_col_list(
                 rvar, col, aspect=aspect, env=env))
     else:
-        raise RuntimeError(f'unexpected OutputVar: {outvar!r}')
+        cols = [outvar]
 
     return cols
 
@@ -979,6 +978,7 @@ def _get_rel_path_output(
             f'{path_id} is an inbound pointer and cannot be resolved '
             f'on a base relation')
 
+    result: pgast.OutputVar
     if isinstance(rel, pgast.NullRelation):
         if ptrref is not None:
             target = ptrref.out_target
@@ -1017,9 +1017,18 @@ def _get_rel_path_output(
                 rel.path_id and not rel.path_id.rptr()):
             raise LookupError("can't access link table on object rel")
 
-        result = pgast.ColumnRef(
-            name=[ptr_info.column_name],
-            nullable=not ptrref.required)
+        if (
+            ptrref.shortname.name == '__type__'
+            and rel.name
+            and not common.is_inhview_name(rel.name)
+        ):
+            assert rel.typeref
+            result = pgast.ExprOutputVar(
+                expr=astutils.compile_typeref(rel.typeref))
+        else:
+            result = pgast.ColumnRef(
+                name=[ptr_info.column_name],
+                nullable=not ptrref.required)
 
     _put_path_output_var(rel, path_id, aspect, result, flavor=flavor, env=env)
     return result

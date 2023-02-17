@@ -379,6 +379,9 @@ def get_rvar_var(
     elif isinstance(var, pgast.ColumnRef):
         fieldref = get_column(rvar, var, is_packed_multi=var.is_packed_multi)
 
+    elif isinstance(var, pgast.ExprOutputVar):
+        fieldref = var
+
     else:
         raise AssertionError(f'unexpected OutputVar subclass: {var!r}')
 

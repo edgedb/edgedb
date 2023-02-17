@@ -593,6 +593,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             else:
                 self.write(common.qname(*names))
 
+    def visit_ExprOutputVar(self, node: pgast.ExprOutputVar) -> None:
+        self.visit(node.expr)
+
     def visit_ColumnDef(self, node: pgast.ColumnDef) -> None:
         self.write(common.quote_ident(node.name))
         if node.typename:

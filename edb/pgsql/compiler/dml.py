@@ -560,22 +560,13 @@ def process_insert_body(
     values = select.target_list
 
     # The main INSERT query of this statement will always be
-    # present to insert at least the `id` and `__type__`
-    # properties.
+    # present to insert at least the `id` property.
     insert_stmt = insert_cte.query
     assert isinstance(insert_stmt, pgast.InsertStmt)
 
     typeref = ir_stmt.subject.typeref
     if typeref.material_type is not None:
         typeref = typeref.material_type
-
-    type_val = pgast.TypeCast(
-        arg=pgast.StringConstant(val=str(typeref.id)),
-        type_name=pgast.TypeName(name=('uuid',)),
-    )
-    values.append(
-        pgast.ResTarget(name='__type__', val=type_val)
-    )
 
     # Handle an UNLESS CONFLICT if we need it
 
@@ -628,7 +619,7 @@ def process_insert_body(
         if ret := ptr_map.get(rptr.real_material_ptr):
             return ret
         if rptr.real_material_ptr.shortname.name == '__type__':
-            return type_val
+            return astutils.compile_typeref(typeref)
         # Properties that aren't specified are {}
         return pgast.NullConstant()
 
