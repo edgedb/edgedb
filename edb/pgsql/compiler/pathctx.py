@@ -282,18 +282,8 @@ def get_path_var(
 
     source_rel = rel_rvar.query
 
-    if isinstance(ptrref, irast.PointerRef) and rel_rvar.typeref is not None:
-        assert ptrref_dir
-        actual_ptrref = irtyputils.maybe_find_actual_ptrref(
-            rel_rvar.typeref, ptrref, dir=ptrref_dir)
-
-        if actual_ptrref is not None:
-            ptr_info = pg_types.get_ptrref_storage_info(
-                actual_ptrref, resolve_type=False, link_bias=False)
-
     outvar = get_path_output(
-        source_rel, path_id, ptr_info=ptr_info,
-        aspect=aspect, flavor=flavor, env=env)
+        source_rel, path_id, aspect=aspect, flavor=flavor, env=env)
 
     var = astutils.get_rvar_var(rel_rvar, outvar)
     put_path_var(rel, path_id, var, aspect=aspect, flavor=flavor, env=env)
@@ -571,7 +561,8 @@ def is_relation_rvar(
 
 
 def is_terminal_relation(
-        rel: pgast.BaseRelation) -> bool:
+    rel: pgast.BaseRelation
+) -> TypeGuard[pgast.Relation | pgast.NullRelation]:
     return isinstance(rel, (pgast.Relation, pgast.NullRelation))
 
 
@@ -715,40 +706,8 @@ def get_rvar_path_var(
         flavor: str='normal',
         env: context.Environment) -> pgast.OutputVar:
     """Return ColumnRef for a given *path_id* in a given *range var*."""
-
-    if (path_id, aspect) in (outs := rvar.query.get_path_outputs(flavor)):
-        outvar = outs[path_id, aspect]
-    elif is_relation_rvar(rvar):
-        assert flavor == 'normal'
-        ptr_si: Optional[pg_types.PointerStorageInfo]
-        if (
-            (rptr := path_id.rptr()) is not None
-            and rvar.typeref is not None
-            and rvar.query.path_id
-            and rvar.query.path_id != path_id
-            and (not rvar.query.path_id.is_type_intersection_path()
-                 or rvar.query.path_id.src_path() != path_id)
-        ):
-            ptrref_dir = path_id.rptr_dir()
-            assert ptrref_dir
-            actual_rptr = irtyputils.maybe_find_actual_ptrref(
-                rvar.typeref, rptr, dir=ptrref_dir
-            )
-            if actual_rptr is not None:
-                ptr_si = pg_types.get_ptrref_storage_info(actual_rptr)
-            else:
-                ptr_si = None
-        else:
-            ptr_si = None
-
-        outvar = _get_rel_path_output(
-            rvar.query, path_id, ptr_info=ptr_si,
-            aspect=aspect, flavor=flavor, env=env)
-    else:
-        # Range is another query.
-        outvar = get_path_output(
-            rvar.query, path_id, aspect=aspect, flavor=flavor, env=env)
-
+    outvar = get_path_output(
+        rvar.query, path_id, aspect=aspect, flavor=flavor, env=env)
     return astutils.get_rvar_var(rvar, outvar)
 
 
@@ -935,7 +894,6 @@ def _put_path_output_var(
 def _get_rel_object_id_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str,
-        ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> pgast.OutputVar:
 
     var = rel.path_outputs.get((path_id, aspect))
@@ -964,10 +922,9 @@ def _get_rel_object_id_output(
 
 
 def _get_rel_path_output(
-        rel: pgast.BaseRelation, path_id: irast.PathId, *,
+        rel: pgast.Relation | pgast.NullRelation, path_id: irast.PathId, *,
         aspect: str,
         flavor: str,
-        ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         env: context.Environment) -> pgast.OutputVar:
 
     if path_id.is_objtype_path():
@@ -997,8 +954,24 @@ def _get_rel_path_output(
     if var is not None:
         return var
 
-    ptrref = path_id.rptr()
+    # The ptrref from the path id may be from a super type of the
+    # actual type this relation corresponds to. We know the relation's
+    # type, so find the real ptrref that corresponds to the current
+    # type (since the column names will be different in the parent
+    # and child tables).
     rptr_dir = path_id.rptr_dir()
+    ptrref = path_id.rptr()
+    if isinstance(ptrref, irast.PointerRef) and rel.typeref is not None:
+        assert rptr_dir
+        actual_ptrref = irtyputils.maybe_find_actual_ptrref(
+            rel.typeref, ptrref, dir=rptr_dir)
+        if actual_ptrref:
+            ptrref = actual_ptrref
+
+    ptr_info = None
+    if ptrref:
+        ptr_info = pg_types.get_ptrref_storage_info(
+            ptrref, resolve_type=False, link_bias=False)
 
     if (rptr_dir is not None and
             rptr_dir != s_pointers.PointerDirection.Outbound):
@@ -1029,16 +1002,12 @@ def _get_rel_path_output(
         rel.target_list.append(pgast.ResTarget(name=name, val=val))
         result = pgast.ColumnRef(name=[name], nullable=True)
     else:
-        if ptrref is None:
+        if ptrref is None or ptr_info is None:
             raise ValueError(
                 f'could not resolve trailing pointer class for {path_id}')
 
         if ptrref.is_computable:
             raise LookupError("can't lookup computable ptrref")
-
-        if ptr_info is None:
-            ptr_info = pg_types.get_ptrref_storage_info(
-                ptrref, resolve_type=False, link_bias=False)
 
         # Refuse to try to access a link table when we are actually
         # looking at an object rel. This check is needed because
@@ -1051,6 +1020,7 @@ def _get_rel_path_output(
         result = pgast.ColumnRef(
             name=[ptr_info.column_name],
             nullable=not ptrref.required)
+
     _put_path_output_var(rel, path_id, aspect, result, flavor=flavor, env=env)
     return result
 
@@ -1080,7 +1050,6 @@ def get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str, allow_nullable: bool=True,
         disable_output_fusion: bool=False,
-        ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         flavor: str='normal',
         env: context.Environment) -> pgast.OutputVar:
 
@@ -1089,7 +1058,7 @@ def get_path_output(
 
     return _get_path_output(rel, path_id=path_id, aspect=aspect,
                             disable_output_fusion=disable_output_fusion,
-                            ptr_info=ptr_info, allow_nullable=allow_nullable,
+                            allow_nullable=allow_nullable,
                             flavor=flavor,
                             env=env)
 
@@ -1098,7 +1067,6 @@ def _get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str, allow_nullable: bool=True,
         disable_output_fusion: bool=False,
-        ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         flavor: str,
         env: context.Environment) -> pgast.OutputVar:
 
@@ -1130,14 +1098,14 @@ def _get_path_output(
         id_output = maybe_get_path_output(rel, src_path_id,
                                           aspect='value',
                                           allow_nullable=allow_nullable,
-                                          ptr_info=ptr_info, env=env)
+                                          env=env)
         if id_output is not None:
             _put_path_output_var(rel, path_id, aspect, id_output, env=env)
             return id_output
 
     if is_terminal_relation(rel):
-        return _get_rel_path_output(rel, path_id, aspect=aspect, flavor=flavor,
-                                    ptr_info=ptr_info, env=env)
+        return _get_rel_path_output(
+            rel, path_id, aspect=aspect, flavor=flavor, env=env)
 
     assert isinstance(rel, pgast.Query)
     if is_values_relation(rel) and aspect != 'identity':
@@ -1265,15 +1233,13 @@ def maybe_get_path_output(
         rel: pgast.BaseRelation, path_id: irast.PathId, *,
         aspect: str, allow_nullable: bool=True,
         disable_output_fusion: bool=False,
-        ptr_info: Optional[pg_types.PointerStorageInfo]=None,
         flavor: str='normal',
         env: context.Environment) -> Optional[pgast.OutputVar]:
     try:
         return get_path_output(rel, path_id=path_id, aspect=aspect,
                                allow_nullable=allow_nullable,
                                disable_output_fusion=disable_output_fusion,
-                               flavor=flavor,
-                               ptr_info=ptr_info, env=env)
+                               flavor=flavor, env=env)
     except LookupError:
         return None
 
