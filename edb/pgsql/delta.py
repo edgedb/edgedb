@@ -5253,6 +5253,11 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                 (default := prop.get_default(schema))
                 and not prop.is_pure_computable(schema)
                 and not fills_required
+                # link properties use SQL defaults and shouldn't need
+                # us to do it explicitly (which is good, since
+                # _alter_pointer_optionality doesn't currently work on
+                # linkprops)
+                and not prop.is_link_property(schema)
             ):
                 self._alter_pointer_optionality(
                     schema, schema, context, fill_expr=default)
