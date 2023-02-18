@@ -88,7 +88,8 @@ std::assert(
     SELECT (
         edgedb.raise_on_null(
             nullif("input", false),
-            'assert_failure',
+            'cardinality_violation',
+            "constraint" => 'std::assert',
             msg => coalesce("message", 'assertion failed')
         )
     )

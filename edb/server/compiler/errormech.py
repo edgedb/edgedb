@@ -93,7 +93,6 @@ directly_mappable = {
     pgerrors.ERROR_INSUFFICIENT_PRIVILEGE: errors.AccessPolicyError,
     pgerrors.ERROR_PROGRAM_LIMIT_EXCEEDED: errors.InvalidValueError,
     pgerrors.ERROR_DATA_EXCEPTION: errors.InvalidValueError,
-    pgerrors.ASSERT_FAILURE: errors.QueryAssertionError,
 }
 
 
@@ -386,6 +385,9 @@ def _static_interpret_cardinality_violation(_code, err_details):
 
     elif err_details.constraint_name == 'std::assert_distinct':
         return errors.ConstraintViolationError(err_details.message)
+
+    elif err_details.constraint_name == 'std::assert':
+        return errors.QueryAssertionError(err_details.message)
 
     elif err_details.constraint_name == 'set abstract':
         return errors.ConstraintViolationError(err_details.message)
