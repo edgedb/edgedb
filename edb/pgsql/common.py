@@ -242,6 +242,10 @@ def get_aspect_suffix(aspect):
         return aspect
 
 
+def is_inhview_name(name: str) -> bool:
+    return name.endswith('_t')
+
+
 def get_objtype_backend_name(
     id: uuid.UUID,
     module_name: str,

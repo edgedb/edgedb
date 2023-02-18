@@ -126,6 +126,15 @@ def parse_capabilities_header(value: bytes) -> uint64_t:
     return mask
 
 
+def parse_catalog_version_header(value: bytes) -> uint64_t:
+    if len(value) != 8:
+        raise errors.BinaryProtocolError(
+            f'catalog version header must be exactly 8 bytes (got {len(value)})'
+        )
+    cdef uint64_t catver = hton.unpack_uint64(cpython.PyBytes_AS_STRING(value))
+    return catver
+
+
 cdef inline bint parse_boolean(value: bytes, header: str):
     cdef bytes lower = value.lower()
     if lower == b'true':
@@ -1322,11 +1331,14 @@ cdef class EdgeConnection(frontend.FrontendConnection):
 
             msg_buf = WriteBuffer.new_message(b'@')
 
-            msg_buf.write_int16(3)  # number of headers
+            msg_buf.write_int16(4)  # number of headers
             msg_buf.write_int16(DUMP_HEADER_BLOCK_TYPE)
             msg_buf.write_len_prefixed_bytes(DUMP_HEADER_BLOCK_TYPE_INFO)
             msg_buf.write_int16(DUMP_HEADER_SERVER_VER)
             msg_buf.write_len_prefixed_utf8(str(buildmeta.get_version()))
+            msg_buf.write_int16(DUMP_HEADER_SERVER_CATALOG_VERSION)
+            msg_buf.write_int32(8)
+            msg_buf.write_int64(buildmeta.EDGEDB_CATALOG_VERSION)
             msg_buf.write_int16(DUMP_HEADER_SERVER_TIME)
             msg_buf.write_len_prefixed_utf8(str(int(time.time())))
 
@@ -1468,12 +1480,15 @@ cdef class EdgeConnection(frontend.FrontendConnection):
         user_schema = _dbview.get_user_schema()
 
         dump_server_ver_str = None
+        cat_ver = None
         headers_num = self.buffer.read_int16()
         for _ in range(headers_num):
             hdrname = self.buffer.read_int16()
             hdrval = self.buffer.read_len_prefixed_bytes()
             if hdrname == DUMP_HEADER_SERVER_VER:
                 dump_server_ver_str = hdrval.decode('utf-8')
+            if hdrname == DUMP_HEADER_SERVER_CATALOG_VERSION:
+                cat_ver = parse_catalog_version_header(hdrval)
 
         proto_major = self.buffer.read_int16()
         proto_minor = self.buffer.read_int16()
@@ -1532,6 +1547,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                     user_schema,
                     global_schema,
                     dump_server_ver_str,
+                    cat_ver,
                     schema_ddl,
                     schema_ids,
                     blocks,

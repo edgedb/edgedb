@@ -127,6 +127,22 @@ class OutputVar(ImmutableBaseExpr):
     is_packed_multi: bool = False
 
 
+class ExprOutputVar(OutputVar):
+    """A "fake" output var representing a wrapped BaseExpr.
+
+    In some obscure cases (specifically, returning __type__ from a
+    non-view base relation that doesn't actually contain it), we need
+    to return a non output var value from something expecting
+    OutputVar.
+
+    Instead of fully blowing away the type discipline of OutputVar
+    and making everything operate on BaseExpr, we require such expressions
+    to be explicitly wrapped.
+    """
+
+    expr: BaseExpr
+
+
 class EdgeQLPathInfo(Base):
     """A general mixin providing EdgeQL-specific metadata on certain nodes."""
 

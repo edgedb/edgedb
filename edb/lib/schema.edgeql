@@ -409,6 +409,11 @@ CREATE TYPE schema::ObjectType
 
 
 ALTER TYPE std::BaseObject {
+    # N.B: Since __type__ is uniquely determined by the type of the
+    # source object, as a special-case optimization we do not actually
+    # store it in the database. Instead, we inject it into the views
+    # we use to implement inheritance and inject it in the compiler
+    # when operating on tables directly.
     CREATE REQUIRED LINK __type__ -> schema::ObjectType {
         SET readonly := True;
     };

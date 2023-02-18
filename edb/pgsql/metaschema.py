@@ -5134,9 +5134,14 @@ def _generate_schema_alias_view(
         if psi.table_type == expected_tt:
             ptr_name = ptr.get_shortname(schema).name
             col_name = psi.column_name
+            if col_name == '__type__':
+                val = f'{ql(str(obj.id))}::uuid'
+            else:
+                val = f'{qi(col_name)}'
+
             if col_name != ptr_name:
-                targets.append(f'{qi(col_name)} AS {qi(ptr_name)}')
-            targets.append(f'{qi(col_name)} AS {qi(col_name)}')
+                targets.append(f'{val} AS {qi(ptr_name)}')
+            targets.append(f'{val} AS {qi(col_name)}')
 
     prefix = module.capitalize()
 
