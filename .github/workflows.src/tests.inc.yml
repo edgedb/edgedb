@@ -211,7 +211,12 @@
         CACHE_HIT: ${{ steps.parsers-cache.outputs.cache-hit }}
       run: |
         if [[ "$CACHE_HIT" != "true" ]]; then
-          python setup.py -v build_parsers --inplace
+          rm -rf ${BUILD_LIB}
+          mkdir -p ./build/lib
+          rsync -av ./build/lib/ ${BUILD_LIB}/
+          python setup.py -v build_parsers
+          rsync -av ${BUILD_LIB}/ ./build/lib/
+          rm -rf ${BUILD_LIB}
         fi
         rsync -av ./build/lib/edb/ ./edb/
 

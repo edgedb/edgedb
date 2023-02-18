@@ -839,6 +839,7 @@ class build_parsers(setuptools.Command):
 
     def run(self, *args, **kwargs):
         for src, dst in zip(self.sources, self.get_outputs()):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
             spec_mod = importlib.import_module(src)
             parsing.Spec(spec_mod, pickleFile=dst, verbose=True)
 
