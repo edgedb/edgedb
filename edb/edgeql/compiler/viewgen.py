@@ -422,7 +422,7 @@ def _process_view(
     rewrite_kind = (
         qltypes.RewriteKind.Insert
         if s_ctx.exprtype.is_insert()
-        else qltypes.RewriteKind.Insert
+        else qltypes.RewriteKind.Update
         if s_ctx.exprtype.is_update()
         else None
     )
@@ -816,31 +816,42 @@ def _apply_rewrites(
     ir_set: irast.Set,
     stype: s_objtypes.ObjectType,
     s_ctx: ShapeContext,
-) -> List[Tuple[s_pointers.Pointer, irast.Set | None]]:
-    result: List[Tuple[s_pointers.Pointer, irast.Set | None]] = []
-
+) -> None:
     ctx = s_ctx.ctx
     path_id = ir_set.path_id
     scls_pointers = stype.get_pointers(ctx.env.schema)
 
     # init set that will be used for __subject__
-    subject_path = irast.PathId.from_type(
+    subject_path_id = irast.PathId.from_type(
         ctx.env.schema,
         stype,
         typename=sn.QualName(module="__derived__", name="__subject__"),
     )
-    subject_set = irast.Set(
-        path_id=subject_path,
-        typeref=subject_path.target,
-        shape=tuple(
-            [
-                (ptr_set.target_set, qlast.ShapeOp.ASSIGN)
-                for ptr_set in pointers.values()
-                if ptr_set.target_set
-            ]
-        ),
+    subject_pointers: Dict[str, irast.Set] = {}
+    for pn, ptr in scls_pointers.items(ctx.env.schema):
+        if ptr.is_protected_pointer(ctx.env.schema):
+            continue
+
+        # TODO: this uses linear time for a basic lookup
+        val = next((v.target_set for p, v in pointers.items() if p.get_nearest_non_derived_parent(ctx.env.schema) == ptr), None)
+
+        if not val:
+            ppath_id = irast.PathId.from_pointer(ctx.env.schema, ptr)
+            empty_set = irast.EmptySet(
+                path_id = ppath_id,
+                typeref = ppath_id.target,
+            )
+            ptype = ptr.get_target(ctx.env.schema)
+            assert ptype
+            ctx.env.set_types[empty_set] = ptype
+            val = setgen.ensure_set(empty_set, type_override=ptype, ctx=ctx)
+
+        subject_pointers[pn.name] = val
+    subject_set = irast.ComputedObjectSet(
+        path_id=subject_path_id,
+        typeref=subject_path_id.target,
+        computed_pointers=subject_pointers
     )
-    ctx.env.set_types[subject_set] = stype
 
     # init reference to std::bool
     bool_type = ctx.env.schema.get("std::bool", type=s_types.Type)
@@ -851,34 +862,25 @@ def _apply_rewrites(
     )
 
     # init set that will be used for __specified__
-    specified_path = irast.PathId.from_type(
+    specified_path_id = irast.PathId.from_type(
         ctx.env.schema,
-        stype,  # TODO: what's the type of this? named tuple?
+        stype,
         typename=sn.QualName(module="__derived__", name="__specified__"),
     )
-    specified_set = irast.Set(
-        path_id=specified_path,
-        typeref=specified_path.target,
-        expr=irast.Tuple(
-            named=True,
-            typeref=specified_path.target,
-            elements=[
-                irast.TupleElement(
-                    name=pn.name,
-                    val=irast.Set(
-                        path_id=bool_path,
-                        typeref=bool_path.target,
-                        expr=irast.BooleanConstant(
-                            value="true" if pn in specified_ptrs else "false",
-                            typeref=bool_path.target,
-                        ),
-                    ),
-                )
-                for pn, _ in scls_pointers.items(ctx.env.schema)
-            ],
-        ),
+    specified_pointers: Dict[str, irast.Set] = {}
+    for pn, _ in scls_pointers.items(ctx.env.schema):
+        specified_pointers[pn.name] = setgen.ensure_set(
+            irast.BooleanConstant(
+                value="true" if pn in specified_ptrs else "false",
+                typeref=bool_path.target,
+            ),
+            ctx=ctx
+        )
+    specified_set = irast.ComputedObjectSet(
+        path_id=specified_path_id,
+        typeref=specified_path_id.target,
+        computed_pointers=specified_pointers
     )
-    ctx.env.set_types[specified_set] = stype
 
     for _, ptrcls in scls_pointers.items(ctx.env.schema):
         rewrite = ptrcls.get_rewrite(ctx.env.schema, rewrite_kind)
@@ -896,9 +898,11 @@ def _apply_rewrites(
             scopectx.anchors["__subject__"] = subject_set
             scopectx.partial_path_prefix = subject_set
 
-            # scopectx.env.path_scope.attach_path(subject_set.path_id, context=None)
+            scopectx.env.path_scope.attach_path(
+                subject_set.path_id, context=None
+            )
             scopectx.env.singletons.append(subject_set.path_id)
-            # scopectx.iterator_path_ids |= {subject_set.path_id}
+            ctx.path_scope.factoring_allowlist.add(subject_set.path_id)
 
             s_scopectx = dataclasses.replace(s_ctx, ctx=scopectx)
 
@@ -936,7 +940,6 @@ def _apply_rewrites(
                 pointer, ptr_set, qlast.ShapeOrigin.DEFAULT
             )
 
-    return result
 
 def _maybe_fixup_lprop(
     path_id: irast.PathId,

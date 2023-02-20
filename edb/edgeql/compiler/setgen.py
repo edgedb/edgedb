@@ -430,6 +430,14 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         'a non-link object',
                         context=step.context,
                     )
+            elif isinstance(path_tip, irast.ComputedObjectSet):
+
+                # TODO: check that computed_pointers contains the pointer
+
+                path_tip = path_tip.computed_pointers[step.ptr.name]
+
+                continue
+
             else:
                 source = get_set_type(path_tip, ctx=ctx)
 
