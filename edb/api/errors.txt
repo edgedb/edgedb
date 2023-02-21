@@ -116,6 +116,7 @@
 0x_05_01_00_01   DivisionByZeroError
 0x_05_01_00_02   NumericOutOfRangeError
 0x_05_01_00_03   AccessPolicyError
+0x_05_01_00_04   QueryAssertionError
 
 0x_05_02_00_00   IntegrityError
 0x_05_02_00_01   ConstraintViolationError

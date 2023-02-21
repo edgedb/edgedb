@@ -25,6 +25,7 @@ import typing
 
 import edgedb
 
+from edb import errors
 from edb.common import assert_data_shape
 from edb.testbase import server as tb
 from edb.tools import test
@@ -8170,6 +8171,182 @@ aa \
                 single foo := assert_distinct(.name)
             }
         """)
+
+    async def test_edgeql_assert_00(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "assertion failed",
+        ):
+            # TODO: We don't have edgedb.QueryAssertionError in the
+            # python bindings yet, so check the _code on the exception
+            try:
+                await self.con.query("""SELECT assert(false)""")
+            except edgedb.InvalidValueError as e:
+                self.assertEqual(e._code, errors.QueryAssertionError._code)
+                raise
+
+    async def test_edgeql_assert_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "custom message",
+        ):
+            await self.con.query("""
+                SELECT assert(<bool>$0, message := "custom message")
+            """, False)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "assertion failed",
+        ):
+            await self.con.query("""
+                SELECT assert(<bool>$0)
+            """, False)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "assertion failed",
+        ):
+            await self.con.query("""
+                SELECT assert(<bool>$0, message := <optional str>$1)
+            """, False, None)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "test",
+        ):
+            await self.con.query("""
+                SELECT assert(<bool>$0, message := <optional str>$1)
+            """, False, "test")
+
+        await self.assert_query_result(
+            r'''
+                SELECT assert(<bool>$0)
+            ''',
+            [True],
+            variables=(True,),
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT assert(<optional bool>$0)
+            ''',
+            [],
+            variables=(None,),
+        )
+
+    async def test_edgeql_assert_02(self):
+        await self.con.execute("""
+            INSERT File {
+                name := "File 1",
+            };
+            INSERT File {
+                name := "File 2",
+            };
+            INSERT File {
+                name := "Asdf 3",
+            };
+            INSERT User {
+                name := "User 1",
+            };
+            INSERT Status {
+                name := "Open",
+            };
+
+            CREATE TYPE Dummy;
+        """)
+
+        # assert about object contents using order by
+        await self.assert_query_result(
+            r'''
+                select File { name }
+                filter .name like 'File%'
+                order by .name
+                then assert(not .name like '%3', message := "bogus " ++ .name);
+            ''',
+            [{"name": "File 1"}, {"name": "File 2"}],
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "bogus File 2",
+        ):
+            await self.con.query("""
+                select File { name }
+                filter .name like 'File%'
+                order by .name
+                then assert(not .name like '%2', message := "bogus " ++ .name);
+            """)
+
+        # Force an assert for non-empty query with a FOR loop
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "assertion failed",
+        ):
+            await self.con.query("""
+                for _ in assert(count(File) = 2) union (
+                    select User filter .name = 'User 1'
+                )
+            """)
+
+        # Force an assert for an obviously empty query by wrapping it
+        # in a shape
+        shape_assert_q = """
+            select { val := (select 1 filter <bool>$0) }
+            filter assert(count(File) = <int64>$1);
+        """
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "assertion failed",
+        ):
+            await self.con.query(shape_assert_q, True, 2)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "assertion failed",
+        ):
+            await self.con.query(shape_assert_q, False, 2)
+
+        await self.assert_query_result(
+            shape_assert_q,
+            [{'val': 1}],
+            variables=(True, 3),
+        )
+        await self.assert_query_result(
+            shape_assert_q,
+            [{'val': None}],
+            variables=(False, 3),
+        )
+
+        # Force an assert for an obviously empty query using fake DML
+        fake_dml_q = """
+        with cond := assert(count(File) = <int64>$1),
+             _  := (for _ in (select 0 filter not cond) union (insert Dummy)),
+        select 1 filter <bool>$0
+        """
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "assertion failed",
+        ):
+            await self.con.query(fake_dml_q, True, 2)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "assertion failed",
+        ):
+            await self.con.query(fake_dml_q, False, 2)
+
+        await self.assert_query_result(
+            fake_dml_q,
+            [1],
+            variables=(True, 3),
+        )
+        await self.assert_query_result(
+            fake_dml_q,
+            [],
+            variables=(False, 3),
+        )
 
     async def test_edgeql_introspect_without_shape(self):
         await self.assert_query_result(
