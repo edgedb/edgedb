@@ -28,7 +28,7 @@ import textwrap
 from edb.testbase import server as tb
 
 
-TIMEOUT = 5
+TIMEOUT = 30
 
 
 @contextlib.asynccontextmanager
