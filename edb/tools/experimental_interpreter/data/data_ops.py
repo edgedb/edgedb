@@ -30,7 +30,7 @@ Label =  StrLabel | LinkPropLabel
 
 @dataclass(frozen=True)
 class ObjectTp:
-    val : Dict[str, ResulTp]
+    val : Dict[str, ResultTp]
 
 @dataclass(frozen=True)
 class StrTp:
@@ -72,6 +72,12 @@ class UnnamedTupleTp:
 @dataclass(frozen=True)
 class ArrayTp:
     tp : Tp
+
+@dataclass(frozen=True)
+class UnionTp:
+    left : Tp
+    right : Tp
+
 
 Tp = ObjectTp | PrimTp | VarTp | NamedTupleTp | UnnamedTupleTp | ArrayTp
 
@@ -211,7 +217,7 @@ CardAtMostOne = CMMode(Fin(0),Fin(1))
 CardAtLeastOne = CMMode(Fin(1), Inf())
 CardAny = CMMode(Fin(0), Inf())
 
-ResulTp = Tuple[Tp, CMMode]
+ResultTp = Tuple[Tp, CMMode]
 
 
 ### DEFINE PARAMETER MODIFIERS
@@ -233,7 +239,7 @@ ParamModifier = ParamSingleton | ParamOptional | ParamSetOf
 @dataclass(frozen=True)
 class FunArgRetType:
     args_tp : List[Tp]
-    ret_tp : ResulTp
+    ret_tp : ResultTp
 
 @dataclass(frozen=True)
 class FunType:
@@ -482,7 +488,7 @@ class BuiltinFuncDef():
 @dataclass(frozen=True)
 class DBSchema: 
     val : Dict[str, ObjectTp]
-    fun_defs : Dict[str, BuiltinFuncDef] # list of definitions to support overloading
+    fun_defs : Dict[str, BuiltinFuncDef] 
     
 
 def empty_db():

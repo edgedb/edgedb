@@ -213,11 +213,20 @@ def elab_BinOp(binop : qlast.BinOp) -> FunAppExpr | UnionExpr:
     else:
         return FunAppExpr(fun=binop.op, args=[left_expr, right_expr], overloading_index=None)
 
+def elab_single_type_str(name : str) -> Tp:
+    match name:
+        case "str":
+            return StrTp()
+        case "datetime":
+            return DateTimeTp()
+        case "json":
+            return JsonTp()
+        case _:
+            return VarTp(name)
+
 @elab.register(qlast.TypeName)
 def elab_TypeName(qle : qlast.TypeName) -> Tp:
     if qle.name:
-        return elab_not_implemented(qle)
-    if qle.subtypes:
         return elab_not_implemented(qle)
     if qle.dimensions:
         return elab_not_implemented(qle)
@@ -226,17 +235,27 @@ def elab_TypeName(qle : qlast.TypeName) -> Tp:
         return elab_not_implemented(qle)
     if basetp.itemclass:
         return elab_not_implemented(qle)
-    match basetp.name:
-        case "str":
-            return StrTp()
-        case "datetime":
-            return DateTimeTp()
-        case "json":
-            return JsonTp()
-        case _:
-            return VarTp(basetp.name)
+    if qle.subtypes:
+        match (basetp.name, qle.subtypes):
+            case ("array", [single_arg]):
+                return ArrayTp(tp=elab_single_type_expr(single_arg))
+        return elab_not_implemented(qle)
+    return elab_single_type_str(basetp.name)
             # raise ValueError("Unrecognized conversion type", basetp.name)
             # return elab_not_implemented(basetp, "unrecognized type " + basetp.name)
+
+def elab_single_type_expr(typedef : qlast.TypeExpr) -> Tp:
+    """ elaborates the target type of a concrete unknown pointer, i.e. links or properties"""
+    if isinstance(typedef, qlast.TypeName):
+        return elab_TypeName(typedef)
+    else:
+        match typedef:
+            case qlast.TypeOp(left=left_type, op=op_name, right=right_type):
+                if op_name == "|":
+                    return UnionTp(left=elab_single_type_expr(left_type), right=elab_single_type_expr(right_type))
+                else:
+                    raise ValueError("Unknown Type Op")
+        raise ValueError("MATCH")
 
 @elab.register(qlast.TypeCast)
 def elab_TypeCast(qle : qlast.TypeCast) -> TypeCastExpr:
