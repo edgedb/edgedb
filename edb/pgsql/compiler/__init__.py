@@ -30,6 +30,7 @@ from edb.ir import ast as irast
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import codegen as pgcodegen
+from edb.pgsql import debug as pgdebug
 from edb.pgsql import params as pgparams
 
 from . import config as _config_compiler  # NOQA
@@ -193,6 +194,11 @@ def compile_ir_to_sql(
     ):
         debug.header('Reordered SQL')
         debug_sql_text = run_codegen(qtree, pretty=True, reordered=True)
+        if isinstance(ir_expr, irast.Statement):
+            # Rewrite uuids back into something approximating
+            # readable object names.
+            debug_sql_text = pgdebug.rewrite_names_in_sql(
+                debug_sql_text, ir_expr.schema)
         debug.dump_code(debug_sql_text, lexer='sql')
 
     return sql_text, argmap
