@@ -55,3 +55,47 @@ class TestRewrites(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_rewrites_02(self):
+        await self.con.execute('''
+            alter type Content {
+              create property updated_at -> str {
+                create rewrite update using ('just now');
+              };
+            };
+        ''')
+
+        await self.con.execute('insert Movie { title:= "The Godfather" }')
+        await self.assert_query_result(
+            'select Movie { title, updated_at }',
+            [
+                { "title": "The Godfather", "updated_at": None }
+            ]
+        )
+
+        await self.con.execute('update Movie set { title:= "The Godfather II" }')
+        await self.assert_query_result(
+            'select Movie { title, updated_at }',
+            [
+                { "title": "The Godfather II", "updated_at": "just now" }
+            ]
+        )
+
+    async def test_edgeql_rewrites_03(self):
+        await self.con.execute('''
+            alter type Movie {
+              create property title -> str {
+                create rewrite update using (.title ++ ' - updated');
+              };
+            };
+        ''')
+
+        await self.con.execute('insert Movie { title:= "The Godfather" }')
+        await self.con.execute('update Movie set { title:= "Whiplash" }')
+        await self.assert_query_result(
+            'select Movie { title, updated_at }',
+            [
+                { "title": "Whiplash - updated" }
+            ]
+        )
+
+
