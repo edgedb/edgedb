@@ -1329,3 +1329,19 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 }
             ]),
         )
+
+    async def test_edgeql_group_uses_name_01(self):
+        # Make sure that our crappy optimizations don't break anything
+        await self.con.query(
+            r'''
+            WITH g := (GROUP cards::Card BY .cost)
+            SELECT g {
+              key: {cost},
+              grouping,
+              elements: {
+                name,
+                multi owners := g.elements.owners { name },
+              }
+            };
+            ''',
+        )

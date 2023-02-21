@@ -152,13 +152,16 @@ def find_parameters(
     return v.params
 
 
-class alias_view(view_patterns.ViewPattern[str], targets=(qlast.Base,)):
+class alias_view(
+    view_patterns.ViewPattern[tuple[str, list[qlast.PathElement]]],
+    targets=(qlast.Base,),
+):
     @staticmethod
-    def match(obj: object) -> str:
+    def match(obj: object) -> tuple[str, list[qlast.PathElement]]:
         match obj:
             case qlast.Path(
-                steps=[qlast.ObjectRef(module=None, name=alias)],
+                steps=[qlast.ObjectRef(module=None, name=alias), *rest],
                 partial=False,
             ):
-                return alias
+                return alias, rest
         raise view_patterns.NoMatch
