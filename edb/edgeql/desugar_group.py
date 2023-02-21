@@ -174,7 +174,7 @@ def _count_alias_uses(
     for child in ast.find_children(node, lambda x: isinstance(x, qlast.Path)):
         match child:
             case qlast.Path(steps=[
-                qlast.ObjectRef(module=None, name=alias2)
+                qlast.ObjectRef(module=None, name=alias2), *_,
             ]) if alias == alias2:
                 uses += 1
     return uses
