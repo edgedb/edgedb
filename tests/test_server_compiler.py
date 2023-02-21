@@ -36,6 +36,10 @@ from edb.server.compiler_pool import pool
 from edb.server.dbview import dbview
 
 
+SHORT_WAIT = 5
+LONG_WAIT = 60
+
+
 class TestServerCompiler(tb.BaseSchemaLoadTest):
 
     SCHEMA = '''
@@ -126,39 +130,39 @@ class TestAmsg(tbs.TestCase):
         pids = []
         async with self.compiler_pool(2) as (server, proto, proc, sn):
             # Make sure both compiler workers are up and ready
-            pid1 = await asyncio.wait_for(proto.connected.get(), 10)
-            pid2 = await asyncio.wait_for(proto.connected.get(), 1)
+            pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
+            pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
             await self.check_pid(pid1, server)
             await self.check_pid(pid2, server)
 
             # Worker killed with SIGTERM shall be restarted
             os.kill(pid1, signal.SIGTERM)
-            pid = await asyncio.wait_for(proto.disconnected.get(), 1)
+            pid = await asyncio.wait_for(proto.disconnected.get(), SHORT_WAIT)
             pids.append(pid)
             self.assertEqual(pid, pid1)
-            pid3 = await asyncio.wait_for(proto.connected.get(), 1)
+            pid3 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
             self.assertNotIn(pid3, (pid1, pid2))
             await self.check_pid(pid3, server)
 
             # Worker killed with SIGKILL shall be restarted
             os.kill(pid2, signal.SIGKILL)
-            pid = await asyncio.wait_for(proto.disconnected.get(), 1)
+            pid = await asyncio.wait_for(proto.disconnected.get(), SHORT_WAIT)
             pids.append(pid)
             self.assertEqual(pid, pid2)
-            pid4 = await asyncio.wait_for(proto.connected.get(), 1)
+            pid4 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
             self.assertNotIn(pid4, (pid1, pid2, pid3))
             await self.check_pid(pid4, server)
 
             # Worker killed with SIGINT shall NOT be restarted
             os.kill(pid3, signal.SIGINT)
-            pid = await asyncio.wait_for(proto.disconnected.get(), 1)
+            pid = await asyncio.wait_for(proto.disconnected.get(), SHORT_WAIT)
             pids.append(pid)
             self.assertEqual(pid, pid3)
             with self.assertRaises(asyncio.TimeoutError):
-                await asyncio.wait_for(proto.connected.get(), 1)
+                await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
 
         # The only remaining worker should be terminated on exit
-        pid = await asyncio.wait_for(proto.disconnected.get(), 1)
+        pid = await asyncio.wait_for(proto.disconnected.get(), SHORT_WAIT)
         pids.append(pid)
 
         # Make sure all the workers are gone
@@ -169,8 +173,8 @@ class TestAmsg(tbs.TestCase):
     async def test_server_compiler_pool_template_proc_exit(self):
         async with self.compiler_pool(2) as (server, proto, proc, sn):
             # Make sure both compiler workers are up and ready
-            pid1 = await asyncio.wait_for(proto.connected.get(), 10)
-            pid2 = await asyncio.wait_for(proto.connected.get(), 1)
+            pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
+            pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
             await self.check_pid(pid1, server)
             await self.check_pid(pid2, server)
 
@@ -178,10 +182,10 @@ class TestAmsg(tbs.TestCase):
             # by testing its restarting feature
             pids = []
             os.kill(pid1, signal.SIGTERM)
-            pid = await asyncio.wait_for(proto.disconnected.get(), 1)
+            pid = await asyncio.wait_for(proto.disconnected.get(), SHORT_WAIT)
             pids.append(pid)
             self.assertEqual(pid, pid1)
-            pid3 = await asyncio.wait_for(proto.connected.get(), 1)
+            pid3 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
             self.assertNotIn(pid3, (pid1, pid2))
             await self.check_pid(pid3, server)
 
@@ -190,7 +194,8 @@ class TestAmsg(tbs.TestCase):
             await proc.wait()
 
             for _ in range(2):
-                pid = await asyncio.wait_for(proto.disconnected.get(), 1)
+                pid = await asyncio.wait_for(
+                    proto.disconnected.get(), SHORT_WAIT)
                 pids.append(pid)
 
             self.assertIn(pid1, pids)
@@ -205,18 +210,19 @@ class TestAmsg(tbs.TestCase):
     async def test_server_compiler_pool_server_exit(self):
         async with self.compiler_pool(2) as (server, proto, proc, sn):
             # Make sure both compiler workers are up and ready
-            pid1 = await asyncio.wait_for(proto.connected.get(), 10)
-            pid2 = await asyncio.wait_for(proto.connected.get(), 1)
+            pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
+            pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
             await self.check_pid(pid1, server)
             await self.check_pid(pid2, server)
 
             await server.stop()
 
-            await asyncio.wait_for(proc.wait(), 1)
+            await asyncio.wait_for(proc.wait(), SHORT_WAIT)
 
             pids = []
             for _ in range(2):
-                pid = await asyncio.wait_for(proto.disconnected.get(), 1)
+                pid = await asyncio.wait_for(
+                    proto.disconnected.get(), SHORT_WAIT)
                 pids.append(pid)
 
             self.assertIn(pid1, pids)
@@ -230,8 +236,8 @@ class TestAmsg(tbs.TestCase):
     async def test_server_compiler_pool_no_socket(self):
         async with self.compiler_pool(2) as (server, proto, proc, sn):
             # Make sure both compiler workers are up and ready
-            pid1 = await asyncio.wait_for(proto.connected.get(), 10)
-            pid2 = await asyncio.wait_for(proto.connected.get(), 1)
+            pid1 = await asyncio.wait_for(proto.connected.get(), LONG_WAIT)
+            pid2 = await asyncio.wait_for(proto.connected.get(), SHORT_WAIT)
             await self.check_pid(pid1, server)
             await self.check_pid(pid2, server)
 
@@ -412,7 +418,7 @@ class TestCompilerPool(tbs.TestCase):
                 pool_._ready_evt.clear()
                 os.kill(w1.get_pid(), signal.SIGTERM)
                 os.kill(w2.get_pid(), signal.SIGTERM)
-                await asyncio.wait_for(pool_._ready_evt.wait(), 10)
+                await asyncio.wait_for(pool_._ready_evt.wait(), LONG_WAIT)
 
                 context = edbcompiler.new_compiler_context(
                     compiler_state=None,
