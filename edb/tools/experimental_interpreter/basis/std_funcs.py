@@ -12,6 +12,13 @@ def val_is_true(v : Val) -> bool:
         case _:
             raise ValueError("not a boolean")
 
+std_all_tp = FunType(args_mod=[ParamSetOf()], 
+                    args_ret_types=[FunArgRetType(args_tp=[BoolTp()], ret_tp=(BoolTp(), CardOne))])
+def std_all_impl(arg : List[MultiSetVal]) -> MultiSetVal:
+    match arg:
+        case [l1]:
+            return [BoolVal(all(val_is_true(v) for v in l1))]
+    raise FunCallErr()
 
 
 std_any_tp = FunType(args_mod=[ParamSetOf()], 
@@ -63,6 +70,7 @@ def std_enumerate_impl(arg : List[MultiSetVal]) -> MultiSetVal:
 
 
 all_std_funcs : Dict[str, BuiltinFuncDef] = {
+        "std::all" : BuiltinFuncDef(tp=std_all_tp, impl=std_all_impl),
         "std::any" : BuiltinFuncDef(tp=std_any_tp, impl=std_any_impl),
         "std::array_agg" : BuiltinFuncDef(tp=std_array_agg_tp, impl=std_array_agg_impl),
         "std::array_unpack" : BuiltinFuncDef(tp=std_array_unpack_tp, impl=std_array_unpack_impl),

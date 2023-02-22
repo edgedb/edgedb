@@ -40,6 +40,8 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
                 return NamedTupleExpr(val={k : recur(e) for (k,e) in val.items()})
             case ObjectProjExpr(subject=subject, label=label):
                 return ObjectProjExpr(subject=recur(subject), label=label)
+            case LinkPropProjExpr(subject=subject, linkprop=label):
+                return LinkPropProjExpr(subject=recur(subject), linkprop=label)
             case FunAppExpr(fun=fname, args=args, overloading_index = idx):
                 return FunAppExpr(fun=fname, args=[recur(arg) for arg in args], overloading_index=idx)
             case FilterOrderExpr(subject=subject, filter=filter, order=order):
