@@ -1,6 +1,6 @@
 
 from .data.data_ops import *
-from .data.built_in_ops import all_builtin_funcs
+from .basis.built_ins import all_builtin_funcs
 from edb.edgeql import ast as qlast
 from .helper_funcs import parse_sdl
 from edb.common import debug
