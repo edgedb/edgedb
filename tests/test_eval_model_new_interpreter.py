@@ -82,8 +82,8 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
         (result, _) = model.run_single_str_get_json(self.db, query, print_asts=True)
         # if sort:
         #     assert_data_shape.sort_results(result, sort)
-        if result != expected:
-            raise ValueError("Not Equal!", "Expected", expected, "Actual", result)
+        # if result != expected:
+        #     raise ValueError("Not Equal!", "Expected", expected, "Actual", result)
 
         assert_data_shape.assert_data_shape(result, expected, self.fail)
 

@@ -40,7 +40,8 @@ def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print 
     if should_print:
         debug.print(factored)
         # debug.dump(reverse_elab(factored))
-        debug.dump_edgeql(reverse_elab(factored))
+        reverse_elabed = reverse_elab(factored)
+        debug.dump_edgeql(reverse_elabed)
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
 
     config = RTExpr(

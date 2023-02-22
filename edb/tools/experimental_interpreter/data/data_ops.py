@@ -255,11 +255,11 @@ class FunType:
     args_mod : List[ParamModifier] # all (overloaded) args need to have the same modifier
 
 ### DEFINE PRIM VALUES
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class StrVal:
     val : str
 
-@dataclass(frozen=True) 
+@dataclass(frozen=True, order=True) 
 class IntVal:
     val : int
 
@@ -533,3 +533,7 @@ def next_name() -> str:
 
 def ref(id):
     return RefVal(id, {})
+
+OrderLabelSep = "-" # separates components of an order object label
+OrderAscending = "ascending" 
+OrderDescending = "descending" 

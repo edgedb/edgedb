@@ -158,23 +158,24 @@ def elab_BooleanConstant(e : qlast.BooleanConstant) -> BoolVal:
     return BoolVal(val=bool(e.value))
 
 def elab_orderby(qle : List[qlast.SortExpr]) -> BindingExpr:
-    result : List[Expr] = []
+    result : Dict[str, Expr] = {}
 
 
 
-    for sort_expr in qle:
+    for (idx, sort_expr) in enumerate(qle):
         if sort_expr.nones_order is not None:
             raise elab_not_implemented(sort_expr)
 
+        key = (str(idx) + OrderLabelSep + \
+                (OrderAscending if sort_expr.direction == qlast.SortOrder.Asc else
+                OrderDescending if sort_expr.direction == qlast.SortOrder.Desc else
+                elab_error("unknown direction", sort_expr.direction)
+                ))
         elabed_expr = elab(sort_expr.path)
-        if sort_expr.direction == qlast.SortOrder.Asc:
-            result = [*result, elabed_expr, UnnamedTupleExpr([])]
-        elif sort_expr.direction == qlast.SortOrder.Desc:
-            result = [*result, UnnamedTupleExpr([]), elabed_expr]
-        else: 
-            raise elab_not_implemented(sort_expr, "direction not known")
+        result = {**result, key : elabed_expr}
 
-    return abstract_over_expr(UnnamedTupleExpr(result), DEFAULT_HEAD_NAME)
+
+    return abstract_over_expr(ObjectExpr({StrLabel(l): v for (l,v) in result.items()}), DEFAULT_HEAD_NAME)
 
 @elab.register(qlast.SelectQuery)
 def elab_SelectExpr(qle : qlast.SelectQuery) -> Expr:
@@ -187,17 +188,17 @@ def elab_SelectExpr(qle : qlast.SelectQuery) -> Expr:
     else:
         subject_elab = elab(qle.result)
         filter_elab = abstract_over_expr(elab(qle.where), DEFAULT_HEAD_NAME) if qle.where else abstract_over_expr(BoolVal(True))
-        order_elab = elab_orderby(qle.orderby) if qle.orderby else abstract_over_expr(UnnamedTupleExpr([]))
+        order_elab = elab_orderby(qle.orderby) if qle.orderby else abstract_over_expr(ObjectExpr({}))
+        if qle.result_alias is not None:
+            # apply and reabstract the result alias
+            alias_var = FreeVarExpr(qle.result_alias)
+            filter_elab = abstract_over_expr(instantiate_expr(alias_var, filter_elab), qle.result_alias)
+            order_elab = abstract_over_expr(instantiate_expr(alias_var, order_elab), qle.result_alias)
         without_alias = FilterOrderExpr(
-            subject=subject_elab,
-            filter= filter_elab,
-            order= order_elab
-        ) if qle.result_alias is None else WithExpr(bound=
-            subject_elab, next=abstract_over_expr(FilterOrderExpr(
-                subject=FreeVarExpr(qle.result_alias),
+                subject=subject_elab,
                 filter= filter_elab,
                 order= order_elab
-            ), qle.result_alias))
+            ) 
         return elab_aliases(qle.aliases, without_alias)
     
 @elab.register(qlast.FunctionCall)

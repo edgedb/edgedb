@@ -32,15 +32,24 @@ def make_eval_only(data : RTData) -> RTData:
 def eval_error(expr : Val | Expr | List[Val], msg : str ="") -> Any:
     raise ValueError("Eval Error", msg, expr)
 
-def eval_order_by(after_condition : List[Val], orders : List[UnnamedTupleVal]) -> List[Val]:
+def eval_order_by(after_condition : List[Val], orders : List[ObjectVal]) -> List[Val]:
     if len(after_condition) == 0:
         return after_condition
+    if len(orders) == 0:
+        return after_condition
+
+    keys = [ k.label for k in orders[0].val.keys()]
+    sort_specs = sorted([(int(idx), spec) for k in keys for [idx, spec] in [k.split(OrderLabelSep)]])
 
     result : List[Tuple[int, Val]]= list(enumerate(after_condition))
-    for i in range(len(orders[0].val)):
+    for (idx, spec) in sort_specs:
         def key_extract(elem : Tuple[int, Val]):
-            return orders[elem[0]].val[i]
-        result = sorted(result, key=key_extract, reverse=(False if i%2 == 0 else True)) # index starts from zero, 
+            return orders[elem[0]].val[StrLabel(str(idx) + OrderLabelSep + spec)]
+        result = sorted(result, key=key_extract, 
+            reverse=(False if spec == OrderAscending else 
+                    True if spec == OrderDescending else
+                    eval_error(orders, "unknown spec")
+            )) # index starts from zero, 
         # so 0 -> asc, 0 % 2 = 0, 1 -> desc , 1 % 2 = 1
     return [elem for (_, elem) in result]
 
@@ -181,7 +190,7 @@ def eval_config(rt : RTExpr) -> RTVal:
             # assume data unchaged throught the evaluation of conditions
             conditions : List[MultiSetVal] = [eval_config(RTExpr(make_eval_only(new_data), instantiate_expr(select_i, filter))).val for select_i in selected]
             after_condition : List[Val] = [select_i for (select_i, condition) in zip(selected, conditions) if BoolVal(True) in condition]
-            orders : List[UnnamedTupleVal] = [ raw_order[0] if type(raw_order[0]) is UnnamedTupleVal else eval_error(raw_order[0])
+            orders : List[ObjectVal] = [ raw_order[0].val if type(raw_order[0]) is FreeVal and type(raw_order[0].val) is ObjectVal else eval_error(raw_order[0])
                         for after_condition_i in after_condition
                         for raw_order in [eval_config(RTExpr(make_eval_only(new_data), instantiate_expr(after_condition_i,order))).val]
                         if len(raw_order) == 1
