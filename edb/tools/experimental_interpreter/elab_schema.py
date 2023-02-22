@@ -31,7 +31,7 @@ def elab_schema(sdef : qlast.Schema) -> DBSchema:
                                     }
                         case _:
                             print("WARNING: not implemented cmd", cmd)
-                            debug.dump(cmd)
+                            # debug.dump(cmd)
 
                 type_defs = {**type_defs, **object_tp_content}
             case _:

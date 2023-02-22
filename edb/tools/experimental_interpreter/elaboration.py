@@ -7,6 +7,7 @@ from functools import singledispatch
 
 from .data.data_ops import *
 from .data.expr_ops import *
+from .data.built_in_ops import all_builtin_funcs
 from .helper_funcs import *
 import sys
 import traceback
@@ -211,7 +212,10 @@ def elab_BinOp(binop : qlast.BinOp) -> FunAppExpr | UnionExpr:
     if binop.op == "UNION":
         return UnionExpr(left_expr, right_expr)
     else:
-        return FunAppExpr(fun=binop.op, args=[left_expr, right_expr], overloading_index=None)
+        if binop.op in all_builtin_funcs.keys():
+            return FunAppExpr(fun=binop.op, args=[left_expr, right_expr], overloading_index=None)
+        else:
+            raise ValueError("Unknown Op Name", binop.op)
 
 def elab_single_type_str(name : str) -> Tp:
     match name:

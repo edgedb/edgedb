@@ -50,12 +50,13 @@ type Foo {
 }
 """
 initial_queries = """
-insert Note {name := "boxing", note := {}};
-insert Note {name := "unboxing", note := "lolol"};
-insert Note {name := "dynamic", note := "blarg"};
-insert Person {name := "Phil Emarg", multi_prop:={}, notes:={}, tag:={}};
-insert Person {name := "Madeline Hatch", multi_prop:={}, notes:={}, tag:={}};
-insert Person {name := "Emmanuel Villip", multi_prop:={}, notes:={}, tag:={}};
+with n0 := (insert Note {name := "boxing", note := {}}),
+     n1 := (insert Note {name := "unboxing", note := "lolol"}),
+     n2 := (insert Note {name := "dynamic", note := "blarg"}),
+     p0 := (insert Person {name := "Phil Emarg", notes := {n0, n1 {@metanote := "arg!"}}}),
+     p1 := (insert Person {name := "Madeline Hatch", notes:={n1 {@metanote := "sigh"}}}),
+     p2 := (insert Person {name := "Emmanuel Villip"}),
+select 0;
 """
 
 class TestNewInterpreterModelSmokeTests(unittest.TestCase):
@@ -74,7 +75,9 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
         if self.db is None:
             self.db = model.db_with_initilial_schema_and_queries(
                 initial_schema_defs=initial_schema,
-                initial_queries=initial_queries)
+                initial_queries=initial_queries, 
+                # debug_print=True
+                )
         # qltree = model.parse(query)
         (result, _) = model.run_single_str_get_json(self.db, query, print_asts=True)
         # if sort:

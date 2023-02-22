@@ -79,7 +79,15 @@ class UnionTp:
     right : Tp
 
 
-Tp = ObjectTp | PrimTp | VarTp | NamedTupleTp | UnnamedTupleTp | ArrayTp
+@dataclass(frozen=True)
+class AnyTp:
+    pass
+
+@dataclass(frozen=True)
+class SomeTp:
+    index : int
+
+Tp = ObjectTp | PrimTp | VarTp | NamedTupleTp | UnnamedTupleTp | ArrayTp | AnyTp | SomeTp
 
 
 @dataclass(frozen=True)

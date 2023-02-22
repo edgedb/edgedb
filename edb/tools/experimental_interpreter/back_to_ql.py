@@ -77,7 +77,8 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
             if fname in all_builtin_funcs.keys() and len(args) == 2:
                 return qlast.BinOp(op=fname, left=reverse_elab(args[0]), right=reverse_elab(args[1]))
             else:
-                raise ValueError ("Unimplemented")
+                return qlast.FunctionCall(func=fname, args=[reverse_elab(arg) for arg in args])
+                # raise ValueError ("Unimplemented")
         case ObjectProjExpr(subject=subject, label=label):
             label_path_component = qlast.Ptr(ptr=qlast.ObjectRef(name=label), direction=PointerDirection.Outbound, type=None)
             match reverse_elab(subject):
