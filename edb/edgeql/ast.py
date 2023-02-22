@@ -423,8 +423,14 @@ class Ptr(Base):
 
 
 class Splat(Base):
+    """Represents a splat operation (expansion to all props/links) in shapes"""
+
+    #: Expansion depth
     depth: int
+    #: Source type expression, e.g in Type.**
     type: typing.Optional[TypeExpr] = None
+    #: Type intersection on the source which would result
+    #: in polymorphic expansion, e.g. [is Type].**
     intersection: typing.Optional[TypeIntersection] = None
 
 

@@ -495,6 +495,7 @@ class ShapePath(Nonterm):
     #   @prop
     #   [IS ObjectType].link
     #   [IS Link]@prop - currently not supported
+    #   <splat> (see Splat production for possible syntaxes)
 
     def reduce_PathStepName_OptTypeIntersection(self, *kids):
         from edb.schema import pointers as s_pointers
@@ -1633,12 +1634,6 @@ class PathStepName(Nonterm):
     def reduce_DUNDERTYPE(self, *kids):
         self.val = qlast.ObjectRef(name=kids[0].val)
 
-    # def reduce_STAR(self, *kids):
-    #     self.val = qlast.Splat(depth=1)
-
-    # def reduce_DOUBLESTAR(self, *kids):
-    #     self.val = qlast.Splat(depth=2)
-
 
 class FuncApplication(Nonterm):
     def reduce_NodeName_LPAREN_OptFuncArgList_RPAREN(self, *kids):
@@ -1944,12 +1939,9 @@ class TypeExpr(Nonterm):
         self.val = kids[0].val
 
 
-# The same as above, except complex forms must be parenthesized
+# A type expression enclosed in parentheses
 class ParenTypeExpr(Nonterm):
-    # def reduce_SimpleTypeName(self, *kids):
-    #     self.val = kids[0].val
-
-    def reduce_LPAREN_TypeExpr_RPAREN(self, *kids):
+    def reduce_LPAREN_FullTypeExpr_RPAREN(self, *kids):
         self.val = kids[1].val
 
 
