@@ -1163,7 +1163,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '\.'", line=3, col=21)
+                  r"Unexpected 'name'", line=3, col=22)
     def test_edgeql_syntax_shape_11(self):
         """
         SELECT Foo {
@@ -1199,7 +1199,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '\)'", line=2, col=25)
+                  r"Unexpected '}'", line=2, col=26)
     def test_edgeql_syntax_shape_15(self):
         """
         SELECT Foo {(bar)};
