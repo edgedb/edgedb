@@ -1851,6 +1851,10 @@ aa';
     def test_edgeql_syntax_shape_splat_06(self):
         """
         select Foo {
+            default::Foo[is Type].*,
+            default::Foo[is Type].**,
+            foo::Bar.*,
+            foo::Bar.**,
             Foo[is Type].*,
             (Foo | Bar)[is Type].**,
             sub: {

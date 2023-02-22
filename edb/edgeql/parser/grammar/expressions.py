@@ -616,6 +616,7 @@ class Splat(Nonterm):
     def reduce_PtrQualifiedNodeName_DOT_STAR(self, *kids):
         self.val = qlast.Path(steps=[
             qlast.Splat(
+                type=qlast.TypeName(maintype=kids[0].val),
                 depth=1,
             ),
         ])
@@ -624,6 +625,7 @@ class Splat(Nonterm):
     def reduce_PtrQualifiedNodeName_DOT_DOUBLESTAR(self, *kids):
         self.val = qlast.Path(steps=[
             qlast.Splat(
+                type=qlast.TypeName(maintype=kids[0].val),
                 depth=2,
             ),
         ])
@@ -634,6 +636,7 @@ class Splat(Nonterm):
             qlast.Splat(
                 depth=1,
                 type=qlast.TypeName(maintype=kids[0].val),
+                intersection=kids[1].val,
             ),
         ])
 
@@ -646,6 +649,7 @@ class Splat(Nonterm):
             qlast.Splat(
                 depth=2,
                 type=qlast.TypeName(maintype=kids[0].val),
+                intersection=kids[1].val,
             ),
         ])
 
