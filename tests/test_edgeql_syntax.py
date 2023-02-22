@@ -1163,7 +1163,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '\.'", line=3, col=21)
+                  r"Unexpected 'name'", line=3, col=22)
     def test_edgeql_syntax_shape_11(self):
         """
         SELECT Foo {
@@ -1199,7 +1199,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '\('", line=2, col=21)
+                  r"Unexpected '}'", line=2, col=26)
     def test_edgeql_syntax_shape_15(self):
         """
         SELECT Foo {(bar)};
@@ -1797,6 +1797,69 @@ aa';
             multi union := 1,
             multi except := 1,
             multi intersect := 1
+        };
+        """
+
+    def test_edgeql_syntax_shape_splat_01(self):
+        """
+        select Foo {
+            *
+        };
+        """
+
+    def test_edgeql_syntax_shape_splat_02(self):
+        """
+        select Foo {
+            **
+        };
+        """
+
+    def test_edgeql_syntax_shape_splat_03(self):
+        """
+        select Foo {
+            bar,
+            **,
+            baz,
+            *,
+            link: {
+                *,
+                foo,
+                **,
+            }
+        };
+        """
+
+    def test_edgeql_syntax_shape_splat_04(self):
+        """
+        select Foo {
+            Type.*,
+            Type.**,
+            (Type | OtherType).*,
+            (Type & OtherType).*,
+        };
+        """
+
+    def test_edgeql_syntax_shape_splat_05(self):
+        """
+        select Foo {
+            [is Type].*,
+            [is Type].**,
+            [is (Type | Type2)].*,
+        };
+        """
+
+    def test_edgeql_syntax_shape_splat_06(self):
+        """
+        select Foo {
+            default::Foo[is Type].*,
+            default::Foo[is Type].**,
+            foo::Bar.*,
+            foo::Bar.**,
+            Foo[is Type].*,
+            (Foo | Bar)[is Type].**,
+            sub: {
+                (Foo & Bar)[is (Type | Type2)].*,
+            },
         };
         """
 

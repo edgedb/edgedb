@@ -1697,6 +1697,140 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]),
         )
 
+    async def test_edgeql_select_splat_01(self):
+        await self.assert_query_result(
+            r'''
+            select Issue { * }
+            filter .number = "1"
+            ''',
+            tb.bag([
+                {
+                    "number": "1",
+                    "name": "Release EdgeDB",
+                    "body": "Initial public release of EdgeDB.",
+                    "time_estimate": 3000,
+                },
+            ]),
+        )
+
+    async def test_edgeql_select_splat_02(self):
+        await self.assert_query_result(
+            r'''
+            select Issue { ** }
+            filter .number = "1"
+            ''',
+            tb.bag([
+                {
+                    "number": "1",
+                    "name": "Release EdgeDB",
+                    "body": "Initial public release of EdgeDB.",
+                    "time_estimate": 3000,
+                    "owner": {
+                        "name": "Elvis",
+                        "@note": "automatic assignment",
+                    },
+                    "watchers": [{
+                        "name": "Yury",
+                    }],
+                    "status": {
+                        "name": "Open",
+                    },
+                },
+            ]),
+        )
+
+    async def test_edgeql_select_splat_03(self):
+        # Partial ad-hoc splat overload
+        await self.assert_query_result(
+            r'''
+            select Issue {
+                **,
+                name := "Release EdgeDB!",
+                status: {
+                    comp := 1,
+                }
+            }
+            filter .number = "1"
+            ''',
+            tb.bag([
+                {
+                    "number": "1",
+                    "name": "Release EdgeDB!",
+                    "body": "Initial public release of EdgeDB.",
+                    "time_estimate": 3000,
+                    "owner": {
+                        "name": "Elvis",
+                        "@note": "automatic assignment",
+                    },
+                    "watchers": [{
+                        "name": "Yury",
+                    }],
+                    "status": {
+                        "comp": 1,
+                    },
+                },
+            ]),
+        )
+
+    async def test_edgeql_select_splat_04(self):
+        # Polymorphic splats
+        await self.con.execute('''
+            insert Issue {
+                name := 'Polymorphic Splat Test 04',
+                body := 'foo',
+                number := '3333',
+                owner := (select User FILTER .name = 'Elvis'),
+                status := (select Status FILTER .name = 'Open'),
+                references := {
+                    (insert Publication {
+                        title := 'Introduction to EdgeDB',
+                        authors := (
+                            FOR v IN enumerate({'Yury', 'Elvis'})
+                            UNION (
+                                SELECT User { @list_order := v.0 }
+                                FILTER .name = v.1
+                            )
+                        ),
+                    }),
+                    (insert File {
+                        name := 'file01.jpg',
+                    }),
+                }
+            }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            select Issue {
+                references: {
+                    [is File].*,
+                    [is Publication].**,
+                }
+            }
+            filter .name = 'Polymorphic Splat Test 04'
+            ''',
+            tb.bag([
+                {
+                    "references": tb.bag([
+                        {
+                            "title": "Introduction to EdgeDB",
+                            "authors": tb.bag([
+                                {
+                                    "name": "Yury",
+                                },
+                                {
+                                    "name": "Elvis",
+                                },
+                            ]),
+                        },
+                        {
+                            "name": "file01.jpg",
+                        }
+                    ]),
+                },
+            ]),
+        )
+
     async def test_edgeql_select_id_01(self):
         # allow assigning id to a computed (#4781)
         await self.con.query('SELECT schema::Type { XYZ := .id};')

@@ -11430,6 +11430,24 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
 
         await self.migrate('')
 
+    async def test_edgeql_migration_splat_01(self):
+        await self.migrate('''
+            type Foo {
+                property bar := (select <json>Bar { ** })
+            }
+
+            type Bar {
+                property a -> str;
+                link foo -> Foo;
+            }
+        ''')
+
+        await self.migrate('''
+            type Foo {
+                property bar := (<json>{})
+            }
+        ''')
+
     async def test_edgeql_migration_recovery(self):
         await self.con.execute(r"""
             START MIGRATION TO {

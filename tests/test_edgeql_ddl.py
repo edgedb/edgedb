@@ -5215,6 +5215,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
+    async def test_edgeql_ddl_function_splat_01(self):
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            r'splat operators in function bodies are not supported',
+        ):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE FUNCTION my_splat() -> std::json USING (
+                        SELECT <json>Object { ** } LIMIT 1
+                    );
+                """)
+
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,

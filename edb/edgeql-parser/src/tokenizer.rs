@@ -45,6 +45,7 @@ pub enum Kind {
     Colon,            // :
     Add,              // +
     Sub,              // -
+    DoubleSplat,      // **
     Mul,              // *
     Div,              // /
     Modulo,           // %
@@ -332,7 +333,10 @@ impl<'a> TokenStream<'a> {
             '{' => return Ok((OpenBrace, 1)),
             '}' => return Ok((CloseBrace, 1)),
             ';' => return Ok((Semicolon, 1)),
-            '*' => return Ok((Mul, 1)),
+            '*' => match iter.next() {
+                Some((_, '*')) => return Ok((DoubleSplat, 2)),
+                _ => return Ok((Mul, 1)),
+            },
             '%' => return Ok((Modulo, 1)),
             '^' => return Ok((Pow, 1)),
             '&' => return Ok((Ampersand, 1)),

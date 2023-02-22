@@ -507,21 +507,25 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.write('.')
 
             if i == 0:
-                if isinstance(e, qlast.ObjectRef):
+                if isinstance(
+                    e,
+                    (
+                        qlast.ObjectRef,
+                        qlast.Anchor,
+                        qlast.Splat,
+                        qlast.Ptr,
+                        qlast.Set,
+                        qlast.Tuple,
+                        qlast.NamedTuple,
+                        qlast.TypeIntersection,
+                        qlast.Parameter,
+                    ),
+                ):
                     self.visit(e)
-                elif isinstance(e, qlast.Anchor):
-                    self.visit(e)
-                elif not isinstance(e, (qlast.Ptr,
-                                        qlast.Set,
-                                        qlast.Tuple,
-                                        qlast.NamedTuple,
-                                        qlast.TypeIntersection,
-                                        qlast.Parameter)):
+                else:
                     self.write('(')
                     self.visit(e)
                     self.write(')')
-                else:
-                    self.visit(e)
             else:
                 self.visit(e)
 
@@ -546,6 +550,20 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(node.direction)
 
         self.write(ident_to_str(node.ptr.name, allow_num=True))
+
+    def visit_Splat(self, node: qlast.Splat) -> None:
+        if node.type is not None:
+            self.visit(node.type)
+        if node.intersection is not None:
+            self.visit(node.intersection)
+        if node.type is not None or node.intersection is not None:
+            self.write('.')
+        if node.depth == 1:
+            self.write('*')
+        elif node.depth == 2:
+            self.write('**')
+        else:
+            raise AssertionError(f"unexpected splat depth: {node.depth}")
 
     def visit_TypeIntersection(self, node: qlast.TypeIntersection) -> None:
         self._write_keywords('[IS ')
