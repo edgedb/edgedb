@@ -2218,6 +2218,22 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
                 await tb.drop_db(self.con, 'test_db_prop')
 
+                # Wait until the drop message hit the adjacent server, or the
+                # next create may make the db inaccessible, see also #5081
+                with self.assertRaises(edgedb.UnknownDatabaseError):
+                    while True:
+                        async for tr in self.try_until_succeeds(
+                            ignore=edgedb.AccessError,
+                            timeout=30,
+                        ):
+                            async with tr:
+                                con2 = await sd.connect(
+                                    user=conargs.get('user'),
+                                    password=conargs.get('password'),
+                                    database="test_db_prop",
+                                )
+                                await con2.aclose()
+
             # Now, recreate the DB and try the other way around
             con2 = await sd.connect(
                 user=conargs.get('user'),
