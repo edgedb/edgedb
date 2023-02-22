@@ -269,6 +269,12 @@ def _process_view(
                 context=shape_el.expr.context,
             )
 
+        if ctx.env.options.func_params is not None:
+            raise errors.UnsupportedFeatureError(
+                "splat operators in function bodies are not supported",
+                context=shape_el.expr.context,
+            )
+
         splat = shape_el.expr.steps[0]
         if splat.type is not None:
             splat_type = typegen.ql_typeexpr_to_type(splat.type, ctx=ctx)
