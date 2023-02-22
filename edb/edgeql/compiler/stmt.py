@@ -1442,7 +1442,6 @@ def compile_query_subject(
             view_rptr=view_rptr,
             view_name=view_name,
             exprtype=exprtype,
-            parser_context=expr.context,
             ctx=ctx,
         )
 
