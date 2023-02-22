@@ -1,0 +1,4 @@
+
+class FunCallErr(Exception):
+    pass
+

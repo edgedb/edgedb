@@ -7,7 +7,7 @@ from functools import singledispatch
 
 from .data.data_ops import *
 from .data.expr_ops import *
-from .data.built_in_ops import all_builtin_funcs
+from .basis.built_ins import all_builtin_funcs
 from .helper_funcs import *
 import sys
 import traceback
@@ -339,3 +339,17 @@ def elab_ForQuery(qle : qlast.ForQuery) -> ForExpr:
     if qle.result_alias:
         raise elab_not_implemented(qle)
     return cast(ForExpr, elab_aliases(qle.aliases, ForExpr(bound=elab(qle.iterator), next=abstract_over_expr(elab(qle.result), qle.iterator_alias))))
+
+@elab.register
+def elab_Indirection(qle : qlast.Indirection) -> FunAppExpr :
+    subject = elab(qle.arg)
+    match qle.indirection:
+        case [qlast.Slice(start=None, stop=stop)]:
+            return FunAppExpr(fun=IndirectionSliceOp, args=[subject, IntVal(0), elab(stop)], overloading_index=None)
+        case [qlast.Slice(start=start, stop=None)]:
+            return FunAppExpr(fun=IndirectionSliceOp, args=[subject, elab(start), IntInfVal()], overloading_index=None)
+        case [qlast.Slice(start=start, stop=stop)]:
+            return FunAppExpr(fun=IndirectionSliceOp, args=[subject, elab(start), elab(stop)], overloading_index=None)
+        case [qlast.Index(index=idx)]:
+            return FunAppExpr(fun=IndirectionIndexOp, args=[subject, elab(idx)], overloading_index=None)
+    raise ValueError("Not yet implemented indirection", qle)

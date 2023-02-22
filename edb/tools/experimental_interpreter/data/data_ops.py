@@ -45,6 +45,10 @@ class BoolTp:
 class IntTp:
     pass
 
+@dataclass(frozen=True)
+class IntInfTp:
+    pass
+
 
 @dataclass(frozen=True)
 class DateTimeTp:
@@ -55,7 +59,7 @@ class JsonTp:
     pass
 
 
-PrimTp = StrTp | IntTp | BoolTp | DateTimeTp | JsonTp
+PrimTp = StrTp | IntTp | IntInfTp | BoolTp | DateTimeTp | JsonTp 
 
 @dataclass(frozen=True)
 class VarTp:
@@ -537,3 +541,7 @@ def ref(id):
 OrderLabelSep = "-" # separates components of an order object label
 OrderAscending = "ascending" 
 OrderDescending = "descending" 
+
+
+IndirectionIndexOp = "_[_]"
+IndirectionSliceOp = "_[_:_]"

@@ -5,7 +5,7 @@ from .elaboration import DEFAULT_HEAD_NAME
 from edb.schema.pointers import PointerDirection
 
 from edb.edgeql import ast as qlast
-from .data.built_in_ops import all_builtin_funcs
+from .basis.built_ins import all_builtin_ops
 
 def reverse_elab_error(msg : str, expr : Val | Expr | List[Val]) -> Any:
     raise ValueError("Reverse Elab Error", msg, expr)
@@ -68,10 +68,12 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
                 shape=reverse_elab_shape(object_to_shape(cast(ObjectExpr, arg)))
             )
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
+            result_name = next_name()
             return qlast.SelectQuery(
                 result=reverse_elab(subject),
-                where=reverse_elab(instantiate_expr(FreeVarExpr(DEFAULT_HEAD_NAME), filter)),
-                orderby=reverse_elab_order(instantiate_expr(FreeVarExpr(DEFAULT_HEAD_NAME), order))
+                result_alias=result_name,
+                where=reverse_elab(instantiate_expr(FreeVarExpr(result_name), filter)),
+                orderby=reverse_elab_order(instantiate_expr(FreeVarExpr(result_name), order))
             )
         case OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
             return qlast.SelectQuery(
@@ -90,7 +92,7 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
             else:
                 return qlast.Path(steps=[qlast.ObjectRef(name=name)])
         case FunAppExpr(fun=fname, args=args, overloading_index=idx):
-            if fname in all_builtin_funcs.keys() and len(args) == 2:
+            if fname in all_builtin_ops.keys() and len(args) == 2:
                 return qlast.BinOp(op=fname, left=reverse_elab(args[0]), right=reverse_elab(args[1]))
             else:
                 return qlast.FunctionCall(func=fname, args=[reverse_elab(arg) for arg in args])
