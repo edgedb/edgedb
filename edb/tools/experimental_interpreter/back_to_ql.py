@@ -127,7 +127,8 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
                 body.aliases = [*body.aliases, qlast.AliasedExpr(alias=name, expr=reverse_elab(bound))]
                 return body
             else:
-                raise ValueError("Expression does not suppor alias", body)
+                return qlast.SelectQuery(result=body, aliases=[qlast.AliasedExpr(alias=name, expr=reverse_elab(bound))])
+                # raise ValueError("Expression does not suppor alias", body)
         case ForExpr(bound=bound, next=next):
             name = next_name()
             bound_v = reverse_elab(bound)
