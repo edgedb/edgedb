@@ -236,6 +236,10 @@ def make_decoder(
         qlast.TypeCast(
             expr=qlast.Parameter(name=param.name),
             type=_ref_to_ast(param.ir_type, ctx=ctx),
+            cardinality_mod=(
+                qlast.CardinalityModifier.Optional if not param.required
+                else None
+            ),
         )
         for param in qparams
     ]
