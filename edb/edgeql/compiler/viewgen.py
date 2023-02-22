@@ -62,22 +62,34 @@ if TYPE_CHECKING:
 
 
 class ShapeElementDesc(NamedTuple):
+    """Annotated QL shape element for processing convenience"""
+
+    #: Shape element AST
     ql: qlast.ShapeElement
+    #: Canonical Path AST for the shape element
     path_ql: qlast.Path
+    #: The underlying pointer AST
     ptr_ql: qlast.Ptr
+    #: The name of the pointer
     ptr_name: str
+    #: Pointer source object
     source: s_sources.Source
+    #: Target type intersection (if any)
     target_typexpr: Optional[qlast.TypeExpr]
+    #: Whether the source is a type intersection
     is_polymorphic: bool
+    #: Whether the pointer is a link property
     is_linkprop: bool
 
 
 class EarlyShapePtr(NamedTuple):
+    """Stage 1 shape processing result element"""
     ptrcls: s_pointers.Pointer
     target_set: Optional[irast.Set]
 
 
 class ShapePtr(NamedTuple):
+    """Stage 2 shape processing result element"""
     source_set: irast.Set
     ptrcls: s_pointers.Pointer
     shape_op: qlast.ShapeOp
@@ -387,6 +399,8 @@ def _shape_el_ql_to_shape_el_desc(
     view_rptr: Optional[context.ViewRPtr] = None,
     ctx: context.ContextLevel,
 ) -> ShapeElementDesc:
+    """Look at ShapeElement AST and annotate it for more convenient handing."""
+
     steps = shape_el.expr.steps
     is_linkprop = False
     is_polymorphic = False
@@ -794,10 +808,10 @@ def _normalize_view_ptr_expr(
                     value=str(ctx.implicit_limit),
                 )
 
-        if shape_el_desc.target_typexpr is not None:
-            assert isinstance(shape_el_desc.target_typexpr, qlast.TypeName)
+        if target_typexpr is not None:
+            assert isinstance(target_typexpr, qlast.TypeName)
             intersector_type = schemactx.get_schema_type(
-                shape_el_desc.target_typexpr.maintype, ctx=ctx)
+                target_typexpr.maintype, ctx=ctx)
 
             int_result = schemactx.apply_intersection(
                 ptrcls.get_target(ctx.env.schema),  # type: ignore
