@@ -43,6 +43,7 @@ from edb.schema import objects as s_objects
 from edb.schema import pointers as s_pointers
 from edb.schema import properties as s_props
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
@@ -86,6 +87,7 @@ class EarlyShapePtr(NamedTuple):
     """Stage 1 shape processing result element"""
     ptrcls: s_pointers.Pointer
     target_set: Optional[irast.Set]
+    shape_origin: qlast.ShapeOrigin
 
 
 class ShapePtr(NamedTuple):
@@ -234,7 +236,11 @@ def _process_view(
         elements = []
 
     shape_desc = []
+    # First, find all explicit pointers (i.e. non-splat elements)
     for shape_el in elements:
+        if isinstance(shape_el.expr.steps[0], qlast.Splat):
+            continue
+
         shape_desc.append(
             _shape_el_ql_to_shape_el_desc(
                 shape_el,
@@ -243,6 +249,94 @@ def _process_view(
                 ctx=ctx,
             )
         )
+
+    explicit_ptr_names = {
+        desc.ptr_name for desc in shape_desc if not desc.is_linkprop
+    }
+
+    explicit_lprop_names = {
+        desc.ptr_name for desc in shape_desc if desc.is_linkprop
+    }
+
+    # Now look for any splats and expand them.
+    for shape_el in elements:
+        if not isinstance(shape_el.expr.steps[0], qlast.Splat):
+            continue
+
+        if exprtype is not s_types.ExprType.Select:
+            raise errors.QueryError(
+                "unexpected splat operator in non-SELECT shape",
+                context=shape_el.expr.context,
+            )
+
+        splat = shape_el.expr.steps[0]
+        if splat.type is not None:
+            splat_type = typegen.ql_typeexpr_to_type(splat.type, ctx=ctx)
+            if not isinstance(splat_type, s_objtypes.ObjectType):
+                vn = splat_type.get_verbosename(schema=ctx.env.schema)
+                raise errors.QueryError(
+                    f"splat operator expects an object type, got {vn}",
+                    context=splat.type.context,
+                )
+
+            if not stype.issubclass(ctx.env.schema, splat_type):
+                vn = stype.get_verbosename(ctx.env.schema)
+                vn2 = splat_type.get_verbosename(schema=ctx.env.schema)
+                raise errors.QueryError(
+                    f"splat type must be {vn} or its parent type, "
+                    f"got {vn2}",
+                    context=splat.type.context,
+                )
+
+            if splat.intersection is not None:
+                intersector_type = typegen.ql_typeexpr_to_type(
+                    splat.intersection.type, ctx=ctx)
+                splat_type = schemactx.apply_intersection(
+                    splat_type,
+                    intersector_type,
+                    ctx=ctx,
+                ).stype
+                assert isinstance(splat_type, s_objtypes.ObjectType)
+
+        elif splat.intersection is not None:
+            splat_type = typegen.ql_typeexpr_to_type(
+                splat.intersection.type, ctx=ctx)
+            if not isinstance(splat_type, s_objtypes.ObjectType):
+                vn = splat_type.get_verbosename(schema=ctx.env.schema)
+                raise errors.QueryError(
+                    f"splat operator expects an object type, got {vn}",
+                    context=splat.intersection.type.context,
+                )
+        else:
+            splat_type = stype
+
+        if (
+            view_rptr is not None
+            and isinstance(view_rptr.ptrcls, s_links.Link)
+        ):
+            splat_rlink = view_rptr.ptrcls
+        else:
+            splat_rlink = None
+
+        expanded_splat = _expand_splat(
+            splat_type,
+            depth=splat.depth,
+            intersection=splat.intersection,
+            rlink=splat_rlink,
+            skip_ptrs=explicit_ptr_names,
+            skip_lprops=explicit_lprop_names,
+            ctx=ctx,
+        )
+
+        for splat_el in expanded_splat:
+            shape_desc.append(
+                _shape_el_ql_to_shape_el_desc(
+                    splat_el,
+                    source=view_scls,
+                    view_rptr=view_rptr,
+                    ctx=ctx,
+                )
+            )
 
     for shape_el_desc in shape_desc:
         with ctx.new() as scopectx:
@@ -258,7 +352,8 @@ def _process_view(
                 ctx=scopectx,
             )
 
-            pointers[pointer] = EarlyShapePtr(pointer, ptr_set)
+            pointers[pointer] = EarlyShapePtr(
+                pointer, ptr_set, shape_el_desc.ql.origin)
 
     # If we are not defining a shape (so we might care about
     # materialization), look through our parent view (if one exists)
@@ -295,7 +390,8 @@ def _process_view(
                 view_rptr=view_rptr,
                 ctx=scopectx)
 
-        pointers[pointer] = EarlyShapePtr(pointer, ptr_set)
+        pointers[pointer] = EarlyShapePtr(
+            pointer, ptr_set, qlast.ShapeOrigin.MATERIALIZATION)
 
     if exprtype.is_insert():
         explicit_ptrs = {
@@ -312,7 +408,7 @@ def _process_view(
     set_shape = []
     shape_ptrs: List[ShapePtr] = []
 
-    for ptrcls, ptr_set in pointers.values():
+    for ptrcls, ptr_set, _ in pointers.values():
         source: Union[s_types.Type, s_pointers.PointerLike]
 
         if ptrcls.is_link_property(ctx.env.schema):
@@ -482,6 +578,87 @@ def _shape_el_ql_to_shape_el_desc(
     )
 
 
+def _expand_splat(
+    stype: s_objtypes.ObjectType,
+    *,
+    depth: int,
+    skip_ptrs: AbstractSet[str] = frozenset(),
+    skip_lprops: AbstractSet[str] = frozenset(),
+    rlink: Optional[s_links.Link] = None,
+    intersection: Optional[qlast.TypeIntersection] = None,
+    ctx: context.ContextLevel,
+) -> List[qlast.ShapeElement]:
+    """Expand a splat (possibly recursively) into a list of ShapeElements"""
+    elements = []
+    pointers = stype.get_pointers(ctx.env.schema)
+    path: list[qlast.PathElement] = []
+    if intersection is not None:
+        path.append(intersection)
+    for ptr in pointers.objects(ctx.env.schema):
+        if not isinstance(ptr, s_props.Property):
+            continue
+        sname = ptr.get_shortname(ctx.env.schema)
+        if sname.name in skip_ptrs:
+            continue
+        step = qlast.Ptr(ptr=s_utils.name_to_ast_ref(sname))
+        # Make sure not to overwrite the id property.
+        if not ptr.is_id_pointer(ctx.env.schema):
+            steps = path + [step]
+        else:
+            steps = [step]
+        elements.append(qlast.ShapeElement(
+            expr=qlast.Path(steps=steps),
+            origin=qlast.ShapeOrigin.SPLAT_EXPANSION,
+        ))
+
+    if rlink is not None:
+        for prop in rlink.get_pointers(ctx.env.schema).objects(ctx.env.schema):
+            if prop.is_endpoint_pointer(ctx.env.schema):
+                continue
+            assert isinstance(prop, s_props.Property), \
+                "non-property pointer on link?"
+            sname = prop.get_shortname(ctx.env.schema)
+            if sname.name in skip_lprops:
+                continue
+            elements.append(
+                qlast.ShapeElement(
+                    expr=qlast.Path(
+                        steps=[qlast.Ptr(
+                            ptr=s_utils.name_to_ast_ref(sname),
+                            type='property',
+                        )]
+                    ),
+                    origin=qlast.ShapeOrigin.SPLAT_EXPANSION,
+                )
+            )
+
+    if depth > 1:
+        for ptr in pointers.objects(ctx.env.schema):
+            if not isinstance(ptr, s_links.Link):
+                continue
+            pn = ptr.get_shortname(ctx.env.schema)
+            if pn.name == '__type__' or pn.name in skip_ptrs:
+                continue
+            elements.append(
+                qlast.ShapeElement(
+                    expr=qlast.Path(
+                        steps=path + [qlast.Ptr(
+                            ptr=s_utils.name_to_ast_ref(pn),
+                        )]
+                    ),
+                    elements=_expand_splat(
+                        ptr.get_target(ctx.env.schema),
+                        rlink=ptr,
+                        depth=depth - 1,
+                        ctx=ctx,
+                    ),
+                    origin=qlast.ShapeOrigin.SPLAT_EXPANSION,
+                )
+            )
+
+    return elements
+
+
 def gen_pointers_from_defaults(
     explicit_ptrs: Set[sn.UnqualName],
     view_scls: s_objtypes.ObjectType,
@@ -540,6 +717,7 @@ def gen_pointers_from_defaults(
                 expr=default_expr.qlast,
                 preserve_path_prefix=True,
             ),
+            origin=qlast.ShapeOrigin.DEFAULT,
         )
         default_ql_desc = _shape_el_ql_to_shape_el_desc(
             default_ql,
@@ -561,7 +739,8 @@ def gen_pointers_from_defaults(
                 ctx=scopectx,
             )
 
-            result.append(EarlyShapePtr(pointer, ptr_set))
+            result.append(EarlyShapePtr(
+                pointer, ptr_set, qlast.ShapeOrigin.DEFAULT))
 
     schema = ctx.env.schema
 
@@ -571,11 +750,11 @@ def gen_pointers_from_defaults(
     # We cannot check or preprocess this at migration time, because some
     # defaults may not be used for some inserts.
     pointer_indexes = {}
-    for (index, (pointer, _)) in enumerate(result):
+    for (index, (pointer, _, _)) in enumerate(result):
         p = pointer.get_nearest_non_derived_parent(schema)
         pointer_indexes[p.get_name(schema).name] = index
     graph = {}
-    for (index, (_, irset)) in enumerate(result):
+    for (index, (_, irset, _)) in enumerate(result):
         assert irset
         dep_pointers = ast.find_children(irset, irast.Pointer)
         dep_rptrs = (
@@ -1069,7 +1248,8 @@ def _normalize_view_ptr_expr(
 
     if (
         pending_pointers is not None and ptrcls is not None
-        and pending_pointers.get(ptrcls) is not None
+        and (prev := pending_pointers.get(ptrcls)) is not None
+        and prev.shape_origin is not qlast.ShapeOrigin.SPLAT_EXPANSION
     ):
         vnp = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
         raise errors.QueryError(
