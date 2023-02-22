@@ -2767,6 +2767,23 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             variables=(('a', True),)
         )
 
+    async def test_edgeql_casts_tuple_params_08(self):
+        await self.assert_query_result(
+            '''
+            select { x := <optional tuple<str, str>>$0, y := <str>$1 };
+            ''',
+            [{'x': None, 'y': "test"}],
+            variables=(None, 'test'),
+        )
+
+        await self.assert_query_result(
+            '''
+            select { x := <optional tuple<str, str>>$0, y := <int64>$1 };
+            ''',
+            [{'x': None, 'y': 11111}],
+            variables=(None, 11111),
+        )
+
     async def test_edgeql_cast_empty_set_to_array_01(self):
         await self.assert_query_result(
             r'''
