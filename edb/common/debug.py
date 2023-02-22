@@ -124,9 +124,6 @@ class flags(metaclass=FlagsMeta):
     delta_pgsql_plan = Flag(
         doc="Print delta command tree annortated with DB ops.")
 
-    delta_plan_input = Flag(
-        doc="Print delta command tree produced from DDL.")
-
     delta_execute = Flag(
         doc="Output SQL commands as executed during migration.")
 

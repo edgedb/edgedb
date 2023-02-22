@@ -728,7 +728,7 @@ async def _make_stdlib(
         delta_command = s_ddl.delta_from_ddl(
             ddl_cmd, modaliases={}, schema=schema, stdmode=True)
 
-        if debug.flags.delta_plan_input:
+        if debug.flags.delta_plan:
             debug.header('Delta Plan Input')
             debug.dump(delta_command)
 
@@ -849,7 +849,7 @@ async def _amend_stdlib(
         delta_command = s_ddl.delta_from_ddl(
             ddl_cmd, modaliases={}, schema=schema, stdmode=True)
 
-        if debug.flags.delta_plan_input:
+        if debug.flags.delta_plan:
             debug.header('Delta Plan Input')
             debug.dump(delta_command)
 
