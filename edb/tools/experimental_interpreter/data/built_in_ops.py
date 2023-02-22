@@ -51,11 +51,27 @@ def opt_eq_impl (arg : List[MultiSetVal]) -> MultiSetVal:
                 return eq_impl(arg)
     raise FunCallErr()
 
-all_builtin_funcs : Dict[str, BuiltinFuncDef] = {
+all_builtin_ops : Dict[str, BuiltinFuncDef] = {
         "+" : BuiltinFuncDef(tp =add_tp_int_int,impl=add_impl_int_int),
         "=" : BuiltinFuncDef(tp =eq_tp,impl=eq_impl), 
         "?=" : BuiltinFuncDef(tp =opt_eq_tp,impl=opt_eq_impl), 
         "IN": BuiltinFuncDef(tp=in_tp, impl=in_impl)
     }
+
+std_enumerate_tp = FunType(args_mod=[ParamSetOf()], 
+                args_ret_types=[FunArgRetType(args_tp=[SomeTp(0)], ret_tp=(UnnamedTupleTp(val=[IntTp(), SomeTp(0)]), CardAny))])
+
+def std_enumerate_impl(arg : List[MultiSetVal]) -> MultiSetVal:
+    match arg:
+        case [l1]:
+            return [UnnamedTupleVal(val=[IntVal(i), v]) for (i,v) in enumerate(l1)]
+    raise FunCallErr()
+
+
+all_std_funcs : Dict[str, BuiltinFuncDef] = {
+        "std::enumerate" : BuiltinFuncDef(tp =std_enumerate_tp, impl=std_enumerate_impl),
+    }
+
+all_builtin_funcs = {**all_builtin_ops, **all_std_funcs}
 
 

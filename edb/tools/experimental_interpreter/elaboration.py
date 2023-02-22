@@ -185,11 +185,20 @@ def elab_SelectExpr(qle : qlast.SelectQuery) -> Expr:
             limit=elab(qle.limit) if qle.limit is not None else IntInfVal(),
         ))
     else:
-        return elab_aliases(qle.aliases, FilterOrderExpr(
-            subject=elab(qle.result),
-            filter=abstract_over_expr(elab(qle.where), DEFAULT_HEAD_NAME) if qle.where else abstract_over_expr(BoolVal(True)),
-            order=elab_orderby(qle.orderby) if qle.orderby else abstract_over_expr(UnnamedTupleExpr([])),
-        ))
+        subject_elab = elab(qle.result)
+        filter_elab = abstract_over_expr(elab(qle.where), DEFAULT_HEAD_NAME) if qle.where else abstract_over_expr(BoolVal(True))
+        order_elab = elab_orderby(qle.orderby) if qle.orderby else abstract_over_expr(UnnamedTupleExpr([]))
+        without_alias = FilterOrderExpr(
+            subject=subject_elab,
+            filter= filter_elab,
+            order= order_elab
+        ) if qle.result_alias is None else WithExpr(bound=
+            subject_elab, next=abstract_over_expr(FilterOrderExpr(
+                subject=FreeVarExpr(qle.result_alias),
+                filter= filter_elab,
+                order= order_elab
+            ), qle.result_alias))
+        return elab_aliases(qle.aliases, without_alias)
     
 @elab.register(qlast.FunctionCall)
 def elab_FunctionCall(fcall : qlast.FunctionCall) -> FunAppExpr :
@@ -197,7 +206,9 @@ def elab_FunctionCall(fcall : qlast.FunctionCall) -> FunAppExpr :
         return elab_not_implemented(fcall)
     if type(fcall.func) is not str:
         return elab_not_implemented(fcall)
-    fname = fcall.func
+    fname = fcall.func if fcall.func in all_builtin_funcs.keys() else \
+                "std::" + fcall.func  if ("std::" + fcall.func) in all_builtin_funcs.keys() else \
+                elab_error("unknown function name: " + fcall.func, fcall.context)
     args = [elab(arg) for arg in fcall.args]
     return FunAppExpr(fname, None, args)
     

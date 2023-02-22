@@ -40,7 +40,8 @@ def eval_order_by(after_condition : List[Val], orders : List[UnnamedTupleVal]) -
     for i in range(len(orders[0].val)):
         def key_extract(elem : Tuple[int, Val]):
             return orders[elem[0]].val[i]
-        result = sorted(result, key=key_extract, reverse=(i%2 == 1))
+        result = sorted(result, key=key_extract, reverse=(False if i%2 == 0 else True)) # index starts from zero, 
+        # so 0 -> asc, 0 % 2 = 0, 1 -> desc , 1 % 2 = 1
     return [elem for (_, elem) in result]
 
 def apply_shape(ctx : RTData, shape : ShapeExpr, value : Val) -> Val:
