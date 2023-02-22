@@ -15,8 +15,7 @@ def add_impl_int_int (arg : List[MultiSetVal]) -> MultiSetVal:
             return [IntVal(v1 + v2)]
     raise FunCallErr()
 
-eq_tp = FunType(
-                    args_mod=[ParamSingleton(), ParamSingleton()], 
+eq_tp = FunType( args_mod=[ParamSingleton(), ParamSingleton()], 
                     args_ret_types=[FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)], ret_tp=(BoolTp(), CardOne))]
                     )
 

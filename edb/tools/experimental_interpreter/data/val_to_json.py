@@ -28,7 +28,7 @@ def val_to_json_like(v : Val) -> json_like :
             return objectval_to_json_like(object)
         case FreeVal(object):
             return objectval_to_json_like(object)
-        case ArrayVal(val=array):
+        case ArrVal(val=array):
             return [val_to_json_like(v) for v in array]
         case UnnamedTupleVal(val=array):
             return [val_to_json_like(v) for v in array]

@@ -130,7 +130,7 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
             ])
         case UnionExpr(left=l, right=r):
             return qlast.BinOp(op="UNION", left=reverse_elab(l), right=reverse_elab(r))
-        case ArrayExpr(elems=elems):
+        case ArrExpr(elems=elems):
             return qlast.Array(elements=[reverse_elab(e) for e in elems])
         case UpdateExpr(subject=subject, shape=shape):
             return qlast.UpdateQuery(subject=reverse_elab(subject), shape=reverse_elab_shape(shape))

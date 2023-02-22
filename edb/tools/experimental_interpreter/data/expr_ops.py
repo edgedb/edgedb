@@ -52,8 +52,8 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
                 return TypeCastExpr(tp=tp, arg=recur(arg))
             case UnionExpr(left=left, right=right):
                 return UnionExpr(left=recur(left), right=recur(right))
-            case ArrayExpr(elems=arr):
-                return ArrayExpr(elems=[recur(e) for e in arr])
+            case ArrExpr(elems=arr):
+                return ArrExpr(elems=[recur(e) for e in arr])
             case MultiSetExpr(expr=arr):
                 return MultiSetExpr(expr=[recur(e) for e in arr])
             case OffsetLimitExpr(subject=subject, offset=offset, limit=limit):

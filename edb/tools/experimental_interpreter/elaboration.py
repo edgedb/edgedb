@@ -254,7 +254,7 @@ def elab_TypeName(qle : qlast.TypeName) -> Tp:
     if qle.subtypes:
         match (basetp.name, qle.subtypes):
             case ("array", [single_arg]):
-                return ArrayTp(tp=elab_single_type_expr(single_arg))
+                return ArrTp(tp=elab_single_type_expr(single_arg))
         return elab_not_implemented(qle)
     return elab_single_type_str(basetp.name)
             # raise ValueError("Unrecognized conversion type", basetp.name)
@@ -285,8 +285,8 @@ def elab_TypeCast(qle : qlast.TypeCast) -> TypeCastExpr:
         return elab_not_implemented(qle)
 
 @elab.register(qlast.Array)
-def elab_Array(qle : qlast.Array) -> ArrayExpr:
-    return ArrayExpr(elems=[elab(elem) for elem in qle.elements])
+def elab_Array(qle : qlast.Array) -> ArrExpr:
+    return ArrExpr(elems=[elab(elem) for elem in qle.elements])
 
 
 @elab.register(qlast.UpdateQuery)

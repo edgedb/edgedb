@@ -74,7 +74,7 @@ class UnnamedTupleTp:
     val : List[Tp]
 
 @dataclass(frozen=True)
-class ArrayTp:
+class ArrTp:
     tp : Tp
 
 @dataclass(frozen=True)
@@ -91,7 +91,7 @@ class AnyTp:
 class SomeTp:
     index : int
 
-Tp = ObjectTp | PrimTp | VarTp | NamedTupleTp | UnnamedTupleTp | ArrayTp | AnyTp | SomeTp
+Tp = ObjectTp | PrimTp | VarTp | NamedTupleTp | UnnamedTupleTp | ArrTp | AnyTp | SomeTp
 
 
 @dataclass(frozen=True)
@@ -255,8 +255,8 @@ class FunArgRetType:
 
 @dataclass(frozen=True)
 class FunType:
-    args_ret_types : List[FunArgRetType]
     args_mod : List[ParamModifier] # all (overloaded) args need to have the same modifier
+    args_ret_types : List[FunArgRetType]
 
 ### DEFINE PRIM VALUES
 @dataclass(frozen=True, order=True)
@@ -402,7 +402,7 @@ class NamedTupleExpr:
     val : Dict[str, Expr]
 
 @dataclass(frozen=True)
-class ArrayExpr:
+class ArrExpr:
     elems : List[Expr]
 
 
@@ -454,7 +454,7 @@ class NamedTupleVal:
     val : Dict[str, Val]
 
 @dataclass(frozen=True)
-class ArrayVal:
+class ArrVal:
     val : List[Val]
 
 # @dataclass(frozen=True)
@@ -464,7 +464,7 @@ class ArrayVal:
 
 Val =  (PrimVal | RefVal | FreeVal 
         # | RefLinkVal | LinkWithPropertyVal 
-        | UnnamedTupleVal | NamedTupleVal  | ArrayVal ) # V
+        | UnnamedTupleVal | NamedTupleVal  | ArrVal ) # V
 
 MultiSetVal = List[Val]
 
@@ -475,7 +475,7 @@ Expr = (PrimVal | TypeCastExpr | FunAppExpr
         | FilterOrderExpr | OffsetLimitExpr | InsertExpr | UpdateExpr
         | MultiSetExpr 
         | ShapedExprExpr | ShapeExpr | ObjectExpr | BindingExpr
-        | Val | UnnamedTupleExpr | NamedTupleExpr | ArrayExpr
+        | Val | UnnamedTupleExpr | NamedTupleExpr | ArrExpr
         | Tp | UnionExpr   | DetachedExpr
         )
 

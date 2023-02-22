@@ -84,8 +84,8 @@ def map_query(f : Callable[[Expr, QueryLevel], Optional[Expr]], expr : Expr, sch
                 return TypeCastExpr(tp=tp, arg=recur(arg))
             case UnionExpr(left=left, right=right):
                 return UnionExpr(left=sub_recur(left), right=sub_recur(right))
-            case ArrayExpr(elems=arr):
-                return ArrayExpr(elems=[recur(e) for e in arr])
+            case ArrExpr(elems=arr):
+                return ArrExpr(elems=[recur(e) for e in arr])
             case MultiSetExpr(expr=arr):
                 return MultiSetExpr(expr=[sub_recur(e) for e in arr])
             case OffsetLimitExpr(subject=subject, offset=offset, limit=limit):

@@ -260,9 +260,9 @@ def eval_config(rt : RTExpr) -> RTVal:
             (new_data, lvals) = eval_config(RTExpr(rt.data, l))
             (new_data2, rvals) = eval_config(RTExpr(new_data, r))
             return RTVal(new_data2, [*lvals, *rvals])
-        case ArrayExpr(elems=elems):
+        case ArrExpr(elems=elems):
             (new_data, elemsv) = eval_expr_list(rt.data, elems)
-            return RTVal(new_data, [ArrayVal(list(el)) for el in itertools.product(*elemsv)])
+            return RTVal(new_data, [ArrVal(list(el)) for el in itertools.product(*elemsv)])
         case UpdateExpr(subject=subject, shape=shape):
             if rt.data.eval_only:
                 eval_error(rt.expr, "Attempting to Update in an Eval-Only evaluation")
