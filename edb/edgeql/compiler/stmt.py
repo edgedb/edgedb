@@ -485,8 +485,6 @@ def compile_InsertQuery(
         stmt.conflict_checks = conflicts.compile_inheritance_conflict_checks(
             stmt, stmt_subject_stype, ctx=ictx)
 
-        ctx.env.dml_stmts.add(stmt)
-
         if expr.unless_conflict is not None:
             constraint_spec, else_branch = expr.unless_conflict
 
@@ -562,7 +560,7 @@ def compile_UpdateQuery(
             context=expr.context,
         )
 
-    # Record this node in the list of potential DML expressions.
+    # Record this node in the list of DML statements.
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
@@ -616,8 +614,6 @@ def compile_UpdateQuery(
                 compile_views=True,
                 exprtype=s_types.ExprType.Update,
                 ctx=bodyctx)
-
-        ctx.env.dml_stmts.add(stmt)
 
         result = setgen.class_set(
             mat_stype, path_id=stmt.subject.path_id, ctx=ctx,
@@ -1138,6 +1134,9 @@ def fini_stmt(
 
     view: Optional[s_types.Type]
     path_id: Optional[irast.PathId]
+
+    if isinstance(irstmt, irast.MutatingStmt):
+        ctx.env.dml_stmts.add(irstmt)
 
     if (isinstance(t, s_pseudo.PseudoType)
             and t.is_any(ctx.env.schema)):

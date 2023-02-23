@@ -141,8 +141,7 @@ def fini_expression(
         ir = setgen.scoped_set(ir, ctx=ctx)
 
     # Compile any triggers that were triggered by the query
-    ir_triggers = triggers.compile_triggers(
-        ast_visitor.find_children(ir, irast.MutatingStmt), ctx=ctx)
+    ir_triggers = triggers.compile_triggers(ctx.env.dml_stmts, ctx=ctx)
 
     # Collect all of the expressions stored in various side sets
     # that can make it into the output, so that we can make sure

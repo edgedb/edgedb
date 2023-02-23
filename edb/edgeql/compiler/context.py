@@ -207,9 +207,7 @@ class Environment:
     """
 
     dml_stmts: Set[irast.MutatingStmt]
-    """A list of DML expressions (statements and DML-containing
-    functions) that appear in a function body.
-    """
+    """A list of DML statements in the query"""
 
     #: A list of bindings that should be assumed to be singletons.
     singletons: List[irast.PathId]
