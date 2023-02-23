@@ -1151,6 +1151,8 @@ class InsertStmt(MutatingStmt):
         return self.subject.typeref.real_material_type
 
 
+# TODO: I'm not sure how to identify pointers - sn.UnqualName is my best guess.
+# TODO: using Set is not required - we only need Expr actually.
 Rewrites = typing.Dict[TypeRef, typing.Dict[sn.UnqualName, Set]]
 
 

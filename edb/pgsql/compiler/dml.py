@@ -1385,6 +1385,10 @@ def process_update_body(
         cte=dml_parts.range_cte,
         parent=ctx.enclosing_cte_iterator)
 
+    rewrites = ir_stmt.rewrites[typeref] if typeref in ir_stmt.rewrites else {}
+    # TODO: sometimes, typeref is not in ir_stmt.rewrites
+    # assert rewrites
+
     ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
 
     with ctx.newscope() as subctx:
@@ -1406,7 +1410,13 @@ def process_update_body(
             assert shape_el.rptr is not None
             ptrref = shape_el.rptr.ptrref
             actual_ptrref = irtyputils.find_actual_ptrref(typeref, ptrref)
-            updvalue = shape_el.expr
+
+            pointer_name = sn.UnqualName(name=actual_ptrref.shortname.name)
+            if pointer_name in rewrites:
+                updvalue = rewrites[pointer_name].expr
+            else:
+                updvalue = shape_el.expr
+
             ptr_info = pg_types.get_ptrref_storage_info(
                 actual_ptrref, resolve_type=True, link_bias=False)
 
