@@ -6,6 +6,7 @@ import itertools
 
 from .data.data_ops import *
 from .data.expr_ops import *
+from .data.type_ops import *
 from edb.common import debug
 from .data.casts import *
 
@@ -238,6 +239,17 @@ def eval_config(rt : RTExpr) -> RTVal:
                 return RTVal(new_data, object_dedup([remove_link_props(p) for p in projected]))
             else:
                 return eval_error(projected, "Returned objects are not uniform")
+        case BackLinkExpr(subject=subject, label=label):
+            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            cur_read_data : Dict[int, DBEntry] = rt.data.read_snapshots[0].dbdata
+            results = [RefVal(id, ObjectVal({})) for (id, obj) in cur_read_data.items() if label in obj.data.keys()]
+            return RTVal(new_data, results)
+        case TpIntersectExpr(subject=subject, tp=tp_name):
+            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            results = [v for v in subjectv
+                    for vid in ([v.refid] if val_is_ref_val(v) else eval_error(v, "expecting references?") )
+                    if is_nominal_subtype_in_schema(new_data.cur_db.dbdata[vid].tp.name, tp_name, new_data.schema)]
+            return RTVal(new_data, results)
         case TypeCastExpr(tp=tp, arg=arg):
             (new_data, argv2) = eval_config(RTExpr(rt.data, arg))
             casted = [type_cast(tp, v) for v in argv2]

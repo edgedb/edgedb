@@ -40,6 +40,10 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
                 return NamedTupleExpr(val={k : recur(e) for (k,e) in val.items()})
             case ObjectProjExpr(subject=subject, label=label):
                 return ObjectProjExpr(subject=recur(subject), label=label)
+            case BackLinkExpr(subject=subject, label=label):
+                return BackLinkExpr(subject=recur(subject), label=label)
+            case TpIntersectExpr(subject=subject, tp=tp_name):
+                return TpIntersectExpr(subject=recur(subject), tp=tp_name)
             case LinkPropProjExpr(subject=subject, linkprop=label):
                 return LinkPropProjExpr(subject=recur(subject), linkprop=label)
             case FunAppExpr(fun=fname, args=args, overloading_index = idx):
@@ -222,3 +226,4 @@ def combine_object_val(o1 : ObjectVal, o2 : ObjectVal) -> ObjectVal:
 
 def object_to_shape(expr : ObjectExpr) -> ShapeExpr:
     return ShapeExpr(shape={lbl : abstract_over_expr(e) for (lbl, e) in expr.val.items()})
+

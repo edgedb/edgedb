@@ -69,6 +69,20 @@ def elab_Path(p : qlast.Path) -> Expr:
                         result = LinkPropProjExpr(result, path_name)
                     else:
                         result = ObjectProjExpr(result, path_name)
+            case qlast.Ptr(ptr=qlast.ObjectRef(name=path_name), direction=PointerDirection.Inbound, type=None):
+                if result is None:
+                    raise ValueError("should not be")
+                else:
+                    result = BackLinkExpr(result, path_name)
+            case qlast.TypeIntersection(type=tp):
+                if result is None:
+                    raise ValueError("should not be")
+                else:
+                    match elab_single_type_expr(tp):
+                        case qlast.TypeName(maintype=qlast.ObjectRef(name=tp_name)):
+                            result = TpIntersectExpr(result, tp_name)
+                        case _:
+                            raise ValueError("expecting single type name here")
             case _:
                 if result is None:
                     result = elab(step)

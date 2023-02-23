@@ -60,6 +60,10 @@ def map_query(f : Callable[[Expr, QueryLevel], Optional[Expr]], expr : Expr, sch
                 return NamedTupleExpr(val={k : recur(e) for (k,e) in val.items()})
             case ObjectProjExpr(subject=subject, label=label):
                 return ObjectProjExpr(subject=recur(subject), label=label)
+            case BackLinkExpr(subject=subject, label=label):
+                return BackLinkExpr(subject=recur(subject), label=label)
+            case TpIntersectExpr(subject=subject, tp=tp_name):
+                return TpIntersectExpr(subject=recur(subject), tp=tp_name)
             case FunAppExpr(fun=fname, args=args, overloading_index = idx):
                 mapped_args : List[Expr] = []
                 params = schema.fun_defs[fname].tp.args_mod

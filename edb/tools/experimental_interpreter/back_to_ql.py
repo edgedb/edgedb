@@ -50,6 +50,17 @@ def reverse_elab_order(order : ObjectExpr) -> List[qlast.SortExpr]:
     ]
 
 
+def append_path_element(subject : qlast.Base, to_add : qlast.PathElement) -> qlast.Path:
+    match subject:
+        case qlast.Path(steps=steps, partial=partial):
+            return qlast.Path(steps=[*steps, 
+                    to_add
+                ], partial=partial)
+        case rsub:
+            return qlast.Path(steps=[rsub, 
+                    to_add
+                ], partial=False)
+
 
 
 def reverse_elab(ir_expr : Expr) -> qlast.Base:
@@ -99,26 +110,16 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
                 # raise ValueError ("Unimplemented")
         case ObjectProjExpr(subject=subject, label=label):
             label_path_component = qlast.Ptr(ptr=qlast.ObjectRef(name=label), direction=PointerDirection.Outbound, type=None)
-            match reverse_elab(subject):
-                case qlast.Path(steps=steps, partial=partial):
-                    return qlast.Path(steps=[*steps, 
-                            label_path_component
-                        ], partial=partial)
-                case rsub:
-                    return qlast.Path(steps=[rsub, 
-                            label_path_component
-                        ], partial=False)
+            return append_path_element(reverse_elab(subject), label_path_component)
+        case BackLinkExpr(subject=subject, label=label):
+            label_path_component = qlast.Ptr(ptr=qlast.ObjectRef(name=label), direction=PointerDirection.Inbound, type=None)
+            return append_path_element(reverse_elab(subject), label_path_component)
         case LinkPropProjExpr(subject=subject, linkprop=label):
             label_path_component = qlast.Ptr(ptr=qlast.ObjectRef(name=label), direction=PointerDirection.Outbound, type="property")
-            match reverse_elab(subject):
-                case qlast.Path(steps=steps, partial=partial):
-                    return qlast.Path(steps=[*steps, 
-                            label_path_component
-                        ], partial=partial)
-                case rsub:
-                    return qlast.Path(steps=[rsub, 
-                            label_path_component
-                        ], partial=False)
+            return append_path_element(reverse_elab(subject), label_path_component)
+        case TpIntersectExpr(subject=subject, tp=tp_name):
+            tp_path_component = qlast.TypeIntersection(type=qlast.TypeName(maintype=qlast.ObjectRef(name=tp_name)))
+            return append_path_element(reverse_elab(subject), tp_path_component)
         case TypeCastExpr(tp=tp, arg=arg):
             return qlast.TypeCast(type=reverse_elab_type_name(tp), expr=reverse_elab(arg))
         case UnnamedTupleExpr(val=tuples):

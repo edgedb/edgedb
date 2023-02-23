@@ -82,6 +82,11 @@ class UnionTp:
     left : Tp
     right : Tp
 
+@dataclass(frozen=True)
+class IntersectTp:
+    left : Tp
+    right : Tp
+
 
 @dataclass(frozen=True)
 class AnyTp:
@@ -91,7 +96,7 @@ class AnyTp:
 class SomeTp:
     index : int
 
-Tp = ObjectTp | PrimTp | VarTp | NamedTupleTp | UnnamedTupleTp | ArrTp | AnyTp | SomeTp
+Tp = ObjectTp | PrimTp | VarTp | NamedTupleTp | UnnamedTupleTp | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp
 
 
 @dataclass(frozen=True)
@@ -331,6 +336,16 @@ class ObjectProjExpr:
     subject : Expr
     label : str
 
+@dataclass(frozen=True) 
+class BackLinkExpr:
+    subject : Expr
+    label : str
+
+@dataclass(frozen=True) 
+class TpIntersectExpr:
+    subject : Expr
+    tp : str
+
 
 @dataclass(frozen=True) 
 class LinkPropProjExpr:
@@ -472,6 +487,7 @@ VarExpr = (FreeVarExpr | BoundVarExpr)
 
 Expr = (PrimVal | TypeCastExpr | FunAppExpr 
         | FreeVarExpr | BoundVarExpr| ObjectProjExpr | LinkPropProjExpr |  WithExpr | ForExpr 
+        | TpIntersectExpr | BackLinkExpr
         | FilterOrderExpr | OffsetLimitExpr | InsertExpr | UpdateExpr
         | MultiSetExpr 
         | ShapedExprExpr | ShapeExpr | ObjectExpr | BindingExpr
@@ -505,6 +521,7 @@ class DBSchema:
 
 def empty_db():
     return DB({})
+
 
 
 # def add_fun(x, y):

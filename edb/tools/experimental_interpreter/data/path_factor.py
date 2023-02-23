@@ -12,6 +12,8 @@ def is_path(e : Expr) -> bool:
             return is_path(subject)
         case ObjectProjExpr(subject=subject, label=label):
             return is_path(subject)
+        case BackLinkExpr(subject=subject, label=label):
+            return is_path(subject)
         case _:
             return False
 
@@ -22,6 +24,8 @@ def all_prefixes_of_a_path(e : Expr) -> List[Expr]:
         case LinkPropProjExpr(subject=subject, linkprop=linkprop):
             return [*all_prefixes_of_a_path(subject), e]
         case ObjectProjExpr(subject=subject, label=label):
+            return [*all_prefixes_of_a_path(subject), e]
+        case BackLinkExpr(subject=subject, label=label):
             return [*all_prefixes_of_a_path(subject), e]
         case _:
             raise ValueError("not a path", e)
@@ -34,6 +38,8 @@ def path_lexicographic_key(e : Expr) -> str:
             return path_lexicographic_key(subject) + "@" + linkprop
         case ObjectProjExpr(subject=subject, label=label):
             return path_lexicographic_key(subject) + "." + label
+        case BackLinkExpr(subject=subject, label=label):
+            return path_lexicographic_key(subject) + ".<" + label
         case _:
             raise ValueError("not a path")
 
