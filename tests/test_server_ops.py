@@ -447,13 +447,12 @@ class TestServerOps(tb.BaseHTTPTestCase):
                     await cluster.start()
 
                     # give the EdgeDB server some time to recover
-                    deadline = time.monotonic() + 5
-                    while time.monotonic() < deadline:
-                        try:
+                    async for tr in self.try_until_succeeds(
+                        ignore=errors.BackendUnavailableError,
+                        timeout=30,
+                    ):
+                        async with tr:
                             val = await con.query_single('SELECT 123+456')
-                            break
-                        except errors.BackendUnavailableError:
-                            pass
                     self.assertEqual(int(val), 579)
                 finally:
                     await con.aclose()
