@@ -28,7 +28,7 @@ from .compiler import compile, compile_schema_storage_in_delta
 from .dbstate import QueryUnit, QueryUnitGroup
 from .enums import Capability, Cardinality
 from .enums import InputFormat, OutputFormat
-
+from .explain import analyze_explain_output
 
 __all__ = (
     'Cardinality',
@@ -40,6 +40,7 @@ __all__ = (
     'Capability',
     'InputFormat',
     'OutputFormat',
+    'analyze_explain_output',
     'compile_edgeql_script',
     'load_std_schema',
     'new_compiler',

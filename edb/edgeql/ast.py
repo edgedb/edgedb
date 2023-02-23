@@ -1488,6 +1488,16 @@ class DescribeStmt(Statement):
 
 
 #
+# Explain
+#
+
+class ExplainStmt(Statement):
+
+    query: Query
+    analyze: bool
+
+
+#
 # SDL
 #
 

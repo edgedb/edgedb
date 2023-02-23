@@ -22,6 +22,7 @@ from typing import (
     Optional,
 )
 
+import asyncio
 import decimal
 import json
 
@@ -53,7 +54,7 @@ async def execute(
     compiled: dbview.CompiledQuery,
     bind_args: bytes,
     *,
-    fe_conn: Optional[frontend.AbstractFrontendConnection] = None,
+    fe_conn: frontend.AbstractFrontendConnection = None,
     use_prep_stmt: bint = False,
     # HACK: A hook from the notebook ext, telling us to skip dbview.start
     # so that it can handle things differently.
@@ -101,9 +102,11 @@ async def execute(
                     bound_args_buf = args_ser.recode_bind_args(
                         dbv, compiled, bind_args)
 
+                    read_data = query_unit.set_global or query_unit.is_explain
+
                     data = await be_conn.parse_execute(
                         query=query_unit,
-                        fe_conn=fe_conn if not query_unit.set_global else None,
+                        fe_conn=fe_conn if not read_data else None,
                         bind_data=bound_args_buf,
                         use_prep_stmt=use_prep_stmt,
                         state=state,
@@ -115,6 +118,18 @@ async def execute(
                             config.Operation.from_json(r[0][1:])
                             for r in data
                         ]
+
+                    if query_unit.is_explain:
+                        # Go back to the compiler pool to analyze
+                        # the explain output.
+                        compiler_pool = server.get_compiler_pool()
+                        r = await compiler_pool.analyze_explain_output(
+                            query_unit.query_asts, data
+                        )
+                        buf = WriteBuffer.new_message(b'D')
+                        buf.write_int16(1)  # 1 column
+                        buf.write_len_prefixed_bytes(r)
+                        fe_conn.write(buf.end_message())
 
                 if state is not None:
                     # state is restored, clear orig_state so that we can
@@ -211,6 +226,8 @@ async def execute_script(
             for idx, query_unit in enumerate(unit_group):
                 if fe_conn is not None and fe_conn.cancelled:
                     raise ConnectionAbortedError
+
+                assert not query_unit.is_explain
 
                 # XXX: pull out?
                 # We want to minimize the round trips we need to make, so

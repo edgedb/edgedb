@@ -165,6 +165,19 @@ def each_query_in_set(qry: pgast.Query) -> Iterator[pgast.Query]:
             yield qry
 
 
+def each_base_rvar(rvar: pgast.BaseRangeVar) -> Iterator[pgast.BaseRangeVar]:
+    # We do this iteratively instead of recursively (with yield from)
+    # to avoid being pointlessly quadratic.
+    stack = [rvar]
+    while stack:
+        rvar = stack.pop()
+        if isinstance(rvar, pgast.JoinExpr):
+            stack.append(rvar.rarg)
+            stack.append(rvar.larg)
+        else:
+            yield rvar
+
+
 def new_binop(
     lexpr: pgast.BaseExpr,
     rexpr: pgast.BaseExpr,

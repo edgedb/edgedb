@@ -148,7 +148,7 @@ class EdgeQLPathInfo(Base):
 
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {
-        'path_scope', 'path_outputs', 'path_id', 'is_distinct',
+        'path_id', 'path_scope', 'path_outputs', 'is_distinct',
         'path_id_mask', 'path_namespace',
         'packed_path_outputs', 'packed_path_namespace',
     }
@@ -205,7 +205,8 @@ class BaseRangeVar(ImmutableBaseExpr):
     This can be though as a specific instance of a table within a query.
     """
 
-    __ast_meta__ = {'schema_object_id', 'tag'}
+    __ast_meta__ = {'schema_object_id', 'tag', 'ir_origins'}
+    __ast_mutable_fields__ = frozenset(['ir_origins'])
 
     # This is a hack, since there is some code that relies on not
     # having an alias on a range var (to refer to a CTE directly, for
@@ -219,6 +220,12 @@ class BaseRangeVar(ImmutableBaseExpr):
 
     #: Optional identification piece to describe what's inside the rvar
     tag: typing.Optional[str] = None
+
+    #: Optional reference to the sets that this refers to
+    #: Only used for helping recover information during explain.
+    #: The type is a list of objects to help prevent any thought
+    #: of using this field computationally during compilation.
+    ir_origins: typing.Optional[list[object]] = None
 
     def __repr__(self) -> str:
         return (

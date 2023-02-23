@@ -1435,7 +1435,11 @@ def range_for_material_objtype(
         and typeref.name_hint.module not in {'cfg', 'sys'}
     ):
         ops = []
-        for subref in [typeref, *irtyputils.get_typeref_descendants(typeref)]:
+        typerefs = [typeref, *irtyputils.get_typeref_descendants(typeref)]
+        all_abstract = all(subref.is_abstract for subref in typerefs)
+        for subref in typerefs:
+            if subref.is_abstract and not all_abstract:
+                continue
             rvar = range_for_material_objtype(
                 subref, path_id, lateral=lateral,
                 include_descendants=False,
@@ -1772,7 +1776,10 @@ def table_from_ptrref(
 
     typeref = ptrref.out_source if ptrref else None
     relation = pgast.Relation(
-        schemaname=table_schema_name, name=table_name, typeref=typeref)
+        schemaname=table_schema_name,
+        name=table_name,
+        typeref=typeref,
+    )
 
     # Pseudo pointers (tuple and type intersection) have no schema id.
     sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None
@@ -1846,6 +1853,13 @@ def range_for_ptrref(
         for ref in list(refs):
             lrefs.extend(ref.descendants())
             lrefs.append(ref)
+        concrete_lrefs = [
+            ref for ref in lrefs if not ref.out_source.is_abstract
+        ]
+        # If there aren't any concrete types, we still need to
+        # generate *something*, so just do all the abstract ones.
+        if concrete_lrefs:
+            lrefs = concrete_lrefs
     else:
         lrefs = list(refs)
 
@@ -1879,6 +1893,7 @@ def range_for_ptrref(
             for_mutation=for_mutation,
             ctx=ctx,
         )
+        table.query.path_id = path_id
 
         qry = pgast.SelectStmt()
         qry.from_clause.append(table)
