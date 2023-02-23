@@ -147,7 +147,10 @@ class ClusterTestCase(tb.TestCase):
         await cluster.trust_local_connections()
         port = tb.find_available_port()
         await cluster.start(
-            port=port, server_settings=cls.get_server_settings())
+            port=port,
+            server_settings=cls.get_server_settings(),
+            wait=120,
+        )
         result = CliRunner().invoke(get_default_args, [])
         arg_input = pickle.loads(result.stdout_bytes)
         arg_input["data_dir"] = pathlib.Path(cluster.get_data_dir())
