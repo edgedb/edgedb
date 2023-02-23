@@ -9,6 +9,11 @@ from .elaboration import elab_single_type_expr
 def elab_schema_error(obj : Any) -> Any:
     raise ValueError(obj)
 
+def elab_schema_cardinality(is_required: Optional[bool]) -> CMMode:
+    return CMMode(Fin(1) if is_required else Fin(0), Inf())
+
+def elab_schema_target_tp(target: Optional[Union[qlast.Expr, qlast.TypeExpr]]) -> Tp:
+    return (elab_single_type_expr(target) if isinstance(target, qlast.TypeExpr) else elab_schema_error(target))
 
 def elab_schema(sdef : qlast.Schema) -> DBSchema:
     if (len(sdef.declarations) != 1 
@@ -27,11 +32,21 @@ def elab_schema(sdef : qlast.Schema) -> DBSchema:
                         case qlast.CreateConcretePointer(bases=pbases, 
                                 name=qlast.ObjectRef(name=pname), target=ptarget, is_required=p_is_required,
                                 commands=pcommands):
+                                base_target_type = elab_schema_target_tp(ptarget)
+                                link_property_tps : Dict[str, ResultTp]= {}
                                 for pcmd in pcommands:
-                                    print("WARNING: not implemented pcmd", pcmd)
+                                    match pcmd:
+                                        case qlast.CreateConcretePointer(bases=plbases, 
+                                                name=qlast.ObjectRef(name=plname), target=pltarget, is_required=pl_is_required,
+                                                commands=plcommands):
+                                            if plcommands:
+                                                raise ValueError("unimplemented", plcommands)
+                                            link_property_tps = {**link_property_tps, plname : (elab_schema_target_tp(pltarget), elab_schema_cardinality(pl_is_required))}
+                                        case _:
+                                            print("WARNING: not implemented pcmd", pcmd)
+                                final_target_type = LinkPropTp(base_target_type, ObjectTp(link_property_tps)) if link_property_tps else base_target_type
                                 object_tp_content = {**object_tp_content, pname : 
-                                    ((elab_single_type_expr(ptarget) if isinstance(ptarget, qlast.TypeExpr) else elab_schema_error(ptarget)),
-                                        CMMode(Fin(1) if p_is_required else Fin(0), Inf()))
+                                    (final_target_type, elab_schema_cardinality(is_required=p_is_required))
                                     }
                         case _:
                             print("WARNING: not implemented cmd", cmd)

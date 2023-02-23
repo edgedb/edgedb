@@ -268,13 +268,15 @@ def make_storage_atomic(val : Val, tp : Tp) -> Val:
 
 def coerce_to_storage(val : ObjectVal, fmt : ObjectTp) -> ObjectVal:
     # ensure no redundant keys
-    extra_keys = [k for k in val.val.keys() if k not in fmt.val.keys()]
+    extra_keys = [k for k in val.val.keys() if k not in [StrLabel(k) for k in fmt.val.keys()]]
     if extra_keys:
         raise ValueError("Coercion failed, object contains redundant keys:", extra_keys, 
         "when coercing ", val, " to ", fmt)
     return ObjectVal(val={
         StrLabel(k) : (Visible(), 
-            [make_storage_atomic(v, tp[0]) for v in val.val[StrLabel(k)][1]]
+            ([make_storage_atomic(v, tp[0]) for v in val.val[StrLabel(k)][1]] 
+                if StrLabel(k) in val.val.keys()
+                else [])
         ) for (k,tp) in fmt.val.items()
     })
 

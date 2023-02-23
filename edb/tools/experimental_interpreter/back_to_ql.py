@@ -143,7 +143,7 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
             if isinstance(body, qlast.SelectQuery) or isinstance(body, qlast.InsertQuery) or isinstance(body, qlast.UpdateQuery) or isinstance(body, qlast.ForQuery):
                 if body.aliases is None:
                     body.aliases = []
-                body.aliases = [*body.aliases, qlast.AliasedExpr(alias=name, expr=reverse_elab(bound))]
+                body.aliases = [ qlast.AliasedExpr(alias=name, expr=reverse_elab(bound)), *body.aliases]
                 return body
             else:
                 return qlast.SelectQuery(result=body, aliases=[qlast.AliasedExpr(alias=name, expr=reverse_elab(bound))])

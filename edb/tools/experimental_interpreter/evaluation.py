@@ -113,6 +113,17 @@ def singular_proj(data : RTData, subject : Val, label : Label) -> MultiSetVal :
                     if l in dic.keys():
                         return [dic[l]]
                     else:
+                        if l.isdigit() and int(l) < len(dic.keys()):
+                            return [dic[list(dic.keys())[int(l)]]]
+                        else:
+                            raise ValueError("key DNE")
+            raise ValueError("Label not Str")
+        case UnnamedTupleVal(val=arr):
+            match label:
+                case StrLabel(l):
+                    if l.isdigit() and int(l) < len(arr):
+                        return [arr[int(l)]]
+                    else:
                         raise ValueError("key DNE")
             raise ValueError("Label not Str")
     raise ValueError("Cannot project, unknown subject", subject)
@@ -162,15 +173,13 @@ def trace_input_output(func):
 # @trace_input_output
 def eval_config(rt : RTExpr) -> RTVal:
     match rt.expr:
-        case StrVal(s):
-            return RTVal(rt.data, [StrVal(s)])
-        case IntVal(i):
-            return RTVal(rt.data, [IntVal(i)])
-        case BoolVal(b):
-            return RTVal(rt.data, [BoolVal(b)])
-        case RefVal(_):
-            return RTVal(rt.data, [rt.expr])
-        case ArrVal(_):
+        case (StrVal(_)
+            | IntVal(_)
+            | BoolVal(_)
+            | RefVal(_)
+            | ArrVal(_)
+            | UnnamedTupleVal(_)
+            ):
             return RTVal(rt.data, [rt.expr])
         case ObjectExpr(val=dic):
             cur_data = rt.data
