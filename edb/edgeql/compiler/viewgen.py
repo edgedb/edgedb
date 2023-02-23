@@ -1028,14 +1028,26 @@ def _prepare_rewrite_anchors(
 
         if not val:
             ppath_id = irast.PathId.from_pointer(ctx.env.schema, ptr)
-            empty_set = irast.EmptySet(
-                path_id=ppath_id,
-                typeref=ppath_id.target,
-            )
-            ptype = ptr.get_target(ctx.env.schema)
-            assert ptype
-            ctx.env.set_types[empty_set] = ptype
-            val = setgen.ensure_set(empty_set, type_override=ptype, ctx=ctx)
+
+            if rewrite_kind == qltypes.RewriteKind.Insert:
+
+                ptype = ptr.get_target(ctx.env.schema)
+                assert ptype
+                empty = irast.EmptySet(
+                    path_id=ppath_id,
+                    typeref=ppath_id.target,
+                )
+                ctx.env.set_types[empty] = ptype
+                val = setgen.ensure_set(empty, type_override=ptype, ctx=ctx)
+
+            elif rewrite_kind == qltypes.RewriteKind.Update:
+                source = ptr.get_source(ctx.env.schema)
+                assert isinstance(source, s_types.Type)
+                source_set = setgen.class_set(source, ctx=ctx)
+                val = setgen.extend_path(source_set, ptr, ctx=ctx)
+
+            else:
+                raise NotImplementedError()
 
         subject_pointers[pn.name] = val
     subject_set = irast.ComputedObjectSet(

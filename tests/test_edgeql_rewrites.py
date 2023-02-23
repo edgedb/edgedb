@@ -58,6 +58,8 @@ class TestRewrites(tb.QueryTestCase):
         )
 
     async def test_edgeql_rewrites_02(self):
+        # Rewrites should also be applied to children types.
+
         await self.con.execute(
             '''
             alter type Content {
@@ -83,19 +85,66 @@ class TestRewrites(tb.QueryTestCase):
         )
 
     async def test_edgeql_rewrites_03(self):
+        # Rewrites override parent overrides.
+
         await self.con.execute(
             '''
+            alter type Content {
+              alter property title {
+                set optional;
+                create rewrite update
+                    using (__subject__.title ++ ' - content updated');
+              };
+            };
             alter type Movie {
-              create property title -> str {
-                create rewrite update using (.title ++ ' - updated');
+              alter property title {
+                create rewrite update
+                    using (__subject__.title ++ ' - movie updated');
               };
             };
         '''
         )
 
         await self.con.execute('insert Movie { title:= "The Godfather" }')
+        await self.con.execute('insert Content { title:= "Harry Potter" }')
+
+        await self.con.execute('update Content set { title := .title }')
+        await self.assert_query_result(
+            'select Content { title } order by .title',
+            [
+                {"title": "Harry Potter - content updated"},
+                {"title": "The Godfather - movie updated"},
+            ],
+        )
+
+    async def test_edgeql_rewrites_04(self):
+        await self.con.execute(
+            '''
+            alter type Content {
+                alter property title set optional;
+            };
+            alter type Movie {
+              alter property title {
+                create rewrite update
+                    using (__subject__.title ++ ' - updated');
+              };
+            };
+        '''
+        )
+
+        await self.con.execute('insert Movie { title:= "The Godfather" }')
+
+        # if pointer is specified, __subject__ should refer to that value
         await self.con.execute('update Movie set { title:= "Whiplash" }')
         await self.assert_query_result(
-            'select Movie { title, updated_at }',
+            'select Movie { title }',
             [{"title": "Whiplash - updated"}],
+        )
+
+        # if pointer is not specified, __subject__ should refer to existing
+        # values
+        await self.con.execute('update Movie set { release_year := 2000 }')
+        await self.assert_query_result(
+            'select Movie { title }',
+            [{"title": "Whiplash - updated - updated"}],
         )
