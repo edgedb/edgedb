@@ -833,13 +833,17 @@ def _apply_rewrites(
             continue
 
         # TODO: this uses linear time for a basic lookup
-        val = next((v.target_set for p, v in pointers.items() if p.get_nearest_non_derived_parent(ctx.env.schema) == ptr), None)
+        val = None
+        for p, v in pointers.items():
+            if p.get_nearest_non_derived_parent(ctx.env.schema) == ptr:
+                val = v.target_set
+                break
 
         if not val:
             ppath_id = irast.PathId.from_pointer(ctx.env.schema, ptr)
             empty_set = irast.EmptySet(
-                path_id = ppath_id,
-                typeref = ppath_id.target,
+                path_id=ppath_id,
+                typeref=ppath_id.target,
             )
             ptype = ptr.get_target(ctx.env.schema)
             assert ptype

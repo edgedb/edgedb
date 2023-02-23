@@ -561,6 +561,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         else:
             return super().get_ast_attr_for_field(field, astnode)
 
+
 def get_dict_of_references(
     obj: so.Object, schema: s_schema.Schema
 ) -> Dict[sn.Name, s_referencing.ReferencedInheritingObject]:

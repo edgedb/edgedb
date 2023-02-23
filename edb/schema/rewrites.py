@@ -37,7 +37,6 @@ from . import schema as s_schema
 from . import types as s_types
 
 
-
 class Rewrite(
     referencing.ReferencedInheritingObject,
     s_anno.AnnotationSubject,
@@ -68,6 +67,7 @@ class Rewrite(
         # inheritance for rewrites, and do lookups into parent object types
         # when retrieving them.
         return False
+
 
 class RewriteCommandContext(
     sd.ObjectCommandContext[Rewrite],
@@ -212,7 +212,6 @@ class RewriteCommand(
         # (I think we won't need to, since we'll operate after
         # the *real* operations)
         pass
-
 
     @classmethod
     def _cmd_tree_from_ast(

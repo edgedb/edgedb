@@ -876,6 +876,7 @@ class DeleteRewrite(
 ):
     pass
 
+
 class TupleExprAliasCommand(MetaCommand):
     pass
 
