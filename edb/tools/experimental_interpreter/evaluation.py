@@ -49,7 +49,7 @@ def eval_order_by(after_condition : List[Val], orders : List[ObjectVal]) -> List
         result = sorted(result, key=key_extract, 
             reverse=(False if spec == OrderAscending else 
                     True if spec == OrderDescending else
-                    eval_error(orders, "unknown spec")
+                    eval_error(cast(List[Val], orders), "unknown spec")
             )) # index starts from zero, 
         # so 0 -> asc, 0 % 2 = 0, 1 -> desc , 1 % 2 = 1
     return [elem for (_, elem) in result]
@@ -185,7 +185,7 @@ def eval_config(rt : RTExpr) -> RTVal:
             (new_data, argmv) = eval_config(RTExpr(rt.data, arg))
             [argv] = argmv
             id = next_id()
-            new_object = coerce_to_storage(get_object_val(argv), ObjectTp({}))
+            new_object = coerce_to_storage(get_object_val(argv), new_data.schema.val[tname])
             new_db = DB(dbdata={**new_data.cur_db.dbdata, id : DBEntry(tp=VarTp(tname), data=new_object)})
             return RTVal(RTData(new_db, new_data.read_snapshots, new_data.schema, new_data.eval_only), [RefVal(id, ObjectVal({}))]) # inserts return empty dict
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
@@ -244,7 +244,7 @@ def eval_config(rt : RTExpr) -> RTVal:
         case BackLinkExpr(subject=subject, label=label):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
             cur_read_data : Dict[int, DBEntry] = rt.data.read_snapshots[0].dbdata
-            results = [RefVal(id, ObjectVal({})) for (id, obj) in cur_read_data.items() if label in obj.data.keys()]
+            results = [RefVal(id, ObjectVal({})) for (id, obj) in cur_read_data.items() if label in obj.data.val.keys()]
             return RTVal(new_data, results)
         case TpIntersectExpr(subject=subject, tp=tp_name):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))

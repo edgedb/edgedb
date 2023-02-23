@@ -193,10 +193,6 @@ def get_object_val(val : Val) -> ObjectVal:
             return dictval
     raise ValueError("Cannot get object val", val)
 
-def coerce_to_storage(val : ObjectVal, fmt : ObjectTp) -> ObjectVal:
-    print("WARNING: coerce_to_storage not yet implemented")
-    return val
-
 
 def val_is_primitive(rt : Val) -> bool:
     match rt:
@@ -220,10 +216,65 @@ def remove_link_props(rt : Val) -> Val:
             ))
     raise ValueError("Expected RefVal")
 
+def remove_unless_link_props(dic : ObjectVal) -> ObjectVal:
+    return ObjectVal(val=
+                {k : v for (k,v) in dic.val.items() if isinstance(k, LinkPropLabel)}
+            )
+
+
+def conversion_error():
+    class ConversionError(Exception):
+        pass
+    raise ConversionError
+
+def convert_to_link_prop_obj(dic : ObjectVal) -> ObjectVal:
+    return ObjectVal(val=
+        {(LinkPropLabel(k.label) if isinstance(k, StrLabel) else conversion_error())
+        : v for (k,v) in dic.val.items() }
+    )
+
+def convert_back_from_link_prop_obj(dic : ObjectVal) -> ObjectVal:
+    return ObjectVal(val=
+        {(StrLabel(k.label) if isinstance(k, LinkPropLabel) else conversion_error())
+        : v for (k,v) in dic.val.items() }
+    )
+
 def combine_object_val(o1 : ObjectVal, o2 : ObjectVal) -> ObjectVal:
     return ObjectVal({**o1.val, **o2.val})
 
 
 def object_to_shape(expr : ObjectExpr) -> ShapeExpr:
     return ShapeExpr(shape={lbl : abstract_over_expr(e) for (lbl, e) in expr.val.items()})
+
+def make_storage_atomic(val : Val, tp : Tp) -> Val:
+    match val:
+        case RefVal(id, obj):
+            obj_link_prop = remove_unless_link_props(obj)
+            match tp:
+                case LinkPropTp(subject=tp_sub, linkprop=tp_linkprop):
+                    temp_obj = convert_back_from_link_prop_obj(obj_link_prop)
+                    after_obj = coerce_to_storage(temp_obj, tp_linkprop)
+                    after_link_prop = convert_to_link_prop_obj(after_obj)
+                    return RefVal(id, after_link_prop)
+                case _:
+                    if obj_link_prop.val.keys():
+                        raise ValueError("Redundant Link Properties")
+                    else:
+                        return RefVal(id, ObjectVal({}))
+        case _:
+            return val
+
+
+
+def coerce_to_storage(val : ObjectVal, fmt : ObjectTp) -> ObjectVal:
+    # ensure no redundant keys
+    extra_keys = [k for k in val.val.keys() if k not in fmt.val.keys()]
+    if extra_keys:
+        raise ValueError("Coercion failed, object contains redundant keys:", extra_keys, 
+        "when coercing ", val, " to ", fmt)
+    return ObjectVal(val={
+        StrLabel(k) : (Visible(), 
+            [make_storage_atomic(v, tp[0]) for v in val.val[StrLabel(k)][1]]
+        ) for (k,tp) in fmt.val.items()
+    })
 

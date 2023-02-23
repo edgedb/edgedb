@@ -263,6 +263,8 @@ def elab_BinOp(binop : qlast.BinOp) -> FunAppExpr | UnionExpr:
 
 def elab_single_type_str(name : str) -> Tp:
     match name:
+        case "int64":
+            return IntTp()
         case "str":
             return StrTp()
         case "datetime":

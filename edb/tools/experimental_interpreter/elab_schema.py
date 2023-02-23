@@ -21,7 +21,7 @@ def elab_schema(sdef : qlast.Schema) -> DBSchema:
                 object_tp_content : Dict[str, Tp] = {}
                 for cmd in commands:
                     match cmd:
-                        case qlast.CreateConcreteUnknownPointer(bases=pbases, 
+                        case qlast.CreateConcretePointer(bases=pbases, 
                                 name=qlast.ObjectRef(name=pname), target=ptarget, is_required=p_is_required,
                                 commands=pcommands):
                                 for pcmd in pcommands:
@@ -33,7 +33,7 @@ def elab_schema(sdef : qlast.Schema) -> DBSchema:
                             print("WARNING: not implemented cmd", cmd)
                             # debug.dump(cmd)
 
-                type_defs = {**type_defs, **object_tp_content}
+                type_defs = {**type_defs, name : object_tp_content}
             case _:
                 print("WARNING: not implemented t_decl", t_decl)
         

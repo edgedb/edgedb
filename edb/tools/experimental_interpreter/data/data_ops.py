@@ -87,6 +87,10 @@ class IntersectTp:
     left : Tp
     right : Tp
 
+@dataclass(frozen=True)
+class LinkPropTp:
+    subject : Tp
+    linkprop : ObjectTp
 
 @dataclass(frozen=True)
 class AnyTp:
@@ -96,7 +100,7 @@ class AnyTp:
 class SomeTp:
     index : int
 
-Tp = ObjectTp | PrimTp | VarTp | NamedTupleTp | UnnamedTupleTp | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp
+Tp = ObjectTp | PrimTp | VarTp  | LinkPropTp | NamedTupleTp | UnnamedTupleTp | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp
 
 
 @dataclass(frozen=True)
