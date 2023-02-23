@@ -708,7 +708,15 @@ def compile_inheritance_conflict_checks(
 
     has_id_write = _has_explicit_id_write(stmt)
 
-    if not ctx.env.dml_stmts and not has_id_write:
+    relevant_dml = [
+        dml for dml in ctx.env.dml_stmts
+        if not isinstance(dml, irast.DeleteStmt)
+    ]
+    # Updates can conflict with themselves
+    if isinstance(stmt, irast.UpdateStmt):
+        relevant_dml.append(stmt)
+
+    if not relevant_dml and not has_id_write:
         return None
 
     assert isinstance(subject_stype, s_objtypes.ObjectType)
@@ -727,7 +735,7 @@ def compile_inheritance_conflict_checks(
     else:
         subject_stypes = [subject_stype]
 
-    for ir in ctx.env.dml_stmts:
+    for ir in relevant_dml:
         # N.B that for updates, the update itself will be in dml_stmts,
         # since an update can conflict with itself if there are subtypes.
         # If there aren't subtypes, though, skip it.
