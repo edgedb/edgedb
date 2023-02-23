@@ -115,6 +115,17 @@ def in_impl (arg : List[MultiSetVal]) -> MultiSetVal:
             return [BoolVal(singleton in l)]
     raise FunCallErr()
 
+exists_tp = FunType(args_mod=[ParamSetOf()], 
+                args_ret_types=[FunArgRetType(args_tp=[AnyTp()], ret_tp=(BoolTp(), CardOne))])
+
+def exists_impl (arg : List[MultiSetVal]) -> MultiSetVal:
+    match arg:
+        case [[]]:
+            return [BoolVal(False)]
+        case [l]:
+            return [BoolVal(True)]
+    raise FunCallErr()
+
 all_builtin_ops : Dict[str, BuiltinFuncDef] = {
         "+" : BuiltinFuncDef(tp =add_tp,impl=add_impl),
         "%" : BuiltinFuncDef(tp =mod_tp,impl=mod_impl),
@@ -125,4 +136,5 @@ all_builtin_ops : Dict[str, BuiltinFuncDef] = {
         "++" : BuiltinFuncDef(tp=concatenate_tp, impl=concatenate_impl),
         "??" : BuiltinFuncDef(tp=coalescing_tp, impl=coalescing_impl),
         "IN": BuiltinFuncDef(tp=in_tp, impl=in_impl),
+        "EXISTS" : BuiltinFuncDef(tp=exists_tp, impl=exists_impl),
     }

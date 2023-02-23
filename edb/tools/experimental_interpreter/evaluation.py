@@ -170,6 +170,8 @@ def eval_config(rt : RTExpr) -> RTVal:
             return RTVal(rt.data, [BoolVal(b)])
         case RefVal(_):
             return RTVal(rt.data, [rt.expr])
+        case ArrVal(_):
+            return RTVal(rt.data, [rt.expr])
         case ObjectExpr(val=dic):
             cur_data = rt.data
             result : Dict[Label, Tuple[Marker, MultiSetVal]] = {} 

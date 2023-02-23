@@ -33,9 +33,20 @@ def indirection_slice_impl (arg : List[MultiSetVal]) -> MultiSetVal:
             return [ArrVal(val=arr[start:])]
     raise FunCallErr()
 
+if_else_tp = FunType(args_mod=[ParamSetOf(), ParamSingleton(), ParamSetOf()], 
+                    args_ret_types=[FunArgRetType(args_tp=[SomeTp(0), BoolTp(), SomeTp(0)], ret_tp=(SomeTp(0), CardAny))])
+def if_else_impl (arg : List[MultiSetVal]) -> MultiSetVal:
+    match arg:
+        case [l1, [BoolVal(val=True)], l2]:
+            return l1
+        case [l1, [BoolVal(val=False)], l2]:
+            return l2
+    raise FunCallErr()
+
 
 all_reserved_ops : Dict[str, BuiltinFuncDef] = {
         IndirectionIndexOp : BuiltinFuncDef(tp = indirection_index_tp, impl=indirection_index_impl),
         IndirectionSliceOp : BuiltinFuncDef(tp=indirection_slice_tp, impl=indirection_slice_impl),
+        IfElseOp : BuiltinFuncDef(tp=if_else_tp, impl=if_else_impl)
     }
 

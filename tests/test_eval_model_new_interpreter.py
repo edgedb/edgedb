@@ -85,7 +85,12 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
         # if result != expected:
         #     raise ValueError("Not Equal!", "Expected", expected, "Actual", result)
 
-        assert_data_shape.assert_data_shape(result, expected, self.fail)
+        try:
+            assert_data_shape.assert_data_shape(result, expected, self.fail)
+        except AssertionError as e:
+            raise AssertionError(str(e), "Expected", expected, "Actual", result)
+
+            
 
     def test_model_basic_01(self):
         self.assert_test_query(
