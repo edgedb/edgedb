@@ -621,6 +621,8 @@ def compile_UpdateQuery(
                 exprtype=s_types.ExprType.Update,
                 ctx=bodyctx)
 
+            stmt.rewrites = ctx.env.update_rewrites.pop(stmt.subject)
+
         result = setgen.class_set(
             mat_stype, path_id=stmt.subject.path_id, ctx=ctx,
         )
