@@ -14,7 +14,7 @@ def val_is_true(v : Val) -> bool:
 
 std_all_tp = FunType(args_mod=[ParamSetOf()], 
                     args_ret_types=[FunArgRetType(args_tp=[BoolTp()], ret_tp=(BoolTp(), CardOne))])
-def std_all_impl(arg : List[MultiSetVal]) -> MultiSetVal:
+def std_all_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [l1]:
             return [BoolVal(all(val_is_true(v) for v in l1))]
@@ -23,7 +23,7 @@ def std_all_impl(arg : List[MultiSetVal]) -> MultiSetVal:
 
 std_any_tp = FunType(args_mod=[ParamSetOf()], 
                     args_ret_types=[FunArgRetType(args_tp=[BoolTp()], ret_tp=(BoolTp(), CardOne))])
-def std_any_impl(arg : List[MultiSetVal]) -> MultiSetVal:
+def std_any_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
 
     match arg:
         case [l1]:
@@ -34,7 +34,7 @@ def std_any_impl(arg : List[MultiSetVal]) -> MultiSetVal:
 std_array_agg_tp = FunType(args_mod=[ParamSetOf()], 
                     args_ret_types=[FunArgRetType(args_tp=[SomeTp(0)], ret_tp=(ArrTp(SomeTp(0)), CardOne))]
                     )
-def std_array_agg_impl(arg : List[MultiSetVal]) -> MultiSetVal:
+def std_array_agg_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [l1]:
             return [ArrVal(val=l1)]
@@ -43,7 +43,7 @@ def std_array_agg_impl(arg : List[MultiSetVal]) -> MultiSetVal:
 std_array_unpack_tp = FunType(args_mod=[ParamSingleton()], 
                     args_ret_types=[FunArgRetType(args_tp=[ArrTp(SomeTp(0))], ret_tp=(SomeTp(0), CardAny))]
                     )
-def std_array_unpack_impl(arg : List[MultiSetVal]) -> MultiSetVal:
+def std_array_unpack_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[ArrVal(val=arr)]]:
             return arr
@@ -52,7 +52,7 @@ def std_array_unpack_impl(arg : List[MultiSetVal]) -> MultiSetVal:
 std_count_tp = FunType(args_mod=[ParamSetOf()], 
                     args_ret_types=[FunArgRetType(args_tp=[AnyTp()], ret_tp=(IntTp(), CardOne))]
                     )
-def std_count_impl(arg : List[MultiSetVal]) -> MultiSetVal:
+def std_count_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [l1]:
             return [IntVal(val=len(l1))]
@@ -62,7 +62,7 @@ def std_count_impl(arg : List[MultiSetVal]) -> MultiSetVal:
 std_enumerate_tp = FunType(args_mod=[ParamSetOf()], 
                 args_ret_types=[FunArgRetType(args_tp=[SomeTp(0)], ret_tp=(UnnamedTupleTp(val=[IntTp(), SomeTp(0)]), CardAny))])
 
-def std_enumerate_impl(arg : List[MultiSetVal]) -> MultiSetVal:
+def std_enumerate_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [l1]:
             return [UnnamedTupleVal(val=[IntVal(i), v]) for (i,v) in enumerate(l1)]

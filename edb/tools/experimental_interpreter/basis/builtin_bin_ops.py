@@ -9,7 +9,7 @@ add_tp= FunType(args_mod=[ParamSingleton(), ParamSingleton()],
                         args_ret_types=[FunArgRetType(args_tp=[IntTp(), IntTp()], 
                                                         ret_tp=(IntTp(), CardOne))]
                     )
-def add_impl(arg : List[MultiSetVal]) -> MultiSetVal:
+def add_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[IntVal(v1)], [IntVal(v2)]]:
             return [IntVal(v1 + v2)]
@@ -19,7 +19,7 @@ mod_tp= FunType(args_mod=[ParamSingleton(), ParamSingleton()],
                         args_ret_types=[FunArgRetType(args_tp=[IntTp(), IntTp()], 
                                                         ret_tp=(IntTp(), CardOne))]
                     )
-def mod_impl(arg : List[MultiSetVal]) -> MultiSetVal:
+def mod_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[IntVal(v1)], [IntVal(v2)]]:
             return [IntVal(v1 % v2)]
@@ -29,7 +29,7 @@ eq_tp = FunType( args_mod=[ParamSingleton(), ParamSingleton()],
                     args_ret_types=[FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)], ret_tp=(BoolTp(), CardOne))]
                     )
 
-def eq_impl(arg : List[MultiSetVal]) -> MultiSetVal:
+def eq_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[StrVal(s1)], [StrVal(s2)]]:
             return [BoolVal(s1 == s2)]
@@ -41,7 +41,7 @@ not_eq_tp = FunType( args_mod=[ParamSingleton(), ParamSingleton()],
                     args_ret_types=[FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)], ret_tp=(BoolTp(), CardOne))]
                     )
 
-def not_eq_impl(arg : List[MultiSetVal]) -> MultiSetVal:
+def not_eq_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[StrVal(s1)], [StrVal(s2)]]:
             return [BoolVal(s1 != s2)]
@@ -54,7 +54,7 @@ opt_eq_tp = FunType(args_mod=[ParamOptional(), ParamOptional()],
                 args_ret_types=[FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)], ret_tp=(BoolTp(), CardOne))]
                 )
 
-def opt_eq_impl (arg : List[MultiSetVal]) -> MultiSetVal:
+def opt_eq_impl (arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[], []]:
             return [BoolVal(True)]
@@ -69,7 +69,7 @@ opt_not_eq_tp = FunType(args_mod=[ParamOptional(), ParamOptional()],
                 args_ret_types=[FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)], ret_tp=(BoolTp(), CardOne))]
                 )
 
-def opt_not_eq_impl (arg : List[MultiSetVal]) -> MultiSetVal:
+def opt_not_eq_impl (arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[], []]:
             return [BoolVal(False)]
@@ -86,18 +86,18 @@ concatenate_tp  = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
                                         FunArgRetType(args_tp=[ArrTp(SomeTp(0)), ArrTp(SomeTp(0))], ret_tp=(ArrTp(SomeTp(0)), CardOne))
                         ]
                         )
-def concatenate_impl (arg : List[MultiSetVal]) -> MultiSetVal:
+def concatenate_impl (arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[StrVal(s1)], [StrVal(s2)]]:
             return [StrVal(s1 + s2)]
         case [[ArrVal(arr1)], [ArrVal(arr2)]]:
-            return [ArrVal(arr1 + arr2)]
+            return [ArrVal([*arr1, *arr2])]
     raise FunCallErr()
 
 coalescing_tp = FunType(args_mod=[ParamOptional(), ParamSetOf()], 
         args_ret_types=[FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)], ret_tp=(SomeTp(0), CardAny))]
         )
-def coalescing_impl (arg : List[MultiSetVal]) -> MultiSetVal:
+def coalescing_impl (arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[], default]:
             return default
@@ -109,7 +109,7 @@ def coalescing_impl (arg : List[MultiSetVal]) -> MultiSetVal:
 in_tp = FunType(args_mod=[ParamSingleton(), ParamSetOf()], 
                 args_ret_types=[FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)], ret_tp=(BoolTp(), CardOne))])
 
-def in_impl (arg : List[MultiSetVal]) -> MultiSetVal:
+def in_impl (arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[singleton], l]:
             return [BoolVal(singleton in l)]
@@ -118,7 +118,7 @@ def in_impl (arg : List[MultiSetVal]) -> MultiSetVal:
 exists_tp = FunType(args_mod=[ParamSetOf()], 
                 args_ret_types=[FunArgRetType(args_tp=[AnyTp()], ret_tp=(BoolTp(), CardOne))])
 
-def exists_impl (arg : List[MultiSetVal]) -> MultiSetVal:
+def exists_impl (arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[]]:
             return [BoolVal(False)]

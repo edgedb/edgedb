@@ -12,13 +12,13 @@ class EdbJSONEncoder(json.JSONEncoder):
             return str(x)
         return super().default(x)
 
-def parse_ql(querystr: str) -> List[qlast.Expr]:
+def parse_ql(querystr: str) -> Sequence[qlast.Expr]:
     def notExpr(e : qlast.Base) -> Any:
         raise EdgeQLSyntaxError("Not an Expression", context=e.context)
 
     source = Source.from_string(querystr)
-    base_statements = parser.parse_block(source) # type : List[Expr]
-    statements : List[qlast.Expr] = [s if isinstance(s, qlast.Expr) else notExpr(s)
+    base_statements = parser.parse_block(source) # type : Sequence[Expr]
+    statements : Sequence[qlast.Expr] = [s if isinstance(s, qlast.Expr) else notExpr(s)
                     for s in base_statements ]
     # # assert len(statements) == 1
     # # assert isinstance(statements[0], qlast.Expr)

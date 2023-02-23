@@ -6,19 +6,22 @@ from .helper_funcs import parse_sdl
 from edb.common import debug
 from .elaboration import elab_single_type_expr
 
+def elab_schema_error(obj : Any) -> Any:
+    raise ValueError(obj)
+
 
 def elab_schema(sdef : qlast.Schema) -> DBSchema:
     if (len(sdef.declarations) != 1 
             or sdef.declarations[0].name.name != "default"):
         raise ValueError("Expect single module declaration named default in schema")
-    types_decls = cast(List[qlast.ModuleDeclaration], sdef.declarations)[0].declarations
+    types_decls = cast(Sequence[qlast.ModuleDeclaration], sdef.declarations)[0].declarations
 
-    type_defs : Dict[str, ResultTp] = {}
+    type_defs : Dict[str, ObjectTp] = {}
     for t_decl in types_decls:
         match t_decl:
             case qlast.CreateObjectType(bases=bases, commands=commands, 
                     name=qlast.ObjectRef(name=name), abstract=is_abstract):
-                object_tp_content : Dict[str, Tp] = {}
+                object_tp_content : Dict[str, Tuple[Tp, CMMode]] = {}
                 for cmd in commands:
                     match cmd:
                         case qlast.CreateConcretePointer(bases=pbases, 
@@ -27,13 +30,14 @@ def elab_schema(sdef : qlast.Schema) -> DBSchema:
                                 for pcmd in pcommands:
                                     print("WARNING: not implemented pcmd", pcmd)
                                 object_tp_content = {**object_tp_content, pname : 
-                                    (elab_single_type_expr(ptarget), CMMode(Fin(1) if p_is_required else Fin(0), Inf()))
+                                    ((elab_single_type_expr(ptarget) if isinstance(ptarget, qlast.TypeExpr) else elab_schema_error(ptarget)),
+                                        CMMode(Fin(1) if p_is_required else Fin(0), Inf()))
                                     }
                         case _:
                             print("WARNING: not implemented cmd", cmd)
                             # debug.dump(cmd)
 
-                type_defs = {**type_defs, name : object_tp_content}
+                type_defs = {**type_defs, name : ObjectTp(val=object_tp_content)}
             case _:
                 print("WARNING: not implemented t_decl", t_decl)
         

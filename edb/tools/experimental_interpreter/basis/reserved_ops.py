@@ -8,7 +8,7 @@ indirection_index_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
                                 FunArgRetType(args_tp=[ArrTp(SomeTp(0)), IntTp()], ret_tp=(ArrTp(SomeTp(0)), CardOne))
                             ]) 
 
-def indirection_index_impl (arg : List[MultiSetVal]) -> MultiSetVal:
+def indirection_index_impl (arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[StrVal(val=s)], [IntVal(val=i)]]:
             return [StrVal(val=s[i])]
@@ -21,7 +21,7 @@ indirection_slice_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton(), Par
                                 FunArgRetType(args_tp=[ArrTp(SomeTp(0)), IntTp(), IntInfTp()], ret_tp=(ArrTp(SomeTp(0)), CardOne))
                             ]) 
 
-def indirection_slice_impl (arg : List[MultiSetVal]) -> MultiSetVal:
+def indirection_slice_impl (arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [[StrVal(val=s)], [IntVal(val=start)], [IntVal(val=end)]]:
             return [StrVal(val=s[start:end])]
@@ -35,7 +35,7 @@ def indirection_slice_impl (arg : List[MultiSetVal]) -> MultiSetVal:
 
 if_else_tp = FunType(args_mod=[ParamSetOf(), ParamSingleton(), ParamSetOf()], 
                     args_ret_types=[FunArgRetType(args_tp=[SomeTp(0), BoolTp(), SomeTp(0)], ret_tp=(SomeTp(0), CardAny))])
-def if_else_impl (arg : List[MultiSetVal]) -> MultiSetVal:
+def if_else_impl (arg : Sequence[MultiSetVal]) -> MultiSetVal:
     match arg:
         case [l1, [BoolVal(val=True)], l2]:
             return l1

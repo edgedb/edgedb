@@ -1,7 +1,7 @@
 from typing import *
 from .data_ops import *
 
-json_like = str | int | bool | Dict[str, Any] | List[Any]
+json_like = str | int | bool | Dict[str, Any] | Sequence[Any]
 
 def label_to_str(l : Label) -> str:
     match l:

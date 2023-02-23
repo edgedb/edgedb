@@ -65,7 +65,7 @@ def map_query(f : Callable[[Expr, QueryLevel], Optional[Expr]], expr : Expr, sch
             case TpIntersectExpr(subject=subject, tp=tp_name):
                 return TpIntersectExpr(subject=recur(subject), tp=tp_name)
             case FunAppExpr(fun=fname, args=args, overloading_index = idx):
-                mapped_args : List[Expr] = []
+                mapped_args : Sequence[Expr] = []
                 params = schema.fun_defs[fname].tp.args_mod
                 for i in range(len(args)):
                     match params[i]:

@@ -58,7 +58,7 @@ def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print 
     return (result.val, result.data.cur_db)
     # debug.dump(stmt)
 
-def run_stmts (db : DB, stmts : List[qlast.Expr],dbschema : DBSchema, debug_print : bool) -> Tuple[List[MultiSetVal], DB]:
+def run_stmts (db : DB, stmts : Sequence[qlast.Expr],dbschema : DBSchema, debug_print : bool) -> Tuple[Sequence[MultiSetVal], DB]:
     match stmts:
         case []:
             return ([], db)
@@ -73,7 +73,7 @@ def run_str(
     dbschema : DBSchema,
     s: str,
     print_asts: bool = False
-) -> Tuple[List[MultiSetVal], DB]:
+) -> Tuple[Sequence[MultiSetVal], DB]:
     q = parse_ql(s)
     # if print_asts:
     #     debug.dump(q)

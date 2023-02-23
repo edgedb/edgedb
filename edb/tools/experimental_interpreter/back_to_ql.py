@@ -7,7 +7,7 @@ from edb.schema.pointers import PointerDirection
 from edb.edgeql import ast as qlast
 from .basis.built_ins import all_builtin_ops
 
-def reverse_elab_error(msg : str, expr : Val | Expr | List[Val]) -> Any:
+def reverse_elab_error(msg : str, expr : Val | Expr | Sequence[Val]) -> Any:
     raise ValueError("Reverse Elab Error", msg, expr)
 
 
@@ -20,7 +20,7 @@ def reverse_elab_label(lbl : Label) -> qlast.Path :
         case _:
             raise ValueError(lbl)
 
-def reverse_elab_shape(expr : ShapeExpr) -> List[qlast.ShapeElement] :
+def reverse_elab_shape(expr : ShapeExpr) -> Sequence[qlast.ShapeElement] :
     return [qlast.ShapeElement(expr=reverse_elab_label(lbl), 
                                compexpr=reverse_elab(instantiate_expr(FreeVarExpr(DEFAULT_HEAD_NAME), val)),
                                operation=qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN)
@@ -38,7 +38,7 @@ def reverse_elab_type_name(tp : Tp) -> qlast.TypeName:
             return qlast.TypeName(maintype=qlast.ObjectRef(name="datetime"))
     raise ValueError("Unimplemented")
 
-def reverse_elab_order(order : ObjectExpr) -> List[qlast.SortExpr]:
+def reverse_elab_order(order : ObjectExpr) -> Sequence[qlast.SortExpr]:
     keys = sorted([(idx, spec, k)  for k in order.val.keys() for [idx, spec] in [k.label.split(OrderLabelSep)]])
     return [qlast.SortExpr(path=reverse_elab(order.val[k]), 
         direction = (
@@ -84,7 +84,7 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
                 result=reverse_elab(subject),
                 result_alias=result_name,
                 where=reverse_elab(instantiate_expr(FreeVarExpr(result_name), filter)),
-                orderby=reverse_elab_order(instantiate_expr(FreeVarExpr(result_name), order))
+                orderby=reverse_elab_order(cast(ObjectExpr, instantiate_expr(FreeVarExpr(result_name), order)))
             )
         case OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
             return qlast.SelectQuery(

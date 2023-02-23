@@ -35,7 +35,7 @@ def elab_not_implemented(node : qlast.Base, msg : str = "") -> Any:
     raise ValueError("Not Implemented!", msg, node)
 
 
-def elab_Shape(elements : List[qlast.ShapeElement]) -> ShapeExpr:
+def elab_Shape(elements : Sequence[qlast.ShapeElement]) -> ShapeExpr:
     """ Convert a concrete syntax shape to object expressions"""
     result = {}
     [result := {**result, name : e } 
@@ -106,42 +106,42 @@ def elab_ShapeElement(s : qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
     post_processing = lambda x : x
     if s.orderby or s.where:
         def process(e : BindingExpr) -> BindingExpr:
-            abstract_over_expr(FilterOrderExpr(
+            return abstract_over_expr(FilterOrderExpr(
                 subject=instantiate_expr(FreeVarExpr(DEFAULT_HEAD_NAME), e),
                 filter=elab_where(s.where),
                 order=elab_orderby(s.orderby)
             ), DEFAULT_HEAD_NAME)
         post_processing = process
-    else:
-        if s.compexpr is not None: 
-            # l := E -> l := ¶.e if E -> e
-            if s.operation.op != qlast.ShapeOp.ASSIGN:
-                return elab_not_implemented(s)
-            else:
-                name = elab_label(s.expr)
-                val = abstract_over_expr(elab(s.compexpr), DEFAULT_HEAD_NAME)
-                return (name, post_processing(val))
-        elif s.elements:
-            # l : S -> l := x. (x ⋅ l) s if S -> s
-            name = elab_label(s.expr)
-            match name:
-                case StrLabel(_):
-                    return (name, post_processing(BindingExpr(
-                        ShapedExprExpr(ObjectProjExpr(BoundVarExpr(1), name.label),
-                            elab_Shape(s.elements)
-                        ))))
-                case _:
-                    return elab_not_implemented(s, "link property with shapes")
+    
+    if s.compexpr is not None: 
+        # l := E -> l := ¶.e if E -> e
+        if s.operation.op != qlast.ShapeOp.ASSIGN:
+            return elab_not_implemented(s)
         else:
-            # l -> l := x. (x ⋅ l)
             name = elab_label(s.expr)
-            match name:
-                case StrLabel(_):
-                    return (name, post_processing(BindingExpr(ObjectProjExpr(BoundVarExpr(1), name.label))))
-                case LinkPropLabel(_):
-                    return (name, post_processing(BindingExpr(LinkPropProjExpr(BoundVarExpr(1), name.label))))
-                case _:
-                    return elab_not_implemented(s)
+            val = abstract_over_expr(elab(s.compexpr), DEFAULT_HEAD_NAME)
+            return (name, post_processing(val))
+    elif s.elements:
+        # l : S -> l := x. (x ⋅ l) s if S -> s
+        name = elab_label(s.expr)
+        match name:
+            case StrLabel(_):
+                return (name, post_processing(BindingExpr(
+                    ShapedExprExpr(ObjectProjExpr(BoundVarExpr(1), name.label),
+                        elab_Shape(s.elements)
+                    ))))
+            case _:
+                return elab_not_implemented(s, "link property with shapes")
+    else:
+        # l -> l := x. (x ⋅ l)
+        name = elab_label(s.expr)
+        match name:
+            case StrLabel(_):
+                return (name, post_processing(BindingExpr(ObjectProjExpr(BoundVarExpr(1), name.label))))
+            case LinkPropLabel(_):
+                return (name, post_processing(BindingExpr(LinkPropProjExpr(BoundVarExpr(1), name.label))))
+            case _:
+                return elab_not_implemented(s)
 
 
 
@@ -184,7 +184,7 @@ def elab_where(where : Optional[qlast.Expr]) -> BindingExpr:
     else:
         return abstract_over_expr(elab(where), DEFAULT_HEAD_NAME) 
 
-def elab_orderby(qle : Optional[List[qlast.SortExpr]]) -> BindingExpr:
+def elab_orderby(qle : Optional[Sequence[qlast.SortExpr]]) -> BindingExpr:
     if qle is None:
         return abstract_over_expr(ObjectExpr({}))  
     result : Dict[str, Expr] = {}
@@ -195,7 +195,7 @@ def elab_orderby(qle : Optional[List[qlast.SortExpr]]) -> BindingExpr:
         key = (str(idx) + OrderLabelSep + \
                 (OrderAscending if sort_expr.direction == qlast.SortOrder.Asc else
                 OrderDescending if sort_expr.direction == qlast.SortOrder.Desc else
-                elab_error("unknown direction", sort_expr.direction)
+                elab_error("unknown direction", sort_expr.context)
                 ))
         elabed_expr = elab(sort_expr.path)
         result = {**result, key : elabed_expr}
@@ -337,7 +337,7 @@ def elab_UpdateQuery(qle : qlast.UpdateQuery):
 def elab_Set(qle : qlast.Set):
     return MultiSetExpr(expr=[elab(e) for e in qle.elements])
 
-def elab_aliases(aliases : Optional[List[qlast.AliasedExpr | qlast.ModuleAliasDecl]], tail_expr : Expr) -> Expr:
+def elab_aliases(aliases : Optional[Sequence[qlast.AliasedExpr | qlast.ModuleAliasDecl]], tail_expr : Expr) -> Expr:
     if aliases is None:
         return tail_expr
     result = tail_expr
@@ -378,11 +378,17 @@ def elab_ForQuery(qle : qlast.ForQuery) -> ForExpr:
 def elab_Indirection(qle : qlast.Indirection) -> FunAppExpr :
     subject = elab(qle.arg)
     match qle.indirection:
+        case [qlast.Slice(start=None, stop=None)]:
+            raise ValueError("Slice cannot be both empty")
         case [qlast.Slice(start=None, stop=stop)]:
+            assert stop is not None # required for mypy
             return FunAppExpr(fun=IndirectionSliceOp, args=[subject, IntVal(0), elab(stop)], overloading_index=None)
         case [qlast.Slice(start=start, stop=None)]:
+            assert start is not None # required for mypy
             return FunAppExpr(fun=IndirectionSliceOp, args=[subject, elab(start), IntInfVal()], overloading_index=None)
         case [qlast.Slice(start=start, stop=stop)]:
+            assert start is not None # required for mypy
+            assert stop is not None # required for mypy
             return FunAppExpr(fun=IndirectionSliceOp, args=[subject, elab(start), elab(stop)], overloading_index=None)
         case [qlast.Index(index=idx)]:
             return FunAppExpr(fun=IndirectionIndexOp, args=[subject, elab(idx)], overloading_index=None)
@@ -390,4 +396,4 @@ def elab_Indirection(qle : qlast.Indirection) -> FunAppExpr :
 
 @elab.register
 def elab_IfElse(qle : qlast.IfElse) -> FunAppExpr:
-    return FunAppExpr(fun=IfElseOp, args=[elab(qle.if_expr), elab(qle.condition), elab(qle.else_expr)])
+    return FunAppExpr(fun=IfElseOp, args=[elab(qle.if_expr), elab(qle.condition), elab(qle.else_expr)], overloading_index=None)

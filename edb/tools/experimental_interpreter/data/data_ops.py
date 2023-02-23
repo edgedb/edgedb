@@ -71,7 +71,7 @@ class NamedTupleTp:
 
 @dataclass(frozen=True)
 class UnnamedTupleTp:
-    val : List[Tp]
+    val : Sequence[Tp]
 
 @dataclass(frozen=True)
 class ArrTp:
@@ -259,13 +259,13 @@ ParamModifier = ParamSingleton | ParamOptional | ParamSetOf
 
 @dataclass(frozen=True)
 class FunArgRetType:
-    args_tp : List[Tp]
+    args_tp : Sequence[Tp]
     ret_tp : ResultTp
 
 @dataclass(frozen=True)
 class FunType:
-    args_mod : List[ParamModifier] # all (overloaded) args need to have the same modifier
-    args_ret_types : List[FunArgRetType]
+    args_mod : Sequence[ParamModifier] # all (overloaded) args need to have the same modifier
+    args_ret_types : Sequence[FunArgRetType]
 
 ### DEFINE PRIM VALUES
 @dataclass(frozen=True, order=True)
@@ -309,7 +309,7 @@ class UnionExpr:
 
 @dataclass(frozen=True)
 class MultiSetExpr:
-    expr : List[Expr]
+    expr : Sequence[Expr]
 
 @dataclass(frozen=True) 
 class TypeCastExpr:
@@ -321,7 +321,7 @@ class TypeCastExpr:
 class FunAppExpr:
     fun : str
     overloading_index : Optional[int]
-    args : List[Expr]
+    args : Sequence[Expr]
 
 @dataclass(frozen=True)
 class ObjectExpr:
@@ -414,7 +414,7 @@ class ShapeExpr:
 
 @dataclass(frozen=True)
 class UnnamedTupleExpr:
-    val : List[Expr]
+    val : Sequence[Expr]
 
 @dataclass(frozen=True)
 class NamedTupleExpr:
@@ -422,7 +422,7 @@ class NamedTupleExpr:
 
 @dataclass(frozen=True)
 class ArrExpr:
-    elems : List[Expr]
+    elems : Sequence[Expr]
 
 
 #### VALUES
@@ -466,7 +466,7 @@ class RefVal:
 
 @dataclass(frozen=True)
 class UnnamedTupleVal:
-    val : List[Val]
+    val : Sequence[Val]
 
 @dataclass(frozen=True)
 class NamedTupleVal:
@@ -474,18 +474,18 @@ class NamedTupleVal:
 
 @dataclass(frozen=True)
 class ArrVal:
-    val : List[Val]
+    val : Sequence[Val]
 
 # @dataclass(frozen=True)
 # class MultiSetVal: # U
-#     val : List[Val]
+#     val : Sequence[Val]
     
 
 Val =  (PrimVal | RefVal | FreeVal 
         # | RefLinkVal | LinkWithPropertyVal 
         | UnnamedTupleVal | NamedTupleVal  | ArrVal ) # V
 
-MultiSetVal = List[Val]
+MultiSetVal = Sequence[Val]
 
 VarExpr = (FreeVarExpr | BoundVarExpr)
 
@@ -508,14 +508,14 @@ class DBEntry:
 @dataclass(frozen=True)
 class DB:
     dbdata: Dict[int, DBEntry] 
-    # subtp : List[Tuple[TypeExpr, TypeExpr]]
+    # subtp : Sequence[Tuple[TypeExpr, TypeExpr]]
 
 
 
 @dataclass(frozen=True)
 class BuiltinFuncDef():
     tp : FunType
-    impl : Callable[[List[List[Val]]], List[Val]]
+    impl : Callable[[Sequence[Sequence[Val]]], Sequence[Val]]
 
 @dataclass(frozen=True)
 class DBSchema: 
@@ -536,7 +536,7 @@ def empty_db():
 
 
 
-# BuiltinFuncOp : Dict[str, Callable[..., List[Expr]]] = {
+# BuiltinFuncOp : Dict[str, Callable[..., Sequence[Expr]]] = {
 #     "+" : add_fun,
 # }
 

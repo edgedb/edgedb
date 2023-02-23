@@ -136,7 +136,7 @@ def subst_expr_for_expr(expr2 : Expr, replace : Expr, subject : Expr):
             return None
     return map_expr(map_func, subject)
 
-def iterative_subst_expr_for_expr(expr2 : List[Expr], replace : List[Expr], subject : Expr):
+def iterative_subst_expr_for_expr(expr2 : Sequence[Expr], replace : Sequence[Expr], subject : Expr):
     """ Iteratively perform substitution from right to left, 
         comptues: [expr2[0]/replace[0]]...[expr[n-1]/replace[n-1]]subject """
 
