@@ -329,6 +329,26 @@ def _special_case(name: str, only_as_fallback: bool = False) -> Callable[
     return func
 
 
+class _SimpleSpecialCaseFunc(Protocol):
+    def __call__(
+        self, expr: irast.FunctionCall, *, ctx: context.CompilerContextLevel
+    ) -> pgast.BaseExpr:
+        pass
+
+
+_SIMPLE_SPECIAL_FUNCTIONS: dict[str, _SimpleSpecialCaseFunc] = {}
+
+
+def _simple_special_case(name: str) -> Callable[
+    [_SimpleSpecialCaseFunc], _SimpleSpecialCaseFunc
+]:
+    def func(f: _SimpleSpecialCaseFunc) -> _SimpleSpecialCaseFunc:
+        _SIMPLE_SPECIAL_FUNCTIONS[name] = f
+        return f
+
+    return func
+
+
 def _get_set_rvar(
     ir_set: irast.Set,
     *,
@@ -349,11 +369,16 @@ def _get_set_rvar(
             return process_set_as_subquery(ir_set, ctx=ctx)
 
         if isinstance(expr, (irast.OperatorCall, irast.FunctionCall)):
+            fname = str(expr.func_shortname)
             if (
-                (func := _SPECIAL_FUNCTIONS.get(str(expr.func_shortname)))
+                (func := _SPECIAL_FUNCTIONS.get(fname))
                 and (not func.only_as_fallback or expr.func_sql_expr)
             ):
                 return func.func(ir_set, ctx=ctx)
+
+            # Route simple special functions through expr compilation
+            if fname in _SIMPLE_SPECIAL_FUNCTIONS:
+                return process_set_as_expr(ir_set, ctx=ctx)
 
             if isinstance(expr, irast.OperatorCall):
                 # Operator call
