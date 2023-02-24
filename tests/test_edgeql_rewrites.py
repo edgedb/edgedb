@@ -36,6 +36,51 @@ class TestRewrites(tb.QueryTestCase):
             '''
             alter type Movie {
               alter property title {
+                create rewrite insert using ('inserted');
+                create rewrite update using ('updated');
+              };
+            };
+        '''
+        )
+
+        await self.con.execute('insert Movie { title:= "Whiplash" }')
+        await self.con.execute('insert Movie { }')
+        await self.assert_query_result(
+            'select Movie { title }',
+            [{"title": "inserted"}, {"title": "inserted"}],
+        )
+
+        await self.con.execute('update Movie { title:= "The Godfather" }')
+        await self.assert_query_result(
+            'select Movie { title }',
+            [{"title": "updated"}, {"title": "updated"}],
+        )
+
+    async def test_edgeql_rewrites_02(self):
+        await self.con.execute(
+            '''
+            alter type Movie {
+              alter property title {
+                create rewrite insert using (__subject__.title);
+                create rewrite update using (__subject__.title);
+              };
+            };
+        '''
+        )
+
+        await self.con.execute('insert Movie { title:= "Whiplash" }')
+        await self.con.execute('insert Movie { }')
+        await self.assert_query_result(
+            'select Movie { title }',
+            [{"title": "Whiplash"}, {"title": None}],
+        )
+
+
+    async def test_edgeql_rewrites_03(self):
+        await self.con.execute(
+            '''
+            alter type Movie {
+              alter property title {
                 create rewrite insert using (__subject__.title ++ ' (new)');
                 set default := 'untitled';
               };
@@ -57,7 +102,7 @@ class TestRewrites(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_rewrites_02(self):
+    async def test_edgeql_rewrites_04(self):
         # Rewrites should also be applied to children types.
 
         await self.con.execute(
@@ -84,7 +129,7 @@ class TestRewrites(tb.QueryTestCase):
             [{"title": "The Godfather II", "updated_at": "just now"}],
         )
 
-    async def test_edgeql_rewrites_03(self):
+    async def test_edgeql_rewrites_05(self):
         # Rewrites override parent overrides.
 
         await self.con.execute(
@@ -117,7 +162,7 @@ class TestRewrites(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_rewrites_04(self):
+    async def test_edgeql_rewrites_06(self):
         await self.con.execute(
             '''
             alter type Content {

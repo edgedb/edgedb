@@ -440,6 +440,9 @@ def _process_view(
         for ptr in rewritten_pointers:
             pointers[ptr.ptrcls] = ptr
 
+    if s_ctx.exprtype.is_insert():
+        _raise_on_missing(pointers, stype, s_ctx)
+
     set_shape = []
     shape_ptrs: List[ShapePtr] = []
 
@@ -717,27 +720,7 @@ def _gen_pointers_from_defaults(
 
         default_expr = ptrcls.get_default(ctx.env.schema)
         if not default_expr:
-            if ptrcls.get_required(ctx.env.schema) and pn != sn.UnqualName(
-                "__type__"
-            ):
-                if ptrcls.is_property(ctx.env.schema):
-                    # If the target is a sequence, there's no need
-                    # for an explicit value.
-                    ptrcls_target = ptrcls.get_target(ctx.env.schema)
-                    assert ptrcls_target is not None
-                    if ptrcls_target.issubclass(
-                        ctx.env.schema,
-                        ctx.env.schema.get(
-                            "std::sequence", type=s_objects.SubclassableObject
-                        ),
-                    ):
-                        continue
-                vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
-                raise errors.MissingRequiredError(
-                    f"missing value for required {vn}"
-                )
-            else:
-                continue
+            continue
 
         ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
         default_ql = qlast.ShapeElement(
@@ -808,6 +791,46 @@ def _gen_pointers_from_defaults(
     ]
 
     return {v.ptrcls: v for v in ordered}
+
+
+def _raise_on_missing(
+    pointers: Dict[s_pointers.Pointer, EarlyShapePtr],
+    stype: s_objtypes.ObjectType,
+    s_ctx: ShapeContext,
+) -> None:
+    ctx = s_ctx.ctx
+
+    pointer_names = {
+        ptr.get_local_name(ctx.env.schema) for ptr in pointers
+    }
+
+    scls_pointers = stype.get_pointers(ctx.env.schema)
+    for pn, ptrcls in scls_pointers.items(ctx.env.schema):
+        if pn == sn.UnqualName("__type__"):
+            continue
+
+        if pn in pointer_names or ptrcls.is_pure_computable(ctx.env.schema):
+            continue
+
+        if not ptrcls.get_required(ctx.env.schema):
+            continue
+
+        if ptrcls.is_property(ctx.env.schema):
+            # If the target is a sequence, there's no need
+            # for an explicit value.
+            ptrcls_target = ptrcls.get_target(ctx.env.schema)
+            assert ptrcls_target is not None
+            if ptrcls_target.issubclass(
+                ctx.env.schema,
+                ctx.env.schema.get(
+                    "std::sequence", type=s_objects.SubclassableObject
+                ),
+            ):
+                continue
+        vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
+        raise errors.MissingRequiredError(
+            f"missing value for required {vn}"
+        )
 
 
 def _compile_rewrites(
@@ -1019,7 +1042,6 @@ def _prepare_rewrite_anchors(
         if ptr.is_protected_pointer(ctx.env.schema):
             continue
 
-        # TODO: this uses linear time for a basic lookup
         val = None
         for p, v in pointers.items():
             if p.get_nearest_non_derived_parent(ctx.env.schema) == ptr:
@@ -1030,7 +1052,7 @@ def _prepare_rewrite_anchors(
             ppath_id = irast.PathId.from_pointer(ctx.env.schema, ptr)
 
             if rewrite_kind == qltypes.RewriteKind.Insert:
-
+                # construct an empty set
                 ptype = ptr.get_target(ctx.env.schema)
                 assert ptype
                 empty = irast.EmptySet(

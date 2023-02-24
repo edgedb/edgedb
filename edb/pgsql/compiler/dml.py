@@ -1385,9 +1385,7 @@ def process_update_body(
         cte=dml_parts.range_cte,
         parent=ctx.enclosing_cte_iterator)
 
-    rewrites = ir_stmt.rewrites[typeref] if typeref in ir_stmt.rewrites else {}
-    # TODO: sometimes, typeref is not in ir_stmt.rewrites
-    # assert rewrites
+    rewrites = ir_stmt.rewrites.get(typeref, {})
 
     ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
 
