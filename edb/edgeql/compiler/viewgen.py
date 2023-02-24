@@ -1363,9 +1363,7 @@ def _normalize_view_ptr_expr(
             # If this is a mutation, the pointer must exist.
             ptrcls = setgen.resolve_ptr(
                 ptrsource, ptrname, track_ref=shape_el_desc.ptr_ql, ctx=ctx)
-            if ptrcls.is_pure_computable(
-                ctx.env.schema
-            ) and not ptrcls.get_is_derived(ctx.env.schema):
+            if ptrcls.is_pure_computable(ctx.env.schema) and not from_default:
                 ptr_vn = ptrcls.get_verbosename(ctx.env.schema,
                                                 with_parent=True)
                 raise errors.QueryError(
