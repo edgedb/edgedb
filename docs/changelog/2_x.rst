@@ -953,7 +953,15 @@ Other changes
 ====
 
 * Fix adding a link property with a default value to an existing link
+  (a regression in 2.10)
   (:eql:gh:`#5061`)
+
+2.12
+====
+
+* Fix GROUP regression with some query-builder queries
+  (a regression in 2.10)
+  (:eql:gh:`#5073`)
 
 .. lint-off
 
