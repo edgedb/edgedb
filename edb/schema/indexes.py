@@ -39,6 +39,7 @@ from . import objects as so
 from . import referencing
 from . import scalars as s_scalars
 from . import types as s_types
+from . import utils
 
 
 if TYPE_CHECKING:
@@ -259,12 +260,9 @@ class Index(
     ) -> s_expr.ExpressionDict:
         assert not self.get_abstract(schema)
 
-        name = sn.shortname_from_fullname(self.get_name(schema))
-        index = schema.get(name, type=Index)
         root = self.get_root(schema)
 
-        kwargs = index.get_all_kwargs(schema)
-        kwargs.update(self.get_kwargs(schema))
+        kwargs = self.get_all_kwargs(schema)
 
         for param in root.get_params(schema).objects(schema):
             kwname = param.get_parameter_name(schema)
@@ -737,13 +735,27 @@ class CreateIndex(
         else:
             except_expr_ql = None
 
+        qlkwargs = {
+            key: val.qlast for key, val in parent.get_kwargs(schema).items()
+        }
+
         return astnode_cls(
-            name=qlast.ObjectRef(
-                module=DEFAULT_INDEX.module, name=DEFAULT_INDEX.name
-            ),
+            name=cls.get_inherited_ref_name(schema, context, parent, name),
+            kwargs=qlkwargs,
             expr=expr_ql,
             except_expr=except_expr_ql,
         )
+
+    @classmethod
+    def get_inherited_ref_name(
+        cls,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        parent: so.Object,
+        name: sn.Name,
+    ) -> qlast.ObjectRef:
+        bn = sn.shortname_from_fullname(name)
+        return utils.name_to_ast_ref(bn)
 
     def _validate_kwargs(
         self,
@@ -792,12 +804,12 @@ class CreateIndex(
                     context=self.source_context,
                 )
 
-    def validate_create(
+    def validate_object(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
-        super().validate_create(schema, context)
+        super().validate_object(schema, context)
 
         referrer_ctx = self.get_referrer_context(context)
 
@@ -872,21 +884,23 @@ class CreateIndex(
         # HACK: the old concrete indexes all have names in form __::idx, but
         # this should be the actual name provided. Also the index without name
         # defaults to '__::idx'.
-        if name != DEFAULT_INDEX and (index := schema.get(name, type=Index)):
+        if name != DEFAULT_INDEX and (
+            abs_index := schema.get(name, type=Index)
+        ):
             # only abstract indexes should have unmangled names
-            assert index.get_abstract(schema)
-            root = index.get_root(schema)
+            assert abs_index.get_abstract(schema)
+            root = abs_index.get_root(schema)
 
             # Make sure that kwargs and parameters match in name and type.
             # Also make sure that all parameters have values at this point
             # (either default or provided in kwargs).
             params = root.get_params(schema)
-            inh_kwargs = index.get_all_kwargs(schema)
+            inh_kwargs = self.scls.get_all_kwargs(schema)
 
             self._validate_kwargs(schema,
                                   params,
                                   kwargs,
-                                  index.get_verbosename(schema))
+                                  abs_index.get_verbosename(schema))
 
             unused_names = {p.get_parameter_name(schema)
                             for p in params.objects(schema)}
@@ -933,7 +947,7 @@ class CreateIndex(
                 raise errors.SchemaDefinitionError(
                     f'index expression ({expr.text}) '
                     f'is not of a valid type for the '
-                    f'{index.get_verbosename(schema)}',
+                    f'{self.scls.get_verbosename(schema)}',
                     context=self.source_context
                 )
 
@@ -946,6 +960,29 @@ class CreateIndex(
         props = super().get_resolved_attributes(schema, context)
         props['params'] = params
         return props
+
+    @classmethod
+    def _classbases_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.ObjectDDL,
+        context: sd.CommandContext,
+    ) -> List[so.ObjectShell[Index]]:
+        if (
+            isinstance(astnode, qlast.CreateConcreteIndex)
+            and astnode.name
+            and astnode.name.module != DEFAULT_INDEX.module
+            and astnode.name.name != DEFAULT_INDEX.name
+        ):
+            base = utils.ast_objref_to_object_shell(
+                astnode.name,
+                metaclass=Index,
+                schema=schema,
+                modaliases=context.modaliases,
+            )
+            return [base]
+        else:
+            return super()._classbases_from_ast(schema, astnode, context)
 
 
 class RenameIndex(
@@ -1026,14 +1063,14 @@ class DeleteIndex(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.Command:
-        assert isinstance(astnode, qlast.DropConcreteIndex)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
 
-        cmd.set_attribute_value(
-            'expr',
-            s_expr.Expression.from_ast(
-                astnode.expr, schema, context.modaliases),
-        )
+        if isinstance(astnode, qlast.ConcreteIndexCommand):
+            cmd.set_attribute_value(
+                'expr',
+                s_expr.Expression.from_ast(
+                    astnode.expr, schema, context.modaliases),
+            )
 
         return cmd
 

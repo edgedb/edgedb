@@ -3432,6 +3432,10 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         schema = super().apply(schema, context)
         index = self.scls
 
+        if index.get_abstract(orig_schema):
+            # Don't do anything for abstract indexes
+            return schema
+
         source: Optional[
             sd.CommandContextToken[s_sources.SourceCommand[s_sources.Source]]]
         # XXX: I think to make these work, the type vars in the Commands
