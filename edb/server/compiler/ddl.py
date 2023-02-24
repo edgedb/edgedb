@@ -120,7 +120,7 @@ def compile_and_apply_ddl_stmt(
         **_get_delta_context_args(ctx),
     )
 
-    if debug.flags.delta_plan_input:
+    if debug.flags.delta_plan:
         debug.header('Delta Plan Input')
         debug.dump(delta)
 

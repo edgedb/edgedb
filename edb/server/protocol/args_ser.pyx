@@ -202,6 +202,9 @@ cdef WriteBuffer recode_bind_args(
         # All columns are in binary format
         out_buf.write_int32(0x00010001)
 
+    if frb_get_len(&in_buf):
+        raise errors.InputDataError('unexpected trailing data in buffer')
+
     return out_buf
 
 
@@ -357,10 +360,15 @@ cdef WriteBuffer _decode_tuple_args(
         list acounts
         WriteBuffer buf
 
+    # N.B: We have peeked at in_len, but the size is still in the buffer, for
+    # more convenient processing by _decode_tuple_args_core
+
     if in_len < 0:
         # For a NULL argument, fill out *every* one of our args with NULL
         for _ in tids:
             out_buf.write_int32(in_len)
+        # We only peeked at in_len before, so consume it now
+        frb_read(in_buf, 4)
         return
 
     buffers = []

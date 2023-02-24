@@ -78,6 +78,10 @@ class T_DOUBLECOLON(Token, lextoken='::'):
     pass
 
 
+class T_DOUBLESTAR(Token, lextoken='**'):
+    pass
+
+
 class T_DOUBLEQMARK(Token, lextoken='??'):
     pass
 

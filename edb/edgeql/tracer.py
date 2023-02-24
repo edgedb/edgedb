@@ -843,6 +843,12 @@ def trace_Path(
                             ctx.refs.add(qualify_name(
                                 tip_name, prev_step.ptr.name))
 
+        elif isinstance(step, qlast.Splat):
+            if step.type is not None:
+                _resolve_type_expr(step.type, ctx=ctx)
+            if step.intersection is not None:
+                _resolve_type_expr(step.intersection.type, ctx=ctx)
+
         else:
             tr = trace(step, ctx=ctx)
             if tr is not None:
@@ -1175,6 +1181,14 @@ def trace_DescribeStmt(
     if isinstance(node.object, qlast.ObjectRef):
         fq_name = ctx.get_ref_name(node.object)
         ctx.refs.add(fq_name)
+
+
+@trace.register
+def trace_ExplainStmt(
+    node: qlast.ExplainStmt, *,
+    ctx: TracerContext,
+) -> None:
+    pass
 
 
 @trace.register

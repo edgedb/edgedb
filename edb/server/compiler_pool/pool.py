@@ -598,6 +598,22 @@ class AbstractPool:
         finally:
             self._release_worker(worker)
 
+    async def analyze_explain_output(
+        self,
+        *args,
+        **kwargs
+    ):
+        worker = await self._acquire_worker()
+        try:
+            return await worker.call(
+                'analyze_explain_output',
+                *args,
+                **kwargs
+            )
+
+        finally:
+            self._release_worker(worker)
+
 
 class BaseLocalPool(
     AbstractPool, amsg.ServerProtocol, asyncio.SubprocessProtocol

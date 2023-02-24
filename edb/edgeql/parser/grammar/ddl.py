@@ -1374,7 +1374,7 @@ class CreateConcreteIndexStmt(Nonterm, commondl.ProcessIndexMixin):
 #
 # ALTER CONCRETE INDEX
 #
-class AlterConcreteIndexStmt(Nonterm):
+class AlterConcreteIndexStmt(Nonterm, commondl.ProcessIndexMixin):
     def reduce_AlterConcreteIndex(self, *kids):
         r"""%reduce ALTER INDEX OnExpr OptExceptExpr \
                     AlterConcreteIndexCommandsBlock \
@@ -1384,6 +1384,20 @@ class AlterConcreteIndexStmt(Nonterm):
             expr=kids[2].val,
             except_expr=kids[3].val,
             commands=kids[4].val,
+        )
+
+    def reduce_AlterConcreteNamedIndex(self, *kids):
+        r"""%reduce ALTER INDEX NodeName OptIndexExtArgList OnExpr \
+                    OptExceptExpr \
+                    AlterConcreteIndexCommandsBlock \
+        """
+        kwargs = self._process_arguments(kids[3].val)
+        self.val = qlast.AlterConcreteIndex(
+            name=kids[2].val,
+            kwargs=kwargs,
+            expr=kids[4].val,
+            except_expr=kids[5].val,
+            commands=kids[6].val,
         )
 
 
@@ -1397,7 +1411,7 @@ commands_block(
 #
 # DROP CONCRETE INDEX
 #
-class DropConcreteIndexStmt(Nonterm):
+class DropConcreteIndexStmt(Nonterm, commondl.ProcessIndexMixin):
     def reduce_DropConcreteIndex(self, *kids):
         r"""%reduce DROP INDEX OnExpr OptExceptExpr \
                     OptDropConcreteIndexCommandsBlock \
@@ -1407,6 +1421,20 @@ class DropConcreteIndexStmt(Nonterm):
             expr=kids[2].val,
             except_expr=kids[3].val,
             commands=kids[4].val,
+        )
+
+    def reduce_DropConcreteNamedIndex(self, *kids):
+        r"""%reduce DROP INDEX NodeName OptIndexExtArgList OnExpr \
+                    OptExceptExpr \
+                    OptDropConcreteIndexCommandsBlock \
+        """
+        kwargs = self._process_arguments(kids[3].val)
+        self.val = qlast.DropConcreteIndex(
+            name=kids[2].val,
+            kwargs=kwargs,
+            expr=kids[4].val,
+            except_expr=kids[5].val,
+            commands=kids[6].val,
         )
 
 

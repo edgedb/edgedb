@@ -22,12 +22,17 @@ from typing import *
 
 import hashlib
 import os
+import re
 import uuid
 
 from . import turbo_uuid
 
 
 UUID = turbo_uuid.UUID
+
+
+UUID_RE_S = r'[a-f0-9]{8}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{12}'
+UUID_RE = re.compile(UUID_RE_S, re.I)
 
 
 def uuid1mc() -> uuid.UUID:

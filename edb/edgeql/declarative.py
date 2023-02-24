@@ -1117,6 +1117,7 @@ def _register_item(
             if isinstance(decl, qlast.CreateConcreteIndex):
                 assert isinstance(alter_cmd, qlast.ConcreteIndexCommand)
                 alter_cmd.expr = decl.expr
+                alter_cmd.kwargs = decl.kwargs
 
             # constraints need to preserve their "on" expression
             if isinstance(decl, qlast.CreateConcreteConstraint):

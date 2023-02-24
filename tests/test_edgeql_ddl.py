@@ -3438,6 +3438,27 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             json_only=True,
         )
 
+    async def test_edgeql_ddl_link_property_10(self):
+        await self.con.execute("""
+            CREATE TYPE default::User;
+            CREATE TYPE default::Survey {
+                CREATE MULTI LINK recipients -> default::User;
+            };
+            insert Survey { recipients := (insert User) };
+        """)
+
+        await self.con.execute("""
+            alter type Survey alter link recipients
+            create property destination -> str { set default := "email" };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select Survey { recipients: {@destination} };
+            """,
+            [{"recipients": [{"@destination": "email"}]}]
+        )
+
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
@@ -5193,6 +5214,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     SET fallback := true;
                 };
             ''')
+
+    async def test_edgeql_ddl_function_splat_01(self):
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            r'splat operators in function bodies are not supported',
+        ):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE FUNCTION my_splat() -> std::json USING (
+                        SELECT <json>Object { ** } LIMIT 1
+                    );
+                """)
 
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(

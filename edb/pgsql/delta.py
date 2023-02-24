@@ -2951,7 +2951,12 @@ class CompositeMetaCommand(MetaCommand):
 
             for ptrname, (alias, pgtype) in ptrnames.items():
                 ptr = ptrs.get(ptrname)
-                if ptr is not None:
+                if ptrname == sn.UnqualName('__type__'):
+                    # __type__ is special cased: since it is uniquely
+                    # determined by the type, we directly insert it
+                    # into the views instead of storing it (to save space)
+                    cols.append((f"'{obj.id}'::uuid", alias, False))
+                elif ptr is not None:
                     ptr_stor_info = types.get_pointer_storage_info(
                         ptr,
                         link_bias=isinstance(obj, s_links.Link),
@@ -3426,6 +3431,10 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
         orig_schema = schema
         schema = super().apply(schema, context)
         index = self.scls
+
+        if index.get_abstract(orig_schema):
+            # Don't do anything for abstract indexes
+            return schema
 
         source: Optional[
             sd.CommandContextToken[s_sources.SourceCommand[s_sources.Source]]]
@@ -4722,6 +4731,17 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             and not source_is_view
             and not link.is_pure_computable(schema)
         ):
+            # We optimize away __type__ and don't store it.
+            # Nothing to do except make sure the inhviews get updated.
+            if link.get_shortname(schema).name == '__type__':
+                self.schedule_inhview_source_update(
+                    schema,
+                    context,
+                    link,
+                    s_objtypes.ObjectTypeCommandContext,
+                )
+                return
+
             assert objtype
             ptr_stor_info = types.get_pointer_storage_info(
                 link, resolve_type=False, schema=schema)
@@ -4746,27 +4766,6 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                 for col in cols:
                     cmd = dbops.AlterTableAddColumn(col)
                     objtype_alter_table.add_operation(cmd)
-
-                    if col.name == '__type__':
-                        constr_name = common.edgedb_name_to_pg_name(
-                            str(objtype.op.classname) + '.class_check')
-
-                        constr_expr = dbops.Query(textwrap.dedent(f"""\
-                            SELECT
-                                '"__type__" = ' ||
-                                quote_literal({ql(str(objtype.scls.id))})
-                        """), type='text')
-
-                        cid_constraint = dbops.CheckConstraint(
-                            self.table_name,
-                            constr_name,
-                            constr_expr,
-                            inherit=False,
-                        )
-
-                        objtype_alter_table.add_operation(
-                            dbops.AlterTableAddConstraint(cid_constraint),
-                        )
 
                 self.pgops.add(objtype_alter_table)
 
@@ -4830,6 +4829,10 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
         orig_schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
+
+        # We optimize away __type__ and don't store it. Nothing to do.
+        if link.get_shortname(schema).name == '__type__':
+            return
 
         old_table_name = common.get_backend_name(
             schema, link, catenate=False)
@@ -5254,6 +5257,11 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                 (default := prop.get_default(schema))
                 and not prop.is_pure_computable(schema)
                 and not fills_required
+                # link properties use SQL defaults and shouldn't need
+                # us to do it explicitly (which is good, since
+                # _alter_pointer_optionality doesn't currently work on
+                # linkprops)
+                and not prop.is_link_property(schema)
             ):
                 self._alter_pointer_optionality(
                     schema, schema, context, fill_expr=default)

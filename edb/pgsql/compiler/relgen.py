@@ -222,6 +222,12 @@ def get_set_rvar(
         # Actually compile the set
         rvars = _get_set_rvar(ir_set, ctx=subctx)
 
+        if ctx.env.expand_inhviews:
+            for srvar in rvars.new:
+                if not srvar.rvar.ir_origins:
+                    srvar.rvar.ir_origins = []
+                srvar.rvar.ir_origins.append(ir_set)
+
         if optional_wrapping:
             rvars = finalize_optional_rel(ir_set, optrel=optrel,
                                           rvars=rvars, ctx=subctx)

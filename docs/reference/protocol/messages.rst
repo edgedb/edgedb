@@ -439,6 +439,9 @@ Known headers:
 * 102 ``SERVER_TIME`` -- server time when dump is started as a floating point
   unix timestamp stringified
 * 103 ``SERVER_VERSION`` -- full version of server as string
+* 105 ``SERVER_CATALOG_VERSION`` -- the catalog version of the server, as
+  a 64-bit integer. The catalog version is an identifier that is incremented
+  whenever a change is made to the database layout or standard library.
 
 
 .. _ref_protocol_msg_dump_block:

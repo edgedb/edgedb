@@ -728,10 +728,6 @@ async def _make_stdlib(
         delta_command = s_ddl.delta_from_ddl(
             ddl_cmd, modaliases={}, schema=schema, stdmode=True)
 
-        if debug.flags.delta_plan_input:
-            debug.header('Delta Plan Input')
-            debug.dump(delta_command)
-
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
         schema, plan = _process_delta(ctx, delta_command, schema)
@@ -848,10 +844,6 @@ async def _amend_stdlib(
         assert isinstance(ddl_cmd, qlast.DDLCommand)
         delta_command = s_ddl.delta_from_ddl(
             ddl_cmd, modaliases={}, schema=schema, stdmode=True)
-
-        if debug.flags.delta_plan_input:
-            debug.header('Delta Plan Input')
-            debug.dump(delta_command)
 
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.

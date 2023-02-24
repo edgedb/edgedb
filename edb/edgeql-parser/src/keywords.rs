@@ -6,6 +6,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "alias",
     "allow",
     "all",
+    "analyze",
     "annotation",
     "applied",
     "as",
@@ -117,7 +118,6 @@ pub const PARTIAL_RESERVED_KEYWORDS: &[&str] = &[
 
 pub const FUTURE_RESERVED_KEYWORDS: &[&str] = &[
     // Keep in sync with `tokenizer::is_keyword`
-    "analyze",
     "anyarray",
     "begin",
     "case",
@@ -126,7 +126,6 @@ pub const FUTURE_RESERVED_KEYWORDS: &[&str] = &[
     "discard",
     "end",
     "execute",
-    "explain",
     "fetch",
     "get",
     "global",
@@ -181,6 +180,7 @@ pub const CURRENT_RESERVED_KEYWORDS: &[&str] = &[
     "drop",
     "else",
     "exists",
+    "explain",
     "extending",
     "false",
     "filter",

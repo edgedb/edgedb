@@ -39,11 +39,9 @@ import parsing
 import setuptools_rust
 
 
-RUST_VERSION = '1.59.0'  # Also update docs/internal/dev.rst
-
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 # This can be a branch, tag, or commit
-EDGEDBCLI_COMMIT = 'c6735ef0520d53c5a5e736574b36fd80f976a49c'
+EDGEDBCLI_COMMIT = 'master'
 
 EDGEDBGUI_REPO = 'https://github.com/edgedb/edgedb-studio.git'
 # This can be a branch, tag, or commit
@@ -311,27 +309,6 @@ def _compile_libpg_query():
     )
 
 
-def _check_rust():
-    import packaging.version
-
-    try:
-        rustc_ver = (
-            subprocess.check_output(["rustc", '-V'], text=True).split()[1]
-            .rstrip("-nightly")
-        )
-        if (
-            packaging.version.parse(rustc_ver)
-            < packaging.version.parse(RUST_VERSION)
-        ):
-            raise RuntimeError(
-                f'please upgrade Rust to {RUST_VERSION} to compile '
-                f'edgedb from source')
-    except FileNotFoundError:
-        raise RuntimeError(
-            f'please install rustc >= {RUST_VERSION} to compile '
-            f'edgedb from source (see https://rustup.rs/)')
-
-
 def _get_git_rev(repo, ref):
     output = subprocess.check_output(
         ['git', 'ls-remote', repo, ref],
@@ -364,7 +341,6 @@ def _get_pg_source_stamp():
 
 
 def _compile_cli(build_base, build_temp):
-    _check_rust()
     rust_root = build_base / 'cli'
     env = dict(os.environ)
     env['CARGO_TARGET_DIR'] = str(build_temp / 'rust' / 'cli')
@@ -839,6 +815,7 @@ class build_parsers(setuptools.Command):
 
     def run(self, *args, **kwargs):
         for src, dst in zip(self.sources, self.get_outputs()):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
             spec_mod = importlib.import_module(src)
             parsing.Spec(spec_mod, pickleFile=dst, verbose=True)
 
@@ -851,7 +828,6 @@ class build_parsers(setuptools.Command):
 
 class build_rust(setuptools_rust.build.build_rust):
     def run(self):
-        _check_rust()
         build_ext = self.get_finalized_command("build_ext")
         if build_ext.build_mode not in {'both', 'rust-only'}:
             distutils.log.info(

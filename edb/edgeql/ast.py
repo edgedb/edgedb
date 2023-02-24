@@ -422,7 +422,19 @@ class Ptr(Base):
     type: typing.Optional[str] = None
 
 
-PathElement = typing.Union[Expr, Ptr, TypeIntersection, ObjectRef]
+class Splat(Base):
+    """Represents a splat operation (expansion to all props/links) in shapes"""
+
+    #: Expansion depth
+    depth: int
+    #: Source type expression, e.g in Type.**
+    type: typing.Optional[TypeExpr] = None
+    #: Type intersection on the source which would result
+    #: in polymorphic expansion, e.g. [is Type].**
+    intersection: typing.Optional[TypeIntersection] = None
+
+
+PathElement = typing.Union[Expr, Ptr, TypeIntersection, ObjectRef, Splat]
 
 
 class Path(Expr):
@@ -501,7 +513,6 @@ class SelectClauseMixin(OrderByMixin, OffsetLimitMixin, FilterMixin):
 
 
 class ShapeOp(s_enum.StrEnum):
-
     APPEND = 'APPEND'
     SUBTRACT = 'SUBTRACT'
     ASSIGN = 'ASSIGN'
@@ -510,8 +521,14 @@ class ShapeOp(s_enum.StrEnum):
 
 # Need indirection over ShapeOp to preserve the source context.
 class ShapeOperation(Base):
-
     op: ShapeOp
+
+
+class ShapeOrigin(s_enum.StrEnum):
+    EXPLICIT = 'EXPLICIT'
+    DEFAULT = 'DEFAULT'
+    SPLAT_EXPANSION = 'SPLAT_EXPANSION'
+    MATERIALIZATION = 'MATERIALIZATION'
 
 
 class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
@@ -521,6 +538,7 @@ class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
     cardinality: typing.Optional[qltypes.SchemaCardinality] = None
     required: typing.Optional[bool] = None
     operation: ShapeOperation = ShapeOperation(op=ShapeOp.ASSIGN)
+    origin: ShapeOrigin = ShapeOrigin.EXPLICIT
 
 
 class Shape(Expr):
@@ -1467,6 +1485,16 @@ class DescribeStmt(Statement):
     language: qltypes.DescribeLanguage
     object: typing.Union[ObjectRef, DescribeGlobal]
     options: Options
+
+
+#
+# Explain
+#
+
+class ExplainStmt(Statement):
+
+    query: Query
+    analyze: bool
 
 
 #

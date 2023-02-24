@@ -740,6 +740,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
     def is_dumpable(self, schema: s_schema.Schema) -> bool:
         return (
             not self.is_pure_computable(schema)
+            and not self.get_shortname(schema).name == '__type__'
         )
 
     def generic(self, schema: s_schema.Schema) -> bool:

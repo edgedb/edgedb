@@ -11328,6 +11328,63 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             module `back``ticked` { type Test };
         """)
 
+    async def test_edgeql_migration_abstract_index_01(self):
+        await self.migrate(r"""
+            abstract index MyIndex(language := 'english')
+                extending fts::textsearch;
+            type Base {
+                property name -> str;
+                index MyIndex on (.name);
+                index fts::textsearch(language:='english') on (.name);
+            };
+        """)
+
+        await self.migrate(r"""
+            abstract index MyIndex(language := 'english')
+                extending fts::textsearch;
+            type Base {
+                property name -> str;
+                index MyIndex on (.name);
+                index fts::textsearch(language:='english') on (.name);
+            };
+            type Child extending Base;
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                r"because other objects in the schema depend on it"):
+            await self.con.execute('''
+                drop abstract index test::MyIndex
+            ''')
+
+        await self.migrate(r"""
+            abstract index MyIndex(language := 'german')
+                extending fts::textsearch;
+            type Base {
+                property name -> str;
+                index MyIndex on (.name);
+                index fts::textsearch(language:='english') on (.name);
+            };
+            type Child extending Base;
+        """)
+
+        await self.migrate(r"""
+            abstract index MyIndex(language := 'german')
+                extending fts::textsearch {
+              annotation title := "test";
+            }
+            type Base {
+                property name -> str;
+                index MyIndex on (.name);
+                index fts::textsearch(language:='english') on (.name) {
+                   annotation description := "test";
+                };
+            };
+            type Child extending Base;
+        """)
+
+        await self.migrate("")
+
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False
@@ -11429,6 +11486,24 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         ''')
 
         await self.migrate('')
+
+    async def test_edgeql_migration_splat_01(self):
+        await self.migrate('''
+            type Foo {
+                property bar := (select <json>Bar { ** })
+            }
+
+            type Bar {
+                property a -> str;
+                link foo -> Foo;
+            }
+        ''')
+
+        await self.migrate('''
+            type Foo {
+                property bar := (<json>{})
+            }
+        ''')
 
     async def test_edgeql_migration_recovery(self):
         await self.con.execute(r"""
