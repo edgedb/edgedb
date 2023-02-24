@@ -374,6 +374,11 @@ class ForExpr:
     bound : Expr
     next : BindingExpr
 
+@dataclass(frozen=True)
+class OptionalForExpr:
+    bound : Expr
+    next : BindingExpr
+
 @dataclass(frozen=True) 
 class FilterOrderExpr:
     subject : Expr
@@ -494,7 +499,7 @@ MultiSetVal = Sequence[Val]
 VarExpr = (FreeVarExpr | BoundVarExpr)
 
 Expr = (PrimVal | TypeCastExpr | FunAppExpr 
-        | FreeVarExpr | BoundVarExpr| ObjectProjExpr | LinkPropProjExpr |  WithExpr | ForExpr 
+        | FreeVarExpr | BoundVarExpr| ObjectProjExpr | LinkPropProjExpr |  WithExpr | ForExpr  | OptionalForExpr
         | TpIntersectExpr | BackLinkExpr
         | FilterOrderExpr | OffsetLimitExpr | InsertExpr | UpdateExpr
         | MultiSetExpr 

@@ -326,6 +326,13 @@ def eval_config(rt : RTExpr) -> RTVal:
             (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
             (new_data2, vv) = eval_expr_list(new_data, [instantiate_expr(v, next) for v in boundv])
             return RTVal(new_data2, [p for v in vv for p in v])
+        case OptionalForExpr(bound=bound, next=next):
+            (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
+            if boundv:
+                (new_data2, vv) = eval_expr_list(new_data, [instantiate_expr(v, next) for v in boundv])
+                return RTVal(new_data2, [p for v in vv for p in v])
+            else:
+                return eval_config(RTExpr(new_data, instantiate_expr(MultiSetExpr([]), next)))
             
 
             

@@ -78,6 +78,8 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
                 return UpdateExpr(subject=recur(subject), shape=recur(shape))
             case ForExpr(bound=bound, next=next):
                 return ForExpr(bound=recur(bound), next=recur(next))
+            case OptionalForExpr(bound=bound, next=next):
+                return OptionalForExpr(bound=recur(bound), next=recur(next))
 
     raise ValueError("Not Implemented: map_expr ", expr) 
 
@@ -198,7 +200,7 @@ def get_object_val(val : Val) -> ObjectVal:
 
 def val_is_primitive(rt : Val) -> bool:
     match rt:
-        case StrVal(_) | IntVal(_) | ArrVal(_):
+        case StrVal(_) | IntVal(_) | ArrVal(_) | UnnamedTupleVal(_):
             return True
         case RefVal(_) | FreeVal(_):
             return False

@@ -156,6 +156,13 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
             bound_v = reverse_elab(bound)
             body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
             return qlast.ForQuery(iterator=bound_v, iterator_alias=name, result=body)
+        case OptionalForExpr(bound=bound, next=next):
+            name = next_name()
+            bound_v = reverse_elab(bound)
+            body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
+            return qlast.IfElse(condition=qlast.UnaryOp(op="EXISTS", operand=bound_v), 
+                    if_expr=qlast.ForQuery(iterator=bound_v, iterator_alias=name, result=body),
+                    else_expr=reverse_elab(WithExpr(bound=MultiSetExpr([]), next=next)))
         case DetachedExpr(expr=expr):
             return qlast.DetachedExpr(expr=reverse_elab(expr))
         case SubqueryExpr(expr=expr):
