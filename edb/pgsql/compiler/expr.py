@@ -647,6 +647,9 @@ def compile_FunctionCall(
         expr: irast.FunctionCall, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
+    if sfunc := relgen._SIMPLE_SPECIAL_FUNCTIONS.get(str(expr.func_shortname)):
+        return sfunc(expr, ctx=ctx)
+
     if expr.typemod is ql_ft.TypeModifier.SetOfType:
         raise errors.UnsupportedFeatureError(
             'set returning functions are not supported in simple expressions')
