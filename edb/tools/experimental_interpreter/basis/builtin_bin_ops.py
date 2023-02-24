@@ -34,7 +34,9 @@ def eq_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
         case [[StrVal(s1)], [StrVal(s2)]]:
             return [BoolVal(s1 == s2)]
         case [[IntVal(i1)], [IntVal(i2)]]:
-            return [BoolVal(s1 == s2)]
+            return [BoolVal(i1 == i2)]
+        case [[BoolVal(b1)], [BoolVal(b2)]]:
+            return [BoolVal(b1 == b2)]
     raise FunCallErr(arg)
 
 not_eq_tp = FunType( args_mod=[ParamSingleton(), ParamSingleton()], 
