@@ -129,6 +129,7 @@ class RewriteCommand(
         if field.name == 'expr':
             from edb.ir import pathid
             from . import pointers
+            from edb.ir import ast as irast
 
             parent_ctx = self.get_referrer_context_or_die(context)
             pointer = parent_ctx.op.get_object(schema, context)
@@ -146,13 +147,13 @@ class RewriteCommand(
             kind = self._get_kind(schema)
 
             anchors = {}
-            if qltypes.RewriteKind.Update == kind:
-                anchors['__old__'] = pathid.PathId.from_type(
-                    schema,
-                    source,
-                    typename=sn.QualName(module='__derived__', name='__old__'),
-                )
 
+            # __subject__
+            anchors["__subject__"] = pathid.PathId.from_type(
+                schema,
+                source,
+                typename=sn.QualName(module="__derived__", name="__subject__"),
+            )
             anchors['__specified__'] = pathid.PathId.from_type(
                 schema,
                 source,
@@ -160,11 +161,40 @@ class RewriteCommand(
                     module='__derived__', name='__specified__'
                 ),
             )
-            anchors["__subject__"] = pathid.PathId.from_type(
+
+            # __specified__
+            bool_type = schema.get("std::bool", type=s_types.Type)
+            bool_path = irast.PathId.from_type(
+                schema,
+                bool_type,
+                typename=sn.QualName(module="std", name="bool"),
+            )
+            specified_path_id = irast.PathId.from_type(
                 schema,
                 source,
-                typename=sn.QualName(module="__derived__", name="__subject__"),
+                typename=sn.QualName(
+                    module="__derived__", name="__specified__"
+                ),
             )
+            specified_pointers: Dict[str, irast.Expr] = {}
+            for pn, _ in source.get_pointers(schema).items(schema):
+                specified_pointers[pn.name] = irast.BooleanConstant(
+                    value="true",
+                    typeref=bool_path.target,
+                )
+            anchors['__specified__'] = irast.ComputedObjectSet(
+                path_id=specified_path_id,
+                typeref=specified_path_id.target,
+                computed_pointers=specified_pointers
+            )
+
+            # __old__
+            if qltypes.RewriteKind.Update == kind:
+                anchors['__old__'] = pathid.PathId.from_type(
+                    schema,
+                    source,
+                    typename=sn.QualName(module='__derived__', name='__old__'),
+                )
 
             singletons = frozenset(anchors.values())
 

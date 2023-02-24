@@ -843,8 +843,8 @@ def _compile_rewrites(
     s_ctx: ShapeContext,
 ) -> Iterable[EarlyShapePtr]:
     # init
-    anchors = _prepare_rewrite_anchors(
-        pointers, specified_ptrs, rewrite_kind, stype, s_ctx
+    anchors = prepare_rewrite_anchors(
+        pointers, specified_ptrs, rewrite_kind, stype, s_ctx.ctx
     )
 
     # Rewrites are not inherited, which means we need to traverse ancestors
@@ -885,7 +885,7 @@ def _compile_rewrites_and_inherit(
     kind: qltypes.RewriteKind,
     view_scls: s_objtypes.ObjectType,
     ir_set: irast.Set,
-    anchors: Tuple[irast.Set, ...],
+    anchors: RewriteAnchors,
     s_ctx: ShapeContext,
 ) -> Dict[sn.UnqualName, EarlyShapePtr]:
     rewrites: Dict[sn.UnqualName, EarlyShapePtr] = {}
@@ -910,7 +910,7 @@ def _compile_rewrites_of_children(
     kind: qltypes.RewriteKind,
     view_scls: s_objtypes.ObjectType,
     ir_set: irast.Set,
-    anchors: Tuple[irast.Set, ...],
+    anchors: RewriteAnchors,
     s_ctx: ShapeContext,
 ) -> Dict[irast.TypeRef, Dict[sn.UnqualName, EarlyShapePtr]]:
     rewrites_for_type: Dict[
@@ -949,12 +949,12 @@ def _compile_rewrites_for_stype(
     kind: qltypes.RewriteKind,
     view_scls: s_objtypes.ObjectType,
     ir_set: irast.Set,
-    anchors: Tuple[irast.Set, ...],
+    anchors: RewriteAnchors,
     s_ctx: ShapeContext,
 ) -> Dict[sn.UnqualName, EarlyShapePtr]:
     ctx = s_ctx.ctx
     path_id = ir_set.path_id
-    (subject_set, specified_set) = anchors
+    (subject_set, specified_set, old_set) = anchors
 
     res = {}
 
@@ -972,9 +972,11 @@ def _compile_rewrites_for_stype(
 
         with ctx.new() as scopectx:
             # prepare context
+            scopectx.partial_path_prefix = subject_set
             scopectx.anchors["__specified__"] = specified_set
             scopectx.anchors["__subject__"] = subject_set
-            scopectx.partial_path_prefix = subject_set
+            if old_set:
+                scopectx.anchors["__old__"] = old_set
 
             scopectx.env.path_scope.attach_path(
                 subject_set.path_id, context=None
@@ -1021,15 +1023,19 @@ def _compile_rewrites_for_stype(
     return res
 
 
-def _prepare_rewrite_anchors(
+RewriteAnchors = Tuple[irast.Set, irast.Set, Optional[irast.Set]]
+
+
+def prepare_rewrite_anchors(
     pointers: Dict[s_pointers.Pointer, EarlyShapePtr],
     specified_ptrs: Set[sn.UnqualName],
     rewrite_kind: qltypes.RewriteKind,
     stype: s_objtypes.ObjectType,
-    s_ctx: ShapeContext,
-) -> Tuple[irast.Set, irast.Set]:
-    ctx = s_ctx.ctx
+    ctx: context.ContextLevel,
+) -> RewriteAnchors:
     scls_pointers = stype.get_pointers(ctx.env.schema)
+
+    source_set = setgen.class_set(stype, ctx=ctx)
 
     # init set for __subject__
     subject_path_id = irast.PathId.from_type(
@@ -1063,9 +1069,6 @@ def _prepare_rewrite_anchors(
                 val = setgen.ensure_set(empty, type_override=ptype, ctx=ctx)
 
             elif rewrite_kind == qltypes.RewriteKind.Update:
-                source = ptr.get_source(ctx.env.schema)
-                assert isinstance(source, s_types.Type)
-                source_set = setgen.class_set(source, ctx=ctx)
                 val = setgen.extend_path(source_set, ptr, ctx=ctx)
 
             else:
@@ -1109,10 +1112,29 @@ def _prepare_rewrite_anchors(
 
     # init set for __old__
     if rewrite_kind == qltypes.RewriteKind.Update:
-        # TODO
-        pass
 
-    return (subject_set, specified_set)
+        old_path_id = irast.PathId.from_type(
+            ctx.env.schema,
+            stype,
+            typename=sn.QualName(module="__derived__", name="__old__"),
+        )
+        old_pointers: Dict[str, irast.Set] = {}
+        for pn, ptr in scls_pointers.items(ctx.env.schema):
+            if ptr.is_protected_pointer(ctx.env.schema):
+                continue
+
+            val = setgen.extend_path(source_set, ptr, ctx=ctx)
+
+            old_pointers[pn.name] = val
+        old_set = irast.ComputedObjectSet(
+            path_id=old_path_id,
+            typeref=old_path_id.target,
+            computed_pointers=old_pointers
+        )
+    else:
+        old_set = None
+
+    return (subject_set, specified_set, old_set)
 
 
 def _maybe_fixup_lprop(
