@@ -206,11 +206,11 @@ def elab_orderby(qle : Optional[Sequence[qlast.SortExpr]]) -> BindingExpr:
 @elab.register(qlast.SelectQuery)
 def elab_SelectExpr(qle : qlast.SelectQuery) -> Expr:
     if qle.offset is not None or qle.limit is not None:
-        return elab_aliases(qle.aliases, OffsetLimitExpr(
+        return elab_aliases(qle.aliases, SubqueryExpr(OffsetLimitExpr(
             subject=elab(qle.result),
             offset=elab(qle.offset) if qle.offset is not None else IntVal(0),
             limit=elab(qle.limit) if qle.limit is not None else IntInfVal(),
-        ))
+        )))
     else:
         subject_elab = elab(qle.result)
         filter_elab = elab_where(qle.where)
@@ -220,11 +220,11 @@ def elab_SelectExpr(qle : qlast.SelectQuery) -> Expr:
             alias_var = FreeVarExpr(qle.result_alias)
             filter_elab = abstract_over_expr(instantiate_expr(alias_var, filter_elab), qle.result_alias)
             order_elab = abstract_over_expr(instantiate_expr(alias_var, order_elab), qle.result_alias)
-        without_alias = FilterOrderExpr(
+        without_alias = SubqueryExpr(FilterOrderExpr(
                 subject=subject_elab,
                 filter= filter_elab,
                 order= order_elab
-            ) 
+            ))
         return elab_aliases(qle.aliases, without_alias)
     
 @elab.register(qlast.FunctionCall)

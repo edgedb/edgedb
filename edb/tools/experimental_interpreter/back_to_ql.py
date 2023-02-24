@@ -38,16 +38,19 @@ def reverse_elab_type_name(tp : Tp) -> qlast.TypeName:
             return qlast.TypeName(maintype=qlast.ObjectRef(name="datetime"))
     raise ValueError("Unimplemented")
 
-def reverse_elab_order(order : ObjectExpr) -> Sequence[qlast.SortExpr]:
-    keys = sorted([(idx, spec, k)  for k in order.val.keys() for [idx, spec] in [k.label.split(OrderLabelSep)]])
-    return [qlast.SortExpr(path=reverse_elab(order.val[k]), 
-        direction = (
-                qlast.SortOrder.Asc if spec == OrderAscending else
-                qlast.SortOrder.Desc if spec == OrderDescending else
-                reverse_elab_error("unknown direction", order)
-                ))
-        for (idx, spec, k) in keys
-    ]
+def reverse_elab_order(order : Expr) -> Sequence[qlast.SortExpr]:
+    if isinstance(order, ObjectExpr):
+        keys = sorted([(idx, spec, k)  for k in order.val.keys() for [idx, spec] in [k.label.split(OrderLabelSep)]])
+        return [qlast.SortExpr(path=reverse_elab(order.val[k]), 
+            direction = (
+                    qlast.SortOrder.Asc if spec == OrderAscending else
+                    qlast.SortOrder.Desc if spec == OrderDescending else
+                    reverse_elab_error("unknown direction", order)
+                    ))
+            for (idx, spec, k) in keys
+        ]
+    else:
+        return [qlast.SortExpr(path=reverse_elab(order))]
 
 
 def append_path_element(subject : qlast.Base, to_add : qlast.PathElement) -> qlast.Path:
@@ -155,6 +158,8 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
             return qlast.ForQuery(iterator=bound_v, iterator_alias=name, result=body)
         case DetachedExpr(expr=expr):
             return qlast.DetachedExpr(expr=reverse_elab(expr))
+        case SubqueryExpr(expr=expr):
+            return reverse_elab(expr)
             
         case _:
             raise ValueError("Unimplemented", ir_expr)

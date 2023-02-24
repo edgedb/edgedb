@@ -179,6 +179,7 @@ def eval_config(rt : RTExpr) -> RTVal:
             | RefVal(_)
             | ArrVal(_)
             | UnnamedTupleVal(_)
+            | FreeVal(_)
             ):
             return RTVal(rt.data, [rt.expr])
         case ObjectExpr(val=dic):
@@ -311,6 +312,9 @@ def eval_config(rt : RTExpr) -> RTVal:
             (new_data2, [offsetv]) = eval_config(RTExpr(new_data, offset))
             (new_data3, [limitv]) = eval_config(RTExpr(new_data2, limit))
             return RTVal(new_data3, limit_vals(offset_vals(subjectv, offsetv), limitv))
+        case SubqueryExpr(expr=expr):
+            (new_data, exprv) = eval_config(RTExpr(rt.data, expr))
+            return RTVal(new_data, exprv)
         case DetachedExpr(expr=expr):
             (new_data, exprv) = eval_config(RTExpr(rt.data, expr))
             return RTVal(new_data, exprv)

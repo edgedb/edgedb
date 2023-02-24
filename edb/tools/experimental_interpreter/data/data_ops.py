@@ -357,6 +357,10 @@ class LinkPropProjExpr:
     linkprop : str
 
 @dataclass(frozen=True)
+class SubqueryExpr: # select e in formalism
+    expr : Expr
+
+@dataclass(frozen=True)
 class DetachedExpr:
     expr : Expr
 
@@ -496,7 +500,7 @@ Expr = (PrimVal | TypeCastExpr | FunAppExpr
         | MultiSetExpr 
         | ShapedExprExpr | ShapeExpr | ObjectExpr | BindingExpr
         | Val | UnnamedTupleExpr | NamedTupleExpr | ArrExpr
-        | Tp | UnionExpr   | DetachedExpr
+        | Tp | UnionExpr   | DetachedExpr | SubqueryExpr
         )
 
 

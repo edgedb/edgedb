@@ -154,14 +154,8 @@ def trace_input_output(func):
     wrapper.depth = 0
     return wrapper
 
-# @trace_input_output
-def select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
-    top_paths = toppath_for_factoring(e, dbschema)
-    fresh_names : List[str] = [next_name() for p in top_paths]
-    # print("Paths and Names:", top_paths, fresh_names)
-    fresh_vars : List[Expr] = [FreeVarExpr(n) for n in fresh_names]
-    after_e = iterative_subst_expr_for_expr(fresh_vars, top_paths, e)
-    def sub_select_hoist(e : Expr) -> Expr:
+def sub_select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
+    def sub_select_hoist_map_func(e : Expr) -> Expr:
         if isinstance(e, BindingExpr):
             new_fresh_name = next_name()
             return abstract_over_expr(
@@ -173,13 +167,51 @@ def select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
                         new_fresh_name)
         else:
             return select_hoist(e, dbschema)
-    after_after_e = map_sub_and_semisub_queries(sub_select_hoist, after_e, dbschema)
+    return map_sub_and_semisub_queries(sub_select_hoist_map_func, e, dbschema)
+
+# @trace_input_output
+def select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
+    top_paths = toppath_for_factoring(e, dbschema)
+    fresh_names : List[str] = [next_name() for p in top_paths]
+    # print("Paths and Names:", top_paths, fresh_names)
+    fresh_vars : List[Expr] = [FreeVarExpr(n) for n in fresh_names]
     for_paths = [iterative_subst_expr_for_expr(fresh_vars[:i], top_paths[:i], p_i) for (i, p_i) in enumerate(top_paths)]
 
-    result = after_after_e
+    inner_e : Expr 
+    post_process_transform : Callable[[Expr], Expr] 
+    match e :
+        case FilterOrderExpr(subject=subject, filter=filter, order=order):
+            bindname = next_name() 
+            inner_e = WithExpr(FilterOrderExpr(subject=sub_select_hoist(iterative_subst_expr_for_expr(fresh_vars, top_paths, subject), dbschema), 
+                                               filter=select_hoist(iterative_subst_expr_for_expr(fresh_vars, top_paths, filter), dbschema), 
+                                               order= abstract_over_expr(ObjectExpr({}))
+                                                      ),
+                abstract_over_expr(
+                    ObjectExpr({
+                        StrLabel("subject") : FreeVarExpr(bindname), 
+                        StrLabel("order") : select_hoist(iterative_subst_expr_for_expr(fresh_vars, top_paths, instantiate_expr(FreeVarExpr(bindname), order)), dbschema),
+                    }), bindname))
+            def post_processing(e: Expr) -> Expr: 
+                bindname = next_name()
+                return ObjectProjExpr(
+                    subject=FilterOrderExpr(subject=e, 
+                                            filter=abstract_over_expr(BoolVal(True)), 
+                                            order=
+                            abstract_over_expr(ObjectProjExpr(subject=FreeVarExpr(bindname), label="order"), bindname)
+                                            ),
+                    label="subject"
+                )
+            post_process_transform = post_processing
+        case _: 
+            after_e = iterative_subst_expr_for_expr(fresh_vars, top_paths, e)
+            inner_e = sub_select_hoist(after_e, dbschema)
+            post_process_transform = lambda x: x
+
+
+    result = inner_e
     for i in reversed(list(range(len(for_paths)))):
         # print ("abstracting over path = ", for_paths[i], "on result", result)
-        # result = ForExpr(for_paths[i], abstract_over_expr(result, fresh_names[i]))
-        result = WithExpr(for_paths[i], abstract_over_expr(result, fresh_names[i]))
+        result = ForExpr(for_paths[i], abstract_over_expr(result, fresh_names[i]))
+        # result = WithExpr(for_paths[i], abstract_over_expr(result, fresh_names[i]))
 
-    return result
+    return post_process_transform(result)

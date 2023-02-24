@@ -72,6 +72,8 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
                 return ObjectExpr(val={label : recur(item) for (label, item) in val.items()})
             case DetachedExpr(expr=expr):
                 return DetachedExpr(expr=recur(expr))
+            case SubqueryExpr(expr=expr):
+                return SubqueryExpr(expr=recur(expr))
             case UpdateExpr(subject=subject, shape=shape):
                 return UpdateExpr(subject=recur(subject), shape=recur(shape))
             case ForExpr(bound=bound, next=next):
@@ -196,7 +198,7 @@ def get_object_val(val : Val) -> ObjectVal:
 
 def val_is_primitive(rt : Val) -> bool:
     match rt:
-        case StrVal(_) | IntVal(_):
+        case StrVal(_) | IntVal(_) | ArrVal(_):
             return True
         case RefVal(_) | FreeVal(_):
             return False
