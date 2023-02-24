@@ -136,8 +136,10 @@ pub fn normalize<'x>(text: &'x str)
         }
     };
     let mut last_was_set = false;
+    let mut language_state = 0;
     for (idx, tok) in tokens.iter().enumerate() {
         let mut is_set = false;
+        let mut new_language_state = 0;
         match tok.kind {
             Kind::IntConst
             // Don't replace `.12` because this is a tuple access
@@ -204,7 +206,7 @@ pub fn normalize<'x>(text: &'x str)
                 });
                 continue;
             }
-            Kind::Str => {
+            Kind::Str if (language_state != 2) => {
                 push_var(&mut rewritten_tokens, "__std__", "str",
                     next_var(),
                     tok.start, tok.end);
@@ -251,9 +253,34 @@ pub fn normalize<'x>(text: &'x str)
                 is_set = true;
                 rewritten_tokens.push(tok.clone());
             }
+
+            // Postgres FTS has a lot of trouble matching our FTS operations
+            // against the index if the language is a text parameter.
+            // (It *can* manage if the language is a regconfig parameter,
+            // but that isn't not what we want to expose.)
+            //
+            // We brutally hack around this by detecting whether it
+            // seems like we might be passing a language param to a
+            // function and disabling constant extraction!
+            // Unfortunately this can hit a bunch of other cases,
+            // like `with language := "foo"`.
+            // We could probably do better function call detection,
+            // but this is already too much bizarre state machine stuff
+            // to put in the normalizer...
+            Kind::Ident
+            if (matches!(&(&tok.value[..])[..], "language")) => {
+                new_language_state = 1;
+                rewritten_tokens.push(tok.clone());
+            }
+            Kind::Assign
+            if (language_state == 1) => {
+                new_language_state = 2;
+                rewritten_tokens.push(tok.clone());
+            }
             _ => rewritten_tokens.push(tok.clone()),
         }
         last_was_set = is_set;
+        language_state = new_language_state;
     }
 
     all_variables.push(variables);

@@ -28,6 +28,18 @@ CREATE ABSTRACT INDEX fts::textsearch(named only language: std::str) {
 ## ---------
 
 CREATE FUNCTION
+fts::make_doc(
+    variadic doc: optional std::str,
+) -> optional std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Combine multiple arguments to make a document to index';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+
+CREATE FUNCTION
 fts::test(
     query: std::str,
     variadic doc: optional std::str,

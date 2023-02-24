@@ -331,6 +331,26 @@ def _special_case(name: str, only_as_fallback: bool = False) -> Callable[
     return func
 
 
+class _SimpleSpecialCaseFunc(Protocol):
+    def __call__(
+        self, expr: irast.FunctionCall, *, ctx: context.CompilerContextLevel
+    ) -> pgast.BaseExpr:
+        pass
+
+
+_SIMPLE_SPECIAL_FUNCTIONS: dict[str, _SimpleSpecialCaseFunc] = {}
+
+
+def _simple_special_case(name: str) -> Callable[
+    [_SimpleSpecialCaseFunc], _SimpleSpecialCaseFunc
+]:
+    def func(f: _SimpleSpecialCaseFunc) -> _SimpleSpecialCaseFunc:
+        _SIMPLE_SPECIAL_FUNCTIONS[name] = f
+        return f
+
+    return func
+
+
 def _get_set_rvar(
     ir_set: irast.Set,
     *,
@@ -351,11 +371,16 @@ def _get_set_rvar(
             return process_set_as_subquery(ir_set, ctx=ctx)
 
         if isinstance(expr, (irast.OperatorCall, irast.FunctionCall)):
+            fname = str(expr.func_shortname)
             if (
-                (func := _SPECIAL_FUNCTIONS.get(str(expr.func_shortname)))
+                (func := _SPECIAL_FUNCTIONS.get(fname))
                 and (not func.only_as_fallback or expr.func_sql_expr)
             ):
                 return func.func(ir_set, ctx=ctx)
+
+            # Route simple special functions through expr compilation
+            if fname in _SIMPLE_SPECIAL_FUNCTIONS:
+                return process_set_as_expr(ir_set, ctx=ctx)
 
             if isinstance(expr, irast.OperatorCall):
                 # Operator call
@@ -2720,6 +2745,87 @@ def process_set_as_std_min_max(
     )
 
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
+
+
+def _make_doc(
+    docs: Sequence[pgast.BaseExpr],
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.BaseExpr:
+    if not docs:
+        return pgast.StringConstant(val='')
+
+    # If it is *just* one argument, return it unchanged, so that
+    # we match things that don't bother calling make_doc.
+    if len(docs) == 1:
+        return docs[0]
+
+    # Stick a space in front of all arguments but the first
+    docs = [docs[0]] + [
+        astutils.new_binop(
+            lexpr=pgast.StringConstant(val=' '), op='||', rexpr=doc)
+        for doc in docs[1:]
+    ]
+    # And coalesce every argument with the empty string.
+    # TODO: Is it worth being smart about what is actually optional?
+    # I'm worried it will open room for mismatches without helping
+    # much in the cases it does.
+    docs = [
+        pgast.CoalesceExpr(args=[doc, pgast.StringConstant(val='')])
+        for doc in docs
+    ]
+    return astutils.extend_binop(None, *docs, op='||')
+
+
+@_simple_special_case('fts::test')
+def process_func_as_fts_test(
+    expr: irast.FunctionCall,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.BaseExpr:
+
+    # In the common case where the language is a string literal, strip
+    # off the ::text cast in favor of directly casting the string to
+    # regconfig. Not doing this causes pg to fail to use the index.
+    match expr.args[0].expr:
+        case irast.Set(expr=irast.StringConstant(value=value)):
+            language: pgast.BaseExpr = pgast.StringConstant(val=value)
+        case lexpr:
+            language = dispatch.compile(lexpr, ctx=ctx)
+
+    query = dispatch.compile(expr.args[1].expr, ctx=ctx)
+
+    # Build the document using the same method as the make_doc function
+    docs = [dispatch.compile(arg.expr, ctx=ctx) for arg in expr.args[2:]]
+    doc = _make_doc(docs, ctx=ctx)
+
+    return astutils.new_binop(
+        lexpr=pgast.FuncCall(
+            name=('to_tsvector',),
+            args=[
+                pgast.TypeCast(
+                    arg=language,
+                    type_name=pgast.TypeName(name=('regconfig',)),
+                ),
+                doc,
+            ],
+        ),
+        op='@@',
+        rexpr=pgast.FuncCall(
+            name=('edgedb', 'fts_parse_query'),
+            args=[query],
+        ),
+    )
+
+
+@_simple_special_case('fts::make_doc')
+def process_func_as_make_doc(
+    expr: irast.FunctionCall,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.BaseExpr:
+    docs = [dispatch.compile(arg.expr, ctx=ctx) for arg in expr.args]
+    return _make_doc(docs, ctx=ctx)
 
 
 @_special_case('std::range', only_as_fallback=True)
