@@ -279,6 +279,10 @@ class Type(
     def is_array_of_tuples(self, schema: s_schema.Schema) -> bool:
         return False
 
+    def needs_text_encoding(self, schema: s_schema.Schema) -> bool:
+        # FIXME: Don't hardcode this!
+        return str(self.get_name(schema)) == 'fts::language'
+
     def find_predicate(
         self,
         pred: Callable[[Type], bool],

@@ -120,6 +120,16 @@ def is_bytes(typeref: irast.TypeRef) -> bool:
     return typeref.real_base_type.id == s_obj.get_known_type_id('std::bytes')
 
 
+def needs_text_serialization(typeref: irast.TypeRef) -> bool:
+    return (
+        typeref.real_base_type.id == s_obj.get_known_type_id('fts::language'))
+
+
+def needs_semitext_serialization(typeref: irast.TypeRef) -> bool:
+    # True if any component needs text serialization
+    return contains_predicate(typeref, needs_text_serialization)
+
+
 def is_exactly_free_object(typeref: irast.TypeRef) -> bool:
     return typeref.name_hint == s_name.QualName('std', 'FreeObject')
 

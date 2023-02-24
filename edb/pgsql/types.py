@@ -61,6 +61,8 @@ base_type_name_map = {
     s_obj.get_known_type_id('cal::date_duration'):
         ('edgedb', 'date_duration_t'),
 
+    s_obj.get_known_type_id('fts::language'): ('regconfig',),
+
     s_obj.get_known_type_id('cfg::memory'): ('edgedb', 'memory_t'),
 }
 

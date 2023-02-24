@@ -24,6 +24,9 @@ from __future__ import annotations
 
 from typing import *
 
+import collections
+import dataclasses
+
 from edb import errors
 
 from edb.ir import ast as irast
@@ -156,6 +159,8 @@ def fini_expression(
 
     all_exprs = [ir] + extra_exprs
 
+    _fts_lang_arg_fixup(all_exprs, ctx=ctx)
+
     # exprs_to_clear collects sets where we should never need to use
     # their expr in pgsql compilation, so we strip it out to make this
     # more evident in debug output. We have to do the clearing at the
@@ -270,6 +275,54 @@ def fini_expression(
         singletons=ctx.env.singletons,
     )
     return result
+
+
+def _fts_lang_arg_fixup(
+    irs: Sequence[irast.Base], *, ctx: context.ContextLevel
+) -> None:
+    """Rewrite parameters that are cast to fts::language
+
+    FTS is very fiddly about its language arguments; it has an
+    internal type for them (regconfig), and it will not match indexes
+    if you produce it by casting from text, though casting directly
+    from a string literal works. This causes complications for us,
+    because our parameter extraction runs before anything.
+
+    We solve the problem by changing the type of any parameter that is
+    only used once and is directly cast to fts::language (likely
+    implicitly) to fts::language; if we make sure that those arguments
+    get a text encoding instead of binary encoding, we're fine.
+    """
+    fts_cast_irs = [
+        ir for ir in ast_visitor.find_children(irs, irast.Set)
+        if isinstance((cast := ir.expr), irast.TypeCast)
+        and cast.to_type.name_hint == s_name.QualName('fts', 'language')
+        and cast.from_type.name_hint == s_name.QualName('std', 'str')
+        and isinstance(cast.expr.expr, irast.Parameter)
+    ]
+    if not fts_cast_irs:
+        return
+
+    params = ast_visitor.find_children(irs, irast.Parameter)
+    param_uses = collections.Counter(p.name for p in params)
+
+    # XXX: what about in scripts
+
+    for fts_cast_ir in fts_cast_irs:
+        assert isinstance(fts_cast_ir.expr, irast.TypeCast)
+        fts_cast = fts_cast_ir.expr
+        assert isinstance(fts_cast.expr.expr, irast.Parameter)
+        ir_param = fts_cast.expr.expr
+        if param_uses[ir_param.name] != 1:
+            continue
+
+        param = ctx.env.query_parameters[ir_param.name]
+        ctx.env.query_parameters[ir_param.name] = dataclasses.replace(
+            param,
+            schema_type=ctx.env.schema.get('fts::language', type=s_types.Type),
+            ir_type=fts_cast.to_type,
+        )
+        fts_cast_ir.expr = ir_param.replace(typeref=fts_cast.to_type)
 
 
 def _fixup_materialized_sets(

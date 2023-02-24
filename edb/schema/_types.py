@@ -64,4 +64,6 @@ TYPE_IDS = {
         UUID('00000000-0000-0000-0000-000000000112'),
     sn.name_from_string('cfg::memory'):
         UUID('00000000-0000-0000-0000-000000000130'),
+    sn.name_from_string('fts::language'):
+        UUID('00000000-0000-0000-0000-000000000140'),
 }

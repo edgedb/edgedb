@@ -28,6 +28,7 @@ import functools
 import json
 import hashlib
 import pickle
+import struct
 import uuid
 
 import immutables
@@ -1401,10 +1402,11 @@ def _compile_ql_query(
     sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
     in_type_args = None
+    in_type_args_mask = None
     params: list[tuple[str, s_obj.Object, bool]] = []
     has_named_params = False
     if ir.params:
-        params, in_type_args = _extract_params(
+        params, in_type_args, in_type_args_mask = _extract_params(
             ir.params, argmap=argmap, script_info=script_info,
             schema=ir.schema, ctx=ctx)
 
@@ -1482,6 +1484,7 @@ def _compile_ql_query(
         in_type_id=in_type_id.bytes,
         in_type_data=in_type_data,
         in_type_args=in_type_args,
+        in_type_args_mask=in_type_args_mask,
         out_type_id=out_type_id.bytes,
         out_type_data=out_type_data,
         cacheable=cacheable,
@@ -1934,6 +1937,7 @@ def _try_compile(
             unit.sql = comp.sql
             unit.globals = comp.globals
             unit.in_type_args = comp.in_type_args
+            unit.in_type_args_mask = comp.in_type_args_mask
 
             unit.sql_hash = comp.sql_hash
 
@@ -2084,7 +2088,7 @@ def _try_compile(
                     "in scripts"
                 )
 
-        params, in_type_args = _extract_params(
+        params, in_type_args, in_type_args_mask = _extract_params(
             list(script_info.params.values()),
             argmap=None, script_info=None, schema=script_info.schema,
             ctx=ctx)
@@ -2144,6 +2148,28 @@ def _try_compile(
     return rv
 
 
+def _make_param_mask(
+    params: List[irast.Param],
+    schema: s_schema.Schema,
+    *,
+    ctx: CompileContext,
+) -> Optional[bytes]:
+    needs_text = []
+    for param in params:
+        if param.sub_params:
+            continue
+
+        needs_text_encoding = param.schema_type.needs_text_encoding(schema)
+        needs_text.append(needs_text_encoding)
+
+    if any(needs_text):
+        vals = [len(needs_text)] + [not text for text in needs_text]
+        return b''.join(struct.pack('!H', v) for v in vals)
+    else:
+        # All parameters are binary; no need to construct a mask
+        return None
+
+
 def _extract_params(
     params: List[irast.Param],
     *,
@@ -2151,7 +2177,7 @@ def _extract_params(
     argmap: Optional[Dict[str, pgast.Param]],
     script_info: Optional[irast.ScriptInfo],
     ctx: CompileContext,
-) -> Tuple[List[tuple], List[dbstate.Param]]:
+) -> Tuple[List[tuple], List[dbstate.Param], bytes]:
     first_param = next(iter(params)) if params else None
     has_named_params = first_param and not first_param.name.isdecimal()
 
@@ -2192,6 +2218,8 @@ def _extract_params(
         array_tid = None
         if schema_type.is_array():
             el_type = schema_type.get_element_type(schema)
+            if el_type.needs_text_encoding(schema):
+                el_type = schema.get('std::str')
             array_tid = el_type.id
 
         # NB: We'll need to turn this off for script args
@@ -2216,6 +2244,8 @@ def _extract_params(
             for p in param.sub_params.params:
                 if p.schema_type.is_array():
                     el_type = p.schema_type.get_element_type(schema)
+                    if el_type.needs_text_encoding(schema):
+                        el_type = schema.get('std::str')
                     array_tids.append(el_type.id)
                 else:
                     array_tids.append(None)
@@ -2233,7 +2263,7 @@ def _extract_params(
             sub_params=sub_params,
         )
 
-    return oparams, in_type_args
+    return oparams, in_type_args, _make_param_mask(params, schema, ctx=ctx)
 
 
 def _describe_object(

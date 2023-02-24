@@ -91,10 +91,16 @@ def _compile_set_impl(
 
     is_toplevel = ctx.toplevel_stmt is context.NO_STMT
 
-    if isinstance(ir_set.expr, irast.BaseConstant):
+    if (
+        isinstance(ir_set.expr, irast.BaseConstant)
+        or (
+            isinstance(ir_set.expr, irast.Parameter)
+            and not ctx.env.use_named_params
+        )
+    ):
         # Avoid creating needlessly complicated constructs for
-        # constant expressions.  Besides being an optimization,
-        # this helps in GROUP BY queries.
+        # constant expressions and query params. Besides being an
+        # optimization, this helps match indexes in some situations.
         value = dispatch.compile(ir_set.expr, ctx=ctx)
         if is_toplevel:
             ctx.rel = ctx.toplevel_stmt = pgast.SelectStmt()
@@ -135,6 +141,16 @@ def compile_Parameter(
     else:
         index = ctx.argmap[expr.name].index
         result = pgast.ParamRef(number=index, nullable=not expr.required)
+
+    # Arrays of text encoded types need to come in as text
+    if (
+        irtyputils.is_array(expr.typeref)
+        and irtyputils.needs_text_serialization(expr.typeref.subtypes[0])
+    ):
+        result = pgast.TypeCast(
+            arg=result,
+            type_name=pgast.TypeName(name=('text[]',)),
+        )
 
     return pgast.TypeCast(
         arg=result,
@@ -627,6 +643,9 @@ def compile_TypeRef(
 def compile_FunctionCall(
         expr: irast.FunctionCall, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+
+    if sfunc := relgen._SIMPLE_SPECIAL_FUNCTIONS.get(str(expr.func_shortname)):
+        return sfunc(expr, ctx=ctx)
 
     if expr.typemod is ql_ft.TypeModifier.SetOfType:
         raise errors.UnsupportedFeatureError(

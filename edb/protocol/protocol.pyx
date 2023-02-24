@@ -154,6 +154,7 @@ async def new_connection(
     tls_security: str = 'default',
     credentials: str = None,
     credentials_file: str = None,
+    secret_key: str = None,
     **kwargs
 ):
     connect_config, client_config = con_utils.parse_connect_arguments(
@@ -168,6 +169,7 @@ async def new_connection(
         wait_until_available=timeout,
         credentials=credentials,
         credentials_file=credentials_file,
+        secret_key=secret_key,
         **kwargs
     )
 

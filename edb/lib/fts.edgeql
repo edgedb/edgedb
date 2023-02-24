@@ -19,7 +19,32 @@
 
 CREATE MODULE fts;
 
-CREATE ABSTRACT INDEX fts::textsearch(named only language: std::str) {
+CREATE SCALAR TYPE fts::language EXTENDING std::anyscalar;
+
+CREATE CAST FROM fts::language TO std::str {
+    SET volatility := 'Stable';
+    USING SQL CAST;
+};
+
+CREATE CAST FROM std::str TO fts::language {
+    SET volatility := 'Stable';
+    USING SQL CAST;
+    ALLOW IMPLICIT;
+};
+
+CREATE CAST FROM std::json TO fts::language {
+    SET volatility := 'Stable';
+    USING SQL $$
+    SELECT edgedb.jsonb_extract_scalar(val, 'string')::regconfig;
+    $$;
+};
+
+CREATE CAST FROM fts::language TO std::json {
+    SET volatility := 'Stable';
+    USING SQL FUNCTION 'to_jsonb';
+};
+
+CREATE ABSTRACT INDEX fts::textsearch(named only language: fts::language) {
     CREATE ANNOTATION std::description :=
         "Full-text search index based on the Postgres's GIN index.";
 };
@@ -28,10 +53,22 @@ CREATE ABSTRACT INDEX fts::textsearch(named only language: std::str) {
 ## ---------
 
 CREATE FUNCTION
+fts::make_doc(
+    variadic doc: optional std::str,
+) -> optional std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Combine multiple arguments to make a document to index';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+
+CREATE FUNCTION
 fts::test(
     query: std::str,
     variadic doc: optional std::str,
-    named only language: std::str,
+    named only language: fts::language,
 ) -> std::bool
 {
     CREATE ANNOTATION std::description :=
@@ -49,7 +86,7 @@ CREATE FUNCTION
 fts::match_rank(
     query: std::str,
     variadic doc: optional std::str,
-    named only language: std::str,
+    named only language: fts::language,
 ) -> std::float64
 {
     CREATE ANNOTATION std::description :=
@@ -68,7 +105,7 @@ CREATE FUNCTION
 fts::highlight_match(
     query: std::str,
     variadic doc: optional std::str,
-    named only language: std::str,
+    named only language: fts::language,
 ) -> std::str
 {
     CREATE ANNOTATION std::description :=
@@ -88,7 +125,7 @@ CREATE FUNCTION
 fts::match(
     query: std::str,
     variadic doc: optional std::str,
-    named only language: std::str,
+    named only language: fts::language,
     named only rank_opts: optional std::str = 'default',
     named only weights: optional array<std::float64> = {},
     named only highlight_opts: optional std::str = {},

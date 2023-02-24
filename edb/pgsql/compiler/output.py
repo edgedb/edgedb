@@ -483,15 +483,199 @@ def in_serialization_ctx(ctx: context.CompilerContextLevel) -> bool:
     return ctx.expr_exposed is None or ctx.expr_exposed
 
 
+def serialize_semitext_tuple(
+    expr: pgast.BaseExpr,
+    *,
+    styperef: irast.TypeRef,
+    env: context.Environment,
+) -> pgast.BaseExpr:
+    """Serialize a tuple that needs text serialization for a component"""
+    vals: List[pgast.BaseExpr] = []
+
+    obj: pgast.BaseExpr
+
+    if irtyputils.is_persistent_tuple(styperef):
+        for el_idx, el_type in enumerate(styperef.subtypes):
+            val: pgast.BaseExpr = pgast.Indirection(
+                arg=expr,
+                indirection=[
+                    pgast.ColumnRef(
+                        name=[str(el_idx)],
+                    ),
+                ],
+            )
+            val = output_as_value(
+                val, ser_typeref=el_type, env=env)
+            vals.append(val)
+
+        obj = _row(vals)
+
+    else:
+        coldeflist = []
+
+        for el_idx, el_type in enumerate(styperef.subtypes):
+
+            coldeflist.append(pgast.ColumnDef(
+                name=str(el_idx),
+                typename=pgast.TypeName(
+                    name=pgtypes.pg_type_from_ir_typeref(el_type),
+                ),
+            ))
+
+            val = pgast.ColumnRef(name=[str(el_idx)])
+
+            val = output_as_value(
+                val, ser_typeref=el_type, env=env)
+
+            vals.append(val)
+
+        obj = _row(vals)
+
+        obj = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=obj,
+                ),
+            ],
+            from_clause=[
+                pgast.RangeFunction(
+                    functions=[
+                        pgast.FuncCall(
+                            name=('unnest',),
+                            args=[
+                                pgast.ArrayExpr(
+                                    elements=[expr],
+                                )
+                            ],
+                            coldeflist=coldeflist,
+                        )
+                    ]
+                )
+            ] if styperef.subtypes else []
+        )
+
+    if expr.nullable:
+        obj = pgast.SelectStmt(
+            target_list=[pgast.ResTarget(val=obj)],
+            where_clause=pgast.NullTest(arg=expr, negated=True)
+        )
+    return obj
+
+
+def serialize_semitext_array(
+    expr: pgast.BaseExpr,
+    *,
+    styperef: irast.TypeRef,
+    env: context.Environment,
+) -> pgast.BaseExpr:
+    """Serialize an array that needs text serialization for a component"""
+    # TODO: This obviously has a lot of similarities with
+    # array_as_json_object; potentially merge them?
+    el_type = styperef.subtypes[0]
+
+    is_tuple = irtyputils.is_tuple(el_type)
+    if is_tuple:
+        coldeflist = []
+
+        out_alias = env.aliases.get('q')
+
+        val: pgast.BaseExpr
+        args: List[pgast.BaseExpr] = []
+        is_named = any(st.element_name for st in el_type.subtypes)
+        for i, st in enumerate(el_type.subtypes):
+            if is_named:
+                colname = st.element_name
+                assert colname
+                args.append(pgast.StringConstant(val=colname))
+            else:
+                colname = str(i)
+
+            val = pgast.ColumnRef(name=[colname])
+            val = output_as_value(val, ser_typeref=st, env=env)
+
+            args.append(val)
+
+            if not irtyputils.is_persistent_tuple(el_type):
+                # Column definition list is only allowed for functions
+                # returning "record", i.e. an anonymous tuple, which
+                # would not be the case for schema-persistent tuple types.
+                coldeflist.append(
+                    pgast.ColumnDef(
+                        name=colname,
+                        typename=pgast.TypeName(
+                            name=pgtypes.pg_type_from_ir_typeref(st)
+                        )
+                    )
+                )
+
+        agg_arg: pgast.BaseExpr = _row(args)
+
+        return pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.CoalesceExpr(
+                        args=[
+                            pgast.FuncCall(
+                                name=('array_agg',),
+                                args=[agg_arg],
+                            ),
+                            pgast.TypeCast(
+                                arg=pgast.ArrayExpr(elements=[]),
+                                type_name=pgast.TypeName(name=('record[]',)),
+                            ),
+                        ]
+                    ),
+                    ser_safe=True,
+                )
+            ],
+            from_clause=[
+                pgast.RangeFunction(
+                    alias=pgast.Alias(aliasname=out_alias),
+                    is_rowsfrom=True,
+                    functions=[
+                        pgast.FuncCall(
+                            name=('unnest',),
+                            args=[expr],
+                            coldeflist=coldeflist,
+                        )
+                    ]
+                )
+            ]
+        )
+    else:
+        return pgast.TypeCast(
+            arg=expr,
+            type_name=pgast.TypeName(name=('text[]',)),
+        )
+
+
+def _row(
+    args: list[pgast.BaseExpr]
+) -> Union[pgast.ImplicitRowExpr, pgast.RowExpr]:
+    if len(args) > 1:
+        return pgast.ImplicitRowExpr(args=args)
+    else:
+        return pgast.RowExpr(args=args)
+
+
 def output_as_value(
         expr: pgast.BaseExpr, *,
+        ser_typeref: Optional[irast.TypeRef] = None,
         env: context.Environment) -> pgast.BaseExpr:
+    """Format an expression as a proper value.
+
+    Normally this just means packing TupleVars into real expressions,
+    but if ser_typeref is provided, we also will do binary serialization.
+
+    In particular, certain types actually need to be serialized as text,
+    and we handle that here.
+    """
+
+    needs_semitext_serialization = ser_typeref and (
+        irtyputils.needs_semitext_serialization(ser_typeref))
 
     val = expr
     if isinstance(expr, pgast.TupleVar):
-        RowCls: Union[Type[pgast.ImplicitRowExpr],
-                      Type[pgast.RowExpr]]
-
         if (
             env.output_format is context.OutputFormat.NATIVE_INTERNAL
             and len(expr.elements) == 1
@@ -502,16 +686,19 @@ def output_as_value(
             # This is is a special mode whereby bare refs to objects
             # are serialized to UUID values.
             return output_as_value(el0.val, env=env)
-        elif len(expr.elements) > 1:
-            RowCls = pgast.ImplicitRowExpr
-        else:
-            RowCls = pgast.RowExpr
 
-        val = RowCls(args=[
-            output_as_value(e.val, env=env) for e in expr.elements
+        ser_typerefs = [
+            ser_typeref.subtypes[i]
+            if ser_typeref and ser_typeref.subtypes else None
+            for i in range(len(expr.elements))
+        ]
+        val = _row([
+            output_as_value(e.val, ser_typeref=ser_typerefs[i], env=env)
+            for i, e in enumerate(expr.elements)
         ])
 
         if (expr.typeref is not None
+                and not (ser_typeref and needs_semitext_serialization)
                 and not env.singleton_mode
                 and irtyputils.is_persistent_tuple(expr.typeref)):
             pg_type = pgtypes.pg_type_from_ir_typeref(expr.typeref)
@@ -521,6 +708,33 @@ def output_as_value(
                     name=pg_type,
                 ),
             )
+
+    elif (
+        ser_typeref
+        and irtyputils.is_array(ser_typeref)
+        and needs_semitext_serialization
+        and not expr.ser_safe
+    ):
+        return serialize_semitext_array(expr, styperef=ser_typeref, env=env)
+
+    elif (
+        ser_typeref
+        and irtyputils.is_tuple(ser_typeref)
+        and needs_semitext_serialization
+        and not expr.ser_safe
+    ):
+        return serialize_semitext_tuple(expr, styperef=ser_typeref, env=env)
+
+    elif (
+        ser_typeref
+        and needs_semitext_serialization
+        and irtyputils.needs_text_serialization(ser_typeref)
+        and not expr.ser_safe
+    ):
+        val = pgast.TypeCast(
+            arg=val,
+            type_name=pgast.TypeName(name=('text',)),
+        )
 
     return val
 
@@ -604,7 +818,7 @@ def serialize_expr(
     elif env.output_format in (context.OutputFormat.NATIVE,
                                context.OutputFormat.NATIVE_INTERNAL,
                                context.OutputFormat.NONE):
-        val = output_as_value(expr, env=env)
+        val = output_as_value(expr, ser_typeref=path_id.target, env=env)
 
     else:
         raise RuntimeError(f'unexpected output format: {env.output_format!r}')

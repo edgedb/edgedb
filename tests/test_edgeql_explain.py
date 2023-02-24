@@ -37,8 +37,12 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                      'issues_setup.edgeql'),
         '''
             alter type User {
-                create link owned_issues := .<owner[is Issue]
+                create link owned_issues := .<owner[is Issue];
             };
+            alter type Issue {
+                create index fts::textsearch(language := 'english') on (.name);
+            };
+
             # Make the database more populated so that it uses
             # indexes...
             for i in range_unpack(range(1, 1000)) union (
@@ -113,10 +117,9 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         assert_data_shape.assert_data_shape(
             data, shape, fail=self.fail, message=message)
 
-    async def explain(self, query, *, analyze=False):
+    async def explain(self, query, *args, analyze=False):
         return json.loads(await self.con.query_single(
-            f'explain {"analyze " if analyze else ""}{query}'
-        ))[0]
+            f'explain {"analyze " if analyze else ""}{query}', *args))[0]
 
     async def test_edgeql_explain_simple_01(self):
         res = await self.explain('''
@@ -488,3 +491,31 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         }
 
         self.assert_plan(res['Plan'], shape)
+
+    async def test_edgeql_explain_fts_01(self):
+        # We want to make sure that fts hits the index
+        res = await self.explain('''
+            select Issue
+            filter fts::test('Regression', .name, language := 'english');
+        ''')
+
+        # Check this is a pretty cheesy way: just make sure fts::textsearch
+        # is mentioned somewhere.
+        self.assertIn("fts::textsearch", json.dumps(res))
+
+        # Check with a str parameter
+        res = await self.explain('''
+            select Issue
+            filter fts::test('Regression', .name, language := <str>$0);
+        ''', "english")
+
+        self.assertIn("fts::textsearch", json.dumps(res))
+
+        # and an fts::language parameter
+        res = await self.explain('''
+            select Issue
+            filter fts::test(
+              'Regression', .name, language := <fts::language>$0);
+        ''', "english")
+
+        self.assertIn("fts::textsearch", json.dumps(res))

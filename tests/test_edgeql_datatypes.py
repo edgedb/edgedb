@@ -1156,6 +1156,71 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 };
             """)
 
+    async def test_edgeql_language_01(self):
+        # fts::language should look like text from our end
+        await self.assert_query_result(
+            r'''
+            SELECT <fts::language>'english'
+            ''',
+            ['english'],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select (<fts::language>'english',)
+            ''',
+            [('english',)],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select [<fts::language>'english', <fts::language>'german']
+            ''',
+            [['english', 'german']],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select [
+                ('en', <fts::language>'english'),
+                ('de', <fts::language>'german'),
+            ]
+            ''',
+            [[('en', 'english'), ('de', 'german')]],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select <fts::language>$0
+            ''',
+            ['english'],
+            variables=('english',),
+        )
+
+        await self.assert_query_result(
+            r'''
+            select <tuple<fts::language>>$0
+            ''',
+            [('english',)],
+            variables=(('english',),),
+        )
+
+        await self.assert_query_result(
+            r'''
+            select <array<fts::language>>$0
+            ''',
+            [['english', 'german']],
+            variables=(['english', 'german'],)
+        )
+
+        await self.assert_query_result(
+            r'''
+            select <array<tuple<str, fts::language>>>$0
+            ''',
+            [[('en', 'english'), ('de', 'german')]],
+            variables=([('en', 'english'), ('de', 'german')],)
+        )
+
     async def test_edgeql_memory_01(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,

@@ -483,6 +483,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             **self._connect_args,
             command_timeout=None,
             server_settings=None,
+            secret_key=None,
         )
         start = time.monotonic()
         if single_attempt:

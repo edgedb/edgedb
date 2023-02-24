@@ -358,7 +358,7 @@ class TestIndexes(tb.DDLTestCase):
                     'name': 'fts::textsearch',
                     'params': [{
                         'name': 'language',
-                        'type_name': 'std::str',
+                        'type_name': 'fts::language',
                         'default': None,
                     }],
                     'abstract': True,

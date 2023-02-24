@@ -60,7 +60,13 @@ cdef recode_bind_args_for_script(
     for i in range(start, end):
         query_unit = unit_group[i]
         bind_data = WriteBuffer.new()
-        bind_data.write_int32(0x00010001)
+
+        # If some params need text encoding, we need to spell it all out
+        if query_unit.in_type_args_mask is not None:
+            bind_data.write_bytes(query_unit.in_type_args_mask)
+        else:
+            # all parameters are in binary
+            bind_data.write_int32(0x00010001)
 
         num_args = query_unit.in_type_args_real_count
         num_args += _count_globals(query_unit)
@@ -113,13 +119,10 @@ cdef WriteBuffer recode_bind_args(
         cpython.PyBytes_AS_STRING(bind_args),
         cpython.Py_SIZE(bind_args))
 
-    # all parameters are in binary
-    if live:
-        out_buf.write_int32(0x00010001)
+    qug = compiled.query_unit_group
 
     # number of elements in the tuple
     # for empty tuple it's okay to send zero-length arguments
-    qug = compiled.query_unit_group
     is_null_type = qug.in_type_id == sertypes.NULL_TYPE_ID.bytes
     if frb_get_len(&in_buf) == 0:
         if not is_null_type:
@@ -150,6 +153,13 @@ cdef WriteBuffer recode_bind_args(
     num_args += _count_globals(qug)
 
     if live:
+        # If some params need text encoding, we need to spell it all out
+        if qug.in_type_args_mask is not None:
+            out_buf.write_bytes(qug.in_type_args_mask)
+        else:
+            # all parameters are in binary
+            out_buf.write_int32(0x00010001)
+
         out_buf.write_int16(<int16_t>num_args)
 
     if qug.in_type_args:
