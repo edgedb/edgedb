@@ -15,6 +15,16 @@ def add_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
             return [IntVal(v1 + v2)]
     raise FunCallErr()
 
+subtract_tp= FunType(args_mod=[ParamSingleton(), ParamSingleton()], 
+                        args_ret_types=[FunArgRetType(args_tp=[IntTp(), IntTp()], 
+                                                        ret_tp=(IntTp(), CardOne))]
+                    )
+def subtract_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
+    match arg:
+        case [[IntVal(v1)], [IntVal(v2)]]:
+            return [IntVal(v1 - v2)]
+    raise FunCallErr()
+
 mod_tp= FunType(args_mod=[ParamSingleton(), ParamSingleton()], 
                         args_ret_types=[FunArgRetType(args_tp=[IntTp(), IntTp()], 
                                                         ret_tp=(IntTp(), CardOne))]
@@ -130,6 +140,7 @@ def exists_impl (arg : Sequence[MultiSetVal]) -> MultiSetVal:
 
 all_builtin_ops : Dict[str, BuiltinFuncDef] = {
         "+" : BuiltinFuncDef(tp =add_tp,impl=add_impl),
+        "-" : BuiltinFuncDef(tp =subtract_tp,impl=subtract_impl),
         "%" : BuiltinFuncDef(tp =mod_tp,impl=mod_impl),
         "=" : BuiltinFuncDef(tp =eq_tp,impl=eq_impl), 
         "!=" : BuiltinFuncDef(tp=not_eq_tp, impl=not_eq_impl),

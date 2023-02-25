@@ -203,7 +203,7 @@ def eval_config(rt : RTExpr) -> RTVal:
             # assume data unchaged throught the evaluation of conditions
             conditions : Sequence[MultiSetVal] = [eval_config(RTExpr(make_eval_only(new_data), instantiate_expr(select_i, filter))).val for select_i in selected]
             after_condition : Sequence[Val] = [select_i for (select_i, condition) in zip(selected, conditions) if BoolVal(True) in condition]
-            orders : Sequence[ObjectVal] = [ raw_order[0].val if type(raw_order[0]) is FreeVal and type(raw_order[0].val) is ObjectVal else eval_error(raw_order[0])
+            orders : Sequence[ObjectVal] = [ raw_order[0].val if type(raw_order[0]) is FreeVal and type(raw_order[0].val) is ObjectVal else eval_error(raw_order[0], "Order must be an object val")
                         for after_condition_i in after_condition
                         for raw_order in [eval_config(RTExpr(make_eval_only(new_data), instantiate_expr(after_condition_i,order))).val]
                         if len(raw_order) == 1

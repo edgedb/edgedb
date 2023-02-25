@@ -328,7 +328,7 @@ def elab_UpdateQuery(qle : qlast.UpdateQuery):
     subject = FilterOrderExpr(
             subject=elab(qle.subject),
             filter=abstract_over_expr(elab(qle.where), DEFAULT_HEAD_NAME) if qle.where else abstract_over_expr(BoolVal(True)),
-            order=abstract_over_expr(UnnamedTupleExpr([])),
+            order=abstract_over_expr(ObjectExpr({})),
         )
     shape = elab_Shape(qle.shape)
     return elab_aliases(qle.aliases, UpdateExpr(subject=subject, shape=shape))

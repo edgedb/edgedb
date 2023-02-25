@@ -101,6 +101,8 @@ def map_var(f : Callable[[ VarExpr, int], Expr], expr : Expr) -> Expr :
     return map_expr(map_func, expr)
     
 def instantiate_expr(e2 : Expr, e : BindingExpr) -> Expr:
+    if not isinstance(e, BindingExpr):
+        raise ValueError(e)
     def map_func(e : VarExpr, level : int) -> Expr:
         # print("instantiating ", e, " at level ", level)
         match e:
@@ -187,6 +189,9 @@ def binding_is_unnamed(expr : BindingExpr) -> bool:
     return True
 
 
+def operate_under_binding(e : BindingExpr, op : Callable[[Expr], Expr]):
+    name = next_name()
+    return abstract_over_expr(op(instantiate_expr(FreeVarExpr(name), e)), name)
     
 
 def get_object_val(val : Val) -> ObjectVal:

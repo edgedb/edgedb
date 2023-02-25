@@ -68,6 +68,20 @@ def std_enumerate_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
             return [UnnamedTupleVal(val=[IntVal(i), v]) for (i,v) in enumerate(l1)]
     raise FunCallErr()
 
+std_len_tp = FunType(args_mod=[ParamSingleton()], 
+                args_ret_types=[
+    FunArgRetType(args_tp=[StrTp()], ret_tp=(IntTp(), CardOne)),
+    FunArgRetType(args_tp=[ArrTp(AnyTp())], ret_tp=(IntTp(), CardOne)),
+                                ])
+
+def std_len_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
+    match arg:
+        case [[StrVal(s)]]:
+            return [IntVal(len(s))]
+        case [[ArrVal(arr)]]:
+            return [IntVal(len(arr))]
+    raise FunCallErr()
+
 
 all_std_funcs : Dict[str, BuiltinFuncDef] = {
         "std::all" : BuiltinFuncDef(tp=std_all_tp, impl=std_all_impl),
@@ -76,4 +90,5 @@ all_std_funcs : Dict[str, BuiltinFuncDef] = {
         "std::array_unpack" : BuiltinFuncDef(tp=std_array_unpack_tp, impl=std_array_unpack_impl),
         "std::count" : BuiltinFuncDef(tp=std_count_tp, impl=std_count_impl),
         "std::enumerate" : BuiltinFuncDef(tp =std_enumerate_tp, impl=std_enumerate_impl),
+        "std::len" : BuiltinFuncDef(tp =std_len_tp, impl=std_len_impl),
     }

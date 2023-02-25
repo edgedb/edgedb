@@ -48,6 +48,46 @@ type Foo {
     required single property val -> str;
     optional single property opt -> int64;
 }
+type Award {
+    name : str;
+}
+type Card {
+    single name : str;
+    multi awards : Award;
+    element : str;
+    cost : int;
+}
+
+
+type User {
+    required name: str {
+        delegated constraint exclusive;
+    }
+
+    multi deck: Card {
+        count: int64 {
+            default := 1;
+        };
+        property total_cost := @count * .cost;
+    }
+
+    property deck_cost := sum(.deck.cost);
+
+    multi friends: User {
+        nickname: str;
+        # how the friend responded to requests for a favor
+        #favor: array<bool>
+    }
+
+    multi awards: Award {
+        constraint exclusive;
+    }
+
+    avatar: Card {
+        text: str;
+        property tag := .name ++ (("-" ++ @text) ?? "");
+    }
+}
 """
 initial_queries = """
 with n0 := (insert Note {name := "boxing", note := {}}),
@@ -56,7 +96,73 @@ with n0 := (insert Note {name := "boxing", note := {}}),
      p0 := (insert Person {name := "Phil Emarg", notes := {n0, n1 {@metanote := "arg!"}}}),
      p1 := (insert Person {name := "Madeline Hatch", notes:={n1 {@metanote := "sigh"}}}),
      p2 := (insert Person {name := "Emmanuel Villip"}),
+     a_15 := (insert Award {name := "1st"}), 
+     a_e1 := (insert Award {name := "2nd"}),
+     a_ca := (insert Award {name := "3rd"}),
+     c_27 := (insert Card {name := "Imp", element := "Fire", cost := 1, awards := {a_e1}}),
+     c_49 := (insert Card {name := "Dragon", element := "Fire",  cost := 5, awards := {a_15}}),
+     c_80 := (insert Card {name := "Bog monster", element := "Water", cost := 2}),
+     c_d2 := (insert Card {name := "Giant turtle", element := "Water"}),
+     c_46 := (insert Card {name := 'Dwarf', element := 'Earth', cost := 1}),
+     c_25 := (insert Card {name := 'Golem', element := 'Earth', cost := 3}),
+     c_bd := (insert Card {name := 'Sprite', element := 'Air', cost := 1}),
+     c_69 := (insert Card {name := 'Giant eagle', element := 'Air', cost := 2}),
+     c_87 := (insert Card {name := 'Djinn', element := 'Air', cost := 4, awards := {a_ca}}),
 select 0;
+
+# create players & decks
+INSERT User {
+    name := 'Alice',
+    deck := (
+        SELECT Card {@count := len(Card.element) - 2}
+        FILTER .element IN {'Fire', 'Water'}
+    ),
+    awards := (SELECT Award FILTER .name IN {'1st', '2nd'}),
+    avatar := (
+        SELECT Card {@text := 'Best'} FILTER .name = 'Dragon'
+    ),
+};
+
+INSERT User {
+    name := 'Bob',
+    deck := (
+        SELECT Card {@count := 3} FILTER .element IN {'Earth', 'Water'}
+    ),
+    awards := (SELECT Award FILTER .name = '3rd'),
+};
+
+INSERT User {
+    name := 'Carol',
+    deck := (
+        SELECT Card {@count := 5 - Card.cost} FILTER .element != 'Fire'
+    )
+};
+
+# update friends list
+WITH
+    U2 := DETACHED User
+UPDATE User
+FILTER User.name = 'Alice'
+SET {
+    friends := (
+        SELECT U2 {
+            @nickname :=
+                'Swampy'        IF U2.name = 'Bob' ELSE
+                'Firefighter'   IF U2.name = 'Carol' ELSE
+                'Grumpy'
+        } FILTER U2.name IN {'Bob', 'Carol', 'Dave'}
+    )
+};
+
+WITH
+    U2 := DETACHED User
+UPDATE User
+FILTER User.name = 'Dave'
+SET {
+    friends := (
+        SELECT U2 FILTER U2.name = 'Bob'
+    )
+};
 """
 
 class TestNewInterpreterModelSmokeTests(unittest.TestCase):
@@ -76,7 +182,7 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             self.db = model.db_with_initilial_schema_and_queries(
                 initial_schema_defs=initial_schema,
                 initial_queries=initial_queries, 
-                # debug_print=True
+                debug_print=True
                 )
         # qltree = model.parse(query)
         (result, _) = model.run_single_str_get_json(self.db, query, print_asts=True)
