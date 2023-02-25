@@ -108,61 +108,40 @@ with n0 := (insert Note {name := "boxing", note := {}}),
      c_bd := (insert Card {name := 'Sprite', element := 'Air', cost := 1}),
      c_69 := (insert Card {name := 'Giant eagle', element := 'Air', cost := 2}),
      c_87 := (insert Card {name := 'Djinn', element := 'Air', cost := 4, awards := {a_ca}}),
+     u_3e := (insert User {name := "Carol", deck := {c_80 { @count := 3}, 
+            c_d2 {@count := 2}, c_46 {@count := 4}, c_25 {@count := 2},
+            c_bd {@count := 4}, c_69 {@count := 3}, c_87 {@count := 1}
+        }}),
+    u_fc := (insert User {name := "Bob", deck := {
+            c_80 {@count := 3},
+            c_d2 {@count := 3},
+            c_46 {@count := 3},
+            c_25 {@count := 3}
+        }}), 
+    u_56 := (insert User {name := "Dave", deck := {
+           c_49  {@count:= 1},
+           c_80  {@count:= 1},
+           c_d2  {@count:= 1},
+           c_25  {@count:= 1},
+           c_bd  {@count:= 4},
+           c_69  {@count:= 1},
+           c_87  {@count:= 1}
+        }, friends := {u_fc}, avatar := c_87 {@text := "Wow"}}),
+    u_f3 := (insert User {name := "Alice", deck := {
+            c_27 {@count:= 2},
+            c_49 {@count:= 2},
+            c_80 {@count:= 3},
+            c_d2 {@count:= 3}
+        }, friends := {
+            u_fc {@nickname := "Swampy"},
+            u_3e {@nickname := "Firefighter"},
+            u_56 {@nickname := "Grumpy"}
+        }, awards := {a_15, a_31}, 
+            avatar := {c_49 {@text := "Best"}}
+        }),
+    
+
 select 0;
-
-# create players & decks
-INSERT User {
-    name := 'Alice',
-    deck := (
-        SELECT Card {@count := len(Card.element) - 2}
-        FILTER .element IN {'Fire', 'Water'}
-    ),
-    awards := (SELECT Award FILTER .name IN {'1st', '2nd'}),
-    avatar := (
-        SELECT Card {@text := 'Best'} FILTER .name = 'Dragon'
-    ),
-};
-
-INSERT User {
-    name := 'Bob',
-    deck := (
-        SELECT Card {@count := 3} FILTER .element IN {'Earth', 'Water'}
-    ),
-    awards := (SELECT Award FILTER .name = '3rd'),
-};
-
-INSERT User {
-    name := 'Carol',
-    deck := (
-        SELECT Card {@count := 5 - Card.cost} FILTER .element != 'Fire'
-    )
-};
-
-# update friends list
-WITH
-    U2 := DETACHED User
-UPDATE User
-FILTER User.name = 'Alice'
-SET {
-    friends := (
-        SELECT U2 {
-            @nickname :=
-                'Swampy'        IF U2.name = 'Bob' ELSE
-                'Firefighter'   IF U2.name = 'Carol' ELSE
-                'Grumpy'
-        } FILTER U2.name IN {'Bob', 'Carol', 'Dave'}
-    )
-};
-
-WITH
-    U2 := DETACHED User
-UPDATE User
-FILTER User.name = 'Dave'
-SET {
-    friends := (
-        SELECT U2 FILTER U2.name = 'Bob'
-    )
-};
 """
 
 class TestNewInterpreterModelSmokeTests(unittest.TestCase):
@@ -182,7 +161,7 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             self.db = model.db_with_initilial_schema_and_queries(
                 initial_schema_defs=initial_schema,
                 initial_queries=initial_queries, 
-                debug_print=True
+                # debug_print=True
                 )
         # qltree = model.parse(query)
         (result, _) = model.run_single_str_get_json(self.db, query, print_asts=True)
