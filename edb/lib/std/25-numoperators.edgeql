@@ -2680,3 +2680,133 @@ CREATE CAST FROM std::decimal TO std::str {
     SET volatility := 'Immutable';
     USING SQL CAST;
 };
+
+####################################
+
+# CREATE CAST FROM std::int16 TO std::sequence {
+#     SET volatility := 'Immutable';
+#     USING SQL CAST;
+#     ALLOW IMPLICIT;
+# };
+
+
+CREATE CAST FROM std::int16 TO std::int64 {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+    ALLOW IMPLICIT;
+};
+
+
+CREATE CAST FROM std::int16 TO std::float64 {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+    ALLOW IMPLICIT;
+};
+
+
+# XXX: allow implicit?
+CREATE CAST FROM std::int16 TO std::decimal {
+    SET volatility := 'Immutable';
+    USING SQL CAST; # XXX?
+};
+
+
+# XXX: allow implicit?
+CREATE CAST FROM std::int16 TO std::bigint {
+    SET volatility := 'Immutable';
+    USING SQL CAST; # XXX?
+};
+
+
+CREATE CAST FROM std::int16 TO cfg::memory {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM std::int32 TO std::float32 {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+    ALLOW ASSIGNMENT;
+};
+
+
+CREATE CAST FROM std::int32 TO std::float64 {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+    ALLOW IMPLICIT;
+};
+
+
+CREATE CAST FROM std::int32 TO std::decimal {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+    ALLOW IMPLICIT;
+};
+
+
+CREATE CAST FROM std::int32 TO std::bigint {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+    ALLOW IMPLICIT;
+};
+
+
+CREATE CAST FROM std::int32 TO cfg::memory {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM cal::local_date TO cal::local_time {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM std::bigint TO std::str {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM std::bigint TO std::int16 {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM std::bigint TO std::sequence {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM std::bigint TO std::int32 {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM std::bigint TO std::int64 {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM std::bigint TO std::float32 {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM std::bigint TO std::float64 {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM cal::date_duration TO std::duration {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
