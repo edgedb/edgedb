@@ -419,6 +419,7 @@ def _find_cast(
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
         srcctx: Optional[parsing.ParserContext],
+        strict: bool = False,
         ctx: context.ContextLevel) -> Optional[s_casts.Cast]:
 
     # Don't try to pick up casts when there is a direct subtyping
@@ -447,6 +448,8 @@ def _find_cast(
         (CastCallableWrapper(c) for c in casts), args=args, kwargs={}, ctx=ctx)
 
     if len(matched) == 1:
+        if matched[0].args[0].cast_distance and strict:
+            return None
         return cast(CastCallableWrapper, matched[0].func)._cast
     elif len(matched) > 1:
         raise errors.QueryError(
