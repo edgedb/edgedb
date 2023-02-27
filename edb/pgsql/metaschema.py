@@ -5260,7 +5260,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             SELECT
                 id,
                 REGEXP_REPLACE(name, '::[^:]*$', '') AS module_name,
-                SPLIT_PART(name, '::', -1) AS table_name
+                REGEXP_REPLACE(name, '^.*::', '') as table_name
             FROM edgedb."_SchemaObjectType"
             WHERE internal IS NOT TRUE
         ),
