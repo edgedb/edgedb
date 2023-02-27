@@ -2806,6 +2806,13 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 SELECT <array<foo>><array<bar>>['test']
             """)
 
+    async def test_edgeql_casts_bad_time_01(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r'cannot cast'):
+            await self.con.execute("""
+                select <cal::local_time><optional cal::local_date>$0;
+            """, None)
+
     async def test_edgeql_casts_std_enum_01(self):
         await self.assert_query_result(
             '''

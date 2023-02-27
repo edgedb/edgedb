@@ -30,6 +30,24 @@ math::abs(x: std::anyreal) -> std::anyreal
 
 
 CREATE FUNCTION
+math::ceil(x: std::int16) -> std::int16
+{
+    CREATE ANNOTATION std::description := 'Round up to the nearest integer.';
+    SET volatility := 'Immutable';
+    USING SQL 'SELECT "x";';
+};
+
+
+CREATE FUNCTION
+math::ceil(x: std::int32) -> std::int32
+{
+    CREATE ANNOTATION std::description := 'Round up to the nearest integer.';
+    SET volatility := 'Immutable';
+    USING SQL 'SELECT "x";';
+};
+
+
+CREATE FUNCTION
 math::ceil(x: std::int64) -> std::int64
 {
     CREATE ANNOTATION std::description := 'Round up to the nearest integer.';
@@ -62,6 +80,24 @@ math::ceil(x: std::decimal) -> std::decimal
     CREATE ANNOTATION std::description := 'Round up to the nearest integer.';
     SET volatility := 'Immutable';
     USING SQL 'SELECT ceil("x");'
+};
+
+
+CREATE FUNCTION
+math::floor(x: std::int16) -> std::int16
+{
+    CREATE ANNOTATION std::description := 'Round down to the nearest integer.';
+    SET volatility := 'Immutable';
+    USING SQL 'SELECT "x";';
+};
+
+
+CREATE FUNCTION
+math::floor(x: std::int32) -> std::int32
+{
+    CREATE ANNOTATION std::description := 'Round down to the nearest integer.';
+    SET volatility := 'Immutable';
+    USING SQL 'SELECT "x";';
 };
 
 

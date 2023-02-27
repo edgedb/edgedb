@@ -162,6 +162,18 @@ std::sum(s: SET OF std::decimal) -> std::decimal
 
 
 CREATE FUNCTION
+std::sum(s: SET OF std::int16) -> std::int64
+{
+    CREATE ANNOTATION std::description :=
+        'Return the sum of the set of numbers.';
+    SET volatility := 'Immutable';
+    SET initial_value := 0;
+    SET force_return_cast := true;
+    USING SQL FUNCTION 'sum';
+};
+
+
+CREATE FUNCTION
 std::sum(s: SET OF std::int32) -> std::int64
 {
     CREATE ANNOTATION std::description :=
