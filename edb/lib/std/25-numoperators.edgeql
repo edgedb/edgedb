@@ -2718,12 +2718,6 @@ CREATE CAST FROM std::int16 TO std::bigint {
 };
 
 
-CREATE CAST FROM std::int16 TO cfg::memory {
-    SET volatility := 'Immutable';
-    USING SQL CAST;
-};
-
-
 CREATE CAST FROM std::int32 TO std::float32 {
     SET volatility := 'Immutable';
     USING SQL CAST;
@@ -2752,18 +2746,6 @@ CREATE CAST FROM std::int32 TO std::bigint {
 };
 
 
-CREATE CAST FROM std::int32 TO cfg::memory {
-    SET volatility := 'Immutable';
-    USING SQL CAST;
-};
-
-
-CREATE CAST FROM cal::local_date TO cal::local_time {
-    SET volatility := 'Immutable';
-    USING SQL CAST;
-};
-
-
 CREATE CAST FROM std::bigint TO std::str {
     SET volatility := 'Immutable';
     USING SQL CAST;
@@ -2776,10 +2758,10 @@ CREATE CAST FROM std::bigint TO std::int16 {
 };
 
 
-CREATE CAST FROM std::bigint TO std::sequence {
-    SET volatility := 'Immutable';
-    USING SQL CAST;
-};
+# CREATE CAST FROM std::bigint TO std::sequence {
+#     SET volatility := 'Immutable';
+#     USING SQL CAST;
+# };
 
 
 CREATE CAST FROM std::bigint TO std::int32 {
@@ -2801,12 +2783,6 @@ CREATE CAST FROM std::bigint TO std::float32 {
 
 
 CREATE CAST FROM std::bigint TO std::float64 {
-    SET volatility := 'Immutable';
-    USING SQL CAST;
-};
-
-
-CREATE CAST FROM cal::date_duration TO std::duration {
     SET volatility := 'Immutable';
     USING SQL CAST;
 };

@@ -249,6 +249,18 @@ cfg::_describe_database_config_as_ddl() -> str
 };
 
 
+CREATE CAST FROM std::int16 TO cfg::memory {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM std::int32 TO cfg::memory {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
 CREATE CAST FROM std::int64 TO cfg::memory {
     SET volatility := 'Immutable';
     USING SQL CAST;

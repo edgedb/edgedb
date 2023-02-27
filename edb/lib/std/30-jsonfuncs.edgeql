@@ -473,6 +473,12 @@ CREATE CAST FROM std::float64 TO std::json {
 };
 
 
+CREATE CAST FROM std::bigint TO std::json {
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'to_jsonb';
+};
+
+
 CREATE CAST FROM std::decimal TO std::json {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'to_jsonb';

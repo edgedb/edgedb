@@ -1411,6 +1411,18 @@ CREATE CAST FROM cal::relative_duration TO cal::date_duration {
 };
 
 
+CREATE CAST FROM cal::local_date TO cal::local_time {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM cal::date_duration TO std::duration {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
 ## Modified functions
 ## ------------------
 
