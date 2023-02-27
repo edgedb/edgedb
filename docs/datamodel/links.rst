@@ -341,6 +341,8 @@ There are 4 available target deletion policies.
   raises an exception at the end of the transaction, unless by
   that time this object is no longer in the set of link targets.
 
+.. _ref_datamodel_links_source_deletion:
+
 Source deletion
 ^^^^^^^^^^^^^^^
 

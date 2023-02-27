@@ -1,10 +1,21 @@
-=================
-Developing EdgeDB
-=================
+.. _ref_guide_contributing_code:
+
+====
+Code
+====
+
+:edb-alt-title: Developing EdgeDB
 
 This section describes how to build EdgeDB locally, how to use its
 internal tools, and how to contribute to it.
 
+.. warning::
+
+    Pull requests without thorough testing are not likely to be merged. If
+    you're not sure if yours is well-tested enough, go ahead and submit. We can
+    help guide you to the finish line.
+
+.. _ref_guide_contributing_code_build:
 
 Building Locally
 ================
@@ -119,19 +130,6 @@ To pattern-match a test by its name:
 
 See ``$ edb test --help`` for more options.
 
-
-Writing Documentation
-=====================
-
-The ``edgedb`` repository contains all of its documentation in the ``docs/``
-directory. EdgeDB uses `reStructuredText with Sphinx <rst_>`_.
-
-Use the ``$ make docs`` command to build and generate HTML files from the
-documentation. The repository contains a ``Makefile`` for all of Sphinx's
-necessary build options.
-
-Upon success, HTML generated documentation will be a new directory path
-as ``docs/build``.
 
 Dev Server
 ==========
