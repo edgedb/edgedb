@@ -419,7 +419,7 @@ def _find_cast(
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
         srcctx: Optional[parsing.ParserContext],
-        strict: bool = False,
+        strict: bool = True,
         ctx: context.ContextLevel) -> Optional[s_casts.Cast]:
 
     # Don't try to pick up casts when there is a direct subtyping
