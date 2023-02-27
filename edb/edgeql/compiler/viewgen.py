@@ -1095,19 +1095,34 @@ def prepare_rewrite_anchors(
         stype,
         typename=sn.QualName(module="__derived__", name="__specified__"),
     )
-    specified_pointers: Dict[str, irast.Set] = {}
+    specified_pointers: List[irast.TupleElement] = []
     for pn, _ in scls_pointers.items(ctx.env.schema):
-        specified_pointers[pn.name] = setgen.ensure_set(
-            irast.BooleanConstant(
-                value="true" if pn in specified_ptrs else "false",
-                typeref=bool_path.target,
-            ),
-            ctx=ctx
+        pointer_path_id = irast.PathId.from_type(
+            ctx.env.schema,
+            bool_type,
+            typename=sn.QualName(module="__derived__", name=pn.name),
         )
-    specified_set = irast.ComputedObjectSet(
-        path_id=specified_path_id,
-        typeref=specified_path_id.target,
-        computed_pointers=specified_pointers
+
+        specified_pointers.append(
+            irast.TupleElement(
+                name=pn.name,
+                val=setgen.ensure_set(
+                    irast.BooleanConstant(
+                        value="true" if pn in specified_ptrs else "false",
+                        typeref=bool_path.target,
+                    ),
+                    ctx=ctx
+                ),
+                path_id=pointer_path_id
+            )
+        )
+    specified_set = setgen.ensure_set(
+        irast.Tuple(
+            named=True,
+            elements=specified_pointers,
+            typeref=specified_path_id.target,
+        ),
+        ctx=ctx
     )
 
     # init set for __old__
