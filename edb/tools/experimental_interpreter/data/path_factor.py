@@ -186,7 +186,7 @@ def select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
     match e :
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
             bindname = next_name() 
-            inner_e = WithExpr(FilterOrderExpr(subject=sub_select_hoist(iterative_subst_expr_for_expr(fresh_vars, top_paths, subject), dbschema), 
+            inner_e = ForExpr(FilterOrderExpr(subject=sub_select_hoist(iterative_subst_expr_for_expr(fresh_vars, top_paths, subject), dbschema), 
                                                filter=operate_under_binding(filter, lambda filter:select_hoist(iterative_subst_expr_for_expr(fresh_vars, top_paths, filter), dbschema)), 
                                                order= abstract_over_expr(ObjectExpr({}))
                                                       ),

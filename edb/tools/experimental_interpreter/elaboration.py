@@ -375,10 +375,17 @@ def elab_UnnamedTuple(qle : qlast.Tuple) -> UnnamedTupleExpr :
     return UnnamedTupleExpr(val= [elab(e) for e in qle.elements])
 
 @elab.register(qlast.ForQuery)
-def elab_ForQuery(qle : qlast.ForQuery) -> ForExpr:
+def elab_ForQuery(qle : qlast.ForQuery) -> ForExpr | OptionalForExpr:
     if qle.result_alias:
         raise elab_not_implemented(qle)
-    return cast(ForExpr, elab_aliases(qle.aliases, ForExpr(bound=elab(qle.iterator), next=abstract_over_expr(elab(qle.result), qle.iterator_alias))))
+    if len(qle.iterator_bindings) != 1:
+        raise elab_not_implemented(qle)
+    return cast((ForExpr | OptionalForExpr), 
+                elab_aliases(qle.aliases, 
+                             cast(Expr, (OptionalForExpr if qle.iterator_bindings[0].optional else ForExpr)
+                                (bound=elab(qle.iterator_bindings[0].iterator), 
+                                    next=abstract_over_expr(elab(qle.result), qle.iterator_bindings[0].iterator_alias)
+                                    ))))
 
 @elab.register
 def elab_Indirection(qle : qlast.Indirection) -> FunAppExpr :

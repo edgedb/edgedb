@@ -14,7 +14,7 @@ def label_to_str(l : Label) -> str:
 def objectval_to_json_like(objv : ObjectVal) -> json_like:
     return {label_to_str(k) : multi_set_val_to_json_like(v[1]) 
                 for (k,v) in objv.val.items() if 
-                v[0] == Visible}
+                isinstance(v[0], Visible)}
 
 def val_to_json_like(v : Val) -> json_like :
     match v:
@@ -34,7 +34,7 @@ def val_to_json_like(v : Val) -> json_like :
             return [val_to_json_like(v) for v in array]
         case NamedTupleVal(val=dic):
             return {k : val_to_json_like(v) for (k,v) in dic.items()}
-    raise ValueError("MATCH")
+    raise ValueError("MATCH", v)
         
 
 def multi_set_val_to_json_like(m : MultiSetVal) -> json_like :
