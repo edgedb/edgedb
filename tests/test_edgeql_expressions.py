@@ -1220,6 +1220,7 @@ class TestExpressions(tb.QueryTestCase):
         # compare all numerics to each other via equality
         ops = [('=', '!='), ('?=', '?!='), ('IN', 'NOT IN')]
 
+        fails = []
         for left, ldesc in get_test_items(anyreal=True):
             for right, rdesc in get_test_items(anyreal=True):
                 if (ldesc.anynumeric and rdesc.anyfloat
@@ -1230,9 +1231,15 @@ class TestExpressions(tb.QueryTestCase):
                     expected = True
 
                 for op, not_op in ops:
-                    await self._test_boolop(
-                        left, right, op, not_op, expected
-                    )
+                    try:
+                        await self._test_boolop(
+                            left, right, op, not_op, expected
+                        )
+                    except Exception as e:
+                        fails.append(str(e))
+
+        if fails:
+            raise AssertionError('\n'.join(fails))
 
     async def test_edgeql_expr_valid_eq_03(self):
         expected_error_msg = 'cannot be applied to operands'
@@ -1951,6 +1958,7 @@ class TestExpressions(tb.QueryTestCase):
                     # In all other cases the result is a float64.
                     types = {ldesc.typename, rdesc.typename}
 
+                    # XXX: ??
                     if types.issubset({'int16', 'float32'}):
                         rtype = 'float32'
                     else:

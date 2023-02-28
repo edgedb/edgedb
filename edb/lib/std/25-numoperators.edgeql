@@ -2049,6 +2049,15 @@ std::`/` (l: std::int64, r: std::int64) -> std::float64 {
 
 
 CREATE INFIX OPERATOR
+std::`/` (l: std::int16, r: std::int16) -> std::float32 {
+    CREATE ANNOTATION std::identifier := 'div';
+    CREATE ANNOTATION std::description := 'Arithmetic division.';
+    SET volatility := 'Immutable';
+    USING SQL OPERATOR r'/';
+};
+
+
+CREATE INFIX OPERATOR
 std::`/` (l: std::float32, r: std::float32) -> std::float32 {
     CREATE ANNOTATION std::identifier := 'div';
     CREATE ANNOTATION std::description := 'Arithmetic division.';

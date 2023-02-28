@@ -4902,12 +4902,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_math_ceil_02(self):
         await self.assert_query_result(
-            r'''SELECT math::ceil(<int16>2) IS int64;''',
+            r'''SELECT math::ceil(<int16>2) IS int16;''',
             {True},
         )
 
         await self.assert_query_result(
-            r'''SELECT math::ceil(<int32>2) IS int64;''',
+            r'''SELECT math::ceil(<int32>2) IS int32;''',
             {True},
         )
 
@@ -4964,12 +4964,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_math_floor_02(self):
         await self.assert_query_result(
-            r'''SELECT math::floor(<int16>2) IS int64;''',
+            r'''SELECT math::floor(<int16>2) IS int16;''',
             {True},
         )
 
         await self.assert_query_result(
-            r'''SELECT math::floor(<int32>2) IS int64;''',
+            r'''SELECT math::floor(<int32>2) IS int32;''',
             {True},
         )
 
