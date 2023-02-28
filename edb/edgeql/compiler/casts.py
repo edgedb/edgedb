@@ -251,7 +251,10 @@ def _has_common_concrete_scalar(
         and (nearest := s_utils.get_class_nearest_common_ancestors(
             ctx.env.schema, [new_stype, orig_stype]))
         and len(nearest) == 1
-        and not nearest[0].get_abstract(ctx.env.schema)
+        and (
+            nearest[0].maybe_get_topmost_concrete_base(ctx.env.schema)
+            is not None
+        )
     )
 
 
@@ -443,7 +446,8 @@ def _find_cast(
     # Don't try to pick up casts when there is a direct subtyping
     # relationship.
     if (orig_stype.issubclass(ctx.env.schema, new_stype)
-            or new_stype.issubclass(ctx.env.schema, orig_stype)):
+            or new_stype.issubclass(ctx.env.schema, orig_stype)
+            or _has_common_concrete_scalar(orig_stype, new_stype, ctx=ctx)):
         return None
 
     casts = ctx.env.schema.get_casts_to_type(new_stype)

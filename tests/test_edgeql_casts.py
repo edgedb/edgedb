@@ -2581,6 +2581,27 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 SELECT <array<custom_str_t>><array<bar>>['test']
             """)
 
+    async def test_edgeql_casts_custom_scalar_04(self):
+        await self.con.execute('''
+            create abstract scalar type abs extending int64;
+            create scalar type foo2 extending abs;
+            create scalar type bar2 extending abs;
+        ''')
+
+        await self.assert_query_result(
+            """
+                SELECT <foo2><bar2>42
+            """,
+            [42],
+        )
+
+        await self.assert_query_result(
+            """
+                SELECT <array<foo2>><array<bar2>>[42]
+            """,
+            [[42]],
+        )
+
     async def test_edgeql_casts_tuple_params_01(self):
         # insert tuples into a nested array
         def nest(data):
