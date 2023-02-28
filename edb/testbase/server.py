@@ -213,7 +213,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         return True
 
     def add_fail_notes(self, **kwargs):
-        if not hasattr(self, 'fail_notes'):
+        if getattr(self, 'fail_notes', None) is None:
             self.fail_notes = {}
         self.fail_notes.update(kwargs)
 
@@ -317,6 +317,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             '_subtest': self._subtest,
             '_cleanups': [],
             '_type_equality_funcs': self._type_equality_funcs,
+            'fail_notes': getattr(self, 'fail_notes', None),
         }
 
 
