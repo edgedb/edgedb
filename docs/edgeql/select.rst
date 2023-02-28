@@ -166,6 +166,114 @@ identically to concrete/non-computed links like ``Villain.nemesis``.
     ...
   }
 
+
+.. _ref_eql_select_splats:
+
+Splats
+^^^^^^
+
+.. versionadded:: 3.0
+
+Splats allow you to select all properties of a type using the asterisk (``*``)
+or all properties of the type and a single level of nested types with a double
+asterisk (``**``).
+
+If you have this schema:
+
+.. code-block:: sdl
+
+    module default {
+      abstract type Person {
+        required name: str { constraint exclusive };
+      }
+
+      type Hero extending Person {
+        property secret_identity: str;
+        multi link villains := .<nemesis[is Villain];
+      }
+
+      type Villain extending Person {
+        link nemesis: Hero;
+      }
+
+      type Movie {
+        required property title: str { constraint exclusive };
+        required property release_year: int64;
+        multi link characters: Person;
+      }
+    }
+
+splats will help you more easily select all properties when using the REPL. You
+can select all of an object's properties using the single splat:
+
+.. code-block:: edgeql-repl
+
+    db> select Movie {*};
+    {
+      default::Movie {
+        id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
+        release_year: 2021,
+        title: 'Spiderman: No Way Home',
+      },
+      default::Movie {
+        id: 76998656-b776-11ed-8bef-237907a987fa,
+        release_year: 2008,
+        title: 'Iron Man'
+      },
+    }
+
+or you can select all of an object's properties and the properties of a single
+level of nested objects with the double splat:
+
+.. code-block:: edgeql-repl
+
+    db> select Movie {**};
+    {
+      default::Movie {
+        id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
+        release_year: 2021,
+        title: 'Spiderman: No Way Home',
+        characters: {
+          default::Hero {
+            id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+            name: 'Spiderman'
+          },
+          default::Villain {
+            id: efa2c4bc-b777-11ed-99eb-43f835d79384,
+            name: 'Electro'
+          },
+          default::Villain {
+            id: f2c99a96-b775-11ed-8f7e-0b4a4a8e433e,
+            name: 'Green Goblin'
+          },
+          default::Villain {
+            id: f8ca354a-b775-11ed-8bef-273145019e1d,
+            name: 'Doc Ock'
+          },
+        },
+      },
+      default::Movie {
+        id: 76998656-b776-11ed-8bef-237907a987fa,
+        release_year: 2008,
+        title: 'Iron Man',
+        characters: {
+          default::Hero {
+            id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+            name: 'Iron Man'
+          },
+          default::Villain {
+            id: 335f4104-b777-11ed-81eb-ab4de34e9c36,
+            name: 'Obadiah Stane'
+          },
+        },
+      },
+    }
+
+.. note::
+
+    Splats are disabled in function bodies.
+
+
 .. _ref_eql_select_filter:
 
 Filtering
