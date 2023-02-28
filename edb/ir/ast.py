@@ -1091,6 +1091,9 @@ class MutatingStmt(Stmt, MutatingLikeStmt):
         factory=dict
     )
 
+    # Rewrites of the subject shape
+    rewrites: Rewrites = ast.field(factory=dict)
+
     @property
     def material_type(self) -> TypeRef:
         """The proper material type being operated on.
@@ -1164,10 +1167,6 @@ class UpdateStmt(MutatingStmt, FilteredStmt):
     # This is at least a bit of a hack.
     dunder_type_ptrref: BasePointerRef
     _material_type: TypeRef | None = None
-
-    # Update may be changing parent ObjectTypes to which different rewrite
-    # rules may apply.
-    rewrites: Rewrites = ast.field(factory=dict)
 
     @property
     def material_type(self) -> TypeRef:

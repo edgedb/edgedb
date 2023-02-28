@@ -259,8 +259,8 @@ class Environment:
     path_scope_map: Dict[irast.Set, ScopeInfo]
     """A dictionary of scope info that are appropriate for a given view."""
 
-    update_rewrites: Dict[irast.Set, irast.Rewrites]
-    """Compiled rewrites that should be passed to UpdateStmt"""
+    dml_rewrites: Dict[irast.Set, irast.Rewrites]
+    """Compiled rewrites that should be attached to InsertStmt or UpdateStmt"""
 
     def __init__(
         self,
@@ -310,7 +310,7 @@ class Environment:
         self.shape_type_cache = {}
         self.expr_view_cache = {}
         self.path_scope_map = {}
-        self.update_rewrites = {}
+        self.dml_rewrites = {}
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:

@@ -621,8 +621,6 @@ def compile_UpdateQuery(
                 exprtype=s_types.ExprType.Update,
                 ctx=bodyctx)
 
-            stmt.rewrites = ctx.env.update_rewrites.pop(stmt.subject, {})
-
         result = setgen.class_set(
             mat_stype, path_id=stmt.subject.path_id, ctx=ctx,
         )
@@ -1169,6 +1167,7 @@ def fini_stmt(
 
     if isinstance(irstmt, irast.MutatingStmt):
         ctx.env.dml_stmts.add(irstmt)
+        irstmt.rewrites = ctx.env.dml_rewrites.pop(irstmt.subject, {})
 
     if (isinstance(t, s_pseudo.PseudoType)
             and t.is_any(ctx.env.schema)):
