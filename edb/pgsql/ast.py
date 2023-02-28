@@ -316,10 +316,13 @@ class IntersectionRangeVar(PathRangeVar):
 
 
 class DynamicRangeVarFunc(typing.Protocol):
-    """A 'dynamic' range var that provides a callback hook.
+    """A 'dynamic' range var that provides a callback hook
+    for finding path_ids in range var.
 
     Used to sneak more complex search logic in.
     I am 100% going to regret this.
+
+    Update: Sully says that he hasn't regretted it yet.
     """
 
     # Lookup function for a DynamicRangeVar. If it returns a
