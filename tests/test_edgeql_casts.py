@@ -2544,6 +2544,43 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             await self.con.query(
                 "SELECT <custom_str_t>'123'")
 
+    async def test_edgeql_casts_custom_scalar_02(self):
+        await self.assert_query_result(
+            """
+                SELECT <foo><bar>'test'
+            """,
+            ['test'],
+        )
+
+        await self.assert_query_result(
+            """
+                SELECT <array<foo>><array<bar>>['test']
+            """,
+            [['test']],
+        )
+
+    async def test_edgeql_casts_custom_scalar_03(self):
+        await self.assert_query_result(
+            """
+                SELECT <array<custom_str_t>><array<bar>>['TEST']
+            """,
+            [['TEST']],
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError, r'invalid'
+        ):
+            await self.con.query("""
+                SELECT <custom_str_t><bar>'test'
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError, r'invalid'
+        ):
+            await self.con.query("""
+                SELECT <array<custom_str_t>><array<bar>>['test']
+            """)
+
     async def test_edgeql_casts_tuple_params_01(self):
         # insert tuples into a nested array
         def nest(data):
@@ -2791,20 +2828,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             ''',
             [],
         )
-
-    async def test_edgeql_casts_custom_scalars_01(self):
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError, r'cannot cast'):
-            await self.con.execute("""
-                SELECT <foo><bar>'test'
-            """)
-
-    async def test_edgeql_casts_custom_scalars_02(self):
-        async with self.assertRaisesRegexTx(
-                edgedb.QueryError, r'cannot cast'):
-            await self.con.execute("""
-                SELECT <array<foo>><array<bar>>['test']
-            """)
 
     async def test_edgeql_casts_std_enum_01(self):
         await self.assert_query_result(
