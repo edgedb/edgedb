@@ -4493,7 +4493,7 @@ class PointerMetaCommand(
             typeref=outer_path.target,
             path_scope_id=root_uid,
             expr=irast.SelectStmt(
-                iterator_stmt=irast.Set(
+                iterator_stmt=[irast.Set(
                     path_id=src_path_id,
                     typeref=src_path_id.target,
                     path_scope_id=iter_uid,
@@ -4504,7 +4504,7 @@ class PointerMetaCommand(
                             typeref=src_path_id.target,
                         )
                     )
-                ),
+                )],
 
                 result=for_body,
             )

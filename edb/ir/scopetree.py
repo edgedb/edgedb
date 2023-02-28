@@ -21,8 +21,6 @@
 
 from __future__ import annotations
 from typing import *
-if TYPE_CHECKING:
-    from typing_extensions import TypeGuard
 
 import sys
 import textwrap
@@ -45,15 +43,48 @@ class FenceInfo(NamedTuple):
         )
 
 
-def has_path_id(nobe: ScopeTreeNode) -> TypeGuard[ScopeTreeNodeWithPathId]:
-    return nobe.path_id is not None
+class PathIdLike(Protocol):
+    def pformat_internal(self, debug: bool = False) -> str:
+        ...
+
+    def pformat(self) -> str:
+        ...
+
+    @property
+    def namespace(self) -> FrozenSet[str]:
+        ...
+
+    def strip_namespace(
+            self: TP, namespace: AbstractSet[pathid.Namespace]) -> TP:
+        ...
+
+    def iter_prefixes(self: TP, include_ptr: bool = False) -> Iterator[TP]:
+        ...
+
+    def is_ptr_path(self) -> bool:
+        ...
+
+    def is_linkprop_path(self) -> bool:
+        ...
+
+    def is_tuple_indirection_path(self) -> bool:
+        ...
+
+    def is_type_intersection_path(self) -> bool:
+        ...
+
+    def src_path(self: TP) -> Optional[TP]:
+        ...
 
 
-class ScopeTreeNode:
+TP = TypeVar('TP', bound=PathIdLike)
+
+
+class GenericScopeTreeNode(Generic[TP]):
     unique_id: Optional[int]
     """A unique identifier used to map scopes on sets."""
 
-    path_id: Optional[pathid.PathId]
+    path_id: Optional[TP]
     """Node path id, or None for branch nodes."""
 
     fenced: bool
@@ -68,13 +99,13 @@ class ScopeTreeNode:
     factoring_fence: bool
     """Prevent prefix factoring across this node."""
 
-    factoring_allowlist: Set[pathid.PathId]
+    factoring_allowlist: Set[TP]
     """A list of prefixes that are always allowed to be factored."""
 
     optional: bool
     """Whether this node represents an optional path."""
 
-    children: List[ScopeTreeNode]
+    children: List[GenericScopeTreeNode[TP]]
     """A set of child nodes."""
 
     namespaces: Set[pathid.Namespace]
@@ -89,11 +120,12 @@ class ScopeTreeNode:
     def __init__(
         self,
         *,
-        path_id: Optional[pathid.PathId]=None,
+        path_id: Optional[TP]=None,
         fenced: bool=False,
         unique_id: Optional[int]=None,
         optional: bool=False,
     ) -> None:
+        assert not path_id or isinstance(self, GenericScopeTreeNodeWithPathId)
         self.unique_id = unique_id
         self.path_id = path_id
         self.fenced = fenced
@@ -104,7 +136,8 @@ class ScopeTreeNode:
         self.children = []
         self.namespaces = set()
         self.is_group = False
-        self._parent: Optional[weakref.ReferenceType[ScopeTreeNode]] = None
+        self._parent: Optional[
+            weakref.ReferenceType[GenericScopeTreeNode[TP]]] = None
 
     FIELDS = (
         'unique_id', 'path_id', 'fenced', 'unnest_fence', 'factoring_fence',
@@ -125,7 +158,7 @@ class ScopeTreeNode:
             child._parent = weakref.ref(self)
 
     def __repr__(self) -> str:
-        name = 'ScopeFenceNode' if self.fenced else 'ScopeTreeNode'
+        name = 'ScopeFenceNode' if self.fenced else 'GenericScopeTreeNode[TP]'
         return (f'<{name} {self.path_id!r} at {id(self):0x}>')
 
     def find_dupe_unique_ids(self) -> Set[int]:
@@ -178,59 +211,60 @@ class ScopeTreeNode:
         )
 
     @property
-    def ancestors(self) -> Iterator[ScopeTreeNode]:
+    def ancestors(self) -> Iterator[GenericScopeTreeNode[TP]]:
         """An iterator of node's ancestors, including self."""
-        node: Optional[ScopeTreeNode] = self
+        node: Optional[GenericScopeTreeNode[TP]] = self
         while node is not None:
             yield node
             node = node.parent
 
     @property
-    def strict_ancestors(self) -> Iterator[ScopeTreeNode]:
+    def strict_ancestors(self) -> Iterator[GenericScopeTreeNode[TP]]:
         """An iterator of node's ancestors, not including self."""
-        node: Optional[ScopeTreeNode] = self.parent
+        node: Optional[GenericScopeTreeNode[TP]] = self.parent
         while node is not None:
             yield node
             node = node.parent
 
     @property
     def ancestors_and_namespaces(self) \
-            -> Iterator[Tuple[ScopeTreeNode, FrozenSet[pathid.Namespace]]]:
+            -> Iterator[Tuple[GenericScopeTreeNode[TP],
+                              FrozenSet[pathid.Namespace]]]:
         """An iterator of node's ancestors and namespaces, including self."""
         namespaces: FrozenSet[str] = frozenset()
-        node: Optional[ScopeTreeNode] = self
+        node: Optional[GenericScopeTreeNode[TP]] = self
         while node is not None:
             namespaces |= node.namespaces
             yield node, namespaces
             node = node.parent
 
     @property
-    def path_children(self) -> Iterator[ScopeTreeNodeWithPathId]:
+    def path_children(self) -> Iterator[GenericScopeTreeNodeWithPathId[TP]]:
         """An iterator of node's children that have path ids."""
         return (
             p for p in self.children
-            if has_path_id(p)
+            if isinstance(p, GenericScopeTreeNodeWithPathId)
         )
 
     @property
-    def path_descendants(self) -> Iterator[ScopeTreeNodeWithPathId]:
+    def path_descendants(self) -> Iterator[GenericScopeTreeNodeWithPathId[TP]]:
         """An iterator of node's descendants that have path ids."""
         return (
             p for p in self.descendants
-            if has_path_id(p)
+            if isinstance(p, GenericScopeTreeNodeWithPathId)
         )
 
-    def get_all_paths(self) -> Set[pathid.PathId]:
+    def get_all_paths(self) -> Set[TP]:
         return {pd.path_id for pd in self.path_descendants}
 
     @property
-    def descendants(self) -> Iterator[ScopeTreeNode]:
+    def descendants(self) -> Iterator[GenericScopeTreeNode[TP]]:
         """An iterator of node's descendants including self top-first."""
         yield self
         yield from self.strict_descendants
 
     @property
-    def strict_descendants(self) -> Iterator[ScopeTreeNode]:
+    def strict_descendants(self) -> Iterator[GenericScopeTreeNode[TP]]:
         """An iterator of node's descendants not including self top-first."""
         for child in tuple(self.children):
             yield child
@@ -242,10 +276,10 @@ class ScopeTreeNode:
         *,
         unfenced_only: bool=False,
         strict: bool=False,
-        skip: Optional[ScopeTreeNode]=None,
+        skip: Optional[GenericScopeTreeNode[TP]]=None,
     ) -> Iterator[
         Tuple[
-            ScopeTreeNode,
+            GenericScopeTreeNode[TP],
             AbstractSet[pathid.Namespace],
             FenceInfo
         ]
@@ -291,7 +325,7 @@ class ScopeTreeNode:
         self,
     ) -> Iterator[
         Tuple[
-            ScopeTreeNode,
+            GenericScopeTreeNode[TP],
             AbstractSet[pathid.Namespace],
             FenceInfo
         ]
@@ -312,15 +346,22 @@ class ScopeTreeNode:
         return namespaces
 
     @property
-    def fence(self) -> ScopeTreeNode:
+    def fence(self) -> GenericScopeTreeNode[TP]:
         """The nearest ancestor fence (or self, if fence)."""
         if self.fenced:
             return self
         else:
-            return cast(ScopeTreeNode, self.parent_fence)
+            return cast(GenericScopeTreeNode[TP], self.parent_fence)
 
     @property
-    def parent(self) -> Optional[ScopeTreeNode]:
+    def parent(self) -> Optional[GenericScopeTreeNode[TP]]:
+        """The parent node."""
+        if self._parent is None:
+            return None
+        else:
+            return self._parent()
+
+    def parent_(self) -> Optional[GenericScopeTreeNode[TP]]:
         """The parent node."""
         if self._parent is None:
             return None
@@ -328,15 +369,15 @@ class ScopeTreeNode:
             return self._parent()
 
     @property
-    def path_ancestor(self) -> Optional[ScopeTreeNodeWithPathId]:
+    def path_ancestor(self) -> Optional[GenericScopeTreeNodeWithPathId[TP]]:
         for ancestor in self.strict_ancestors:
-            if has_path_id(ancestor):
+            if isinstance(ancestor, GenericScopeTreeNodeWithPathId):
                 return ancestor
 
         return None
 
     @property
-    def parent_fence(self) -> Optional[ScopeTreeNode]:
+    def parent_fence(self) -> Optional[GenericScopeTreeNode[TP]]:
         """The nearest strict ancestor fence."""
         for ancestor in self.strict_ancestors:
             if ancestor.fenced:
@@ -345,7 +386,7 @@ class ScopeTreeNode:
         return None
 
     @property
-    def parent_branch(self) -> Optional[ScopeTreeNode]:
+    def parent_branch(self) -> Optional[GenericScopeTreeNode[TP]]:
         """The nearest strict ancestor branch or fence."""
         for ancestor in self.strict_ancestors:
             if ancestor.path_id is None:
@@ -354,7 +395,7 @@ class ScopeTreeNode:
         return None
 
     @property
-    def root(self) -> ScopeTreeNode:
+    def root(self) -> GenericScopeTreeNode[TP]:
         """The root of this tree."""
         node = self
         while node.parent is not None:
@@ -367,7 +408,7 @@ class ScopeTreeNode:
         for pd in self.path_descendants:
             pd.path_id = pd.path_id.strip_namespace(ns)
 
-    def attach_child(self, node: ScopeTreeNode,
+    def attach_child(self, node: GenericScopeTreeNode[TP],
                      context: Optional[pctx.ParserContext]=None) -> None:
         """Attach a child node to this node.
 
@@ -389,21 +430,21 @@ class ScopeTreeNode:
 
         node._set_parent(self)
 
-    def attach_fence(self) -> ScopeTreeNode:
+    def attach_fence(self) -> GenericScopeTreeNode[TP]:
         """Create and attach an empty fenced node."""
-        fence = ScopeTreeNode(fenced=True)
+        fence = GenericScopeTreeNode[TP](fenced=True)
         self.attach_child(fence)
         return fence
 
-    def attach_branch(self) -> ScopeTreeNode:
+    def attach_branch(self) -> GenericScopeTreeNode[TP]:
         """Create and attach an empty branch node."""
-        fence = ScopeTreeNode()
+        fence = GenericScopeTreeNode[TP]()
         self.attach_child(fence)
         return fence
 
     def attach_path(
         self,
-        path_id: pathid.PathId,
+        path_id: TP,
         *,
         flatten_intersection: bool=False,
         optional: bool=False,
@@ -411,7 +452,7 @@ class ScopeTreeNode:
     ) -> None:
         """Attach a scope subtree representing *path_id*."""
 
-        subtree = parent = ScopeTreeNode(fenced=True)
+        subtree = parent = GenericScopeTreeNode[TP](fenced=True)
         is_lprop = flatten_intersection
 
         for prefix in reversed(list(path_id.iter_prefixes(include_ptr=True))):
@@ -419,8 +460,8 @@ class ScopeTreeNode:
                 is_lprop = True
                 continue
 
-            new_child = ScopeTreeNode(path_id=prefix,
-                                      optional=optional and parent is subtree)
+            new_child = GenericScopeTreeNodeWithPathId(
+                path_id=prefix, optional=optional and parent is subtree)
             parent.attach_child(new_child)
 
             # If the path is a link property, or a tuple
@@ -460,7 +501,7 @@ class ScopeTreeNode:
 
         self.attach_subtree(subtree, context=context)
 
-    def attach_subtree(self, node: ScopeTreeNode,
+    def attach_subtree(self, node: GenericScopeTreeNode[TP],
                        was_fenced: bool=False,
                        context: Optional[pctx.ParserContext]=None) -> None:
         """Attach a subtree to this node.
@@ -474,12 +515,12 @@ class ScopeTreeNode:
         """
         if node.path_id is not None:
             # Wrap path node
-            wrapper_node = ScopeTreeNode(fenced=True)
+            wrapper_node = GenericScopeTreeNode[TP](fenced=True)
             wrapper_node.attach_child(node)
             node = wrapper_node
 
         for descendant, dns, _ in node.descendants_and_namespaces_ex():
-            if not has_path_id(descendant):
+            if not isinstance(descendant, GenericScopeTreeNodeWithPathId):
                 continue
 
             path_id = descendant.path_id.strip_namespace(dns)
@@ -578,10 +619,10 @@ class ScopeTreeNode:
 
     def _check_factoring_errors(
         self,
-        path_id: pathid.PathId,
-        descendant: ScopeTreeNodeWithPathId,
-        factor_point: ScopeTreeNode,
-        existing: ScopeTreeNodeWithPathId,
+        path_id: TP,
+        descendant: GenericScopeTreeNode[TP],
+        factor_point: GenericScopeTreeNode[TP],
+        existing: GenericScopeTreeNodeWithPathId[TP],
         unnest_fence: bool,
         existing_finfo: FenceInfo,
         context: Optional[pctx.ParserContext],
@@ -617,10 +658,10 @@ class ScopeTreeNode:
             and not existing._node_paths_are_props()
         ):
             path_ancestor = descendant.path_ancestor
-            if path_ancestor is not None:
-                offending_node = path_ancestor
-            else:
+            if path_ancestor is None:
                 offending_node = descendant
+            else:
+                offending_node = path_ancestor
 
             assert offending_node.path_id is not None
 
@@ -665,7 +706,7 @@ class ScopeTreeNode:
 
     def fuse_subtree(
         self,
-        node: ScopeTreeNode,
+        node: GenericScopeTreeNode[TP],
         self_fenced: bool=False,
         node_fenced: bool=False,
     ) -> None:
@@ -677,7 +718,7 @@ class ScopeTreeNode:
             self.optional = True
 
         if node.path_id is not None:
-            subtree = ScopeTreeNode(fenced=True)
+            subtree = GenericScopeTreeNode[TP](fenced=True)
             subtree.optional = node.optional
             for child in tuple(node.children):
                 subtree.attach_child(child)
@@ -686,7 +727,7 @@ class ScopeTreeNode:
 
         self.attach_subtree(subtree, was_fenced=self_fenced)
 
-    def remove_subtree(self, node: ScopeTreeNode) -> None:
+    def remove_subtree(self, node: GenericScopeTreeNode[TP]) -> None:
         """Remove the given subtree from this node."""
         if node not in self.children:
             raise KeyError(f'{node} is not a child of {self}')
@@ -694,7 +735,7 @@ class ScopeTreeNode:
         node._set_parent(None)
 
     def remove_descendants(
-            self, path_id: pathid.PathId, new: ScopeTreeNode) -> None:
+            self, path_id: TP, new: GenericScopeTreeNode[TP]) -> None:
         """Remove all descendant nodes matching *path_id*."""
 
         matching = set()
@@ -711,7 +752,7 @@ class ScopeTreeNode:
         """Indicate that this scope is used as an OPTIONAL argument."""
         self.optional = True
 
-    def is_optional(self, path_id: pathid.PathId) -> bool:
+    def is_optional(self, path_id: TP) -> bool:
         node = self.find_visible(path_id)
         if node is not None:
             return node.optional
@@ -750,7 +791,7 @@ class ScopeTreeNode:
                 all(c.is_empty() for c in self.children)
             )
 
-    def get_all_visible(self) -> Set[pathid.PathId]:
+    def get_all_visible(self) -> Set[TP]:
         paths = set()
 
         for node in self.ancestors:
@@ -764,12 +805,12 @@ class ScopeTreeNode:
         return paths
 
     def find_visible_ex(
-        self,
-        path_id: pathid.PathId,
+        self: GenericScopeTreeNode[TP],
+        path_id: TP,
         *,
         allow_group: bool=False,
     ) -> Tuple[
-        Optional[ScopeTreeNode],
+        Optional[GenericScopeTreeNode[TP]],
         Optional[FenceInfo],
         AbstractSet[pathid.Namespace],
     ]:
@@ -816,16 +857,16 @@ class ScopeTreeNode:
         return found, finfo, namespaces
 
     def find_visible(
-        self, path_id: pathid.PathId, *, allow_group: bool=False
-    ) -> Optional[ScopeTreeNode]:
+        self, path_id: TP, *, allow_group: bool=False
+    ) -> Optional[GenericScopeTreeNode[TP]]:
         node, _, _ = self.find_visible_ex(path_id, allow_group=allow_group)
         return node
 
     def is_visible(
-            self, path_id: pathid.PathId, *, allow_group: bool=False) -> bool:
+            self, path_id: TP, *, allow_group: bool=False) -> bool:
         return self.find_visible(path_id, allow_group=allow_group) is not None
 
-    def is_any_prefix_visible(self, path_id: pathid.PathId) -> bool:
+    def is_any_prefix_visible(self, path_id: TP) -> bool:
         for prefix in reversed(list(path_id.iter_prefixes())):
             if self.find_visible(prefix) is not None:
                 return True
@@ -834,11 +875,11 @@ class ScopeTreeNode:
 
     def find_child(
         self,
-        path_id: pathid.PathId,
+        path_id: TP,
         *,
         in_branches: bool = False,
         pfx_with_invariant_card: bool = False,
-    ) -> Optional[ScopeTreeNode]:
+    ) -> Optional[GenericScopeTreeNode[TP]]:
         for child in self.children:
             if child.path_id == path_id:
                 return child
@@ -867,8 +908,8 @@ class ScopeTreeNode:
 
     def find_descendant(
         self,
-        path_id: pathid.PathId,
-    ) -> Optional[ScopeTreeNode]:
+        path_id: TP,
+    ) -> Optional[GenericScopeTreeNode[TP]]:
         for descendant, dns, _ in self.strict_descendants_and_namespaces:
             if (descendant.path_id is not None
                     and _paths_equal(descendant.path_id, path_id, dns)):
@@ -878,11 +919,11 @@ class ScopeTreeNode:
 
     def find_descendants(
         self,
-        path_id: pathid.PathId,
-    ) -> List[ScopeTreeNodeWithPathId]:
+        path_id: TP,
+    ) -> List[GenericScopeTreeNodeWithPathId[TP]]:
         matched = []
         for descendant, dns, _ in self.strict_descendants_and_namespaces:
-            if (has_path_id(descendant)
+            if (isinstance(descendant, GenericScopeTreeNodeWithPathId)
                     and _paths_equal(descendant.path_id, path_id, dns)):
                 matched.append(descendant)
 
@@ -890,9 +931,9 @@ class ScopeTreeNode:
 
     def find_descendant_and_ns(
         self,
-        path_id: pathid.PathId
+        path_id: TP
     ) -> Tuple[
-        Optional[ScopeTreeNode],
+        Optional[GenericScopeTreeNode[TP]],
         AbstractSet[pathid.Namespace],
         Optional[FenceInfo],
     ]:
@@ -903,8 +944,9 @@ class ScopeTreeNode:
 
         return None, frozenset(), None
 
-    def is_optional_upto(self, ancestor: Optional[ScopeTreeNode]) -> bool:
-        node: Optional[ScopeTreeNode] = self
+    def is_optional_upto(
+            self, ancestor: Optional[GenericScopeTreeNode[TP]]) -> bool:
+        node: Optional[GenericScopeTreeNode[TP]] = self
         while node and node is not ancestor:
             if node.optional:
                 return True
@@ -913,11 +955,11 @@ class ScopeTreeNode:
 
     def find_factorable_nodes(
         self,
-        path_id: pathid.PathId,
+        path_id: TP,
     ) -> List[
         Tuple[
-            ScopeTreeNodeWithPathId,
-            ScopeTreeNode,
+            GenericScopeTreeNodeWithPathId[TP],
+            GenericScopeTreeNode[TP],
             AbstractSet[pathid.Namespace],
             FenceInfo,
             bool,
@@ -962,7 +1004,7 @@ class ScopeTreeNode:
                     unfenced_only=fence_seen, skip=last)
             ):
                 cns: AbstractSet[str] = namespaces | dns
-                if (has_path_id(descendant)
+                if (isinstance(descendant, GenericScopeTreeNodeWithPathId)
                         and not descendant.is_group
                         and _paths_equal(descendant.path_id, path_id, cns)):
                     points.append((
@@ -998,7 +1040,8 @@ class ScopeTreeNode:
     def pdebugformat(
         self,
         fuller: bool=False,
-        styles: Optional[Mapping[ScopeTreeNode, term.AbstractStyle]]=None,
+        styles: Optional[Mapping[
+            GenericScopeTreeNode[TP], term.AbstractStyle]]=None,
     ) -> str:
         name = f'"{self.debugname(fuller=fuller)}"'
         if styles and self in styles:
@@ -1019,7 +1062,8 @@ class ScopeTreeNode:
     def dump(self) -> None:
         print(self.pdebugformat())
 
-    def dump_full(self, others: Collection[ScopeTreeNode]=()) -> None:
+    def dump_full(
+            self, others: Collection[GenericScopeTreeNode[TP]]=()) -> None:
         """Do a debug dump of the root but hilight the current node."""
         styles = {}
         if term.supports_colors(sys.stdout.fileno()):
@@ -1028,7 +1072,7 @@ class ScopeTreeNode:
                 styles[other] = term.Style16(color='blue', bold=True)
         print(self.root.pdebugformat(styles=styles))
 
-    def _set_parent(self, parent: Optional[ScopeTreeNode]) -> None:
+    def _set_parent(self, parent: Optional[GenericScopeTreeNode[TP]]) -> None:
         current_parent = self.parent
         if parent is current_parent:
             return
@@ -1044,12 +1088,15 @@ class ScopeTreeNode:
             self._parent = None
 
 
-class ScopeTreeNodeWithPathId(ScopeTreeNode):
+class GenericScopeTreeNodeWithPathId(GenericScopeTreeNode[TP]):
 
-    path_id: pathid.PathId
+    path_id: TP
 
 
-def _paths_equal(path_id_1: pathid.PathId, path_id_2: pathid.PathId,
+ScopeTreeNode = GenericScopeTreeNode[pathid.PathId]
+
+
+def _paths_equal(path_id_1: PathIdLike, path_id_2: PathIdLike,
                  namespaces: AbstractSet[str]) -> bool:
     if namespaces:
         path_id_1 = path_id_1.strip_namespace(namespaces)

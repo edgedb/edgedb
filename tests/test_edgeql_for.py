@@ -1106,3 +1106,21 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [{"key": "Earth"}, {"key": "Water"}]
         )
+
+    async def test_edgeql_for_optional_01(self):
+        await self.assert_query_result(
+            r'''
+                for optional x in
+                    (select User filter .name = 'George')
+                union x.deck_cost ?? 0;
+            ''',
+            [0],
+        )
+
+    async def test_edgeql_for_order_by_01(self):
+        await self.assert_query_result(
+            r"""
+                for x in User union x.name order by x.name desc
+            """,
+            ["Dave", "Carol", "Bob", "Alice"],
+        )
