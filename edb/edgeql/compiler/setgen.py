@@ -76,6 +76,7 @@ def new_set(
     stype: s_types.Type,
     ctx: context.ContextLevel,
     ircls: Type[irast.Set] = irast.Set,
+    path_id: irast.PathId,
     **kwargs: Any,
 ) -> irast.Set:
     """Create a new ir.Set instance with given attributes.
@@ -103,7 +104,7 @@ def new_set(
         policies.try_type_rewrite(stype, skip_subtypes=skip_subtypes, ctx=ctx)
 
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
-    ir_set = ircls(typeref=typeref, **kwargs)
+    ir_set = ircls(typeref=typeref, path_id=path_id, **kwargs)
     ctx.env.set_types[ir_set] = stype
     return ir_set
 
@@ -1122,7 +1123,12 @@ def type_intersection_set(
     if result.stype == arg_type:
         return source_set
 
-    poly_set = new_set(stype=result.stype, context=source_context, ctx=ctx)
+    poly_set = new_set(
+        stype=result.stype,
+        context=source_context,
+        path_id=None,  # type: ignore
+        ctx=ctx
+    )
     rptr = source_set.rptr
     rptr_specialization = []
 
