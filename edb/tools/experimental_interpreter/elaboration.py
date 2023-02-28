@@ -176,7 +176,13 @@ def elab_IntegerConstant(e : qlast.IntegerConstant) -> IntVal:
 
 @elab.register(qlast.BooleanConstant)
 def elab_BooleanConstant(e : qlast.BooleanConstant) -> BoolVal: 
-    return BoolVal(val=bool(e.value))
+    match e.value:
+        case "True" | "true":
+            return BoolVal(val=True)
+        case "False" | "false":
+            return BoolVal(val=False)
+        case _:
+            raise ValueError("Unknown Bool Value", e)
 
 def elab_where(where : Optional[qlast.Expr]) -> BindingExpr:
     if where is None:

@@ -75,8 +75,9 @@ def get_all_pre_top_level_paths(e : Expr, dbschema : DBSchema) -> List[Expr]:
 def get_all_proper_top_level_paths(e : Expr, dbschema : DBSchema) -> List[Expr]:
     top_paths : List[Expr] = []
     semi_sub_paths : List[List[Expr]] = []
+    sub_paths : List[Expr] = []
     def populate(sub : Expr, level : QueryLevel) -> Optional[Expr]:
-        nonlocal top_paths, semi_sub_paths
+        nonlocal top_paths, semi_sub_paths, sub_paths
         if isinstance(sub, DetachedExpr): # skip detached
             return sub
         if level == QueryLevel.TOP_LEVEL and is_path(sub):
@@ -86,17 +87,18 @@ def get_all_proper_top_level_paths(e : Expr, dbschema : DBSchema) -> List[Expr]:
             semi_sub_paths = [*semi_sub_paths, get_all_pre_top_level_paths(sub, dbschema)]
             return sub # also cut off here
         elif level == QueryLevel.SUBQUERY:
+            sub_paths = [*sub_paths, *get_all_paths(sub)]
             return sub # also cut off here as paths inside subqueries
         else:
             return None
     map_query(populate, e, dbschema)
-    print("Semi sub paths are", semi_sub_paths)
+    # print("Semi sub paths are", semi_sub_paths)
 
     selected_semi_sub_paths = []
     for (i, cluster) in enumerate(semi_sub_paths):
         for (candidate) in cluster:
             prefixes = all_prefixes_of_a_path(candidate)
-            to_check = top_paths + [p for l in (semi_sub_paths[:i] + semi_sub_paths[i+1:]) for p in l]
+            to_check = top_paths + sub_paths + [p for l in (semi_sub_paths[:i] + semi_sub_paths[i+1:]) for p in l]
             if any([appears_in_expr(prefix, ck) for prefix in prefixes for ck in to_check]):
                 selected_semi_sub_paths.append(candidate)
 
@@ -140,7 +142,7 @@ def common_longest_path_prefix_in_set(test_set : List[Expr]) -> List[Expr]:
 def toppath_for_factoring(e : Expr, dbschema : DBSchema) -> List[Expr]:
     all_paths = get_all_paths(e)
     top_level_paths = get_all_proper_top_level_paths(e, dbschema)
-    print("All Proper Top Level Paths", top_level_paths)
+    # print("All Proper Top Level Paths", top_level_paths)
     c_i = [common_longest_path_prefix_in_set(all_paths + [b]) for b in top_level_paths]
     return sorted(list(set([p for c in c_i for p in c])), key=path_lexicographic_key)
 
@@ -171,11 +173,11 @@ def sub_select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
             return select_hoist(e, dbschema)
     return map_sub_and_semisub_queries(sub_select_hoist_map_func, e, dbschema)
 
-@trace_input_output
+# @trace_input_output
 def select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
     top_paths = toppath_for_factoring(e, dbschema)
     fresh_names : List[str] = [next_name() for p in top_paths]
-    print("Paths and Names:", top_paths, fresh_names)
+    # print("Paths and Names:", top_paths, fresh_names)
     fresh_vars : List[Expr] = [FreeVarExpr(n) for n in fresh_names]
     for_paths = [iterative_subst_expr_for_expr(fresh_vars[:i], top_paths[:i], p_i) for (i, p_i) in enumerate(top_paths)]
 
