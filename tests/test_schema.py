@@ -793,6 +793,19 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    @tb.must_fail(
+        errors.InvalidFunctionDefinitionError,
+        r"cannot create the `test::foo\(VARIADIC bar: "
+        r"OPTIONAL array<std::int64>\)` function: "
+        r"variadic argument `bar` illegally declared "
+        r"with optional type in user-defined function"
+    )
+    def test_schema_func_optional_variadic_01(self):
+        """
+            function foo(variadic bar: optional int64) -> array<int64>
+                using (assert_exists(bar));
+        """
+
     def test_schema_refs_01(self):
         schema = self.load_schema("""
             type Object1;
