@@ -176,6 +176,7 @@ def eval_config(rt : RTExpr) -> RTVal:
             | ArrVal(_)
             | UnnamedTupleVal(_)
             | FreeVal(_)
+            | LinkPropVal(_)
             ):
             return RTVal(rt.data, [rt.expr])
         case ObjectExpr(val=dic):
@@ -240,7 +241,7 @@ def eval_config(rt : RTExpr) -> RTVal:
             return RTVal(new_data, after_fun_vals)
         case ObjectProjExpr(subject=subject, label=label):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
-            projected = [p for v in subjectv for p in singular_proj(new_data, v, StrLabel(label))]
+            projected = [p for v in assume_link_target(subjectv) for p in singular_proj(new_data, v, StrLabel(label))]
             if all([val_is_link_convertible(v) for v in projected]):
             # if all([val_is_primitive(v) for v in projected]) or len(subjectv) == 1 :
                 return RTVal(new_data, [convert_to_link(v) for v in projected])

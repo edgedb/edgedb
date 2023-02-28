@@ -205,11 +205,20 @@ def get_object_val(val : Val) -> ObjectVal:
 
 def val_is_primitive(rt : Val) -> bool:
     match rt:
-        case StrVal(_) | IntVal(_) | ArrVal(_) | UnnamedTupleVal(_):
+        case StrVal(_) | IntVal(_) | ArrVal(_) | UnnamedTupleVal(_) | BoolVal(_):
             return True
         case RefVal(_) | FreeVal(_):
             return False
     raise ValueError("not implemented")
+
+def val_is_object(rt : Val) -> bool:
+    match rt:
+        case RefVal(_) | FreeVal(_):
+            return True
+        case StrVal(_) | IntVal(_) | ArrVal(_) | UnnamedTupleVal(_) | BoolVal(_):
+            return False
+    raise ValueError("not implemented", rt)
+
 
 def val_is_ref_val(rt : Val) -> bool:
     match rt:
@@ -309,7 +318,14 @@ def get_link_target(val : Val) -> Val:
             raise ValueError("Not LinkPropVal")
 
 def assume_link_target(val : MultiSetVal) -> MultiSetVal:
-    return object_dedup([get_link_target(v) if isinstance(v, LinkPropVal) else v for v in val])
+    targets = [get_link_target(v) if isinstance(v, LinkPropVal) else v for v in val]
+    if all(val_is_object(t) for t in targets):
+        return object_dedup(targets)
+    elif all(val_is_primitive(t) for t in targets):
+        return targets
+    else:
+        raise ValueError("link targets not uniform", val)
+
 
 def map_assume_link_target(sv : Sequence[MultiSetVal]) -> Sequence[MultiSetVal]:
     return [assume_link_target(v) for v in sv]
