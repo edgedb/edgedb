@@ -12,6 +12,7 @@ from .basis.built_ins import all_builtin_funcs
 from edb.common import debug
 from .elaboration import *
 
+import readline
 
 from .evaluation import *
 from .back_to_ql import reverse_elab
@@ -54,6 +55,7 @@ def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print 
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
         debug.print(result.val)
+        print([val_to_json_like(v) for v in result.val])
         print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
     return (result.val, result.data.cur_db)
     # debug.dump(stmt)
@@ -117,7 +119,7 @@ def repl(*, init_sdl_file = None, init_ql_file = None, debug_print=False) -> Non
         dbschema = DBSchema({}, all_builtin_funcs)
     if init_ql_file is not None:
         initial_queries = open(init_ql_file).read()
-        db = run_str(db, dbschema, initial_queries, print_asts=debug_print)
+        (_, db) = run_str(db, dbschema, initial_queries, print_asts=debug_print)
     while True:
         print("> ", end="", flush=True)
         s = ""

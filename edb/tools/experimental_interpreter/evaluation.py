@@ -61,9 +61,9 @@ def apply_shape(ctx : RTData, shape : ShapeExpr, value : Val) -> Val:
             if key in shape.shape.keys():
                 new_val : MultiSetVal = eval_config(RTExpr(make_eval_only(ctx), 
                     instantiate_expr(value, shape.shape[key]))).val ### instantiate with value not pval !! (see semantics)
-                result = {**result, key : (Visible(), new_val)}
+                result = {**result, key : (Visible(), assume_link_target(new_val))}
             else:
-                result = {**result, key: (Invisible(), pval)}
+                result = {**result, key: (Invisible(), assume_link_target(pval))}
         for (key, shape_elem) in shape.shape.items():
             if key in objectval.val.keys():
                 pass
@@ -71,10 +71,11 @@ def apply_shape(ctx : RTData, shape : ShapeExpr, value : Val) -> Val:
                 new_val = eval_config(RTExpr(make_eval_only(ctx), 
                         instantiate_expr(value, shape_elem)
                     )).val
-                result = {**result, key : (Visible(), new_val)}
+                result = {**result, key : (Visible(), assume_link_target(new_val))}
         
         return ObjectVal(result)
 
+    [value] = assume_link_target([value])
     match value:
         case FreeVal(val=dictval):
             return FreeVal(val=apply_shape_to_prodval(shape, dictval))
@@ -184,7 +185,7 @@ def eval_config(rt : RTExpr) -> RTVal:
             result : Dict[Label, Tuple[Marker, MultiSetVal]] = {} 
             for (key, expr) in dic.items(): #type: ignore[has-type]
                 (cur_data, val) = eval_config(RTExpr(cur_data, expr))
-                result = {**result, key : (Visible(), val)}
+                result = {**result, key : (Visible(), assume_link_target(val))}
             return RTVal(cur_data, [FreeVal(ObjectVal(result))])
         case InsertExpr(tname, arg):
             if rt.data.eval_only:
