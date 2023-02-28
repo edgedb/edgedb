@@ -126,21 +126,17 @@ def singular_proj(data : RTData, subject : Val, label : Label) -> MultiSetVal :
                     else:
                         raise ValueError("key DNE")
             raise ValueError("Label not Str")
+        case LinkPropVal(obj=obj, linkprop=linkprop):
+            match label:
+                case LinkPropLabel(_):
+                    return singular_proj(data, FreeVal(val=linkprop), label=label)
+                case StrLabel(_):
+                    return singular_proj(data, obj, label=label)
+                case _:
+                    raise ValueError(label)
     raise ValueError("Cannot project, unknown subject", subject)
 
-
-def object_dedup(val : Sequence[Val]) -> Sequence[Val]:
-    temp : Dict[int, Val]= {}
-    for v in val:
-        match v:
-            case RefVal(refid=id, val=_):
-                temp[id] = v
-            case FreeVal(_):
-                temp[next_id()] = v ### Should link dedup apply to free objects?
-            case _:
-                raise ValueError("must pass in objects")
-    return list(temp.values())
-        
+ 
 def offset_vals(val : Sequence[Val], offset: Val):
     match offset:
         case IntVal(val=v):
@@ -245,10 +241,12 @@ def eval_config(rt : RTExpr) -> RTVal:
         case ObjectProjExpr(subject=subject, label=label):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
             projected = [p for v in subjectv for p in singular_proj(new_data, v, StrLabel(label))]
-            if all([val_is_primitive(v) for v in projected]) or len(subjectv) == 1 :
+            if all([val_is_link_convertible(v) for v in projected]):
+            # if all([val_is_primitive(v) for v in projected]) or len(subjectv) == 1 :
+                return RTVal(new_data, [convert_to_link(v) for v in projected])
+            elif all([not val_is_link_convertible(v) for v in projected]):
                 return RTVal(new_data, projected)
-            elif all([not val_is_primitive(v) for v in projected]):
-                return RTVal(new_data, object_dedup([remove_link_props(p) for p in projected]))
+                # return RTVal(new_data, object_dedup([remove_link_props(p) for p in projected]))
             else:
                 return eval_error(projected, "Returned objects are not uniform")
         case BackLinkExpr(subject=subject, label=label):
@@ -268,11 +266,11 @@ def eval_config(rt : RTExpr) -> RTVal:
             return RTVal(new_data, casted)
         case UnnamedTupleExpr(val=tuples):
             (new_data, tuplesv) = eval_expr_list(rt.data, tuples)
-            return RTVal(new_data, [UnnamedTupleVal(list(p)) for p in itertools.product(*tuplesv)])
+            return RTVal(new_data, [UnnamedTupleVal(list(p)) for p in itertools.product(*map_assume_link_target(tuplesv))])
         case NamedTupleExpr(val=tuples):
             (new_data, tuplesv) = eval_expr_list(rt.data, list(tuples.values()))
             return RTVal(new_data, [NamedTupleVal({k : p } ) 
-                for prod in  itertools.product(*tuplesv)
+                for prod in  itertools.product(*map_assume_link_target(tuplesv))
                 for (k, p) in zip(tuples.keys(),prod, strict=True) 
             ])
             # (new_data, tuplesv) = eval_expr_list(rt.data, list(tuples.values()))

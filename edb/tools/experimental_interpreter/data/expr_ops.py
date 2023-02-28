@@ -289,3 +289,45 @@ def coerce_to_storage(val : ObjectVal, fmt : ObjectTp) -> ObjectVal:
         ) for (k,tp) in fmt.val.items()
     })
 
+def object_dedup(val : Sequence[Val]) -> Sequence[Val]:
+    temp : Dict[int, Val]= {}
+    for v in val:
+        match v:
+            case RefVal(refid=id, val=_):
+                temp[id] = v
+            case FreeVal(_):
+                temp[next_id()] = v ### Should link dedup apply to free objects?
+            case _:
+                raise ValueError("must pass in objects")
+    return list(temp.values())
+       
+def get_link_target(val : Val) -> Val:
+    match val:
+        case LinkPropVal(obj=target, linkprop=lp):
+            return target
+        case _:
+            raise ValueError("Not LinkPropVal")
+
+def assume_link_target(val : MultiSetVal) -> MultiSetVal:
+    return object_dedup([get_link_target(v) if isinstance(v, LinkPropVal) else v for v in val])
+
+def map_assume_link_target(sv : Sequence[MultiSetVal]) -> Sequence[MultiSetVal]:
+    return [assume_link_target(v) for v in sv]
+
+
+def val_is_link_convertible(val : Val) -> bool:
+    match val:
+        case RefVal(refid=id, val=obj):
+            return all([isinstance(label, LinkPropLabel) for label in obj.val.keys()])
+        case _:
+            return False
+
+
+
+def convert_to_link(val : Val) -> LinkPropVal:
+    assert val_is_link_convertible(val)
+    match val:
+        case RefVal(refid=id, val=obj):
+            return LinkPropVal(obj=RefVal(refid=id, val=ObjectVal({})), linkprop=obj)
+        case _:
+            raise ValueError("Val is not link convertible, check va")

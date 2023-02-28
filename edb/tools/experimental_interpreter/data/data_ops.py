@@ -485,6 +485,11 @@ class NamedTupleVal:
 class ArrVal:
     val : Sequence[Val]
 
+@dataclass(frozen=True)
+class LinkPropVal:
+    obj : Val
+    linkprop : ObjectVal
+
 # @dataclass(frozen=True)
 # class MultiSetVal: # U
 #     val : Sequence[Val]
@@ -492,7 +497,7 @@ class ArrVal:
 
 Val =  (PrimVal | RefVal | FreeVal 
         # | RefLinkVal | LinkWithPropertyVal 
-        | UnnamedTupleVal | NamedTupleVal  | ArrVal ) # V
+        | UnnamedTupleVal | NamedTupleVal  | ArrVal | LinkPropVal) # V
 
 MultiSetVal = Sequence[Val]
 

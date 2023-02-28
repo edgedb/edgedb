@@ -1,3 +1,4 @@
+select Person.friends@source;
 with
         X :=  
 "hello,world"
