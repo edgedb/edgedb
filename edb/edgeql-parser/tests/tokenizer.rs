@@ -209,6 +209,25 @@ fn single_char_tokens() {
 }
 
 #[test]
+fn splats() {
+    assert_eq!(tok_str("*"), ["*"]);
+    assert_eq!(tok_typ("*"), [Mul]);
+    assert_eq!(tok_str("**"), ["**"]);
+    assert_eq!(tok_typ("**"), [DoubleSplat]);
+    assert_eq!(tok_str("* *"), ["*", "*"]);
+    assert_eq!(tok_typ("* *"), [Mul, Mul]);
+    assert_eq!(tok_str("User.*,"), ["User", ".", "*", ","]);
+    assert_eq!(tok_typ("User.*,"), [Ident, Dot, Mul, Comma]);
+    assert_eq!(tok_str("User.**,"), ["User", ".", "**", ","]);
+    assert_eq!(tok_typ("User.**,"), [Ident, Dot, DoubleSplat, Comma]);
+    assert_eq!(tok_str("User {*}"), ["User", "{", "*", "}"]);
+    assert_eq!(tok_typ("User {*}"), [Ident, OpenBrace, Mul, CloseBrace]);
+    assert_eq!(tok_str("User {**}"), ["User", "{", "**", "}"]);
+    assert_eq!(tok_typ("User {**}"),
+               [Ident, OpenBrace, DoubleSplat, CloseBrace]);
+}
+
+#[test]
 fn integer() {
     assert_eq!(tok_str("0"), ["0"]);
     assert_eq!(tok_typ("0"), [IntConst]);
