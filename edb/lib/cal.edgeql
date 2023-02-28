@@ -1228,7 +1228,7 @@ CREATE CAST FROM cal::local_date TO cal::local_datetime {
     SET volatility := 'Immutable';
     USING SQL CAST;
     # Analogous to implicit cast from int64 to float64.
-    ALLOW IMPLICIT;
+    ALLOW PSEUDO IMPLICIT;
 };
 
 

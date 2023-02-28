@@ -40,7 +40,8 @@ if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 
 
-_NOT_REACHABLE = 10000000
+_NOT_REACHABLE = 1_000_000_000
+PSEUDO_IMPLICIT_DISTANCE = 10_000
 
 
 def _is_reachable(
@@ -60,7 +61,10 @@ def _is_reachable(
 
     sources = {c.get_from_type(schema) for c in casts}
 
-    distance += 1
+    distance += (
+        1 if not all(c.get_allow_pseudo_implicit(schema) for c in casts)
+        else PSEUDO_IMPLICIT_DISTANCE
+    )
     if source in sources:
         return distance
     else:
@@ -217,6 +221,11 @@ class Cast(
     allow_implicit = so.SchemaField(
         bool, default=False, compcoef=0.4)
 
+    # This, unfortunately, is the same as allow_implicit except that
+    # it does not chain into other casts.
+    allow_pseudo_implicit = so.SchemaField(
+        bool, default=False, compcoef=0.4)
+
     allow_assignment = so.SchemaField(
         bool, default=False, compcoef=0.4)
 
@@ -249,7 +258,9 @@ class CastCommand(sd.QualifiedObjectCommand[Cast],
         field: str,
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
-        if field in {'allow_assignment', 'allow_implicit'}:
+        if field in (
+            'allow_assignment', 'allow_implicit', 'allow_pseudo_implicit'
+        ):
             return field
         else:
             return super().get_ast_attr_for_field(field, astnode)
@@ -361,6 +372,8 @@ class CreateCast(CastCommand, sd.CreateObject[Cast]):
         cmd.set_attribute_value('to_type', to_type)
 
         cmd.set_attribute_value('allow_implicit', astnode.allow_implicit)
+        cmd.set_attribute_value(
+            'allow_pseudo_implicit', astnode.allow_pseudo_implicit)
         cmd.set_attribute_value('allow_assignment', astnode.allow_assignment)
 
         if astnode.code is not None:

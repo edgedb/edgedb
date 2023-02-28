@@ -2806,6 +2806,13 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 SELECT <array<foo>><array<bar>>['test']
             """)
 
+    async def test_edgeql_casts_bad_time_01(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r'cannot cast'):
+            await self.con.execute("""
+                select <cal::local_time><optional cal::local_date>$0;
+            """, None)
+
     async def test_edgeql_casts_std_enum_01(self):
         await self.assert_query_result(
             '''
@@ -2827,14 +2834,28 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         # For *every* concrete cast, try casting a value we know
         # will be represented as NULL.
 
-        # Grab all concrete casts
+        # Grab all concrete casts. We do some extra work to *also* catch
+        # casts that are allowed just by implicit cast chaining.
         casts = await self.con.query('''
-            select schema::Cast { from_type: {name}, to_type: {name} }
-            filter .from_type.name not like '%any%'
-            and .to_type.name not like '%any%'
-            and not .from_type IS schema::ObjectType
+            WITH
+              C := (
+                select schema::Cast {
+                  from_type: {name},
+                  to_type: {name},
+                  targets := .to_type.<from_type[is schema::Cast]
+                }
+                filter .from_type.name not like '%any%'
+                and .to_type.name not like '%any%'
+                and not .from_type IS schema::ObjectType
+              ),
+              regular := (C.from_type.name, C.to_type.name),
+              chained := (select
+                (C.from_type.name, C.targets.to_type.name)
+                filter C.allow_implicit
+              ),
+            select distinct {regular, chained};
         ''')
-        from_types = {cast.from_type.name for cast in casts}
+        from_types = {from_type for from_type, _ in casts}
         type_keys = {
             name: f'x{i}' for i, name in enumerate(sorted(from_types))
         }
@@ -2852,20 +2873,17 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.con.execute(setup)
 
         # Do each cast
-        for cast in casts:
-            prop = type_keys[cast.from_type.name]
-            # FIXME: date_duration not supported yet in the bindings
-            json_only = cast.to_type.name == 'cal::date_duration'
+        for from_type, to_type in casts:
+            prop = type_keys[from_type]
 
             await self.assert_query_result(
                 f'''
                 SELECT Null {{
-                    res := <{cast.to_type.name}>.{prop}
+                    res := <{to_type}>.{prop}
                 }}
                 ''',
                 [{"res": None}],
-                msg=f'{cast.from_type.name} to {cast.to_type.name}',
-                json_only=json_only,
+                msg=f'{from_type} to {to_type}',
             )
 
     async def test_edgeql_casts_uuid_to_object(self):

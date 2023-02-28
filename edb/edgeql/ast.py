@@ -1436,6 +1436,7 @@ class CastCommand(ObjectDDL):
 class CreateCast(CreateObject, CastCommand):
     code: CastCode
     allow_implicit: bool
+    allow_pseudo_implicit: bool
     allow_assignment: bool
 
 

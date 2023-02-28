@@ -543,6 +543,7 @@ CREATE TYPE schema::Cast
     CREATE LINK from_type -> schema::Type;
     CREATE LINK to_type -> schema::Type;
     CREATE PROPERTY allow_implicit -> std::bool;
+    CREATE PROPERTY allow_pseudo_implicit -> std::bool;
     CREATE PROPERTY allow_assignment -> std::bool;
 };
 

@@ -447,6 +447,12 @@ def _find_cast(
         (CastCallableWrapper(c) for c in casts), args=args, kwargs={}, ctx=ctx)
 
     if len(matched) == 1:
+        # We allow (somewhat unfortunately) implicit casts to apply
+        # before an explicit cast, but we disallow "pseudo implicit"
+        # casts.
+        arg = matched[0].args[0]
+        if arg.cast_distance >= s_casts.PSEUDO_IMPLICIT_DISTANCE:
+            return None
         return cast(CastCallableWrapper, matched[0].func)._cast
     elif len(matched) > 1:
         raise errors.QueryError(

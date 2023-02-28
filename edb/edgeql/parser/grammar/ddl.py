@@ -2804,6 +2804,9 @@ class CastAllowedUse(Nonterm):
     def reduce_ALLOW_IMPLICIT(self, *kids):
         self.val = CastUseValue(use=kids[1].val.upper())
 
+    def reduce_ALLOW_PSEUDO_IMPLICIT(self, *kids):
+        self.val = CastUseValue(use=kids[1].val.upper())
+
     def reduce_ALLOW_ASSIGNMENT(self, *kids):
         self.val = CastUseValue(use=kids[1].val.upper())
 
@@ -2881,6 +2884,7 @@ class CreateCastStmt(Nonterm):
         from_expr = False
         from_cast = False
         allow_implicit = False
+        allow_pseudo_implicit = False
         allow_assignment = False
         code = None
 
@@ -2926,6 +2930,8 @@ class CreateCastStmt(Nonterm):
                     allow_implicit = True
                 elif node.use == 'ASSIGNMENT':
                     allow_assignment = True
+                elif node.use == 'PSEUDO':
+                    allow_pseudo_implicit = True
                 else:
                     raise EdgeQLSyntaxError(
                         'unexpected ALLOW clause',
@@ -2962,6 +2968,7 @@ class CreateCastStmt(Nonterm):
             )
 
             props['allow_implicit'] = allow_implicit
+            props['allow_pseudo_implicit'] = allow_pseudo_implicit
             props['allow_assignment'] = allow_assignment
 
         if commands:

@@ -1178,7 +1178,10 @@ class FlatSchema(Schema):
 
         casts = []
         for castobj in all_casts:
-            if implicit and not castobj.get_allow_implicit(self):
+            if implicit and not (
+                castobj.get_allow_implicit(self)
+                or castobj.get_allow_pseudo_implicit(self)
+            ):
                 continue
             if assignment and not castobj.get_allow_assignment(self):
                 continue
