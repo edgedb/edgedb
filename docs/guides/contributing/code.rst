@@ -11,9 +11,8 @@ internal tools, and how to contribute to it.
 
 .. warning::
 
-    Pull requests without thorough testing are not likely to be merged. If
-    you're not sure if yours is well-tested enough, go ahead and submit. We can
-    help guide you to the finish line.
+    Code-changing pull requests without adding new tests might take
+    longer time to be reviewed and merged.
 
 .. _ref_guide_contributing_code_build:
 
