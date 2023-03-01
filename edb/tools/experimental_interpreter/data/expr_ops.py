@@ -20,17 +20,7 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
         def recur(expr):
             return map_expr(f, expr, level)
         match expr:
-            case FreeVarExpr(_):
-                return expr
-            case BoundVarExpr(_):
-                return expr
-            case StrVal(_):
-                return expr
-            case BoolVal(_):
-                return expr
-            case IntVal(_):
-                return expr
-            case RefVal(_):
+            case FreeVarExpr(_) | BoundVarExpr(_) | StrVal(_) | BoolVal(_) | IntVal(_) | RefVal(_) | LinkPropVal(_):
                 return expr
             case BindingExpr(body=body):
                 return BindingExpr(body=map_expr(f, body, level+1)) # type: ignore[has-type]
