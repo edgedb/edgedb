@@ -22,6 +22,9 @@ import copy
 
 from .elab_schema import schema_from_sdl_file, schema_from_sdl_defs
 
+import sys
+sys.setrecursionlimit(10000) ### CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
+
 def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print : bool) -> Tuple[MultiSetVal, DB]:
     if should_print:
         print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
@@ -40,7 +43,6 @@ def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print 
 
     if should_print:
         debug.print(factored)
-        # debug.dump(reverse_elab(factored))
         reverse_elabed = reverse_elab(factored)
         debug.dump_edgeql(reverse_elabed)
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
@@ -51,7 +53,7 @@ def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print 
                 dbschema,
                 False
             ), factored)
-    result = eval_config(config)
+    result = eval_config_toplevel(config)
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
         debug.print(result.val)

@@ -73,15 +73,15 @@ def get_all_pre_top_level_paths(e : Expr, dbschema : DBSchema) -> List[Expr]:
     
 
 def get_all_proper_top_level_paths(e : Expr, dbschema : DBSchema) -> List[Expr]:
-    top_paths : List[Expr] = []
+    definite_top_paths : List[Expr] = []
     semi_sub_paths : List[List[Expr]] = []
     sub_paths : List[Expr] = []
     def populate(sub : Expr, level : QueryLevel) -> Optional[Expr]:
-        nonlocal top_paths, semi_sub_paths, sub_paths
+        nonlocal definite_top_paths, semi_sub_paths, sub_paths
         if isinstance(sub, DetachedExpr): # skip detached
             return sub
         if level == QueryLevel.TOP_LEVEL and is_path(sub):
-            top_paths = [*top_paths, sub]
+            definite_top_paths = [*definite_top_paths, sub]
             return sub
         elif level == QueryLevel.SEMI_SUBQUERY:
             semi_sub_paths = [*semi_sub_paths, get_all_pre_top_level_paths(sub, dbschema)]
@@ -92,19 +92,22 @@ def get_all_proper_top_level_paths(e : Expr, dbschema : DBSchema) -> List[Expr]:
         else:
             return None
     map_query(populate, e, dbschema)
+    # print("Querying", type(e))
+    # print("Definite paths are", definite_top_paths)
     # print("Semi sub paths are", semi_sub_paths)
 
     selected_semi_sub_paths = []
     for (i, cluster) in enumerate(semi_sub_paths):
         for (candidate) in cluster:
             prefixes = all_prefixes_of_a_path(candidate)
-            to_check = top_paths + sub_paths + [p for l in (semi_sub_paths[:i] + semi_sub_paths[i+1:]) for p in l]
+            to_check = definite_top_paths + sub_paths + [p for l in (semi_sub_paths[:i] + semi_sub_paths[i+1:]) for p in l]
             if any([appears_in_expr(prefix, ck) for prefix in prefixes for ck in to_check]):
                 selected_semi_sub_paths.append(candidate)
 
     # all top_paths will show up finally, we need to filter out those paths in semi_sub 
     # whose prefixes (including itself) appears solely in the same subquery
-    return top_paths + selected_semi_sub_paths
+    # print("Selected semi sub paths are", selected_semi_sub_paths)
+    return definite_top_paths + selected_semi_sub_paths
 
 def common_longest_path_prefix(e1 : Expr, e2 : Expr) -> Optional[Expr]:
     pending = None
@@ -143,7 +146,7 @@ def toppath_for_factoring(e : Expr, dbschema : DBSchema) -> List[Expr]:
     all_paths = get_all_paths(e)
     top_level_paths = get_all_proper_top_level_paths(e, dbschema)
     # print("All Proper Top Level Paths", top_level_paths)
-    c_i = [common_longest_path_prefix_in_set(all_paths + [b]) for b in top_level_paths]
+    c_i = [common_longest_path_prefix_in_set(top_level_paths + [b]) for b in all_paths]
     return sorted(list(set([p for c in c_i for p in c])), key=path_lexicographic_key)
 
 def trace_input_output(func):
@@ -176,6 +179,7 @@ def sub_select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
 # @trace_input_output
 def select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
     top_paths = toppath_for_factoring(e, dbschema)
+    # print("Top paths of ", type(e), " has ", len (top_paths), " top paths ", e, top_paths)
     fresh_names : List[str] = [next_name() for p in top_paths]
     # print("Paths and Names:", top_paths, fresh_names)
     fresh_vars : List[Expr] = [FreeVarExpr(n) for n in fresh_names]
@@ -186,7 +190,7 @@ def select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
     match e :
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
             bindname = next_name() 
-            inner_e = ForExpr(FilterOrderExpr(subject=sub_select_hoist(iterative_subst_expr_for_expr(fresh_vars, top_paths, subject), dbschema), 
+            inner_e = OptionalForExpr(FilterOrderExpr(subject=sub_select_hoist(iterative_subst_expr_for_expr(fresh_vars, top_paths, subject), dbschema), 
                                                filter=operate_under_binding(filter, lambda filter:select_hoist(iterative_subst_expr_for_expr(fresh_vars, top_paths, filter), dbschema)), 
                                                order= abstract_over_expr(ObjectExpr({}))
                                                       ),
