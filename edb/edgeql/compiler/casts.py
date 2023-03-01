@@ -245,16 +245,13 @@ def _has_common_concrete_scalar(
         orig_stype: s_types.Type,
         new_stype: s_types.Type, *,
         ctx: context.ContextLevel) -> bool:
+    schema = ctx.env.schema
     return bool(
         isinstance(orig_stype, s_scalars.ScalarType)
         and isinstance(new_stype, s_scalars.ScalarType)
-        and (nearest := s_utils.get_class_nearest_common_ancestors(
-            ctx.env.schema, [new_stype, orig_stype]))
-        and len(nearest) == 1
-        and (
-            nearest[0].maybe_get_topmost_concrete_base(ctx.env.schema)
-            is not None
-        )
+        and (orig_base := orig_stype.maybe_get_topmost_concrete_base(schema))
+        and (new_base := new_stype.maybe_get_topmost_concrete_base(schema))
+        and orig_base == new_base
     )
 
 
