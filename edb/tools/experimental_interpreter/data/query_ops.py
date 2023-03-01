@@ -101,7 +101,7 @@ def map_query(f : Callable[[Expr, QueryLevel], Optional[Expr]], expr : Expr, sch
             case OptionalForExpr(bound=bound, next=next):
                 return OptionalForExpr(bound=sub_recur(bound), next=sub_recur(next))
             case InsertExpr(name=name, new=new):
-                return InsertExpr(name=name, new=sub_recur(new))
+                return InsertExpr(name=name, new=recur(new))
             case ObjectExpr(val=val):
                 return ObjectExpr(val={label : sub_recur(item) for (label, item) in val.items()})
             case DetachedExpr(expr=expr):

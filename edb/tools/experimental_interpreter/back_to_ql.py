@@ -6,7 +6,7 @@ from edb.schema.pointers import PointerDirection
 
 from edb.edgeql import ast as qlast
 from .basis.built_ins import all_builtin_ops
-
+from edb.common import debug
 def reverse_elab_error(msg : str, expr : Val | Expr | Sequence[Val]) -> Any:
     raise ValueError("Reverse Elab Error", msg, expr)
 
@@ -80,6 +80,7 @@ def reverse_elab(ir_expr : Expr) -> qlast.Base:
         case InsertExpr(name=tname, new=arg):
             return qlast.InsertQuery(subject=qlast.ObjectRef(name=tname), 
                 shape=reverse_elab_shape(object_to_shape(cast(ObjectExpr, arg)))
+                # reverse_elab(arg)
             )
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
             result_name = next_name()
