@@ -136,6 +136,15 @@ def common_longest_path_prefix_in_set(test_set : List[Expr]) -> List[Expr]:
                 result.append(optional)
     return result
 
+def separate_common_longest_path_prefix_in_set(base_set : List[Expr], compare_set : List[Expr]) -> List[Expr]:
+    result : List[Expr] = []
+    for s in base_set:
+        for t in compare_set:
+            optional = common_longest_path_prefix(s, t)
+            if optional:
+                result.append(optional)
+    return result
+
 
 
 
@@ -146,8 +155,9 @@ def toppath_for_factoring(e : Expr, dbschema : DBSchema) -> List[Expr]:
     all_paths = get_all_paths(e)
     top_level_paths = get_all_proper_top_level_paths(e, dbschema)
     # print("All Proper Top Level Paths", top_level_paths)
-    c_i = [common_longest_path_prefix_in_set(top_level_paths + [b]) for b in all_paths]
-    return sorted(list(set([p for c in c_i for p in c])), key=path_lexicographic_key)
+    clpp_a = common_longest_path_prefix_in_set(top_level_paths)
+    c_i = [separate_common_longest_path_prefix_in_set(top_level_paths, [b]) for b in all_paths]
+    return sorted(list(set([p for c in c_i for p in c] + clpp_a)), key=path_lexicographic_key)
 
 def trace_input_output(func):
     def wrapper(e, s):
@@ -179,7 +189,7 @@ def sub_select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
 # @trace_input_output
 def select_hoist(e : Expr, dbschema : DBSchema) -> Expr:
     top_paths = toppath_for_factoring(e, dbschema)
-    # print("Top paths of ", type(e), " has ", len (top_paths), " top paths ", e, top_paths)
+    # print("Top paths of ", type(e), " has ", len (top_paths), " top paths ",  top_paths)
     fresh_names : List[str] = [next_name() for p in top_paths]
     # print("Paths and Names:", top_paths, fresh_names)
     fresh_vars : List[Expr] = [FreeVarExpr(n) for n in fresh_names]
