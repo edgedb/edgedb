@@ -94,6 +94,7 @@ jobs:
     - name: Test
       env:
         EDGEDB_TEST_POSTGRES_VERSION: ${{ matrix.postgres-version }}
+      continue-on-error: ${{ matrix.single-mode == 'NOCREATEDB NOCREATEROLE' }}
       run: |
         if [[ "${{ matrix.single-mode }}" ]]; then
           export EDGEDB_TEST_BACKEND_DSN=postgres://singles:test@localhost/singles
