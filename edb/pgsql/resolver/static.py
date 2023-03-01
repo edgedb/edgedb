@@ -113,7 +113,9 @@ def eval_FuncCall(
 
     if fn_name == 'version':
         from edb import buildmeta
-        return pgast.StringConstant(val="EdgeDB " + buildmeta.get_version_line())
+        return pgast.StringConstant(
+            val="EdgeDB " + buildmeta.get_version_line()
+        )
 
     return None
 
