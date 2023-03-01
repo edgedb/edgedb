@@ -60,6 +60,8 @@ def map_query(f : Callable[[Expr, QueryLevel], Optional[Expr]], expr : Expr, sch
                 return NamedTupleExpr(val={k : recur(e) for (k,e) in val.items()})
             case ObjectProjExpr(subject=subject, label=label):
                 return ObjectProjExpr(subject=recur(subject), label=label)
+            case LinkPropProjExpr(subject=subject, linkprop=linkprop):
+                return LinkPropProjExpr(subject=recur(subject), linkprop=linkprop)
             case BackLinkExpr(subject=subject, label=label):
                 return BackLinkExpr(subject=recur(subject), label=label)
             case TpIntersectExpr(subject=subject, tp=tp_name):
