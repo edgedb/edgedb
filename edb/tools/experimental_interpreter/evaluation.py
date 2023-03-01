@@ -340,3 +340,11 @@ def eval_config(rt : RTExpr) -> RTVal:
 
 
     raise ValueError("Not Implemented", rt.expr)
+
+def eval_config_toplevel(rt : RTExpr) -> RTVal:
+    match (eval_config(rt)):
+        case RTVal(data=data, val=val):
+            return RTVal(data=data, val=assume_link_target(val))
+        case v:
+            raise ValueError(v)
+    
