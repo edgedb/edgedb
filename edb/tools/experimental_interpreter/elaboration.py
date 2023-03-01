@@ -79,7 +79,7 @@ def elab_Path(p : qlast.Path) -> Expr:
                     raise ValueError("should not be")
                 else:
                     match elab_single_type_expr(tp):
-                        case qlast.TypeName(maintype=qlast.ObjectRef(name=tp_name)):
+                        case VarTp(name=tp_name):
                             result = TpIntersectExpr(result, tp_name)
                         case _:
                             raise ValueError("expecting single type name here")
