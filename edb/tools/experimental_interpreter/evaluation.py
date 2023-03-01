@@ -253,14 +253,29 @@ def eval_config(rt : RTExpr) -> RTVal:
                 return eval_error(projected, "Returned objects are not uniform")
         case BackLinkExpr(subject=subject, label=label):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            subject_ids = [v.refid if isinstance(v, RefVal) else eval_error(v, "expecting references") for v in subjectv]
             cur_read_data : Dict[int, DBEntry] = rt.data.read_snapshots[0].dbdata
-            results = [RefVal(id, ObjectVal({})) for (id, obj) in cur_read_data.items() if label in obj.data.val.keys()]
+            results : List[Val] = []
+            for (id, obj) in cur_read_data.items():
+                if StrLabel(label) in obj.data.val.keys():
+                    object_vals = obj.data.val[StrLabel(label)][1]
+                    if all(isinstance(object_val, RefVal) for object_val in object_vals):
+                        # object_ids = [object_val.refid for object_val in object_vals if isinstance(object_val, RefVal)]
+                        object_id_mapping = {object_val.refid : object_val.val for object_val in object_vals if isinstance(object_val, RefVal)}
+                        for (object_id, obj_linkprop_val) in object_id_mapping.items():
+                            if object_id in subject_ids:
+                                results = [*results, LinkPropVal(obj=RefVal(id, ObjectVal({})), linkprop=obj_linkprop_val)]
             return RTVal(new_data, results)
         case TpIntersectExpr(subject=subject, tp=tp_name):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
-            after_intersect = [v for v in subjectv
-                    for vid in ([v.refid] if val_is_ref_val(v) and isinstance(v, RefVal) else eval_error(v, "expecting references?") )
-                    if is_nominal_subtype_in_schema(new_data.cur_db.dbdata[vid].tp.name, tp_name, new_data.schema)]
+            after_intersect : MultiSetVal =  [] 
+            for v in subjectv:
+                match v:
+                    case RefVal(refid=vid, val=_) | LinkPropVal(obj=RefVal(refid=vid, val=_), linkprop=_) :
+                        if is_nominal_subtype_in_schema(new_data.cur_db.dbdata[vid].tp.name, tp_name, new_data.schema):
+                            after_intersect = [*after_intersect, v]
+                    case _:
+                        raise ValueError("Expecting References")
             return RTVal(new_data, after_intersect)
         case TypeCastExpr(tp=tp, arg=arg):
             (new_data, argv2) = eval_config(RTExpr(rt.data, arg))
