@@ -36,6 +36,7 @@ from edb.schema import constraints as s_constr
 from edb.schema import functions as s_func
 from edb.schema import indexes as s_indexes
 from edb.schema import name as sn
+from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 from edb.schema import name as s_name
@@ -134,9 +135,13 @@ def compile_cast(
             ir_set, orig_stype, new_stype,
             cardinality_mod=cardinality_mod, ctx=ctx)
 
-    if new_stype.issubclass(ctx.env.schema, orig_stype):
-        # The new type is a subtype, so may potentially have
-        # a more restrictive domain, generate a cast call.
+    if (
+        new_stype.issubclass(ctx.env.schema, orig_stype)
+        or _has_common_concrete_scalar(orig_stype, new_stype, ctx=ctx)
+    ):
+        # The new type is a subtype or a sibling type of a shared
+        # ancestor, so may potentially have a more restrictive domain,
+        # generate a cast call.
         return _inheritance_cast_to_ir(
             ir_set, orig_stype, new_stype,
             cardinality_mod=cardinality_mod, ctx=ctx)
@@ -233,6 +238,20 @@ def compile_cast(
         cardinality_mod=cardinality_mod,
         srcctx=srcctx,
         ctx=ctx,
+    )
+
+
+def _has_common_concrete_scalar(
+        orig_stype: s_types.Type,
+        new_stype: s_types.Type, *,
+        ctx: context.ContextLevel) -> bool:
+    schema = ctx.env.schema
+    return bool(
+        isinstance(orig_stype, s_scalars.ScalarType)
+        and isinstance(new_stype, s_scalars.ScalarType)
+        and (orig_base := orig_stype.maybe_get_topmost_concrete_base(schema))
+        and (new_base := new_stype.maybe_get_topmost_concrete_base(schema))
+        and orig_base == new_base
     )
 
 
@@ -424,7 +443,8 @@ def _find_cast(
     # Don't try to pick up casts when there is a direct subtyping
     # relationship.
     if (orig_stype.issubclass(ctx.env.schema, new_stype)
-            or new_stype.issubclass(ctx.env.schema, orig_stype)):
+            or new_stype.issubclass(ctx.env.schema, orig_stype)
+            or _has_common_concrete_scalar(orig_stype, new_stype, ctx=ctx)):
         return None
 
     casts = ctx.env.schema.get_casts_to_type(new_stype)
