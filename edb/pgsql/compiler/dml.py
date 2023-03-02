@@ -841,7 +841,7 @@ def merge_overlays_globally(
     *,
     ctx: context.CompilerContextLevel,
 ) -> None:
-    relctx.clone_rel_overlays(ctx=ctx)
+    ctx.rel_overlays = ctx.rel_overlays.copy()
 
     type_overlay = ctx.rel_overlays.type.get(None, immu.Map())
     ptr_overlay = ctx.rel_overlays.ptr.get(None, immu.Map())
@@ -852,13 +852,13 @@ def merge_overlays_globally(
         for k, v in ctx.rel_overlays.type.get(ir_stmt, immu.Map()).items():
             els = set(type_overlay.get(k, ()))
             n_els = (
-                type_overlay.get(k, ()) + tuple([e for e in v if e not in els])
+                type_overlay.get(k, ()) + tuple(e for e in v if e not in els)
             )
             type_overlay = type_overlay.set(k, n_els)
         for k2, v2 in ctx.rel_overlays.ptr.get(ir_stmt, immu.Map()).items():
             els = set(ptr_overlay.get(k2, ()))
             n_els = (
-                ptr_overlay.get(k2, ()) + tuple([e for e in v2 if e not in els])
+                ptr_overlay.get(k2, ()) + tuple(e for e in v2 if e not in els)
             )
             ptr_overlay = ptr_overlay.set(k2, n_els)
 
@@ -2155,7 +2155,7 @@ def process_link_update(
             with ctx.new() as subctx:
                 # TODO: Do we really need a copy here? things /seem/
                 # to work without it
-                relctx.clone_rel_overlays(ctx=ctx)
+                subctx.rel_overlays = subctx.rel_overlays.copy()
                 relctx.add_ptr_rel_overlay(
                     ptrref, 'except', delcte, path_id=path_id, ctx=subctx)
 
@@ -2314,7 +2314,7 @@ def process_link_update(
             ctx=octx)
 
     if policy_ctx:
-        relctx.clone_rel_overlays(ctx=policy_ctx)
+        policy_ctx.rel_overlays = policy_ctx.rel_overlays.copy()
         register_overlays(data_cte, policy_ctx)
 
     register_overlays(updcte, ctx)
@@ -2611,7 +2611,7 @@ def compile_trigger(
 
     # Produce a CTE containing all of the affected objects for this trigger
     with ctx.newrel() as ictx:
-        relctx.clear_rel_overlays(ctx=ictx)
+        ictx.rel_overlays = context.RelOverlays()
         ictx.rel_overlays.type = immu.Map({
             None: immu.Map({trigger.source_type.id: tuple(overlays)})
         })

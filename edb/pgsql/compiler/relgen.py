@@ -3734,7 +3734,7 @@ def process_encoded_param(
         with ctx.newrel() as sctx:
             sctx.pending_query = sctx.rel
             sctx.volatility_ref = ()
-            relctx.clear_rel_overlays(ctx=sctx)
+            sctx.rel_overlays = context.RelOverlays()
             arg_ref = dispatch.compile(decoder, ctx=sctx)
 
             # Force it into a real tuple so we can just always grab it

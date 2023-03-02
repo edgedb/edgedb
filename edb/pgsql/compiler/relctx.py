@@ -1397,7 +1397,7 @@ def range_for_material_objtype(
                 # rewrites *to include* overlays, so that we can't peek
                 # at all newly created objects that we can't see
                 if not ctx.trigger_mode:
-                    clear_rel_overlays(ctx=sctx)
+                    sctx.rel_overlays = context.RelOverlays()
                 dispatch.visit(rewrite, ctx=sctx)
                 # If we are expanding inhviews, we also expand type
                 # rewrites, so don't populate type_ctes. The normal
@@ -2165,11 +2165,3 @@ def get_ptr_rel_overlays(
     else:
         key = typeref.id, ptrref.shortname.name
         return ctx.rel_overlays.ptr[dml_source].get(key, ())
-
-
-def clone_rel_overlays(*, ctx: context.CompilerContextLevel) -> None:
-    ctx.rel_overlays = ctx.rel_overlays.copy()
-
-
-def clear_rel_overlays(*, ctx: context.CompilerContextLevel) -> None:
-    ctx.rel_overlays = context.RelOverlays()
