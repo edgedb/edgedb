@@ -83,6 +83,78 @@ OverlayEntry = tuple[
 
 @dataclasses.dataclass(kw_only=True)
 class RelOverlays:
+    """Container for relation overlays.
+
+    These track "overlays" that can be registered for different types,
+    in the context of DML.
+
+    Consider the query:
+      with X := (
+        insert Person {
+          name := "Sully",
+          notes := assert_distinct({
+            (insert Note {name := "1"}),
+            (select Note filter .name = "2"),
+          }),
+        }),
+      select X { name, notes: {name} };
+
+    When we go to select X, we find the source of that set without any
+    trouble (it's the result of the actual insert statement, more or
+    less; in any case, it's in a CTE that we then include).
+
+    Handling the notes are trickier, though:
+      * The links aren't in the link table yet, but only in a CTE.
+        (In similar update cases, with things like +=, they might be mixed
+        between both.)
+      * Some of the actual Note objects aren't in the table yet, just an insert
+        CTE. But some *are*, so we need to union them.
+
+    We solve these problems using overlays:
+      * Whenever we do DML (or reference WITH-bound DML),
+        we register overlays describing the changes done
+        to *all of the enclosing DML*. So here, the Note insert's overlays
+        get registered both for the Note insert and for the Person insert.
+      * When we try to compile a root set or pointer, we see if it is connected
+        to a DML statement, and if so we apply the overlays.
+
+    The overlay itself is simply a sequence of operations on relations
+    and CTEs that mix in the new data. In the obvious insert cases,
+    these consist of unioning the new data in.
+
+    This system works decently well but is also a little broken: I
+    think that both the "all of the enclosing DML" and the "see if it
+    is connected to a DML statement" have dangers; see Issue #3030.
+
+    In relctx, see range_for_material_objtype, range_for_ptrref, and
+    range_from_queryset (which those two call) for details on how
+    overlays are applied.
+    Overlays are added to with relctx.add_type_rel_overlay
+    and relctx.add_ptr_rel_overlay.
+
+
+    ===== NOTE ON MUTABILITY:
+    In typical use, the overlays are mutable: nested DML adds overlays
+    that are then consumed by code in enclosing contexts.
+
+    In some places, however, we need to temporarily customize the
+    overlay environment (during policy and trigger compilation, for
+    example).
+
+    The original version of overlays were implemented as a dict of
+    dicts of lists. Doing temporary customizations required doing
+    at least some copying. Doing a full deep copy always felt excessive
+    but doing anything short of that left me constantly terrified.
+
+    So instead we represent the overlays as a mutable object that
+    contains immutable maps. When we add overlays, we update the maps
+    and then reassign their values.
+
+    When we want to do a temporary adjustment, we can cheaply make a
+    fresh RelOverlays object and then modify that without touching the
+    original.
+    """
+
     #: Relations used to "overlay" the main table for
     #: the type.  Mostly used with DML statements.
     type: immu.Map[
