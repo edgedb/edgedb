@@ -1,6 +1,5 @@
 
 
-
 from .data.data_ops import *
 from .helper_funcs import *
 import sys
@@ -23,9 +22,11 @@ import copy
 from .elab_schema import schema_from_sdl_file, schema_from_sdl_defs
 
 import sys
-sys.setrecursionlimit(10000) ### CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
+# CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
+sys.setrecursionlimit(10000)
 
-def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print : bool) -> Tuple[MultiSetVal, DB]:
+
+def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema, should_print: bool) -> Tuple[MultiSetVal, DB]:
     if should_print:
         print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
         debug.dump_edgeql(stmt)
@@ -48,11 +49,11 @@ def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print 
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
 
     config = RTExpr(
-            RTData(DB(db.dbdata), 
-                [DB({**db.dbdata})],
-                dbschema,
-                False
-            ), factored)
+        RTData(DB(db.dbdata),
+               [DB({**db.dbdata})],
+               dbschema,
+               False
+               ), factored)
     result = eval_config_toplevel(config)
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
@@ -62,19 +63,23 @@ def run_statement(db : DB, stmt : qlast.Expr, dbschema : DBSchema, should_print 
     return (result.val, result.data.cur_db)
     # debug.dump(stmt)
 
-def run_stmts (db : DB, stmts : Sequence[qlast.Expr],dbschema : DBSchema, debug_print : bool) -> Tuple[Sequence[MultiSetVal], DB]:
+
+def run_stmts(db: DB, stmts: Sequence[qlast.Expr], dbschema: DBSchema, debug_print: bool) -> Tuple[Sequence[MultiSetVal], DB]:
     match stmts:
         case []:
             return ([], db)
         case current, *rest:
-            (cur_val, next_db) = run_statement(db, current, dbschema, should_print=debug_print)
-            (rest_val, final_db) = run_stmts(next_db, rest, dbschema, debug_print)
+            (cur_val, next_db) = run_statement(
+                db, current, dbschema, should_print=debug_print)
+            (rest_val, final_db) = run_stmts(
+                next_db, rest, dbschema, debug_print)
             return ([cur_val, *rest_val], final_db)
     raise ValueError("Not Possible")
 
+
 def run_str(
     db: DB,
-    dbschema : DBSchema,
+    dbschema: DBSchema,
     s: str,
     print_asts: bool = False
 ) -> Tuple[Sequence[MultiSetVal], DB]:
@@ -90,6 +95,7 @@ def run_str(
     #     debug.dump(res)
     return (res, next_db)
 
+
 def run_single_str(
     db: DB,
     s: str,
@@ -98,8 +104,10 @@ def run_single_str(
     q = parse_ql(s)
     if len(q) != 1:
         raise ValueError("Not a single query")
-    (res, next_db) = run_statement(db, q[0], DBSchema({}, all_builtin_funcs), print_asts)
+    (res, next_db) = run_statement(
+        db, q[0], DBSchema({}, all_builtin_funcs), print_asts)
     return (res, next_db)
+
 
 def run_single_str_get_json(
     db: DB,
@@ -110,11 +118,11 @@ def run_single_str_get_json(
     return (multi_set_val_to_json_like(res), next_db)
 
 
-def repl(*, init_sdl_file = None, init_ql_file = None, debug_print=False) -> None:
+def repl(*, init_sdl_file=None, init_ql_file=None, debug_print=False) -> None:
     # for now users should just invoke this script with rlwrap since I
     # don't want to fiddle with history or anything
     db = empty_db()
-    dbschema : DBSchema
+    dbschema: DBSchema
     if init_sdl_file is not None:
         dbschema = schema_from_sdl_file(init_sdl_file_path=init_sdl_file)
     else:
@@ -134,7 +142,8 @@ def repl(*, init_sdl_file = None, init_ql_file = None, debug_print=False) -> Non
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
-def db_with_initilial_schema_and_queries(initial_schema_defs : str, initial_queries : str, debug_print=False) -> DB:
+
+def db_with_initilial_schema_and_queries(initial_schema_defs: str, initial_queries: str, debug_print=False) -> DB:
     db = empty_db()
     dbschema = schema_from_sdl_defs(initial_schema_defs)
     (_, db) = run_str(db, dbschema, initial_queries, print_asts=debug_print)
