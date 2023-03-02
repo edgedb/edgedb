@@ -839,8 +839,7 @@ def merge_overlays_globally(
     *,
     ctx: context.CompilerContextLevel,
 ) -> None:
-    relctx.clone_type_rel_overlays(ctx=ctx)
-    relctx.clone_ptr_rel_overlays(ctx=ctx)
+    relctx.clone_rel_overlays(ctx=ctx)
 
     type_overlay = ctx.type_rel_overlays[None]
     ptr_overlay = ctx.ptr_rel_overlays[None]
@@ -2307,7 +2306,7 @@ def process_link_update(
             ctx=octx)
 
     if policy_ctx:
-        relctx.clone_ptr_rel_overlays(ctx=policy_ctx)
+        relctx.clone_rel_overlays(ctx=policy_ctx)
         register_overlays(data_cte, policy_ctx)
 
     register_overlays(updcte, ctx)

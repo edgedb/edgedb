@@ -1396,10 +1396,7 @@ def range_for_material_objtype(
                 # rewrites *to include* overlays, so that we can't peek
                 # at all newly created objects that we can't see
                 if not ctx.trigger_mode:
-                    sctx.type_rel_overlays = collections.defaultdict(
-                        lambda: collections.defaultdict(list))
-                    sctx.ptr_rel_overlays = collections.defaultdict(
-                        lambda: collections.defaultdict(list))
+                    clear_rel_overlays(ctx=sctx)
                 dispatch.visit(rewrite, ctx=sctx)
                 # If we are expanding inhviews, we also expand type
                 # rewrites, so don't populate type_ctes. The normal
@@ -2175,23 +2172,22 @@ def get_ptr_rel_overlays(
     return ctx.ptr_rel_overlays[dml_source][typeref.id, ptrref.shortname.name]
 
 
-def clone_type_rel_overlays(
-    *,
-    ctx: context.CompilerContextLevel,
-) -> None:
+def clone_rel_overlays(*, ctx: context.CompilerContextLevel) -> None:
     ctx.type_rel_overlays = ctx.type_rel_overlays.copy()
     for k, v in ctx.type_rel_overlays.items():
         ctx.type_rel_overlays[k] = v.copy()
         for k2, v2 in v.items():
             v[k2] = list(v2)
 
-
-def clone_ptr_rel_overlays(
-    *,
-    ctx: context.CompilerContextLevel,
-) -> None:
     ctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
-    for k, v in ctx.ptr_rel_overlays.items():
-        ctx.ptr_rel_overlays[k] = v.copy()
-        for k2, v2 in v.items():
-            v[k2] = list(v2)
+    for pk, pv in ctx.ptr_rel_overlays.items():
+        ctx.ptr_rel_overlays[pk] = pv.copy()
+        for pk2, pv2 in pv.items():
+            pv[pk2] = list(pv2)
+
+
+def clear_rel_overlays(*, ctx: context.CompilerContextLevel) -> None:
+    ctx.type_rel_overlays = collections.defaultdict(
+        lambda: collections.defaultdict(list))
+    ctx.ptr_rel_overlays = collections.defaultdict(
+        lambda: collections.defaultdict(list))

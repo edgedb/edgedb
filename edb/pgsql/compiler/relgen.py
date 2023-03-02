@@ -23,7 +23,6 @@
 from __future__ import annotations
 from typing import *
 
-import collections
 import contextlib
 
 from edb import errors
@@ -3735,10 +3734,7 @@ def process_encoded_param(
         with ctx.newrel() as sctx:
             sctx.pending_query = sctx.rel
             sctx.volatility_ref = ()
-            sctx.type_rel_overlays = collections.defaultdict(
-                lambda: collections.defaultdict(list))
-            sctx.ptr_rel_overlays = collections.defaultdict(
-                lambda: collections.defaultdict(list))
+            relctx.clear_rel_overlays(ctx=sctx)
             arg_ref = dispatch.compile(decoder, ctx=sctx)
 
             # Force it into a real tuple so we can just always grab it
