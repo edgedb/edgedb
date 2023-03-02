@@ -23,7 +23,6 @@
 from __future__ import annotations
 from typing import *
 
-import collections
 import uuid
 
 from edb import errors
@@ -2038,13 +2037,13 @@ def _add_type_rel_overlay(
     entry = (op, rel, path_id)
     if dml_stmts:
         for dml_stmt in dml_stmts:
-            overlays = ctx.type_rel_overlays[dml_stmt][typeid]
+            overlays = ctx.rel_overlays.type[dml_stmt][typeid]
             if entry not in overlays:
-                ctx.type_rel_overlays[dml_stmt][typeid] += (entry,)
+                ctx.rel_overlays.type[dml_stmt][typeid] += (entry,)
     else:
-        overlays = ctx.type_rel_overlays[None][typeid]
+        overlays = ctx.rel_overlays.type[None][typeid]
         if entry not in overlays:
-            ctx.type_rel_overlays[None][typeid] += (entry,)
+            ctx.rel_overlays.type[None][typeid] += (entry,)
 
 
 def add_type_rel_overlay(
@@ -2080,7 +2079,7 @@ def get_type_rel_overlays(
     if typeref.material_type is not None:
         typeref = typeref.material_type
 
-    return ctx.type_rel_overlays[dml_source][typeref.id]
+    return ctx.rel_overlays.type[dml_source][typeref.id]
 
 
 def reuse_type_rel_overlays(
@@ -2095,13 +2094,13 @@ def reuse_type_rel_overlays(
     nested overlays) as an overlay for all the enclosing DML
     statements.
     """
-    ref_overlays = ctx.type_rel_overlays[dml_source]
+    ref_overlays = ctx.rel_overlays.type[dml_source]
     for tid, overlays in ref_overlays.items():
         for op, rel, path_id in overlays:
             _add_type_rel_overlay(
                 tid, op, rel, dml_stmts=dml_stmts, path_id=path_id, ctx=ctx
             )
-    ptr_overlays = ctx.ptr_rel_overlays[dml_source]
+    ptr_overlays = ctx.rel_overlays.ptr[dml_source]
     for (obj, ptr), poverlays in ptr_overlays.items():
         for op, rel, path_id in poverlays:
             _add_ptr_rel_overlay(
@@ -2122,13 +2121,13 @@ def _add_ptr_rel_overlay(
     entry = (op, rel, path_id)
     if dml_stmts:
         for dml_stmt in dml_stmts:
-            overlays = ctx.ptr_rel_overlays[dml_stmt][typeid, ptrref_name]
+            overlays = ctx.rel_overlays.ptr[dml_stmt][typeid, ptrref_name]
             if entry not in overlays:
-                ctx.ptr_rel_overlays[dml_stmt][typeid, ptrref_name] += (entry,)
+                ctx.rel_overlays.ptr[dml_stmt][typeid, ptrref_name] += (entry,)
     else:
-        overlays = ctx.ptr_rel_overlays[None][typeid, ptrref_name]
+        overlays = ctx.rel_overlays.ptr[None][typeid, ptrref_name]
         if entry not in overlays:
-            ctx.ptr_rel_overlays[None][typeid, ptrref_name] += (entry,)
+            ctx.rel_overlays.ptr[None][typeid, ptrref_name] += (entry,)
 
 
 def add_ptr_rel_overlay(
@@ -2157,25 +2156,23 @@ def get_ptr_rel_overlays(
     ctx: context.CompilerContextLevel,
 ) -> tuple[context.OverlayEntry, ...]:
     typeref = ptrref.out_source.real_material_type
-    return ctx.ptr_rel_overlays[dml_source][typeref.id, ptrref.shortname.name]
+    return ctx.rel_overlays.ptr[dml_source][typeref.id, ptrref.shortname.name]
 
 
 def clone_rel_overlays(*, ctx: context.CompilerContextLevel) -> None:
-    ctx.type_rel_overlays = ctx.type_rel_overlays.copy()
-    for k, v in ctx.type_rel_overlays.items():
-        ctx.type_rel_overlays[k] = v.copy()
+    ctx.rel_overlays = ctx.rel_overlays.copy()
+
+    for k, v in ctx.rel_overlays.type.items():
+        ctx.rel_overlays.type[k] = v.copy()
         for k2, v2 in v.items():
             v[k2] = v2
 
-    ctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
-    for pk, pv in ctx.ptr_rel_overlays.items():
-        ctx.ptr_rel_overlays[pk] = pv.copy()
+    ctx.rel_overlays.ptr = ctx.rel_overlays.ptr.copy()
+    for pk, pv in ctx.rel_overlays.ptr.items():
+        ctx.rel_overlays.ptr[pk] = pv.copy()
         for pk2, pv2 in pv.items():
             pv[pk2] = pv2
 
 
 def clear_rel_overlays(*, ctx: context.CompilerContextLevel) -> None:
-    ctx.type_rel_overlays = collections.defaultdict(
-        lambda: collections.defaultdict(tuple))
-    ctx.ptr_rel_overlays = collections.defaultdict(
-        lambda: collections.defaultdict(tuple))
+    ctx.rel_overlays = context.RelOverlays()

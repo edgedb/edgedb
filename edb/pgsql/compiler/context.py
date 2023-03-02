@@ -24,6 +24,7 @@ from typing import *
 
 import collections
 import contextlib
+import dataclasses
 import enum
 import uuid
 
@@ -76,6 +77,41 @@ OverlayEntry = tuple[
     Union[pgast.BaseRelation, pgast.CommonTableExpr],
     'irast.PathId',
 ]
+
+
+@dataclasses.dataclass(kw_only=True)
+class RelOverlays:
+    #: Relations used to "overlay" the main table for
+    #: the type.  Mostly used with DML statements.
+    type: DefaultDict[
+        Optional[irast.MutatingLikeStmt],
+        DefaultDict[
+            uuid.UUID,
+            tuple[OverlayEntry, ...],
+        ],
+    ] = dataclasses.field(default_factory=lambda: collections.defaultdict(
+        lambda: collections.defaultdict(tuple)))
+
+    #: Relations used to "overlay" the main table for
+    #: the pointer.  Mostly used with DML statements.
+    ptr: DefaultDict[
+        Optional[irast.MutatingLikeStmt],
+        DefaultDict[
+            Tuple[uuid.UUID, str],
+            Tuple[
+                Tuple[
+                    str,
+                    Union[pgast.BaseRelation, pgast.CommonTableExpr],
+                    irast.PathId,
+                ], ...
+            ],
+        ],
+    ] = dataclasses.field(default_factory=lambda: collections.defaultdict(
+        lambda: collections.defaultdict(tuple)))
+
+    def copy(self) -> RelOverlays:
+        # N.B: THIS IS STILL A (semi?) SHALLOW COPY
+        return RelOverlays(type=self.type.copy(), ptr=self.ptr.copy())
 
 
 class CompilerContextLevel(compiler.ContextLevel):
@@ -176,29 +212,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
     #: Relations used to "overlay" the main table for
     #: the type.  Mostly used with DML statements.
-    type_rel_overlays: DefaultDict[
-        Optional[irast.MutatingLikeStmt],
-        DefaultDict[
-            uuid.UUID,
-            tuple[OverlayEntry, ...],
-        ],
-    ]
-
-    #: Relations used to "overlay" the main table for
-    #: the pointer.  Mostly used with DML statements.
-    ptr_rel_overlays: DefaultDict[
-        Optional[irast.MutatingLikeStmt],
-        DefaultDict[
-            Tuple[uuid.UUID, str],
-            Tuple[
-                Tuple[
-                    str,
-                    Union[pgast.BaseRelation, pgast.CommonTableExpr],
-                    irast.PathId,
-                ], ...
-            ],
-        ],
-    ]
+    rel_overlays: RelOverlays
 
     #: Mapping from path ids to "external" rels given by a particular relation
     external_rels: Mapping[
@@ -257,10 +271,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.path_scope = collections.ChainMap()
             self.scope_tree = scope_tree
             self.dml_stmt_stack = []
-            self.type_rel_overlays = collections.defaultdict(
-                lambda: collections.defaultdict(tuple))
-            self.ptr_rel_overlays = collections.defaultdict(
-                lambda: collections.defaultdict(tuple))
+            self.rel_overlays = RelOverlays()
 
             self.external_rels = {}
             self.enclosing_cte_iterator = None
@@ -299,8 +310,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.path_scope = prevlevel.path_scope
             self.scope_tree = prevlevel.scope_tree
             self.dml_stmt_stack = prevlevel.dml_stmt_stack
-            self.type_rel_overlays = prevlevel.type_rel_overlays
-            self.ptr_rel_overlays = prevlevel.ptr_rel_overlays
+            self.rel_overlays = prevlevel.rel_overlays
             self.enclosing_cte_iterator = prevlevel.enclosing_cte_iterator
             self.shapes_needed_by_dml = prevlevel.shapes_needed_by_dml
             self.external_rels = prevlevel.external_rels

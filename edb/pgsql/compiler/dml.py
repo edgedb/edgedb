@@ -841,16 +841,16 @@ def merge_overlays_globally(
 ) -> None:
     relctx.clone_rel_overlays(ctx=ctx)
 
-    type_overlay = ctx.type_rel_overlays[None]
-    ptr_overlay = ctx.ptr_rel_overlays[None]
+    type_overlay = ctx.rel_overlays.type[None]
+    ptr_overlay = ctx.rel_overlays.ptr[None]
 
     for ir_stmt in ir_stmts:
         if not ir_stmt:
             continue
-        for k, v in ctx.type_rel_overlays[ir_stmt].items():
+        for k, v in ctx.rel_overlays.type[ir_stmt].items():
             els = set(type_overlay[k])
             type_overlay[k] += tuple([e for e in v if e not in els])
-        for k2, v2 in ctx.ptr_rel_overlays[ir_stmt].items():
+        for k2, v2 in ctx.rel_overlays.ptr[ir_stmt].items():
             els = set(ptr_overlay[k2])
             ptr_overlay[k2] += tuple([e for e in v2 if e not in els])
 
@@ -1252,13 +1252,12 @@ def compile_insert_else_body_failure_check(
 
     # Copy the type rels from the possibly conflicting earlier DML
     # into the None overlays so it gets picked up.
-    ctx.type_rel_overlays = ctx.type_rel_overlays.copy()
-    overlays_map = ctx.type_rel_overlays[None].copy()
-    ctx.type_rel_overlays[None] = overlays_map
-    overlays_map.update(ctx.type_rel_overlays[else_fail])
+    # XXX: how to adjust (merge overlays globally?)
+    merge_overlays_globally((else_fail,), ctx=ctx)
 
     # Do some work so that we aren't looking at the existing on-disk
     # data, just newly data created data.
+    overlays_map = ctx.rel_overlays.type[None]
     for k, overlays in overlays_map.items():
         # Strip out filters, which we don't care about in this context
         overlays = tuple([(k, r, p) for k, r, p in overlays if k != 'filter'])
@@ -1266,11 +1265,6 @@ def compile_insert_else_body_failure_check(
         if overlays and overlays[0][0] == 'union':
             overlays = (('replace', *overlays[0][1:]), *overlays[1:])
         overlays_map[k] = overlays
-
-    ctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
-    ctx.ptr_rel_overlays[None] = ctx.ptr_rel_overlays[None].copy()
-    ctx.ptr_rel_overlays[None].update(
-        ctx.ptr_rel_overlays[else_fail])
 
     assert on_conflict.constraint
     cid = common.get_constraint_raw_name(on_conflict.constraint.id)
@@ -2147,7 +2141,10 @@ def process_link_update(
             )
 
             with ctx.new() as subctx:
-                subctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
+                # XXX: Do we really need a clone/copy here?
+                # (previously just copied ptr, not sure why)
+                # things /seem/ to work without it
+                relctx.clone_rel_overlays(ctx=ctx)
                 relctx.add_ptr_rel_overlay(
                     ptrref, 'except', delcte, path_id=path_id, ctx=subctx)
 
@@ -2585,7 +2582,7 @@ def compile_trigger(
     # tweaking, they contain all the relevant information.
     overlays: list[context.OverlayEntry] = []
     for typeref, dml in trigger.affected:
-        toverlays = ctx.type_rel_overlays[dml]
+        toverlays = ctx.rel_overlays.type[dml]
         if ov := toverlays.get(typeref.id):
             overlays.extend(ov)
 
@@ -2603,12 +2600,16 @@ def compile_trigger(
 
     # Produce a CTE containing all of the affected objects for this trigger
     with ctx.newrel() as ictx:
-        ictx.type_rel_overlays = ctx.type_rel_overlays.copy()
-        ictx.type_rel_overlays.clear()
-        ictx.type_rel_overlays[None][trigger.source_type.id] = tuple(overlays)
+        # XXX: I WANT OT JUST DO THIS:
+        # wait actually probably I can
+        relctx.clear_rel_overlays(ctx=ictx)
 
-        ictx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
-        ictx.ptr_rel_overlays.clear()
+        # ictx.rel_overlays.type = ctx.type_rel_overlays.copy()
+        # ictx.rel_overlays.type.clear()
+        # ictx.rel_overlays.ptr = ctx.ptr_rel_overlays.copy()
+        # ictx.rel_overlays.ptr.clear()
+
+        ictx.rel_overlays.type[None][trigger.source_type.id] = tuple(overlays)
 
         # The range produced here will be driven just by the overlays
         rvar = relctx.range_for_material_objtype(
@@ -2680,7 +2681,7 @@ def compile_trigger(
         # away from the new data!
         # TODO: We should consider building a dedicated __new__overlay
         # in order to reduce overlay sizes in common cases
-        merge_overlays_globally(tctx.type_rel_overlays.keys(), ctx=tctx)
+        merge_overlays_globally(tctx.rel_overlays.type.keys(), ctx=tctx)
 
         dispatch.compile(trigger.expr, ctx=tctx)
         # Force the value to get output so that if it might error
