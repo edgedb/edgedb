@@ -226,6 +226,22 @@ def elab_SelectExpr(qle : qlast.SelectQuery) -> Expr:
             alias_var = FreeVarExpr(qle.result_alias)
             filter_elab = abstract_over_expr(instantiate_expr(alias_var, filter_elab), qle.result_alias)
             order_elab = abstract_over_expr(instantiate_expr(alias_var, order_elab), qle.result_alias)
+        else:
+            # abstract over if subject is a path, and select does not have an alias
+            # Review the design here: https://edgedb.slack.com/archives/C04JG7CR04T/p1677711136147779
+            def path_abstraction(subject : Expr) -> None:
+                nonlocal filter_elab, order_elab
+                match subject:
+                    case ShapedExprExpr(expr=e, shape=s):
+                        return path_abstraction(e)
+                    case _:
+                        if is_path(subject):
+                            name = next_name()
+                            filter_elab = abstract_over_expr(subst_expr_for_expr(FreeVarExpr(name), subject, instantiate_expr(FreeVarExpr(name), filter_elab)), name)
+                            order_elab  = abstract_over_expr(subst_expr_for_expr(FreeVarExpr(name), subject, instantiate_expr(FreeVarExpr(name), order_elab)), name)
+                        return
+            path_abstraction(subject_elab)
+
         without_alias = SubqueryExpr(FilterOrderExpr(
                 subject=subject_elab,
                 filter= filter_elab,

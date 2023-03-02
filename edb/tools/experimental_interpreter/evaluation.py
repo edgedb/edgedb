@@ -58,15 +58,15 @@ def apply_shape(ctx : RTData, shape : ShapeExpr, value : Val) -> Val:
     def apply_shape_to_prodval(shape : ShapeExpr, objectval : ObjectVal) -> ObjectVal:
         result : Dict[Label, Tuple[Marker, MultiSetVal]]= {}
         for (key, (_, pval)) in objectval.val.items():
-            if key in shape.shape.keys():
+            if key not in shape.shape.keys():
+                result = {**result, key: (Invisible(), assume_link_target(pval))}
+            else:
+                pass
+        for (key, shape_elem) in shape.shape.items():
+            if key in objectval.val.keys():
                 new_val : MultiSetVal = eval_config(RTExpr(make_eval_only(ctx), 
                     instantiate_expr(value, shape.shape[key]))).val ### instantiate with value not pval !! (see semantics)
                 result = {**result, key : (Visible(), assume_link_target(new_val))}
-            else:
-                result = {**result, key: (Invisible(), assume_link_target(pval))}
-        for (key, shape_elem) in shape.shape.items():
-            if key in objectval.val.keys():
-                pass
             else:
                 new_val = eval_config(RTExpr(make_eval_only(ctx), 
                         instantiate_expr(value, shape_elem)
@@ -75,12 +75,14 @@ def apply_shape(ctx : RTData, shape : ShapeExpr, value : Val) -> Val:
         
         return ObjectVal(result)
 
-    [value] = assume_link_target([value])
+    # [value] = assume_link_target([value])
     match value:
         case FreeVal(val=dictval):
             return FreeVal(val=apply_shape_to_prodval(shape, dictval))
         case RefVal(refid=id, val=dictval):
             return RefVal(refid=id, val=apply_shape_to_prodval(shape, dictval))
+        case LinkPropVal(obj=RefVal(refid=id, val=ObjectVal({})), linkprop=objval):
+            return RefVal(refid=id, val=apply_shape_to_prodval(shape, objval))
         case _:
             return eval_error(value, "Cannot apply shape to value")
 
@@ -238,6 +240,7 @@ def eval_config(rt : RTExpr) -> RTVal:
                         argv_final = [[*cur, argv_i] for cur in argv_final]
                     case _ :
                         raise ValueError()
+            argv_final = [map_assume_link_target(f) for f in argv_final]
             after_fun_vals : Sequence[Val]= [v for arg in argv_final for v in looked_up_fun.impl(arg)]
             return RTVal(new_data, after_fun_vals)
         case ObjectProjExpr(subject=subject, label=label):

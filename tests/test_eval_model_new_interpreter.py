@@ -497,10 +497,10 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
                     z := .<deck[IS User] { name, @count }
                 } FILTER .name = 'Dragon'
             ''',
-            bag([{"name": ["Dragon"], "z": [
+            bag([{"name": ["Dragon"], "z": {
                 {"name": ["Alice"], "@count": [2]},
                 {"name": ["Dave"], "@count": [1]},
-            ]}])
+            }}])
         )
 
     def test_edgeql_partial_path_01(self):

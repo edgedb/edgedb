@@ -337,3 +337,17 @@ def convert_to_link(val : Val) -> LinkPropVal:
             return LinkPropVal(obj=RefVal(refid=id, val=ObjectVal({})), linkprop=obj)
         case _:
             raise ValueError("Val is not link convertible, check va")
+
+
+def is_path(e : Expr) -> bool:
+    match e:
+        case FreeVarExpr(_):
+            return True
+        case LinkPropProjExpr(subject=subject, linkprop=linkprop):
+            return is_path(subject)
+        case ObjectProjExpr(subject=subject, label=label):
+            return is_path(subject)
+        case BackLinkExpr(subject=subject, label=label):
+            return is_path(subject)
+        case _:
+            return False
