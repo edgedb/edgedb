@@ -71,6 +71,13 @@ class OutputFormat(enum.Enum):
 NO_STMT = pgast.SelectStmt()
 
 
+OverlayEntry = tuple[
+    str,
+    Union[pgast.BaseRelation, pgast.CommonTableExpr],
+    'irast.PathId',
+]
+
+
 class CompilerContextLevel(compiler.ContextLevel):
     #: static compilation environment
     env: Environment
@@ -173,13 +180,7 @@ class CompilerContextLevel(compiler.ContextLevel):
         Optional[irast.MutatingLikeStmt],
         DefaultDict[
             uuid.UUID,
-            List[
-                Tuple[
-                    str,
-                    Union[pgast.BaseRelation, pgast.CommonTableExpr],
-                    irast.PathId,
-                ]
-            ],
+            tuple[OverlayEntry, ...],
         ],
     ]
 
@@ -189,12 +190,12 @@ class CompilerContextLevel(compiler.ContextLevel):
         Optional[irast.MutatingLikeStmt],
         DefaultDict[
             Tuple[uuid.UUID, str],
-            List[
+            Tuple[
                 Tuple[
                     str,
                     Union[pgast.BaseRelation, pgast.CommonTableExpr],
                     irast.PathId,
-                ]
+                ], ...
             ],
         ],
     ]
@@ -257,9 +258,9 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.scope_tree = scope_tree
             self.dml_stmt_stack = []
             self.type_rel_overlays = collections.defaultdict(
-                lambda: collections.defaultdict(list))
+                lambda: collections.defaultdict(tuple))
             self.ptr_rel_overlays = collections.defaultdict(
-                lambda: collections.defaultdict(list))
+                lambda: collections.defaultdict(tuple))
 
             self.external_rels = {}
             self.enclosing_cte_iterator = None

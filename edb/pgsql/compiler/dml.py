@@ -849,10 +849,10 @@ def merge_overlays_globally(
             continue
         for k, v in ctx.type_rel_overlays[ir_stmt].items():
             els = set(type_overlay[k])
-            type_overlay[k].extend([e for e in v if e not in els])
+            type_overlay[k] += tuple([e for e in v if e not in els])
         for k2, v2 in ctx.ptr_rel_overlays[ir_stmt].items():
             els = set(ptr_overlay[k2])
-            ptr_overlay[k2].extend([e for e in v2 if e not in els])
+            ptr_overlay[k2] += tuple([e for e in v2 if e not in els])
 
 
 def compile_policy_check(
@@ -1261,10 +1261,10 @@ def compile_insert_else_body_failure_check(
     # data, just newly data created data.
     for k, overlays in overlays_map.items():
         # Strip out filters, which we don't care about in this context
-        overlays = [(k, r, p) for k, r, p in overlays if k != 'filter']
+        overlays = tuple([(k, r, p) for k, r, p in overlays if k != 'filter'])
         # Drop the initial set
         if overlays and overlays[0][0] == 'union':
-            overlays[0] = ('replace', *overlays[0][1:])
+            overlays = (('replace', *overlays[0][1:]), *overlays[1:])
         overlays_map[k] = overlays
 
     ctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
@@ -2583,7 +2583,7 @@ def compile_trigger(
 
     # We use overlays to drive the trigger, since with a bit of
     # tweaking, they contain all the relevant information.
-    overlays = []
+    overlays: list[context.OverlayEntry] = []
     for typeref, dml in trigger.affected:
         toverlays = ctx.type_rel_overlays[dml]
         if ov := toverlays.get(typeref.id):
@@ -2605,7 +2605,7 @@ def compile_trigger(
     with ctx.newrel() as ictx:
         ictx.type_rel_overlays = ctx.type_rel_overlays.copy()
         ictx.type_rel_overlays.clear()
-        ictx.type_rel_overlays[None][trigger.source_type.id] = overlays
+        ictx.type_rel_overlays[None][trigger.source_type.id] = tuple(overlays)
 
         ictx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
         ictx.ptr_rel_overlays.clear()

@@ -2040,11 +2040,11 @@ def _add_type_rel_overlay(
         for dml_stmt in dml_stmts:
             overlays = ctx.type_rel_overlays[dml_stmt][typeid]
             if entry not in overlays:
-                overlays.append(entry)
+                ctx.type_rel_overlays[dml_stmt][typeid] += (entry,)
     else:
         overlays = ctx.type_rel_overlays[None][typeid]
         if entry not in overlays:
-            overlays.append(entry)
+            ctx.type_rel_overlays[None][typeid] += (entry,)
 
 
 def add_type_rel_overlay(
@@ -2076,13 +2076,7 @@ def get_type_rel_overlays(
     *,
     dml_source: Optional[irast.MutatingLikeStmt]=None,
     ctx: context.CompilerContextLevel,
-) -> List[
-    Tuple[
-        str,
-        Union[pgast.BaseRelation, pgast.CommonTableExpr],
-        irast.PathId,
-    ]
-]:
+) -> tuple[context.OverlayEntry, ...]:
     if typeref.material_type is not None:
         typeref = typeref.material_type
 
@@ -2130,11 +2124,11 @@ def _add_ptr_rel_overlay(
         for dml_stmt in dml_stmts:
             overlays = ctx.ptr_rel_overlays[dml_stmt][typeid, ptrref_name]
             if entry not in overlays:
-                overlays.append(entry)
+                ctx.ptr_rel_overlays[dml_stmt][typeid, ptrref_name] += (entry,)
     else:
         overlays = ctx.ptr_rel_overlays[None][typeid, ptrref_name]
         if entry not in overlays:
-            overlays.append(entry)
+            ctx.ptr_rel_overlays[None][typeid, ptrref_name] += (entry,)
 
 
 def add_ptr_rel_overlay(
@@ -2161,13 +2155,7 @@ def get_ptr_rel_overlays(
     ptrref: irast.PointerRef, *,
     dml_source: Optional[irast.MutatingLikeStmt]=None,
     ctx: context.CompilerContextLevel,
-) -> List[
-    Tuple[
-        str,
-        Union[pgast.BaseRelation, pgast.CommonTableExpr],
-        irast.PathId,
-    ]
-]:
+) -> tuple[context.OverlayEntry, ...]:
     typeref = ptrref.out_source.real_material_type
     return ctx.ptr_rel_overlays[dml_source][typeref.id, ptrref.shortname.name]
 
@@ -2177,17 +2165,17 @@ def clone_rel_overlays(*, ctx: context.CompilerContextLevel) -> None:
     for k, v in ctx.type_rel_overlays.items():
         ctx.type_rel_overlays[k] = v.copy()
         for k2, v2 in v.items():
-            v[k2] = list(v2)
+            v[k2] = v2
 
     ctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
     for pk, pv in ctx.ptr_rel_overlays.items():
         ctx.ptr_rel_overlays[pk] = pv.copy()
         for pk2, pv2 in pv.items():
-            pv[pk2] = list(pv2)
+            pv[pk2] = pv2
 
 
 def clear_rel_overlays(*, ctx: context.CompilerContextLevel) -> None:
     ctx.type_rel_overlays = collections.defaultdict(
-        lambda: collections.defaultdict(list))
+        lambda: collections.defaultdict(tuple))
     ctx.ptr_rel_overlays = collections.defaultdict(
-        lambda: collections.defaultdict(list))
+        lambda: collections.defaultdict(tuple))
