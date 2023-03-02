@@ -511,7 +511,7 @@ def compile_InsertQuery(
             )
 
         if pol_condition := policies.compile_dml_write_policies(
-            mat_stype, result, mode=qltypes.AccessKind.Insert, ctx=ctx
+            mat_stype, result, mode=qltypes.AccessKind.Insert, ctx=ictx
         ):
             stmt.write_policies[mat_stype.id] = pol_condition
 
@@ -630,11 +630,11 @@ def compile_UpdateQuery(
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
             if read_pol := policies.compile_dml_read_policies(
-                dtype, result, mode=qltypes.AccessKind.UpdateRead, ctx=ctx
+                dtype, result, mode=qltypes.AccessKind.UpdateRead, ctx=ictx
             ):
                 stmt.read_policies[dtype.id] = read_pol
             if write_pol := policies.compile_dml_write_policies(
-                dtype, result, mode=qltypes.AccessKind.UpdateWrite, ctx=ctx
+                dtype, result, mode=qltypes.AccessKind.UpdateWrite, ctx=ictx
             ):
                 stmt.write_policies[dtype.id] = write_pol
 
@@ -750,7 +750,7 @@ def compile_DeleteQuery(
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
             if pol_cond := policies.compile_dml_read_policies(
-                dtype, result, mode=qltypes.AccessKind.Delete, ctx=ctx
+                dtype, result, mode=qltypes.AccessKind.Delete, ctx=ictx
             ):
                 stmt.read_policies[dtype.id] = pol_cond
 
@@ -1030,7 +1030,7 @@ def compile_Shape(
         ctx.env.compiled_stmts[subctx.qlstmt] = stmt
         subctx.class_view_overrides = subctx.class_view_overrides.copy()
 
-        with ctx.new() as exposed_ctx:
+        with subctx.new() as exposed_ctx:
             exposed_ctx.expr_exposed = context.Exposure.UNEXPOSED
             expr = dispatch.compile(shape_expr, ctx=exposed_ctx)
 

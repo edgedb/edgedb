@@ -249,7 +249,7 @@ def _compile_group(
             # TODO: Be able to directly output the final serialized version
             # if it is consumed directly.
             with context.output_format(ctx, context.OutputFormat.NATIVE), (
-                    ctx.new()) as matctx:
+                    groupctx.new()) as matctx:
                 matctx.materializing |= {stmt}
                 matctx.expr_exposed = True
 
@@ -370,13 +370,13 @@ def _compile_group(
             query.where_clause = astutils.extend_binop(
                 query.where_clause,
                 clauses.compile_filter_clause(
-                    stmt.where, stmt.where_card, ctx=ctx))
+                    stmt.where, stmt.where_card, ctx=ictx))
 
         # The ORDER BY clause
         if stmt.orderby is not None:
-            with ctx.new() as ictx:
+            with ictx.new() as octx:
                 query.sort_clause = clauses.compile_orderby_clause(
-                    stmt.orderby, ctx=ictx)
+                    stmt.orderby, ctx=octx)
 
     return query
 
