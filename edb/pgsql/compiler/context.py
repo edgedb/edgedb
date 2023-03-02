@@ -28,6 +28,8 @@ import dataclasses
 import enum
 import uuid
 
+import immutables as immu
+
 from edb.common import compiler
 
 from edb.pgsql import ast as pgast
@@ -83,20 +85,19 @@ OverlayEntry = tuple[
 class RelOverlays:
     #: Relations used to "overlay" the main table for
     #: the type.  Mostly used with DML statements.
-    type: DefaultDict[
+    type: immu.Map[
         Optional[irast.MutatingLikeStmt],
-        DefaultDict[
+        immu.Map[
             uuid.UUID,
             tuple[OverlayEntry, ...],
         ],
-    ] = dataclasses.field(default_factory=lambda: collections.defaultdict(
-        lambda: collections.defaultdict(tuple)))
+    ] = immu.Map()
 
     #: Relations used to "overlay" the main table for
     #: the pointer.  Mostly used with DML statements.
-    ptr: DefaultDict[
+    ptr: immu.Map[
         Optional[irast.MutatingLikeStmt],
-        DefaultDict[
+        immu.Map[
             Tuple[uuid.UUID, str],
             Tuple[
                 Tuple[
@@ -106,12 +107,10 @@ class RelOverlays:
                 ], ...
             ],
         ],
-    ] = dataclasses.field(default_factory=lambda: collections.defaultdict(
-        lambda: collections.defaultdict(tuple)))
+    ] = immu.Map()
 
     def copy(self) -> RelOverlays:
-        # N.B: THIS IS STILL A (semi?) SHALLOW COPY
-        return RelOverlays(type=self.type.copy(), ptr=self.ptr.copy())
+        return RelOverlays(type=self.type, ptr=self.ptr)
 
 
 class CompilerContextLevel(compiler.ContextLevel):

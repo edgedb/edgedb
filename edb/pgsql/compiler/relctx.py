@@ -25,6 +25,8 @@ from typing import *
 
 import uuid
 
+import immutables as immu
+
 from edb import errors
 
 from edb.edgeql import qltypes
@@ -2037,9 +2039,12 @@ def _add_type_rel_overlay(
     entry = (op, rel, path_id)
     dml_stmts2 = dml_stmts if dml_stmts else (None,)
     for dml_stmt in dml_stmts2:
-        overlays = ctx.rel_overlays.type[dml_stmt][typeid]
+        ds_overlays = ctx.rel_overlays.type.get(dml_stmt, immu.Map())
+        overlays = ds_overlays.get(typeid, ())
         if entry not in overlays:
-            ctx.rel_overlays.type[dml_stmt][typeid] += (entry,)
+            ds_overlays = ds_overlays.set(typeid, overlays + (entry,))
+            ctx.rel_overlays.type = (
+                ctx.rel_overlays.type.set(dml_stmt, ds_overlays))
 
 
 def add_type_rel_overlay(
@@ -2075,7 +2080,10 @@ def get_type_rel_overlays(
     if typeref.material_type is not None:
         typeref = typeref.material_type
 
-    return ctx.rel_overlays.type[dml_source][typeref.id]
+    if dml_source not in ctx.rel_overlays.type:
+        return ()
+    else:
+        return ctx.rel_overlays.type[dml_source].get(typeref.id, ())
 
 
 def reuse_type_rel_overlays(
@@ -2090,13 +2098,13 @@ def reuse_type_rel_overlays(
     nested overlays) as an overlay for all the enclosing DML
     statements.
     """
-    ref_overlays = ctx.rel_overlays.type[dml_source]
+    ref_overlays = ctx.rel_overlays.type.get(dml_source, immu.Map())
     for tid, overlays in ref_overlays.items():
         for op, rel, path_id in overlays:
             _add_type_rel_overlay(
                 tid, op, rel, dml_stmts=dml_stmts, path_id=path_id, ctx=ctx
             )
-    ptr_overlays = ctx.rel_overlays.ptr[dml_source]
+    ptr_overlays = ctx.rel_overlays.ptr.get(dml_source, immu.Map())
     for (obj, ptr), poverlays in ptr_overlays.items():
         for op, rel, path_id in poverlays:
             _add_ptr_rel_overlay(
@@ -2116,10 +2124,14 @@ def _add_ptr_rel_overlay(
 
     entry = (op, rel, path_id)
     dml_stmts2 = dml_stmts if dml_stmts else (None,)
+    key = typeid, ptrref_name
     for dml_stmt in dml_stmts2:
-        overlays = ctx.rel_overlays.ptr[dml_stmt][typeid, ptrref_name]
+        ds_overlays = ctx.rel_overlays.ptr.get(dml_stmt, immu.Map())
+        overlays = ds_overlays.get(key, ())
         if entry not in overlays:
-            ctx.rel_overlays.ptr[dml_stmt][typeid, ptrref_name] += (entry,)
+            ds_overlays = ds_overlays.set(key, overlays + (entry,))
+            ctx.rel_overlays.ptr = (
+                ctx.rel_overlays.ptr.set(dml_stmt, ds_overlays))
 
 
 def add_ptr_rel_overlay(
@@ -2148,22 +2160,15 @@ def get_ptr_rel_overlays(
     ctx: context.CompilerContextLevel,
 ) -> tuple[context.OverlayEntry, ...]:
     typeref = ptrref.out_source.real_material_type
-    return ctx.rel_overlays.ptr[dml_source][typeref.id, ptrref.shortname.name]
+    if dml_source not in ctx.rel_overlays.ptr:
+        return ()
+    else:
+        key = typeref.id, ptrref.shortname.name
+        return ctx.rel_overlays.ptr[dml_source].get(key, ())
 
 
 def clone_rel_overlays(*, ctx: context.CompilerContextLevel) -> None:
     ctx.rel_overlays = ctx.rel_overlays.copy()
-
-    for k, v in ctx.rel_overlays.type.items():
-        ctx.rel_overlays.type[k] = v.copy()
-        for k2, v2 in v.items():
-            v[k2] = v2
-
-    ctx.rel_overlays.ptr = ctx.rel_overlays.ptr.copy()
-    for pk, pv in ctx.rel_overlays.ptr.items():
-        ctx.rel_overlays.ptr[pk] = pv.copy()
-        for pk2, pv2 in pv.items():
-            pv[pk2] = pv2
 
 
 def clear_rel_overlays(*, ctx: context.CompilerContextLevel) -> None:
