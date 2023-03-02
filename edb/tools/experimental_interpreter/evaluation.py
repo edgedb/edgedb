@@ -40,18 +40,19 @@ def eval_order_by(after_condition : Sequence[Val], orders : Sequence[ObjectVal])
         return after_condition
 
     keys = [ k.label for k in orders[0].val.keys()]
+    if len(keys) == 0:
+        return after_condition
     sort_specs = sorted([(int(idx), spec) for k in keys for [idx, spec] in [k.split(OrderLabelSep)]])
 
     result : Sequence[Tuple[int, Val]]= list(enumerate(after_condition))
-    for (idx, spec) in sort_specs:
+    for (idx, spec) in reversed(sort_specs): # use reversed to achieve the desired effect
         def key_extract(elem : Tuple[int, Val]):
             return orders[elem[0]].val[StrLabel(str(idx) + OrderLabelSep + spec)]
         result = sorted(result, key=key_extract, 
             reverse=(False if spec == OrderAscending else 
                     True if spec == OrderDescending else
                     eval_error(cast(Sequence[Val], orders), "unknown spec")
-            )) # index starts from zero, 
-        # so 0 -> asc, 0 % 2 = 0, 1 -> desc , 1 % 2 = 1
+            )) 
     return [elem for (_, elem) in result]
 
 def apply_shape(ctx : RTData, shape : ShapeExpr, value : Val) -> Val:
@@ -362,7 +363,8 @@ def eval_config(rt : RTExpr) -> RTVal:
 def eval_config_toplevel(rt : RTExpr) -> RTVal:
     match (eval_config(rt)):
         case RTVal(data=data, val=val):
-            return RTVal(data=data, val=assume_link_target(val))
+            return RTVal(data=data, val=(val)) # Do not dedup (see one of the test cases)
+            # return RTVal(data=data, val=assume_link_target(val))
         case v:
             raise ValueError(v)
     

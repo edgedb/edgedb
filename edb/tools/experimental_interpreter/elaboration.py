@@ -223,6 +223,7 @@ def elab_SelectExpr(qle : qlast.SelectQuery) -> Expr:
         order_elab = elab_orderby(qle.orderby) 
         if qle.result_alias is not None:
             # apply and reabstract the result alias
+            subject_elab = SubqueryExpr(expr=subject_elab)
             alias_var = FreeVarExpr(qle.result_alias)
             filter_elab = abstract_over_expr(instantiate_expr(alias_var, filter_elab), qle.result_alias)
             order_elab = abstract_over_expr(instantiate_expr(alias_var, order_elab), qle.result_alias)
