@@ -262,7 +262,7 @@ def compile_filter_clause(
 
         assert cardinality != qltypes.Cardinality.UNKNOWN
         if cardinality.is_single():
-            where_clause = dispatch.compile(ir_set, ctx=ctx)
+            where_clause = dispatch.compile(ir_set, ctx=ctx1)
         else:
             # In WHERE we compile ir.Set as a boolean disjunction:
             #    EXISTS(SELECT FROM SetRel WHERE SetRel.value)

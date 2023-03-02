@@ -687,7 +687,7 @@ def process_insert_body(
                     ir_stmt=ir_stmt,
                     shape_el=shape_el,
                     iterator_id=inner_iterator_id,
-                    ctx=ctx,
+                    ctx=subctx,
                 )
 
                 insvalue = pathctx.get_path_value_var(
@@ -806,9 +806,10 @@ def process_insert_body(
     if pol_expr:
         assert pol_ctx
         assert not needs_insert_on_conflict
-        policy_cte = compile_policy_check(
-            contents_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
-        )
+        with pol_ctx.reenter():
+            policy_cte = compile_policy_check(
+                contents_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
+            )
         force_policy_checks(
             policy_cte,
             (insert_stmt,) + tuple(cte.query for cte in link_ctes),
@@ -867,19 +868,7 @@ def compile_policy_check(
 
     with ctx.newrel() as ictx:
         # Pull in ptr rel overlays, so we can see the pointers
-        # XXX: I wanted to try to just do
-        # merge_overlays_globally((ir_stmt,), ctx=ictx)
-        # but we generated invalid code in some cases.
-
-        ictx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
-        ictx.ptr_rel_overlays[None] = ictx.ptr_rel_overlays[None].copy()
-        ictx.ptr_rel_overlays[None].update(
-            ictx.ptr_rel_overlays[ir_stmt])
-
-        ictx.type_rel_overlays = ctx.type_rel_overlays.copy()
-        ictx.type_rel_overlays[None] = ictx.type_rel_overlays[None].copy()
-        ictx.type_rel_overlays[None].update(
-            ictx.type_rel_overlays[ir_stmt])
+        merge_overlays_globally((ir_stmt,), ctx=ictx)
 
         dml_rvar = relctx.rvar_for_rel(dml_cte, ctx=ctx)
         relctx.include_rvar(ictx.rel, dml_rvar, path_id=subject_id, ctx=ictx)
@@ -1221,7 +1210,7 @@ def compile_insert_else_body(
                     name_hint=sn.QualName(
                         module='__derived__',
                         name=ctx.env.aliases.get('dummy'))))
-            with ctx.subrel() as dctx:
+            with ictx.subrel() as dctx:
                 dummy_q = dctx.rel
                 relctx.ensure_transient_identity_for_path(
                     dummy_pathid, dummy_q, ctx=dctx)
@@ -1230,7 +1219,7 @@ def compile_insert_else_body(
             relctx.include_rvar(ictx.rel, dummy_rvar,
                                 path_id=dummy_pathid, ctx=ictx)
 
-            with ctx.subrel() as subrelctx:
+            with ictx.subrel() as subrelctx:
                 subrel = subrelctx.rel
                 relctx.include_rvar(subrel, else_select_rvar,
                                     path_id=subject_id, ctx=ictx)
@@ -1596,9 +1585,10 @@ def process_update_body(
 
     if pol_expr:
         assert pol_ctx
-        policy_cte = compile_policy_check(
-            contents_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
-        )
+        with pol_ctx.reenter():
+            policy_cte = compile_policy_check(
+                contents_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
+            )
         force_policy_checks(
             policy_cte,
             ((update_stmt,) if update_stmt else ()) +

@@ -800,7 +800,7 @@ def process_set_as_link_property_ref(
             source_scope_stmt, link_path_id, aspect='source', env=ctx.env)
 
         if link_rvar is None:
-            src_rvar = get_set_rvar(ir_source, ctx=ctx)
+            src_rvar = get_set_rvar(ir_source, ctx=newctx)
             assert link_prefix.rptr is not None
             link_rvar = relctx.new_pointer_rvar(
                 link_prefix.rptr, src_rvar=src_rvar,
@@ -1765,7 +1765,7 @@ def process_set_as_coalesce(
             with newctx.subrel() as subctx:
                 left = dispatch.compile(left_ir, ctx=subctx)
 
-                with newctx.subrel() as rightctx:
+                with subctx.subrel() as rightctx:
                     dispatch.compile(right_ir, ctx=rightctx)
                     pathctx.get_path_value_output(
                         rightctx.rel,
@@ -1820,7 +1820,7 @@ def process_set_as_coalesce(
             with newctx.subrel() as subctx:
                 subqry = subctx.rel
 
-                with ctx.subrel() as sub2ctx:
+                with subctx.subrel() as sub2ctx:
 
                     with sub2ctx.subrel() as scopectx:
                         larg = scopectx.rel
@@ -2117,7 +2117,7 @@ def process_set_as_type_cast(
 
             subctx.env.output_format = orig_output_format
         else:
-            set_expr = dispatch.compile(expr, ctx=ctx)
+            set_expr = dispatch.compile(expr, ctx=subctx)
 
             # A proper path var mapping way would be to wrap
             # the inner expression in a subquery, but that
@@ -3472,7 +3472,7 @@ def process_set_as_agg_expr_inner(
 
         if serialization_safe and aspect == 'serialized':
             # Serialization has changed the output type.
-            with newctx.new() as ivctx:
+            with ctx.new() as ivctx:
                 iv = dispatch.compile(iv_ir, ctx=ivctx)
 
                 iv = output.serialize_expr_if_needed(
@@ -3480,7 +3480,7 @@ def process_set_as_agg_expr_inner(
                 set_expr = output.serialize_expr_if_needed(
                     set_expr, path_id=ir_set.path_id, ctx=ctx)
         else:
-            with newctx.new() as ivctx:
+            with ctx.new() as ivctx:
                 iv = dispatch.compile(iv_ir, ctx=ivctx)
 
         pathctx.put_path_var(

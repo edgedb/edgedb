@@ -58,7 +58,7 @@ def compile_trigger(
     kinds = set(trigger.get_kinds(schema))
     source = trigger.get_subject(schema)
 
-    with ctx.detached() as _, ctx.newscope(fenced=True) as sctx:
+    with ctx.detached() as _, _.newscope(fenced=True) as sctx:
         sctx.anchors = sctx.anchors.copy()
 
         anchors = {}
