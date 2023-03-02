@@ -4,18 +4,6 @@ from .data_ops import *
 from .expr_ops import *
 
 from .query_ops import *
-def is_path(e : Expr) -> bool:
-    match e:
-        case FreeVarExpr(_):
-            return True
-        case LinkPropProjExpr(subject=subject, linkprop=linkprop):
-            return is_path(subject)
-        case ObjectProjExpr(subject=subject, label=label):
-            return is_path(subject)
-        case BackLinkExpr(subject=subject, label=label):
-            return is_path(subject)
-        case _:
-            return False
 
 def all_prefixes_of_a_path(e : Expr) -> List[Expr]:
     match e:
