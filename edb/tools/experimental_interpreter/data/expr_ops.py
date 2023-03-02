@@ -3,7 +3,7 @@ from .data_ops import *
 from typing import *
 
 
-def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int = 1) -> Expr :
+def map_expr(f: Callable[[Expr, int], Optional[Expr]], expr: Expr, level: int = 1) -> Expr:
     """ maps a function over free variables and bound variables, 
     and does not modify other nodes
 
@@ -23,11 +23,12 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
             case FreeVarExpr(_) | BoundVarExpr(_) | StrVal(_) | BoolVal(_) | IntVal(_) | RefVal(_) | LinkPropVal(_):
                 return expr
             case BindingExpr(body=body):
-                return BindingExpr(body=map_expr(f, body, level+1)) # type: ignore[has-type]
+                # type: ignore[has-type]
+                return BindingExpr(body=map_expr(f, body, level+1))
             case UnnamedTupleExpr(val=val):
                 return UnnamedTupleExpr(val=[recur(e) for e in val])
             case NamedTupleExpr(val=val):
-                return NamedTupleExpr(val={k : recur(e) for (k,e) in val.items()})
+                return NamedTupleExpr(val={k: recur(e) for (k, e) in val.items()})
             case ObjectProjExpr(subject=subject, label=label):
                 return ObjectProjExpr(subject=recur(subject), label=label)
             case BackLinkExpr(subject=subject, label=label):
@@ -36,14 +37,14 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
                 return TpIntersectExpr(subject=recur(subject), tp=tp_name)
             case LinkPropProjExpr(subject=subject, linkprop=label):
                 return LinkPropProjExpr(subject=recur(subject), linkprop=label)
-            case FunAppExpr(fun=fname, args=args, overloading_index = idx):
+            case FunAppExpr(fun=fname, args=args, overloading_index=idx):
                 return FunAppExpr(fun=fname, args=[recur(arg) for arg in args], overloading_index=idx)
             case FilterOrderExpr(subject=subject, filter=filter, order=order):
-                return FilterOrderExpr(subject=recur(subject), filter=recur(filter), order=recur(order)) 
+                return FilterOrderExpr(subject=recur(subject), filter=recur(filter), order=recur(order))
             case ShapedExprExpr(expr=expr, shape=shape):
                 return ShapedExprExpr(expr=recur(expr), shape=recur(shape))
             case ShapeExpr(shape=shape):
-                return ShapeExpr(shape={k : recur(e_1) for (k, e_1) in shape.items()})
+                return ShapeExpr(shape={k: recur(e_1) for (k, e_1) in shape.items()})
             case TypeCastExpr(tp=tp, arg=arg):
                 return TypeCastExpr(tp=tp, arg=recur(arg))
             case UnionExpr(left=left, right=right):
@@ -59,7 +60,7 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
             case InsertExpr(name=name, new=new):
                 return InsertExpr(name=name, new=recur(new))
             case ObjectExpr(val=val):
-                return ObjectExpr(val={label : recur(item) for (label, item) in val.items()})
+                return ObjectExpr(val={label: recur(item) for (label, item) in val.items()})
             case DetachedExpr(expr=expr):
                 return DetachedExpr(expr=recur(expr))
             case SubqueryExpr(expr=expr):
@@ -71,9 +72,10 @@ def map_expr(f : Callable[[Expr, int], Optional[Expr]], expr : Expr, level : int
             case OptionalForExpr(bound=bound, next=next):
                 return OptionalForExpr(bound=recur(bound), next=recur(next))
 
-    raise ValueError("Not Implemented: map_expr ", expr) 
+    raise ValueError("Not Implemented: map_expr ", expr)
 
-def map_var(f : Callable[[ VarExpr, int], Expr], expr : Expr) -> Expr :
+
+def map_var(f: Callable[[VarExpr, int], Expr], expr: Expr) -> Expr:
     """ maps a function over free variables and bound variables, 
     and does not modify other nodes
 
@@ -81,7 +83,7 @@ def map_var(f : Callable[[ VarExpr, int], Expr], expr : Expr) -> Expr :
             being mapped, it should be called with initially = 1.
             Increases as we encounter abstractions
     """
-    def map_func(e : Expr, level : int) -> Optional[Expr]:
+    def map_func(e: Expr, level: int) -> Optional[Expr]:
         match e:
             case FreeVarExpr(_):
                 return f(e, level)
@@ -89,11 +91,13 @@ def map_var(f : Callable[[ VarExpr, int], Expr], expr : Expr) -> Expr :
                 return f(e, level)
         return None
     return map_expr(map_func, expr)
-    
-def instantiate_expr(e2 : Expr, e : BindingExpr) -> Expr:
+
+
+def instantiate_expr(e2: Expr, e: BindingExpr) -> Expr:
     if not isinstance(e, BindingExpr):
         raise ValueError(e)
-    def map_func(e : VarExpr, level : int) -> Expr:
+
+    def map_func(e: VarExpr, level: int) -> Expr:
         # print("instantiating ", e, " at level ", level)
         match e:
             case BoundVarExpr(i):
@@ -111,9 +115,10 @@ def instantiate_expr(e2 : Expr, e : BindingExpr) -> Expr:
     # print("using", e2, "to instantiate", e, "has resulted in", result)
     return result
 
-def abstract_over_expr(expr : Expr, var : Optional[str] = None) -> BindingExpr :
+
+def abstract_over_expr(expr: Expr, var: Optional[str] = None) -> BindingExpr:
     """Construct a BindingExpr that binds var"""
-    def replace_if_match(inner : VarExpr, level : int) -> Expr:
+    def replace_if_match(inner: VarExpr, level: int) -> Expr:
         match inner:
             case FreeVarExpr(fname):
                 if var == fname:
@@ -124,15 +129,17 @@ def abstract_over_expr(expr : Expr, var : Optional[str] = None) -> BindingExpr :
 
     return BindingExpr(body=map_var(replace_if_match, expr))
 
-def subst_expr_for_expr(expr2 : Expr, replace : Expr, subject : Expr):
-    def map_func(candidate : Expr, level : int) -> Optional[Expr]:
+
+def subst_expr_for_expr(expr2: Expr, replace: Expr, subject: Expr):
+    def map_func(candidate: Expr, level: int) -> Optional[Expr]:
         if candidate == replace:
             return expr2
         else:
             return None
     return map_expr(map_func, subject)
 
-def iterative_subst_expr_for_expr(expr2 : Sequence[Expr], replace : Sequence[Expr], subject : Expr):
+
+def iterative_subst_expr_for_expr(expr2: Sequence[Expr], replace: Sequence[Expr], subject: Expr):
     """ Iteratively perform substitution from right to left, 
         comptues: [expr2[0]/replace[0]]...[expr[n-1]/replace[n-1]]subject """
 
@@ -143,10 +150,10 @@ def iterative_subst_expr_for_expr(expr2 : Sequence[Expr], replace : Sequence[Exp
     return result
 
 
-
-def appears_in_expr(search : Expr, subject : Expr):
+def appears_in_expr(search: Expr, subject: Expr):
     flag = False
-    def map_func(candidate : Expr, level : int) -> Optional[Expr]:
+
+    def map_func(candidate: Expr, level: int) -> Optional[Expr]:
         nonlocal flag
         if flag == True:
             return candidate
@@ -159,11 +166,11 @@ def appears_in_expr(search : Expr, subject : Expr):
     return flag
 
 
-    
-def binding_is_unnamed(expr : BindingExpr) -> bool:
+def binding_is_unnamed(expr: BindingExpr) -> bool:
     class ReturnFalse(Exception):
         pass
-    def map_func(e : VarExpr, outer_level : int) -> Expr:
+
+    def map_func(e: VarExpr, outer_level: int) -> Expr:
         match e:
             case BoundVarExpr(idx):
                 if idx == outer_level:
@@ -171,7 +178,7 @@ def binding_is_unnamed(expr : BindingExpr) -> bool:
                 else:
                     return e
         return e
-    
+
     try:
         map_var(map_func, expr.body)
     except ReturnFalse:
@@ -179,12 +186,12 @@ def binding_is_unnamed(expr : BindingExpr) -> bool:
     return True
 
 
-def operate_under_binding(e : BindingExpr, op : Callable[[Expr], Expr]):
+def operate_under_binding(e: BindingExpr, op: Callable[[Expr], Expr]):
     name = next_name()
     return abstract_over_expr(op(instantiate_expr(FreeVarExpr(name), e)), name)
-    
 
-def get_object_val(val : Val) -> ObjectVal:
+
+def get_object_val(val: Val) -> ObjectVal:
     match val:
         case FreeVal(dictval):
             return dictval
@@ -193,7 +200,7 @@ def get_object_val(val : Val) -> ObjectVal:
     raise ValueError("Cannot get object val", val)
 
 
-def val_is_primitive(rt : Val) -> bool:
+def val_is_primitive(rt: Val) -> bool:
     match rt:
         case StrVal(_) | IntVal(_) | ArrVal(_) | UnnamedTupleVal(_) | BoolVal(_):
             return True
@@ -201,7 +208,8 @@ def val_is_primitive(rt : Val) -> bool:
             return False
     raise ValueError("not implemented")
 
-def val_is_object(rt : Val) -> bool:
+
+def val_is_object(rt: Val) -> bool:
     match rt:
         case RefVal(_) | FreeVal(_):
             return True
@@ -210,24 +218,24 @@ def val_is_object(rt : Val) -> bool:
     raise ValueError("not implemented", rt)
 
 
-def val_is_ref_val(rt : Val) -> bool:
+def val_is_ref_val(rt: Val) -> bool:
     match rt:
         case RefVal(_):
             return True
     return False
 
-def remove_link_props(rt : Val) -> Val:
+
+def remove_link_props(rt: Val) -> Val:
     match rt:
         case RefVal(refid=id, val=ObjectVal(val=dic)):
-            return RefVal(refid=id, val=ObjectVal(val=
-                {k : v for (k,v) in dic.items() if isinstance(k, StrLabel)}
-            ))
+            return RefVal(refid=id, val=ObjectVal(val={k: v for (k, v) in dic.items() if isinstance(k, StrLabel)}
+                                                  ))
     raise ValueError("Expected RefVal")
 
-def remove_unless_link_props(dic : ObjectVal) -> ObjectVal:
-    return ObjectVal(val=
-                {k : v for (k,v) in dic.val.items() if isinstance(k, LinkPropLabel)}
-            )
+
+def remove_unless_link_props(dic: ObjectVal) -> ObjectVal:
+    return ObjectVal(val={k: v for (k, v) in dic.val.items() if isinstance(k, LinkPropLabel)}
+                     )
 
 
 def conversion_error():
@@ -235,26 +243,26 @@ def conversion_error():
         pass
     raise ConversionError
 
-def convert_to_link_prop_obj(dic : ObjectVal) -> ObjectVal:
-    return ObjectVal(val=
-        {(LinkPropLabel(k.label) if isinstance(k, StrLabel) else conversion_error())
-        : v for (k,v) in dic.val.items() }
-    )
 
-def convert_back_from_link_prop_obj(dic : ObjectVal) -> ObjectVal:
-    return ObjectVal(val=
-        {(StrLabel(k.label) if isinstance(k, LinkPropLabel) else conversion_error())
-        : v for (k,v) in dic.val.items() }
-    )
+def convert_to_link_prop_obj(dic: ObjectVal) -> ObjectVal:
+    return ObjectVal(val={(LinkPropLabel(k.label) if isinstance(k, StrLabel) else conversion_error()): v for (k, v) in dic.val.items()}
+                     )
 
-def combine_object_val(o1 : ObjectVal, o2 : ObjectVal) -> ObjectVal:
+
+def convert_back_from_link_prop_obj(dic: ObjectVal) -> ObjectVal:
+    return ObjectVal(val={(StrLabel(k.label) if isinstance(k, LinkPropLabel) else conversion_error()): v for (k, v) in dic.val.items()}
+                     )
+
+
+def combine_object_val(o1: ObjectVal, o2: ObjectVal) -> ObjectVal:
     return ObjectVal({**o1.val, **o2.val})
 
 
-def object_to_shape(expr : ObjectExpr) -> ShapeExpr:
-    return ShapeExpr(shape={lbl : abstract_over_expr(e) for (lbl, e) in expr.val.items()})
+def object_to_shape(expr: ObjectExpr) -> ShapeExpr:
+    return ShapeExpr(shape={lbl: abstract_over_expr(e) for (lbl, e) in expr.val.items()})
 
-def make_storage_atomic(val : Val, tp : Tp) -> Val:
+
+def make_storage_atomic(val: Val, tp: Tp) -> Val:
     match val:
         case RefVal(id, obj):
             obj_link_prop = remove_unless_link_props(obj)
@@ -273,42 +281,46 @@ def make_storage_atomic(val : Val, tp : Tp) -> Val:
             return val
 
 
-
-def coerce_to_storage(val : ObjectVal, fmt : ObjectTp) -> ObjectVal:
+def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> ObjectVal:
     # ensure no redundant keys
-    extra_keys = [k for k in val.val.keys() if k not in [StrLabel(k) for k in fmt.val.keys()]]
+    extra_keys = [k for k in val.val.keys() if k not in [StrLabel(k)
+                                                         for k in fmt.val.keys()]]
     if extra_keys:
-        raise ValueError("Coercion failed, object contains redundant keys:", extra_keys, 
-        "when coercing ", val, " to ", fmt)
+        raise ValueError("Coercion failed, object contains redundant keys:", extra_keys,
+                         "when coercing ", val, " to ", fmt)
     return ObjectVal(val={
-        StrLabel(k) : (Visible(), 
-            ([make_storage_atomic(v, tp[0]) for v in val.val[StrLabel(k)][1]] 
-                if StrLabel(k) in val.val.keys()
-                else [])
-        ) for (k,tp) in fmt.val.items()
+        StrLabel(k): (Visible(),
+                      ([make_storage_atomic(v, tp[0]) for v in val.val[StrLabel(k)][1]]
+                       if StrLabel(k) in val.val.keys()
+                       else [])
+                      ) for (k, tp) in fmt.val.items()
     })
 
-def object_dedup(val : Sequence[Val]) -> Sequence[Val]:
-    temp : Dict[int, Val]= {}
+
+def object_dedup(val: Sequence[Val]) -> Sequence[Val]:
+    temp: Dict[int, Val] = {}
     for v in val:
         match v:
             case RefVal(refid=id, val=_):
                 temp[id] = v
             case FreeVal(_):
-                temp[next_id()] = v ### Should link dedup apply to free objects?
+                temp[next_id()] = v  # Should link dedup apply to free objects?
             case _:
                 raise ValueError("must pass in objects")
     return list(temp.values())
-       
-def get_link_target(val : Val) -> Val:
+
+
+def get_link_target(val: Val) -> Val:
     match val:
         case LinkPropVal(obj=target, linkprop=lp):
             return target
         case _:
             raise ValueError("Not LinkPropVal")
 
-def assume_link_target(val : MultiSetVal) -> MultiSetVal:
-    targets = [get_link_target(v) if isinstance(v, LinkPropVal) else v for v in val]
+
+def assume_link_target(val: MultiSetVal) -> MultiSetVal:
+    targets = [get_link_target(v) if isinstance(
+        v, LinkPropVal) else v for v in val]
     if all(val_is_object(t) for t in targets):
         return object_dedup(targets)
     elif all(val_is_primitive(t) for t in targets):
@@ -317,11 +329,11 @@ def assume_link_target(val : MultiSetVal) -> MultiSetVal:
         raise ValueError("link targets not uniform", val)
 
 
-def map_assume_link_target(sv : Sequence[MultiSetVal]) -> Sequence[MultiSetVal]:
+def map_assume_link_target(sv: Sequence[MultiSetVal]) -> Sequence[MultiSetVal]:
     return [assume_link_target(v) for v in sv]
 
 
-def val_is_link_convertible(val : Val) -> bool:
+def val_is_link_convertible(val: Val) -> bool:
     match val:
         case RefVal(refid=id, val=obj):
             return all([isinstance(label, LinkPropLabel) for label in obj.val.keys()])
@@ -329,8 +341,7 @@ def val_is_link_convertible(val : Val) -> bool:
             return False
 
 
-
-def convert_to_link(val : Val) -> LinkPropVal:
+def convert_to_link(val: Val) -> LinkPropVal:
     assert val_is_link_convertible(val)
     match val:
         case RefVal(refid=id, val=obj):
@@ -339,7 +350,7 @@ def convert_to_link(val : Val) -> LinkPropVal:
             raise ValueError("Val is not link convertible, check va")
 
 
-def is_path(e : Expr) -> bool:
+def is_path(e: Expr) -> bool:
     match e:
         case FreeVarExpr(_):
             return True
