@@ -2035,15 +2035,11 @@ def _add_type_rel_overlay(
         path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> None:
     entry = (op, rel, path_id)
-    if dml_stmts:
-        for dml_stmt in dml_stmts:
-            overlays = ctx.rel_overlays.type[dml_stmt][typeid]
-            if entry not in overlays:
-                ctx.rel_overlays.type[dml_stmt][typeid] += (entry,)
-    else:
-        overlays = ctx.rel_overlays.type[None][typeid]
+    dml_stmts2 = dml_stmts if dml_stmts else (None,)
+    for dml_stmt in dml_stmts2:
+        overlays = ctx.rel_overlays.type[dml_stmt][typeid]
         if entry not in overlays:
-            ctx.rel_overlays.type[None][typeid] += (entry,)
+            ctx.rel_overlays.type[dml_stmt][typeid] += (entry,)
 
 
 def add_type_rel_overlay(
@@ -2119,15 +2115,11 @@ def _add_ptr_rel_overlay(
         ctx: context.CompilerContextLevel) -> None:
 
     entry = (op, rel, path_id)
-    if dml_stmts:
-        for dml_stmt in dml_stmts:
-            overlays = ctx.rel_overlays.ptr[dml_stmt][typeid, ptrref_name]
-            if entry not in overlays:
-                ctx.rel_overlays.ptr[dml_stmt][typeid, ptrref_name] += (entry,)
-    else:
-        overlays = ctx.rel_overlays.ptr[None][typeid, ptrref_name]
+    dml_stmts2 = dml_stmts if dml_stmts else (None,)
+    for dml_stmt in dml_stmts2:
+        overlays = ctx.rel_overlays.ptr[dml_stmt][typeid, ptrref_name]
         if entry not in overlays:
-            ctx.rel_overlays.ptr[None][typeid, ptrref_name] += (entry,)
+            ctx.rel_overlays.ptr[dml_stmt][typeid, ptrref_name] += (entry,)
 
 
 def add_ptr_rel_overlay(
