@@ -59,6 +59,8 @@ def not_eq_impl(arg : Sequence[MultiSetVal]) -> MultiSetVal:
             return [BoolVal(s1 != s2)]
         case [[IntVal(i1)], [IntVal(i2)]]:
             return [BoolVal(i1 != i2)]
+        case [[RefVal(_) as r1], [RefVal(_) as r2]]:
+            return [BoolVal(r1 != r2)]
     raise FunCallErr(arg)
 
 
