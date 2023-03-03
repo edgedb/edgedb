@@ -23,8 +23,9 @@
 from __future__ import annotations
 from typing import *
 
-import collections
 import uuid
+
+import immutables as immu
 
 from edb import errors
 
@@ -1396,10 +1397,7 @@ def range_for_material_objtype(
                 # rewrites *to include* overlays, so that we can't peek
                 # at all newly created objects that we can't see
                 if not ctx.trigger_mode:
-                    sctx.type_rel_overlays = collections.defaultdict(
-                        lambda: collections.defaultdict(list))
-                    sctx.ptr_rel_overlays = collections.defaultdict(
-                        lambda: collections.defaultdict(list))
+                    sctx.rel_overlays = context.RelOverlays()
                 dispatch.visit(rewrite, ctx=sctx)
                 # If we are expanding inhviews, we also expand type
                 # rewrites, so don't populate type_ctes. The normal
@@ -2039,15 +2037,14 @@ def _add_type_rel_overlay(
         path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> None:
     entry = (op, rel, path_id)
-    if dml_stmts:
-        for dml_stmt in dml_stmts:
-            overlays = ctx.type_rel_overlays[dml_stmt][typeid]
-            if entry not in overlays:
-                overlays.append(entry)
-    else:
-        overlays = ctx.type_rel_overlays[None][typeid]
+    dml_stmts2 = dml_stmts if dml_stmts else (None,)
+    for dml_stmt in dml_stmts2:
+        ds_overlays = ctx.rel_overlays.type.get(dml_stmt, immu.Map())
+        overlays = ds_overlays.get(typeid, ())
         if entry not in overlays:
-            overlays.append(entry)
+            ds_overlays = ds_overlays.set(typeid, overlays + (entry,))
+            ctx.rel_overlays.type = (
+                ctx.rel_overlays.type.set(dml_stmt, ds_overlays))
 
 
 def add_type_rel_overlay(
@@ -2079,17 +2076,14 @@ def get_type_rel_overlays(
     *,
     dml_source: Optional[irast.MutatingLikeStmt]=None,
     ctx: context.CompilerContextLevel,
-) -> List[
-    Tuple[
-        str,
-        Union[pgast.BaseRelation, pgast.CommonTableExpr],
-        irast.PathId,
-    ]
-]:
+) -> tuple[context.OverlayEntry, ...]:
     if typeref.material_type is not None:
         typeref = typeref.material_type
 
-    return ctx.type_rel_overlays[dml_source][typeref.id]
+    if dml_source not in ctx.rel_overlays.type:
+        return ()
+    else:
+        return ctx.rel_overlays.type[dml_source].get(typeref.id, ())
 
 
 def reuse_type_rel_overlays(
@@ -2104,13 +2098,13 @@ def reuse_type_rel_overlays(
     nested overlays) as an overlay for all the enclosing DML
     statements.
     """
-    ref_overlays = ctx.type_rel_overlays[dml_source]
+    ref_overlays = ctx.rel_overlays.type.get(dml_source, immu.Map())
     for tid, overlays in ref_overlays.items():
         for op, rel, path_id in overlays:
             _add_type_rel_overlay(
                 tid, op, rel, dml_stmts=dml_stmts, path_id=path_id, ctx=ctx
             )
-    ptr_overlays = ctx.ptr_rel_overlays[dml_source]
+    ptr_overlays = ctx.rel_overlays.ptr.get(dml_source, immu.Map())
     for (obj, ptr), poverlays in ptr_overlays.items():
         for op, rel, path_id in poverlays:
             _add_ptr_rel_overlay(
@@ -2129,15 +2123,15 @@ def _add_ptr_rel_overlay(
         ctx: context.CompilerContextLevel) -> None:
 
     entry = (op, rel, path_id)
-    if dml_stmts:
-        for dml_stmt in dml_stmts:
-            overlays = ctx.ptr_rel_overlays[dml_stmt][typeid, ptrref_name]
-            if entry not in overlays:
-                overlays.append(entry)
-    else:
-        overlays = ctx.ptr_rel_overlays[None][typeid, ptrref_name]
+    dml_stmts2 = dml_stmts if dml_stmts else (None,)
+    key = typeid, ptrref_name
+    for dml_stmt in dml_stmts2:
+        ds_overlays = ctx.rel_overlays.ptr.get(dml_stmt, immu.Map())
+        overlays = ds_overlays.get(key, ())
         if entry not in overlays:
-            overlays.append(entry)
+            ds_overlays = ds_overlays.set(key, overlays + (entry,))
+            ctx.rel_overlays.ptr = (
+                ctx.rel_overlays.ptr.set(dml_stmt, ds_overlays))
 
 
 def add_ptr_rel_overlay(
@@ -2164,34 +2158,10 @@ def get_ptr_rel_overlays(
     ptrref: irast.PointerRef, *,
     dml_source: Optional[irast.MutatingLikeStmt]=None,
     ctx: context.CompilerContextLevel,
-) -> List[
-    Tuple[
-        str,
-        Union[pgast.BaseRelation, pgast.CommonTableExpr],
-        irast.PathId,
-    ]
-]:
+) -> tuple[context.OverlayEntry, ...]:
     typeref = ptrref.out_source.real_material_type
-    return ctx.ptr_rel_overlays[dml_source][typeref.id, ptrref.shortname.name]
-
-
-def clone_type_rel_overlays(
-    *,
-    ctx: context.CompilerContextLevel,
-) -> None:
-    ctx.type_rel_overlays = ctx.type_rel_overlays.copy()
-    for k, v in ctx.type_rel_overlays.items():
-        ctx.type_rel_overlays[k] = v.copy()
-        for k2, v2 in v.items():
-            v[k2] = list(v2)
-
-
-def clone_ptr_rel_overlays(
-    *,
-    ctx: context.CompilerContextLevel,
-) -> None:
-    ctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
-    for k, v in ctx.ptr_rel_overlays.items():
-        ctx.ptr_rel_overlays[k] = v.copy()
-        for k2, v2 in v.items():
-            v[k2] = list(v2)
+    if dml_source not in ctx.rel_overlays.ptr:
+        return ()
+    else:
+        key = typeref.id, ptrref.shortname.name
+        return ctx.rel_overlays.ptr[dml_source].get(key, ())
