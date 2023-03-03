@@ -1498,6 +1498,16 @@ class ExplainStmt(Statement):
 
 
 #
+# Analyze
+#
+
+class AnalyzeStmt(Statement):
+
+    verbose: bool = False
+    skip_locked: bool = False
+
+
+#
 # SDL
 #
 

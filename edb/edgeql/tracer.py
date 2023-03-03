@@ -1192,6 +1192,14 @@ def trace_ExplainStmt(
 
 
 @trace.register
+def trace_AnalyzeStmt(
+    node: qlast.AnalyzeStmt, *,
+    ctx: TracerContext,
+) -> None:
+    pass
+
+
+@trace.register
 def trace_Placeholder(
     node: qlast.Placeholder,
     *,

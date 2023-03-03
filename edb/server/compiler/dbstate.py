@@ -179,6 +179,12 @@ class MigrationControlQuery(BaseQuery):
 
 
 @dataclasses.dataclass(frozen=True)
+class MaintenanceQuery(BaseQuery):
+
+    is_transactional: bool = True
+
+
+@dataclasses.dataclass(frozen=True)
 class Param:
     name: str
     required: bool
