@@ -2685,8 +2685,8 @@ def compile_trigger(
         # up everywhere...  but __old__ has a TriggerAnchor set up in
         # it, which acts like a dml statement, and *diverts* __old__
         # away from the new data!
-        # TODO: We should consider building a dedicated __new__overlay
-        # in order to reduce overlay sizes in common cases
+        # XXX: TODO: what about the overlays induced by *new* DML...
+        # Those need to be rooted at `None`
 
         # We grab the list of DML out of dml_stmts instead of just
         # from the overlays for determinism reasons; it effects the
@@ -2694,6 +2694,16 @@ def compile_trigger(
         all_dml = [
             x for x in ctx.dml_stmts if isinstance(x, irast.MutatingStmt)]
         merge_overlays_globally(all_dml, ctx=tctx)
+
+        # Copy over the global overlay to __new__, since it should see
+        # the new data also.
+        # TODO: We should consider building a dedicated __new__overlay
+        # in order to reduce overlay sizes in common cases
+        assert isinstance(trigger.new_set.expr, irast.TriggerAnchor)
+        tctx.rel_overlays.type = tctx.rel_overlays.type.set(
+            trigger.new_set.expr, tctx.rel_overlays.type[None])
+        tctx.rel_overlays.ptr = tctx.rel_overlays.ptr.set(
+            trigger.new_set.expr, tctx.rel_overlays.ptr[None])
 
         dispatch.compile(trigger.expr, ctx=tctx)
         # Force the value to get output so that if it might error
