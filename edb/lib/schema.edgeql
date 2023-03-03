@@ -130,9 +130,7 @@ CREATE ABSTRACT TYPE schema::CollectionType EXTENDING schema::PrimitiveType;
 
 
 CREATE TYPE schema::Array EXTENDING schema::CollectionType {
-    CREATE REQUIRED LINK element_type -> schema::Type {
-        ON TARGET DELETE DEFERRED RESTRICT;
-    };
+    CREATE REQUIRED LINK element_type -> schema::Type;
     CREATE PROPERTY dimensions -> array<std::int16>;
 };
 
@@ -141,9 +139,7 @@ CREATE TYPE schema::ArrayExprAlias EXTENDING schema::Array;
 
 
 CREATE TYPE schema::TupleElement EXTENDING std::BaseObject {
-    CREATE REQUIRED LINK type -> schema::Type {
-        ON TARGET DELETE DEFERRED RESTRICT;
-    };
+    CREATE REQUIRED LINK type -> schema::Type;
     CREATE PROPERTY name -> std::str;
 };
 
@@ -161,9 +157,7 @@ CREATE TYPE schema::TupleExprAlias EXTENDING schema::Tuple;
 
 
 CREATE TYPE schema::Range EXTENDING schema::CollectionType {
-    CREATE REQUIRED LINK element_type -> schema::Type {
-        ON TARGET DELETE DEFERRED RESTRICT;
-    };
+    CREATE REQUIRED LINK element_type -> schema::Type;
 };
 
 
@@ -201,9 +195,7 @@ EXTENDING schema::SubclassableObject {
 
 
 CREATE TYPE schema::Parameter EXTENDING schema::Object {
-    CREATE REQUIRED LINK type -> schema::Type {
-        ON TARGET DELETE DEFERRED RESTRICT;
-    };
+    CREATE REQUIRED LINK type -> schema::Type;
     CREATE REQUIRED PROPERTY typemod -> schema::TypeModifier;
     CREATE REQUIRED PROPERTY kind -> schema::ParameterKind;
     CREATE REQUIRED PROPERTY num -> std::int64;
@@ -218,9 +210,7 @@ CREATE ABSTRACT TYPE schema::CallableObject
         ON TARGET DELETE ALLOW;
     };
 
-    CREATE LINK return_type -> schema::Type {
-        ON TARGET DELETE DEFERRED RESTRICT;
-    };
+    CREATE LINK return_type -> schema::Type;
     CREATE PROPERTY return_typemod -> schema::TypeModifier;
 };
 
@@ -322,9 +312,7 @@ ALTER TYPE schema::Source {
 CREATE TYPE schema::Alias EXTENDING schema::AnnotationSubject
 {
     CREATE REQUIRED PROPERTY expr -> std::str;
-    CREATE REQUIRED LINK type -> schema::Type {
-        ON TARGET DELETE DEFERRED RESTRICT;
-    };
+    CREATE REQUIRED LINK type -> schema::Type;
 };
 
 
@@ -473,9 +461,7 @@ CREATE TYPE schema::Property EXTENDING schema::Pointer;
 
 ALTER TYPE schema::Pointer {
     CREATE LINK source -> schema::Source;
-    CREATE LINK target -> schema::Type {
-        ON TARGET DELETE DEFERRED RESTRICT;
-    };
+    CREATE LINK target -> schema::Type;
     CREATE MULTI LINK rewrites
             EXTENDING schema::reference -> schema::Rewrite {
         CREATE CONSTRAINT std::exclusive;
@@ -501,9 +487,7 @@ ALTER TYPE schema::ObjectType {
 
 
 CREATE TYPE schema::Global EXTENDING schema::AnnotationSubject {
-    CREATE REQUIRED LINK target -> schema::Type {
-        ON TARGET DELETE DEFERRED RESTRICT;
-    };
+    CREATE REQUIRED LINK target -> schema::Type;
     CREATE PROPERTY required -> std::bool;
     CREATE PROPERTY cardinality -> schema::Cardinality;
     CREATE PROPERTY expr -> std::str;
