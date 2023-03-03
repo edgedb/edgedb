@@ -102,8 +102,6 @@ class ShapePtr(NamedTuple):
 class ShapeContext:
     # a helper object for passing shape compile parameters
 
-    ctx: context.ContextLevel
-
     path_id_namespace: Optional[irast.Namespace] = None
 
     view_rptr: Optional[context.ViewRPtr] = None
@@ -143,7 +141,6 @@ def process_view(
     ctx.aliased_views = collections.ChainMap(dict(ctx.aliased_views))
 
     s_ctx = ShapeContext(
-        ctx=ctx,
         path_id_namespace=None,
         view_rptr=view_rptr,
         view_name=view_name,
@@ -154,6 +151,7 @@ def process_view(
         ir_set,
         stype=stype,
         elements=elements,
+        ctx=ctx,
         s_ctx=s_ctx,
     )
 
@@ -168,9 +166,9 @@ def _process_view(
     stype: s_objtypes.ObjectType,
     elements: Optional[Sequence[qlast.ShapeElement]],
     s_ctx: ShapeContext,
+    ctx: context.ContextLevel,
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
     path_id = ir_set.path_id
-    ctx = s_ctx.ctx
     view_rptr = s_ctx.view_rptr
 
     view_name = s_ctx.view_name
@@ -224,7 +222,7 @@ def _process_view(
         stype,
         exprtype=s_ctx.exprtype,
         derived_name=view_name,
-        ctx=s_ctx.ctx,
+        ctx=ctx,
     )
     assert isinstance(view_scls, s_objtypes.ObjectType), view_scls
     is_mutation = s_ctx.exprtype.is_insert() or s_ctx.exprtype.is_update()
@@ -259,7 +257,7 @@ def _process_view(
 
         shape_desc.append(
             _shape_el_ql_to_shape_el_desc(
-                shape_el, source=view_scls, s_ctx=s_ctx
+                shape_el, source=view_scls, s_ctx=s_ctx, ctx=ctx
             )
         )
 
@@ -353,6 +351,7 @@ def _process_view(
                     splat_el,
                     source=view_scls,
                     s_ctx=s_ctx,
+                    ctx=ctx
                 )
             )
 
@@ -367,6 +366,7 @@ def _process_view(
                 path_id=path_id,
                 pending_pointers=pointers,
                 s_ctx=s_scopectx,
+                ctx=ctx,
             )
 
             pointers[pointer] = EarlyShapePtr(
@@ -393,7 +393,7 @@ def _process_view(
         dummy_el = qlast.ShapeElement(expr=qlast.Path(
             steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=name))]))
         dummy_el_desc = _shape_el_ql_to_shape_el_desc(
-            dummy_el, source=view_scls, s_ctx=s_ctx
+            dummy_el, source=view_scls, s_ctx=s_ctx, ctx=ctx
         )
 
         with ctx.new() as scopectx:
@@ -405,6 +405,7 @@ def _process_view(
                 view_scls,
                 path_id=path_id,
                 s_ctx=s_scopectx,
+                ctx=ctx,
             )
 
         pointers[pointer] = EarlyShapePtr(
@@ -421,7 +422,8 @@ def _process_view(
                 view_scls,
                 ir_set,
                 stype,
-                s_ctx
+                s_ctx,
+                ctx,
             )
         )
 
@@ -517,6 +519,7 @@ def _shape_el_ql_to_shape_el_desc(
     *,
     source: s_sources.Source,
     s_ctx: ShapeContext,
+    ctx: context.ContextLevel,
 ) -> ShapeElementDesc:
     """Look at ShapeElement AST and annotate it for more convenient handing."""
 
@@ -556,11 +559,11 @@ def _shape_el_ql_to_shape_el_desc(
                 'complex type expressions are not supported here',
                 context=ptype.context,
             )
-        source_spec = schemactx.get_schema_type(ptype.maintype, ctx=s_ctx.ctx)
+        source_spec = schemactx.get_schema_type(ptype.maintype, ctx=ctx)
         if not isinstance(source_spec, s_objtypes.ObjectType):
             raise errors.QueryError(
                 f"expected object type, got "
-                f"{source_spec.get_verbosename(s_ctx.ctx.env.schema)}",
+                f"{source_spec.get_verbosename(ctx.env.schema)}",
                 context=ptype.context,
             )
         source = source_spec
@@ -689,10 +692,10 @@ def gen_pointers_from_defaults(
     ir_set: irast.Set,
     stype: s_objtypes.ObjectType,
     s_ctx: ShapeContext,
+    ctx: context.ContextLevel,
 ) -> Dict[s_pointers.Pointer, EarlyShapePtr]:
     path_id = ir_set.path_id
     result: List[EarlyShapePtr] = []
-    ctx = s_ctx.ctx
 
     scls_pointers = stype.get_pointers(ctx.env.schema)
     for pn, ptrcls in scls_pointers.items(ctx.env.schema):
@@ -742,7 +745,7 @@ def gen_pointers_from_defaults(
             origin=qlast.ShapeOrigin.DEFAULT,
         )
         default_ql_desc = _shape_el_ql_to_shape_el_desc(
-            default_ql, source=view_scls, s_ctx=s_ctx
+            default_ql, source=view_scls, s_ctx=s_ctx, ctx=ctx
         )
 
         with ctx.new() as scopectx:
@@ -755,6 +758,7 @@ def gen_pointers_from_defaults(
                 path_id=path_id,
                 from_default=True,
                 s_ctx=s_scopectx,
+                ctx=ctx,
             )
 
             result.append(EarlyShapePtr(
@@ -855,12 +859,11 @@ def _compile_qlexpr(
     ptrsource: s_sources.Source,
     ptr_name: sn.QualName,
     is_linkprop: bool,
-
     s_ctx: ShapeContext,
+    ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, context.ViewRPtr]:
-    ctx = s_ctx.ctx
 
-    with s_ctx.ctx.newscope(fenced=True) as shape_expr_ctx:
+    with ctx.newscope(fenced=True) as shape_expr_ctx:
         # Put current pointer class in context, so
         # that references to link properties in sub-SELECT
         # can be resolved.  This is necessary for proper
@@ -905,8 +908,8 @@ def _normalize_view_ptr_expr(
     from_default: bool = False,
     pending_pointers: Mapping[s_pointers.Pointer, EarlyShapePtr] | None = None,
     s_ctx: ShapeContext,
+    ctx: context.ContextLevel,
 ) -> Tuple[s_pointers.Pointer, Optional[irast.Set]]:
-    ctx = s_ctx.ctx
     is_mutation = s_ctx.exprtype.is_insert() or s_ctx.exprtype.is_update()
 
     materialized = None
@@ -1048,6 +1051,7 @@ def _normalize_view_ptr_expr(
                 ptr_name=ptr_name,
                 is_linkprop=is_linkprop,
                 s_ctx=s_ctx,
+                ctx=ctx,
             )
             materialized = setgen.should_materialize(
                 irexpr, ptrcls=ptrcls,
@@ -1128,6 +1132,7 @@ def _normalize_view_ptr_expr(
             ptr_name=ptr_name,
             is_linkprop=is_linkprop,
             s_ctx=s_ctx,
+            ctx=ctx,
         )
         materialized = setgen.should_materialize(
             irexpr, ptrcls=ptrcls,
@@ -1659,7 +1664,7 @@ def _inline_type_computable(
             )
         )
         ql_desc = _shape_el_ql_to_shape_el_desc(
-            ql, source=stype, s_ctx=ShapeContext(ctx=ctx)
+            ql, source=stype, s_ctx=ShapeContext(), ctx=ctx
         )
 
         with ctx.new() as scopectx:
@@ -1677,7 +1682,8 @@ def _inline_type_computable(
                 ql_desc,
                 stype,
                 path_id=ir_set.path_id,
-                s_ctx=ShapeContext(ctx=scopectx),
+                s_ctx=ShapeContext(),
+                ctx=scopectx
             )
 
     view_shape = ctx.env.view_shapes[stype]
