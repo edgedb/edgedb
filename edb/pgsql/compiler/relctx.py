@@ -1371,24 +1371,33 @@ def range_for_material_objtype(
 
     assert isinstance(typeref.name_hint, sn.QualName)
 
-    key = (typeref.id, include_descendants)
+    dml_source_key = dml_source if ctx.trigger_mode else None
+    rw_key = (typeref.id, include_descendants)
+    key = rw_key + (dml_source_key,)
     if (
         not ignore_rewrites
-        and (rewrite := ctx.env.type_rewrites.get(key)) is not None
-        and key not in ctx.pending_type_ctes
+        and (rewrite := ctx.env.type_rewrites.get(rw_key)) is not None
+        and rw_key not in ctx.pending_type_ctes
         and not for_mutation
     ):
         # Don't include overlays in the normal way in trigger mode
         # when a type cte is used, because we bake the overlays into
         # the cte instead (and so including them normally could union
-        # back in things that we have filtered out)
-        if ctx.trigger_mode:
+        # back in things that we have filtered out).
+        # We *don't* do this for __old__ and __new__; __old__ because
+        # we don't want overlays at all and __new__ because we want the
+        # overlays to apply after policies.
+        trigger_mode = (
+            ctx.trigger_mode
+            and not isinstance(dml_source, irast.TriggerAnchor)
+        )
+        if trigger_mode:
             include_overlays = False
 
         type_rel: pgast.BaseRelation | pgast.CommonTableExpr
         if (type_cte := ctx.type_ctes.get(key)) is None:
             with ctx.newrel() as sctx:
-                sctx.pending_type_ctes.add(key)
+                sctx.pending_type_ctes.add(rw_key)
                 sctx.pending_query = sctx.rel
                 sctx.volatility_ref = ()
                 # Normally we want to compile type rewrites without
@@ -1396,8 +1405,9 @@ def range_for_material_objtype(
                 # compiling triggers, we recompile all of the type
                 # rewrites *to include* overlays, so that we can't peek
                 # at all newly created objects that we can't see
-                if not ctx.trigger_mode:
+                if not trigger_mode:
                     sctx.rel_overlays = context.RelOverlays()
+
                 dispatch.visit(rewrite, ctx=sctx)
                 # If we are expanding inhviews, we also expand type
                 # rewrites, so don't populate type_ctes. The normal

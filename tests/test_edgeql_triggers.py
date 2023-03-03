@@ -22,7 +22,6 @@ import os.path
 import edgedb
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestTriggers(tb.QueryTestCase):
@@ -872,9 +871,6 @@ class TestTriggers(tb.QueryTestCase):
             ]),
         )
 
-    @test.xfail('''
-        We return 0/0/0
-    ''')
     async def test_edgeql_triggers_policies_05(self):
         await self.con.execute('''
             alter type Subordinate {
@@ -885,6 +881,8 @@ class TestTriggers(tb.QueryTestCase):
             };
             insert Subordinate { name := "foo" };
             insert Subordinate { name := "bar" };
+            insert InsertTest { name := "x", subordinates := Subordinate };
+
             alter type InsertTest {
               create trigger log after update for each do (
                 insert Note {
@@ -901,15 +899,43 @@ class TestTriggers(tb.QueryTestCase):
             update InsertTest set { l2 := -1 };
         ''')
 
-        # __old__ *definitely* should be 2
-        # __new__ I /think/ should be 2, though you could sensibly define
-        # it in either direction
-        # InsertTest is correctly zero
         await self.assert_query_result(
             '''
             select Note { note }
             ''',
-            tb.bag([
-                {'note': "2/2/0"},
-            ]),
+            [{'note': "2/2/0"}],
+        )
+
+    async def test_edgeql_triggers_policies_06(self):
+        await self.con.execute('''
+            alter type Subordinate {
+              create access policy ok allow all;
+              create access policy no deny select;
+            };
+
+            alter type InsertTest {
+              create trigger log after insert for each do (
+                insert Note {
+                  name := "insert",
+                  note := <str>count(__new__.subordinates)
+                }
+              );
+            };
+        ''')
+
+        await self.con.execute('''
+            insert InsertTest {
+                name := "!",
+                subordinates := {
+                  (insert Subordinate { name := "foo" }),
+                  (insert Subordinate { name := "bar" }),
+                },
+            };
+        ''')
+
+        await self.assert_query_result(
+            '''
+            select Note { note }
+            ''',
+            [{'note': "2"}],
         )

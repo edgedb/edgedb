@@ -221,7 +221,7 @@ class CompilerContextLevel(compiler.ContextLevel):
     param_ctes: Dict[str, pgast.CommonTableExpr]
 
     #: CTEs representing schema types, when rewritten based on access policy
-    type_ctes: Dict[RewriteKey, pgast.CommonTableExpr]
+    type_ctes: Dict[FullRewriteKey, pgast.CommonTableExpr]
 
     #: A set of type CTEs currently being generated
     pending_type_ctes: Set[RewriteKey]
@@ -467,6 +467,7 @@ class CompilerContext(compiler.CompilerContext[CompilerContextLevel]):
 
 
 RewriteKey = Tuple[uuid.UUID, bool]
+FullRewriteKey = Tuple[uuid.UUID, bool, Optional['irast.MutatingLikeStmt']]
 
 
 class Environment:
