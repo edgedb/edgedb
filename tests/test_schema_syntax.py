@@ -62,34 +62,34 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
     def test_eschema_syntax_tabs_01(self):
         """
 \tabstract type test::Foo {
-\t\trequired property foo -> str;
+\t\trequired property foo: str;
 \t};
 
 \tabstract type test::Bar {
-\t\trequired property bar -> str;
+\t\trequired property bar: str;
 \t};
         """
 
     def test_eschema_syntax_tabs_02(self):
         """
 \t  abstract type test::Foo {
-\t      required property foo -> str;
+\t      required property foo: str;
 };
 
 \t  abstract type test::Bar {
-\t      required property bar -> str;
+\t      required property bar: str;
 };
         """
     def test_eschema_syntax_semicolon_01(self):
         """
         abstract type test::OwnedObject {
-            required link owner -> User
+            required link owner: User
         };
 
 % OK %
 
         abstract type test::OwnedObject {
-            required link owner -> User;
+            required link owner: User;
         };
         """
 
@@ -97,7 +97,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             abstract type OwnedObject {
-                required property tag -> str
+                required property tag: str
             }
         }
 
@@ -105,7 +105,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
         module test {
             abstract type OwnedObject {
-                required property tag -> str;
+                required property tag: str;
             };
         };
         """
@@ -113,15 +113,15 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
     def test_eschema_syntax_semicolon_03(self):
         """
         abstract type test::OwnedObject {
-            required link owner -> User;
-            required property tag -> str
+            required link owner: User;
+            required property tag: str
         };
 
 % OK %
 
         abstract type test::OwnedObject {
-            required link owner -> User;
-            required property tag -> str;
+            required link owner: User;
+            required property tag: str;
         };
         """
 
@@ -131,7 +131,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
     def test_eschema_syntax_type_02(self):
         """
         abstract type test::OwnedObject {
-            required link owner -> User;
+            required link owner: User;
         };
         """
 
@@ -139,7 +139,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             abstract type Text {
-                required property body -> str {
+                required property body: str {
                     constraint max_len_value (10000);
                 };
             };
@@ -150,7 +150,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type LogEntry extending OwnedObject, Text {
-                required property spent_time -> int64;
+                required property spent_time: int64;
             };
         };
         """
@@ -168,7 +168,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type LogEntry extending OwnedObject, Text {
-                property start_date -> datetime {
+                property start_date: datetime {
                    default :=
                         (SELECT datetime::datetime_current());
                    title := 'Start Date';
@@ -181,33 +181,33 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Issue extending `foo.bar`::NamedObject, OwnedObject, Text {
-                required link number -> issue_num_t {
+                required link number: issue_num_t {
                     readonly := true;
                 };
 
-                required link status -> Status;
+                required link status: Status;
 
-                link priority -> Priority;
+                link priority: Priority;
 
-                multi link watchers extending orderable -> User {
-                    property foo extending bar -> str;
+                multi link watchers extending orderable: User {
+                    property foo extending bar: str;
                 };
 
-                multi link time_spent_log -> LogEntry;
+                multi link time_spent_log: LogEntry;
 
                 link start_date := (SELECT datetime::datetime_current());
 
-                multi link related_to -> Issue;
+                multi link related_to: Issue;
 
-                property time_estimate -> int64;
+                property time_estimate: int64;
 
-                property start_date -> datetime {
+                property start_date: datetime {
                    default :=
                         (SELECT datetime::datetime_current());
                    title := 'Start Date';
                 };
 
-                property due_date -> datetime;
+                property due_date: datetime;
 
                 property real_time_estimate {
                     using ((.time_estimate * 2));
@@ -227,7 +227,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                property time_estimate -> int64 {
+                property time_estimate: int64 {
                     property unit {
                         default := 'minute';
                     };
@@ -240,7 +240,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type LogEntry extending OwnedObject, Text {
-                required link attachment -> Post | File | User;
+                required link attachment: Post | File | User;
             };
         };
         """
@@ -249,7 +249,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type `Log-Entry` extending `OwnedObject`, `Text` {
-                required link attachment -> `Post` | `File` | `User`;
+                required link attachment: `Post` | `File` | `User`;
             };
         };
 
@@ -257,7 +257,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
         module test {
             type `Log-Entry` extending OwnedObject, Text {
-                required link attachment -> Post | File | User;
+                required link attachment: Post | File | User;
             };
         };
         """
@@ -268,7 +268,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Commit {
-                required property name -> std::str;
+                required property name: std::str;
             };
         };
         """
@@ -278,7 +278,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type __Foo__ {
-                required property name -> std::str;
+                required property name: std::str;
             };
         };
         """
@@ -288,7 +288,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type `__Foo__` {
-                required property name -> std::str;
+                required property name: std::str;
             };
         };
         """
@@ -298,7 +298,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type __Foo {
-                required property __name__ -> std::str;
+                required property __name__: std::str;
             };
         };
         """
@@ -308,7 +308,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type `__Foo` {
-                required property `__name__` -> std::str;
+                required property `__name__`: std::str;
             };
         };
         """
@@ -317,7 +317,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Пример {
-                required property номер -> int16;
+                required property номер: int16;
             };
         };
         """
@@ -326,16 +326,16 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                link bar0 -> Bar {
+                link bar0: Bar {
                     on target delete restrict;
                 };
-                link bar1 -> Bar {
+                link bar1: Bar {
                     on target delete delete source;
                 };
-                link bar2 -> Bar {
+                link bar2: Bar {
                     on target delete allow;
                 };
-                link bar3 -> Bar {
+                link bar3: Bar {
                     on target delete deferred restrict;
                 };
             };
@@ -349,7 +349,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                link bar0 -> Bar {
+                link bar0: Bar {
                     on target delete restrict;
                     on target delete delete source;
                 };
@@ -361,7 +361,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                property foo -> str {
+                property foo: str {
                     default := some_func(
         1, 2, 3);
                 };
@@ -373,18 +373,18 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         r"""
         module test {
             type Foo {
-                property foo -> str {
+                property foo: str {
                     # if it's defined on the same line as :=
                     # the definition must be a one-liner
                     default := some_func(1, 2, 3);
                 };
-                property bar -> str {
+                property bar: str {
                     # multi-line definition with correct indentation
                     default :=
                         some_func('
                         1, 2, 3');
                 };
-                property baz -> str {
+                property baz: str {
                     # multi-line definition with correct indentation
                     default :=
                         $$some_func(
@@ -397,16 +397,16 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
         module test {
             type Foo {
-                property foo -> str {
+                property foo: str {
                     # if it's defined on the same line as :=
                     # the definition must be a one-liner
                     default := some_func(1, 2, 3);
                 };
-                property bar -> str {
+                property bar: str {
                     # multi-line definition with correct indentation
                     default := some_func('\n                        1, 2, 3');
                 };
-                property baz -> str {
+                property baz: str {
                     # multi-line definition with correct indentation
                     default := 'some_func(\n                        1, 2, 3)';
                 };
@@ -418,15 +418,15 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                single link foo -> Foo;
-                multi link bar -> Bar;
-                required single link baz -> Baz;
-                required multi link spam -> Spam;
-                overloaded required single link ham -> Ham;
-                overloaded required multi link eggs -> Egg;
+                single link foo: Foo;
+                multi link bar: Bar;
+                required single link baz: Baz;
+                required multi link spam: Spam;
+                overloaded required single link ham: Ham;
+                overloaded required multi link eggs: Egg;
                 overloaded link knight;
                 overloaded link clinic {
-                    property argument -> int64;
+                    property argument: int64;
                 };
                 overloaded property castle;
                 overloaded property tower {
@@ -442,17 +442,17 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                property -> Foo;
-                single foo -> Foo;
-                multi bar -> Bar {
-                    prop -> int64;
+                property: Foo;
+                single foo: Foo;
+                multi bar: Bar {
+                    prop: int64;
                 };
-                required property multi -> Bar;
-                required single baz -> Baz;
-                required multi spam -> Spam;
-                overloaded required single ham -> Ham;
-                overloaded required multi eggs -> Egg;
-                overloaded ham2 -> Ham;
+                required property multi: Bar;
+                required single baz: Baz;
+                required multi spam: Spam;
+                overloaded required single ham: Ham;
+                overloaded required multi eggs: Egg;
+                overloaded ham2: Ham;
                 constraint exclusive on (.asdf) except (.baz);
                 index on (.asdf) except (.baz);
             };
@@ -463,12 +463,12 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                single property foo -> str;
-                multi property bar -> str;
-                required single property baz -> str;
-                required multi property spam -> str;
-                overloaded required single property ham -> str;
-                overloaded required multi property eggs -> str;
+                single property foo: str;
+                multi property bar: str;
+                required single property baz: str;
+                required multi property spam: str;
+                overloaded required single property ham: str;
+                overloaded required multi property eggs: str;
             };
         };
         """
@@ -477,27 +477,27 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                single property foo -> str
+                single property foo: str
             }
 
             type Bar {
-                multi property bar -> str
+                multi property bar: str
             }
 
             type Baz {
-                required single property baz -> str
+                required single property baz: str
             }
 
             type Spam {
-                required multi property spam -> str
+                required multi property spam: str
             }
 
             type Ham {
-                overloaded required single property ham -> str
+                overloaded required single property ham: str
             }
 
             type Eggs {
-                overloaded required multi property eggs -> str
+                overloaded required multi property eggs: str
             }
         }
 
@@ -505,27 +505,27 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
         module test {
             type Foo {
-                single property foo -> str;
+                single property foo: str;
             };
 
             type Bar {
-                multi property bar -> str;
+                multi property bar: str;
             };
 
             type Baz {
-                required single property baz -> str;
+                required single property baz: str;
             };
 
             type Spam {
-                required multi property spam -> str;
+                required multi property spam: str;
             };
 
             type Ham {
-                overloaded required single property ham -> str;
+                overloaded required single property ham: str;
             };
 
             type Eggs {
-                overloaded required multi property eggs -> str;
+                overloaded required multi property eggs: str;
             };
         };
         """
@@ -534,11 +534,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                single property foo -> str {
+                single property foo: str {
                     constraint max_len_value (10000)
                 }
 
-                multi property bar -> str {
+                multi property bar: str {
                     constraint max_len_value (10000)
                 }
             }
@@ -548,11 +548,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
         module test {
             type Foo {
-                single property foo -> str {
+                single property foo: str {
                     constraint max_len_value (10000);
                 };
 
-                multi property bar -> str {
+                multi property bar: str {
                     constraint max_len_value (10000);
                 };
             };
@@ -562,7 +562,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
     def test_eschema_syntax_type_27(self):
         """
         type foo::Bar {
-            property name -> str;
+            property name: str;
         };
         """
 
@@ -570,7 +570,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module foo {
             type Bar {
-                property name -> str;
+                property name: str;
             };
         };
         """
@@ -583,7 +583,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module foo {
             type foo::Bar {
-                property name -> str;
+                property name: str;
             };
         };
         """
@@ -592,17 +592,17 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module foo {
             type Bar {
-                property name -> str;
+                property name: str;
             };
         };
 
         type foo::Bar2 {
-            property name -> str;
+            property name: str;
         };
 
         module foo {
             type Bar3 {
-                property name -> str;
+                property name: str;
             };
         };
         """
@@ -611,17 +611,17 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module foo {
             type Bar {
-                property name -> str;
+                property name: str;
             };
         };
 
         type bar::Bar {
-            property name -> str;
+            property name: str;
         };
 
         module baz {
             type Bar {
-                property name -> str;
+                property name: str;
             };
         };
         """
@@ -643,16 +643,16 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module default {
             type Foo0 {
-                property union -> str;
-                link except -> Object;
+                property union: str;
+                link except: Object;
             };
             type Foo1 {
-                required property union -> str;
-                required link except -> Object;
+                required property union: str;
+                required link except: Object;
             };
             type Foo2 {
-                optional property union -> str;
-                optional link except -> Object;
+                optional property union: str;
+                optional link except: Object;
             };
         };
         """
@@ -661,12 +661,12 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module default {
             type Foo1 {
-                multi property union -> str;
-                multi link except -> Object;
+                multi property union: str;
+                multi link except: Object;
             };
             type Foo2 {
-                single property union -> str;
-                single link except -> Object;
+                single property union: str;
+                single link except: Object;
             };
         };
         """
@@ -675,7 +675,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module default {
             type Foo {
-                property union extending except -> str;
+                property union extending except: str;
             };
         };
         """
@@ -684,8 +684,8 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module default {
             type Foo {
-                link union extending except -> Object {
-                    property intersect -> str;
+                link union extending except: Object {
+                    property intersect: str;
                 };
             };
         };
@@ -695,7 +695,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type User {
-                required link todo -> array<str>;
+                required link todo: array<str>;
             };
         };
         """
@@ -704,7 +704,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type User {
-                required link todo -> tuple<str, int64, float64>;
+                required link todo: tuple<str, int64, float64>;
             };
         };
         """
@@ -713,7 +713,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type User {
-                required link todo ->
+                required link todo:
                     tuple<str, tuple<str, array<str>>, array<float64>>;
             };
         };
@@ -723,7 +723,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type LogEntry extending OwnedObject, Text {
-                required link owner -> User;
+                required link owner: User;
                 index on (SELECT datetime::datetime_current());
             };
         };
@@ -733,7 +733,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             abstract link foobar {
-                property foo -> str {
+                property foo: str {
                     title := 'Sample property';
                 };
                 index on (__subject__@foo);
@@ -756,7 +756,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type User {
-                property name -> str;
+                property name: str;
                 index on (.name);
             };
         };
@@ -766,7 +766,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type User {
-                property name -> str;
+                property name: str;
 
                 index on (.name) {
                     annotation title := 'User name index';
@@ -779,7 +779,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module test {
             type Foo {
-                property title -> str;
+                property title: str;
                 index pg::gist on (.title);
             };
         };
@@ -792,9 +792,9 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
             alias lowercase := to_json('["lowercase"]');
 
             type Foo {
-                property bar -> str;
-                property baz -> str;
-                property foo -> str;
+                property bar: str;
+                property baz: str;
+                property foo: str;
 
                 index myindex0() on (.bar);
                 index myindex1(tok_filter := eng_stop ++ lowercase)
@@ -842,7 +842,7 @@ type LogEntry extending    OwnedObject,    Text {
             # irrelevant comment indent
         # irrelevant comment indent
 
-  property start_date -> datetime {
+  property start_date: datetime {
 
 
                        default := (
@@ -1222,7 +1222,7 @@ abstract property test::foo {
         """
         module test {
             abstract link coollink {
-                property foo -> int64;
+                property foo: int64;
             };
         };
         """
@@ -1230,8 +1230,8 @@ abstract property test::foo {
     def test_eschema_syntax_link_04(self):
         """
         abstract link test::coollink {
-            property foo -> int64;
-            property bar -> int64;
+            property foo: int64;
+            property bar: int64;
 
             constraint expr {
                 using (self.foo = self.bar);
@@ -1250,7 +1250,7 @@ abstract property test::foo {
             };
 
             abstract link coollink {
-                property foo -> int64 {
+                property foo: int64 {
                     constraint min_value(0);
                     constraint max_value(123456);
                     constraint expr on (__subject__ % 2 = 0) {
@@ -1259,7 +1259,7 @@ abstract property test::foo {
                     default := 2;
                 };
 
-                property bar -> int64;
+                property bar: int64;
 
                 constraint expr on (self.foo = self.bar);
             };
@@ -1271,7 +1271,7 @@ abstract property test::foo {
         """
         module test {
             abstract link coollink {
-                required property foo -> int64;
+                required property foo: int64;
             };
         };
         """
@@ -1280,7 +1280,7 @@ abstract property test::foo {
         """
         module test {
             abstract link time_estimate {
-               property unit -> str {
+               property unit: str {
                    constraint my_constraint(0);
                };
             };
@@ -1291,7 +1291,7 @@ abstract property test::foo {
         """
         module test {
             abstract link time_estimate {
-               property unit -> str {
+               property unit: str {
                    constraint my_constraint(0, <str>(42^2));
                };
             };
@@ -1302,7 +1302,7 @@ abstract property test::foo {
         """
         module test {
             abstract link time_estimate {
-               property unit -> str{
+               property unit: str{
                    constraint my_constraint(')', `)`($$)$$));
                };
             };
@@ -1312,7 +1312,7 @@ abstract property test::foo {
 
         module test {
             abstract link time_estimate {
-               property unit -> str{
+               property unit: str{
                    constraint my_constraint(')', `)`(')'));
                };
             };
@@ -1357,7 +1357,7 @@ abstract property test::foo {
         """
         module test {
             abstract link union extending intersect {
-                property except -> str;
+                property except: str;
             };
         };
         """
@@ -1907,7 +1907,7 @@ annotation test::foo;
                 using (true) {
                    annotation title := 'foo';
                 };
-                property x -> str;
+                property x: str;
             };
         };
         """
@@ -1920,7 +1920,7 @@ annotation test::foo;
                 when (true)
                 deny all
                 using (true);
-                property x -> str;
+                property x: str;
             };
         };
         """
@@ -1966,7 +1966,7 @@ annotation test::foo;
         """
         module test {
             type Foo {
-                property foo -> i64 {
+                property foo: i64 {
                     rewrite insert using (1);
                 };
             };
@@ -1977,7 +1977,7 @@ annotation test::foo;
         """
         module test {
             type Foo {
-                property name_updated_at -> i64 {
+                property name_updated_at: i64 {
                     rewrite update, insert using (
                         datetime_current()
                         if __specified__.name
@@ -1997,7 +1997,7 @@ annotation test::foo;
 % OK %
 
         abstract type test::OwnedObject {
-            required link owner -> User;
+            required link owner: User;
         };
         """
 
