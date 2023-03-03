@@ -2119,7 +2119,7 @@ def process_link_update(
         # context to ensure that references to the link in the result
         # of this DML statement yield the expected results.
         relctx.add_ptr_rel_overlay(
-            mptrref, 'except', delcte, path_id=path_id,
+            mptrref, 'except', delcte, path_id=path_id.ptr_path(),
             dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
         toplevel.append_cte(delcte)
     else:
@@ -2157,7 +2157,8 @@ def process_link_update(
                 # to work without it
                 subctx.rel_overlays = subctx.rel_overlays.copy()
                 relctx.add_ptr_rel_overlay(
-                    ptrref, 'except', delcte, path_id=path_id, ctx=subctx)
+                    ptrref, 'except', delcte, path_id=path_id.ptr_path(),
+                    ctx=subctx)
 
                 check_cte, _ = process_link_values(
                     ir_stmt=ir_stmt,
@@ -2686,7 +2687,13 @@ def compile_trigger(
         # away from the new data!
         # TODO: We should consider building a dedicated __new__overlay
         # in order to reduce overlay sizes in common cases
-        merge_overlays_globally(list(tctx.rel_overlays.type.keys()), ctx=tctx)
+
+        # We grab the list of DML out of dml_stmts instead of just
+        # from the overlays for determinism reasons; it effects the
+        # order overlays appear in
+        all_dml = [
+            x for x in ctx.dml_stmts if isinstance(x, irast.MutatingStmt)]
+        merge_overlays_globally(all_dml, ctx=tctx)
 
         dispatch.compile(trigger.expr, ctx=tctx)
         # Force the value to get output so that if it might error

@@ -579,6 +579,16 @@ class TestTriggers(tb.QueryTestCase):
             };
         ''')
 
+        await self.con.query('''
+            with c := (select Subordinate filter .name = "c"),
+            select {
+                (update InsertTest filter .name = "2"
+                set { subordinates -= c }),
+                (update InsertTest filter .name = "1"
+                set { subordinates += c }),
+            };
+        ''')
+
     async def test_edgeql_triggers_enforce_errors_02(self):
         # Simulate a multi-table constraint that we can't do with constraints:
         # ensure the *sum* of the val fields in subordinates is zero
