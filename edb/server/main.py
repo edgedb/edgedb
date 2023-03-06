@@ -429,24 +429,7 @@ async def run_server(
     global server
     server = server_mod
 
-    ver_meta = buildmeta.get_version_metadata()
-    extras = []
-    source = ""
-    if build_date := ver_meta["build_date"]:
-        nice_date = build_date.strftime("%Y-%m-%dT%H:%MZ")
-        source += f" on {nice_date}"
-    if ver_meta["scm_revision"]:
-        source += f" from revision {ver_meta['scm_revision']}"
-        if source_date := ver_meta["source_date"]:
-            nice_date = source_date.strftime("%Y-%m-%dT%H:%MZ")
-            source += f" ({nice_date})"
-    if source:
-        extras.append(f", built{source}")
-    if ver_meta["target"]:
-        extras.append(f"for {ver_meta['target']}")
-
-    ver_line = buildmeta.get_version_string() + " ".join(extras)
-    logger.info(f"starting EdgeDB server {ver_line}")
+    logger.info(f"starting EdgeDB server {buildmeta.get_version_line()}")
     logger.info(f'instance name: {args.instance_name!r}')
     if devmode.is_in_dev_mode():
         logger.info(f'development mode active')
