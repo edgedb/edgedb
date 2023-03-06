@@ -29,6 +29,7 @@ import tempfile
 
 import click
 import psutil
+import shutil
 
 from edb import buildmeta
 from edb.common import devmode
@@ -211,6 +212,8 @@ class ServerConfig(NamedTuple):
     backend_capability_sets: BackendCapabilitySets
 
     admin_ui: bool
+
+    rm_data_dir: bool
 
 
 class PathPath(click.Path):
@@ -529,6 +532,11 @@ _server_options = [
         '-D', '--data-dir', type=PathPath(),
         envvar="EDGEDB_SERVER_DATADIR", cls=EnvvarResolver,
         help='database cluster directory'),
+    click.option(
+        '--rm-data-dir', is_flag=True,
+        default=False,
+        help='Remove the local development data directory if present'
+    ),
     click.option(
         '--postgres-dsn', type=str, hidden=True,
         help='[DEPRECATED] DSN of a remote Postgres cluster, if using one'),
@@ -1111,6 +1119,8 @@ def parse_args(**kwargs: Any):
                 pass
             elif devmode.is_in_dev_mode():
                 data_dir = devmode.get_dev_mode_data_dir()
+                if data_dir.exists() and kwargs['rm_data_dir']:
+                    shutil.rmtree(data_dir)
                 if not data_dir.parent.exists():
                     data_dir.parent.mkdir(exist_ok=True, parents=True)
 
