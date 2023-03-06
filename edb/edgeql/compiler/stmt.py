@@ -134,6 +134,7 @@ def compile_SelectQuery(
             ctx=sctx)
 
         with sctx.new(context.ContextSwitchMode.NEW) as sctx_no_dml:
+            sctx_no_dml.disallow_dml = True
 
             stmt.where = clauses.compile_where_clause(
                 expr.where, ctx=sctx_no_dml)
@@ -424,6 +425,16 @@ def compile_InsertQuery(
             context=expr.context,
         )
 
+    if ctx.disallow_dml:
+        raise errors.QueryError(
+            'INSERT statements cannot be used here',
+            hint=(
+                    f'To resolve this try to factor out the mutation '
+                    f'expression into the top-level WITH block.'
+                ),
+            context=expr.context,
+        )
+
     # Record this node in the list of potential DML expressions.
     ctx.env.dml_exprs.append(expr)
 
@@ -560,6 +571,16 @@ def compile_UpdateQuery(
     if ctx.in_conditional is not None:
         raise errors.QueryError(
             'UPDATE statements cannot be used inside conditional expressions',
+            context=expr.context,
+        )
+    
+    if ctx.disallow_dml:
+        raise errors.QueryError(
+            'UPDATE statements cannot be used here',
+            hint=(
+                    f'To resolve this try to factor out the mutation '
+                    f'expression into the top-level WITH block.'
+                ),
             context=expr.context,
         )
 
