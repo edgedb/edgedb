@@ -538,7 +538,7 @@ class ContextLevel(compiler.ContextLevel):
     """A ordered set of currently compiling computeds"""
 
     disallow_dml: bool
-    """Whether we are currently in a place where no dml is allowed, 
+    """Whether we are currently in a place where no dml is allowed,
         e.g. the where and order clauses of a select"""
 
     def __init__(
