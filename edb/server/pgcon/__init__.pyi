@@ -104,3 +104,6 @@ class PGConnection:
 
     def get_server_parameter_status(self, parameter: str) -> Optional[str]:
         ...
+
+
+SETUP_TEMP_TABLE_SCRIPT: str
