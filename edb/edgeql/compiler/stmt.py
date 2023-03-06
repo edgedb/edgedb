@@ -429,9 +429,9 @@ def compile_InsertQuery(
         raise errors.QueryError(
             'INSERT statements cannot be used here',
             hint=(
-                    f'To resolve this try to factor out the mutation '
-                    f'expression into the top-level WITH block.'
-                ),
+                f'To resolve this try to factor out the mutation '
+                f'expression into the top-level WITH block.'
+            ),
             context=expr.context,
         )
 
@@ -573,14 +573,14 @@ def compile_UpdateQuery(
             'UPDATE statements cannot be used inside conditional expressions',
             context=expr.context,
         )
-    
+
     if ctx.disallow_dml:
         raise errors.QueryError(
             'UPDATE statements cannot be used here',
             hint=(
-                    f'To resolve this try to factor out the mutation '
-                    f'expression into the top-level WITH block.'
-                ),
+                f'To resolve this try to factor out the mutation '
+                f'expression into the top-level WITH block.'
+            ),
             context=expr.context,
         )
 
@@ -677,6 +677,16 @@ def compile_DeleteQuery(
     if ctx.in_conditional is not None:
         raise errors.QueryError(
             'DELETE statements cannot be used inside conditional expressions',
+            context=expr.context,
+        )
+
+    if ctx.disallow_dml:
+        raise errors.QueryError(
+            'DELETE statements cannot be used here',
+            hint=(
+                f'To resolve this try to factor out the mutation '
+                f'expression into the top-level WITH block.'
+            ),
             context=expr.context,
         )
 
