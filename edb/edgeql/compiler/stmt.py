@@ -133,10 +133,13 @@ def compile_SelectQuery(
             forward_rptr=forward_rptr,
             ctx=sctx)
 
-        stmt.where = clauses.compile_where_clause(expr.where, ctx=sctx)
+        with sctx.new(context.ContextSwitchMode.NEW) as sctx_no_dml:
 
-        stmt.orderby = clauses.compile_orderby_clause(
-            expr.orderby, ctx=sctx)
+            stmt.where = clauses.compile_where_clause(
+                expr.where, ctx=sctx_no_dml)
+
+            stmt.orderby = clauses.compile_orderby_clause(
+                expr.orderby, ctx=sctx_no_dml)
 
         stmt.offset = clauses.compile_limit_offset_clause(
             expr.offset, ctx=sctx)
