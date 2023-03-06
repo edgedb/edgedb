@@ -1038,6 +1038,8 @@ def parse_args(**kwargs: Any):
             kwargs['security'] = 'strict'
 
     if kwargs['security'] == 'insecure_dev_mode':
+        if kwargs['binary_endpoint_security'] == 'default':
+            kwargs['binary_endpoint_security'] = 'optional'
         if kwargs['http_endpoint_security'] == 'default':
             kwargs['http_endpoint_security'] = 'optional'
         if not kwargs['default_auth_method']:
