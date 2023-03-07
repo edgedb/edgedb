@@ -35,6 +35,9 @@ class BackendError(Exception):
     def get_field(self, field: str) -> str | None:
         ...
 
+    def code_is(self, code: str) -> bool:
+        ...
+
 
 class BackendConnectionError(BackendError):
     ...
