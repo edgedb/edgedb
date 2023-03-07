@@ -136,7 +136,7 @@ If you already have a PostgreSQL instance you can skip this step.
    $ DSN="$( \
          doctl databases create edgedb-postgres \
              --engine pg \
-             --version 13 \
+             --version 14 \
              --size db-s-1vcpu-1gb \
              --num-nodes 1 \
              --region sfo3 \
