@@ -1496,10 +1496,6 @@ def range_for_material_objtype(
             catenate=False,
         )
 
-        if typeref.name_hint.module in {'cfg', 'sys'} and include_descendants:
-            # Redirect all queries to schema tables to edgedbss
-            table_schema_name = 'edgedbss'
-
         relation = pgast.Relation(
             schemaname=table_schema_name,
             name=table_name,
@@ -1789,10 +1785,6 @@ def table_from_ptrref(
     table_schema_name, table_name = common.update_aspect(
         ptr_info.table_name, aspect
     )
-
-    if ptrref.name.module in {'cfg', 'sys'}:
-        # Redirect all queries to schema tables to edgedbss
-        table_schema_name = 'edgedbss'
 
     typeref = ptrref.out_source if ptrref else None
     relation = pgast.Relation(

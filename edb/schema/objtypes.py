@@ -124,10 +124,7 @@ class ObjectType(
             return self.issubclass(schema, FreeObject)
 
     def is_fake_object_type(self, schema: s_schema.Schema) -> bool:
-        return (
-            self.get_name(schema).module == 'cfg'
-            or self.is_free_object_type(schema)
-        )
+        return self.is_free_object_type(schema)
 
     def is_material_object_type(self, schema: s_schema.Schema) -> bool:
         return not (

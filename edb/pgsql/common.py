@@ -255,7 +255,7 @@ def get_objtype_backend_name(
 ):
     if aspect is None:
         aspect = 'table'
-    if aspect not in {'table', 'inhview'} and not re.match(
+    if aspect not in {'table', 'inhview', 'dummy'} and not re.match(
             r'(source|target)-del-(def|imm)-(inl|otl)-(f|t)', aspect):
         raise ValueError(
             f'unexpected aspect for object type backend name: {aspect!r}')
@@ -270,7 +270,7 @@ def get_pointer_backend_name(id, module_name, *, catenate=False, aspect=None):
     if aspect is None:
         aspect = 'table'
 
-    if aspect not in ('table', 'index', 'inhview'):
+    if aspect not in ('table', 'index', 'inhview', 'dummy'):
         raise ValueError(
             f'unexpected aspect for pointer backend name: {aspect!r}')
 
