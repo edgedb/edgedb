@@ -357,16 +357,14 @@ def _process_view(
 
     for shape_el_desc in shape_desc:
         with ctx.new() as scopectx:
-            s_scopectx = dataclasses.replace(s_ctx, ctx=scopectx)
-
             pointer, ptr_set = _normalize_view_ptr_expr(
                 ir_set,
                 shape_el_desc,
                 view_scls,
                 path_id=path_id,
                 pending_pointers=pointers,
-                s_ctx=s_scopectx,
-                ctx=ctx,
+                s_ctx=s_ctx,
+                ctx=scopectx,
             )
 
             pointers[pointer] = EarlyShapePtr(
@@ -397,15 +395,13 @@ def _process_view(
         )
 
         with ctx.new() as scopectx:
-            s_scopectx = dataclasses.replace(s_ctx, ctx=scopectx)
-
             pointer, ptr_set = _normalize_view_ptr_expr(
                 ir_set,
                 dummy_el_desc,
                 view_scls,
                 path_id=path_id,
-                s_ctx=s_scopectx,
-                ctx=ctx,
+                s_ctx=s_ctx,
+                ctx=scopectx,
             )
 
         pointers[pointer] = EarlyShapePtr(
@@ -749,7 +745,6 @@ def gen_pointers_from_defaults(
         )
 
         with ctx.new() as scopectx:
-            s_scopectx = dataclasses.replace(s_ctx, ctx=scopectx)
 
             pointer, ptr_set = _normalize_view_ptr_expr(
                 ir_set,
@@ -757,8 +752,8 @@ def gen_pointers_from_defaults(
                 view_scls,
                 path_id=path_id,
                 from_default=True,
-                s_ctx=s_scopectx,
-                ctx=ctx,
+                s_ctx=s_ctx,
+                ctx=scopectx,
             )
 
             result.append(EarlyShapePtr(
