@@ -255,6 +255,11 @@ conflicts and provide a fallback expression.
   apply additional filters on ``Movie``; in the context of the ``else`` clause,
   ``Movie`` is bound to the conflicting object.
 
+.. note::
+
+    Although 2.x does *not* support ``unless conflict`` on :ref:`multi
+    properties <ref_datamodel_props_cardinality>`, 3.0 adds support for these.
+
 .. _ref_eql_upsert:
 
 Upserts
