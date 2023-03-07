@@ -133,14 +133,9 @@ def compile_SelectQuery(
             forward_rptr=forward_rptr,
             ctx=sctx)
 
-        with sctx.new(context.ContextSwitchMode.NEW) as sctx_no_dml:
-            sctx_no_dml.disallow_dml = True
+        stmt.where = clauses.compile_where_clause(expr.where, ctx=sctx)
 
-            stmt.where = clauses.compile_where_clause(
-                expr.where, ctx=sctx_no_dml)
-
-            stmt.orderby = clauses.compile_orderby_clause(
-                expr.orderby, ctx=sctx_no_dml)
+        stmt.orderby = clauses.compile_orderby_clause(expr.orderby, ctx=sctx)
 
         stmt.offset = clauses.compile_limit_offset_clause(
             expr.offset, ctx=sctx)
@@ -427,7 +422,7 @@ def compile_InsertQuery(
 
     if ctx.disallow_dml:
         raise errors.QueryError(
-            'INSERT statements cannot be used here',
+            f'INSERT statements cannot be used {ctx.disallow_dml}',
             hint=(
                 f'To resolve this try to factor out the mutation '
                 f'expression into the top-level WITH block.'
@@ -576,7 +571,7 @@ def compile_UpdateQuery(
 
     if ctx.disallow_dml:
         raise errors.QueryError(
-            'UPDATE statements cannot be used here',
+            f'UPDATE statements cannot be used {ctx.disallow_dml}',
             hint=(
                 f'To resolve this try to factor out the mutation '
                 f'expression into the top-level WITH block.'
@@ -682,7 +677,7 @@ def compile_DeleteQuery(
 
     if ctx.disallow_dml:
         raise errors.QueryError(
-            'DELETE statements cannot be used here',
+            f'DELETE statements cannot be used {ctx.disallow_dml}',
             hint=(
                 f'To resolve this try to factor out the mutation '
                 f'expression into the top-level WITH block.'

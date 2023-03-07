@@ -8006,7 +8006,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_where_order_dml(self):
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                "INSERT statements cannot be used here"):
+                "INSERT statements cannot be used in a FILTER clause"):
             await self.con.query('''
                 select { foo := 1 } filter
                         (INSERT User {
@@ -8016,7 +8016,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                "UPDATE statements cannot be used here"):
+                "UPDATE statements cannot be used in a FILTER clause"):
             await self.con.query('''
                 select { foo := 1 } filter
                         (UPDATE User set {
@@ -8026,7 +8026,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                "DELETE statements cannot be used here"):
+                "DELETE statements cannot be used in a FILTER clause"):
             await self.con.query('''
                 select { foo := 1 } filter
                         (DELETE User filter .name = 't1')
@@ -8034,7 +8034,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                "INSERT statements cannot be used here"):
+                "INSERT statements cannot be used in an ORDER BY clause"):
             await self.con.query('''
                 select { foo := 1 } order by
                         (INSERT User {
@@ -8044,7 +8044,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                "UPDATE statements cannot be used here"):
+                "UPDATE statements cannot be used in an ORDER BY clause"):
             await self.con.query('''
                 select { foo := 1 } order by
                         (UPDATE User set {
@@ -8054,7 +8054,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                "DELETE statements cannot be used here"):
+                "DELETE statements cannot be used in an ORDER BY clause"):
             await self.con.query('''
                 select { foo := 1 } order by
                         (DELETE User filter .name = 't1')

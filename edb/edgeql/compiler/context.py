@@ -537,9 +537,9 @@ class ContextLevel(compiler.ContextLevel):
     active_computeds: ordered.OrderedSet[s_pointers.Pointer]
     """A ordered set of currently compiling computeds"""
 
-    disallow_dml: bool
+    disallow_dml: Optional[str]
     """Whether we are currently in a place where no dml is allowed,
-        e.g. the where and order clauses of a select"""
+        if not None, then it is of the form `in a FILTER clause`  """
 
     def __init__(
         self,
@@ -596,7 +596,7 @@ class ContextLevel(compiler.ContextLevel):
             self.active_computeds = ordered.OrderedSet()
             self.recompiling_schema_alias = False
 
-            self.disallow_dml = False
+            self.disallow_dml = None
 
         else:
             self.env = prevlevel.env

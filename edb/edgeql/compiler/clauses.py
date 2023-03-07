@@ -52,6 +52,7 @@ def compile_where_clause(
     with ctx.newscope(fenced=True) as subctx:
         subctx.expr_exposed = context.Exposure.UNEXPOSED
         subctx.path_scope.unnest_fence = True
+        subctx.disallow_dml = "in a FILTER clause"
         ir_expr = dispatch.compile(where, ctx=subctx)
         bool_t = ctx.env.get_track_schema_type(sn.QualName('std', 'bool'))
         ir_set = setgen.scoped_set(ir_expr, typehint=bool_t, ctx=subctx)
@@ -73,6 +74,7 @@ def compile_orderby_clause(
 
     with ctx.new() as subctx:
         subctx.expr_exposed = context.Exposure.UNEXPOSED
+        subctx.disallow_dml = "in an ORDER BY clause"
         for sortexpr in sortexprs:
             with subctx.newscope(fenced=True) as exprctx:
                 exprctx.path_scope.unnest_fence = True
