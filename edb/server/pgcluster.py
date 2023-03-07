@@ -968,7 +968,9 @@ async def get_remote_pg_cluster(
         except pgcon.BackendPrivilegeError:
             can_make_superusers = False
         except pgcon.BackendError as e:
-            if e.code_is(errors.ERROR_INTERNAL_ERROR):
+            if e.code_is(
+                errors.ERROR_INTERNAL_ERROR
+            ) and "not in permitted superuser list" in str(e):
                 # DigitalOcean raises a custom error:
                 # XX000: Role ... not in permitted superuser list
                 can_make_superusers = False
