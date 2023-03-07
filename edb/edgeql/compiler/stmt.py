@@ -135,8 +135,7 @@ def compile_SelectQuery(
 
         stmt.where = clauses.compile_where_clause(expr.where, ctx=sctx)
 
-        stmt.orderby = clauses.compile_orderby_clause(
-            expr.orderby, ctx=sctx)
+        stmt.orderby = clauses.compile_orderby_clause(expr.orderby, ctx=sctx)
 
         stmt.offset = clauses.compile_limit_offset_clause(
             expr.offset, ctx=sctx)
@@ -421,6 +420,16 @@ def compile_InsertQuery(
             context=expr.context,
         )
 
+    if ctx.disallow_dml:
+        raise errors.QueryError(
+            f'INSERT statements cannot be used {ctx.disallow_dml}',
+            hint=(
+                f'To resolve this try to factor out the mutation '
+                f'expression into the top-level WITH block.'
+            ),
+            context=expr.context,
+        )
+
     # Record this node in the list of potential DML expressions.
     ctx.env.dml_exprs.append(expr)
 
@@ -560,6 +569,16 @@ def compile_UpdateQuery(
             context=expr.context,
         )
 
+    if ctx.disallow_dml:
+        raise errors.QueryError(
+            f'UPDATE statements cannot be used {ctx.disallow_dml}',
+            hint=(
+                f'To resolve this try to factor out the mutation '
+                f'expression into the top-level WITH block.'
+            ),
+            context=expr.context,
+        )
+
     # Record this node in the list of DML statements.
     ctx.env.dml_exprs.append(expr)
 
@@ -653,6 +672,16 @@ def compile_DeleteQuery(
     if ctx.in_conditional is not None:
         raise errors.QueryError(
             'DELETE statements cannot be used inside conditional expressions',
+            context=expr.context,
+        )
+
+    if ctx.disallow_dml:
+        raise errors.QueryError(
+            f'DELETE statements cannot be used {ctx.disallow_dml}',
+            hint=(
+                f'To resolve this try to factor out the mutation '
+                f'expression into the top-level WITH block.'
+            ),
             context=expr.context,
         )
 

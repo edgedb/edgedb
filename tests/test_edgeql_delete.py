@@ -527,3 +527,69 @@ class TestDelete(tb.QueryTestCase):
             """,
             [{}, {}],
         )
+
+    async def test_edgeql_delete_where_order_dml(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "INSERT statements cannot be used in a FILTER clause"):
+            await self.con.query('''
+                delete DeleteTest
+                filter
+                        (INSERT DeleteTest {
+                            name := 't1',
+                        })
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UPDATE statements cannot be used in a FILTER clause"):
+            await self.con.query('''
+                delete DeleteTest
+                filter
+                        (UPDATE DeleteTest set {
+                            name := 't1',
+                        })
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "DELETE statements cannot be used in a FILTER clause"):
+            await self.con.query('''
+                delete DeleteTest
+                filter
+                        (DELETE DeleteTest filter .name = 't1')
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "INSERT statements cannot be used in an ORDER BY clause"):
+            await self.con.query('''
+                delete DeleteTest
+                order by
+                        (INSERT DeleteTest {
+                            name := 't1',
+                        })
+                limit 1
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UPDATE statements cannot be used in an ORDER BY clause"):
+            await self.con.query('''
+                delete DeleteTest
+                order by
+                        (UPDATE DeleteTest set {
+                            name := 't1',
+                        })
+                limit 1
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "DELETE statements cannot be used in an ORDER BY clause"):
+            await self.con.query('''
+                delete DeleteTest
+                order by
+                        (DELETE DeleteTest filter .name = 't1')
+                limit 1
+            ''')
