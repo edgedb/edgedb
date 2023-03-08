@@ -2096,6 +2096,30 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
+    async def test_edgeql_ddl_link_target_bad_05(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidLinkTargetError,
+            r"invalid link target type, expected object type, got.+array",
+            _hint="did you mean 'multi link bar -> default::Foo'?",
+        ):
+            await self.con.execute('''
+                create type Foo {
+                    create link bar -> array<Foo>;
+                };
+            ''')
+
+    async def test_edgeql_ddl_link_target_bad_06(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidLinkTargetError,
+            r"invalid link target type, expected object type, got.+array",
+            _hint="did you mean 'multi link bar -> default::Foo'?",
+        ):
+            await self.con.execute('''
+                create type Foo {
+                    create multi link bar -> array<Foo>;
+                };
+            ''')
+
     async def test_edgeql_ddl_link_target_merge_01(self):
         await self.con.execute('''
 
