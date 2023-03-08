@@ -874,8 +874,11 @@ def _compile_qlexpr(
 
         shape_expr_ctx.defining_view = view_scls
         shape_expr_ctx.path_scope.unnest_fence = True
+
         source_set = setgen.fixup_computable_source_set(ir_source, ctx=ctx)
-        shape_expr_ctx.partial_path_prefix = source_set
+
+        if view_scls.disallow_partial_paths is None:
+            shape_expr_ctx.partial_path_prefix = source_set
 
         if s_ctx.exprtype.is_mutation() and ptrcls is not None:
             shape_expr_ctx.expr_exposed = context.Exposure.EXPOSED
