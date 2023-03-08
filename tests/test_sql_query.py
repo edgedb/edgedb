@@ -791,3 +791,14 @@ class TestSQL(tb.SQLQueryTestCase):
             COMMIT;
             """,
         )
+
+    async def test_sql_transaction_02(self):
+        await self.scon.execute("BEGIN")
+        await self.scon.execute(
+            "SET TRANSACTION ISOLATION LEVEL read uncommitted"
+        )
+        v1 = await self.scon.fetchval("SHOW transaction_isolation")
+        self.assertEqual(v1, "read uncommitted")
+        await self.scon.execute("ROLLBACK")
+        v2 = await self.scon.fetchval("SHOW transaction_isolation")
+        self.assertNotEqual(v1, v2)
