@@ -34,6 +34,8 @@ from __future__ import annotations
 
 from typing import *
 
+import immutables as immu
+
 from edb.common import uuidgen
 from edb.common.typeutils import downcast, not_none
 
@@ -126,6 +128,11 @@ def init_dml_stmt(
 
     for typeref in typerefs:
         if typeref.union:
+            continue
+        if (
+            isinstance(typeref.name_hint, sn.QualName)
+            and typeref.name_hint.module in ('sys', 'cfg')
+        ):
             continue
         dml_cte, dml_rvar = gen_dml_cte(
             ir_stmt,
@@ -839,21 +846,29 @@ def merge_overlays_globally(
     *,
     ctx: context.CompilerContextLevel,
 ) -> None:
-    relctx.clone_type_rel_overlays(ctx=ctx)
-    relctx.clone_ptr_rel_overlays(ctx=ctx)
+    ctx.rel_overlays = ctx.rel_overlays.copy()
 
-    type_overlay = ctx.type_rel_overlays[None]
-    ptr_overlay = ctx.ptr_rel_overlays[None]
+    type_overlay = ctx.rel_overlays.type.get(None, immu.Map())
+    ptr_overlay = ctx.rel_overlays.ptr.get(None, immu.Map())
 
     for ir_stmt in ir_stmts:
         if not ir_stmt:
             continue
-        for k, v in ctx.type_rel_overlays[ir_stmt].items():
-            els = set(type_overlay[k])
-            type_overlay[k].extend([e for e in v if e not in els])
-        for k2, v2 in ctx.ptr_rel_overlays[ir_stmt].items():
-            els = set(ptr_overlay[k2])
-            ptr_overlay[k2].extend([e for e in v2 if e not in els])
+        for k, v in ctx.rel_overlays.type.get(ir_stmt, immu.Map()).items():
+            els = set(type_overlay.get(k, ()))
+            n_els = (
+                type_overlay.get(k, ()) + tuple(e for e in v if e not in els)
+            )
+            type_overlay = type_overlay.set(k, n_els)
+        for k2, v2 in ctx.rel_overlays.ptr.get(ir_stmt, immu.Map()).items():
+            els = set(ptr_overlay.get(k2, ()))
+            n_els = (
+                ptr_overlay.get(k2, ()) + tuple(e for e in v2 if e not in els)
+            )
+            ptr_overlay = ptr_overlay.set(k2, n_els)
+
+    ctx.rel_overlays.type = ctx.rel_overlays.type.set(None, type_overlay)
+    ctx.rel_overlays.ptr = ctx.rel_overlays.ptr.set(None, ptr_overlay)
 
 
 def compile_policy_check(
@@ -1253,25 +1268,20 @@ def compile_insert_else_body_failure_check(
 
     # Copy the type rels from the possibly conflicting earlier DML
     # into the None overlays so it gets picked up.
-    ctx.type_rel_overlays = ctx.type_rel_overlays.copy()
-    overlays_map = ctx.type_rel_overlays[None].copy()
-    ctx.type_rel_overlays[None] = overlays_map
-    overlays_map.update(ctx.type_rel_overlays[else_fail])
+    merge_overlays_globally((else_fail,), ctx=ctx)
 
     # Do some work so that we aren't looking at the existing on-disk
     # data, just newly data created data.
+    overlays_map = ctx.rel_overlays.type.get(None, immu.Map())
     for k, overlays in overlays_map.items():
         # Strip out filters, which we don't care about in this context
-        overlays = [(k, r, p) for k, r, p in overlays if k != 'filter']
+        overlays = tuple([(k, r, p) for k, r, p in overlays if k != 'filter'])
         # Drop the initial set
         if overlays and overlays[0][0] == 'union':
-            overlays[0] = ('replace', *overlays[0][1:])
-        overlays_map[k] = overlays
+            overlays = (('replace', *overlays[0][1:]), *overlays[1:])
+        overlays_map = overlays_map.set(k, overlays)
 
-    ctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
-    ctx.ptr_rel_overlays[None] = ctx.ptr_rel_overlays[None].copy()
-    ctx.ptr_rel_overlays[None].update(
-        ctx.ptr_rel_overlays[else_fail])
+    ctx.rel_overlays.type = ctx.rel_overlays.type.set(None, overlays_map)
 
     assert on_conflict.constraint
     cid = common.get_constraint_raw_name(on_conflict.constraint.id)
@@ -2114,7 +2124,7 @@ def process_link_update(
         # context to ensure that references to the link in the result
         # of this DML statement yield the expected results.
         relctx.add_ptr_rel_overlay(
-            mptrref, 'except', delcte, path_id=path_id,
+            mptrref, 'except', delcte, path_id=path_id.ptr_path(),
             dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
         toplevel.append_cte(delcte)
     else:
@@ -2148,9 +2158,12 @@ def process_link_update(
             )
 
             with ctx.new() as subctx:
-                subctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
+                # TODO: Do we really need a copy here? things /seem/
+                # to work without it
+                subctx.rel_overlays = subctx.rel_overlays.copy()
                 relctx.add_ptr_rel_overlay(
-                    ptrref, 'except', delcte, path_id=path_id, ctx=subctx)
+                    ptrref, 'except', delcte, path_id=path_id.ptr_path(),
+                    ctx=subctx)
 
                 check_cte, _ = process_link_values(
                     ir_stmt=ir_stmt,
@@ -2307,7 +2320,7 @@ def process_link_update(
             ctx=octx)
 
     if policy_ctx:
-        relctx.clone_ptr_rel_overlays(ctx=policy_ctx)
+        policy_ctx.rel_overlays = policy_ctx.rel_overlays.copy()
         register_overlays(data_cte, policy_ctx)
 
     register_overlays(updcte, ctx)
@@ -2584,9 +2597,9 @@ def compile_trigger(
 
     # We use overlays to drive the trigger, since with a bit of
     # tweaking, they contain all the relevant information.
-    overlays = []
+    overlays: list[context.OverlayEntry] = []
     for typeref, dml in trigger.affected:
-        toverlays = ctx.type_rel_overlays[dml]
+        toverlays = ctx.rel_overlays.type[dml]
         if ov := toverlays.get(typeref.id):
             overlays.extend(ov)
 
@@ -2604,12 +2617,10 @@ def compile_trigger(
 
     # Produce a CTE containing all of the affected objects for this trigger
     with ctx.newrel() as ictx:
-        ictx.type_rel_overlays = ctx.type_rel_overlays.copy()
-        ictx.type_rel_overlays.clear()
-        ictx.type_rel_overlays[None][trigger.source_type.id] = overlays
-
-        ictx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
-        ictx.ptr_rel_overlays.clear()
+        ictx.rel_overlays = context.RelOverlays()
+        ictx.rel_overlays.type = immu.Map({
+            None: immu.Map({trigger.source_type.id: tuple(overlays)})
+        })
 
         # The range produced here will be driven just by the overlays
         rvar = relctx.range_for_material_objtype(
@@ -2679,9 +2690,25 @@ def compile_trigger(
         # up everywhere...  but __old__ has a TriggerAnchor set up in
         # it, which acts like a dml statement, and *diverts* __old__
         # away from the new data!
+        # XXX: TODO: what about the overlays induced by *new* DML...
+        # Those need to be rooted at `None`
+
+        # We grab the list of DML out of dml_stmts instead of just
+        # from the overlays for determinism reasons; it effects the
+        # order overlays appear in
+        all_dml = [
+            x for x in ctx.dml_stmts if isinstance(x, irast.MutatingStmt)]
+        merge_overlays_globally(all_dml, ctx=tctx)
+
+        # Copy over the global overlay to __new__, since it should see
+        # the new data also.
         # TODO: We should consider building a dedicated __new__overlay
         # in order to reduce overlay sizes in common cases
-        merge_overlays_globally(tctx.type_rel_overlays.keys(), ctx=tctx)
+        assert isinstance(trigger.new_set.expr, irast.TriggerAnchor)
+        tctx.rel_overlays.type = tctx.rel_overlays.type.set(
+            trigger.new_set.expr, tctx.rel_overlays.type[None])
+        tctx.rel_overlays.ptr = tctx.rel_overlays.ptr.set(
+            trigger.new_set.expr, tctx.rel_overlays.ptr[None])
 
         dispatch.compile(trigger.expr, ctx=tctx)
         # Force the value to get output so that if it might error

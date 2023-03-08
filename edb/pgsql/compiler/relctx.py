@@ -23,8 +23,9 @@
 from __future__ import annotations
 from typing import *
 
-import collections
 import uuid
+
+import immutables as immu
 
 from edb import errors
 
@@ -1370,24 +1371,33 @@ def range_for_material_objtype(
 
     assert isinstance(typeref.name_hint, sn.QualName)
 
-    key = (typeref.id, include_descendants)
+    dml_source_key = dml_source if ctx.trigger_mode else None
+    rw_key = (typeref.id, include_descendants)
+    key = rw_key + (dml_source_key,)
     if (
         not ignore_rewrites
-        and (rewrite := ctx.env.type_rewrites.get(key)) is not None
-        and key not in ctx.pending_type_ctes
+        and (rewrite := ctx.env.type_rewrites.get(rw_key)) is not None
+        and rw_key not in ctx.pending_type_ctes
         and not for_mutation
     ):
         # Don't include overlays in the normal way in trigger mode
         # when a type cte is used, because we bake the overlays into
         # the cte instead (and so including them normally could union
-        # back in things that we have filtered out)
-        if ctx.trigger_mode:
+        # back in things that we have filtered out).
+        # We *don't* do this for __old__ and __new__; __old__ because
+        # we don't want overlays at all and __new__ because we want the
+        # overlays to apply after policies.
+        trigger_mode = (
+            ctx.trigger_mode
+            and not isinstance(dml_source, irast.TriggerAnchor)
+        )
+        if trigger_mode:
             include_overlays = False
 
         type_rel: pgast.BaseRelation | pgast.CommonTableExpr
         if (type_cte := ctx.type_ctes.get(key)) is None:
             with ctx.newrel() as sctx:
-                sctx.pending_type_ctes.add(key)
+                sctx.pending_type_ctes.add(rw_key)
                 sctx.pending_query = sctx.rel
                 sctx.volatility_ref = ()
                 # Normally we want to compile type rewrites without
@@ -1395,11 +1405,9 @@ def range_for_material_objtype(
                 # compiling triggers, we recompile all of the type
                 # rewrites *to include* overlays, so that we can't peek
                 # at all newly created objects that we can't see
-                if not ctx.trigger_mode:
-                    sctx.type_rel_overlays = collections.defaultdict(
-                        lambda: collections.defaultdict(list))
-                    sctx.ptr_rel_overlays = collections.defaultdict(
-                        lambda: collections.defaultdict(list))
+                if not trigger_mode:
+                    sctx.rel_overlays = context.RelOverlays()
+
                 dispatch.visit(rewrite, ctx=sctx)
                 # If we are expanding inhviews, we also expand type
                 # rewrites, so don't populate type_ctes. The normal
@@ -1487,10 +1495,6 @@ def range_for_material_objtype(
             ),
             catenate=False,
         )
-
-        if typeref.name_hint.module in {'cfg', 'sys'} and include_descendants:
-            # Redirect all queries to schema tables to edgedbss
-            table_schema_name = 'edgedbss'
 
         relation = pgast.Relation(
             schemaname=table_schema_name,
@@ -1782,10 +1786,6 @@ def table_from_ptrref(
         ptr_info.table_name, aspect
     )
 
-    if ptrref.name.module in {'cfg', 'sys'}:
-        # Redirect all queries to schema tables to edgedbss
-        table_schema_name = 'edgedbss'
-
     typeref = ptrref.out_source if ptrref else None
     relation = pgast.Relation(
         schemaname=table_schema_name,
@@ -2039,15 +2039,14 @@ def _add_type_rel_overlay(
         path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> None:
     entry = (op, rel, path_id)
-    if dml_stmts:
-        for dml_stmt in dml_stmts:
-            overlays = ctx.type_rel_overlays[dml_stmt][typeid]
-            if entry not in overlays:
-                overlays.append(entry)
-    else:
-        overlays = ctx.type_rel_overlays[None][typeid]
+    dml_stmts2 = dml_stmts if dml_stmts else (None,)
+    for dml_stmt in dml_stmts2:
+        ds_overlays = ctx.rel_overlays.type.get(dml_stmt, immu.Map())
+        overlays = ds_overlays.get(typeid, ())
         if entry not in overlays:
-            overlays.append(entry)
+            ds_overlays = ds_overlays.set(typeid, overlays + (entry,))
+            ctx.rel_overlays.type = (
+                ctx.rel_overlays.type.set(dml_stmt, ds_overlays))
 
 
 def add_type_rel_overlay(
@@ -2079,17 +2078,14 @@ def get_type_rel_overlays(
     *,
     dml_source: Optional[irast.MutatingLikeStmt]=None,
     ctx: context.CompilerContextLevel,
-) -> List[
-    Tuple[
-        str,
-        Union[pgast.BaseRelation, pgast.CommonTableExpr],
-        irast.PathId,
-    ]
-]:
+) -> tuple[context.OverlayEntry, ...]:
     if typeref.material_type is not None:
         typeref = typeref.material_type
 
-    return ctx.type_rel_overlays[dml_source][typeref.id]
+    if dml_source not in ctx.rel_overlays.type:
+        return ()
+    else:
+        return ctx.rel_overlays.type[dml_source].get(typeref.id, ())
 
 
 def reuse_type_rel_overlays(
@@ -2104,13 +2100,13 @@ def reuse_type_rel_overlays(
     nested overlays) as an overlay for all the enclosing DML
     statements.
     """
-    ref_overlays = ctx.type_rel_overlays[dml_source]
+    ref_overlays = ctx.rel_overlays.type.get(dml_source, immu.Map())
     for tid, overlays in ref_overlays.items():
         for op, rel, path_id in overlays:
             _add_type_rel_overlay(
                 tid, op, rel, dml_stmts=dml_stmts, path_id=path_id, ctx=ctx
             )
-    ptr_overlays = ctx.ptr_rel_overlays[dml_source]
+    ptr_overlays = ctx.rel_overlays.ptr.get(dml_source, immu.Map())
     for (obj, ptr), poverlays in ptr_overlays.items():
         for op, rel, path_id in poverlays:
             _add_ptr_rel_overlay(
@@ -2129,15 +2125,15 @@ def _add_ptr_rel_overlay(
         ctx: context.CompilerContextLevel) -> None:
 
     entry = (op, rel, path_id)
-    if dml_stmts:
-        for dml_stmt in dml_stmts:
-            overlays = ctx.ptr_rel_overlays[dml_stmt][typeid, ptrref_name]
-            if entry not in overlays:
-                overlays.append(entry)
-    else:
-        overlays = ctx.ptr_rel_overlays[None][typeid, ptrref_name]
+    dml_stmts2 = dml_stmts if dml_stmts else (None,)
+    key = typeid, ptrref_name
+    for dml_stmt in dml_stmts2:
+        ds_overlays = ctx.rel_overlays.ptr.get(dml_stmt, immu.Map())
+        overlays = ds_overlays.get(key, ())
         if entry not in overlays:
-            overlays.append(entry)
+            ds_overlays = ds_overlays.set(key, overlays + (entry,))
+            ctx.rel_overlays.ptr = (
+                ctx.rel_overlays.ptr.set(dml_stmt, ds_overlays))
 
 
 def add_ptr_rel_overlay(
@@ -2164,34 +2160,10 @@ def get_ptr_rel_overlays(
     ptrref: irast.PointerRef, *,
     dml_source: Optional[irast.MutatingLikeStmt]=None,
     ctx: context.CompilerContextLevel,
-) -> List[
-    Tuple[
-        str,
-        Union[pgast.BaseRelation, pgast.CommonTableExpr],
-        irast.PathId,
-    ]
-]:
+) -> tuple[context.OverlayEntry, ...]:
     typeref = ptrref.out_source.real_material_type
-    return ctx.ptr_rel_overlays[dml_source][typeref.id, ptrref.shortname.name]
-
-
-def clone_type_rel_overlays(
-    *,
-    ctx: context.CompilerContextLevel,
-) -> None:
-    ctx.type_rel_overlays = ctx.type_rel_overlays.copy()
-    for k, v in ctx.type_rel_overlays.items():
-        ctx.type_rel_overlays[k] = v.copy()
-        for k2, v2 in v.items():
-            v[k2] = list(v2)
-
-
-def clone_ptr_rel_overlays(
-    *,
-    ctx: context.CompilerContextLevel,
-) -> None:
-    ctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
-    for k, v in ctx.ptr_rel_overlays.items():
-        ctx.ptr_rel_overlays[k] = v.copy()
-        for k2, v2 in v.items():
-            v[k2] = list(v2)
+    if dml_source not in ctx.rel_overlays.ptr:
+        return ()
+    else:
+        key = typeref.id, ptrref.shortname.name
+        return ctx.rel_overlays.ptr[dml_source].get(key, ())

@@ -1532,3 +1532,28 @@ class TestIntrospection(tb.QueryTestCase):
         ''')
         count1 = res[0].z
         self.assertFalse(all(row.z == count1 for row in res))
+
+    async def test_edgeql_introspection_cfg_objects_01(self):
+        await self.assert_query_result(
+            r'''
+                SELECT count(sys::Database)
+                  = count(BaseObject[is sys::Database])
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT count(cfg::AbstractConfig)
+                  = count(BaseObject[is cfg::AbstractConfig])
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT count(cfg::ConfigObject)
+                  = count(BaseObject[is cfg::ConfigObject])
+            ''',
+            [True],
+        )

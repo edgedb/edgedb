@@ -1725,7 +1725,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._ddl_visit_bases(node)
             if node.target is not None:
                 if isinstance(node.target, qlast.TypeExpr):
-                    self.write(' -> ')
+                    self.write(': ')
                     self.visit(node.target)
                 elif pure_computable:
                     # computable

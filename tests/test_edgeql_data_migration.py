@@ -986,7 +986,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text': (
                         'CREATE TYPE test::Type01 {\n'
                         '    CREATE PROPERTY field1'
-                        ' -> std::str;\n'
+                        ': std::str;\n'
                         '};'
                     )
                 }],
@@ -1060,7 +1060,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text': (
                         'CREATE TYPE test::Type02 {\n'
                         '    CREATE PROPERTY field02'
-                        ' -> std::str;\n'
+                        ': std::str;\n'
                         '};'
                     )
                 }],
@@ -1133,7 +1133,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text': (
                         'ALTER TYPE test::Type02 {\n'
                         '    CREATE PROPERTY field02'
-                        ' -> std::str;\n'
+                        ': std::str;\n'
                         '};'
                     )
                 }],
@@ -1180,7 +1180,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text': (
                         'CREATE TYPE test::Type01 {\n'
                         '    CREATE LINK foo1'
-                        ' -> test::Foo;\n'
+                        ': test::Foo;\n'
                         '};'
                     )
                 }],
@@ -1266,7 +1266,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text': (
                         'CREATE TYPE test::Type02 {\n'
                         '    CREATE LINK foo02'
-                        ' -> test::Foo;\n'
+                        ': test::Foo;\n'
                         '};'
                     )
                 }],
@@ -1352,7 +1352,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text': (
                         'ALTER TYPE test::Type02 {\n'
                         '    CREATE LINK foo02'
-                        ' -> test::Foo;\n'
+                        ': test::Foo;\n'
                         '};'
                     )
                 }],
@@ -4024,7 +4024,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.assert_describe_migration({
             'confirmed': ["""
                 ALTER TYPE test::Base {
-                    CREATE PROPERTY foo -> std::str;
+                    CREATE PROPERTY foo: std::str;
                 };
             """, """
                 ALTER TYPE test::Derived {
@@ -9145,7 +9145,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                         'CREATE TYPE test::NewObj2 {\n'
                         "    CREATE ANNOTATION std::title := 'Obj2';\n"
                         '    CREATE PROPERTY name'
-                        ' -> std::str;\n'
+                        ': std::str;\n'
                         '};'
                 }],
             },
@@ -9190,7 +9190,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.assert_describe_migration({
             'confirmed': [
                 'SELECT 1;',
-                'CREATE TYPE test::Obj1 { CREATE PROPERTY foo -> std::str; };',
+                'CREATE TYPE test::Obj1 { CREATE PROPERTY foo: std::str; };',
                 "INSERT Obj1 { foo := 'test' };"
             ],
             'complete': True,
@@ -9394,8 +9394,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'statements': [{
                     'text':
                         'CREATE TYPE test::NewObj1 {\n'
-                        '    CREATE PROPERTY bar -> std::str;'
-                        '\n    CREATE PROPERTY foo -> std::str;'
+                        '    CREATE PROPERTY bar: std::str;'
+                        '\n    CREATE PROPERTY foo: std::str;'
                         '\n};'
                 }],
                 'confidence': 1.0,
@@ -9460,7 +9460,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'statements': [{
                     'text':
                         'ALTER TYPE test::Obj1 {\n    '
-                        'CREATE PROPERTY x -> std::str;\n};'
+                        'CREATE PROPERTY x: std::str;\n};'
                 }],
                 'confidence': 1.0,
             },
@@ -9498,7 +9498,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text':
                         'ALTER TYPE test::Obj1 {\n    '
                         'ALTER LINK link {\n        '
-                        'CREATE PROPERTY x -> std::str;\n    };\n};'
+                        'CREATE PROPERTY x: std::str;\n    };\n};'
                 }],
                 'confidence': 1.0,
             },
@@ -9578,7 +9578,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'statements': [{
                     'text': """
                         ALTER TYPE test::Obj11 {
-                            CREATE PROPERTY name -> std::str {
+                            CREATE PROPERTY name: std::str {
                                 CREATE CONSTRAINT std::exclusive;
                             };
                         };
@@ -9828,7 +9828,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'statements': [{
                     'text': """
                         CREATE TYPE test::Spam {
-                            CREATE LINK bar -> test::Bar;
+                            CREATE LINK bar: test::Bar;
                         };
                     """,
                 }],
@@ -9848,7 +9848,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'statements': [{
                     'text': """
                         ALTER TYPE test::Bar {
-                            CREATE LINK spam -> test::Spam;
+                            CREATE LINK spam: test::Spam;
                         };
                     """,
                 }],
@@ -9946,7 +9946,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'statements': [{
                     'text': '''
                         ALTER TYPE test::Bar {
-                            CREATE REQUIRED PROPERTY bar -> std::str {
+                            CREATE REQUIRED PROPERTY bar: std::str {
                                 SET REQUIRED USING (\\(fill_expr));
                             };
                         };

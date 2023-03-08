@@ -68,6 +68,7 @@ def compile_trigger(
         )
         new_set = setgen.class_set(
             source, path_id=new_path, ignore_rewrites=True, ctx=sctx)
+        new_set.expr = irast.TriggerAnchor(typeref=new_set.typeref)
 
         old_set = None
         if qltypes.TriggerKind.Insert not in kinds:
