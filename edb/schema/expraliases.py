@@ -141,12 +141,13 @@ class AliasLikeCommand(
         scls: so.QualifiedObject_T,
         schema: s_schema.Schema,
         context: sd.CommandContext,
+        if_unused: bool = False
     ) -> sd.DeleteObject[s_types.Type]:
         created = self._get_created_types(scls, schema)
 
         alias_type = self.get_type(scls, schema)
         drop_type = alias_type.init_delta_command(
-            schema, sd.DeleteObject)
+            schema, sd.DeleteObject, if_unused=if_unused)
         subcmds = drop_type._canonicalize(schema, context, alias_type)
         drop_type.update(subcmds)
 
@@ -423,7 +424,9 @@ class DeleteAliasLike(
     ) -> List[sd.Command]:
         ops = super()._canonicalize(schema, context, scls)
         if self._is_alias(scls, schema):
-            ops.append(self._delete_alias_type(scls, schema, context))
+            ops.append(self._delete_alias_type(scls, schema, context,
+                if_unused=True))
+        print('deleting', ops)
         return ops
 
 
