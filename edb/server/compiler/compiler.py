@@ -536,7 +536,17 @@ class Compiler:
         sql_units = []
         for stmt in stmts:
             # GOTCHA: a setting is frontend-only regardless of its mutability
-            fe_only = stmt.name in fe_settings_mutable
+            if isinstance(
+                stmt,
+                (
+                    pgast.VariableSetStmt,
+                    pgast.VariableResetStmt,
+                    pgast.VariableShowStmt,
+                ),
+            ):
+                fe_only = stmt.name in fe_settings_mutable
+            else:
+                fe_only = False
 
             if isinstance(stmt, pgast.VariableSetStmt):
                 args = {

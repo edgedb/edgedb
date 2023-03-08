@@ -782,3 +782,12 @@ class TestSQL(tb.SQLQueryTestCase):
     async def test_sql_query_version(self):
         version = await self.squery_values("select version()")
         self.assertIn("EdgeDB", version[0][0])
+
+    async def test_sql_transaction_01(self):
+        await self.scon.execute(
+            """
+            BEGIN;
+            SELECT * FROM "Genre" ORDER BY id;
+            COMMIT;
+            """,
+        )
