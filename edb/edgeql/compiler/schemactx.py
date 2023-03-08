@@ -252,6 +252,8 @@ def derive_view(
                 transient=True,
                 attrs=attrs,
             )
+            if exprtype == s_types.ExprType.Insert:
+                derived.disallow_partial_paths = "in the shape of an INSERT statement"
 
         if (
             stype.is_view(ctx.env.schema)
@@ -300,6 +302,8 @@ def derive_view(
         preserve_view_shape(stype, derived, ctx=ctx)
 
     ctx.env.created_schema_objects.add(derived)
+
+
 
     return derived
 
