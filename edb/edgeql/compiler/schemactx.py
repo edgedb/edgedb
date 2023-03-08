@@ -253,7 +253,8 @@ def derive_view(
                 attrs=attrs,
             )
             if exprtype == s_types.ExprType.Insert:
-                derived.disallow_partial_paths = "in the shape of an INSERT statement"
+                derived.disallow_partial_paths = \
+                    "in the shape of an INSERT statement"
 
         if (
             stype.is_view(ctx.env.schema)
@@ -302,8 +303,6 @@ def derive_view(
         preserve_view_shape(stype, derived, ctx=ctx)
 
     ctx.env.created_schema_objects.add(derived)
-
-
 
     return derived
 
@@ -478,7 +477,7 @@ def concretify(
         return get_union_type(ts, ctx=ctx)
     if els := t.get_intersection_of(ctx.env.schema):
         ts = [concretify(e, ctx=ctx) for e in els.objects(ctx.env.schema)]
-        return get_intersection_type(ts , ctx=ctx)
+        return get_intersection_type(ts, ctx=ctx)
     return t
 
 
