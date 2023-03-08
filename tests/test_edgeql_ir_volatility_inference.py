@@ -34,7 +34,7 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
                           'cards.esdl')
 
     def run_test(self, *, source, spec, expected):
-        qltree = qlparser.parse(source)
+        qltree = qlparser.parse_query(source)
         ir = compiler.compile_ast_to_ir(
             qltree,
             self.schema,

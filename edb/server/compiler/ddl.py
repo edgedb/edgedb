@@ -583,7 +583,8 @@ def _describe_current_migration(
         else:
             description = ''
 
-        desc_ql = edgeql.parse(f'SELECT {qlquote.quote_literal(description)}')
+        desc_ql = edgeql.parse_query(
+            f'SELECT {qlquote.quote_literal(description)}')
         return compiler._compile_ql_query(
             ctx,
             desc_ql,
@@ -715,7 +716,7 @@ def _describe_current_migration(
             .decode('utf-8')
         )
 
-        desc_ql = edgeql.parse(
+        desc_ql = edgeql.parse_query(
             f'SELECT to_json({qlquote.quote_literal(desc)})'
         )
         return compiler._compile_ql_query(

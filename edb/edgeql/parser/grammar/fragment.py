@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2023-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,17 +20,16 @@
 from __future__ import annotations
 
 from .expressions import Nonterm
+from .expressions import *  # NOQA
 from .precedence import *  # NOQA
 from .tokens import *  # NOQA
-from .statements import *  # NOQA
-from .ddl import *  # NOQA
 
 
-class SingleDDLOrQuery(Nonterm):
+class ExpressionFragment(Nonterm):
     "%start"
 
-    def reduce_Stmt_EOF(self, *kids):
+    def reduce_ExprStmt_EOF(self, *kids):
         self.val = kids[0].val
 
-    def reduce_DDLStmt_EOF(self, *kids):
+    def reduce_Expr_EOF(self, *kids):
         self.val = kids[0].val

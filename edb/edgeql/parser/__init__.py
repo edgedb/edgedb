@@ -58,14 +58,45 @@ def parse_fragment(
     return res
 
 
-def parse(
+def parse_single(
+    source: Union[qltokenizer.Source, str],
+    filename: Optional[str]=None,
+) -> qlast.Expr:
+    if isinstance(source, str):
+        source = qltokenizer.Source.from_string(source)
+    parser = qlparser.EdgeQLSingleParser()
+    res = parser.parse(source, filename=filename)
+    assert isinstance(res, qlast.Expr)
+    return res
+
+
+def parse_query(
+    source: Union[qltokenizer.Source, str],
+    module_aliases: Optional[Mapping[Optional[str], str]] = None,
+) -> qlast.Query:
+    """Parse some EdgeQL potentially adding some module aliases.
+
+    This will parse EdgeQL queries and expressions. If the source is an
+    expression, the result will be wrapped into a SelectQuery.
+    """
+
+    tree = parse_fragment(source)
+    if not isinstance(tree, qlast.Query):
+        tree = qlast.SelectQuery(result=tree)
+
+    if module_aliases:
+        append_module_aliases(tree, module_aliases)
+
+    return tree
+
+
+def parse_command(
     source: Union[qltokenizer.Source, str],
     module_aliases: Optional[Mapping[Optional[str], str]] = None,
 ) -> qlast.Expr:
-    tree = parse_fragment(source)
+    """Parse some EdgeQL command potentially adding some module aliases."""
 
-    if not isinstance(tree, qlast.Command):
-        tree = qlast.SelectQuery(result=tree)
+    tree = parse_single(source)
 
     if module_aliases:
         append_module_aliases(tree, module_aliases)
@@ -112,6 +143,7 @@ def preload(
     if parsers is None:
         parsers = [
             qlparser.EdgeQLBlockParser(),
+            qlparser.EdgeQLSingleParser(),
             qlparser.EdgeQLExpressionParser(),
             qlparser.EdgeSDLParser(),
         ]

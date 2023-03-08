@@ -970,7 +970,6 @@ pub fn is_keyword(s: &str) -> bool {
           // Keep in sync with keywords::FUTURE_RESERVED_KEYWORDS
         // # Partial reserved keywords #
           // Keep in sync with keywords::PARTIAL_RESERVED_KEYWORDS
-        | "analyze"
         | "except"
         | "intersect"
         | "union"

@@ -6,6 +6,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "alias",
     "allow",
     "all",
+    "analyze",
     "annotation",
     "applied",
     "as",
@@ -108,7 +109,6 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
 
 pub const PARTIAL_RESERVED_KEYWORDS: &[&str] = &[
     // Keep in sync with `tokenizer::is_keyword`
-    "analyze",
     "except",
     "intersect",
     "union",
