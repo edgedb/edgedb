@@ -698,9 +698,6 @@ class DeleteLink(
     astnode = [qlast.DropConcreteLink, qlast.DropLink]
     referenced_astnode = qlast.DropConcreteLink
 
-    # NB: target type cleanup (e.g. target compound type) is done by
-    #     the DeleteProperty handler for the @target property.
-
     def _delete_begin(
         self,
         schema: s_schema.Schema,
