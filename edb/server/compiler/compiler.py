@@ -535,10 +535,10 @@ class Compiler:
         stmts = pg_parser.parse(query_str)
         sql_units = []
         for stmt in stmts:
-            # GOTCHA: a setting is frontend-only regardless of its mutability
-            fe_only = stmt.name in fe_settings_mutable
-
             if isinstance(stmt, pgast.VariableSetStmt):
+                # GOTCHA: setting is frontend-only regardless of its mutability
+                fe_only = stmt.name in fe_settings_mutable
+
                 args = {
                     "query": pg_codegen.generate_source(stmt),
                     "frontend_only": fe_only,
@@ -563,6 +563,7 @@ class Compiler:
                     args["set_vars"] = {stmt.name: value}
                 unit = dbstate.SQLQueryUnit(**args)
             elif isinstance(stmt, pgast.VariableResetStmt):
+                fe_only = stmt.name in fe_settings_mutable
                 if fe_only and not fe_settings_mutable[stmt.name]:
                     raise errors.QueryError(
                         f'parameter "{stmt.name}" cannot be changed',
@@ -581,7 +582,7 @@ class Compiler:
                 unit = dbstate.SQLQueryUnit(
                     query=source,
                     get_var=stmt.name,
-                    frontend_only=fe_only,
+                    frontend_only=stmt.name in fe_settings_mutable,
                 )
             elif isinstance(stmt, pgast.SetTransactionStmt):
                 args = {"query": pg_codegen.generate_source(stmt)}
