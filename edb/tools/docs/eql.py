@@ -218,6 +218,7 @@ from edb import protocol
 
 from docutils import nodes as d_nodes
 from docutils.parsers import rst as d_rst
+from docutils.parsers.rst import directives as d_directives
 from docutils import utils as d_utils
 
 from sphinx import addnodes as s_nodes
@@ -593,12 +594,14 @@ class EQLKeywordDirective(BaseEQLDirective):
             f'keyword::{name}', sig, signode)
 
 
-class EQLSynopsisDirective(s_code.CodeBlock):
+class EQLSynopsisDirective(shared.CodeBlock):
 
     has_content = True
     optional_arguments = 0
     required_arguments = 0
-    option_spec: Dict[str, Any] = {}
+    option_spec: Dict[str, Any] = {
+        'version-lt': d_directives.unchanged_required
+    }
 
     def run(self):
         self.arguments = ['edgeql-synopsis']
