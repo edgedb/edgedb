@@ -531,9 +531,6 @@ class ContextLevel(compiler.ContextLevel):
     compiling_update_shape: bool
     """Whether an UPDATE shape is currently being compiled."""
 
-    in_conditional: Optional[parsing.ParserContext]
-    """Whether currently in a conditional branch."""
-
     active_computeds: ordered.OrderedSet[s_pointers.Pointer]
     """A ordered set of currently compiling computeds"""
 
@@ -592,7 +589,6 @@ class ContextLevel(compiler.ContextLevel):
             self.empty_result_type_hint = None
             self.defining_view = None
             self.compiling_update_shape = False
-            self.in_conditional = None
             self.active_computeds = ordered.OrderedSet()
             self.recompiling_schema_alias = False
 
@@ -633,7 +629,6 @@ class ContextLevel(compiler.ContextLevel):
             self.empty_result_type_hint = prevlevel.empty_result_type_hint
             self.defining_view = prevlevel.defining_view
             self.compiling_update_shape = prevlevel.compiling_update_shape
-            self.in_conditional = prevlevel.in_conditional
             self.active_computeds = prevlevel.active_computeds
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
 

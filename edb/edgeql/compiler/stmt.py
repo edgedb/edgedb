@@ -413,13 +413,6 @@ def compile_InsertQuery(
         expr: qlast.InsertQuery, *,
         ctx: context.ContextLevel) -> irast.Set:
 
-    if ctx.in_conditional is not None:
-        raise errors.QueryError(
-            'INSERT statements cannot be used inside conditional '
-            'expressions',
-            context=expr.context,
-        )
-
     if ctx.disallow_dml:
         raise errors.QueryError(
             f'INSERT statements cannot be used {ctx.disallow_dml}',
@@ -563,12 +556,6 @@ def _get_dunder_type_ptrref(ctx: context.ContextLevel) -> irast.PointerRef:
 def compile_UpdateQuery(
         expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
 
-    if ctx.in_conditional is not None:
-        raise errors.QueryError(
-            'UPDATE statements cannot be used inside conditional expressions',
-            context=expr.context,
-        )
-
     if ctx.disallow_dml:
         raise errors.QueryError(
             f'UPDATE statements cannot be used {ctx.disallow_dml}',
@@ -668,12 +655,6 @@ def compile_UpdateQuery(
 @dispatch.compile.register(qlast.DeleteQuery)
 def compile_DeleteQuery(
         expr: qlast.DeleteQuery, *, ctx: context.ContextLevel) -> irast.Set:
-
-    if ctx.in_conditional is not None:
-        raise errors.QueryError(
-            'DELETE statements cannot be used inside conditional expressions',
-            context=expr.context,
-        )
 
     if ctx.disallow_dml:
         raise errors.QueryError(
