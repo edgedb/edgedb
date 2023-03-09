@@ -48,12 +48,30 @@ Define a new access policy corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_access_policies>`.
 
 .. sdl:synopsis::
+   :version-lt: 3.0
 
     # Access policy used inside a type declaration:
     access policy <name>
       [ when (<condition>) ]
       { allow | deny } <action> [, <action> ... ]
       [ using (<expr>) ]
+      [ <annotation-declarations> ] ;
+
+    # where <action> is one of
+    all
+    select
+    insert
+    delete
+    update [{ read | write }]
+
+.. sdl:synopsis::
+
+    # Access policy used inside a type declaration:
+    access policy <name>
+      [ when (<condition>) ]
+      { allow | deny } <action> [, <action> ... ]
+      [ using (<expr>) ]
+      [ { errmessage := <error-message> } ]
       [ <annotation-declarations> ] ;
 
     # where <action> is one of

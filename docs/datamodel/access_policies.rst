@@ -41,16 +41,16 @@ to represent the identity of the user executing the query.
 
 .. code-block:: sdl-diff
 
-  +   global current_user -> uuid;
+  + global current_user -> uuid;
 
-      type User {
-        required property email -> str { constraint exclusive; };
-      }
+    type User {
+      required property email -> str { constraint exclusive; };
+    }
 
-      type BlogPost {
-        required property title -> str;
-        required link author -> User;
-      }
+    type BlogPost {
+      required property title -> str;
+      required link author -> User;
+    }
 
 Global variables are a generic mechanism for providing *context* to a query.
 Most commonly, they are used in the context of access policies.
@@ -126,20 +126,20 @@ Let's add a policy to our sample schema.
 
 .. code-block:: sdl-diff
 
-      global current_user -> uuid;
+    global current_user -> uuid;
 
-      type User {
-        required property email -> str { constraint exclusive; };
-      }
+    type User {
+      required property email -> str { constraint exclusive; };
+    }
 
-      type BlogPost {
-        required property title -> str;
-        required link author -> User;
+    type BlogPost {
+      required property title -> str;
+      required link author -> User;
 
-  +     access policy author_has_full_access
-  +       allow all
-  +       using (global current_user ?= .author.id);
-      }
+  +   access policy author_has_full_access
+  +     allow all
+  +     using (global current_user ?= .author.id);
+    }
 
 
 Let's break down the access policy syntax piece-by-piece. This policy grants
