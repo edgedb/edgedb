@@ -149,5 +149,6 @@ to the previous migration:
     globals
     access_policies
     functions
+    triggers
     extensions
     future

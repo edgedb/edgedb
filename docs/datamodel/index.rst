@@ -23,6 +23,7 @@ Schema
     globals
     access_policies
     functions
+    triggers
     inheritance
     extensions
     future

@@ -34,6 +34,7 @@ information about EdgeDB types in a variety of human-readable formats.
     scalars
     colltypes
     functions
+    triggers
     indexes
     constraints
     operators
