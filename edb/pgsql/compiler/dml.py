@@ -129,6 +129,11 @@ def init_dml_stmt(
     for typeref in typerefs:
         if typeref.union:
             continue
+        if (
+            isinstance(typeref.name_hint, sn.QualName)
+            and typeref.name_hint.module in ('sys', 'cfg')
+        ):
+            continue
         dml_cte, dml_rvar = gen_dml_cte(
             ir_stmt,
             range_rvar=range_rvar,

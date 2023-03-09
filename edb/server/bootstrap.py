@@ -56,6 +56,7 @@ from edb.server import config
 from edb.server import compiler as edbcompiler
 from edb.server import defines as edbdef
 from edb.server import pgcluster
+from edb.server import pgcon
 
 from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
@@ -70,8 +71,6 @@ from edgedb import scram
 
 if TYPE_CHECKING:
     import uuid
-
-    from edb.server import pgcon
 
 
 logger = logging.getLogger('edb.server')
@@ -1773,6 +1772,11 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
             conn.add_log_listener(_pg_log_listener)
         else:
             tpl_ctx = ctx
+
+        # Some of the views need access to the _edgecon_state table,
+        # so set it up.
+        tmp_table_query = pgcon.SETUP_TEMP_TABLE_SCRIPT
+        await _execute(tpl_ctx.conn, tmp_table_query)
 
         await _populate_misc_instance_data(tpl_ctx)
 

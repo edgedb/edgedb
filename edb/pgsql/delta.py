@@ -92,6 +92,11 @@ if TYPE_CHECKING:
     from edb.schema import schema as s_schema
 
 
+# Modules where all the "types" in them are really just custom views
+# provided by metaschema.
+VIEW_MODULES = ('sys', 'cfg')
+
+
 def has_table(obj, schema):
     if isinstance(obj, s_objtypes.ObjectType):
         return not (
@@ -118,6 +123,16 @@ def has_table(obj, schema):
             ptr_stor_info is not None
             and ptr_stor_info.table_type == 'link'
         )
+
+
+def is_cfg_view(
+    obj: so.Object,
+    schema: s_schema.Schema,
+) -> bool:
+    return (
+        isinstance(obj, (s_objtypes.ObjectType, s_pointers.Pointer))
+        and obj.get_name(schema).module in VIEW_MODULES
+    )
 
 
 def get_index_code(index_name: sn.Name) -> str:
@@ -264,7 +279,14 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
             raise AssertionError(f"there is no {ctxcls} in context stack")
         assert isinstance(ctx.op, CompositeMetaCommand)
 
-        ctx.op.inhview_updates.add((ptr.get_source(schema), True))
+        src = ptr.get_source(schema)
+        if src and is_cfg_view(src, schema):
+            assert isinstance(src, s_sources.Source)
+            self.pgops.add(
+                CompositeMetaCommand._refresh_fake_cfg_view_cmd(
+                    src, schema, context))
+
+        ctx.op.inhview_updates.add((src, True))
         for anc in ptr.get_ancestors(schema).objects(schema):
             if src := anc.get_source(schema):
                 ctx.op.inhview_updates.add((src, False))
@@ -1982,6 +2004,9 @@ class ConstraintCommand(MetaCommand):
         ):
             return False
 
+        elif is_cfg_view(subject, schema):
+            return False
+
         elif isinstance(subject, s_pointers.Pointer):
             if subject.generic(schema):
                 return True
@@ -2907,6 +2932,57 @@ class CompositeMetaCommand(MetaCommand):
     def attach_alter_table(self, context):
         self._attach_multicommand(context, dbops.AlterTable)
 
+    @staticmethod
+    def _get_table_name(obj, schema) -> tuple[str, str]:
+        is_internal_view = is_cfg_view(obj, schema)
+        aspect = 'dummy' if is_internal_view else None
+        return common.get_backend_name(
+            schema, obj, catenate=False, aspect=aspect)
+
+    @classmethod
+    def _refresh_fake_cfg_view_cmd(
+        cls,
+        obj: CompositeObject,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> dbops.Command:
+        if not has_table(obj, schema):
+            return dbops.CommandGroup()
+        # Objects in sys and cfg are actually implemented by views
+        # that are defined in metaschema. The metaschema scripts run
+        # *after* the schema is instantiated, though, and we need to
+        # populate something *now* that can go into inhviews.
+        #
+        # The way we do this is by creating an actual concrete table
+        # with the suffix "_dummy" and then creating a view with the
+        # expected table name that simply `select *`s from the dummy
+        # table. Pointer creation on the type gets routed to the dummy
+        # table, so it has the right columns. Since the view `select
+        # *`s from the table, it also has the right columns, and can
+        # go into all of the inheritance views without any trouble.
+        #
+        # We refresh the fake config view before creating/updating
+        # inhviews associated with the object, since that corresponds
+        # with when it actually needs to happen by.
+        #
+        # Then, when we run the metaschema script, it simply swaps out
+        # this hacky view for the real one and everything works out fine.
+        orig_name = common.get_backend_name(schema, obj, catenate=False)
+        dummy_name = cls._get_table_name(obj, schema)
+        query = f'''
+            SELECT * FROM {q(*dummy_name)}
+        '''
+        view = dbops.View(name=orig_name, query=query)
+        return dbops.CreateView(view, or_replace=True)
+
+    def _refresh_fake_cfg_view(
+        self,
+        obj: CompositeObject,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        self.pgops.add(self._refresh_fake_cfg_view_cmd(obj, schema, context))
+
     @classmethod
     def get_source_and_pointer_ctx(cls, schema, context):
         if context:
@@ -2936,15 +3012,11 @@ class CompositeMetaCommand(MetaCommand):
 
         cols = []
 
-        if pg_schema not in ('edgedbss',):
-            cols.extend([
-                ('tableoid', 'tableoid', True),
-                ('xmin', 'xmin', True),
-                ('cmin', 'cmin', True),
-                ('xmax', 'xmax', True),
-                ('cmax', 'cmax', True),
-                ('ctid', 'ctid', True),
-            ])
+        special_cols = ['tableoid', 'xmin', 'cmin', 'xmax', 'cmax', 'ctid']
+        if not is_cfg_view(obj, schema):
+            cols.extend([(col, col, True) for col in special_cols])
+        else:
+            cols.extend([('NULL', col, False) for col in special_cols])
 
         if isinstance(obj, s_sources.Source):
             ptrs = dict(obj.get_pointers(schema).items(schema))
@@ -3094,6 +3166,9 @@ class CompositeMetaCommand(MetaCommand):
         context: sd.CommandContext,
         obj: CompositeObject,
     ) -> None:
+        if is_cfg_view(obj, schema):
+            self._refresh_fake_cfg_view(obj, schema, context)
+
         bases = set(obj.get_bases(schema).objects(schema))
         orig_bases = set(obj.get_bases(orig_schema).objects(orig_schema))
 
@@ -3164,6 +3239,10 @@ class CompositeMetaCommand(MetaCommand):
         alter_ancestors: bool = True,
     ) -> None:
         assert has_table(obj, schema)
+
+        if is_cfg_view(obj, schema):
+            self._refresh_fake_cfg_view(obj, schema, context)
+
         inhview = self.get_inhview(schema, obj, exclude_ptrs=exclude_ptrs)
         self.pgops.add(dbops.CreateView(view=inhview))
         self.pgops.add(dbops.Comment(
@@ -3186,6 +3265,9 @@ class CompositeMetaCommand(MetaCommand):
         alter_ancestors: bool = True,
     ) -> None:
         assert has_table(obj, schema)
+
+        if is_cfg_view(obj, schema):
+            self._refresh_fake_cfg_view(obj, schema, context)
 
         inhview = self.get_inhview(
             schema,
@@ -3507,8 +3589,9 @@ class CreateObjectType(ObjectTypeMetaCommand,
         objtype = self.scls
         if objtype.is_compound_type(schema) or objtype.get_is_derived(schema):
             return schema
-        new_table_name = common.get_backend_name(
-            schema, self.scls, catenate=False)
+
+        new_table_name = self._get_table_name(self.scls, schema)
+
         self.table_name = new_table_name
         columns: list[str] = []
 
@@ -3553,6 +3636,16 @@ class RebaseObjectType(ObjectTypeMetaCommand,
 
 class AlterObjectType(ObjectTypeMetaCommand,
                       adapts=s_objtypes.AlterObjectType):
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
+        # We want to set this name up early, so children operations see it
+        self.table_name = self._get_table_name(self.scls, schema)
+        return schema
+
     def apply(
         self,
         schema: s_schema.Schema,
@@ -3563,9 +3656,6 @@ class AlterObjectType(ObjectTypeMetaCommand,
         objtype = self.scls
 
         self.apply_scheduled_inhview_updates(schema, context)
-
-        self.table_name = common.get_backend_name(
-            schema, objtype, catenate=False)
 
         self._maybe_do_abstract_test(orig_schema, schema, context)
 
@@ -4627,7 +4717,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
     def _create_table(
             cls, link, schema, context, conditional=False, create_bases=True,
             create_children=True):
-        new_table_name = common.get_backend_name(schema, link, catenate=False)
+        new_table_name = cls._get_table_name(link, schema)
 
         create_c = dbops.CommandGroup()
 
@@ -4757,8 +4847,7 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
             if ptr_stor_info.table_type == 'ObjectType':
                 cols = self.get_columns(
                     link, schema, None, sets_required)
-                table_name = common.get_backend_name(
-                    schema, objtype.scls, catenate=False)
+                table_name = objtype.op.table_name  # type: ignore
                 assert isinstance(objtype.op, CompositeMetaCommand)
                 objtype_alter_table = objtype.op.get_alter_table(
                     schema, context, manual=True)
@@ -4895,7 +4984,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         schema = super()._create_begin(schema, context)
 
         link = self.scls
-        self.table_name = common.get_backend_name(schema, link, catenate=False)
+        self.table_name = self._get_table_name(self.scls, schema)
 
         self._create_link(link, schema, orig_schema, context)
 
@@ -5015,6 +5104,16 @@ class AlterLinkOwned(LinkMetaCommand, adapts=s_links.AlterLinkOwned):
 
 
 class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
+        # We want to set this name up early, so children operations see it
+        self.table_name = self._get_table_name(self.scls, schema)
+        return schema
+
     def _alter_innards(
         self,
         schema: s_schema.Schema,
@@ -5096,7 +5195,7 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
     def _create_table(
             cls, prop, schema, context, conditional=False, create_bases=True,
             create_children=True):
-        new_table_name = common.get_backend_name(schema, prop, catenate=False)
+        new_table_name = cls._get_table_name(prop, schema)
 
         create_c = dbops.CommandGroup()
 
@@ -5257,6 +5356,7 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                 (default := prop.get_default(schema))
                 and not prop.is_pure_computable(schema)
                 and not fills_required
+                and not is_cfg_view(src.scls, schema)  # sigh
                 # link properties use SQL defaults and shouldn't need
                 # us to do it explicitly (which is good, since
                 # _alter_pointer_optionality doesn't currently work on
@@ -5360,6 +5460,8 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
         prop = self.scls
 
         src = context.get(s_sources.SourceCommandContext)
+
+        self.table_name = self._get_table_name(prop, schema)
 
         self._create_property(prop, src, schema, orig_schema, context)
 
@@ -5625,7 +5727,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
             objs = {tgt}
         objs |= {
             x for obj in objs for x in obj.descendants(schema)}
-        return {obj for obj in objs if not obj.is_view(schema)}
+        return {
+            obj for obj in objs
+            if not obj.is_view(schema) and not is_cfg_view(obj, schema)
+        }
 
     def get_orphan_link_ancestors(self, link, schema):
         val = s_links.LinkSourceDeleteAction.DeleteTargetIfOrphan
@@ -6177,7 +6282,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
             source = link.get_source(eff_schema)
             target = link.get_target(eff_schema)
 
-            if not isinstance(source, s_objtypes.ObjectType):
+            if (
+                not isinstance(source, s_objtypes.ObjectType)
+                or is_cfg_view(source, eff_schema)
+            ):
                 continue
 
             if not isinstance(link_op, (CreateProperty, CreateLink)):
@@ -6263,6 +6371,9 @@ class UpdateEndpointDeleteActions(MetaCommand):
                         all_affected_targets.add(descendant)
 
         for target in all_affected_targets:
+            if is_cfg_view(target, schema):
+                continue
+
             deferred_links = []
             deferred_inline_links = []
             links = []
@@ -6298,7 +6409,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     continue
 
                 source = link.get_source(schema)
-                if not source.is_material_object_type(schema):
+                if (
+                    not source.is_material_object_type(schema)
+                    or is_cfg_view(source, schema)
+                ):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
                     link, schema=schema)
