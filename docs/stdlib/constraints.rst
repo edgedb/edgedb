@@ -15,6 +15,14 @@ Constraints
     custom scalar type:
 
     .. code-block:: sdl
+       :version-lt: 3.0
+
+        scalar type starts_with_a extending str {
+            constraint expression on (__subject__[0] = 'A');
+        }
+
+
+    .. code-block:: sdl
 
         scalar type starts_with_a extending str {
             constraint expression on (__subject__[0] = 'A');
@@ -24,10 +32,22 @@ Constraints
     object properties to restrict maximum magnitude for a vector:
 
     .. code-block:: sdl
+       :version-lt: 3.0
 
         type Vector {
             required property x -> float64;
             required property y -> float64;
+            constraint expression on (
+                __subject__.x^2 + __subject__.y^2 < 25
+            );
+        }
+
+
+    .. code-block:: sdl
+
+        type Vector {
+            required x: float64;
+            required y: float64;
             constraint expression on (
                 __subject__.x^2 + __subject__.y^2 < 25
             );
@@ -38,6 +58,14 @@ Constraints
     Specifies a list of allowed values.
 
     Example:
+
+    .. code-block:: sdl
+       :version-lt: 3.0
+
+        scalar type Status extending str {
+            constraint one_of ('Open', 'Closed', 'Merged');
+        }
+
 
     .. code-block:: sdl
 
@@ -52,6 +80,14 @@ Constraints
     Example:
 
     .. code-block:: sdl
+       :version-lt: 3.0
+
+        scalar type max_100 extending int64 {
+            constraint max_value(100);
+        }
+
+
+    .. code-block:: sdl
 
         scalar type max_100 extending int64 {
             constraint max_value(100);
@@ -62,6 +98,14 @@ Constraints
     Specifies a non-inclusive upper bound for the value.
 
     Example:
+
+    .. code-block:: sdl
+       :version-lt: 3.0
+
+        scalar type maxex_100 extending int64 {
+            constraint max_ex_value(100);
+        }
+
 
     .. code-block:: sdl
 
@@ -80,6 +124,14 @@ Constraints
     Example:
 
     .. code-block:: sdl
+       :version-lt: 3.0
+
+        scalar type Username extending str {
+            constraint max_len_value(30);
+        }
+
+
+    .. code-block:: sdl
 
         scalar type Username extending str {
             constraint max_len_value(30);
@@ -92,6 +144,14 @@ Constraints
     Example:
 
     .. code-block:: sdl
+       :version-lt: 3.0
+
+        scalar type non_negative extending int64 {
+            constraint min_value(0);
+        }
+
+
+    .. code-block:: sdl
 
         scalar type non_negative extending int64 {
             constraint min_value(0);
@@ -102,6 +162,14 @@ Constraints
     Specifies a non-inclusive lower bound for the value.
 
     Example:
+
+    .. code-block:: sdl
+       :version-lt: 3.0
+
+        scalar type positive_float extending float64 {
+            constraint min_ex_value(0);
+        }
+
 
     .. code-block:: sdl
 
@@ -120,6 +188,14 @@ Constraints
     Example:
 
     .. code-block:: sdl
+       :version-lt: 3.0
+
+        scalar type four_decimal_places extending int64 {
+            constraint min_len_value(4);
+        }
+
+
+    .. code-block:: sdl
 
         scalar type four_decimal_places extending int64 {
             constraint min_len_value(4);
@@ -132,6 +208,14 @@ Constraints
     Limits to string values matching a regular expression.
 
     Example:
+
+    .. code-block:: sdl
+       :version-lt: 3.0
+
+        scalar type LettersOnly extending str {
+            constraint regexp(r'[A-Za-z]*');
+        }
+
 
     .. code-block:: sdl
 
@@ -157,6 +241,7 @@ Constraints
     Example:
 
     .. code-block:: sdl
+       :version-lt: 3.0
 
         type User {
             # Make sure user names are unique.
@@ -171,16 +256,44 @@ Constraints
             }
         }
 
+
+    .. code-block:: sdl
+
+        type User {
+            # Make sure user names are unique.
+            required name: str {
+                constraint exclusive;
+            }
+
+            # Make sure none of the "owned" items belong
+            # to any other user.
+            multi owns: Item {
+                constraint exclusive;
+            }
+        }
+
     Sometimes it's necessary to create a type where each combination
     of properties is unique. This can be achieved by defining an
     ``exclusive`` constraint for the type, rather than on each
     property:
 
     .. code-block:: sdl
+       :version-lt: 3.0
 
         type UniqueCoordinates {
             required property x -> int64;
             required property y -> int64;
+
+            # Each combination of x and y must be unique.
+            constraint exclusive on ( (.x, .y) );
+        }
+
+
+    .. code-block:: sdl
+
+        type UniqueCoordinates {
+            required x: int64;
+            required y: int64;
 
             # Each combination of x and y must be unique.
             constraint exclusive on ( (.x, .y) );

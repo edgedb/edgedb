@@ -17,8 +17,17 @@ Examples
 Declare a new global variable:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     global current_user_id -> uuid;
+    global current_user := (
+        select User filter .id = global current_user_id
+    );
+
+
+.. code-block:: sdl
+
+    global current_user_id: uuid;
     global current_user := (
         select User filter .id = global current_user_id
     );
@@ -121,9 +130,20 @@ The following options are available:
     For example:
 
     .. code-block:: sdl
+       :version-lt: 3.0
 
         # Global scalar variable that can be set in a session:
         global current_user_id -> uuid;
+        # Global computed object based on that:
+        global current_user := (
+            select User filter .id = global current_user_id
+        );
+
+
+    .. code-block:: sdl
+
+        # Global scalar variable that can be set in a session:
+        global current_user_id: uuid;
         # Global computed object based on that:
         global current_user := (
             select User filter .id = global current_user_id

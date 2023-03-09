@@ -167,8 +167,14 @@ These are contextual variables that are provided by the client and can be
 referenced in your queries and schema.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   global current_user -> uuid;
+
+
+.. code-block:: sdl
+
+  global current_user: uuid;
 
 .. code-block:: edgeql
 
@@ -251,6 +257,7 @@ combined with global variables, access policies can be used to
 push authorization logic into the database.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   global current_user -> uuid;
 
@@ -261,6 +268,23 @@ push authorization logic into the database.
   type BlogPost {
     required property title -> str;
     link author -> User;
+    access policy own_posts allow all using (
+      .author.id ?= global current_user
+    )
+  }
+
+
+.. code-block:: sdl
+
+  global current_user: uuid;
+
+  type User {
+    required email: str { constraint exclusive; };
+  }
+
+  type BlogPost {
+    required title: str;
+    author: User;
     access policy own_posts allow all using (
       .author.id ?= global current_user
     )
@@ -307,6 +331,7 @@ Source deletion policies
 Add deletion cascade functionality with ``on source delete``.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type BlogPost {
     property title -> str;
@@ -318,6 +343,19 @@ Add deletion cascade functionality with ``on source delete``.
     }
   }
 
+
+.. code-block:: sdl
+
+  type BlogPost {
+    title: str;
+  }
+
+  type Person {
+    multi posts: BlogPost {
+      on source delete delete target;
+    }
+  }
+
 Under this policy, deleting a ``User`` will unconditionally delete its
 ``posts`` as well.
 
@@ -325,9 +363,20 @@ To avoid deleting a ``Post`` that is linked to by other schema entities,
 append ``if orphan``.
 
 .. code-block:: sdl-diff
+  :version-lt: 3.0
 
     type Person {
       multi link posts -> BlogPost {
+  -     on source delete delete target;
+  +     on source delete delete target if orphan;
+      }
+    }
+
+
+.. code-block:: sdl-diff
+
+    type Person {
+      multi posts: BlogPost {
   -     on source delete delete target;
   +     on source delete delete target if orphan;
       }

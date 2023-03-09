@@ -30,6 +30,7 @@ your codebase.
 The schema itself is written using EdgeDB's schema definition language.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     required property name -> str;
@@ -38,6 +39,18 @@ The schema itself is written using EdgeDB's schema definition language.
   type Post {
     required property title -> str;
     required link author -> User;
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    required name: str;
+  }
+
+  type Post {
+    required title: str;
+    required author: User;
   }
 
 
@@ -66,6 +79,7 @@ As your application evolves, directly edit your schema files to reflect your
 desired data model.
 
 .. code-block:: sdl-diff
+  :version-lt: 3.0
 
     type User {
       required property name -> str;
@@ -78,6 +92,22 @@ desired data model.
 
   + type Comment {
   +   required property content -> str;
+  + }
+
+
+.. code-block:: sdl-diff
+
+    type User {
+      required name: str;
+    }
+
+    type BlogPost {
+      title: str;
+      required author: User;
+    }
+
+  + type Comment {
+  +   required content: str;
   + }
 
 3. Generate a migration
@@ -133,6 +163,7 @@ EdgeQL expression to map the contents of your database to the new schema. To
 see this happen, let's make the ``title`` property ``required``.
 
 .. code-block:: sdl-diff
+  :version-lt: 3.0
 
     type User {
       required property name -> str;
@@ -142,6 +173,19 @@ see this happen, let's make the ``title`` property ``required``.
   -   property title -> str;
   +   required property title -> str;
       required link author -> User;
+    }
+
+
+.. code-block:: sdl-diff
+
+    type User {
+      required name: str;
+    }
+
+    type BlogPost {
+  -   title: str;
+  +   required title: str;
+      required author: User;
     }
 
 Then we'll create another migration.

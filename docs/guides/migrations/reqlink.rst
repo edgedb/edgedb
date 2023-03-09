@@ -10,9 +10,17 @@ character in an adventure game as the type of data we will evolve.
 Let's start with this schema:
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
     type Character {
       required property name -> str;
+    }
+
+
+.. code-block:: sdl
+
+    type Character {
+      required name: str;
     }
 
 We edit the schema file and perform our first migration:
@@ -107,6 +115,7 @@ we will add the ``required link class`` right away, without any intermediate
 properties. So we end up with a schema like this:
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
     type CharacterClass {
       required property name -> str;
@@ -116,6 +125,19 @@ properties. So we end up with a schema like this:
     type Character {
       required property name -> str;
       required link class -> CharacterClass;
+    }
+
+
+.. code-block:: sdl
+
+    type CharacterClass {
+      required name: str;
+      multi skills: str;
+    }
+
+    type Character {
+      required name: str;
+      required class: CharacterClass;
     }
 
 We go ahead and try to apply this new schema:
@@ -141,6 +163,7 @@ not *required* so that we can write some custom queries to handle
 the character classes:
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
     type CharacterClass {
       required property name -> str;
@@ -150,6 +173,19 @@ the character classes:
     type Character {
       required property name -> str;
       link class -> CharacterClass;
+    }
+
+
+.. code-block:: sdl
+
+    type CharacterClass {
+      required name: str;
+      multi skills: str;
+    }
+
+    type Character {
+      required name: str;
+      class: CharacterClass;
     }
 
 We can now create a migration for our new schema, but we won't apply
@@ -267,6 +303,7 @@ We're finally ready to make the ``class`` link *required*. We update
 the schema:
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
     type CharacterClass {
       required property name -> str;
@@ -276,6 +313,19 @@ the schema:
     type Character {
       required property name -> str;
       required link class -> CharacterClass;
+    }
+
+
+.. code-block:: sdl
+
+    type CharacterClass {
+      required name: str;
+      multi skills: str;
+    }
+
+    type Character {
+      required name: str;
+      required class: CharacterClass;
     }
 
 And we perform our final migration:
@@ -317,7 +367,7 @@ Our attempt at migrating fails as we expected:
 .. code-block:: bash
 
     $ edgedb migrate
-    edgedb error: MissingRequiredError: missing value for required link 
+    edgedb error: MissingRequiredError: missing value for required link
     'class' of object type 'default::Character'
       Detail: Failing object id is 'ee604992-c1b1-11ec-ad59-4f878963769f'.
 

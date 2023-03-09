@@ -123,6 +123,7 @@ common to declare the entire schema in a single file ``dbschema/default.esdl``.
 This is how our datatypes look:
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
     # dbschema/default.esdl
 
@@ -156,6 +157,44 @@ This is how our datatypes look:
           constraint min_value(1850);
         };
         multi link actors -> Actor;
+      }
+    }
+
+
+.. code-block:: sdl
+
+    # dbschema/default.esdl
+
+    module default {
+      abstract type Auditable {
+        created_at: datetime {
+          readonly := true;
+          default := datetime_current();
+        }
+      }
+
+      type Actor extending Auditable {
+        required name: str {
+          constraint max_len_value(50);
+        }
+        age: int16 {
+          constraint min_value(0);
+          constraint max_value(100);
+        }
+        height: int16 {
+          constraint min_value(0);
+          constraint max_value(300);
+        }
+      }
+
+      type Movie extending Auditable {
+        required name: str {
+          constraint max_len_value(50);
+        }
+        year: int16{
+          constraint min_value(1850);
+        };
+        multi actors: Actor;
       }
     }
 

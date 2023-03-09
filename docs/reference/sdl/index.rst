@@ -30,6 +30,7 @@ The built-in :ref:`migration tools<ref_cli_edgedb_migration>` expect
 the schema to be given in SDL format. For example:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     # "default" module block
     module default {
@@ -46,6 +47,24 @@ the schema to be given in SDL format. For example:
         }
     }
 
+
+.. code-block:: sdl
+
+    # "default" module block
+    module default {
+        type Movie {
+            required title: str;
+            # the year of release
+            year: int64;
+            required director: Person;
+            required multi actors: Person;
+        }
+        type Person {
+            required first_name: str;
+            required last_name: str;
+        }
+    }
+
 It is possible to also omit the module blocks, but then individual
 declarations must use :ref:`fully-qualified names
 <ref_name_resolution>` so that they can be assigned
@@ -53,6 +72,7 @@ to their respective modules. For example, the following is equivalent
 to the previous migration:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     # no module block
     type default::Movie {
@@ -65,6 +85,22 @@ to the previous migration:
     type default::Person {
         required property first_name -> str;
         required property last_name -> str;
+    }
+
+
+.. code-block:: sdl
+
+    # no module block
+    type default::Movie {
+        required title: str;
+        # the year of release
+        year: int64;
+        required director: default::Person;
+        required multi actors: default::Person;
+    }
+    type default::Person {
+        required first_name: str;
+        required last_name: str;
     }
 
 .. toctree::

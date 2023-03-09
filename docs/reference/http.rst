@@ -142,6 +142,12 @@ Before querying over HTTP, you must first enable the HTTP extension in your
 schema. Add this to your schema, outside any ``module``:
 
 .. code-block:: sdl
+   :version-lt: 3.0
+
+    using extension edgeql_http;
+
+
+.. code-block:: sdl
 
     using extension edgeql_http;
 

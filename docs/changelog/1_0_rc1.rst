@@ -70,6 +70,14 @@ We continue fixing bugs that affect schema definitions and migrations:
   types is perfectly OK even if the rest of the parameter types differ:
 
   .. code-block:: sdl
+    :version-lt: 3.0
+
+    function func(a: Foo, b: int32) -> int64 using ( BODY );
+    function func(a: Bar, b: int32) -> int64 using ( BODY );
+    function func(a: str, b: int32, c: int64) -> int64 using ( BODY );
+
+
+  .. code-block:: sdl
 
     function func(a: Foo, b: int32) -> int64 using ( BODY );
     function func(a: Bar, b: int32) -> int64 using ( BODY );

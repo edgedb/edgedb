@@ -147,6 +147,7 @@ project init``, but you'll need to fill it with your schema. This is what our
 datatypes look like:
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
     # dbschema/default.esdl
 
@@ -173,6 +174,37 @@ datatypes look like:
         property address -> str;
         property schedule -> datetime;
         link host -> User;
+      }
+    }
+
+
+.. code-block:: sdl
+
+    # dbschema/default.esdl
+
+    module default {
+      abstract type Auditable {
+        required created_at: datetime {
+          readonly := true;
+          default := datetime_current();
+        }
+      }
+
+      type User extending Auditable {
+        required name: str {
+          constraint exclusive;
+          constraint max_len_value(50);
+        };
+      }
+
+      type Event extending Auditable {
+        required name: str {
+          constraint exclusive;
+          constraint max_len_value(50);
+        }
+        address: str;
+        schedule: datetime;
+        host: User;
       }
     }
 
@@ -787,7 +819,7 @@ First, we need a query. Create a file ``app/queries/create_event.edgeql`` and
 drop this query into it:
 
 .. code-block:: edgeql
-   
+
     with name := <str>$name,
         address := <str>$address,
         schedule := <str>$schedule,

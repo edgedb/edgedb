@@ -17,9 +17,19 @@ valid. They can be defined on :ref:`properties <ref_datamodel_props>`,
 Below is a simple property constraint.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     required property username -> str {
+      constraint exclusive;
+    }
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    required username: str {
       constraint exclusive;
     }
   }
@@ -41,9 +51,23 @@ The constraint below uses the built-in :eql:func:`len` function, which returns
 the length of a string.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     required property username -> str {
+      # usernames must be unique
+      constraint exclusive;
+
+      # max length (built-in)
+      constraint max_len_value(25);
+    };
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    required username: str {
       # usernames must be unique
       constraint exclusive;
 
@@ -60,9 +84,20 @@ custom constraints, the keyword ``__subject__`` can used to reference the
 *value* being constrained.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     required property username -> str {
+      # max length (as custom constraint)
+      constraint expression on (len(__subject__) <= 25);
+    };
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    required username: str {
       # max length (as custom constraint)
       constraint expression on (len(__subject__) <= 25);
     };
@@ -83,10 +118,23 @@ constraint logic must reference multiple links or properties.
   (e.g. ``.<name>``).
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type ConstrainedVector {
     required property x -> float64;
     required property y -> float64;
+
+    constraint expression on (
+      .x ^ 2 + .y ^ 2 <= 25
+    );
+  }
+
+
+.. code-block:: sdl
+
+  type ConstrainedVector {
+    required x: float64;
+    required y: float64;
 
     constraint expression on (
       .x ^ 2 + .y ^ 2 <= 25
@@ -98,11 +146,24 @@ how constraints are implemented, you can only reference ``single`` (non-multi)
 properties and links defined on the object type.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   # Not valid!
   type User {
     required property username -> str;
     multi link friends -> User;
+
+    # ❌ constraints cannot contain paths with more than one hop
+    constraint expression on ('bob' in .friends.username);
+  }
+
+
+.. code-block:: sdl
+
+  # Not valid!
+  type User {
+    required username: str;
+    multi friends: User;
 
     # ❌ constraints cannot contain paths with more than one hop
     constraint expression on ('bob' in .friends.username);
@@ -114,9 +175,20 @@ Computed constraints
 Constraints can be defined on computed properties.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     required property username -> str;
+    required property clean_username := str_trim(str_lower(.username));
+
+    constraint exclusive on (.clean_username);
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    required username: str;
     required property clean_username := str_trim(str_lower(.username));
 
     constraint exclusive on (.clean_username);
@@ -130,6 +202,7 @@ To define a composite constraint, create an ``exclusive`` constraint on a
 tuple of properties or links.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     property username -> str;
@@ -138,6 +211,20 @@ tuple of properties or links.
   type BlogPost {
     property title -> str;
     link author -> User;
+
+    constraint exclusive on ((.title, .author));
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    username: str;
+  }
+
+  type BlogPost {
+    title: str;
+    author: User;
 
     constraint exclusive on ((.title, .author));
   }
@@ -151,10 +238,22 @@ Constraints on object types can be made partial, so that they don't apply
 when some condition holds.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     required property username -> str;
     property deleted -> bool;
+
+    # Not deleted usernames must be unique
+    constraint exclusive on (.username) except (.deleted);
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    required username: str;
+    deleted: bool;
 
     # Not deleted usernames must be unique
     constraint exclusive on (.username) except (.deleted);
@@ -171,11 +270,25 @@ itself*. This is commonly used add constraints to :ref:`link properties
 <ref_datamodel_link_properties>`.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     property name -> str;
     multi link friends -> User {
       single property strength -> float64;
+      constraint expression on (
+        __subject__@strength >= 0
+      );
+    }
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    name: str;
+    multi friends: User {
+      single strength: float64;
       constraint expression on (
         __subject__@strength >= 0
       );
@@ -191,6 +304,14 @@ Constraints on custom scalars
 Custom scalar types can be constrained.
 
 .. code-block:: sdl
+  :version-lt: 3.0
+
+  scalar type username extending str {
+    constraint regexp(r'^[A-Za-z0-9_]{4,20}$');
+  }
+
+
+.. code-block:: sdl
 
   scalar type username extending str {
     constraint regexp(r'^[A-Za-z0-9_]{4,20}$');
@@ -203,6 +324,16 @@ object type.
 Use :eql:constraint:`expression` constraints to declare custom constraints
 using arbitrary EdgeQL expressions. The example below uses the built-in
 :eql:func:`str_trim` function.
+
+.. code-block:: sdl
+  :version-lt: 3.0
+
+  scalar type title extending str {
+    constraint expression on (
+      __subject__ = str_trim(__subject__)
+    );
+  }
+
 
 .. code-block:: sdl
 

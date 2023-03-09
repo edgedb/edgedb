@@ -27,6 +27,7 @@ Object types can *extend* other object types. The extending type (AKA the
 *supertypes*.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   abstract type Animal {
     property species -> str;
@@ -34,6 +35,17 @@ Object types can *extend* other object types. The extending type (AKA the
 
   type Dog extending Animal {
     property breed -> str;
+  }
+
+
+.. code-block:: sdl
+
+  abstract type Animal {
+    species: str;
+  }
+
+  type Dog extending Animal {
+    breed: str;
   }
 
 For details on querying polymorphic data, see :ref:`EdgeQL > Select >
@@ -50,6 +62,7 @@ than one type <ref_eql_sdl_object_types_inheritance>` — that's called
 types out of combinations of more basic types.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   abstract type HasName {
     property first_name -> str;
@@ -65,6 +78,22 @@ types out of combinations of more basic types.
   }
 
 
+.. code-block:: sdl
+
+  abstract type HasName {
+    first_name: str;
+    last_name: str;
+  }
+
+  abstract type HasEmail {
+    email: str;
+  }
+
+  type Person extending HasName, HasEmail {
+    profession: str;
+  }
+
+
 .. _ref_datamodel_overloading:
 
 Overloading
@@ -75,6 +104,7 @@ declarations must be prefixed with the ``overloaded`` prefix to avoid
 unintentional overloads.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   abstract type Person {
     property name -> str;
@@ -86,6 +116,21 @@ unintentional overloads.
       constraint exclusive;
     }
     overloaded multi link friends -> Student;
+  }
+
+
+.. code-block:: sdl
+
+  abstract type Person {
+    name: str;
+    multi friends: Person;
+  }
+
+  type Student extending Person {
+    overloaded name: str {
+      constraint exclusive;
+    }
+    overloaded multi friends: Student;
   }
 
 Overloaded fields cannot *generalize* the associated type; it can only make it
@@ -100,6 +145,15 @@ Properties
 Properties can be *concrete* (the default) or *abstract*. Abstract properties
 are declared independent of a source or target, can contain :ref:`annotations
 <ref_datamodel_annotations>`, and can be marked as ``readonly``.
+
+.. code-block:: sdl
+  :version-lt: 3.0
+
+  abstract property title_prop {
+    annotation title := 'A title.';
+    readonly := false;
+  }
+
 
 .. code-block:: sdl
 
@@ -118,6 +172,7 @@ It's possible to define ``abstract`` links that aren't tied to a particular
 annotations, property declarations, constraints, and indexes.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   abstract link link_with_strength {
     property strength -> float64;
@@ -126,6 +181,18 @@ annotations, property declarations, constraints, and indexes.
 
   type Person {
     multi link friends extending link_with_strength -> Person;
+  }
+
+
+.. code-block:: sdl
+
+  abstract link link_with_strength {
+    strength: float64;
+    index on (__subject__@strength);
+  }
+
+  type Person {
+    multi friends extending link_with_strength: Person;
   }
 
 
@@ -138,6 +205,7 @@ Constraints
 Use ``abstract`` to declare reusable, user-defined constraint types.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   abstract constraint in_range(min: anyreal, max: anyreal) {
     errmessage :=
@@ -147,6 +215,21 @@ Use ``abstract`` to declare reusable, user-defined constraint types.
 
   type Player {
     property points -> int64 {
+      constraint in_range(0, 100);
+    }
+  }
+
+
+.. code-block:: sdl
+
+  abstract constraint in_range(min: anyreal, max: anyreal) {
+    errmessage :=
+      'Value must be in range [{min}, {max}].';
+    using (max > __subject__ and __subject__ >= min);
+  }
+
+  type Player {
+    points: int64 {
       constraint in_range(0, 100);
     }
   }
@@ -162,6 +245,17 @@ and ``deprecated``. Use ``abstract annotation`` to declare custom user-defined
 annotation types.
 
 .. code-block:: sdl
+  :version-lt: 3.0
+
+  abstract annotation admin_note;
+
+  type Status {
+    annotation admin_note := 'system-critical';
+    # more properties
+  }
+
+
+.. code-block:: sdl
 
   abstract annotation admin_note;
 
@@ -173,6 +267,12 @@ annotation types.
 By default, annotations defined on abstract types, properties, and links will
 not be inherited by their subtypes. To override this behavior, use the
 ``inheritable`` modifier.
+
+.. code-block:: sdl
+  :version-lt: 3.0
+
+  abstract inheritable annotation admin_note;
+
 
 .. code-block:: sdl
 

@@ -11,11 +11,20 @@ Properties are used to associate primitive data with an :ref:`object type
 
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type Player {
     property email -> str;
     property points -> int64;
     property is_online -> bool;
+  }
+
+.. code-block:: sdl
+
+  type Player {
+    email: str;
+    points: int64;
+    is_online: bool;
   }
 
 Properties are associated with a *key* (e.g. ``first_name``) and a primitive
@@ -31,9 +40,17 @@ Required properties
 Properties can be either ``optional`` (the default) or ``required``.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     required property email -> str;
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    required email: str;
   }
 
 Property cardinality
@@ -44,6 +61,7 @@ Properties have a **cardinality**, either ``single`` (the default) or
 strings.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
 
@@ -56,6 +74,22 @@ strings.
 
     # an unordered set of string arrays
     multi property set_of_arrays -> array<str>;
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+
+    # single isn't necessary here
+    # properties are single by default
+    single name: str;
+
+    # an unordered set of strings
+    multi nicknames: str;
+
+    # an unordered set of string arrays
+    multi set_of_arrays: array<str>;
   }
 
 **Comparison to arrays**
@@ -73,6 +107,7 @@ Properties can have a default value. This default can be a static value or an
 arbitrary EdgeQL expression, which will be evaluated upon insertion.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type Player {
     required property points -> int64 {
@@ -80,6 +115,19 @@ arbitrary EdgeQL expression, which will be evaluated upon insertion.
     }
 
     required property latitude -> float64 {
+      default := (360 * random() - 180);
+    }
+  }
+
+
+.. code-block:: sdl
+
+  type Player {
+    required points: int64 {
+      default := 0;
+    }
+
+    required latitude: float64 {
       default := (360 * random() - 180);
     }
   }
@@ -92,9 +140,19 @@ Properties can be marked as ``readonly``. In the example below, the
 modified thereafter.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     required property external_id -> uuid {
+      readonly := true;
+    }
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    required external_id: uuid {
       readonly := true;
     }
   }
@@ -107,6 +165,7 @@ Properties can be augmented wth constraints. The example below showcases a
 subset of EdgeDB's built-in constraints.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type BlogPost {
     property title -> str {
@@ -126,14 +185,47 @@ subset of EdgeDB's built-in constraints.
     }
   }
 
+
+.. code-block:: sdl
+
+  type BlogPost {
+    title: str {
+      constraint exclusive; # all post titles must be unique
+      constraint min_len_value(8);
+      constraint max_len_value(30);
+      constraint regexp(r'^[A-Za-z0-9 ]+$');
+    }
+
+    status: str {
+      constraint one_of('Draft', 'InReview', 'Published');
+    }
+
+    upvotes: int64 {
+      constraint min_value(0);
+      constraint max_value(9999);
+    }
+  }
+
 You can constrain properties with arbitrary :ref:`EdgeQL <ref_edgeql>`
 expressions returning ``bool``. To reference the value of the property, use the
 special scope keyword ``__subject__``.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type BlogPost {
     property title -> str {
+      constraint expression on (
+        __subject__ = str_trim(__subject__)
+      );
+    }
+  }
+
+
+.. code-block:: sdl
+
+  type BlogPost {
+    title: str {
       constraint expression on (
         __subject__ = str_trim(__subject__)
       );
@@ -156,9 +248,21 @@ annotations are ``title``, ``description``, and ``deprecated``. You may also
 declare :ref:`custom annotation types <ref_datamodel_inheritance_annotations>`.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     property email -> str {
+      annotation title := 'Email address';
+      annotation description := "The user's email address.";
+      annotation deprecated := 'Use NewUser instead.';
+    }
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    email: str {
       annotation title := 'Email address';
       annotation description := "The user's email address.";
       annotation deprecated := 'Use NewUser instead.';
@@ -174,6 +278,7 @@ are declared independent of a source or target, can contain :ref:`annotations
 <ref_datamodel_annotations>`, and can be marked as ``readonly``.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   abstract property email_prop {
     annotation title := 'An email address';
@@ -183,6 +288,19 @@ are declared independent of a source or target, can contain :ref:`annotations
   type Student {
     # inherits annotations and "readonly := true"
     property email extending email_prop -> str;
+  }
+
+
+.. code-block:: sdl
+
+  abstract property email_prop {
+    annotation title := 'An email address';
+    readonly := true;
+  }
+
+  type Student {
+    # inherits annotations and "readonly := true"
+    email extending email_prop: str;
   }
 
 

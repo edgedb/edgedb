@@ -14,6 +14,15 @@ Declare a "UserAlias" that provides additional information for a "User"
 via a :ref:`computed link <ref_datamodel_computed>` "friend_of":
 
 .. code-block:: sdl
+   :version-lt: 3.0
+
+    alias UserAlias := User {
+        # declare a computed link
+        friend_of := User.<friends[is User]
+    };
+
+
+.. code-block:: sdl
 
     alias UserAlias := User {
         # declare a computed link

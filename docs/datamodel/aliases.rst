@@ -20,6 +20,12 @@ independent of an object type; they are standalone expressions.
 **Scalar alias**
 
 .. code-block:: sdl
+  :version-lt: 3.0
+
+  alias digits := {0,1,2,3,4,5,6,7,8,9};
+
+
+.. code-block:: sdl
 
   alias digits := {0,1,2,3,4,5,6,7,8,9};
 
@@ -28,6 +34,12 @@ independent of an object type; they are standalone expressions.
 The name of a given object type (e.g. ``User``) is itself a pointer to the *set
 of all User objects*. After declaring the alias below, you can use ``User`` and
 ``UserAlias`` interchangably.
+
+.. code-block:: sdl
+  :version-lt: 3.0
+
+  alias UserAlias := User;
+
 
 .. code-block:: sdl
 
@@ -39,9 +51,21 @@ Object type aliases can include a *shape* that declare additional computed
 properties or links.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type Post {
     required property title -> str;
+  }
+
+  alias PostAlias := Post {
+    trimmed_title := str_trim(.title)
+  }
+
+
+.. code-block:: sdl
+
+  type Post {
+    required title: str;
   }
 
   alias PostAlias := Post {
@@ -57,10 +81,24 @@ Aliases can correspond to an arbitrary EdgeQL expression, including entire
 queries.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type BlogPost {
     required property title -> str;
     required property is_published -> bool;
+  }
+
+  alias PublishedPosts := (
+    select BlogPost
+    filter .is_published = true
+  );
+
+
+.. code-block:: sdl
+
+  type BlogPost {
+    required title: str;
+    required is_published: bool;
   }
 
   alias PublishedPosts := (

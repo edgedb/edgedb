@@ -33,11 +33,23 @@ Enable :ref:`GraphQL <ref_graphql_index>` extension for the current
 schema:
 
 .. code-block:: sdl
+   :version-lt: 3.0
+
+    using extension graphql;
+
+
+.. code-block:: sdl
 
     using extension graphql;
 
 Enable :ref:`EdgeQL over HTTP <ref_edgeql_http>` extension for the
 current database:
+
+.. code-block:: sdl
+   :version-lt: 3.0
+
+    using extension edgeql_http;
+
 
 .. code-block:: sdl
 

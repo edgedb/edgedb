@@ -43,6 +43,7 @@ files should live in a directory called ``dbschema`` in the root of your
 project.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   # dbschema/default.esdl
 
@@ -53,6 +54,20 @@ project.
 
   type Person {
     required property name -> str;
+  }
+
+
+.. code-block:: sdl
+
+  # dbschema/default.esdl
+
+  type Movie {
+    required title: str;
+    required director: Person;
+  }
+
+  type Person {
+    required name: str;
   }
 
 .. important::
@@ -120,6 +135,14 @@ Each database has a schema consisting of several **modules**, each with a
 unique name. Modules can be used to organize large schemas into logical units.
 In practice, though, most users put their entire schema inside a single module
 called ``default``.
+
+.. code-block:: sdl
+  :version-lt: 3.0
+
+  module default {
+    # declare types here
+  }
+
 
 .. code-block:: sdl
 

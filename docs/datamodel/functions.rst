@@ -20,6 +20,13 @@ a function that adds an exclamation mark ``'!'`` at the end of the
 string:
 
 .. code-block:: sdl
+  :version-lt: 3.0
+
+  function exclamation(word: str) -> str
+    using (word ++ '!');
+
+
+.. code-block:: sdl
 
   function exclamation(word: str) -> str
     using (word ++ '!');

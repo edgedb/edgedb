@@ -9,8 +9,14 @@ Globals
 Schemas can contain scalar-typed *global variables*.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   global current_user_id -> uuid;
+
+
+.. code-block:: sdl
+
+  global current_user_id: uuid;
 
 These provide a useful mechanism for specifying session-level data that can be
 referenced in queries with the ``global`` keyword.
@@ -110,8 +116,16 @@ Global variables can be marked ``required``; in this case, you must specify a
 default value.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   required global one_string -> str {
+    default := "Hi Mom!"
+  };
+
+
+.. code-block:: sdl
+
+  required global one_string: str {
     default := "Hi Mom!"
   };
 
@@ -120,6 +134,12 @@ Computed globals
 
 Global variables can also be computed. The value of computed globals are
 dynamically computed when they are referenced in queries.
+
+.. code-block:: sdl
+  :version-lt: 3.0
+
+  required global random_global := datetime_of_transaction();
+
 
 .. code-block:: sdl
 
@@ -133,8 +153,22 @@ Computed globals are not subject to the same constraints as non-computed ones;
 specifically, they can be object-typed and have a ``multi`` cardinality.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   global current_user_id -> uuid;
+
+  # object-typed global
+  global current_user := (
+    select User filter .id = global current_user_id
+  );
+
+  # multi global
+  global current_user_friends := (global current_user).friends;
+
+
+.. code-block:: sdl
+
+  global current_user_id: uuid;
 
   # object-typed global
   global current_user := (
@@ -175,9 +209,18 @@ Unlike query parameters, globals can be referenced
 *inside your schema declarations*.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     property name -> str;
+    property is_self := (.id = global current_user_id)
+  };
+
+
+.. code-block:: sdl
+
+  type User {
+    name: str;
     property is_self := (.id = global current_user_id)
   };
 
@@ -185,9 +228,18 @@ This is particularly useful when declaring :ref:`access policies
 <ref_datamodel_access_policies>`.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type Person {
     required property name -> str;
+    access policy my_policy allow all using (.id = global current_user_id);
+  }
+
+
+.. code-block:: sdl
+
+  type Person {
+    required name: str;
     access policy my_policy allow all using (.id = global current_user_id);
   }
 

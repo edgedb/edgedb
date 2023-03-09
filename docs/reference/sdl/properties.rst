@@ -14,6 +14,15 @@ Examples
 Declare an *abstract* property "address_base" with a helpful title:
 
 .. code-block:: sdl
+   :version-lt: 3.0
+
+    abstract property address_base {
+        # declare a specific title for the link
+        annotation title := 'Mailing address';
+    }
+
+
+.. code-block:: sdl
 
     abstract property address_base {
         # declare a specific title for the link
@@ -23,6 +32,7 @@ Declare an *abstract* property "address_base" with a helpful title:
 Declare *concrete* properties "name" and "address" within a "User" type:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     type User {
         # define concrete properties
@@ -34,12 +44,26 @@ Declare *concrete* properties "name" and "address" within a "User" type:
         index on (__subject__.name);
     }
 
+
+.. code-block:: sdl
+
+    type User {
+        # define concrete properties
+        required name: str;
+        address extending address_base: str;
+
+        multi friends: User;
+
+        index on (__subject__.name);
+    }
+
 Any time that the SDL declaration refers to an inherited property that
 is being overloaded (by adding more constraints, for example), the
 ``overloaded`` keyword must be used. This is to prevent unintentional
 overloading due to name clashes:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     abstract type Named {
         property name -> str;
@@ -48,6 +72,19 @@ overloading due to name clashes:
     type User extending Named {
         # define concrete properties
         overloaded required property name -> str;
+        # ... other links and properties
+    }
+
+
+.. code-block:: sdl
+
+    abstract type Named {
+        name: str;
+    }
+
+    type User extending Named {
+        # define concrete properties
+        overloaded required name: str;
         # ... other links and properties
     }
 

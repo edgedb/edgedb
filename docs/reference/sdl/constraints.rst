@@ -14,6 +14,17 @@ Examples
 Declare an *abstract* constraint:
 
 .. code-block:: sdl
+   :version-lt: 3.0
+
+    abstract constraint min_value(min: anytype) {
+        errmessage :=
+            'Minimum allowed value for {__subject__} is {min}.';
+
+        using (__subject__ >= min);
+    }
+
+
+.. code-block:: sdl
 
     abstract constraint min_value(min: anytype) {
         errmessage :=
@@ -25,6 +36,14 @@ Declare an *abstract* constraint:
 Declare a *concrete* constraint on an integer type:
 
 .. code-block:: sdl
+   :version-lt: 3.0
+
+    scalar type posint64 extending int64 {
+        constraint min_value(0);
+    }
+
+
+.. code-block:: sdl
 
     scalar type posint64 extending int64 {
         constraint min_value(0);
@@ -33,10 +52,22 @@ Declare a *concrete* constraint on an integer type:
 Declare a *concrete* constraint on an object type:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     type Vector {
         required property x -> float64;
         required property y -> float64;
+        constraint expression on (
+            __subject__.x^2 + __subject__.y^2 < 25
+        );
+    }
+
+
+.. code-block:: sdl
+
+    type Vector {
+        required x: float64;
+        required y: float64;
         constraint expression on (
             __subject__.x^2 + __subject__.y^2 < 25
         );

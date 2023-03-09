@@ -129,11 +129,21 @@ cast during assignment if a more general *implicit cast* is not
 allowed. For example, consider the following type:
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
     type Example {
         property p_int16 -> int16;
         property p_float32 -> float32;
         property p_json -> json;
+    }
+
+
+.. code-block:: sdl
+
+    type Example {
+        p_int16: int16;
+        p_float32: float32;
+        p_json: json;
     }
 
 .. code-block:: edgeql-repl

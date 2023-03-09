@@ -43,10 +43,19 @@ Introspection of the ``schema::Array``:
 For a type with an :eql:type:`array` property, consider the following:
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
     type User {
         required property name -> str;
         property favorites -> array<str>;
+    }
+
+
+.. code-block:: sdl
+
+    type User {
+        required name: str;
+        favorites: array<str>;
     }
 
 Introspection of the ``User`` with emphasis on properties:

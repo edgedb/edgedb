@@ -14,12 +14,28 @@ Example
 Declare an index for a "User" based on the "name" property:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     type User {
         required property name -> str;
         property address -> str;
 
         multi link friends -> User;
+
+        # define an index for User based on name
+        index on (.name) {
+            annotation title := 'User name index';
+        }
+    }
+
+
+.. code-block:: sdl
+
+    type User {
+        required name: str;
+        address: str;
+
+        multi friends: User;
 
         # define an index for User based on name
         index on (.name) {

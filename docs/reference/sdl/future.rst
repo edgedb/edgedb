@@ -33,5 +33,11 @@ Enable simpler non-recursive access policy behavior :ref:`non-recursive access
 policy <ref_datamodel_access_policies_nonrecursive>` for the current schema:
 
 .. code-block:: sdl
+   :version-lt: 3.0
+
+    using extension nonrecursive_access_policies;
+
+
+.. code-block:: sdl
 
     using extension nonrecursive_access_policies;

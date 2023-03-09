@@ -7,6 +7,7 @@ The ``insert`` command is used to create instances of object types. The code
 samples on this page assume the following schema:
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   module default {
     abstract type Person {
@@ -26,6 +27,30 @@ samples on this page assume the following schema:
       required property title -> str { constraint exclusive };
       required property release_year -> int64;
       multi link characters -> Person;
+    }
+  }
+
+
+.. code-block:: sdl
+
+  module default {
+    abstract type Person {
+      required name: str { constraint exclusive };
+    }
+
+    type Hero extending Person {
+      secret_identity: str;
+      multi link villains := .<nemesis[is Villain];
+    }
+
+    type Villain extending Person {
+      nemesis: Hero;
+    }
+
+    type Movie {
+      required title: str { constraint exclusive };
+      required release_year: int64;
+      multi characters: Person;
     }
   }
 

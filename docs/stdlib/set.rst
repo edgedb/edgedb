@@ -304,6 +304,7 @@ Sets
     Consider the following types:
 
     .. code-block:: sdl
+       :version-lt: 3.0
 
         type User {
             required property name -> str;
@@ -319,6 +320,25 @@ Sets
 
         type Comment extending Owned {
             required property body -> str;
+        }
+
+
+    .. code-block:: sdl
+
+        type User {
+            required name: str;
+        }
+
+        abstract type Owned {
+            required owner: User;
+        }
+
+        type Issue extending Owned {
+            required title: str;
+        }
+
+        type Comment extending Owned {
+            required body: str;
         }
 
     The following expression will get all :eql:type:`Objects <Object>`

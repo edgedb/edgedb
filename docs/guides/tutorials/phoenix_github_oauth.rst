@@ -179,6 +179,7 @@ This schema will be stored in a single EdgeDB module inside the
 ``dbschema/default.esdl`` file.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   module default {
     type User {
@@ -223,6 +224,60 @@ This schema will be stored in a single EdgeDB module inside the
       }
 
       required link user -> User {
+        on target delete delete source;
+      }
+
+      index on (.provider);
+      constraint exclusive on ((.user, .provider));
+    }
+  }
+
+
+.. code-block:: sdl
+
+  module default {
+    type User {
+      name: str;
+      required username: str;
+      required email: cistr;
+
+      profile_tagline: str;
+
+      avatar_url: str;
+      external_homepage_url: str;
+
+      required inserted_at: cal::local_datetime {
+        default := cal::to_local_datetime(datetime_current(), 'UTC');
+      }
+
+      required updated_at: cal::local_datetime {
+        default := cal::to_local_datetime(datetime_current(), 'UTC');
+      }
+
+      index on (.email);
+      index on (.username);
+    }
+
+    type Identity {
+      required provider: str;
+      required provider_token: str;
+      required provider_login: str;
+      required provider_email: str;
+      required provider_id: str;
+
+      required provider_meta: json {
+        default := <json>"{}";
+      }
+
+      required inserted_at: cal::local_datetime {
+        default := cal::to_local_datetime(datetime_current(), 'UTC');
+      }
+
+      required updated_at: cal::local_datetime {
+        default := cal::to_local_datetime(datetime_current(), 'UTC');
+      }
+
+      required user: User {
         on target delete delete source;
       }
 

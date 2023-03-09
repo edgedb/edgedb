@@ -8,6 +8,17 @@ Define an alias that merges some information from links as computed
 properties, this is a way of flattening a nested structure:
 
 .. code-block:: sdl
+  :version-lt: 3.0
+
+    alias ReviewAlias := Review {
+        # It will already have all the Review
+        # properties and links.
+        author_name := .author.name,
+        movie_title := .movie.title,
+    }
+
+
+.. code-block:: sdl
 
     alias ReviewAlias := Review {
         # It will already have all the Review
@@ -22,6 +33,16 @@ properties, this is a way of flattening a nested structure:
 
 Define an alias for traversing a :ref:`backlink
 <ref_datamodel_links>`, this is especially useful for GraphQL access:
+
+.. code-block:: sdl
+  :version-lt: 3.0
+
+    alias MovieAlias := Movie {
+        # A computed link for accessing all the
+        # reviews for this movie.
+        reviews := .<movie[is Review]
+    }
+
 
 .. code-block:: sdl
 

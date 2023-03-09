@@ -799,6 +799,7 @@ Polymorphic queries
 Consider the following schema.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   abstract type Content {
     required property title -> str;
@@ -810,6 +811,21 @@ Consider the following schema.
 
   type TVShow extending Content {
     property num_seasons -> int64;
+  }
+
+
+.. code-block:: sdl
+
+  abstract type Content {
+    required title: str;
+  }
+
+  type Movie extending Content {
+    release_year: int64;
+  }
+
+  type TVShow extending Content {
+    num_seasons: int64;
   }
 
 We can ``select`` the abstract type ``Content`` to simultaneously fetch all

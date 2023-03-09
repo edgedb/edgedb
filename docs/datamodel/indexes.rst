@@ -23,9 +23,18 @@ Below, we are referencing the ``User.name`` property with the :ref:`dot
 notation shorthand <ref_dot_notation>`: ``.name``.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     required property name -> str;
+    index on (.name);
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    required name: str;
     index on (.name);
   }
 
@@ -45,10 +54,20 @@ references multiple properties of the enclosing object type.
   one* element. As such, you can't index on a ``multi`` property.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     required property first_name -> str;
     required property last_name -> str;
+    index on (str_lower(.firstname + ' ' + .lastname));
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    required first_name: str;
+    required last_name: str;
     index on (str_lower(.firstname + ' ' + .lastname));
   }
 
@@ -60,10 +79,20 @@ speed up queries that filter or sort on *both properties*. In EdgeDB, this is
 accomplished by indexing on a ``tuple`` of properties.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     required property name -> str;
     required property email -> str;
+    index on ((.name, .email));
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    required name: str;
+    required email: str;
     index on ((.name, .email));
   }
 
@@ -73,6 +102,7 @@ Index on a link property
 Link properties can also be indexed.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   abstract link friendship {
     property strength -> float64;
@@ -83,15 +113,38 @@ Link properties can also be indexed.
     multi link friends extending friendship -> User;
   }
 
+
+.. code-block:: sdl
+
+  abstract link friendship {
+    strength: float64;
+    index on (__subject__@strength);
+  }
+
+  type User {
+    multi friends extending friendship: User;
+  }
+
 Annotate an index
 -----------------
 
 Indexes can be augmented with annotations.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     property name -> str;
+    index on (.name) {
+      annotation description := 'Indexing all users by name.';
+    };
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    name: str;
     index on (.name) {
       annotation description := 'Indexing all users by name.';
     };

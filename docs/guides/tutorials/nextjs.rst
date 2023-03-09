@@ -206,6 +206,7 @@ directory is currently empty, but will contain our migration files. Let's
 update the contents of ``default.esdl`` with the following simple blog schema.
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   # dbschema/default.esdl
 
@@ -213,6 +214,20 @@ update the contents of ``default.esdl`` with the following simple blog schema.
     type BlogPost {
       required property title -> str;
       required property content -> str {
+        default := ""
+      };
+    }
+  }
+
+
+.. code-block:: sdl
+
+  # dbschema/default.esdl
+
+  module default {
+    type BlogPost {
+      required title: str;
+      required content: str {
         default := ""
       };
     }

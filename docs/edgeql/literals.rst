@@ -296,6 +296,12 @@ Enums
 Enum types must be :ref:`declared in your schema <ref_datamodel_enums>`.
 
 .. code-block:: sdl
+  :version-lt: 3.0
+
+  scalar type Color extending enum<Red, Green, Blue>;
+
+
+.. code-block:: sdl
 
   scalar type Color extending enum<Red, Green, Blue>;
 

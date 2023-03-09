@@ -14,6 +14,12 @@ Example
 Declare an empty module:
 
 .. code-block:: sdl
+   :version-lt: 3.0
+
+    module my_module {}
+
+
+.. code-block:: sdl
 
     module my_module {}
 
@@ -21,10 +27,20 @@ Declare an empty module:
 Declare a module with some content:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     module my_module {
         type User {
             required property name -> str;
+        }
+    }
+
+
+.. code-block:: sdl
+
+    module my_module {
+        type User {
+            required name: str;
         }
     }
 
@@ -58,6 +74,7 @@ all blocks with the same name are merged into a single module under
 that name. For example:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     module my_module {
         abstract type Named {
@@ -69,13 +86,38 @@ that name. For example:
         type User extending Named;
     }
 
-The above is equivalent to:
 
 .. code-block:: sdl
 
     module my_module {
         abstract type Named {
+            required name: str;
+        }
+    }
+
+    module my_module {
+        type User extending Named;
+    }
+
+The above is equivalent to:
+
+.. code-block:: sdl
+   :version-lt: 3.0
+
+    module my_module {
+        abstract type Named {
             required property name -> str;
+        }
+
+        type User extending Named;
+    }
+
+
+.. code-block:: sdl
+
+    module my_module {
+        abstract type Named {
+            required name: str;
         }
 
         type User extending Named;
@@ -94,9 +136,19 @@ schema.  The following declaration is equivalent to the previous
 examples, but it declares module ``my_module`` implicitly:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     abstract type my_module::Named {
         required property name -> str;
+    }
+
+    type my_module::User extending my_module::Named;
+
+
+.. code-block:: sdl
+
+    abstract type my_module::Named {
+        required name: str;
     }
 
     type my_module::User extending my_module::Named;

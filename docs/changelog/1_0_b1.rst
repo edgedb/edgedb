@@ -21,6 +21,7 @@ following interactive prompts.
 Let's say we start with the following schema for a simple chat app:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     module default {
         type User {
@@ -33,6 +34,25 @@ Let's say we start with the following schema for a simple chat app:
             required link author -> User;
             required property body -> str;
             required property timestamp -> datetime {
+                default := datetime_current()
+            }
+        }
+    };
+
+
+.. code-block:: sdl
+
+    module default {
+        type User {
+            required name: str;
+            required email: str;
+            required password_hash: str;
+        }
+
+        type Message {
+            required author: User;
+            required body: str;
+            required timestamp: datetime {
                 default := datetime_current()
             }
         }
@@ -80,6 +100,7 @@ such as a friends list and multiple chat channels, so we alter our
 schema to be:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     module default {
         type User {
@@ -103,6 +124,34 @@ schema to be:
         type Channel {
             required property title -> str;
             property description -> str;
+        }
+    };
+
+
+.. code-block:: sdl
+
+    module default {
+        type User {
+            required name: str;
+            required email: str;
+            required password_hash: str;
+
+            multi friends: User;
+        }
+
+        type Message {
+            required author: User;
+            required body: str;
+            required timestamp: datetime {
+                default := datetime_current()
+            }
+
+            channel: Channel;
+        }
+
+        type Channel {
+            required title: str;
+            description: str;
         }
     };
 

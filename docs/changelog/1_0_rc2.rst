@@ -23,9 +23,21 @@ counterparts:
   computed:
 
   .. code-block:: sdl
+    :version-lt: 3.0
 
     type User {
         required link profile -> Profile;
+    }
+
+    type Profile {
+        required link user := assert_exists(.<profile[is User]);
+    }
+
+
+  .. code-block:: sdl
+
+    type User {
+        required profile: Profile;
     }
 
     type Profile {

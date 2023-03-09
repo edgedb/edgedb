@@ -22,12 +22,25 @@ The following are the annotations which can be set on any schema item:
 For example, consider the following declaration:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     type Status {
         annotation title := 'Activity status';
         annotation description := 'All possible user activities';
 
         required property name -> str {
+            constraint exclusive
+        }
+    }
+
+
+.. code-block:: sdl
+
+    type Status {
+        annotation title := 'Activity status';
+        annotation description := 'All possible user activities';
+
+        required name: str {
             constraint exclusive
         }
     }
@@ -44,6 +57,16 @@ To declare a custom constraint type beyond the three built-ins, add an abstract
 annotation type to your schema. A custom annotation could be used to attach
 arbitrary JSON-encoded data to your schema—potentially useful for introspection
 and code generation.
+
+.. code-block:: sdl
+  :version-lt: 3.0
+
+  abstract annotation admin_note;
+
+  type Status {
+    annotation admin_note := 'system-critical';
+  }
+
 
 .. code-block:: sdl
 

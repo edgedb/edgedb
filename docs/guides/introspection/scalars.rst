@@ -75,6 +75,12 @@ For an :ref:`enumerated scalar type <ref_std_enum>`,
 consider the following:
 
 .. code-block:: sdl
+  :version-lt: 3.0
+
+    scalar type Color extending enum<Red, Green, Blue>;
+
+
+.. code-block:: sdl
 
     scalar type Color extending enum<Red, Green, Blue>;
 

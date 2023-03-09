@@ -51,6 +51,14 @@ Introspection of the ``schema::Constraint``:
 Consider the following schema:
 
 .. code-block:: sdl
+  :version-lt: 3.0
+
+    scalar type maxex_100 extending int64 {
+        constraint max_ex_value(100);
+    }
+
+
+.. code-block:: sdl
 
     scalar type maxex_100 extending int64 {
         constraint max_ex_value(100);

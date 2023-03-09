@@ -14,6 +14,15 @@ Examples
 Declare an *abstract* link "friends_base" with a helpful title:
 
 .. code-block:: sdl
+   :version-lt: 3.0
+
+    abstract link friends_base {
+        # declare a specific title for the link
+        annotation title := 'Close contacts';
+    }
+
+
+.. code-block:: sdl
 
     abstract link friends_base {
         # declare a specific title for the link
@@ -23,12 +32,25 @@ Declare an *abstract* link "friends_base" with a helpful title:
 Declare a *concrete* link "friends" within a "User" type:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     type User {
         required property name -> str;
         property address -> str;
         # define a concrete link "friends"
         multi link friends extending friends_base-> User;
+
+        index on (__subject__.name);
+    }
+
+
+.. code-block:: sdl
+
+    type User {
+        required name: str;
+        address: str;
+        # define a concrete link "friends"
+        multi friends extending friends_base: User;
 
         index on (__subject__.name);
     }
@@ -44,6 +66,7 @@ type, for example), the ``overloaded`` keyword must be used. This is
 to prevent unintentional overloading due to name clashes:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     abstract type Friendly {
         # this type can have "friends"
@@ -53,6 +76,20 @@ to prevent unintentional overloading due to name clashes:
     type User extending Friendly {
         # overload the link target to be User, specifically
         overloaded multi link friends -> User;
+        # ... other links and properties
+    }
+
+
+.. code-block:: sdl
+
+    abstract type Friendly {
+        # this type can have "friends"
+        friends: Friendly;
+    }
+
+    type User extending Friendly {
+        # overload the link target to be User, specifically
+        overloaded multi friends: User;
         # ... other links and properties
     }
 

@@ -12,6 +12,7 @@ source set of objects.
 Consider the following schema:
 
 .. code-block:: sdl
+  :version-lt: 3.0
 
   type User {
     required property email -> str;
@@ -21,6 +22,19 @@ Consider the following schema:
   type BlogPost {
     required property title -> str;
     required link author -> User;
+  }
+
+
+.. code-block:: sdl
+
+  type User {
+    required email: str;
+    multi friends: User;
+  }
+
+  type BlogPost {
+    required title: str;
+    required author: User;
   }
 
 The simplest path is simply ``User``. This is a :ref:`set reference
@@ -78,6 +92,7 @@ several links named ``author`` that point to ``User``.
 Consider the following addition to the schema:
 
 .. code-block:: sdl-diff
+  :version-lt: 3.0
 
     type User {
       # as before
@@ -89,6 +104,21 @@ Consider the following addition to the schema:
 
   + type Comment {
   +   required link author -> User;
+  + }
+
+
+.. code-block:: sdl-diff
+
+    type User {
+      # as before
+    }
+
+    type BlogPost {
+      required author: User;
+    }
+
+  + type Comment {
+  +   required author: User;
   + }
 
 With the above schema, the path ``User.<author`` would return a mixed set of
@@ -112,12 +142,24 @@ with ``@`` notation. To demonstrate this, let's add a property to the ``User.
 friends`` link:
 
 .. code-block:: sdl-diff
+  :version-lt: 3.0
 
     type User {
       required property email -> str;
   -   multi link friends -> User;
   +   multi link friends -> User {
   +     property since -> cal::local_date;
+  +   }
+    }
+
+
+.. code-block:: sdl-diff
+
+    type User {
+      required email: str;
+  -   multi friends: User;
+  +   multi friends: User {
+  +     since: cal::local_date;
   +   }
     }
 

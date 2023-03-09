@@ -14,6 +14,14 @@ Example
 Declare a new non-negative integer type:
 
 .. code-block:: sdl
+   :version-lt: 3.0
+
+    scalar type posint64 extending int64 {
+        constraint min_value(0);
+    }
+
+
+.. code-block:: sdl
 
     scalar type posint64 extending int64 {
         constraint min_value(0);

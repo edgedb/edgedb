@@ -15,6 +15,15 @@ Declare a custom function that concatenates the length of a string to
 the end of the that string:
 
 .. code-block:: sdl
+   :version-lt: 3.0
+
+    function foo(s: str) -> str
+        using (
+            select s ++ <str>len(a)
+        );
+
+
+.. code-block:: sdl
 
     function foo(s: str) -> str
         using (

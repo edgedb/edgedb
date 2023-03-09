@@ -116,6 +116,7 @@ Examples
 Consider the following schema:
 
 .. code-block:: sdl
+   :version-lt: 3.0
 
     abstract type Named {
         required property name -> str {
@@ -125,6 +126,21 @@ Consider the following schema:
 
     type User extending Named {
         required property email -> str {
+            annotation title := 'Contact email';
+        }
+    }
+
+
+.. code-block:: sdl
+
+    abstract type Named {
+        required name: str {
+            delegated constraint exclusive;
+        }
+    }
+
+    type User extending Named {
+        required email: str {
             annotation title := 'Contact email';
         }
     }
@@ -198,6 +214,16 @@ Here are some examples of a ``describe`` command:
 The ``describe`` command also warns you if there are standard library
 matches that are masked by some user-defined object. Consider the
 following schema:
+
+.. code-block:: sdl
+   :version-lt: 3.0
+
+    module default {
+        function len(v: tuple<float64, float64>) -> float64 using (
+            select (v.0 ^ 2 + v.1 ^ 2) ^ 0.5
+        );
+    }
+
 
 .. code-block:: sdl
 
