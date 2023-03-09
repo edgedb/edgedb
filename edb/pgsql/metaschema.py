@@ -5702,22 +5702,30 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     # views that expose the actual data.
     # I've been cautious about exposing too much data, for example limiting
     # pg_type to pg_catalog and pg_toast namespaces.
-    views = [virtual_tables] + tables_and_columns + [
-        dbops.View(
-            name=("edgedbsql", table_name),
-            query="SELECT {} LIMIT 0".format(
-                ",".join(
-                    f"NULL::information_schema.{type} AS {name}"
-                    for name, type in columns
-                )
-            ),
+    views = []
+
+    views.append(virtual_tables)
+    views.extend(tables_and_columns)
+
+    for table_name, columns in sql_introspection.INFORMATION_SCHEMA.items():
+        if table_name in ["tables", "columns"]:
+            continue
+        views.append(
+            dbops.View(
+                name=("edgedbsql", table_name),
+                query="SELECT {} LIMIT 0".format(
+                    ",".join(
+                        f"NULL::information_schema.{type} AS {name}"
+                        for name, type in columns
+                    )
+                ),
+            )
         )
-        for table_name, columns in sql_introspection.INFORMATION_SCHEMA.items()
-        if table_name not in ['tables', 'columns']
-    ] + pg_catalog_views + [
-        construct_pg_view(table_name, [c for c, _ in columns])
-        for table_name, columns in sql_introspection.PG_CATALOG.items()
-        if table_name not in [
+
+    views.extend(pg_catalog_views)
+
+    for table_name, columns in sql_introspection.PG_CATALOG.items():
+        if table_name in [
             'pg_type',
             'pg_attribute',
             'pg_namespace',
@@ -5733,8 +5741,10 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_statistic',
             'pg_statistic_ext',
             'pg_statistic_ext_data',
-        ]
-    ]
+        ]:
+            continue
+
+        views.append(construct_pg_view(table_name, [c for c, _ in columns]))
 
     return (
         [dbops.CreateFunction(uuid_to_oid)]
