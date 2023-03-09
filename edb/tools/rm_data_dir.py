@@ -25,8 +25,10 @@ from edb.tools.edb import edbcommands
 
 @edbcommands.command("rm-data-dir")
 def rm_data_dir():
+    """Remove the local development data directory if present"""
     data_dir = devmode.get_dev_mode_data_dir()
     if data_dir.exists():
         shutil.rmtree(data_dir)
+        print("Removed local dev data directory.")
     else:
-        raise ValueError("Dev mode data directory does not exist")
+        print("Local dev data directory does not exist.")
