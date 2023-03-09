@@ -175,7 +175,7 @@ Splats
 .. versionadded:: 3.0
 
 Splats allow you to select all properties of a type using the asterisk (``*``)
-or all properties of the type and a single level of nested types with a double
+or all properties of the type and a single level of linked types with a double
 asterisk (``**``).
 
 If you have this schema:
