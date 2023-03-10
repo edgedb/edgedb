@@ -526,17 +526,30 @@ class Compiler:
                 if isinstance(arg, pgast.StringConstant)
             ]
 
-        frontend_only = {'search_path'}
+        # frontend-only settings (key) and their mutability (value)
+        fe_settings_mutable = {
+            'search_path': True,
+            'server_version': False,
+            'server_version_num': False,
+        }
         stmts = pg_parser.parse(query_str)
         sql_units = []
         for stmt in stmts:
+            # GOTCHA: a setting is frontend-only regardless of its mutability
+            fe_only = stmt.name in fe_settings_mutable
+
             if isinstance(stmt, pgast.VariableSetStmt):
                 args = {
                     "query": pg_codegen.generate_source(stmt),
-                    "frontend_only": stmt.name in frontend_only,
+                    "frontend_only": fe_only,
                     "is_local": stmt.scope == pgast.OptionsScope.TRANSACTION,
                 }
-                if stmt.name in frontend_only:
+                if fe_only:
+                    if not fe_settings_mutable[stmt.name]:
+                        raise errors.QueryError(
+                            f'parameter "{stmt.name}" cannot be changed',
+                            pgext_code='55P02',  # cant_change_runtime_param
+                        )
                     value = pg_codegen.generate_source(stmt.args, pretty=False)
                     args["set_vars"] = {stmt.name: value}
                 elif stmt.scope == pgast.OptionsScope.SESSION:
@@ -550,15 +563,17 @@ class Compiler:
                     args["set_vars"] = {stmt.name: value}
                 unit = dbstate.SQLQueryUnit(**args)
             elif isinstance(stmt, pgast.VariableResetStmt):
+                if fe_only and not fe_settings_mutable[stmt.name]:
+                    raise errors.QueryError(
+                        f'parameter "{stmt.name}" cannot be changed',
+                        pgext_code='55P02',  # cant_change_runtime_param
+                    )
                 args = {
                     "query": pg_codegen.generate_source(stmt),
-                    "frontend_only": stmt.name in frontend_only,
+                    "frontend_only": fe_only,
                     "is_local": stmt.scope == pgast.OptionsScope.TRANSACTION,
                 }
-                if (
-                    stmt.name in frontend_only
-                    or stmt.scope == pgast.OptionsScope.SESSION
-                ):
+                if fe_only or stmt.scope == pgast.OptionsScope.SESSION:
                     args["set_vars"] = {stmt.name: None}
                 unit = dbstate.SQLQueryUnit(**args)
             elif isinstance(stmt, pgast.VariableShowStmt):
@@ -566,7 +581,7 @@ class Compiler:
                 unit = dbstate.SQLQueryUnit(
                     query=source,
                     get_var=stmt.name,
-                    frontend_only=stmt.name in frontend_only,
+                    frontend_only=fe_only,
                 )
             elif isinstance(stmt, pgast.SetTransactionStmt):
                 args = {"query": pg_codegen.generate_source(stmt)}

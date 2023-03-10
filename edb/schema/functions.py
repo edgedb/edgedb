@@ -1879,6 +1879,20 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                         f'{p_type.get_displayname(schema)}',
                         context=self.source_context)
 
+        # Make sure variadic parameters do not contain optional types in
+        # user-defined functions
+        if language == qlast.Language.EdgeQL:
+            if variadic := params.find_variadic(schema):
+                typemod = variadic.get_typemod(schema)
+                if typemod is ft.TypeModifier.OptionalType:
+                    raise errors.InvalidFunctionDefinitionError(
+                        f'cannot create the `{signature}` function: '
+                        f'variadic argument '
+                        f'`{variadic.get_displayname(schema)}` '
+                        f'illegally declared with optional type in '
+                        f'user-defined function',
+                        context=self.source_context)
+
         return schema
 
     @classmethod

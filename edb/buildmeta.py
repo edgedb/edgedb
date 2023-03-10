@@ -44,7 +44,7 @@ from edb.common import verutils
 
 
 # Increment this whenever the database layout or stdlib changes.
-EDGEDB_CATALOG_VERSION = 2023_02_23_00_00
+EDGEDB_CATALOG_VERSION = 2023_03_06_00_00
 EDGEDB_MAJOR_VERSION = 3
 
 
@@ -588,3 +588,24 @@ def get_cache_src_dirs():
 def get_default_tenant_id() -> str:
     catver = EDGEDB_CATALOG_VERSION
     return f'V{catver:x}'
+
+
+def get_version_line() -> str:
+    ver_meta = get_version_metadata()
+
+    extras = []
+    source = ""
+    if build_date := ver_meta["build_date"]:
+        nice_date = build_date.strftime("%Y-%m-%dT%H:%MZ")
+        source += f" on {nice_date}"
+    if ver_meta["scm_revision"]:
+        source += f" from revision {ver_meta['scm_revision']}"
+        if source_date := ver_meta["source_date"]:
+            nice_date = source_date.strftime("%Y-%m-%dT%H:%MZ")
+            source += f" ({nice_date})"
+    if source:
+        extras.append(f", built{source}")
+    if ver_meta["target"]:
+        extras.append(f"for {ver_meta['target']}")
+
+    return get_version_string() + " ".join(extras)

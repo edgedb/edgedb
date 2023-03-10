@@ -23,12 +23,12 @@
 from __future__ import annotations
 
 import collections
+import dataclasses
 import functools
 from typing import *
 
 from edb import errors
 from edb.common import ast
-from edb.common import context as pctx
 from edb.common import topological
 from edb.common.typeutils import not_none
 
@@ -98,6 +98,19 @@ class ShapePtr(NamedTuple):
     target_set: Optional[irast.Set]
 
 
+@dataclasses.dataclass(kw_only=True, frozen=True)
+class ShapeContext:
+    # a helper object for passing shape compile parameters
+
+    path_id_namespace: Optional[irast.Namespace] = None
+
+    view_rptr: Optional[context.ViewRPtr] = None
+
+    view_name: Optional[sn.QualName] = None
+
+    exprtype: s_types.ExprType = s_types.ExprType.Select
+
+
 def process_view(
     ir_set: irast.Set,
     *,
@@ -106,7 +119,6 @@ def process_view(
     view_rptr: Optional[context.ViewRPtr] = None,
     view_name: Optional[sn.QualName] = None,
     exprtype: s_types.ExprType = s_types.ExprType.Select,
-    parser_context: Optional[pctx.ParserContext],
     ctx: context.ContextLevel,
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
 
@@ -128,15 +140,19 @@ def process_view(
     # in any parent scopes.
     ctx.aliased_views = collections.ChainMap(dict(ctx.aliased_views))
 
+    s_ctx = ShapeContext(
+        path_id_namespace=None,
+        view_rptr=view_rptr,
+        view_name=view_name,
+        exprtype=exprtype,
+    )
+
     view_scls, ir = _process_view(
         ir_set,
         stype=stype,
         elements=elements,
-        view_rptr=view_rptr,
-        view_name=view_name,
-        exprtype=exprtype,
-        parser_context=parser_context,
         ctx=ctx,
+        s_ctx=s_ctx,
     )
 
     ctx.env.shape_type_cache[cache_key] = view_scls
@@ -148,16 +164,14 @@ def _process_view(
     ir_set: irast.Set,
     *,
     stype: s_objtypes.ObjectType,
-    path_id_namespace: Optional[irast.Namespace] = None,
     elements: Optional[Sequence[qlast.ShapeElement]],
-    view_rptr: Optional[context.ViewRPtr] = None,
-    view_name: Optional[sn.QualName] = None,
-    exprtype: s_types.ExprType = s_types.ExprType.Select,
-    parser_context: Optional[pctx.ParserContext],
+    s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
     path_id = ir_set.path_id
+    view_rptr = s_ctx.view_rptr
 
+    view_name = s_ctx.view_name
     needs_real_name = view_name is None and ctx.env.options.schema_view_mode
     generated_name = None
     if needs_real_name and view_rptr is not None:
@@ -206,12 +220,12 @@ def _process_view(
 
     view_scls = schemactx.derive_view(
         stype,
-        exprtype=exprtype,
+        exprtype=s_ctx.exprtype,
         derived_name=view_name,
         ctx=ctx,
     )
     assert isinstance(view_scls, s_objtypes.ObjectType), view_scls
-    is_mutation = exprtype.is_insert() or exprtype.is_update()
+    is_mutation = s_ctx.exprtype.is_insert() or s_ctx.exprtype.is_update()
     is_defining_shape = ctx.expr_exposed or is_mutation
 
     ir_set = setgen.ensure_set(ir_set, type_override=view_scls, ctx=ctx)
@@ -243,10 +257,7 @@ def _process_view(
 
         shape_desc.append(
             _shape_el_ql_to_shape_el_desc(
-                shape_el,
-                source=view_scls,
-                view_rptr=view_rptr,
-                ctx=ctx,
+                shape_el, source=view_scls, s_ctx=s_ctx, ctx=ctx
             )
         )
 
@@ -263,7 +274,7 @@ def _process_view(
         if not isinstance(shape_el.expr.steps[0], qlast.Splat):
             continue
 
-        if exprtype is not s_types.ExprType.Select:
+        if s_ctx.exprtype is not s_types.ExprType.Select:
             raise errors.QueryError(
                 "unexpected splat operator in non-SELECT shape",
                 context=shape_el.expr.context,
@@ -339,8 +350,8 @@ def _process_view(
                 _shape_el_ql_to_shape_el_desc(
                     splat_el,
                     source=view_scls,
-                    view_rptr=view_rptr,
-                    ctx=ctx,
+                    s_ctx=s_ctx,
+                    ctx=ctx
                 )
             )
 
@@ -351,10 +362,8 @@ def _process_view(
                 shape_el_desc,
                 view_scls,
                 path_id=path_id,
-                path_id_namespace=path_id_namespace,
-                exprtype=exprtype,
-                view_rptr=view_rptr,
                 pending_pointers=pointers,
+                s_ctx=s_ctx,
                 ctx=scopectx,
             )
 
@@ -382,32 +391,35 @@ def _process_view(
         dummy_el = qlast.ShapeElement(expr=qlast.Path(
             steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=name))]))
         dummy_el_desc = _shape_el_ql_to_shape_el_desc(
-            dummy_el,
-            source=view_scls,
-            view_rptr=view_rptr,
-            ctx=ctx,
+            dummy_el, source=view_scls, s_ctx=s_ctx, ctx=ctx
         )
 
         with ctx.new() as scopectx:
             pointer, ptr_set = _normalize_view_ptr_expr(
-                ir_set, dummy_el_desc, view_scls, path_id=path_id,
-                path_id_namespace=path_id_namespace,
-                exprtype=exprtype,
-                view_rptr=view_rptr,
-                ctx=scopectx)
+                ir_set,
+                dummy_el_desc,
+                view_scls,
+                path_id=path_id,
+                s_ctx=s_ctx,
+                ctx=scopectx,
+            )
 
         pointers[pointer] = EarlyShapePtr(
             pointer, ptr_set, qlast.ShapeOrigin.MATERIALIZATION)
 
-    if exprtype.is_insert():
+    if s_ctx.exprtype.is_insert():
         explicit_ptrs = {
             ptrcls.get_local_name(ctx.env.schema) for ptrcls in pointers
         }
 
         pointers.update(
             gen_pointers_from_defaults(
-                explicit_ptrs, view_scls, ir_set, stype, path_id_namespace,
-                view_rptr, exprtype, ctx
+                explicit_ptrs,
+                view_scls,
+                ir_set,
+                stype,
+                s_ctx,
+                ctx,
             )
         )
 
@@ -502,7 +514,7 @@ def _shape_el_ql_to_shape_el_desc(
     shape_el: qlast.ShapeElement,
     *,
     source: s_sources.Source,
-    view_rptr: Optional[context.ViewRPtr] = None,
+    s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> ShapeElementDesc:
     """Look at ShapeElement AST and annotate it for more convenient handing."""
@@ -526,6 +538,7 @@ def _shape_el_ql_to_shape_el_desc(
         assert isinstance(lexpr, qlast.Ptr)
         is_linkprop = lexpr.type == 'property'
         if is_linkprop:
+            view_rptr = s_ctx.view_rptr
             if view_rptr is None or view_rptr.ptrcls is None:
                 raise errors.QueryError(
                     'invalid reference to link property '
@@ -545,8 +558,8 @@ def _shape_el_ql_to_shape_el_desc(
         source_spec = schemactx.get_schema_type(ptype.maintype, ctx=ctx)
         if not isinstance(source_spec, s_objtypes.ObjectType):
             raise errors.QueryError(
-                f'expected object type, got '
-                f'{source_spec.get_verbosename(ctx.env.schema)}',
+                f"expected object type, got "
+                f"{source_spec.get_verbosename(ctx.env.schema)}",
                 context=ptype.context,
             )
         source = source_spec
@@ -674,9 +687,7 @@ def gen_pointers_from_defaults(
     view_scls: s_objtypes.ObjectType,
     ir_set: irast.Set,
     stype: s_objtypes.ObjectType,
-    path_id_namespace: Optional[irast.Namespace],
-    view_rptr: Optional[context.ViewRPtr],
-    exprtype: s_types.ExprType,
+    s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> Dict[s_pointers.Pointer, EarlyShapePtr]:
     path_id = ir_set.path_id
@@ -730,22 +741,18 @@ def gen_pointers_from_defaults(
             origin=qlast.ShapeOrigin.DEFAULT,
         )
         default_ql_desc = _shape_el_ql_to_shape_el_desc(
-            default_ql,
-            source=view_scls,
-            view_rptr=view_rptr,
-            ctx=ctx,
+            default_ql, source=view_scls, s_ctx=s_ctx, ctx=ctx
         )
 
         with ctx.new() as scopectx:
+
             pointer, ptr_set = _normalize_view_ptr_expr(
                 ir_set,
                 default_ql_desc,
                 view_scls,
                 path_id=path_id,
-                path_id_namespace=path_id_namespace,
-                exprtype=exprtype,
                 from_default=True,
-                view_rptr=view_rptr,
+                s_ctx=s_ctx,
                 ctx=scopectx,
             )
 
@@ -846,9 +853,8 @@ def _compile_qlexpr(
     ptrcls: Optional[s_pointers.Pointer],
     ptrsource: s_sources.Source,
     ptr_name: sn.QualName,
-    exprtype: s_types.ExprType = s_types.ExprType.Select,
     is_linkprop: bool,
-
+    s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, context.ViewRPtr]:
 
@@ -863,7 +869,7 @@ def _compile_qlexpr(
             ptrcls=ptrcls,
             ptrcls_name=ptr_name,
             ptrcls_is_linkprop=is_linkprop,
-            exprtype=exprtype,
+            exprtype=s_ctx.exprtype,
         )
 
         shape_expr_ctx.defining_view = view_scls
@@ -871,7 +877,7 @@ def _compile_qlexpr(
         source_set = setgen.fixup_computable_source_set(ir_source, ctx=ctx)
         shape_expr_ctx.partial_path_prefix = source_set
 
-        if exprtype.is_mutation() and ptrcls is not None:
+        if s_ctx.exprtype.is_mutation() and ptrcls is not None:
             shape_expr_ctx.expr_exposed = context.Exposure.EXPOSED
             shape_expr_ctx.empty_result_type_hint = \
                 ptrcls.get_target(ctx.env.schema)
@@ -894,14 +900,13 @@ def _normalize_view_ptr_expr(
     view_scls: s_objtypes.ObjectType,
     *,
     path_id: irast.PathId,
-    path_id_namespace: Optional[irast.Namespace] = None,
-    exprtype: s_types.ExprType = s_types.ExprType.Select,
     from_default: bool = False,
-    view_rptr: Optional[context.ViewRPtr] = None,
     pending_pointers: Mapping[s_pointers.Pointer, EarlyShapePtr] | None = None,
+    s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> Tuple[s_pointers.Pointer, Optional[irast.Set]]:
-    is_mutation = exprtype.is_insert() or exprtype.is_update()
+    is_mutation = s_ctx.exprtype.is_insert() or s_ctx.exprtype.is_update()
+
     materialized = None
     qlexpr: Optional[qlast.Expr] = None
     base_ptrcls_is_alias = False
@@ -1033,10 +1038,16 @@ def _normalize_view_ptr_expr(
         # compilation.
         if qlexpr:
             irexpr, _ = _compile_qlexpr(
-                ir_source, qlexpr, view_scls,
-                ptrcls=ptrcls, ptrsource=ptrsource,
-                ptr_name=ptr_name, is_linkprop=is_linkprop,
-                exprtype=exprtype, ctx=ctx)
+                ir_source,
+                qlexpr,
+                view_scls,
+                ptrcls=ptrcls,
+                ptrsource=ptrsource,
+                ptr_name=ptr_name,
+                is_linkprop=is_linkprop,
+                s_ctx=s_ctx,
+                ctx=ctx,
+            )
             materialized = setgen.should_materialize(
                 irexpr, ptrcls=ptrcls,
                 materialize_visible=True, skipped_bindings={path_id},
@@ -1087,9 +1098,11 @@ def _normalize_view_ptr_expr(
                 # Check if we aren't inside of modifying statement
                 # for link property, otherwise this is a NEW
                 # computable pointer, it's fine.
-                if (view_rptr is not None
-                        and view_rptr.exprtype.is_mutation()
-                        and is_linkprop):
+                if (
+                    s_ctx.view_rptr is not None
+                    and s_ctx.view_rptr.exprtype.is_mutation()
+                    and is_linkprop
+                ):
                     raise
 
         qlexpr = astutils.ensure_qlstmt(compexpr)
@@ -1106,9 +1119,16 @@ def _normalize_view_ptr_expr(
             qlexpr.limit = qlast.IntegerConstant(value=str(ctx.implicit_limit))
 
         irexpr, sub_view_rptr = _compile_qlexpr(
-            ir_source, qlexpr, view_scls, ptrcls=ptrcls, ptrsource=ptrsource,
-            ptr_name=ptr_name, is_linkprop=is_linkprop,
-            exprtype=exprtype, ctx=ctx)
+            ir_source,
+            qlexpr,
+            view_scls,
+            ptrcls=ptrcls,
+            ptrsource=ptrsource,
+            ptr_name=ptr_name,
+            is_linkprop=is_linkprop,
+            s_ctx=s_ctx,
+            ctx=ctx,
+        )
         materialized = setgen.should_materialize(
             irexpr, ptrcls=ptrcls,
             materialize_visible=True, skipped_bindings={path_id},
@@ -1119,7 +1139,7 @@ def _normalize_view_ptr_expr(
             shape_el.operation.op is qlast.ShapeOp.APPEND
             or shape_el.operation.op is qlast.ShapeOp.SUBTRACT
         ):
-            if not exprtype.is_update():
+            if not s_ctx.exprtype.is_update():
                 op = (
                     '+=' if shape_el.operation.op is qlast.ShapeOp.APPEND
                     else '-='
@@ -1218,7 +1238,11 @@ def _normalize_view_ptr_expr(
                 )
 
     # Prohibit update of readonly
-    if exprtype.is_update() and ptrcls and ptrcls.get_readonly(ctx.env.schema):
+    if (
+        s_ctx.exprtype.is_update()
+        and ptrcls
+        and ptrcls.get_readonly(ctx.env.schema)
+    ):
         raise errors.QueryError(
             f'cannot update {ptrcls.get_verbosename(ctx.env.schema)}: '
             f'it is declared as read-only',
@@ -1231,7 +1255,7 @@ def _normalize_view_ptr_expr(
         and ptrcls.is_id_pointer(ctx.env.schema)
         and (
             not ctx.env.options.allow_user_specified_id
-            or not exprtype.is_mutation()
+            or not s_ctx.exprtype.is_mutation()
         )
     )
     if (
@@ -1271,9 +1295,9 @@ def _normalize_view_ptr_expr(
 
         if is_linkprop:
             # Proper checking was done when is_linkprop is defined.
-            assert view_rptr is not None
-            assert isinstance(view_rptr.ptrcls, s_links.Link)
-            src_scls = view_rptr.ptrcls
+            assert s_ctx.view_rptr is not None
+            assert isinstance(s_ctx.view_rptr.ptrcls, s_links.Link)
+            src_scls = s_ctx.view_rptr.ptrcls
         else:
             src_scls = view_scls
 
@@ -1375,7 +1399,7 @@ def _normalize_view_ptr_expr(
             irexpr=irexpr,
             context=ctx,
             path_id=path_id,
-            path_id_ns=path_id_namespace,
+            path_id_ns=s_ctx.path_id_namespace,
             shape_op=shape_el.operation.op,
             should_materialize=materialized or [],
         )
@@ -1634,7 +1658,9 @@ def _inline_type_computable(
                 ]
             )
         )
-        ql_desc = _shape_el_ql_to_shape_el_desc(ql, source=stype, ctx=ctx)
+        ql_desc = _shape_el_ql_to_shape_el_desc(
+            ql, source=stype, s_ctx=ShapeContext(), ctx=ctx
+        )
 
         with ctx.new() as scopectx:
             scopectx.anchors = scopectx.anchors.copy()
@@ -1651,7 +1677,8 @@ def _inline_type_computable(
                 ql_desc,
                 stype,
                 path_id=ir_set.path_id,
-                ctx=scopectx,
+                s_ctx=ShapeContext(),
+                ctx=scopectx
             )
 
     view_shape = ctx.env.view_shapes[stype]

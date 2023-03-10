@@ -238,24 +238,35 @@ def collapse_type_intersection(
     return source, result
 
 
-def get_nearest_dml_stmt(ir_set: irast.Set) -> Optional[irast.MutatingStmt]:
+def get_nearest_dml_stmt(
+    ir_set: irast.Set
+) -> Optional[irast.MutatingLikeStmt]:
     """For a given *ir_set* representing a Path, return the nearest path
        step that is a DML expression.
     """
     cur_set: Optional[irast.Set] = ir_set
     while cur_set is not None:
-        if isinstance(cur_set.expr, irast.MutatingStmt):
+        if isinstance(cur_set.expr, irast.MutatingLikeStmt):
             return cur_set.expr
         elif isinstance(cur_set.expr, irast.SelectStmt):
             cur_set = cur_set.expr.result
-        # FIXME: This is a very narrow hack around issue #3030 designed
-        # to make the most common case work: assert_exists inserted by
-        # access policies.
+        # FIXME: This is a very narrow hack around issue #3030
+        # designed to make simple cases work. The critical one is
+        # assert_exists inserted by access policies.
         elif (
-            isinstance(cur_set.expr, irast.FunctionCall)
-            and str(cur_set.expr.func_shortname) == 'std::assert_exists'
+            isinstance(cur_set.expr, irast.Call)
+            and str(cur_set.expr.func_shortname) in {
+                'std::assert_exists',
+                'std::assert_single',
+                'std::assert_distinct',
+                'std::enumerate',
+                'std::min',
+                'std::max',
+                'std::DISTINCT',
+            }
+
         ):
-            cur_set = cur_set.expr.args[1].expr
+            cur_set = cur_set.expr.args[-1].expr
         elif cur_set.rptr is not None:
             cur_set = cur_set.rptr.source
         else:

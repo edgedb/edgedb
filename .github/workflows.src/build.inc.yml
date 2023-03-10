@@ -1,4 +1,4 @@
-<% macro workflow(targets, subdist="") %>
+<% macro workflow(targets, subdist="", publish_all=False) %>
   prep:
     runs-on: ubuntu-latest
     outputs:
@@ -152,10 +152,20 @@
       run: |
         edgedb-pkg/integration/macos/test.sh
 <% endfor %>
+<% if publish_all %>
+  collect:
+    needs:
+    <%- for tgt in targets.linux + targets.macos %>
+    - test-<< tgt.name >>
+    <%- endfor %>
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'All build+tests passed, ready to publish now!'
+<% endif %>
 <% for tgt in targets.linux %>
 <% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   publish-<< tgt.name >>:
-    needs: [test-<< tgt.name >>]
+    needs: [<% if publish_all %>collect<% else %>test-<< tgt.name >><% endif %>]
     runs-on: ubuntu-latest
 
     steps:
@@ -211,7 +221,7 @@
 <% for tgt in targets.macos %>
 <% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   publish-<< tgt.name >>:
-    needs: [test-<< tgt.name >>]
+    needs: [<% if publish_all %>collect<% else %>test-<< tgt.name >><% endif %>]
     runs-on: ubuntu-latest
 
     steps:

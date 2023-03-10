@@ -4763,6 +4763,20 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
             """)
 
+    async def test_edgeql_ddl_function_36(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidFunctionDefinitionError,
+            r"cannot create the `default::broken_edgeql_func36\("
+            r"VARIADIC foo: OPTIONAL array<std::int64>\)` function: "
+            r"variadic argument `foo` illegally declared with "
+            r"optional type in user-defined function"
+        ):
+            await self.con.execute(r"""
+                CREATE FUNCTION broken_edgeql_func36(
+                    variadic foo: optional std::int64) -> array<std::int64>
+                USING (assert_exists(foo));
+            """)
+
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
             CREATE FUNCTION foo(s: str) -> str {

@@ -23,6 +23,7 @@ from edb.tools import test
 
 try:
     import asyncpg
+    from asyncpg import serverversion
 except ImportError:
     pass
 
@@ -759,3 +760,25 @@ class TestSQL(tb.SQLQueryTestCase):
         await self.squery_values("set client_encoding to 'latin1'")
         with self.assertRaises(asyncpg.UntranslatableCharacterError):
             await self.squery_values('select * from "Genre"')
+
+    async def test_sql_query_server_version(self):
+        version = await self.scon.fetchval("show server_version")
+        self.assertEqual(
+            self.scon.get_server_version(),
+            serverversion.split_server_version_string(version),
+        )
+        with self.assertRaises(asyncpg.CantChangeRuntimeParamError):
+            await self.squery_values("set server_version to blah")
+        with self.assertRaises(asyncpg.CantChangeRuntimeParamError):
+            await self.squery_values("reset server_version")
+
+    async def test_sql_query_server_version_num(self):
+        await self.squery_values("show server_version_num")
+        with self.assertRaises(asyncpg.CantChangeRuntimeParamError):
+            await self.squery_values("set server_version_num to blah")
+        with self.assertRaises(asyncpg.CantChangeRuntimeParamError):
+            await self.squery_values("reset server_version_num")
+
+    async def test_sql_query_version(self):
+        version = await self.squery_values("select version()")
+        self.assertIn("EdgeDB", version[0][0])

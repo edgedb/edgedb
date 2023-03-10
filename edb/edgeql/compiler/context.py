@@ -207,9 +207,7 @@ class Environment:
     """
 
     dml_stmts: Set[irast.MutatingStmt]
-    """A list of DML expressions (statements and DML-containing
-    functions) that appear in a function body.
-    """
+    """A list of DML statements in the query"""
 
     #: A list of bindings that should be assumed to be singletons.
     singletons: List[irast.PathId]
@@ -539,6 +537,10 @@ class ContextLevel(compiler.ContextLevel):
     active_computeds: ordered.OrderedSet[s_pointers.Pointer]
     """A ordered set of currently compiling computeds"""
 
+    disallow_dml: Optional[str]
+    """Whether we are currently in a place where no dml is allowed,
+        if not None, then it is of the form `in a FILTER clause`  """
+
     def __init__(
         self,
         prevlevel: Optional[ContextLevel],
@@ -594,6 +596,8 @@ class ContextLevel(compiler.ContextLevel):
             self.active_computeds = ordered.OrderedSet()
             self.recompiling_schema_alias = False
 
+            self.disallow_dml = None
+
         else:
             self.env = prevlevel.env
             self.derived_target_module = prevlevel.derived_target_module
@@ -632,6 +636,8 @@ class ContextLevel(compiler.ContextLevel):
             self.in_conditional = prevlevel.in_conditional
             self.active_computeds = prevlevel.active_computeds
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
+
+            self.disallow_dml = prevlevel.disallow_dml
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()

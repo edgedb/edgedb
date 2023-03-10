@@ -98,10 +98,15 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         inherited_fields_update = {}
         deferred_complex_ops = []
 
-        for field_name in field_names:
+        # Iterate over mcls.get_schema_fields() instead of field_names for
+        # determinism reasons, and so earlier declared fields get
+        # processed first.
+        for field_name, field in mcls.get_schema_fields().items():
+            if field_name not in field_names:
+                continue
+
             was_inherited = field_name in inherited_fields
             ignore_local_field = ignore_local or was_inherited
-            field = mcls.get_field(field_name)
 
             try:
                 result = field.merge_fn(

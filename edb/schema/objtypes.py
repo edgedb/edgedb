@@ -124,10 +124,7 @@ class ObjectType(
             return self.issubclass(schema, FreeObject)
 
     def is_fake_object_type(self, schema: s_schema.Schema) -> bool:
-        return (
-            self.get_name(schema).module == 'cfg'
-            or self.is_free_object_type(schema)
-        )
+        return self.is_free_object_type(schema)
 
     def is_material_object_type(self, schema: s_schema.Schema) -> bool:
         return not (
@@ -218,6 +215,14 @@ class ObjectType(
             ptrs.update(union.getrptrs(schema, name, sources=sources))
 
         return ptrs
+
+    def get_relevant_triggers(
+        self, kind: qltypes.TriggerKind, schema: s_schema.Schema
+    ) -> list[triggers.Trigger]:
+        return [
+            t for t in self.get_triggers(schema).objects(schema)
+            if kind in t.get_kinds(schema)
+        ]
 
     def implicitly_castable_to(
         self,

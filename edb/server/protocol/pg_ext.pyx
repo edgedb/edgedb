@@ -37,6 +37,7 @@ from edb import errors
 from edb.common import debug
 from edb.pgsql.parser import exceptions as parser_errors
 from edb.server import args as srvargs
+from edb.server import defines
 from edb.server.compiler import dbstate
 from edb.server.pgcon import errors as pgerror
 from edb.server.pgcon.pgcon cimport PGAction, PGMessage
@@ -44,7 +45,11 @@ from edb.server.protocol cimport frontend
 
 cdef object logger = logging.getLogger('edb.server')
 cdef object DEFAULT_SETTINGS = immutables.Map()
-cdef object DEFAULT_FE_SETTINGS = immutables.Map({"search_path": "public"})
+cdef object DEFAULT_FE_SETTINGS = immutables.Map({
+    "search_path": "public",
+    "server_version": defines.PGEXT_POSTGRES_VERSION,
+    "server_version_num": str(defines.PGEXT_POSTGRES_VERSION_NUM),
+})
 cdef object DEFAULT_STATE = json.dumps(dict(DEFAULT_SETTINGS)).encode('utf-8')
 
 encodings.aliases.aliases["sql_ascii"] = "ascii"
@@ -654,9 +659,14 @@ cdef class PgConnection(frontend.FrontendConnection):
                 msg_buf = WriteBuffer.new_message(b'S')
                 msg_buf.write_str(name, "utf-8")
                 if name == "client_encoding":
-                    msg_buf.write_str(client_encoding, "utf-8")
-                else:
-                    msg_buf.write_str(value, "utf-8")
+                    value = client_encoding
+                elif name == "server_version":
+                    value = defines.PGEXT_POSTGRES_VERSION
+                elif name == "session_authorization":
+                    value = user
+                elif name == "application_name":
+                    value = self.server.get_instance_name()
+                msg_buf.write_str(value, "utf-8")
                 msg_buf.end_message()
                 buf.write_buffer(msg_buf)
                 if self.debug:
