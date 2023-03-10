@@ -273,6 +273,153 @@ level of nested objects with the double splat:
 
     Splats are disabled in function bodies.
 
+The splat expands all properties defined on the type as well as inherited
+properties. Given the same schema shown above:
+
+.. code-block:: edgeql-repl
+
+    db> select Hero {*};
+    {
+      default::Hero {
+        id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+        name: 'Spiderman',
+        secret_identity: 'Peter Parker'
+      },
+      default::Hero {
+        id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+        name: 'Iron Man',
+        secret_identity: 'Tony Stark'
+      },
+    }
+
+The splat here expands the heroes' names even though the ``name`` property is
+not defined on the ``Hero`` type but on the ``Person`` type it extends. If we
+want to select heroes but get only properties defined on the ``Person`` type,
+we can do this instead:
+
+.. code-block:: edgeql-repl
+
+    db> select Hero {Person.*};
+    {
+      default::Hero {
+        id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+        name: 'Spiderman'
+      },
+      default::Hero {
+        id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+        name: 'Iron Man'
+      },
+    }
+
+If there are links on our ``Person`` type, we can use ``Person.**`` in a
+similar fashion to get all properties and one level of linked object
+properties, but only for links and properties that are defined on the
+``Person`` type.
+
+You can use the splat to expand properties using a :ref:`type intersection
+<ref_eql_types_intersection>`. Maybe we want to select all ``Person`` objects
+with their names but also get any properties defined on the ``Hero`` for those
+``Person`` objects which are also ``Hero`` objects:
+
+.. code-block:: edgeql-repl
+
+    db> select Person {
+    ...   name,
+    ...   [is Hero].*
+    ... };
+    {
+      default::Hero {
+        id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+        name: 'Spiderman'
+        secret_identity: 'Peter Parker'
+      },
+      default::Hero {
+        id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+        name: 'Iron Man'
+        secret_identity: 'Tony Stark'
+      },
+      default::Villain {
+        id: efa2c4bc-b777-11ed-99eb-43f835d79384,
+        name: 'Electro'
+      },
+      default::Villain {
+        id: f2c99a96-b775-11ed-8f7e-0b4a4a8e433e,
+        name: 'Green Goblin'
+      },
+      default::Villain {
+        id: f8ca354a-b775-11ed-8bef-273145019e1d,
+        name: 'Doc Ock'
+      },
+      default::Villain {
+        id: 335f4104-b777-11ed-81eb-ab4de34e9c36,
+        name: 'Obadiah Stane'
+      },
+    }
+
+The double splat also works with type intersection expansion to expand both
+properties and links on the specified type.
+
+.. code-block:: edgeql-repl
+
+    db> select Person {
+    ...   name,
+    ...   [is Hero].**
+    ... };
+    {
+      default::Hero {
+        id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+        name: 'Spiderman'
+        secret_identity: 'Peter Parker',
+        villains: {
+          default::Villain {
+            id: efa2c4bc-b777-11ed-99eb-43f835d79384,
+            name: 'Electro'
+          },
+          default::Villain {
+            id: f2c99a96-b775-11ed-8f7e-0b4a4a8e433e,
+            name: 'Green Goblin'
+          },
+          default::Villain {
+            id: f8ca354a-b775-11ed-8bef-273145019e1d,
+            name: 'Doc Ock'
+          }
+        }
+      },
+      default::Hero {
+        id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+        name: 'Iron Man'
+        secret_identity: 'Tony Stark'
+        villains: {
+          default::Villain {
+            id: 335f4104-b777-11ed-81eb-ab4de34e9c36,
+            name: 'Obadiah Stane'
+          }
+        }
+      },
+      default::Villain {
+        id: efa2c4bc-b777-11ed-99eb-43f835d79384,
+        name: 'Electro'
+      },
+      default::Villain {
+        id: f2c99a96-b775-11ed-8f7e-0b4a4a8e433e,
+        name: 'Green Goblin'
+      },
+      default::Villain {
+        id: f8ca354a-b775-11ed-8bef-273145019e1d,
+        name: 'Doc Ock'
+      },
+      default::Villain {
+        id: 335f4104-b777-11ed-81eb-ab4de34e9c36,
+        name: 'Obadiah Stane'
+      },
+    }
+
+With this query, we get ``name`` for each ``Person`` and all the properties and
+one level of links on the ``Hero`` objects. We don't get ``Villain`` objects'
+nemeses because that link is not covered by our double splat which only
+expans ``Hero`` links. If the ``Villain`` type had properties defined on it, we
+wouldn't get those with this query either.
+
 
 .. _ref_eql_select_filter:
 
