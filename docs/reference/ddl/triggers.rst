@@ -112,4 +112,4 @@ Remove the ``log_insert`` trigger on the ``User`` type:
   * - **See also**
   * - :ref:`Schema > Triggers <ref_datamodel_triggers>`
   * - :ref:`SDL > Triggers <ref_eql_sdl_triggers>`
-  * - :ref:`Introspection > Triggers <ref_eql_introspection_triggers>`
+  * - :ref:`Introspection > Triggers <ref_datamodel_introspection_triggers>`

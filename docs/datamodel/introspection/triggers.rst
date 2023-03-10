@@ -1,6 +1,6 @@
 .. versionadded:: 3.0
 
-.. _ref_eql_introspection_triggers:
+.. _ref_datamodel_introspection_triggers:
 
 =========
 Triggers

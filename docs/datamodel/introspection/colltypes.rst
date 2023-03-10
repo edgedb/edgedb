@@ -1,4 +1,4 @@
-.. _ref_eql_introspection_collection_types:
+.. _ref_datamodel_introspection_collection_types:
 
 ================
 Collection types
