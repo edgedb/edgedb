@@ -428,12 +428,15 @@ def _process_view(
     )
 
     if rewrite_kind:
-        ctx.env.dml_rewrites[ir_set] = _compile_rewrites(
+        rewrites = _compile_rewrites(
             specified_ptrs, rewrite_kind, view_scls, ir_set, stype, s_ctx, ctx
         )
+        ctx.env.dml_rewrites[ir_set] = rewrites
+    else:
+        rewrites = None
 
     if s_ctx.exprtype.is_insert():
-        _raise_on_missing(pointers, stype, ctx)
+        _raise_on_missing(pointers, stype, rewrites, ctx)
 
     set_shape = []
     shape_ptrs: List[ShapePtr] = []
@@ -788,6 +791,7 @@ def _gen_pointers_from_defaults(
 def _raise_on_missing(
     pointers: Dict[s_pointers.Pointer, EarlyShapePtr],
     stype: s_objtypes.ObjectType,
+    rewrites: Optional[irast.Rewrites],
     ctx: context.ContextLevel,
 ) -> None:
     pointer_names = {
@@ -805,6 +809,13 @@ def _raise_on_missing(
         if not ptrcls.get_required(ctx.env.schema):
             continue
 
+        # is it rewritten?
+        if rewrites:
+            # (inserts must produce rewrites only for stype)
+            assert len(rewrites.by_type) == 1
+            if pn.name in next(iter(rewrites.by_type.values())):
+                continue
+
         if ptrcls.is_property(ctx.env.schema):
             # If the target is a sequence, there's no need
             # for an explicit value.
@@ -817,6 +828,7 @@ def _raise_on_missing(
                 ),
             ):
                 continue
+
         vn = ptrcls.get_verbosename(ctx.env.schema, with_parent=True)
         raise errors.MissingRequiredError(
             f"missing value for required {vn}"
