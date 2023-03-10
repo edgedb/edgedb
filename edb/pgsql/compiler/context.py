@@ -282,7 +282,7 @@ class CompilerContextLevel(compiler.ContextLevel):
     dml_stmt_stack: List[irast.MutatingLikeStmt]
 
     #: Relations used to "overlay" the main table for
-    #: the type.  Mostly used with DML statements.
+    #: the type.  Mostly used with DML statements
     rel_overlays: RelOverlays
 
     #: Mapping from path ids to "external" rels given by a particular relation

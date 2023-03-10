@@ -832,6 +832,8 @@ def _compile_rewrites(
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> irast.Rewrites:
+    import edb.ir.typeutils as irtypeutils
+
     # init
     anchors = prepare_rewrite_anchors(
         specified_ptrs, kind, stype, ctx
@@ -862,14 +864,29 @@ def _compile_rewrites(
     else:
         raise NotImplementedError()
 
-    return {
-        ty: {
-            name: element.target_set
-            for name, element in rewrites.items()
-            if element.target_set
-        }
-        for ty, rewrites in rewrites_by_type.items()
-    }
+    schema = ctx.env.schema
+    by_type: Dict[irast.TypeRef, irast.RewritesOfType] = {}
+    for ty, rewrites in rewrites_by_type.items():
+        by_type[ty] = {}
+        for element in rewrites.values():
+            target = element.target_set
+            assert target and target.expr
+
+            ptrref = irtypeutils.ptrref_from_ptrcls(
+                schema=schema, ptrcls=element.ptrcls
+            )
+            actual_ptrref = irtypeutils.find_actual_ptrref(ty, ptrref)
+
+            by_type[ty][actual_ptrref.shortname.name] = (
+                target.expr,
+                actual_ptrref,
+            )
+
+    return irast.Rewrites(
+        subject_path_id=anchors[0].path_id,
+        old_path_id=anchors[2].path_id if anchors[2] else None,
+        by_type=by_type,
+    )
 
 
 def _compile_rewrites_and_inherit(

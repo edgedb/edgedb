@@ -663,12 +663,15 @@ def __infer_update_stmt(
 
     _infer_mutating_stmt(ir, scope_tree=scope_tree, ctx=ctx)
 
-    for rewrites in ir.rewrites.values():
-        for rewrite in rewrites.values():
-            infer_multiplicity(
-                rewrite, is_mutation=True,
-                scope_tree=scope_tree, ctx=ctx,
-            )
+    if ir.rewrites:
+        for rewrites in ir.rewrites.by_type.values():
+            for rewrite, _ in rewrites.values():
+                infer_multiplicity(
+                    rewrite,
+                    is_mutation=True,
+                    scope_tree=scope_tree,
+                    ctx=ctx,
+                )
 
     if result is EMPTY:
         return EMPTY

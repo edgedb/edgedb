@@ -1314,12 +1314,15 @@ def __infer_update_stmt(
         scope_tree=scope_tree, ctx=ctx,
     )
 
-    for rewrites in ir.rewrites.values():
-        for rewrite in rewrites.values():
-            infer_cardinality(
-                rewrite, is_mutation=True,
-                scope_tree=scope_tree, ctx=ctx,
-            )
+    if ir.rewrites:
+        for rewrites in ir.rewrites.by_type.values():
+            for rewrite, _ in rewrites.values():
+                infer_cardinality(
+                    rewrite,
+                    is_mutation=True,
+                    scope_tree=scope_tree,
+                    ctx=ctx,
+                )
 
     return _infer_stmt_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
 

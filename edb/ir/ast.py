@@ -1092,7 +1092,7 @@ class MutatingStmt(Stmt, MutatingLikeStmt):
     )
 
     # Rewrites of the subject shape
-    rewrites: Rewrites = ast.field(factory=dict)
+    rewrites: typing.Optional[Rewrites] = None
 
     @property
     def material_type(self) -> TypeRef:
@@ -1154,9 +1154,16 @@ class InsertStmt(MutatingStmt):
         return self.subject.typeref.real_material_type
 
 
-# TODO: I'm not sure how to identify pointers - sn.UnqualName is my best guess.
-# TODO: using Set is not required - we only need Expr actually.
-Rewrites = typing.Dict[TypeRef, typing.Dict[sn.UnqualName, Set]]
+RewritesOfType = typing.Dict[str, typing.Tuple[Expr, BasePointerRef]]
+
+
+@dataclasses.dataclass(kw_only=True, frozen=True)
+class Rewrites:
+    subject_path_id: PathId
+
+    old_path_id: typing.Optional[PathId]
+
+    by_type: typing.Dict[TypeRef, RewritesOfType]
 
 
 class UpdateStmt(MutatingStmt, FilteredStmt):

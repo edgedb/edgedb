@@ -1167,7 +1167,7 @@ def fini_stmt(
 
     if isinstance(irstmt, irast.MutatingStmt):
         ctx.env.dml_stmts.add(irstmt)
-        irstmt.rewrites = ctx.env.dml_rewrites.pop(irstmt.subject, {})
+        irstmt.rewrites = ctx.env.dml_rewrites.pop(irstmt.subject, None)
 
     if (isinstance(t, s_pseudo.PseudoType)
             and t.is_any(ctx.env.schema)):

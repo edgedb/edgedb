@@ -175,6 +175,7 @@ def compile_DetachedExpr(
     with ctx.detached() as subctx:
         if expr.preserve_path_prefix:
             subctx.partial_path_prefix = ctx.partial_path_prefix
+            subctx.path_id_namespace = ctx.path_id_namespace
 
         ir = dispatch.compile(expr.expr, ctx=subctx)
     # Wrap the result in another set, so that the inner namespace
