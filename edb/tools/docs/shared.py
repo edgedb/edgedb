@@ -22,7 +22,7 @@ from __future__ import annotations
 from docutils import nodes as d_nodes
 from docutils import utils as d_utils
 from docutils.parsers.rst import roles as d_roles
-from docutils.parsers.rst import directives as d_directives
+from docutils.parsers.rst import directives as d_directives  # type: ignore
 from sphinx.directives import code as s_code
 
 from sphinx import errors as s_errors

@@ -24,7 +24,7 @@ from typing import *
 from edb.tools.pygments.edgeql import EdgeQLLexer
 
 from sphinx import domains as s_domains
-from docutils.parsers.rst import directives as d_directives
+from docutils.parsers.rst import directives as d_directives  # type: ignore
 
 from . import shared
 
