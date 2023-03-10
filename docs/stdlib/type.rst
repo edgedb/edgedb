@@ -344,7 +344,7 @@ Types
     Static type introspection operator.
 
     This operator returns the :ref:`introspection type
-    <ref_eql_introspection>` corresponding to type provided as
+    <ref_datamodel_introspection>` corresponding to type provided as
     operand. It works well in combination with :eql:op:`typeof`.
 
     Currently, the ``introspect`` operator only supports :ref:`scalar

@@ -280,4 +280,4 @@ The valid SDL sub-declarations are listed below:
   * - :ref:`Schema > Links <ref_datamodel_links>`
   * - :ref:`DDL > Links <ref_eql_ddl_links>`
   * - :ref:`Introspection > Object types
-      <ref_eql_introspection_object_types>`
+      <ref_datamodel_introspection_object_types>`

@@ -1,4 +1,4 @@
-.. _ref_eql_introspection_constraints:
+.. _ref_datamodel_introspection_constraints:
 
 ===========
 Constraints

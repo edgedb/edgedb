@@ -20,6 +20,5 @@ guide!
     tutorials/index
     deployment/index
     migrations/index
-    introspection/index
     cheatsheet/index
     contributing/index

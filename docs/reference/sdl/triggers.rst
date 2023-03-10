@@ -85,4 +85,4 @@ on the same type.
   * - **See also**
   * - :ref:`Schema > Triggers <ref_datamodel_triggers>`
   * - :ref:`DDL > Triggers <ref_eql_ddl_triggers>`
-  * - :ref:`Introspection > Triggers <ref_eql_introspection_triggers>`
+  * - :ref:`Introspection > Triggers <ref_datamodel_introspection_triggers>`

@@ -102,4 +102,5 @@ command:
   * - :ref:`Schema > Annotations <ref_datamodel_annotations>`
   * - :ref:`SDL > Annotations <ref_eql_sdl_annotations>`
   * - :ref:`DDL > Annotations <ref_eql_ddl_annotations>`
-  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`
+  * - :ref:`Introspection > Object types
+      <ref_datamodel_introspection_object_types>`
