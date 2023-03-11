@@ -271,7 +271,7 @@ level of nested objects with the double splat:
 
 .. note::
 
-    Splats are disabled in function bodies.
+    Splats are not yet supported in function bodies.
 
 The splat expands all properties defined on the type as well as inherited
 properties. Given the same schema shown above:
