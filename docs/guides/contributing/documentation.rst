@@ -1029,7 +1029,7 @@ full-page example of ``.. versionadded:: 2.0``.
 Changed in Version
 ------------------
 
-Use the ``versionchanged`` directive to mark content related to a change in to
+Use the ``versionchanged`` directive to mark content related to a change in
 existing functionality across EdgeDB versions. Provide the applicable version
 as an argument by placing it just after the directive on the same line.
 
