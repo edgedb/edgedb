@@ -22,4 +22,4 @@ guide!
     migrations/index
     introspection/index
     cheatsheet/index
-    contributing
+    contributing/index
