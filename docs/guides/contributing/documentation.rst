@@ -128,9 +128,9 @@ documentation.
 
 .. note::
 
-    Although the development server runs a watch task, it does not update
-    documentation as part of this. When you make changes to documentation, you
-    will need to interrupt and restart the development server.
+    The watch task builds documentation changes, but it cannot trigger
+    auto-reload in the browser. You will need to manually reload the browser to
+    see changes made to the documentation.
 
 Sphinx and reStructuredText
 ===========================
