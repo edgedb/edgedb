@@ -215,11 +215,11 @@ version = "0.1.0"
 dependencies = [
  "base32",
  "combine 4.6.6",
+ "memchr",
  "serde",
  "sha2",
  "snafu",
  "thiserror",
- "twoway",
  "unicode-width",
  "wasm-bindgen",
 ]
@@ -527,26 +527,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "twoway"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c57ffb460d7c24cd6eda43694110189030a3d1dfe418416d9468fd1c1d290b47"
-dependencies = [
- "memchr",
- "unchecked-index",
-]
-
-[[package]]
 name = "typenum"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "497961ef93d974e23eb6f433eb5fe1b7930b659f06d12dec6fc44a8f554c0bba"
-
-[[package]]
-name = "unchecked-index"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eeba86d422ce181a719445e51872fa30f1f7413b62becb52e95ec91aa262d85c"
 
 [[package]]
 name = "unicode-ident"
