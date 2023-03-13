@@ -24,17 +24,19 @@ from typing import *
 from edb.tools.pygments.edgeql import EdgeQLLexer
 
 from sphinx import domains as s_domains
-from sphinx.directives import code as s_code
+from docutils.parsers.rst import directives as d_directives  # type: ignore
 
 from . import shared
 
 
-class SDLSynopsisDirective(s_code.CodeBlock):
+class SDLSynopsisDirective(shared.CodeBlock):
 
     has_content = True
     optional_arguments = 0
     required_arguments = 0
-    option_spec: Dict[str, Any] = {}
+    option_spec: Dict[str, Any] = {
+        'version-lt': d_directives.unchanged_required
+    }
 
     def run(self):
         self.arguments = ['sdl-synopsis']

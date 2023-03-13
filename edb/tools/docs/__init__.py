@@ -90,5 +90,6 @@ def setup(app):
 
     app.add_directive('versionadded', VersionAdded, True)
     app.add_directive('versionchanged', VersionChanged, True)
+    app.add_directive('code-block', shared.CodeBlock, True)
 
     app.add_transform(ProhibitedNodeTransform)
