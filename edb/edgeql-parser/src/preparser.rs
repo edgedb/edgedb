@@ -1,4 +1,4 @@
-use twoway::find_bytes;
+use memchr::memmem::find;
 
 #[derive(Debug, PartialEq)]
 pub struct Continuation {
@@ -96,9 +96,8 @@ pub fn full_statement(data: &[u8], continuation: Option<Continuation>)
             b'$' => {
                 match iter.next() {
                     Some((end_idx, b'$')) => {
-                        if let Some(end) = find_bytes(&data[end_idx+1..],
-                                                      b"$$")
-                        {
+                        let end = find(&data[end_idx+1..], b"$$");
+                        if let Some(end) = end {
                             iter.nth(end + end_idx - idx);
                             continue 'outer;
                         }
@@ -131,8 +130,8 @@ pub fn full_statement(data: &[u8], continuation: Option<Continuation>)
                         b'$' => {
                             let end_idx = c_idx + 1;
                             let marker_size = end_idx - idx;
-                            if let Some(end) = find_bytes(&data[end_idx..],
-                                                          &data[idx..end_idx])
+                            if let Some(end) = find(&data[end_idx..],
+                                                    &data[idx..end_idx])
                             {
                                 iter.nth(1 + end + marker_size - 1);
                                 continue 'outer;

@@ -11,7 +11,7 @@ base32 = "0.4.0"
 sha2 = "0.10.2"
 snafu = "0.7.0"
 combine = "4.5.2"
-twoway = "0.2.1"
+memchr = "2.5.0"
 wasm-bindgen = { version="0.2", features=["serde-serialize"], optional=true }
 serde = { version="1.0.106", features=["derive"], optional=true }
 thiserror = "1.0.23"

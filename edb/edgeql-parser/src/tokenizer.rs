@@ -1,11 +1,11 @@
 use std::fmt;
 use std::borrow::Cow;
 
-use combine::{StreamOnce, Positioned};
+use combine::easy::{Error, Errors};
 use combine::error::{StreamError};
 use combine::stream::{ResetStream};
-use combine::easy::{Error, Errors};
-use twoway::find_str;
+use combine::{StreamOnce, Positioned};
+use memchr::memmem::find;
 
 use crate::position::Pos;
 
@@ -414,9 +414,9 @@ impl<'a> TokenStream<'a> {
                 if let Some((_, c)) = iter.next() {
                     match c {
                         '$' => {
-                            if let Some(end) = find_str(
-                                &self.buf[self.off+2..], "$$")
-                            {
+                            let suffix = &self.buf[self.off+2..];
+                            let end = find(suffix.as_bytes(), b"$$");
+                            if let Some(end) = end {
                                 for c in self.buf[self.off+2..][..end].chars() {
                                     check_prohibited(c, false)?;
                                 }
@@ -495,9 +495,9 @@ impl<'a> TokenStream<'a> {
                                 return Err(Error::unexpected_static_message(
                                     "dollar quote supports only ascii chars"));
                             }
-                            if let Some(end) = find_str(
-                                &self.buf[self.off+msize..],
-                                &marker)
+                            if let Some(end) = find(
+                                self.buf[self.off+msize..].as_bytes(),
+                                marker.as_bytes())
                             {
                                 let data = &self.buf[self.off+msize..][..end];
                                 for c in data.chars() {
