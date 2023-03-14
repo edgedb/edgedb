@@ -55,12 +55,17 @@ class DumpTestCaseMixin:
         ):
             return
 
-        migs = await self.con.query('''
-            select schema::Migration { name, message, parents }
-        ''')
-        self.assertEqual(len(migs), 2)
-        mig = [m for m in migs if m.parents][0]
-        self.assertEqual(mig.message, "test")
+        await self.assert_query_result(
+            r'''
+            select schema::Migration { script, message, generated_by }
+            order by exists .parents then exists .parents.parents
+            ''',
+            [
+                {"message": None, "generated_by": None},
+                {"message": "test", "generated_by": None},
+                {"message": None, "generated_by": "DDLStatement"},
+            ],
+        )
 
 
 class TestDumpV3(tb.StableDumpTestCase, DumpTestCaseMixin):

@@ -11816,11 +11816,11 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
         """)
 
         gby = (
-            'SET generated_by := (schema::MigrationGeneratedBy.DDLStatement);\n'
+            'SET generated_by := (schema::MigrationGeneratedBy.DDLStatement);'
         )
         await self.assert_migration_history([
-            {'script': gby + 'CREATE TYPE B;'},
-            {'script': gby + 'CREATE TYPE A;'},
+            {'script': gby + '\n' + 'CREATE TYPE B;'},
+            {'script': gby + '\n' + 'CREATE TYPE A;'},
         ])
 
     async def test_edgeql_migration_rewrite_05(self):

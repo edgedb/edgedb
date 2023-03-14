@@ -17,8 +17,10 @@
 #
 
 # If the hashes break, it is fine to change them, I think?
-CREATE MIGRATION m1377hkpmfy5w5mmfos2t55zwxlwbeclcifsgzwqhdx2ywwvkvv4lq
+CREATE MIGRATION m1xpafeaeinvq562zlqkqgcjgdpqds45jr6eybmxm5kzmpzadvvamq
 ONTO m1nnh3uhlwn5vfe7dfhyyxxjafsxniljyuzov6avzqeyddw2qpkw7q {
     SET message := "test";
-    CREATE TYPE default::Migrated;
+    CREATE TYPE default::Test1;
 };
+
+CREATE TYPE default::Test2;
