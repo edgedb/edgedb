@@ -13743,6 +13743,8 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             [{
                 'script': textwrap.dedent(
                     '''\
+                    SET generated_by := (schema::MigrationGeneratedBy.\
+DDLStatement);
                     CREATE TYPE Foo {
                         CREATE PROPERTY foo := (1);
                     };'''

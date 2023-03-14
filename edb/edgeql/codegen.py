@@ -1139,8 +1139,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(self.indent_text(node.body.text))
             self._block_ws(-1)
             self.write('}')
-        elif node.body.commands:
-            self._ddl_visit_body(node.body.commands)
+        elif node.commands or node.body.commands:
+            commands = [*node.commands, *node.body.commands]
+            self._ddl_visit_body(commands)
 
     def visit_StartMigration(self, node: qlast.StartMigration) -> None:
         if isinstance(node.target, qlast.CommittedSchema):
