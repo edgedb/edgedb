@@ -62,7 +62,7 @@ CREATE SCALAR TYPE schema::RewriteKind
     EXTENDING enum<`Update`, `Insert`>;
 
 CREATE SCALAR TYPE schema::MigrationGeneratedBy
-    EXTENDING enum<DevMode, DDLStatement>;
+    EXTENDING enum<DevMode>;
 
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {

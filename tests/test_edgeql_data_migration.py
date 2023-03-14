@@ -11725,7 +11725,7 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
             {'script': 'CREATE TYPE default::A;', 'generated_by': None},
             {'script': 'CREATE TYPE B;', 'generated_by': None},
             {'script': 'create type C;', 'generated_by': None},
-            {'script': 'CREATE TYPE D;', 'generated_by': 'DDLStatement'},
+            {'script': 'CREATE TYPE D;', 'generated_by': None},
         ])
 
     async def test_edgeql_migration_rewrite_02(self):
