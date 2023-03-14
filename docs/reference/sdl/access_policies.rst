@@ -1,13 +1,10 @@
+.. versionadded:: 2.0
+
 .. _ref_eql_sdl_access_policies:
 
 ===============
 Access Policies
 ===============
-
-.. note::
-
-  ⚠️ Only available in EdgeDB 2.0 or later.
-
 
 This section describes the SDL declarations pertaining to access policies.
 

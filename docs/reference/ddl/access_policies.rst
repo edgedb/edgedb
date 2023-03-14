@@ -1,12 +1,10 @@
+.. versionadded:: 2.0
+
 .. _ref_eql_ddl_access_policies:
 
 ===============
 Access Policies
 ===============
-
-.. note::
-
-  ⚠️ Only available in EdgeDB 2.0 or later.
 
 This section describes the DDL commands pertaining to access policies.
 
