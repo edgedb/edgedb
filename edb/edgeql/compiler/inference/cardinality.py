@@ -624,10 +624,7 @@ def _infer_set_inner(
             else:
                 rptrref_card = rptrref.dir_cardinality(rptr.direction)
 
-            if rptrref_card.is_single():
-                card = cartesian_cardinality((source_card, rptrref_card))
-            else:
-                card = MANY
+            card = cartesian_cardinality((source_card, rptrref_card))
 
     elif isinstance(ir, irast.EmptySet):
         card = AT_MOST_ONE
