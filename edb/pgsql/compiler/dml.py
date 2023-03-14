@@ -1447,6 +1447,7 @@ def process_update_body(
 
         toplevel.append_cte(update_cte)
 
+        rewrites_cte = contents_cte
     else:
         contents_cte = pgast.CommonTableExpr(
             query=contents_select, name=ctx.env.aliases.get("upd_contents")
@@ -1457,7 +1458,7 @@ def process_update_body(
         assert isinstance(range_relation, pgast.PathRangeVar)
 
         toplevel.append_cte(contents_cte)
-        subject_rvar = relctx.rvar_for_rel(contents_cte, ctx=ctx)
+        contents_rvar = relctx.rvar_for_rel(contents_cte, ctx=ctx)
         subject_path_id = ir_stmt.subject.path_id
 
         # compile rewrites CTE
@@ -1481,11 +1482,11 @@ def process_update_body(
 
                 # pull in contents_select for __subject__
                 relctx.include_rvar(
-                    rewrites_stmt, subject_rvar, subject_path_id, ctx=ctx
+                    rewrites_stmt, contents_rvar, subject_path_id, ctx=ctx
                 )
                 rewrites_stmt.where_clause = astutils.new_binop(
                     lexpr=pathctx.get_rvar_path_identity_var(
-                        subject_rvar, object_path_id, env=ctx.env
+                        contents_rvar, object_path_id, env=ctx.env
                     ),
                     op="=",
                     rexpr=pathctx.get_rvar_path_identity_var(
@@ -1540,7 +1541,7 @@ def process_update_body(
                     (subject_path_id, "value")
                 ] = table_rel.path_outputs[(object_path_id, "value")]
 
-                values, external_updates, _ = prepare_update_shape(
+                values, _, _ = prepare_update_shape(
                     ir_stmt, rewrites_stmt, typeref, rewrites, rctx
                 )
 
@@ -1550,8 +1551,8 @@ def process_update_body(
                 toplevel.append_cte(rewrites_cte)
                 rewrites_rvar = relctx.rvar_for_rel(rewrites_cte, ctx=ctx)
         else:
-            rewrites_rvar = subject_rvar
-            pass
+            rewrites_rvar = contents_rvar
+            rewrites_cte = contents_cte
 
         update_stmt = pgast.UpdateStmt(
             relation=table_relation,
@@ -1623,9 +1624,10 @@ def process_update_body(
 
     if pol_expr:
         assert pol_ctx
-        policy_cte = compile_policy_check(
-            rewrites_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
-        )
+        with pol_ctx.reenter():
+            policy_cte = compile_policy_check(
+                rewrites_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
+            )
         force_policy_checks(
             policy_cte,
             ((update_stmt,) if update_stmt else ())
