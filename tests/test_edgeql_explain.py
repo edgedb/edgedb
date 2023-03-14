@@ -488,3 +488,39 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         }
 
         self.assert_plan(res['Plan'], shape)
+
+    async def test_edgeql_explain_insert_01(self):
+        res = await self.explain('''
+            insert User { name := 'Fantix' }
+        ''', analyze=True)
+        self.assert_plan(res['Plan'], {
+            'Node Type': 'Nested Loop',
+        })
+        self.assertFalse(await self.con.query('''
+            select User { id, name } filter .name = 'Fantix'
+        '''))
+
+    async def test_edgeql_explain_insert_02(self):
+        async with self.con.transaction():
+            await self.con.execute('''
+                insert User { name := 'Sully' }
+            ''')
+            res = await self.explain('''
+                insert User { name := 'Fantix' }
+            ''', analyze=True)
+            self.assert_plan(res['Plan'], {
+                'Node Type': 'Nested Loop',
+            })
+            self.assertTrue(await self.con.query('''
+                select User { id, name } filter .name = 'Sully'
+            '''))
+            self.assertFalse(await self.con.query('''
+                select User { id, name } filter .name = 'Fantix'
+            '''))
+
+        self.assertTrue(await self.con.query('''
+            select User { id, name } filter .name = 'Sully'
+        '''))
+        self.assertFalse(await self.con.query('''
+            select User { id, name } filter .name = 'Fantix'
+        '''))
