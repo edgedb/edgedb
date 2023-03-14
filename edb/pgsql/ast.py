@@ -1032,6 +1032,10 @@ class IteratorCTE(ImmutableBase):
     cte: CommonTableExpr
     parent: typing.Optional[IteratorCTE]
 
+    # A list of other paths to *also* register the iterator rvar as
+    # providing when it is merged into a statement.
+    other_paths: tuple[tuple[irast.PathId, str], ...] = ()
+
 
 class Statement(Base):
     """A statement that does not return a relation"""

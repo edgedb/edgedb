@@ -71,7 +71,6 @@ class Trigger(
 
     expr = so.SchemaField(
         s_expr.Expression,
-        default=None,
         compcoef=0.909,
         special_ddl_syntax=True,
     )

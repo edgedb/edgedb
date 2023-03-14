@@ -3728,3 +3728,35 @@ class TestUpdate(tb.QueryTestCase):
             """,
             [{"name": "!"}]
         )
+
+    async def test_edgeql_update_where_order_dml(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "INSERT statements cannot be used in a FILTER clause"):
+            await self.con.query('''
+                    update UpdateTest
+                    filter (INSERT UpdateTest {
+                                name := 't1',
+                            })
+                    set { name := '!' }
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UPDATE statements cannot be used in a FILTER clause"):
+            await self.con.query('''
+                    update UpdateTest
+                    filter (UPDATE UpdateTest set {
+                            name := 't1',
+                        })
+                    set { name := '!' }
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "DELETE statements cannot be used in a FILTER clause"):
+            await self.con.query('''
+                    update UpdateTest
+                    filter (DELETE UpdateTest filter .name = 't1')
+                    set { name := '!' }
+            ''')

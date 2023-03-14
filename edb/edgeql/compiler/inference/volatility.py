@@ -255,10 +255,9 @@ def __infer_select_stmt(
     ir: irast.SelectStmt,
     env: context.Environment,
 ) -> InferredVolatility:
-    components = []
+    components: List[irast.Set] = []
 
-    if ir.iterator_stmt is not None:
-        components.append(ir.iterator_stmt)
+    components.extend(ir.iterator_stmt)
 
     components.append(ir.result)
 
@@ -287,6 +286,14 @@ def __infer_group_stmt(
 ) -> InferredVolatility:
     components = [ir.subject, ir.result] + [v for v, _ in ir.using.values()]
     return _common_volatility(components, env)
+
+
+@_infer_volatility_inner.register
+def __infer_trigger_anchor(
+    ir: irast.TriggerAnchor,
+    env: context.Environment,
+) -> InferredVolatility:
+    return STABLE, STABLE
 
 
 @_infer_volatility_inner.register

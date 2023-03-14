@@ -35,6 +35,9 @@ class BackendError(Exception):
     def get_field(self, field: str) -> str | None:
         ...
 
+    def code_is(self, code: str) -> bool:
+        ...
+
 
 class BackendConnectionError(BackendError):
     ...
@@ -104,3 +107,6 @@ class PGConnection:
 
     def get_server_parameter_status(self, parameter: str) -> Optional[str]:
         ...
+
+
+SETUP_TEMP_TABLE_SCRIPT: str

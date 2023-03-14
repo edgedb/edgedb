@@ -568,7 +568,7 @@ def compile_arg(
     new = ctx.newscope(fenced=False) if optional else ctx.new()
     with new as argctx:
         if in_conditional:
-            argctx.in_conditional = arg_ql.context
+            argctx.disallow_dml = "inside conditional expressions"
 
         if optional:
             argctx.path_scope.mark_as_optional()

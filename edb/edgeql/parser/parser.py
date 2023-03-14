@@ -162,8 +162,8 @@ class EdgeQLParserBase(parsing.Parser):
 
         def _matches_for(i):
             return (
-                len(self.parser._stack) >= i + 3
-                and isinstance(self.parser._stack[-3 - i][0], tokens.T_FOR)
+                len(self.parser._stack) >= i + 4
+                and isinstance(self.parser._stack[-4 - i][0], tokens.T_FOR)
                 and isinstance(
                     self.parser._stack[-2 - i][0], gr_exprs.Identifier)
                 and isinstance(self.parser._stack[-1 - i][0], tokens.T_IN)

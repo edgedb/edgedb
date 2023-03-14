@@ -56,6 +56,7 @@ from . import pathctx
 from . import setgen
 from . import viewgen
 from . import schemactx
+from . import triggers
 from . import tuple_args
 from . import typegen
 
@@ -139,6 +140,9 @@ def fini_expression(
     ):
         ir = setgen.scoped_set(ir, ctx=ctx)
 
+    # Compile any triggers that were triggered by the query
+    ir_triggers = triggers.compile_triggers(ctx.env.dml_stmts, ctx=ctx)
+
     # Collect all of the expressions stored in various side sets
     # that can make it into the output, so that we can make sure
     # to catch them all in our fixups and analyses.
@@ -153,6 +157,7 @@ def fini_expression(
         p.sub_params.decoder_ir for p in ctx.env.query_parameters.values()
         if p.sub_params and p.sub_params.decoder_ir
     ]
+    extra_exprs += [trigger.expr for trigger in ir_triggers]
 
     all_exprs = [ir] + extra_exprs
 
@@ -268,6 +273,7 @@ def fini_expression(
             if isinstance(s, irast.Set)},
         dml_exprs=ctx.env.dml_exprs,
         singletons=ctx.env.singletons,
+        triggers=ir_triggers,
     )
     return result
 

@@ -111,6 +111,12 @@ def eval_FuncCall(
     if fn_name == 'current_query':
         return pgast.StringConstant(val=ctx.options.current_query)
 
+    if fn_name == 'version':
+        from edb import buildmeta
+        return pgast.StringConstant(
+            val="EdgeDB " + buildmeta.get_version_line()
+        )
+
     return None
 
 

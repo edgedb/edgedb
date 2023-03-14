@@ -103,10 +103,20 @@ cdef dict POSTGRES_SHUTDOWN_ERR_CODES = {
 }
 
 cdef bytes INIT_CON_SCRIPT = None
-cdef object EMPTY_SQL_STATE = json.dumps({}).encode('utf-8')
+cdef object EMPTY_SQL_STATE = b"{}"
 
 cdef object logger = logging.getLogger('edb.server')
 
+
+SETUP_TEMP_TABLE_SCRIPT = '''
+        CREATE TEMPORARY TABLE _edgecon_state (
+            name text NOT NULL,
+            value jsonb NOT NULL,
+            type text NOT NULL CHECK(
+                type = 'C' OR type = 'B'),
+            UNIQUE(name, type)
+        );
+'''
 
 def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     if check_pg_is_in_recovery:
@@ -133,13 +143,7 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     return textwrap.dedent(f'''
         {pg_is_in_recovery}
 
-        CREATE TEMPORARY TABLE _edgecon_state (
-            name text NOT NULL,
-            value jsonb NOT NULL,
-            type text NOT NULL CHECK(
-                type = 'C' OR type = 'B'),
-            UNIQUE(name, type)
-        );
+        {SETUP_TEMP_TABLE_SCRIPT}
 
         PREPARE _clear_state AS
             DELETE FROM _edgecon_state;
@@ -1619,7 +1623,9 @@ cdef class PGConnection:
                 if mtype == b'3':  # CloseComplete
                     self.buffer.discard_message()
                 elif mtype == b'Z':  # ReadyForQuery
-                    self.buffer.redirect_messages(buf, mtype, 0)
+                    msg_buf = WriteBuffer.new_message(b'Z')
+                    msg_buf.write_byte(self.parse_sync_message())
+                    buf.write_buffer(msg_buf.end_message())
                     break
                 else:
                     # Other messages like ParameterStatus should be forwarded

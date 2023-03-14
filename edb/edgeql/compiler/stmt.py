@@ -135,8 +135,7 @@ def compile_SelectQuery(
 
         stmt.where = clauses.compile_where_clause(expr.where, ctx=sctx)
 
-        stmt.orderby = clauses.compile_orderby_clause(
-            expr.orderby, ctx=sctx)
+        stmt.orderby = clauses.compile_orderby_clause(expr.orderby, ctx=sctx)
 
         stmt.offset = clauses.compile_limit_offset_clause(
             expr.offset, ctx=sctx)
@@ -149,19 +148,15 @@ def compile_SelectQuery(
     return result
 
 
-@dispatch.compile.register(qlast.ForQuery)
-def compile_ForQuery(
-        qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Set:
-    if rewritten := try_desugar(qlstmt, ctx=ctx):
-        return rewritten
+def _compile_for_binding(
+        qlstmt: qlast.ForQuery, binding: qlast.ForBinding,
+        *, ctx: context.ContextLevel) -> irast.Set:
 
-    with ctx.subquery() as sctx:
-        stmt = irast.SelectStmt(context=qlstmt.context)
-        init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
-
+    # This ctx is not really needed
+    with ctx.new() as sctx:
         # As an optimization, if the iterator is a singleton set, use
         # the element directly.
-        iterator = qlstmt.iterator
+        iterator = binding.iterator
         if isinstance(iterator, qlast.Set) and len(iterator.elements) == 1:
             iterator = iterator.elements[0]
 
@@ -172,7 +167,7 @@ def compile_ForQuery(
                 ectx.expr_exposed = context.Exposure.BINDING
             iterator_view = stmtctx.declare_view(
                 iterator,
-                s_name.UnqualName(qlstmt.iterator_alias),
+                s_name.UnqualName(binding.iterator_alias),
                 factoring_fence=contains_dml,
                 path_id_namespace=sctx.path_id_namespace,
                 binding_kind=irast.BindingKind.For,
@@ -181,7 +176,6 @@ def compile_ForQuery(
 
         iterator_stmt = setgen.new_set_from_set(iterator_view, ctx=sctx)
         iterator_view.is_visible_binding_ref = True
-        stmt.iterator_stmt = iterator_stmt
 
         iterator_type = setgen.get_set_type(iterator_stmt, ctx=ctx)
         if iterator_type.is_any(ctx.env.schema):
@@ -192,13 +186,19 @@ def compile_ForQuery(
 
         view_scope_info = sctx.env.path_scope_map[iterator_view]
 
+        if binding.optional and not ctx.env.options.devmode:
+            raise errors.UnsupportedFeatureError(
+                "'FOR OPTIONAL' is an internal testing feature",
+                context=binding.context,
+            )
+
         pathctx.register_set_in_scope(
             iterator_stmt,
             path_scope=sctx.path_scope,
+            optional=binding.optional,
             ctx=sctx,
         )
 
-        sctx.iterator_path_ids |= {stmt.iterator_stmt.path_id}
         node = sctx.path_scope.find_descendant(iterator_stmt.path_id)
         if node is not None:
             # If the body contains DML, then we need to prohibit
@@ -217,6 +217,37 @@ def compile_ForQuery(
             node.attach_subtree(view_scope_info.path_scope,
                                 context=iterator.context)
 
+    return iterator_stmt
+
+
+@dispatch.compile.register(qlast.ForQuery)
+def compile_ForQuery(
+        qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Set:
+    if rewritten := try_desugar(qlstmt, ctx=ctx):
+        return rewritten
+
+    with ctx.subquery() as sctx:
+        stmt = irast.SelectStmt(context=qlstmt.context)
+        init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
+
+        if len(qlstmt.iterator_bindings) != 1 and not ctx.env.options.devmode:
+            raise errors.UnsupportedFeatureError(
+                "Multiple 'FOR' iterators is an internal testing feature",
+                context=qlstmt.context,
+            )
+
+        iterator_stmts = []
+        for binding in qlstmt.iterator_bindings:
+            # XXX: can one iterator reference an earlier one?
+            iterator_stmts.append(
+                _compile_for_binding(qlstmt, binding, ctx=sctx))
+
+        sctx.iterator_path_ids |= {
+            iterator_stmt.path_id for iterator_stmt in iterator_stmts
+        }
+
+        stmt.iterator_stmt = iterator_stmts
+
         # Compile the body
         with sctx.newscope(fenced=True) as bctx:
             stmt.result = setgen.scoped_set(
@@ -232,6 +263,13 @@ def compile_ForQuery(
                 ),
                 ctx=bctx,
             )
+
+        if qlstmt.orderby and not ctx.env.options.devmode:
+            raise errors.UnsupportedFeatureError(
+                "'FOR + ORDER BY' is an internal testing feature",
+                context=qlstmt.context,
+            )
+        stmt.orderby = clauses.compile_orderby_clause(qlstmt.orderby, ctx=sctx)
 
         # Inject an implicit limit if appropriate
         if ((ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
@@ -414,10 +452,13 @@ def compile_InsertQuery(
         expr: qlast.InsertQuery, *,
         ctx: context.ContextLevel) -> irast.Set:
 
-    if ctx.in_conditional is not None:
+    if ctx.disallow_dml:
         raise errors.QueryError(
-            'INSERT statements cannot be used inside conditional '
-            'expressions',
+            f'INSERT statements cannot be used {ctx.disallow_dml}',
+            hint=(
+                f'To resolve this try to factor out the mutation '
+                f'expression into the top-level WITH block.'
+            ),
             context=expr.context,
         )
 
@@ -485,8 +526,6 @@ def compile_InsertQuery(
         stmt.conflict_checks = conflicts.compile_inheritance_conflict_checks(
             stmt, stmt_subject_stype, ctx=ictx)
 
-        ctx.env.dml_stmts.add(stmt)
-
         if expr.unless_conflict is not None:
             constraint_spec, else_branch = expr.unless_conflict
 
@@ -513,7 +552,7 @@ def compile_InsertQuery(
             )
 
         if pol_condition := policies.compile_dml_write_policies(
-            mat_stype, result, mode=qltypes.AccessKind.Insert, ctx=ctx
+            mat_stype, result, mode=qltypes.AccessKind.Insert, ctx=ictx
         ):
             stmt.write_policies[mat_stype.id] = pol_condition
 
@@ -556,13 +595,17 @@ def _get_dunder_type_ptrref(ctx: context.ContextLevel) -> irast.PointerRef:
 def compile_UpdateQuery(
         expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
 
-    if ctx.in_conditional is not None:
+    if ctx.disallow_dml:
         raise errors.QueryError(
-            'UPDATE statements cannot be used inside conditional expressions',
+            f'UPDATE statements cannot be used {ctx.disallow_dml}',
+            hint=(
+                f'To resolve this try to factor out the mutation '
+                f'expression into the top-level WITH block.'
+            ),
             context=expr.context,
         )
 
-    # Record this node in the list of potential DML expressions.
+    # Record this node in the list of DML statements.
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
@@ -617,8 +660,6 @@ def compile_UpdateQuery(
                 exprtype=s_types.ExprType.Update,
                 ctx=bodyctx)
 
-        ctx.env.dml_stmts.add(stmt)
-
         result = setgen.class_set(
             mat_stype, path_id=stmt.subject.path_id, ctx=ctx,
         )
@@ -634,11 +675,11 @@ def compile_UpdateQuery(
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
             if read_pol := policies.compile_dml_read_policies(
-                dtype, result, mode=qltypes.AccessKind.UpdateRead, ctx=ctx
+                dtype, result, mode=qltypes.AccessKind.UpdateRead, ctx=ictx
             ):
                 stmt.read_policies[dtype.id] = read_pol
             if write_pol := policies.compile_dml_write_policies(
-                dtype, result, mode=qltypes.AccessKind.UpdateWrite, ctx=ctx
+                dtype, result, mode=qltypes.AccessKind.UpdateWrite, ctx=ictx
             ):
                 stmt.write_policies[dtype.id] = write_pol
 
@@ -654,9 +695,13 @@ def compile_UpdateQuery(
 def compile_DeleteQuery(
         expr: qlast.DeleteQuery, *, ctx: context.ContextLevel) -> irast.Set:
 
-    if ctx.in_conditional is not None:
+    if ctx.disallow_dml:
         raise errors.QueryError(
-            'DELETE statements cannot be used inside conditional expressions',
+            f'DELETE statements cannot be used {ctx.disallow_dml}',
+            hint=(
+                f'To resolve this try to factor out the mutation '
+                f'expression into the top-level WITH block.'
+            ),
             context=expr.context,
         )
 
@@ -754,7 +799,7 @@ def compile_DeleteQuery(
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
             if pol_cond := policies.compile_dml_read_policies(
-                dtype, result, mode=qltypes.AccessKind.Delete, ctx=ctx
+                dtype, result, mode=qltypes.AccessKind.Delete, ctx=ictx
             ):
                 stmt.read_policies[dtype.id] = pol_cond
 
@@ -1034,7 +1079,7 @@ def compile_Shape(
         ctx.env.compiled_stmts[subctx.qlstmt] = stmt
         subctx.class_view_overrides = subctx.class_view_overrides.copy()
 
-        with ctx.new() as exposed_ctx:
+        with subctx.new() as exposed_ctx:
             exposed_ctx.expr_exposed = context.Exposure.UNEXPOSED
             expr = dispatch.compile(shape_expr, ctx=exposed_ctx)
 
@@ -1138,6 +1183,9 @@ def fini_stmt(
 
     view: Optional[s_types.Type]
     path_id: Optional[irast.PathId]
+
+    if isinstance(irstmt, irast.MutatingStmt):
+        ctx.env.dml_stmts.add(irstmt)
 
     if (isinstance(t, s_pseudo.PseudoType)
             and t.is_any(ctx.env.schema)):
@@ -1443,7 +1491,6 @@ def compile_query_subject(
             view_rptr=view_rptr,
             view_name=view_name,
             exprtype=exprtype,
-            parser_context=expr.context,
             ctx=ctx,
         )
 

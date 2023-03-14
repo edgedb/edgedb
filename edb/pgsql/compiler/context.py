@@ -24,8 +24,11 @@ from typing import *
 
 import collections
 import contextlib
+import dataclasses
 import enum
 import uuid
+
+import immutables as immu
 
 from edb.common import compiler
 
@@ -71,6 +74,117 @@ class OutputFormat(enum.Enum):
 NO_STMT = pgast.SelectStmt()
 
 
+OverlayEntry = tuple[
+    str,
+    Union[pgast.BaseRelation, pgast.CommonTableExpr],
+    'irast.PathId',
+]
+
+
+@dataclasses.dataclass(kw_only=True)
+class RelOverlays:
+    """Container for relation overlays.
+
+    These track "overlays" that can be registered for different types,
+    in the context of DML.
+
+    Consider the query:
+      with X := (
+        insert Person {
+          name := "Sully",
+          notes := assert_distinct({
+            (insert Note {name := "1"}),
+            (select Note filter .name = "2"),
+          }),
+        }),
+      select X { name, notes: {name} };
+
+    When we go to select X, we find the source of that set without any
+    trouble (it's the result of the actual insert statement, more or
+    less; in any case, it's in a CTE that we then include).
+
+    Handling the notes are trickier, though:
+      * The links aren't in the link table yet, but only in a CTE.
+        (In similar update cases, with things like +=, they might be mixed
+        between both.)
+      * Some of the actual Note objects aren't in the table yet, just an insert
+        CTE. But some *are*, so we need to union them.
+
+    We solve these problems using overlays:
+      * Whenever we do DML (or reference WITH-bound DML),
+        we register overlays describing the changes done
+        to *all of the enclosing DML*. So here, the Note insert's overlays
+        get registered both for the Note insert and for the Person insert.
+      * When we try to compile a root set or pointer, we see if it is connected
+        to a DML statement, and if so we apply the overlays.
+
+    The overlay itself is simply a sequence of operations on relations
+    and CTEs that mix in the new data. In the obvious insert cases,
+    these consist of unioning the new data in.
+
+    This system works decently well but is also a little broken: I
+    think that both the "all of the enclosing DML" and the "see if it
+    is connected to a DML statement" have dangers; see Issue #3030.
+
+    In relctx, see range_for_material_objtype, range_for_ptrref, and
+    range_from_queryset (which those two call) for details on how
+    overlays are applied.
+    Overlays are added to with relctx.add_type_rel_overlay
+    and relctx.add_ptr_rel_overlay.
+
+
+    ===== NOTE ON MUTABILITY:
+    In typical use, the overlays are mutable: nested DML adds overlays
+    that are then consumed by code in enclosing contexts.
+
+    In some places, however, we need to temporarily customize the
+    overlay environment (during policy and trigger compilation, for
+    example).
+
+    The original version of overlays were implemented as a dict of
+    dicts of lists. Doing temporary customizations required doing
+    at least some copying. Doing a full deep copy always felt excessive
+    but doing anything short of that left me constantly terrified.
+
+    So instead we represent the overlays as a mutable object that
+    contains immutable maps. When we add overlays, we update the maps
+    and then reassign their values.
+
+    When we want to do a temporary adjustment, we can cheaply make a
+    fresh RelOverlays object and then modify that without touching the
+    original.
+    """
+
+    #: Relations used to "overlay" the main table for
+    #: the type.  Mostly used with DML statements.
+    type: immu.Map[
+        Optional[irast.MutatingLikeStmt],
+        immu.Map[
+            uuid.UUID,
+            tuple[OverlayEntry, ...],
+        ],
+    ] = immu.Map()
+
+    #: Relations used to "overlay" the main table for
+    #: the pointer.  Mostly used with DML statements.
+    ptr: immu.Map[
+        Optional[irast.MutatingLikeStmt],
+        immu.Map[
+            Tuple[uuid.UUID, str],
+            Tuple[
+                Tuple[
+                    str,
+                    Union[pgast.BaseRelation, pgast.CommonTableExpr],
+                    irast.PathId,
+                ], ...
+            ],
+        ],
+    ] = immu.Map()
+
+    def copy(self) -> RelOverlays:
+        return RelOverlays(type=self.type, ptr=self.ptr)
+
+
 class CompilerContextLevel(compiler.ContextLevel):
     #: static compilation environment
     env: Environment
@@ -80,6 +194,9 @@ class CompilerContextLevel(compiler.ContextLevel):
 
     #: whether compiling in singleton expression mode
     singleton_mode: bool
+
+    #: whether compiling a trigger
+    trigger_mode: bool
 
     #: the top-level SQL statement
     toplevel_stmt: pgast.Query
@@ -104,7 +221,7 @@ class CompilerContextLevel(compiler.ContextLevel):
     param_ctes: Dict[str, pgast.CommonTableExpr]
 
     #: CTEs representing schema types, when rewritten based on access policy
-    type_ctes: Dict[RewriteKey, pgast.CommonTableExpr]
+    type_ctes: Dict[FullRewriteKey, pgast.CommonTableExpr]
 
     #: A set of type CTEs currently being generated
     pending_type_ctes: Set[RewriteKey]
@@ -162,38 +279,16 @@ class CompilerContextLevel(compiler.ContextLevel):
 
     #: A stack of dml statements currently being compiled. Used for
     #: figuring out what to record in type_rel_overlays.
-    dml_stmt_stack: List[irast.MutatingStmt]
+    dml_stmt_stack: List[irast.MutatingLikeStmt]
 
     #: Relations used to "overlay" the main table for
     #: the type.  Mostly used with DML statements.
-    type_rel_overlays: DefaultDict[
-        Optional[irast.MutatingStmt],
-        DefaultDict[
-            uuid.UUID,
-            List[
-                Tuple[
-                    str,
-                    Union[pgast.BaseRelation, pgast.CommonTableExpr],
-                    irast.PathId,
-                ]
-            ],
-        ],
-    ]
+    rel_overlays: RelOverlays
 
-    #: Relations used to "overlay" the main table for
-    #: the pointer.  Mostly used with DML statements.
-    ptr_rel_overlays: DefaultDict[
-        Optional[irast.MutatingStmt],
-        DefaultDict[
-            Tuple[uuid.UUID, str],
-            List[
-                Tuple[
-                    str,
-                    Union[pgast.BaseRelation, pgast.CommonTableExpr],
-                    irast.PathId,
-                ]
-            ],
-        ],
+    #: Mapping from path ids to "external" rels given by a particular relation
+    external_rels: Mapping[
+        irast.PathId,
+        Tuple[pgast.BaseRelation | pgast.CommonTableExpr, Tuple[str, ...]]
     ]
 
     #: The CTE and some metadata of any enclosing iterator-like
@@ -247,12 +342,13 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.path_scope = collections.ChainMap()
             self.scope_tree = scope_tree
             self.dml_stmt_stack = []
-            self.type_rel_overlays = collections.defaultdict(
-                lambda: collections.defaultdict(list))
-            self.ptr_rel_overlays = collections.defaultdict(
-                lambda: collections.defaultdict(list))
+            self.rel_overlays = RelOverlays()
+
+            self.external_rels = {}
             self.enclosing_cte_iterator = None
             self.shapes_needed_by_dml = set()
+
+            self.trigger_mode = False
 
         else:
             self.env = prevlevel.env
@@ -285,10 +381,12 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.path_scope = prevlevel.path_scope
             self.scope_tree = prevlevel.scope_tree
             self.dml_stmt_stack = prevlevel.dml_stmt_stack
-            self.type_rel_overlays = prevlevel.type_rel_overlays
-            self.ptr_rel_overlays = prevlevel.ptr_rel_overlays
+            self.rel_overlays = prevlevel.rel_overlays
             self.enclosing_cte_iterator = prevlevel.enclosing_cte_iterator
             self.shapes_needed_by_dml = prevlevel.shapes_needed_by_dml
+            self.external_rels = prevlevel.external_rels
+
+            self.trigger_mode = prevlevel.trigger_mode
 
             if mode is ContextSwitchMode.SUBSTMT:
                 if self.pending_query is not None:
@@ -369,6 +467,7 @@ class CompilerContext(compiler.CompilerContext[CompilerContextLevel]):
 
 
 RewriteKey = Tuple[uuid.UUID, bool]
+FullRewriteKey = Tuple[uuid.UUID, bool, Optional['irast.MutatingLikeStmt']]
 
 
 class Environment:
@@ -386,7 +485,6 @@ class Environment:
     type_rewrites: Dict[RewriteKey, irast.Set]
     scope_tree_nodes: Dict[int, irast.ScopeTreeNode]
     external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
-    external_rels: Mapping[irast.PathId, pgast.BaseRelation]
     materialized_views: Dict[uuid.UUID, irast.Set]
     backend_runtime_params: pgparams.BackendRuntimeParams
 
@@ -410,9 +508,6 @@ class Environment:
         external_rvars: Optional[
             Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
         ] = None,
-        external_rels: Optional[
-            Mapping[irast.PathId, pgast.BaseRelation]
-        ] = None,
         backend_runtime_params: pgparams.BackendRuntimeParams,
     ) -> None:
         self.aliases = aliases.AliasGenerator()
@@ -428,7 +523,6 @@ class Environment:
         self.type_rewrites = type_rewrites
         self.scope_tree_nodes = scope_tree_nodes
         self.external_rvars = external_rvars or {}
-        self.external_rels = external_rels or {}
         self.materialized_views = {}
         self.check_ctes = []
         self.backend_runtime_params = backend_runtime_params

@@ -303,6 +303,13 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if parenthesise:
             self.write(')')
 
+    def visit_ForBinding(self, node: qlast.ForBinding) -> None:
+        if node.optional:
+            self._write_keywords('OPTIONAL ')
+        self.write(ident_to_str(node.iterator_alias))
+        self._write_keywords(' IN ')
+        self.visit(node.iterator)
+
     def visit_ForQuery(self, node: qlast.ForQuery) -> None:
         # need to parenthesise when GROUP appears as an expression
         parenthesise = self._needs_parentheses(node)
@@ -313,9 +320,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_aliases(node)
 
         self._write_keywords('FOR ')
-        self.write(ident_to_str(node.iterator_alias))
-        self._write_keywords(' IN ')
-        self.visit(node.iterator)
+        self.visit_list(node.iterator_bindings, newlines=False)
         # guarantee an newline here
         self.new_lines = 1
         self._write_keywords('UNION ')
@@ -1725,7 +1730,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._ddl_visit_bases(node)
             if node.target is not None:
                 if isinstance(node.target, qlast.TypeExpr):
-                    self.write(' -> ')
+                    self.write(': ')
                     self.visit(node.target)
                 elif pure_computable:
                     # computable
