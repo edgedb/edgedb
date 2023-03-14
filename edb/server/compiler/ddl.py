@@ -94,6 +94,21 @@ def compile_and_apply_ddl_stmt(
             body=qlast.NestedQLBlock(
                 commands=[stmt],
             ),
+            commands=[
+                qlast.SetField(
+                    name='generated_by',
+                    value=qlast.Path(
+                        steps=[
+                            qlast.ObjectRef(
+                                name='MigrationGeneratedBy', module='schema'
+                            ),
+                            qlast.Ptr(
+                                ptr=qlast.ObjectRef(name='DDLStatement')
+                            ),
+                        ]
+                    ),
+                )
+            ],
         )
         return compile_and_apply_ddl_stmt(ctx, cm)
 

@@ -12520,15 +12520,12 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             CREATE TYPE Type3
         ''')
 
-        # We originally wanted to have generated_by be a DDLStatement
-        # field, but we can't preserve that across dumps easily
-        # without putting a SET in the script, which seems worse.
         await self.assert_query_result(
             '''
             SELECT schema::Migration { generated_by }
             FILTER .script like "%Type3%"
             ''',
-            [{'generated_by': None}]
+            [{'generated_by': 'DDLStatement'}]
         )
 
     async def test_edgeql_ddl_naked_backlink_in_computable(self):
