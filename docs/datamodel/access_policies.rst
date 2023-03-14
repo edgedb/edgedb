@@ -28,10 +28,12 @@ When no access policies are defined, object-level security is not activated.
 Any properly authenticated client can select or modify any object in the
 database.
 
-⚠️ Once a policy is added to a particular object type, **all operations**
-(``select``, ``insert``, ``delete``, and ``update`` etc.) on any object of
-that type are now *disallowed by default* unless specifically allowed by an
-access policy!
+.. warning::
+
+    Once a policy is added to a particular object type, **all operations**
+    (``select``, ``insert``, ``delete``, and ``update`` etc.) on any object of
+    that type are now *disallowed by default* unless specifically allowed by an
+    access policy!
 
 Defining a global
 ^^^^^^^^^^^^^^^^^
