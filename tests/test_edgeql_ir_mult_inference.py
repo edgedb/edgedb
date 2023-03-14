@@ -575,6 +575,8 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
                 name := x.1,
                 element := 'test',
                 cost := 0,
+                req_awards := {}, # wtvr
+                req_tags := {}, # wtvr
             }
         )
 % OK %
