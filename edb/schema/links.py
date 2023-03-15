@@ -288,6 +288,17 @@ class LinkCommand(
                 context=srcctx,
             )
 
+        if (
+            scls.get_required(schema) and
+            scls.get_on_target_delete(schema) ==
+                qltypes.LinkTargetDeleteAction.DeferredRestrict
+        ):
+            raise errors.InvalidLinkTargetError(
+                'required links may not use `on target delete '
+                'deferred restrict`',
+                context=self.source_context,
+            )
+
     def _get_ast(
         self,
         schema: s_schema.Schema,
@@ -697,9 +708,6 @@ class DeleteLink(
 ):
     astnode = [qlast.DropConcreteLink, qlast.DropLink]
     referenced_astnode = qlast.DropConcreteLink
-
-    # NB: target type cleanup (e.g. target compound type) is done by
-    #     the DeleteProperty handler for the @target property.
 
     def _delete_begin(
         self,

@@ -2097,6 +2097,22 @@ class DeletePointer(
     referencing.DeleteReferencedInheritingObject[Pointer_T],
     PointerCommand[Pointer_T],
 ):
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._delete_begin(schema, context)
+        if (
+            not context.canonical
+            and (target := self.scls.get_target(schema)) is not None
+            and not self.scls.is_endpoint_pointer(schema)
+            and (del_cmd := target.as_type_delete_if_dead(schema)) is not None
+        ):
+            self.add_caused(del_cmd)
+
+        return schema
+
     def _canonicalize(
         self,
         schema: s_schema.Schema,

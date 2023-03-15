@@ -2120,6 +2120,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
+    async def test_edgeql_ddl_link_target_bad_07(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidLinkTargetError,
+            r"required links may not use `on target delete deferred"
+            r" restrict`",
+        ):
+            await self.con.execute('''
+                create type A;
+                create type Foo {
+                    create required link bar -> A {
+                        on target delete deferred restrict;
+                    };
+                };
+            ''')
+
     async def test_edgeql_ddl_link_target_merge_01(self):
         await self.con.execute('''
 
