@@ -17,9 +17,9 @@ from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoolVal,
 
 
 def map_expr(
-        f: Callable[[Expr, int],
+        f: Callable[[Expr],
                     Optional[Expr]],
-        expr: Expr, level: int = 1) -> Expr:
+        expr: Expr) -> Expr:
     """ maps a function over free variables and bound variables,
     and does not modify other nodes
 
@@ -29,19 +29,19 @@ def map_expr(
             being mapped, it should be called with initially = 1.
             Increases as we encounter abstractions
     """
-    tentative = f(expr, level)
+    tentative = f(expr)
     if tentative is not None:
         return tentative
     else:
         def recur(expr):
-            return map_expr(f, expr, level)
+            return map_expr(f, expr)
         match expr:
             case (FreeVarExpr(_) | BoundVarExpr(_) | StrVal(_) | BoolVal(_) |
                     IntVal(_) | RefVal(_) | LinkPropVal(_)):
                 return expr
             case BindingExpr(body=body):
                 # type: ignore[has-type]
-                return BindingExpr(body=map_expr(f, body, level + 1))
+                return BindingExpr(body=map_expr(f, body))
             case UnnamedTupleExpr(val=val):
                 return UnnamedTupleExpr(val=[recur(e) for e in val])
             case NamedTupleExpr(val=val):
@@ -110,65 +110,97 @@ def map_expr(
     raise ValueError("Not Implemented: map_expr ", expr)
 
 
-def map_var(f: Callable[[VarExpr, int], Expr], expr: Expr) -> Expr:
+def map_var(f: Callable[[VarExpr], Optional[Expr]], expr: Expr) -> Expr:
     """ maps a function over free variables and bound variables,
     and does not modify other nodes
 
-    level : this value refers to the first binder OUTSIDE of the expression
-            being mapped, it should be called with initially = 1.
-            Increases as we encounter abstractions
+    f : if not None, replace with the result
     """
-    def map_func(e: Expr, level: int) -> Optional[Expr]:
+    def map_func(e: Expr) -> Optional[Expr]:
         match e:
-            case FreeVarExpr(_):
-                return f(e, level)
-            case BoundVarExpr(_):
-                return f(e, level)
+            case FreeVarExpr(var=_):
+                return f(e)
+            case BoundVarExpr(var=_):
+                return f(e)
         return None
     return map_expr(map_func, expr)
 
 
-def instantiate_expr(e2: Expr, e: BindingExpr) -> Expr:
-    if not isinstance(e, BindingExpr):
-        raise ValueError(e)
+def get_free_vars(e: Expr) -> Sequence[str]:
+    res: Sequence[str] = []
 
-    def map_func(e: VarExpr, level: int) -> Expr:
-        # print("instantiating ", e, " at level ", level)
-        match e:
-            case BoundVarExpr(i):
-                if i == level:
-                    return e2
-                else:
-                    return BoundVarExpr(i)
-            case _:
-                return e
-    result = map_var(map_func, e.body)
-    # print("using", e2, "to instantiate", e, "has resulted in", result)
+    def map_var_func(ve: VarExpr) -> None:
+        nonlocal res
+        if isinstance(ve, FreeVarExpr):
+            if ve.var not in res:
+                res = [*res, ve.var]
+        return None
+
+    map_var(map_var_func, e)
+    return res
+
+
+def ensure_no_capture(avoid_list: Sequence[str],
+                      e: BindingExpr) -> BindingExpr:
+    assert isinstance(e, BindingExpr)
+    candidate_name = e.var
+    while candidate_name in avoid_list:
+        candidate_name = next_name(candidate_name)
+    if candidate_name != e.var:
+        return abstract_over_expr(
+                instantiate_expr(FreeVarExpr(candidate_name), e),
+                candidate_name)
+    else:
+        return e
+
+
+def instantiate_expr(e2: Expr, bnd_expr: BindingExpr) -> Expr:
+    if not isinstance(bnd_expr, BindingExpr):
+        raise ValueError(bnd_expr)
+
+    result = subst_expr_for_expr(e2, BoundVarExpr(bnd_expr.var), bnd_expr.body)
+
     return result
+
+
+def subst_expr_for_expr(expr2: Expr, replace: Expr, subject: Expr):
+    assert not isinstance(replace, BindingExpr)
+
+    e2_free_vars = get_free_vars(expr2)
+
+    def map_func(candidate: Expr) -> Optional[Expr]:
+        if candidate == replace:
+            return expr2
+        elif isinstance(candidate, BindingExpr):
+            # shortcut : if we are substituting a free var and a 
+            # binder binds that var, then we can early stop.
+            # The reason is that the var will not occur after alpha renaming
+            match replace:
+                case (BoundVarExpr(v) | FreeVarExpr(v)):
+                    if v == candidate.var:
+                        return candidate
+            
+            # otherwise we need to ensure that the variable is not captured
+            return subst_expr_for_expr(
+                    expr2,
+                    replace,
+                    ensure_no_capture(e2_free_vars, candidate))
+        else:
+            return None
+
+    return map_expr(map_func, subject)
 
 
 def abstract_over_expr(
         expr: Expr, var: Optional[str] = None) -> BindingExpr:
     """Construct a BindingExpr that binds var"""
-    def replace_if_match(inner: VarExpr, level: int) -> Expr:
-        match inner:
-            case FreeVarExpr(fname):
-                if var == fname:
-                    return BoundVarExpr(level)
-                else:
-                    return inner
-        return inner
 
-    return BindingExpr(body=map_var(replace_if_match, expr))
+    if var is None:
+        var = next_name()
 
+    new_body = subst_expr_for_expr(BoundVarExpr(var), FreeVarExpr(var), expr)
 
-def subst_expr_for_expr(expr2: Expr, replace: Expr, subject: Expr):
-    def map_func(candidate: Expr, level: int) -> Optional[Expr]:
-        if candidate == replace:
-            return expr2
-        else:
-            return None
-    return map_expr(map_func, subject)
+    return BindingExpr(var=var, body=new_body)
 
 
 def iterative_subst_expr_for_expr(
@@ -186,39 +218,23 @@ def iterative_subst_expr_for_expr(
 
 
 def appears_in_expr(search: Expr, subject: Expr):
-    flag = False
+    class ReturnTrue(Exception):
+        pass
 
-    def map_func(candidate: Expr, level: int) -> Optional[Expr]:
-        nonlocal flag
-        if flag:
-            return candidate
+    def map_func(candidate: Expr) -> Optional[Expr]:
         if candidate == search:
-            flag = True
-            return candidate
+            raise ReturnTrue()
         else:
             return None
-    map_expr(map_func, subject)
-    return flag
+    try:
+        map_expr(map_func, subject)
+    except ReturnTrue:
+        return True
+    return False
 
 
 def binding_is_unnamed(expr: BindingExpr) -> bool:
-    class ReturnFalse(Exception):
-        pass
-
-    def map_func(e: VarExpr, outer_level: int) -> Expr:
-        match e:
-            case BoundVarExpr(idx):
-                if idx == outer_level:
-                    raise ReturnFalse()
-                else:
-                    return e
-        return e
-
-    try:
-        map_var(map_func, expr.body)
-    except ReturnFalse:
-        return False
-    return True
+    return not appears_in_expr(BoundVarExpr(expr.var), expr.body)
 
 
 def operate_under_binding(e: BindingExpr, op: Callable[[Expr], Expr]):
