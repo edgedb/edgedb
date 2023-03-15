@@ -10,7 +10,7 @@ from .data.data_ops import StrLabel, Val, Expr, Label, LinkPropLabel, \
 from .data.expr_ops import object_to_shape, instantiate_expr
 from .elaboration import DEFAULT_HEAD_NAME
 from edb.schema.pointers import PointerDirection
-from typing import Sequence, Any, cast
+from typing import Sequence, Any, cast, List
 
 from edb.edgeql import ast as qlast
 from .basis.built_ins import all_builtin_ops
@@ -36,7 +36,7 @@ def reverse_elab_label(lbl: Label) -> qlast.Path:
             raise ValueError(lbl)
 
 
-def reverse_elab_shape(expr: ShapeExpr) -> Sequence[qlast.ShapeElement]:
+def reverse_elab_shape(expr: ShapeExpr) -> List[qlast.ShapeElement]:
     return [qlast.ShapeElement(expr=reverse_elab_label(lbl),
                                compexpr=reverse_elab(instantiate_expr(
                                    FreeVarExpr(DEFAULT_HEAD_NAME), val)),
@@ -59,7 +59,7 @@ def reverse_elab_type_name(tp: Tp) -> qlast.TypeName:
     raise ValueError("Unimplemented")
 
 
-def reverse_elab_order(order: Expr) -> Sequence[qlast.SortExpr]:
+def reverse_elab_order(order: Expr) -> List[qlast.SortExpr]:
     if isinstance(order, ObjectExpr):
         keys = sorted([(idx, spec, k) for k in order.val.keys()
                       for [idx, spec] in [k.label.split(OrderLabelSep)]])
@@ -76,7 +76,7 @@ def reverse_elab_order(order: Expr) -> Sequence[qlast.SortExpr]:
 
 
 def append_path_element(
-        subject: qlast.Base, to_add: qlast.PathElement) -> qlast.Path:
+        subject: qlast.Expr, to_add: qlast.PathElement) -> qlast.Path:
     match subject:
         case qlast.Path(steps=steps, partial=partial):
             return qlast.Path(steps=[*steps,
@@ -88,7 +88,7 @@ def append_path_element(
                                      ], partial=False)
 
 
-def reverse_elab(ir_expr: Expr) -> qlast.Base:
+def reverse_elab(ir_expr: Expr) -> qlast.Expr:
     expr: Expr
     match ir_expr:
         case StrVal(s):
