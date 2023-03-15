@@ -1815,6 +1815,14 @@ def _get_late_shape_configuration(
 
     if rptr is None:
         rptr = ir_set.rptr
+    # If we have a specified rptr but no rptr on the set itself,
+    # construct a version of the set with the rptr added to use
+    # as the path tip for applying pointers. This ensures that
+    # we can find link properties on late shapes.
+    elif ir_set.rptr is None and ir_set.expr:
+        ir_set = setgen.new_set_from_set(ir_set, rptr=rptr, ctx=ctx)
+        assert ir_set.rptr
+        ir_set.rptr = ir_set.rptr.replace(target=ir_set, is_phony=True)
 
     rptrcls: Optional[s_pointers.PointerLike]
     if rptr is not None:

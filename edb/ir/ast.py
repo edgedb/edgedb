@@ -441,6 +441,9 @@ class Pointer(Base):
     ptrref: BasePointerRef
     direction: s_pointers.PointerDirection
     is_definition: bool
+    # Set when we have placed an rptr to help route link properties
+    # but it is not a genuine pointer use.
+    is_phony: bool = False
     anchor: typing.Optional[str] = None
     show_as_anchor: typing.Optional[str] = None
 
