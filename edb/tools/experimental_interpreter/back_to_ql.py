@@ -1,7 +1,7 @@
 
 from .data.data_ops import StrLabel, Val, Expr, Label, LinkPropLabel, \
     Tp, StrTp, JsonTp, DateTimeTp, ShapeExpr, FreeVarExpr, ObjectExpr, \
-    OrderAscending, OrderDescending, StrVal, IntVal, BoolVal, next_name, \
+    OrderAscending, OrderDescending, StrVal, IntVal, BoolVal,  \
     InsertExpr, OrderLabelSep, FilterOrderExpr, OffsetLimitExpr, \
     FunAppExpr, ShapedExprExpr, TpIntersectExpr, TypeCastExpr, \
     LinkPropProjExpr, BackLinkExpr, NamedTupleExpr, UnnamedTupleExpr, \
@@ -10,7 +10,7 @@ from .data.data_ops import StrLabel, Val, Expr, Label, LinkPropLabel, \
 from .data.expr_ops import object_to_shape, instantiate_expr
 from .elaboration import DEFAULT_HEAD_NAME
 from edb.schema.pointers import PointerDirection
-from typing import Sequence, Any, cast, List
+from typing import Sequence, Any, cast, List, Optional
 
 from edb.edgeql import ast as qlast
 from .basis.built_ins import all_builtin_ops
@@ -59,10 +59,12 @@ def reverse_elab_type_name(tp: Tp) -> qlast.TypeName:
     raise ValueError("Unimplemented")
 
 
-def reverse_elab_order(order: Expr) -> List[qlast.SortExpr]:
+def reverse_elab_order(order: Expr) -> Optional[List[qlast.SortExpr]]:
     if isinstance(order, ObjectExpr):
         keys = sorted([(idx, spec, k) for k in order.val.keys()
                       for [idx, spec] in [k.label.split(OrderLabelSep)]])
+        if len(keys) == 0:
+            return None
         return [qlast.SortExpr(path=reverse_elab(order.val[k]),
                                direction=(
             qlast.SortOrder.Asc if spec == OrderAscending else
@@ -109,7 +111,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                                      object_to_shape(cast(ObjectExpr, arg)))
                                      )
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
-            result_name = next_name()
+            result_name = filter.var
             return qlast.SelectQuery(
                 result=reverse_elab(subject),
                 result_alias=result_name,
@@ -199,7 +201,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         case MultiSetExpr(expr=elems):
             return qlast.Set(elements=[reverse_elab(e) for e in elems])
         case WithExpr(bound=bound, next=next):
-            name = next_name()
+            name = next.var
             body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
             if isinstance(
                     body, qlast.SelectQuery) or isinstance(
@@ -218,7 +220,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                         alias=name, expr=reverse_elab(bound))])
                 # raise ValueError("Expression does not suppor alias", body)
         case ForExpr(bound=bound, next=next):
-            name = next_name()
+            name = next.var
             bound_v = reverse_elab(bound)
             body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
             return qlast.ForQuery(
@@ -227,7 +229,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                     iterator_alias=name)],
                 result=body)
         case OptionalForExpr(bound=bound, next=next):
-            name = next_name()
+            name = next.var
             bound_v = reverse_elab(bound)
             body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
             return qlast.ForQuery(
