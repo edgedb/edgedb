@@ -1026,6 +1026,7 @@ def _get_rel_path_output(
         rel.target_list.append(pgast.ResTarget(name=name, val=val))
         result = pgast.ColumnRef(name=[name], nullable=True)
     else:
+        assert isinstance(rel, pgast.Relation)
         if ptrref is None:
             raise ValueError(
                 f'could not resolve trailing pointer class for {path_id}')
@@ -1041,13 +1042,16 @@ def _get_rel_path_output(
         # looking at an object rel. This check is needed because
         # relgen._lookup_set_rvar_in_source sometimes does some pretty
         # wild maybe_get_path_value_var calls.
-        if ptr_info.table_type == 'link' and (
-                rel.path_id and not rel.path_id.rptr()):
+        if (
+            ptr_info.table_type == 'link'
+            and isinstance(rel.type_or_ptr_ref, irast.TypeRef)
+        ):
             raise LookupError("can't access link table on object rel")
 
         result = pgast.ColumnRef(
             name=[ptr_info.column_name],
             nullable=not ptrref.required)
+
     _put_path_output_var(rel, path_id, aspect, result, flavor=flavor, env=env)
     return result
 

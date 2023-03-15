@@ -406,7 +406,8 @@ def maybe_get_path_var(
 def new_empty_rvar(
         ir_set: irast.EmptySet, *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-    nullrel = pgast.NullRelation(path_id=ir_set.path_id)
+    nullrel = pgast.NullRelation(
+        path_id=ir_set.path_id, type_or_ptr_ref=ir_set.typeref)
     rvar = rvar_for_rel(nullrel, ctx=ctx)
     pathctx.put_rvar_path_bond(rvar, ir_set.path_id)
     return rvar
@@ -1417,6 +1418,7 @@ def range_for_material_objtype(
             schemaname=table_schema_name,
             name=table_name,
             path_id=path_id,
+            type_or_ptr_ref=typeref,
         )
 
         rvar = pgast.RelRangeVar(
@@ -1709,7 +1711,10 @@ def table_from_ptrref(
         table_schema_name = 'edgedbss'
 
     relation = pgast.Relation(
-        schemaname=table_schema_name, name=table_name)
+        schemaname=table_schema_name,
+        name=table_name,
+        type_or_ptr_ref=ptrref,
+    )
 
     # Pseudo pointers (tuple and type intersection) have no schema id.
     sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None

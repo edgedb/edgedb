@@ -207,7 +207,12 @@ class BaseRelation(EdgeQLPathInfo, BaseExpr):
 
 
 class Relation(BaseRelation):
-    """Regular relation."""
+    """A reference to a table or a view."""
+
+    # The type or pointer this represents.
+    # Should be non-None for any relation arising from a type or
+    # pointer during compilation.
+    type_or_ptr_ref: typing.Optional[irast.TypeRef | irast.PointerRef] = None
 
     catalogname: typing.Optional[str] = None
     schemaname: typing.Optional[str] = None
@@ -458,6 +463,8 @@ class ReturningQuery(BaseRelation):
 
 class NullRelation(ReturningQuery):
     """Special relation that produces nulls for all its attributes."""
+
+    type_or_ptr_ref: typing.Optional[irast.TypeRef | irast.PointerRef] = None
 
     where_clause: typing.Optional[BaseExpr] = None
 
