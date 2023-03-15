@@ -2237,16 +2237,10 @@ def process_link_update(
         # is executed in the snapshot where the above DELETE from
         # the link table is not visible.  Hence, we need to use
         # the ON CONFLICT clause to resolve this.
-        conflict_inference = []
-        conflict_exc_row = []
-
-        for col in conflict_cols:
-            conflict_inference.append(
-                pgast.ColumnRef(name=[col])
-            )
-            conflict_exc_row.append(
-                pgast.ColumnRef(name=['excluded', col])
-            )
+        conflict_inference = [
+            pgast.ColumnRef(name=[col])
+            for col in conflict_cols
+        ]
 
         target_cols = [
             col
@@ -2262,23 +2256,12 @@ def process_link_update(
                 )
             )
         else:
-            conflict_data = pgast.SelectStmt(
-                target_list=[
-                    pgast.ResTarget(
-                        val=pgast.ColumnRef(name=[data_cte.name, col.name[0]])
-                    )
+            conflict_data = pgast.RowExpr(
+                args=[
+                    pgast.ColumnRef(name=['excluded', col.name[0]])
                     for col in target_cols
                 ],
-                from_clause=[
-                    pgast.RelRangeVar(relation=data_cte)
-                ],
-                where_clause=astutils.new_binop(
-                    lexpr=pgast.ImplicitRowExpr(args=conflict_inference),
-                    rexpr=pgast.ImplicitRowExpr(args=conflict_exc_row),
-                    op='='
-                )
             )
-
             conflict_clause = pgast.OnConflictClause(
                 action='update',
                 infer=pgast.InferClause(
