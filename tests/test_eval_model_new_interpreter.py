@@ -23,7 +23,6 @@ from edb.tools.experimental_interpreter import new_interpreter as model
 
 from edb.common import assert_data_shape
 
-from edb.tools.experimental_interpreter.data.data_ops import *
 bag = assert_data_shape.bag
 
 # queries to populate the required data for this test
@@ -31,7 +30,7 @@ bag = assert_data_shape.bag
 # Person has name, multi_prop, notes, tag
 # Note has name, note
 # Foo has val, opt
-initial_schema="""
+initial_schema = """
 type Note {
     required single property name -> str;
     optional single property note -> str;
@@ -93,22 +92,33 @@ initial_queries = """
 with n0 := (insert Note {name := "boxing", note := {}}),
      n1 := (insert Note {name := "unboxing", note := "lolol"}),
      n2 := (insert Note {name := "dynamic", note := "blarg"}),
-     p0 := (insert Person {name := "Phil Emarg", notes := {n0, n1 {@metanote := "arg!"}}}),
-     p1 := (insert Person {name := "Madeline Hatch", notes:={n1 {@metanote := "sigh"}}}),
+     p0 := (insert Person {name := "Phil Emarg",
+                           notes := {n0, n1 {@metanote := "arg!"}}}),
+     p1 := (insert Person {name := "Madeline Hatch",
+                           notes:={n1 {@metanote := "sigh"}}}),
      p2 := (insert Person {name := "Emmanuel Villip"}),
-     a_15 := (insert Award {name := "1st"}), 
+     a_15 := (insert Award {name := "1st"}),
      a_e1 := (insert Award {name := "2nd"}),
      a_ca := (insert Award {name := "3rd"}),
-     c_27 := (insert Card {name := "Imp", element := "Fire", cost := 1, awards := {a_e1}}),
-     c_49 := (insert Card {name := "Dragon", element := "Fire",  cost := 5, awards := {a_15}}),
-     c_80 := (insert Card {name := "Bog monster", element := "Water", cost := 2}),
-     c_d2 := (insert Card {name := "Giant turtle", element := "Water", cost := 3}),
-     c_46 := (insert Card {name := 'Dwarf', element := 'Earth', cost := 1}),
-     c_25 := (insert Card {name := 'Golem', element := 'Earth', cost := 3}),
-     c_bd := (insert Card {name := 'Sprite', element := 'Air', cost := 1}),
-     c_69 := (insert Card {name := 'Giant eagle', element := 'Air', cost := 2}),
-     c_87 := (insert Card {name := 'Djinn', element := 'Air', cost := 4, awards := {a_ca}}),
-     u_3e := (insert User {name := "Carol", deck := {c_80 { @count := 3}, 
+     c_27 := (insert Card {name := "Imp", element := "Fire",
+                           cost := 1, awards := {a_e1}}),
+     c_49 := (insert Card {name := "Dragon", element := "Fire",
+                           cost := 5, awards := {a_15}}),
+     c_80 := (insert Card {name := "Bog monster", element := "Water",
+                           cost := 2}),
+     c_d2 := (insert Card {name := "Giant turtle", element := "Water",
+                           cost := 3}),
+     c_46 := (insert Card {name := 'Dwarf', element := 'Earth',
+                           cost := 1}),
+     c_25 := (insert Card {name := 'Golem', element := 'Earth',
+                           cost := 3}),
+     c_bd := (insert Card {name := 'Sprite', element := 'Air',
+                           cost := 1}),
+     c_69 := (insert Card {name := 'Giant eagle', element := 'Air',
+                           cost := 2}),
+     c_87 := (insert Card {name := 'Djinn', element := 'Air',
+                           cost := 4, awards := {a_ca}}),
+     u_3e := (insert User {name := "Carol", deck := {c_80 { @count := 3},
             c_d2 {@count := 2}, c_46 {@count := 4}, c_25 {@count := 2},
             c_bd {@count := 4}, c_69 {@count := 3}, c_87 {@count := 1}
         }}),
@@ -117,7 +127,7 @@ with n0 := (insert Note {name := "boxing", note := {}}),
             c_d2 {@count := 3},
             c_46 {@count := 3},
             c_25 {@count := 3}
-        }}), 
+        }}),
     u_56 := (insert User {name := "Dave", deck := {
            c_49  {@count:= 1},
            c_80  {@count:= 1},
@@ -136,13 +146,13 @@ with n0 := (insert Note {name := "boxing", note := {}}),
             u_fc {@nickname := "Swampy"},
             u_3e {@nickname := "Firefighter"},
             u_56 {@nickname := "Grumpy"}
-        }, awards := {a_15, a_31}, 
+        }, awards := {a_15, a_31},
             avatar := {c_49 {@text := "Best"}}
         }),
-    
 
 select 0;
 """
+
 
 class TestNewInterpreterModelSmokeTests(unittest.TestCase):
     """Unit tests for the toy evaluator model.
@@ -152,30 +162,28 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
     goal should be that we could run the real tests against the model.
     """
 
-
     db = None
+
     def assert_test_query(
         self, query, expected, *, sort=None, singleton_cheating=False
     ):
         if self.db is None:
             self.db = model.db_with_initilial_schema_and_queries(
                 initial_schema_defs=initial_schema,
-                initial_queries=initial_queries, 
+                initial_queries=initial_queries,
                 # debug_print=True
-                )
+            )
         # qltree = model.parse(query)
-        (result, _) = model.run_single_str_get_json(self.db, query, print_asts=True)
-        # if sort:
-        #     assert_data_shape.sort_results(result, sort)
-        # if result != expected:
-        #     raise ValueError("Not Equal!", "Expected", expected, "Actual", result)
+        (result, _) = model.run_single_str_get_json(
+            self.db, query, print_asts=True)
 
         try:
-            assert_data_shape.assert_data_shape(result, expected, self.fail)
+            assert_data_shape.assert_data_shape(
+                result, expected, self.fail)
         except AssertionError as e:
-            raise AssertionError(str(e), "Expected", expected, "Actual", result)
-
-            
+            raise AssertionError(
+                str(e),
+                "Expected", expected, "Actual", result)
 
     def test_model_basic_01(self):
         self.assert_test_query(
@@ -537,91 +545,84 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
                } ORDER BY .cost
             } ORDER BY .name DESC;
             """,
-            [
-                {
-                    "deck": [
-                        {"@count": [4], "name": ["Sprite"], "tag": ["1 Air"]},
-                        {
-                            "@count": [1],
-                            "name": ["Bog monster"],
-                            "tag": ["2 Water"],
-                        },
-                        {
-                            "@count": [1],
-                            "name": ["Giant eagle"],
-                            "tag": ["2 Air"],
-                        },
-                        {
-                            "@count": [1],
-                            "name": ["Giant turtle"],
-                            "tag": ["3 Water"],
-                        },
-                        {"@count": [1], "name": ["Golem"], "tag": ["3 Earth"]},
-                        {"@count": [1], "name": ["Djinn"], "tag": ["4 Air"]},
-                        {"@count": [1], "name": ["Dragon"], "tag": ["5 Fire"]},
-                    ],
-                    "name": ["Dave"],
-                },
-                {
-                    "deck": [
-                        {"@count": [4], "name": ["Dwarf"], "tag": ["1 Earth"]},
-                        {"@count": [4], "name": ["Sprite"], "tag": ["1 Air"]},
-                        {
-                            "@count": [3],
-                            "name": ["Bog monster"],
-                            "tag": ["2 Water"],
-                        },
-                        {
-                            "@count": [3],
-                            "name": ["Giant eagle"],
-                            "tag": ["2 Air"],
-                        },
-                        {
-                            "@count": [2],
-                            "name": ["Giant turtle"],
-                            "tag": ["3 Water"],
-                        },
-                        {"@count": [2], "name": ["Golem"], "tag": ["3 Earth"]},
-                        {"@count": [1], "name": ["Djinn"], "tag": ["4 Air"]},
-                    ],
-                    "name": ["Carol"],
-                },
-                {
-                    "deck": [
-                        {"@count": [3], "name": ["Dwarf"], "tag": ["1 Earth"]},
-                        {
-                            "@count": [3],
-                            "name": ["Bog monster"],
-                            "tag": ["2 Water"],
-                        },
-                        {
-                            "@count": [3],
-                            "name": ["Giant turtle"],
-                            "tag": ["3 Water"],
-                        },
-                        {"@count": [3], "name": ["Golem"], "tag": ["3 Earth"]},
-                    ],
-                    "name": ["Bob"],
-                },
-                {
-                    "deck": [
-                        {"@count": [2], "name": ["Imp"], "tag": ["1 Fire"]},
-                        {
-                            "@count": [3],
-                            "name": ["Bog monster"],
-                            "tag": ["2 Water"],
-                        },
-                        {
-                            "@count": [3],
-                            "name": ["Giant turtle"],
-                            "tag": ["3 Water"],
-                        },
-                        {"@count": [2], "name": ["Dragon"], "tag": ["5 Fire"]},
-                    ],
-                    "name": ["Alice"],
-                },
-            ],
-        )
+            [{
+                "deck":
+                [{"@count": [4],
+                  "name": ["Sprite"],
+                  "tag": ["1 Air"]},
+                 {"@count": [1],
+                    "name": ["Bog monster"],
+                    "tag": ["2 Water"], },
+                    {"@count": [1],
+                     "name": ["Giant eagle"],
+                     "tag": ["2 Air"], },
+                    {"@count": [1],
+                     "name": ["Giant turtle"],
+                     "tag": ["3 Water"], },
+                    {"@count": [1],
+                     "name": ["Golem"],
+                     "tag": ["3 Earth"]},
+                    {"@count": [1],
+                     "name": ["Djinn"],
+                     "tag": ["4 Air"]},
+                    {"@count": [1],
+                     "name": ["Dragon"],
+                     "tag": ["5 Fire"]}, ],
+                "name": ["Dave"], },
+             {
+                "deck":
+                [{"@count": [4],
+                  "name": ["Dwarf"],
+                  "tag": ["1 Earth"]},
+                 {"@count": [4],
+                    "name": ["Sprite"],
+                    "tag": ["1 Air"]},
+                    {"@count": [3],
+                     "name": ["Bog monster"],
+                     "tag": ["2 Water"], },
+                    {"@count": [3],
+                     "name": ["Giant eagle"],
+                     "tag": ["2 Air"], },
+                    {"@count": [2],
+                     "name": ["Giant turtle"],
+                     "tag": ["3 Water"], },
+                    {"@count": [2],
+                     "name": ["Golem"],
+                     "tag": ["3 Earth"]},
+                    {"@count": [1],
+                     "name": ["Djinn"],
+                     "tag": ["4 Air"]}, ],
+                "name": ["Carol"], },
+             {
+                "deck":
+                [{"@count": [3],
+                  "name": ["Dwarf"],
+                  "tag": ["1 Earth"]},
+                 {"@count": [3],
+                    "name": ["Bog monster"],
+                    "tag": ["2 Water"], },
+                    {"@count": [3],
+                     "name": ["Giant turtle"],
+                     "tag": ["3 Water"], },
+                    {"@count": [3],
+                     "name": ["Golem"],
+                     "tag": ["3 Earth"]}, ],
+                "name": ["Bob"], },
+             {
+                "deck":
+                [{"@count": [2],
+                  "name": ["Imp"],
+                  "tag": ["1 Fire"]},
+                 {"@count": [3],
+                    "name": ["Bog monster"],
+                    "tag": ["2 Water"], },
+                    {"@count": [3],
+                     "name": ["Giant turtle"],
+                     "tag": ["3 Water"], },
+                    {"@count": [2],
+                     "name": ["Dragon"],
+                     "tag": ["5 Fire"]}, ],
+                "name": ["Alice"], }, ],)
 
     def test_edgeql_shape_for_01(self):
         # we have a lot of trouble with this one in the real compiler.
@@ -666,13 +667,12 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             SELECT User { name } FILTER .name = 'Alice';
             """,
             [
-                # {'name': 'Alice'}
-                {'name': ['Alice']} ### TODO : IMPLEMENT SINGLETON CHEAT, not sure what is the purpose
+                {'name': ['Alice']}
             ],
             singleton_cheating=True,
         )
 
-## TODO : DEFER COMPUTED
+# TODO : DEFER COMPUTED
     # def test_model_computed_01(self):
     #     self.assert_test_query(
     #         r"""
@@ -727,7 +727,7 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             ])
         )
 
-## TODO : DEFER COMPUTED
+# TODO : DEFER COMPUTED
     # def test_model_alias_computable_correlate(self):
     #     self.assert_test_query(
     #         r"""
