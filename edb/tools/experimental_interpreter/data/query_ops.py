@@ -1,17 +1,17 @@
 
 
-from .data_ops import Expr,  \
-    ShapeExpr, FreeVarExpr, ObjectExpr, \
-    StrVal, IntVal, BoolVal, \
-    InsertExpr, FilterOrderExpr, OffsetLimitExpr, \
-    FunAppExpr, ShapedExprExpr, TpIntersectExpr, TypeCastExpr, \
-    LinkPropProjExpr, BackLinkExpr, NamedTupleExpr, UnnamedTupleExpr, \
-    ArrExpr, UnionExpr, UpdateExpr, MultiSetExpr, WithExpr, OptionalForExpr, \
-    ForExpr, DetachedExpr, SubqueryExpr, ObjectProjExpr, BoundVarExpr, \
-    BindingExpr, DBSchema, \
-    ParamSetOf, ParamOptional, ParamSingleton
-from typing import Callable, Optional, Sequence
 from enum import Enum
+from typing import Callable, Optional, Sequence
+
+from .data_ops import (ArrExpr, BackLinkExpr, BindingExpr, BoolVal,
+                       BoundVarExpr, DBSchema, DetachedExpr, Expr,
+                       FilterOrderExpr, ForExpr, FreeVarExpr, FunAppExpr,
+                       InsertExpr, IntVal, LinkPropProjExpr, MultiSetExpr,
+                       NamedTupleExpr, ObjectExpr, ObjectProjExpr,
+                       OffsetLimitExpr, OptionalForExpr, ParamOptional,
+                       ParamSetOf, ParamSingleton, ShapedExprExpr, ShapeExpr,
+                       StrVal, SubqueryExpr, TpIntersectExpr, TypeCastExpr,
+                       UnionExpr, UnnamedTupleExpr, UpdateExpr, WithExpr)
 
 
 class QueryLevel(Enum):

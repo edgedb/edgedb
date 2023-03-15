@@ -1,19 +1,23 @@
 
-from .data.data_ops import StrLabel, Val, Expr, Label, LinkPropLabel, \
-    Tp, StrTp, JsonTp, DateTimeTp, ShapeExpr, FreeVarExpr, ObjectExpr, \
-    OrderAscending, OrderDescending, StrVal, IntVal, BoolVal,  \
-    InsertExpr, OrderLabelSep, FilterOrderExpr, OffsetLimitExpr, \
-    FunAppExpr, ShapedExprExpr, TpIntersectExpr, TypeCastExpr, \
-    LinkPropProjExpr, BackLinkExpr, NamedTupleExpr, UnnamedTupleExpr, \
-    ArrExpr, UnionExpr, UpdateExpr, MultiSetExpr, WithExpr, OptionalForExpr, \
-    ForExpr, DetachedExpr, SubqueryExpr, ObjectProjExpr
-from .data.expr_ops import object_to_shape, instantiate_expr
-from .elaboration import DEFAULT_HEAD_NAME
-from edb.schema.pointers import PointerDirection
-from typing import Sequence, Any, cast, List, Optional
+from typing import Any, List, Optional, Sequence, cast
 
 from edb.edgeql import ast as qlast
+from edb.schema.pointers import PointerDirection
+
 from .basis.built_ins import all_builtin_ops
+from .data.data_ops import (ArrExpr, BackLinkExpr, BoolVal, DateTimeTp,
+                            DetachedExpr, Expr, FilterOrderExpr, ForExpr,
+                            FreeVarExpr, FunAppExpr, InsertExpr, IntVal,
+                            JsonTp, Label, LinkPropLabel, LinkPropProjExpr,
+                            MultiSetExpr, NamedTupleExpr, ObjectExpr,
+                            ObjectProjExpr, OffsetLimitExpr, OptionalForExpr,
+                            OrderAscending, OrderDescending, OrderLabelSep,
+                            ShapedExprExpr, ShapeExpr, StrLabel, StrTp, StrVal,
+                            SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
+                            UnionExpr, UnnamedTupleExpr, UpdateExpr, Val,
+                            WithExpr)
+from .data.expr_ops import instantiate_expr, object_to_shape
+from .elaboration import DEFAULT_HEAD_NAME
 
 
 def reverse_elab_error(msg: str, expr: Val | Expr | Sequence[Val]) -> Any:

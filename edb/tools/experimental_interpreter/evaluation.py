@@ -374,9 +374,9 @@ def eval_config(rt: RTExpr) -> RTVal:
             after_intersect: MultiSetVal = []
             for v in subjectv:
                 match v:
-                    case RefVal(refid=vid, val=_)  \
-                        | LinkPropVal(obj=RefVal(refid=vid, val=_),
-                                      linkprop=_):
+                    case (RefVal(refid=vid, val=_)
+                          | LinkPropVal(obj=RefVal(refid=vid, val=_),
+                                        linkprop=_)):
                         if is_nominal_subtype_in_schema(
                                 new_data.cur_db.dbdata[vid].tp.name, tp_name,
                                 new_data.schema):

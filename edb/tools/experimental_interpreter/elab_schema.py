@@ -90,11 +90,11 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
                                             "WARNING: not "
                                             "implemented pcmd",
                                             pcmd)
-                            final_target_type = \
+                            final_target_type = (
                                 LinkPropTp(base_target_type,
-                                           ObjectTp(link_property_tps)) \
-                                if link_property_tps  \
-                                else base_target_type
+                                           ObjectTp(link_property_tps))
+                                if link_property_tps
+                                else base_target_type)
                             object_tp_content = {
                                 **object_tp_content,
                                 pname:

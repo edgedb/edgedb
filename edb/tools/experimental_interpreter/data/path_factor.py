@@ -102,9 +102,10 @@ def get_all_proper_top_level_paths(
     for (i, cluster) in enumerate(semi_sub_paths):
         for (candidate) in cluster:
             prefixes = all_prefixes_of_a_path(candidate)
-            to_check = definite_top_paths + sub_paths + \
-                [p for spl in (semi_sub_paths[:i] + semi_sub_paths[i + 1:])
-                 for p in spl]
+            to_check = (definite_top_paths + sub_paths +
+                        [p for spl in
+                         (semi_sub_paths[:i] + semi_sub_paths[i + 1:])
+                         for p in spl])
             if any([appears_in_expr(prefix, ck)
                     for prefix in prefixes
                     for ck in to_check]):

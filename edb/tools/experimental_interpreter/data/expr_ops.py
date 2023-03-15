@@ -148,8 +148,8 @@ def ensure_no_capture(avoid_list: Sequence[str],
         candidate_name = next_name(candidate_name)
     if candidate_name != e.var:
         return abstract_over_expr(
-                instantiate_expr(FreeVarExpr(candidate_name), e),
-                candidate_name)
+            instantiate_expr(FreeVarExpr(candidate_name), e),
+            candidate_name)
     else:
         return e
 
@@ -172,7 +172,7 @@ def subst_expr_for_expr(expr2: Expr, replace: Expr, subject: Expr):
         if candidate == replace:
             return expr2
         elif isinstance(candidate, BindingExpr):
-            # shortcut : if we are substituting a free var and a 
+            # shortcut : if we are substituting a free var and a
             # binder binds that var, then we can early stop.
             # The reason is that the var will not occur after alpha renaming
             match replace:
@@ -260,8 +260,8 @@ def get_object_val(val: Val) -> ObjectVal:
 
 def val_is_primitive(rt: Val) -> bool:
     match rt:
-        case StrVal(_) | IntVal(_) | ArrVal(_) \
-                | UnnamedTupleVal(_) | BoolVal(_):
+        case (StrVal(_) | IntVal(_) | ArrVal(_)
+                | UnnamedTupleVal(_) | BoolVal(_)):
             return True
         case RefVal(_) | FreeVal(_):
             return False
@@ -272,8 +272,8 @@ def val_is_object(rt: Val) -> bool:
     match rt:
         case RefVal(_) | FreeVal(_):
             return True
-        case StrVal(_) | IntVal(_) | ArrVal(_) \
-                | UnnamedTupleVal(_) | BoolVal(_):
+        case (StrVal(_) | IntVal(_) | ArrVal(_)
+                | UnnamedTupleVal(_) | BoolVal(_)):
             return False
     raise ValueError("not implemented", rt)
 

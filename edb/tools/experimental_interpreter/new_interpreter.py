@@ -1,23 +1,23 @@
 
 
-from .data.data_ops import DBSchema, DB, MultiSetVal, empty_db
-from typing import Tuple
-from .helper_funcs import parse_ql
 import sys
 import traceback
-from edb.edgeql import ast as qlast
-from .basis.built_ins import all_builtin_funcs
-from edb.common import debug
-from .elaboration import elab
-
-
-from .evaluation import RTExpr, RTData, eval_config_toplevel
-from .back_to_ql import reverse_elab
-from .data.path_factor import select_hoist
-from .data.val_to_json import val_to_json_like, json_like, \
-    multi_set_val_to_json_like
 from typing import *
-from .elab_schema import schema_from_sdl_file, schema_from_sdl_defs
+from typing import Tuple
+
+from edb.common import debug
+from edb.edgeql import ast as qlast
+
+from .back_to_ql import reverse_elab
+from .basis.built_ins import all_builtin_funcs
+from .data.data_ops import DB, DBSchema, MultiSetVal, empty_db
+from .data.path_factor import select_hoist
+from .data.val_to_json import (json_like, multi_set_val_to_json_like,
+                               val_to_json_like)
+from .elab_schema import schema_from_sdl_defs, schema_from_sdl_file
+from .elaboration import elab
+from .evaluation import RTData, RTExpr, eval_config_toplevel
+from .helper_funcs import parse_ql
 
 # CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
 # sys.setrecursionlimit(10000)
@@ -63,8 +63,8 @@ def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema,
 
 
 def run_stmts(db: DB, stmts: Sequence[qlast.Expr],
-              dbschema: DBSchema, debug_print: bool) -> \
-        Tuple[Sequence[MultiSetVal], DB]:
+              dbschema: DBSchema, debug_print: bool
+              ) -> Tuple[Sequence[MultiSetVal], DB]:
     match stmts:
         case []:
             return ([], db)

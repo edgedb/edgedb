@@ -115,8 +115,8 @@ class SomeTp:
     index: int
 
 
-Tp = ObjectTp | PrimTp | VarTp | LinkPropTp | NamedTupleTp | UnnamedTupleTp \
-    | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp
+Tp = (ObjectTp | PrimTp | VarTp | LinkPropTp | NamedTupleTp | UnnamedTupleTp
+      | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp)
 
 
 @dataclass(frozen=True)
@@ -285,8 +285,8 @@ class BoolVal:
     val: bool
 
 
-PrimVal = StrVal | IntVal | FunVal | IntInfVal | BoolVal  \
-    | DateTimeVal | JsonVal
+PrimVal = (StrVal | IntVal | FunVal | IntInfVal | BoolVal
+           | DateTimeVal | JsonVal)
 
 # DEFINE EXPRESSIONS
 

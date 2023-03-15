@@ -151,8 +151,7 @@ def elab_ShapeElement(s: qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
                         var=var,
                         body=ShapedExprExpr(
                             ObjectProjExpr(BoundVarExpr(var), name.label),
-                            elab_Shape(s.elements)
-                                   ))))
+                            elab_Shape(s.elements)))))
             case _:
                 return elab_not_implemented(s, "link property with shapes")
     else:
@@ -171,7 +170,7 @@ def elab_ShapeElement(s: qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
                         BindingExpr(
                             var=var,
                             body=LinkPropProjExpr(
-                                    BoundVarExpr(var), name.label))
+                                BoundVarExpr(var), name.label))
                         ))
             case _:
                 return elab_not_implemented(s)
@@ -323,11 +322,12 @@ def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
         return elab_not_implemented(fcall)
     if type(fcall.func) is not str:
         return elab_not_implemented(fcall)
-    fname = fcall.func if fcall.func in all_builtin_funcs.keys() \
-        else "std::" + fcall.func \
-        if ("std::" + fcall.func) in all_builtin_funcs.keys() \
-        else elab_error("unknown function name: " +
-                        fcall.func, fcall.context)
+    fname = (fcall.func
+             if fcall.func in all_builtin_funcs.keys()
+             else "std::" + fcall.func
+             if ("std::" + fcall.func) in all_builtin_funcs.keys()
+             else elab_error("unknown function name: " +
+                             fcall.func, fcall.context))
     args = [elab(arg) for arg in fcall.args]
     return FunAppExpr(fname, None, args)
 
