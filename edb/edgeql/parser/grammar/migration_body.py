@@ -1,7 +1,7 @@
 #
 # This source file is part of the EdgeDB open source project.
 #
-# Copyright 2020-present MagicStack Inc. and the EdgeDB authors.
+# Copyright 2008-present MagicStack Inc. and the EdgeDB authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,11 +16,18 @@
 # limitations under the License.
 #
 
-# If the hashes break, it is fine to change them, I think?
-CREATE MIGRATION m1xpafeaeinvq562zlqkqgcjgdpqds45jr6eybmxm5kzmpzadvvamq
-ONTO m1nnh3uhlwn5vfe7dfhyyxxjafsxniljyuzov6avzqeyddw2qpkw7q {
-    SET message := "test";
-    CREATE TYPE default::Test1;
-};
 
-CREATE TYPE default::Test2;
+from __future__ import annotations
+
+from .expressions import Nonterm
+from .precedence import *  # NOQA
+from .tokens import *  # NOQA
+from .statements import *  # NOQA
+from .ddl import *  # NOQA
+
+
+class CreateMigrationBody(Nonterm):
+    "%start"
+
+    def reduce_CreateMigrationCommandsBlock_EOF(self, *kids):
+        self.val = kids[0].val

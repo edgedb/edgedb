@@ -11725,7 +11725,11 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
             {'script': 'CREATE TYPE default::A;', 'generated_by': None},
             {'script': 'CREATE TYPE B;', 'generated_by': None},
             {'script': 'create type C;', 'generated_by': None},
-            {'script': 'CREATE TYPE D;', 'generated_by': 'DDLStatement'},
+            {'script': (
+                'SET generated_by '
+                ':= (schema::MigrationGeneratedBy.DDLStatement);\n'
+                'CREATE TYPE D;'
+            ), 'generated_by': 'DDLStatement'},
         ])
 
     async def test_edgeql_migration_rewrite_02(self):
@@ -11811,9 +11815,12 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
             commit migration rewrite
         """)
 
+        gby = (
+            'SET generated_by := (schema::MigrationGeneratedBy.DDLStatement);'
+        )
         await self.assert_migration_history([
-            {'script': 'CREATE TYPE B;'},
-            {'script': 'CREATE TYPE A;'},
+            {'script': gby + '\n' + 'CREATE TYPE B;'},
+            {'script': gby + '\n' + 'CREATE TYPE A;'},
         ])
 
     async def test_edgeql_migration_rewrite_05(self):

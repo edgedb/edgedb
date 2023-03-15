@@ -45,6 +45,28 @@ class DumpTestCaseMixin:
         await self.con.query('describe schema as sdl')
         await self.con.query('describe schema as ddl')
 
+        # We took a dev version snapshot for 3.0, but then needed to
+        # add more stuff to the 3.0 dump tests. It didn't seem worth
+        # adding a new dump test for it (both ergonomically and
+        # because it would be slower), so just quit early in that case.
+        if (
+            self._testMethodName
+            == 'test_dumpv3_restore_compatibility_3_0_dev_7258'
+        ):
+            return
+
+        await self.assert_query_result(
+            r'''
+            select schema::Migration { script, message, generated_by }
+            order by exists .parents then exists .parents.parents
+            ''',
+            [
+                {"message": None, "generated_by": None},
+                {"message": "test", "generated_by": None},
+                {"message": None, "generated_by": "DDLStatement"},
+            ],
+        )
+
 
 class TestDumpV3(tb.StableDumpTestCase, DumpTestCaseMixin):
     DEFAULT_MODULE = 'test'
