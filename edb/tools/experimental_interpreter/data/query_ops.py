@@ -69,9 +69,9 @@ def map_query(f: Callable[[Expr, QueryLevel],
                 return expr
             case IntVal(_):
                 return expr
-            case BindingExpr(body=body):
+            case BindingExpr(var=var, body=body):
                 # type: ignore[has-type]
-                return BindingExpr(body=recur(body))
+                return BindingExpr(var=var, body=recur(body))
             case UnnamedTupleExpr(val=val):
                 return UnnamedTupleExpr(val=[recur(e) for e in val])
             case NamedTupleExpr(val=val):
