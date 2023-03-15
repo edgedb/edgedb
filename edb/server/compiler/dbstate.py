@@ -99,6 +99,7 @@ class Query(BaseQuery):
     cacheable: bool = True
     is_explain: bool = False
     query_asts: Any = None
+    append_rollback: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -307,6 +308,7 @@ class QueryUnit:
 
     is_explain: bool = False
     query_asts: Any = None
+    append_rollback: bool = False
 
     @property
     def has_ddl(self) -> bool:
