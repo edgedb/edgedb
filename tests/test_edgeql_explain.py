@@ -122,10 +122,10 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         res = await self.explain('''
             select User { id, name } filter .name = 'Elvis'
         ''')
-        self.assert_plan(res['Plan'], {
-            'Node Type': 'Index Scan',
-            'Relation Name': 'default::User',
-            'Contexts': [{'start': 28, 'end': 32, 'buffer_idx': 0}],
+        self.assert_plan(res['plan'], {
+            'node_type': 'Index Scan',
+            'relation_name': 'default::User',
+            'contexts': [{'start': 28, 'end': 32, 'buffer_idx': 0}],
         })
 
     async def test_edgeql_explain_with_bound_01(self):
@@ -138,21 +138,21 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         ''')
 
         shape = {
-            "Node Type": "Subquery Scan",
-            "Plans": tb.bag([
+            "node_type": "Subquery Scan",
+            "plans": tb.bag([
                 1,
                 2,
                 {
-                    "Node Type": "Result",
-                    "Output": [
+                    "node_type": "Result",
+                    "output": [
                         "edgedbext.uuid_generate_v4()"
                     ]
                 }
             ]),
-            "CollapsedPlans": tb.bag([
+            "collapsed_plans": tb.bag([
                 {
-                    "Node Type": "Aggregate",
-                    "Plans": [0],
+                    "node_type": "Aggregate",
+                    "plans": [0],
                     # XXX: If we don't run ANALYZE in the test setup,
                     # we sometimes get this plan using bitmap scans
                     # instead of just the index scan?
@@ -164,11 +164,11 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     #         "Index Name": str,
                     #     }
                     # ],
-                    "NearestContextPlan": {
-                        "Node Type": "Index Scan",
-                        "Parent Relationship": "Outer",
-                        "Relation Name": "default::User",
-                        "Contexts": [
+                    "nearest_context_plan": {
+                        "node_type": "Index Scan",
+                        "parent_relationship": "Outer",
+                        "relation_name": "default::User",
+                        "contexts": [
                             {
                                 "start": 31,
                                 "end": 35,
@@ -185,16 +185,16 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                 "buffer_idx": 0
                             }
                         ],
-                        "SuggestedDisplayCtxIdx": 2,
+                        "suggested_display_ctx_idx": 2,
                     }
                 },
                 {
-                    "Node Type": "Aggregate",
-                    "Plans": [0],
-                    "NearestContextPlan": {
-                        "Node Type": "Seq Scan",
-                        "Relation Name": "default::User",
-                        "Contexts": [
+                    "node_type": "Aggregate",
+                    "plans": [0],
+                    "nearest_context_plan": {
+                        "node_type": "Seq Scan",
+                        "relation_name": "default::User",
+                        "contexts": [
                             {
                                 "start": 31,
                                 "end": 35,
@@ -211,12 +211,12 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                 "buffer_idx": 0
                             }
                         ],
-                        "SuggestedDisplayCtxIdx": 2
+                        "suggested_display_ctx_idx": 2
                     }
                 },
             ])
         }
-        self.assert_plan(res['Plan'], shape)
+        self.assert_plan(res['plan'], shape)
 
     async def test_edgeql_explain_multi_link_01(self):
         res = await self.explain('''
@@ -225,37 +225,37 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         ''')
 
         shape = {
-            "Node Type": "Index Scan",
-            "Index Name": (
+            "node_type": "Index Scan",
+            "index_name": (
                 "index of object type 'default::User' on (__subject__.name)"),
-            "Relation Name": "default::User",
-            "Plans": [1],
-            "CollapsedPlans": [
+            "relation_name": "default::User",
+            "plans": [1],
+            "collapsed_plans": [
                 {
-                    "Node Type": "Aggregate",
-                    "Strategy": "Plain",
-                    "Parent Relationship": "SubPlan",
-                    "Subplan Name": "SubPlan 1",
-                    "Plans": [
+                    "node_type": "Aggregate",
+                    "strategy": "Plain",
+                    "parent_relationship": "SubPlan",
+                    "subplan_name": "SubPlan 1",
+                    "plans": [
                         {
-                            "Node Type": "Nested Loop",
-                            "Parent Relationship": "Outer",
-                            "Join Type": "Inner",
-                            "Inner Unique": True,
-                            "Plans": [0, 1]
+                            "node_type": "Nested Loop",
+                            "parent_relationship": "Outer",
+                            "join_type": "Inner",
+                            "inner_unique": True,
+                            "plans": [0, 1]
                         }
                     ],
-                    "CollapsedPlans": [
+                    "collapsed_plans": [
                         {
-                            "Node Type": "Index Scan",
-                            "Parent Relationship": "Inner",
-                            "Index Name": (
+                            "node_type": "Index Scan",
+                            "parent_relationship": "Inner",
+                            "index_name": (
                                 "constraint 'std::exclusive' of "
                                 "property 'id' of object type '"
                                 "default::Issue'"
                             ),
-                            "Relation Name": "default::Issue",
-                            "Contexts": [
+                            "relation_name": "default::Issue",
+                            "contexts": [
                                 {
                                     "start": 41,
                                     "end": 45,
@@ -264,14 +264,14 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             ]
                         }
                     ],
-                    "NearestContextPlan": {
-                        "Node Type": "Index Only Scan",
-                        "Parent Relationship": "Outer",
-                        "Index Name": (
+                    "nearest_context_plan": {
+                        "node_type": "Index Only Scan",
+                        "parent_relationship": "Outer",
+                        "index_name": (
                             "default::User.todo forward link index"
                         ),
-                        "Relation Name": "default::User.todo",
-                        "Contexts": [
+                        "relation_name": "default::User.todo",
+                        "contexts": [
                             {
                                 "start": 41,
                                 "end": 45,
@@ -281,7 +281,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     },
                 }
             ],
-            "Contexts": [
+            "contexts": [
                 {
                     "start": 28,
                     "end": 32,
@@ -289,7 +289,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 }
             ]
         }
-        self.assert_plan(res['Plan'], shape)
+        self.assert_plan(res['plan'], shape)
 
     async def test_edgeql_explain_computed_backlink_01(self):
         res = await self.explain('''
@@ -298,36 +298,36 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         ''')
 
         shape = {
-            "Node Type": "Index Scan",
-            "Index Name": (
+            "node_type": "Index Scan",
+            "index_name": (
                 "index of object type 'default::User' on (__subject__.name)"),
-            "Relation Name": "default::User",
-            "Plans": [1],
-            "CollapsedPlans": [
+            "relation_name": "default::User",
+            "plans": [1],
+            "collapsed_plans": [
                 {
-                    "Node Type": "Aggregate",
-                    "Parent Relationship": "SubPlan",
-                    "Plans": [
+                    "node_type": "Aggregate",
+                    "parent_relationship": "SubPlan",
+                    "plans": [
                         {
-                            "Node Type": "Result",
-                            "Parent Relationship": "Outer",
-                            "Plans": [0]
+                            "node_type": "Result",
+                            "parent_relationship": "Outer",
+                            "plans": [0]
                         }
                     ],
-                    "NearestContextPlan": {
-                        "Node Type": "Bitmap Heap Scan",
-                        "Parent Relationship": "Outer",
-                        "Relation Name": "default::Issue",
-                        "Plans": [
+                    "nearest_context_plan": {
+                        "node_type": "Bitmap Heap Scan",
+                        "parent_relationship": "Outer",
+                        "relation_name": "default::Issue",
+                        "plans": [
                             {
-                                "Node Type": "Bitmap Index Scan",
-                                "Parent Relationship": "Outer",
-                                "Index Name": (
+                                "node_type": "Bitmap Index Scan",
+                                "parent_relationship": "Outer",
+                                "index_name": (
                                     "default::Issue.owner index"),
                             }
                         ],
                         # We get a stack of contexts back
-                        "Contexts": [
+                        "contexts": [
                             {
                                 "start": 0,
                                 "end": 7,
@@ -344,11 +344,11 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                 "buffer_idx": 0
                             }
                         ],
-                        "SuggestedDisplayCtxIdx": 2
+                        "suggested_display_ctx_idx": 2
                     }
                 }
             ],
-            "Contexts": [
+            "contexts": [
                 {
                     "start": 28,
                     "end": 32,
@@ -356,10 +356,10 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                 }
             ]
         }
-        self.assert_plan(res['Plan'], shape)
+        self.assert_plan(res['plan'], shape)
 
-        self.assertEqual(len(res['Buffers']), 2)
-        self.assertEqual(res['Buffers'][1][0], ".<owner[is default::Issue]")
+        self.assertEqual(len(res['buffers']), 2)
+        self.assertEqual(res['buffers'][1][0], ".<owner[is default::Issue]")
 
     async def test_edgeql_explain_inheritance_01(self):
         res = await self.explain('''
@@ -367,21 +367,21 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         ''')
 
         shape = {
-            "Node Type": "Result",
-            "Plans": [
+            "node_type": "Result",
+            "plans": [
                 {
-                    "Node Type": "Append",
-                    "Parent Relationship": "Outer",
-                    "Plans": tb.bag([1, 2, 3])
+                    "node_type": "Append",
+                    "parent_relationship": "Outer",
+                    "plans": tb.bag([1, 2, 3])
                 }
             ],
-            "CollapsedPlans": tb.bag([
+            "collapsed_plans": tb.bag([
                 {
-                    "Node Type": "Seq Scan",
-                    "Parent Relationship": "Member",
-                    "Relation Name": "default::Issue",
-                    "Original Relation Name": "default::Text",
-                    "Contexts": [
+                    "node_type": "Seq Scan",
+                    "parent_relationship": "Member",
+                    "relation_name": "default::Issue",
+                    "original_relation_name": "default::Text",
+                    "contexts": [
                         {
                             "start": 31,
                             "end": 35,
@@ -397,11 +397,11 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     ]
                 },
                 {
-                    "Node Type": "Seq Scan",
-                    "Parent Relationship": "Member",
-                    "Relation Name": "default::Comment",
-                    "Original Relation Name": "default::Text",
-                    "Contexts": [
+                    "node_type": "Seq Scan",
+                    "parent_relationship": "Member",
+                    "relation_name": "default::Comment",
+                    "original_relation_name": "default::Text",
+                    "contexts": [
                         {
                             "start": 31,
                             "end": 35,
@@ -417,11 +417,11 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     ]
                 },
                 {
-                    "Node Type": "Seq Scan",
-                    "Parent Relationship": "Member",
-                    "Relation Name": "default::LogEntry",
-                    "Original Relation Name": "default::Text",
-                    "Contexts": [
+                    "node_type": "Seq Scan",
+                    "parent_relationship": "Member",
+                    "relation_name": "default::LogEntry",
+                    "original_relation_name": "default::Text",
+                    "contexts": [
                         {
                             "start": 31,
                             "end": 35,
@@ -439,7 +439,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             ])
         }
 
-        self.assert_plan(res['Plan'], shape)
+        self.assert_plan(res['plan'], shape)
 
     async def test_edgeql_explain_type_intersect_01(self):
         res = await self.explain('''
@@ -450,44 +450,44 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         ''')
 
         shape = {
-            "Node Type": "Result",
-            "Plans": tb.bag([
+            "node_type": "Result",
+            "plans": tb.bag([
                 {
-                    "Node Type": "Append",
-                    "Plans": tb.bag([2, 3, 4])
+                    "node_type": "Append",
+                    "plans": tb.bag([2, 3, 4])
                 },
                 1
             ]),
-            "CollapsedPlans": tb.bag([
+            "collapsed_plans": tb.bag([
                 {
-                    "Node Type": "Index Scan",
-                    "Relation Name": "default::Issue",
-                    "Contexts": [
+                    "node_type": "Index Scan",
+                    "relation_name": "default::Issue",
+                    "contexts": [
                         {"text": "[is Issue]"},
                         {"text": "[is Issue].name"},
                         {"text": "z := [is Issue].name"},
                     ],
-                    "SuggestedDisplayCtxIdx": 2
+                    "suggested_display_ctx_idx": 2
                 },
                 {
-                    "Relation Name": "default::LogEntry",
-                    "Original Relation Name": "default::Text",
-                    "Contexts": [{"text": "Text"}]
+                    "relation_name": "default::LogEntry",
+                    "original_relation_name": "default::Text",
+                    "contexts": [{"text": "Text"}]
                 },
                 {
-                    "Relation Name": "default::Issue",
-                    "Original Relation Name": "default::Text",
-                    "Contexts": [{"text": "Text"}]
+                    "relation_name": "default::Issue",
+                    "original_relation_name": "default::Text",
+                    "contexts": [{"text": "Text"}]
                 },
                 {
-                    "Relation Name": "default::Comment",
-                    "Original Relation Name": "default::Text",
-                    "Contexts": [{"text": "Text"}]
+                    "relation_name": "default::Comment",
+                    "original_relation_name": "default::Text",
+                    "contexts": [{"text": "Text"}]
                 }
             ])
         }
 
-        self.assert_plan(res['Plan'], shape)
+        self.assert_plan(res['plan'], shape)
 
     async def test_edgeql_explain_insert_01(self):
         # Use an ad-hoc connection to avoid TRANSACTION_ISOLATION
@@ -496,8 +496,8 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             res = await self.explain('''
                 insert User { name := 'Fantix' }
             ''', analyze=True, con=con)
-            self.assert_plan(res['Plan'], {
-                'Node Type': 'Nested Loop',
+            self.assert_plan(res['plan'], {
+                'node_type': 'Nested Loop',
             })
             self.assertFalse(await con.query('''
                 select User { id, name } filter .name = 'Fantix'
@@ -513,8 +513,8 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             res = await self.explain('''
                 insert User { name := 'Fantix' }
             ''', analyze=True)
-            self.assert_plan(res['Plan'], {
-                'Node Type': 'Nested Loop',
+            self.assert_plan(res['plan'], {
+                'node_type': 'Nested Loop',
             })
             self.assertTrue(await self.con.query('''
                 select User { id, name } filter .name = 'Sully'
