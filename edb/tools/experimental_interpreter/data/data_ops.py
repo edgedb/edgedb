@@ -327,7 +327,7 @@ class FreeVarExpr:
 
 @dataclass(frozen=True)
 class BoundVarExpr:
-    var: int
+    var: str
 
 
 @dataclass(frozen=True)
@@ -420,6 +420,7 @@ class ShapedExprExpr:
 
 @dataclass(frozen=True)
 class BindingExpr:
+    var: str
     body: Expr
 
 
@@ -574,8 +575,8 @@ def next_id():
     return starting_id
 
 
-def next_name() -> str:
-    return "n" + str(next_id())
+def next_name(prefix: str = "n") -> str:
+    return prefix + str(next_id())
 
 
 def ref(id):
