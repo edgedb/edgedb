@@ -2248,34 +2248,49 @@ def process_link_update(
                 pgast.ColumnRef(name=['excluded', col])
             )
 
-        conflict_data = pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(
-                    val=pgast.ColumnRef(
-                        name=[data_cte.name, pgast.Star()]))
-            ],
-            from_clause=[
-                pgast.RelRangeVar(relation=data_cte)
-            ],
-            where_clause=astutils.new_binop(
-                lexpr=pgast.ImplicitRowExpr(args=conflict_inference),
-                rexpr=pgast.ImplicitRowExpr(args=conflict_exc_row),
-                op='='
-            )
-        )
+        target_cols = [
+            col
+            for col in cols
+            if col.name[0] not in conflict_cols
+        ]
 
-        conflict_clause = pgast.OnConflictClause(
-            action='update',
-            infer=pgast.InferClause(
-                index_elems=conflict_inference
-            ),
-            target_list=[
-                pgast.MultiAssignRef(
-                    columns=cols,
-                    source=conflict_data
+        if len(target_cols) == 0:
+            conflict_clause = pgast.OnConflictClause(
+                action='nothing',
+                infer=pgast.InferClause(
+                    index_elems=conflict_inference
                 )
-            ]
-        )
+            )
+        else:
+            conflict_data = pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.ColumnRef(name=[data_cte.name, col.name[0]])
+                    )
+                    for col in target_cols
+                ],
+                from_clause=[
+                    pgast.RelRangeVar(relation=data_cte)
+                ],
+                where_clause=astutils.new_binop(
+                    lexpr=pgast.ImplicitRowExpr(args=conflict_inference),
+                    rexpr=pgast.ImplicitRowExpr(args=conflict_exc_row),
+                    op='='
+                )
+            )
+
+            conflict_clause = pgast.OnConflictClause(
+                action='update',
+                infer=pgast.InferClause(
+                    index_elems=conflict_inference
+                ),
+                target_list=[
+                    pgast.MultiAssignRef(
+                        columns=target_cols,
+                        source=conflict_data
+                    )
+                ]
+            )
 
     updcte = pgast.CommonTableExpr(
         name=ctx.env.aliases.get(hint='i'),
