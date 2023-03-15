@@ -533,6 +533,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if mapped := get_view_map_remapping(path_tip.path_id, ctx):
             path_tip = new_set_from_set(
                 path_tip, path_id=mapped.path_id, ctx=ctx)
+            if path_tip.rptr:
+                path_tip.rptr = path_tip.rptr.replace(target=path_tip)
             # If we are remapping a source path, then we know that
             # the path is visible, so we shouldn't recompile it
             # if it is a computable path.
