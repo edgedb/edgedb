@@ -41,7 +41,7 @@ def path_lexicographic_key(e: Expr) -> str:
 def get_all_paths(e: Expr) -> List[Expr]:
     all_paths: List[Expr] = []
 
-    def populate(sub: Expr, level: int) -> Optional[Expr]:
+    def populate(sub: Expr) -> Optional[Expr]:
         nonlocal all_paths
         if isinstance(sub, DetachedExpr):  # skip detached
             return sub

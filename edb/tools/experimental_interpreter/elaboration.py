@@ -145,9 +145,13 @@ def elab_ShapeElement(s: qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
         name = elab_label(s.expr)
         match name:
             case StrLabel(_):
-                return (name, post_processing(BindingExpr(
-                    ShapedExprExpr(ObjectProjExpr(BoundVarExpr(1), name.label),
-                        elab_Shape(s.elements)
+                var = next_name()
+                return (name, post_processing(
+                    BindingExpr(
+                        var=var,
+                        body=ShapedExprExpr(
+                            ObjectProjExpr(BoundVarExpr(var), name.label),
+                            elab_Shape(s.elements)
                                    ))))
             case _:
                 return elab_not_implemented(s, "link property with shapes")
@@ -156,12 +160,18 @@ def elab_ShapeElement(s: qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
         name = elab_label(s.expr)
         match name:
             case StrLabel(_):
+                var = next_name()
                 return (name, post_processing(
-                    BindingExpr(ObjectProjExpr(BoundVarExpr(1), name.label))))
+                    BindingExpr(
+                        var=var,
+                        body=ObjectProjExpr(BoundVarExpr(var), name.label))))
             case LinkPropLabel(_):
+                var = next_name()
                 return (name, post_processing(
                         BindingExpr(
-                            LinkPropProjExpr(BoundVarExpr(1), name.label))
+                            var=var,
+                            body=LinkPropProjExpr(
+                                    BoundVarExpr(var), name.label))
                         ))
             case _:
                 return elab_not_implemented(s)

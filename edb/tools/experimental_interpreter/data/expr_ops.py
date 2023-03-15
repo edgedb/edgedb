@@ -37,11 +37,11 @@ def map_expr(
             return map_expr(f, expr)
         match expr:
             case (FreeVarExpr(_) | BoundVarExpr(_) | StrVal(_) | BoolVal(_) |
-                    IntVal(_) | RefVal(_) | LinkPropVal(_)):
+                    IntVal(_) | RefVal(_) | LinkPropVal(_) | FreeVal(_)
+                    | ArrVal(_) | UnnamedTupleVal(_)):
                 return expr
-            case BindingExpr(body=body):
-                # type: ignore[has-type]
-                return BindingExpr(body=map_expr(f, body))
+            case BindingExpr(var=var, body=body):
+                return BindingExpr(var=var, body=map_expr(f, body))
             case UnnamedTupleExpr(val=val):
                 return UnnamedTupleExpr(val=[recur(e) for e in val])
             case NamedTupleExpr(val=val):
@@ -179,12 +179,16 @@ def subst_expr_for_expr(expr2: Expr, replace: Expr, subject: Expr):
                 case (BoundVarExpr(v) | FreeVarExpr(v)):
                     if v == candidate.var:
                         return candidate
-            
-            # otherwise we need to ensure that the variable is not captured
-            return subst_expr_for_expr(
+
+            # otherwise we need to ensure that no variable is captured
+            no_capture_cand = ensure_no_capture(e2_free_vars, candidate)
+
+            return BindingExpr(
+                var=no_capture_cand.var,
+                body=subst_expr_for_expr(
                     expr2,
                     replace,
-                    ensure_no_capture(e2_free_vars, candidate))
+                    no_capture_cand.body))
         else:
             return None
 
