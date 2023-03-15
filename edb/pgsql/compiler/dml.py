@@ -1655,7 +1655,7 @@ def prepare_update_shape(
 ]:
     rewrites = dict(rewrites)
 
-    elements = []
+    elements: List[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]] = []
     for shape_el, shape_op in ir_stmt.subject.shape:
         if shape_op == qlast.ShapeOp.MATERIALIZE:
             continue
@@ -1668,38 +1668,38 @@ def prepare_update_shape(
         ptr_name = actual_ptrref.shortname.name
 
         # apply rewrite
-        value: Optional[irast.Expr]
         if ptr_name in rewrites:
-            value, _ = rewrites.pop(actual_ptrref.shortname.name)
+            value = cast(irast.Set, rewrites.pop(ptr_name))
         else:
-            value = shape_el.expr
+            value = shape_el
 
-        elements.append((ptrref, actual_ptrref, value))
+        elements.append((value, actual_ptrref, shape_op))
 
     # apply remaining rewrites
-    for (value, actual_ptrref) in rewrites.values():
-        elements.append((None, actual_ptrref, value))
+    for element, ptrref in rewrites.values():
+        elements.append((element, ptrref, qlast.ShapeOp.ASSIGN))
 
     values: List[Tuple[pgast.ResTarget, irast.PathId]] = []
     external_updates: List[Tuple[irast.Set, qlast.ShapeOp]] = []
     ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
 
-    for (ptrref, actual_ptrref, updvalue) in elements:
+    for element, actual_ptrref, shape_op in elements:
         ptr_info = pg_types.get_ptrref_storage_info(
             actual_ptrref, resolve_type=True, link_bias=False
         )
+        updvalue = element.expr
 
         if ptr_info.table_type == "ObjectType" and updvalue is not None:
             with ctx.newscope() as scopectx:
                 val: pgast.BaseExpr
 
-                if irtyputils.is_tuple(shape_el.typeref):
+                if irtyputils.is_tuple(element.typeref):
                     # When target is a tuple type, make sure
                     # the expression is compiled into a subquery
                     # returning a single column that is explicitly
                     # cast into the appropriate composite type.
                     val = relgen.set_as_subquery(
-                        shape_el,
+                        element,
                         as_value=True,
                         explicit_cast=ptr_info.column_type,
                         ctx=scopectx,
@@ -1724,6 +1724,7 @@ def prepare_update_shape(
 
                     assert isinstance(updvalue, irast.Stmt)
 
+                    ptrref = element.rptr.ptrref if element.rptr else None
                     val = check_update_type(
                         val,
                         val,
@@ -1755,7 +1756,7 @@ def prepare_update_shape(
                     name=ptr_info.column_name,
                     val=val,
                 )
-                values.append((updtarget, shape_el.path_id))
+                values.append((updtarget, element.path_id))
 
                 # Register the output as both a var and an output
                 # so that if it is referenced in a policy or
@@ -1785,7 +1786,7 @@ def prepare_update_shape(
         )
 
         if link_ptr_info and link_ptr_info.table_type == "link":
-            external_updates.append((shape_el, shape_op))
+            external_updates.append((element, shape_op))
 
     rel.target_list.extend(v for v, _ in values)
 

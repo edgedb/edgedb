@@ -878,9 +878,9 @@ def _compile_rewrites(
 
     schema = ctx.env.schema
     by_type: Dict[irast.TypeRef, irast.RewritesOfType] = {}
-    for ty, rewrites in rewrites_by_type.items():
+    for ty, rewrites_of_type in rewrites_by_type.items():
         by_type[ty] = {}
-        for element in rewrites.values():
+        for element in rewrites_of_type.values():
             target = element.target_set
             assert target and target.expr
 
@@ -888,11 +888,27 @@ def _compile_rewrites(
                 schema=schema, ptrcls=element.ptrcls
             )
             actual_ptrref = irtypeutils.find_actual_ptrref(ty, ptrref)
+            pn = actual_ptrref.shortname.name
+            path_id = irast.PathId.from_pointer(schema, element.ptrcls)
 
-            by_type[ty][actual_ptrref.shortname.name] = (
-                target.expr,
-                actual_ptrref,
+            # construct a new set with correct path_id
+            ptr_set = irast.Set(
+                path_id=path_id,
+                typeref=target.typeref,
+                expr=target.expr,
+                rptr=None
             )
+
+            # construct a new set with correct path_id
+            ptr_set.rptr = irast.Pointer(
+                source=ir_set,
+                target=ptr_set,
+                direction=s_pointers.PointerDirection.Outbound,
+                ptrref=actual_ptrref,
+                is_definition=True,
+            )
+
+            by_type[ty][pn] = (ptr_set, actual_ptrref)
 
     return irast.Rewrites(
         subject_path_id=anchors[0].path_id,

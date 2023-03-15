@@ -1154,7 +1154,7 @@ class InsertStmt(MutatingStmt):
         return self.subject.typeref.real_material_type
 
 
-RewritesOfType = typing.Dict[str, typing.Tuple[Expr, BasePointerRef]]
+RewritesOfType = typing.Dict[str, typing.Tuple[Set, BasePointerRef]]
 
 
 @dataclasses.dataclass(kw_only=True, frozen=True)
