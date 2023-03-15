@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import *
+from typing import Dict, Sequence, Tuple, Optional, Callable
 
 from dataclasses import dataclass
 
@@ -115,7 +115,8 @@ class SomeTp:
     index: int
 
 
-Tp = ObjectTp | PrimTp | VarTp | LinkPropTp | NamedTupleTp | UnnamedTupleTp | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp
+Tp = ObjectTp | PrimTp | VarTp | LinkPropTp | NamedTupleTp | UnnamedTupleTp \
+    | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp
 
 
 @dataclass(frozen=True)
@@ -158,7 +159,7 @@ class FiniteCardinal:
 class InfiniteCardinal:
     def __add__(self, other):
         match other:
-            case FiniteCardinal(otherCard):
+            case FiniteCardinal(_):
                 return InfiniteCardinal()
             case InfiniteCardinal():
                 return InfiniteCardinal()
@@ -166,7 +167,7 @@ class InfiniteCardinal:
 
     def __mul__(self, other: Cardinal):
         match other:
-            case FiniteCardinal(otherCard):
+            case FiniteCardinal(_):
                 return InfiniteCardinal()
             case InfiniteCardinal():
                 return InfiniteCardinal()
@@ -183,54 +184,6 @@ def Inf():
 def Fin(i):
     return FiniteCardinal(i)
 
-# @dataclass(frozen=True)
-# class ClosedCardinality:
-#     lower : int
-#     upper : int
-
-#     def __add__(self, other):
-#         sum_cardinality_modes(self, other)
-
-#     def __mul__(self, other):
-#         prod_cardinality_modes(self, other)
-
-
-# @dataclass(frozen=True)
-# class OpenCardinality:
-#     lower : int
-
-#     def __add__(self, other):
-#         sum_cardinality_modes(self, other)
-
-#     def __mul__(self, other):
-#         prod_cardinality_modes(self, other)
-
-# CardinalityModes = ClosedCardinality | OpenCardinality
-
-# def sum_cardinality_modes(card1 : CardinalityModes, card2 : CardinalityModes) -> CardinalityModes:
-#     match card1, card2:
-#         case ClosedCardinality(c1l, c1u), ClosedCardinality(c2l, c2u):
-#                 return ClosedCardinality(c1l + c2l, c1u + c2u)
-#         case ClosedCardinality(c1l, c1u), OpenCardinality(c2l):
-#                 return OpenCardinality(c1l + c2l)
-#         case OpenCardinality(c1l), ClosedCardinality(c2l, c2u):
-#                 return OpenCardinality(c1l + c2l)
-#         case OpenCardinality(c1l), OpenCardinality(c2l):
-#                 return OpenCardinality(c1l + c2l)
-#     raise ValueError("Cannot compute sums over", card1, "and", card2)
-
-# def prod_cardinality_modes(card1 : CardinalityModes, card2 : CardinalityModes) -> CardinalityModes:
-#     match card1, card2:
-#         case ClosedCardinality(c1l, c1u), ClosedCardinality(c2l, c2u):
-#                 return ClosedCardinality(c1l * c2l, c1u * c2u)
-#         case ClosedCardinality(c1l, c1u), OpenCardinality(c2l):
-#                 return OpenCardinality(c1l * c2l)
-#         case OpenCardinality(c1l), ClosedCardinality(c2l, c2u):
-#                 return OpenCardinality(c1l * c2l)
-#         case OpenCardinality(c1l), OpenCardinality(c2l):
-#                 return OpenCardinality(c1l * c2l)
-#     raise ValError("Cannot compute prods over", card1, "and", card2)
-
 
 @dataclass(frozen=True)
 class CMMode:
@@ -239,7 +192,7 @@ class CMMode:
     multiplicity: Cardinal = None  # type: ignore
 
     def __post_init__(self):
-        if self.multiplicity == None:
+        if self.multiplicity is None:
             object.__setattr__(self, 'multiplicity', self.upper)
 
     def __add__(self, other: CMMode):
@@ -332,7 +285,8 @@ class BoolVal:
     val: bool
 
 
-PrimVal = StrVal | IntVal | FunVal | IntInfVal | BoolVal | DateTimeVal | JsonVal
+PrimVal = StrVal | IntVal | FunVal | IntInfVal | BoolVal  \
+    | DateTimeVal | JsonVal
 
 # DEFINE EXPRESSIONS
 
@@ -563,15 +517,13 @@ MultiSetVal = Sequence[Val]
 
 VarExpr = (FreeVarExpr | BoundVarExpr)
 
-Expr = (PrimVal | TypeCastExpr | FunAppExpr
-        | FreeVarExpr | BoundVarExpr | ObjectProjExpr | LinkPropProjExpr | WithExpr | ForExpr | OptionalForExpr
-        | TpIntersectExpr | BackLinkExpr
-        | FilterOrderExpr | OffsetLimitExpr | InsertExpr | UpdateExpr
-        | MultiSetExpr
-        | ShapedExprExpr | ShapeExpr | ObjectExpr | BindingExpr
-        | Val | UnnamedTupleExpr | NamedTupleExpr | ArrExpr
-        | Tp | UnionExpr | DetachedExpr | SubqueryExpr
-        )
+Expr = (
+    PrimVal | TypeCastExpr | FunAppExpr | FreeVarExpr | BoundVarExpr |
+    ObjectProjExpr | LinkPropProjExpr | WithExpr | ForExpr | OptionalForExpr |
+    TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr |
+    InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
+    ObjectExpr | BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr |
+    ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr)
 
 
 @dataclass(frozen=True)
@@ -624,11 +576,6 @@ def next_id():
 
 def next_name() -> str:
     return "n" + str(next_id())
-
-# def dict_to_val(data : Dict[str, Val]) -> DictVal:
-#     result : DictVal = {}
-#     [result := BinProdVal(k, Visible(), v, result) for k,v in reversed(data.items())]
-#     return result
 
 
 def ref(id):

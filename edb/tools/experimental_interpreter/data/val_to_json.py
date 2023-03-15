@@ -1,15 +1,18 @@
-from typing import *
-from .data_ops import *
+from typing import Any, Dict, Sequence
+
+from .data_ops import (ArrVal, BoolVal, FreeVal, IntVal, Label, LinkPropLabel,
+                       MultiSetVal, NamedTupleVal, ObjectVal, RefVal, StrLabel,
+                       StrVal, UnnamedTupleVal, Val, Visible)
 
 json_like = str | int | bool | Dict[str, Any] | Sequence[Any]
 
 
-def label_to_str(l: Label) -> str:
-    match l:
+def label_to_str(lbl: Label) -> str:
+    match lbl:
         case StrLabel(s):
             return s
         case LinkPropLabel(s):
-            return "@"+s
+            return "@" + s
     raise ValueError("MATCH")
 
 
@@ -27,7 +30,7 @@ def val_to_json_like(v: Val) -> json_like:
             return i
         case BoolVal(b):
             return b
-        case RefVal(refid, object):
+        case RefVal(_, object):
             return objectval_to_json_like(object)
         case FreeVal(object):
             return objectval_to_json_like(object)

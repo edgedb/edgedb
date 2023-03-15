@@ -1,32 +1,30 @@
 
 
-from .data.data_ops import *
-from .helper_funcs import *
+from .data.data_ops import DBSchema, DB, MultiSetVal, empty_db
+from typing import Tuple
+from .helper_funcs import parse_ql
 import sys
 import traceback
 from edb.edgeql import ast as qlast
-from edb import edgeql
-import pprint
 from .basis.built_ins import all_builtin_funcs
 from edb.common import debug
-from .elaboration import *
+from .elaboration import elab
 
-import readline
 
-from .evaluation import *
+from .evaluation import RTExpr, RTData, eval_config_toplevel
 from .back_to_ql import reverse_elab
 from .data.path_factor import select_hoist
-from .data.val_to_json import *
-import copy
-
+from .data.val_to_json import val_to_json_like, json_like, \
+    multi_set_val_to_json_like
+from typing import *
 from .elab_schema import schema_from_sdl_file, schema_from_sdl_defs
 
-import sys
 # CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
-sys.setrecursionlimit(10000)
+# sys.setrecursionlimit(10000)
 
 
-def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema, should_print: bool) -> Tuple[MultiSetVal, DB]:
+def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema,
+                  should_print: bool) -> Tuple[MultiSetVal, DB]:
     if should_print:
         print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
         debug.dump_edgeql(stmt)
@@ -64,7 +62,9 @@ def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema, should_print: bo
     # debug.dump(stmt)
 
 
-def run_stmts(db: DB, stmts: Sequence[qlast.Expr], dbschema: DBSchema, debug_print: bool) -> Tuple[Sequence[MultiSetVal], DB]:
+def run_stmts(db: DB, stmts: Sequence[qlast.Expr],
+              dbschema: DBSchema, debug_print: bool) -> \
+        Tuple[Sequence[MultiSetVal], DB]:
     match stmts:
         case []:
             return ([], db)
@@ -129,7 +129,8 @@ def repl(*, init_sdl_file=None, init_ql_file=None, debug_print=False) -> None:
         dbschema = DBSchema({}, all_builtin_funcs)
     if init_ql_file is not None:
         initial_queries = open(init_ql_file).read()
-        (_, db) = run_str(db, dbschema, initial_queries, print_asts=debug_print)
+        (_, db) = run_str(db, dbschema, initial_queries,
+                          print_asts=debug_print)
     while True:
         print("> ", end="", flush=True)
         s = ""
@@ -143,7 +144,9 @@ def repl(*, init_sdl_file=None, init_ql_file=None, debug_print=False) -> None:
             traceback.print_exception(*sys.exc_info())
 
 
-def db_with_initilial_schema_and_queries(initial_schema_defs: str, initial_queries: str, debug_print=False) -> DB:
+def db_with_initilial_schema_and_queries(
+        initial_schema_defs: str,
+        initial_queries: str, debug_print=False) -> DB:
     db = empty_db()
     dbschema = schema_from_sdl_defs(initial_schema_defs)
     (_, db) = run_str(db, dbschema, initial_queries, print_asts=debug_print)

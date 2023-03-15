@@ -1,20 +1,24 @@
+from typing import Callable, List, Optional
 
-
-from .data_ops import *
-from .expr_ops import *
-
-from .query_ops import *
+from .data_ops import (BackLinkExpr, BindingExpr, BoolVal, DBSchema,
+                       DetachedExpr, Expr, FilterOrderExpr, FreeVarExpr,
+                       LinkPropProjExpr, ObjectExpr, ObjectProjExpr,
+                       OptionalForExpr, next_name, StrLabel)
+from .expr_ops import (
+    abstract_over_expr, appears_in_expr, instantiate_expr, is_path,
+    iterative_subst_expr_for_expr, map_expr, operate_under_binding)
+from .query_ops import QueryLevel, map_query, map_sub_and_semisub_queries
 
 
 def all_prefixes_of_a_path(e: Expr) -> List[Expr]:
     match e:
         case FreeVarExpr(_):
             return [e]
-        case LinkPropProjExpr(subject=subject, linkprop=linkprop):
+        case LinkPropProjExpr(subject=subject, linkprop=_):
             return [*all_prefixes_of_a_path(subject), e]
-        case ObjectProjExpr(subject=subject, label=label):
+        case ObjectProjExpr(subject=subject, label=_):
             return [*all_prefixes_of_a_path(subject), e]
-        case BackLinkExpr(subject=subject, label=label):
+        case BackLinkExpr(subject=subject, label=_):
             return [*all_prefixes_of_a_path(subject), e]
         case _:
             raise ValueError("not a path", e)
@@ -57,7 +61,8 @@ def get_all_pre_top_level_paths(e: Expr, dbschema: DBSchema) -> List[Expr]:
         nonlocal all_paths
         if isinstance(sub, DetachedExpr):  # skip detached
             return sub
-        if is_path(sub) and (level == QueryLevel.TOP_LEVEL or level == QueryLevel.SEMI_SUBQUERY):
+        if is_path(sub) and (level == QueryLevel.TOP_LEVEL
+                             or level == QueryLevel.SEMI_SUBQUERY):
             all_paths = [*all_paths, sub]
             return sub
         else:
@@ -66,7 +71,8 @@ def get_all_pre_top_level_paths(e: Expr, dbschema: DBSchema) -> List[Expr]:
     return all_paths
 
 
-def get_all_proper_top_level_paths(e: Expr, dbschema: DBSchema) -> List[Expr]:
+def get_all_proper_top_level_paths(
+        e: Expr, dbschema: DBSchema) -> List[Expr]:
     definite_top_paths: List[Expr] = []
     semi_sub_paths: List[List[Expr]] = []
     sub_paths: List[Expr] = []
@@ -97,12 +103,15 @@ def get_all_proper_top_level_paths(e: Expr, dbschema: DBSchema) -> List[Expr]:
         for (candidate) in cluster:
             prefixes = all_prefixes_of_a_path(candidate)
             to_check = definite_top_paths + sub_paths + \
-                [p for l in (semi_sub_paths[:i] + semi_sub_paths[i+1:])
-                 for p in l]
-            if any([appears_in_expr(prefix, ck) for prefix in prefixes for ck in to_check]):
+                [p for spl in (semi_sub_paths[:i] + semi_sub_paths[i + 1:])
+                 for p in spl]
+            if any([appears_in_expr(prefix, ck)
+                    for prefix in prefixes
+                    for ck in to_check]):
                 selected_semi_sub_paths.append(candidate)
 
-    # all top_paths will show up finally, we need to filter out those paths in semi_sub
+    # all top_paths will show up finally,
+    # we need to filter out those paths in semi_sub
     # whose prefixes (including itself) appears solely in the same subquery
     # print("Selected semi sub paths are", selected_semi_sub_paths)
     return definite_top_paths + selected_semi_sub_paths
@@ -125,7 +134,9 @@ def common_longest_path_prefix(e1: Expr, e2: Expr) -> Optional[Expr]:
                     pending = p1this
                 return find_longest([*p1next], [*p2next])
         raise ValueError("should not happen")
-    return find_longest(all_prefixes_of_a_path(e1), all_prefixes_of_a_path(e2))
+    return find_longest(
+        all_prefixes_of_a_path(e1),
+        all_prefixes_of_a_path(e2))
 
 
 def common_longest_path_prefix_in_set(test_set: List[Expr]) -> List[Expr]:
@@ -138,7 +149,9 @@ def common_longest_path_prefix_in_set(test_set: List[Expr]) -> List[Expr]:
     return result
 
 
-def separate_common_longest_path_prefix_in_set(base_set: List[Expr], compare_set: List[Expr]) -> List[Expr]:
+def separate_common_longest_path_prefix_in_set(
+        base_set: List[Expr],
+        compare_set: List[Expr]) -> List[Expr]:
     result: List[Expr] = []
     for s in base_set:
         for t in compare_set:
@@ -155,7 +168,9 @@ def toppath_for_factoring(e: Expr, dbschema: DBSchema) -> List[Expr]:
     clpp_a = common_longest_path_prefix_in_set(top_level_paths)
     c_i = [separate_common_longest_path_prefix_in_set(
         top_level_paths, [b]) for b in all_paths]
-    return sorted(list(set([p for c in c_i for p in c] + clpp_a)), key=path_lexicographic_key)
+    return sorted(
+        list(set([p for c in c_i for p in c] + clpp_a)),
+        key=path_lexicographic_key)
 
 
 def trace_input_output(func):
@@ -184,59 +199,85 @@ def sub_select_hoist(e: Expr, dbschema: DBSchema) -> Expr:
                 new_fresh_name)
         else:
             return select_hoist(e, dbschema)
-    return map_sub_and_semisub_queries(sub_select_hoist_map_func, e, dbschema)
+    return map_sub_and_semisub_queries(
+        sub_select_hoist_map_func, e, dbschema)
 
 # @trace_input_output
 
 
 def select_hoist(e: Expr, dbschema: DBSchema) -> Expr:
     top_paths = toppath_for_factoring(e, dbschema)
-    # print("Top paths of ", type(e), " has ", len (top_paths), " top paths ",  top_paths)
     fresh_names: List[str] = [next_name() for p in top_paths]
     # print("Paths and Names:", top_paths, fresh_names)
     fresh_vars: List[Expr] = [FreeVarExpr(n) for n in fresh_names]
-    for_paths = [iterative_subst_expr_for_expr(
-        fresh_vars[:i], top_paths[:i], p_i) for (i, p_i) in enumerate(top_paths)]
+    for_paths = [
+        iterative_subst_expr_for_expr(
+            fresh_vars[: i],
+            top_paths[: i],
+            p_i) for (i, p_i) in enumerate(top_paths)]
 
     inner_e: Expr
     post_process_transform: Callable[[Expr], Expr]
     match e:
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
             bindname = next_name()
-            inner_e = OptionalForExpr(FilterOrderExpr(subject=sub_select_hoist(iterative_subst_expr_for_expr(fresh_vars, top_paths, subject), dbschema),
-                                                      filter=operate_under_binding(filter, lambda filter: select_hoist(
-                                                          iterative_subst_expr_for_expr(fresh_vars, top_paths, filter), dbschema)),
-                                                      order=abstract_over_expr(
-                                                          ObjectExpr({}))
-                                                      ),
-                                      abstract_over_expr(
-                ObjectExpr({
-                    StrLabel("subject"): FreeVarExpr(bindname),
-                    StrLabel("order"): select_hoist(iterative_subst_expr_for_expr(fresh_vars, top_paths, instantiate_expr(FreeVarExpr(bindname), order)), dbschema),
-                }), bindname))
+            inner_e = OptionalForExpr(
+                FilterOrderExpr(
+                    subject=sub_select_hoist(
+                        iterative_subst_expr_for_expr(
+                            fresh_vars, top_paths, subject),
+                        dbschema),
+                    filter=operate_under_binding(
+                        filter,
+                        lambda
+                        filter:
+                        select_hoist(
+                            iterative_subst_expr_for_expr(
+                                fresh_vars, top_paths, filter),
+                            dbschema)),
+                    order=abstract_over_expr(ObjectExpr({}))),
+                abstract_over_expr(
+                    ObjectExpr(
+                        {StrLabel("subject"): FreeVarExpr(bindname),
+                         StrLabel("order"):
+                         select_hoist(
+                             iterative_subst_expr_for_expr(
+                                 fresh_vars, top_paths,
+                                 instantiate_expr(
+                                     FreeVarExpr(bindname),
+                                     order)),
+                             dbschema), }),
+                    bindname))
 
             def post_processing(e: Expr) -> Expr:
                 bindname = next_name()
                 return ObjectProjExpr(
-                    subject=FilterOrderExpr(subject=e,
-                                            filter=abstract_over_expr(
-                                                BoolVal(True)),
-                                            order=abstract_over_expr(ObjectProjExpr(
-                                                subject=FreeVarExpr(bindname), label="order"), bindname)
-                                            ),
+                    subject=FilterOrderExpr(
+                        subject=e,
+                        filter=abstract_over_expr(
+                            BoolVal(True)),
+                        order=abstract_over_expr(
+                            ObjectProjExpr(
+                                subject=FreeVarExpr(bindname),
+                                label="order"),
+                            bindname)
+                    ),
                     label="subject"
                 )
             post_process_transform = post_processing
         case _:
-            after_e = iterative_subst_expr_for_expr(fresh_vars, top_paths, e)
+            after_e = iterative_subst_expr_for_expr(
+                fresh_vars, top_paths, e)
             inner_e = sub_select_hoist(after_e, dbschema)
-            def post_process_transform(x): return x
+
+            def id_transform(x):
+                return x
+            post_process_transform = id_transform
 
     result = inner_e
     for i in reversed(list(range(len(for_paths)))):
         # print ("abstracting over path = ", for_paths[i], "on result", result)
         result = OptionalForExpr(
             for_paths[i], abstract_over_expr(result, fresh_names[i]))
-        # result = WithExpr(for_paths[i], abstract_over_expr(result, fresh_names[i]))
 
     return post_process_transform(result)

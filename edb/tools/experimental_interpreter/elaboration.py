@@ -1,29 +1,33 @@
 
 
 from functools import singledispatch
+from typing import Any, Dict, Optional, Sequence, Tuple, cast
 
-# import pprint
-
-from .data.data_ops import *
-from .data.expr_ops import *
-from .basis.built_ins import all_builtin_funcs
-from .helper_funcs import *
-import sys
-import traceback
-from edb.edgeql import ast as qlast
-from edb import edgeql
 from edb import errors
-
-from edb.schema.pointers import PointerDirection
-import pprint
-
-from .shape_ops import *
-
 from edb.common import debug, parsing
-from typing import *
+from edb.edgeql import ast as qlast
+from edb.schema import pointers as s_pointers
+from edb.schema.pointers import PointerDirection
+
+from .basis.built_ins import all_builtin_funcs
+from .data.data_ops import (
+    ArrExpr, ArrTp, BackLinkExpr, BindingExpr, BoolVal, BoundVarExpr,
+    DateTimeTp, DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
+    FunAppExpr, IfElseOp, IndirectionIndexOp, IndirectionSliceOp,
+    InsertExpr, IntInfVal, IntTp, IntVal, JsonTp, Label, LinkPropLabel,
+    LinkPropProjExpr, MultiSetExpr, NamedTupleExpr, ObjectExpr,
+    ObjectProjExpr, OffsetLimitExpr, OptionalForExpr, OrderAscending,
+    OrderDescending, OrderLabelSep, ShapedExprExpr, ShapeExpr, StrLabel,
+    StrTp, StrVal, SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
+    UnionExpr, UnionTp, UnnamedTupleExpr, UpdateExpr, VarTp, WithExpr,
+    next_name)
+from .data.expr_ops import (abstract_over_expr, instantiate_expr, is_path,
+                            subst_expr_for_expr)
+from .shape_ops import shape_to_expr
 
 DEFAULT_HEAD_NAME = "__no_clash_head_subject__"
-# used as the name for the leading dot notation!, will always disappear when elaboration finishes
+# used as the name for the leading dot notation!
+# will always disappear when elaboration finishes
 
 
 def elab_error(msg: str, ctx: Optional[parsing.ParserContext]) -> Any:
@@ -64,7 +68,8 @@ def elab_Path(p: qlast.Path) -> Expr:
                     result = FreeVarExpr(var=name)
                 else:
                     raise ValueError("Unexpected ObjectRef in Path")
-            case qlast.Ptr(ptr=qlast.ObjectRef(name=path_name), direction=PointerDirection.Outbound, type=ptr_type):
+            case qlast.Ptr(ptr=qlast.ObjectRef(name=path_name),
+                           direction=PointerDirection.Outbound, type=ptr_type):
                 if result is None:
                     raise ValueError("should not be")
                 else:
@@ -72,7 +77,8 @@ def elab_Path(p: qlast.Path) -> Expr:
                         result = LinkPropProjExpr(result, path_name)
                     else:
                         result = ObjectProjExpr(result, path_name)
-            case qlast.Ptr(ptr=qlast.ObjectRef(name=path_name), direction=PointerDirection.Inbound, type=None):
+            case qlast.Ptr(ptr=qlast.ObjectRef(name=path_name),
+                           direction=PointerDirection.Inbound, type=None):
                 if result is None:
                     raise ValueError("should not be")
                 else:
@@ -85,7 +91,8 @@ def elab_Path(p: qlast.Path) -> Expr:
                         case VarTp(name=tp_name):
                             result = TpIntersectExpr(result, tp_name)
                         case _:
-                            raise ValueError("expecting single type name here")
+                            raise ValueError(
+                                "expecting single type name here")
             case _:
                 if result is None:
                     result = elab(step)
@@ -97,23 +104,32 @@ def elab_Path(p: qlast.Path) -> Expr:
 def elab_label(p: qlast.Path) -> Label:
     """ Elaborates a single name e.g. in the left hand side of a shape """
     match p:
-        case qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=pname), direction=s_pointers.PointerDirection.Outbound)]):
+        case qlast.Path(steps=[qlast.Ptr(
+                ptr=qlast.ObjectRef(name=pname),
+                direction=s_pointers.PointerDirection.Outbound)]):
             return StrLabel(pname)
-        case qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=pname), type='property')]):
+        case qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=pname),
+                                         type='property')]):
             return LinkPropLabel(pname)
     return elab_not_implemented(p, "label")
 
 
 @elab.register(qlast.ShapeElement)
 def elab_ShapeElement(s: qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
-    def post_processing(x): return x
+    def default_post_processing(x):
+        return x
+    post_processing = default_post_processing
+
     if s.orderby or s.where:
         def process(e: BindingExpr) -> BindingExpr:
-            return abstract_over_expr(FilterOrderExpr(
-                subject=instantiate_expr(FreeVarExpr(DEFAULT_HEAD_NAME), e),
-                filter=elab_where(s.where),
-                order=elab_orderby(s.orderby)
-            ), DEFAULT_HEAD_NAME)
+            return abstract_over_expr(
+                FilterOrderExpr(
+                    subject=instantiate_expr(
+                        FreeVarExpr(DEFAULT_HEAD_NAME),
+                        e),
+                    filter=elab_where(s.where),
+                    order=elab_orderby(s.orderby)),
+                DEFAULT_HEAD_NAME)
         post_processing = process
 
     if s.compexpr is not None:
@@ -140,9 +156,13 @@ def elab_ShapeElement(s: qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
         name = elab_label(s.expr)
         match name:
             case StrLabel(_):
-                return (name, post_processing(BindingExpr(ObjectProjExpr(BoundVarExpr(1), name.label))))
+                return (name, post_processing(
+                    BindingExpr(ObjectProjExpr(BoundVarExpr(1), name.label))))
             case LinkPropLabel(_):
-                return (name, post_processing(BindingExpr(LinkPropProjExpr(BoundVarExpr(1), name.label))))
+                return (name, post_processing(
+                        BindingExpr(
+                            LinkPropProjExpr(BoundVarExpr(1), name.label))
+                        ))
             case _:
                 return elab_not_implemented(s)
 
@@ -151,9 +171,9 @@ def elab_ShapeElement(s: qlast.ShapeElement) -> Tuple[Label, BindingExpr]:
 def elab_ShapedExpr(shape: qlast.Shape) -> ShapedExprExpr:
 
     return ShapedExprExpr(
-        expr=elab(shape.expr) if shape.expr is not None else ObjectExpr({}),
-        shape=elab_Shape(shape.elements)
-    )
+        expr=elab(shape.expr)
+        if shape.expr is not None else ObjectExpr({}),
+        shape=elab_Shape(shape.elements))
 
 
 @elab.register(qlast.InsertQuery)
@@ -162,7 +182,11 @@ def elab_InsertQuery(expr: qlast.InsertQuery) -> InsertExpr:
     subject_type = expr.subject.name
     object_shape = elab_Shape(expr.shape)
     object_expr = shape_to_expr(object_shape)
-    return cast(InsertExpr, elab_aliases(expr.aliases, InsertExpr(name=subject_type, new=object_expr)))
+    return cast(
+        InsertExpr,
+        elab_aliases(
+            expr.aliases,
+            InsertExpr(name=subject_type, new=object_expr)))
 
 
 @elab.register(qlast.StringConstant)
@@ -204,25 +228,33 @@ def elab_orderby(qle: Optional[Sequence[qlast.SortExpr]]) -> BindingExpr:
         if sort_expr.nones_order is not None:
             raise elab_not_implemented(sort_expr)
 
-        key = (str(idx) + OrderLabelSep +
-               (OrderAscending if sort_expr.direction == qlast.SortOrder.Asc else
-                OrderDescending if sort_expr.direction == qlast.SortOrder.Desc else
-                elab_error("unknown direction", sort_expr.context)
-                ))
+        key = (
+            str(idx) + OrderLabelSep +
+            (OrderAscending
+             if sort_expr.direction == qlast.SortOrder.Asc else
+             OrderDescending
+             if sort_expr.direction == qlast.SortOrder.Desc else
+             elab_error("unknown direction", sort_expr.context)))
         elabed_expr = elab(sort_expr.path)
         result = {**result, key: elabed_expr}
 
-    return abstract_over_expr(ObjectExpr({StrLabel(l): v for (l, v) in result.items()}), DEFAULT_HEAD_NAME)
+    return abstract_over_expr(
+        ObjectExpr({StrLabel(l): v for (l, v) in result.items()}),
+        DEFAULT_HEAD_NAME)
 
 
 @elab.register(qlast.SelectQuery)
 def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
     if qle.offset is not None or qle.limit is not None:
-        return elab_aliases(qle.aliases, SubqueryExpr(OffsetLimitExpr(
-            subject=elab(qle.result),
-            offset=elab(qle.offset) if qle.offset is not None else IntVal(0),
-            limit=elab(qle.limit) if qle.limit is not None else IntInfVal(),
-        )))
+        return elab_aliases(
+            qle.aliases,
+            SubqueryExpr(
+                OffsetLimitExpr(
+                    subject=elab(qle.result),
+                    offset=elab(qle.offset)
+                    if qle.offset is not None else IntVal(0),
+                    limit=elab(qle.limit)
+                    if qle.limit is not None else IntInfVal(),)))
     else:
         subject_elab = elab(qle.result)
         filter_elab = elab_where(qle.where)
@@ -236,20 +268,34 @@ def elab_SelectExpr(qle: qlast.SelectQuery) -> Expr:
             order_elab = abstract_over_expr(instantiate_expr(
                 alias_var, order_elab), qle.result_alias)
         else:
-            # abstract over if subject is a path, and select does not have an alias
-            # Review the design here: https://edgedb.slack.com/archives/C04JG7CR04T/p1677711136147779
+            # abstract over if subject is a path
+            # and select does not have an alias
+            # Review the design here:
+            # https://edgedb.slack.com/archives/C04JG7CR04T/p1677711136147779
             def path_abstraction(subject: Expr) -> None:
                 nonlocal filter_elab, order_elab
                 match subject:
-                    case ShapedExprExpr(expr=e, shape=s):
+                    case ShapedExprExpr(expr=e, shape=_):
                         return path_abstraction(e)
                     case _:
                         if is_path(subject):
                             name = next_name()
-                            filter_elab = abstract_over_expr(subst_expr_for_expr(FreeVarExpr(
-                                name), subject, instantiate_expr(FreeVarExpr(name), filter_elab)), name)
-                            order_elab = abstract_over_expr(subst_expr_for_expr(FreeVarExpr(
-                                name), subject, instantiate_expr(FreeVarExpr(name), order_elab)), name)
+                            filter_elab = abstract_over_expr(
+                                subst_expr_for_expr(
+                                    FreeVarExpr(name),
+                                    subject,
+                                    instantiate_expr(
+                                        FreeVarExpr(name),
+                                        filter_elab)),
+                                name)
+                            order_elab = abstract_over_expr(
+                                subst_expr_for_expr(
+                                    FreeVarExpr(name),
+                                    subject,
+                                    instantiate_expr(
+                                        FreeVarExpr(name),
+                                        order_elab)),
+                                name)
                         return
             path_abstraction(subject_elab)
 
@@ -267,10 +313,11 @@ def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
         return elab_not_implemented(fcall)
     if type(fcall.func) is not str:
         return elab_not_implemented(fcall)
-    fname = fcall.func if fcall.func in all_builtin_funcs.keys() else \
-        "std::" + fcall.func if ("std::" + fcall.func) in all_builtin_funcs.keys() else \
-        elab_error("unknown function name: " +
-                   fcall.func, fcall.context)
+    fname = fcall.func if fcall.func in all_builtin_funcs.keys() \
+        else "std::" + fcall.func \
+        if ("std::" + fcall.func) in all_builtin_funcs.keys() \
+        else elab_error("unknown function name: " +
+                        fcall.func, fcall.context)
     args = [elab(arg) for arg in fcall.args]
     return FunAppExpr(fname, None, args)
 
@@ -278,7 +325,9 @@ def elab_FunctionCall(fcall: qlast.FunctionCall) -> FunAppExpr:
 @elab.register
 def elab_UnaryOp(uop: qlast.UnaryOp) -> FunAppExpr:
     if uop.op in all_builtin_funcs.keys():
-        return FunAppExpr(fun=uop.op, args=[elab(uop.operand)], overloading_index=None)
+        return FunAppExpr(
+            fun=uop.op, args=[elab(uop.operand)],
+            overloading_index=None)
     else:
         raise ValueError("Unknown Op Name", uop.op)
 
@@ -293,7 +342,9 @@ def elab_BinOp(binop: qlast.BinOp) -> FunAppExpr | UnionExpr:
         return UnionExpr(left_expr, right_expr)
     else:
         if binop.op in all_builtin_funcs.keys():
-            return FunAppExpr(fun=binop.op, args=[left_expr, right_expr], overloading_index=None)
+            return FunAppExpr(
+                fun=binop.op, args=[left_expr, right_expr],
+                overloading_index=None)
         else:
             raise ValueError("Unknown Op Name", binop.op)
 
@@ -334,14 +385,17 @@ def elab_TypeName(qle: qlast.TypeName) -> Tp:
 
 
 def elab_single_type_expr(typedef: qlast.TypeExpr) -> Tp:
-    """ elaborates the target type of a concrete unknown pointer, i.e. links or properties"""
+    """ elaborates the target type of a
+    concrete unknown pointer, i.e. links or properties"""
     if isinstance(typedef, qlast.TypeName):
         return elab_TypeName(typedef)
     else:
         match typedef:
             case qlast.TypeOp(left=left_type, op=op_name, right=right_type):
                 if op_name == "|":
-                    return UnionTp(left=elab_single_type_expr(left_type), right=elab_single_type_expr(right_type))
+                    return UnionTp(
+                        left=elab_single_type_expr(left_type),
+                        right=elab_single_type_expr(right_type))
                 else:
                     raise ValueError("Unknown Type Op")
         raise ValueError("MATCH")
@@ -368,12 +422,13 @@ def elab_Array(qle: qlast.Array) -> ArrExpr:
 def elab_UpdateQuery(qle: qlast.UpdateQuery):
     subject = FilterOrderExpr(
         subject=elab(qle.subject),
-        filter=abstract_over_expr(elab(
-            qle.where), DEFAULT_HEAD_NAME) if qle.where else abstract_over_expr(BoolVal(True)),
-        order=abstract_over_expr(ObjectExpr({})),
-    )
+        filter=abstract_over_expr(elab(qle.where),
+                                  DEFAULT_HEAD_NAME)
+        if qle.where else abstract_over_expr(BoolVal(True)),
+        order=abstract_over_expr(ObjectExpr({})),)
     shape = elab_Shape(qle.shape)
-    return elab_aliases(qle.aliases, UpdateExpr(subject=subject, shape=shape))
+    return elab_aliases(
+        qle.aliases, UpdateExpr(subject=subject, shape=shape))
 
 
 @elab.register(qlast.Set)
@@ -381,7 +436,11 @@ def elab_Set(qle: qlast.Set):
     return MultiSetExpr(expr=[elab(e) for e in qle.elements])
 
 
-def elab_aliases(aliases: Optional[Sequence[qlast.AliasedExpr | qlast.ModuleAliasDecl]], tail_expr: Expr) -> Expr:
+def elab_aliases(
+    aliases:
+    Optional
+    [Sequence[qlast.AliasedExpr | qlast.ModuleAliasDecl]],
+        tail_expr: Expr) -> Expr:
     if aliases is None:
         return tail_expr
     result = tail_expr
@@ -404,9 +463,13 @@ def elab_DetachedExpr(qle: qlast.DetachedExpr):
 
 @elab.register(qlast.NamedTuple)
 def elab_NamedTuple(qle: qlast.NamedTuple) -> NamedTupleExpr:
-    return NamedTupleExpr(val={(element.name.name if (element.name.module is None and element.name.itemclass is None) else elab_error("not implemented", qle.context)): elab(element.val)
-                               for element in qle.elements
-                               })
+    return NamedTupleExpr(
+        val={(element.name.name
+              if (
+                  element.name.module is
+                  None and element.name.itemclass is None) else
+              elab_error("not implemented", qle.context)):
+             elab(element.val) for element in qle.elements})
 
 
 @elab.register(qlast.Tuple)
@@ -420,13 +483,18 @@ def elab_ForQuery(qle: qlast.ForQuery) -> ForExpr | OptionalForExpr:
         raise elab_not_implemented(qle)
     if len(qle.iterator_bindings) != 1:
         raise elab_not_implemented(qle)
-    return cast((ForExpr | OptionalForExpr),
-                elab_aliases(qle.aliases,
-                             cast(Expr, (OptionalForExpr if qle.iterator_bindings[0].optional else ForExpr)
-                                  (bound=elab(qle.iterator_bindings[0].iterator),
-                                   next=abstract_over_expr(
-                                      elab(qle.result), qle.iterator_bindings[0].iterator_alias)
-                                   ))))
+    return cast(
+        (ForExpr | OptionalForExpr),
+        elab_aliases(
+            qle.aliases,
+            cast(
+                Expr,
+                (OptionalForExpr
+                 if qle.iterator_bindings[0].optional else ForExpr)
+                (bound=elab(qle.iterator_bindings[0].iterator),
+                 next=abstract_over_expr(
+                     elab(qle.result),
+                     qle.iterator_bindings[0].iterator_alias)))))
 
 
 @elab.register
@@ -437,19 +505,38 @@ def elab_Indirection(qle: qlast.Indirection) -> FunAppExpr:
             raise ValueError("Slice cannot be both empty")
         case [qlast.Slice(start=None, stop=stop)]:
             assert stop is not None  # required for mypy
-            return FunAppExpr(fun=IndirectionSliceOp, args=[subject, IntVal(0), elab(stop)], overloading_index=None)
+            return FunAppExpr(
+                fun=IndirectionSliceOp,
+                args=[subject, IntVal(0),
+                      elab(stop)],
+                overloading_index=None)
         case [qlast.Slice(start=start, stop=None)]:
             assert start is not None  # required for mypy
-            return FunAppExpr(fun=IndirectionSliceOp, args=[subject, elab(start), IntInfVal()], overloading_index=None)
+            return FunAppExpr(
+                fun=IndirectionSliceOp,
+                args=[subject, elab(start),
+                      IntInfVal()],
+                overloading_index=None)
         case [qlast.Slice(start=start, stop=stop)]:
             assert start is not None  # required for mypy
             assert stop is not None  # required for mypy
-            return FunAppExpr(fun=IndirectionSliceOp, args=[subject, elab(start), elab(stop)], overloading_index=None)
+            return FunAppExpr(
+                fun=IndirectionSliceOp,
+                args=[subject, elab(start),
+                      elab(stop)],
+                overloading_index=None)
         case [qlast.Index(index=idx)]:
-            return FunAppExpr(fun=IndirectionIndexOp, args=[subject, elab(idx)], overloading_index=None)
+            return FunAppExpr(fun=IndirectionIndexOp,
+                              args=[subject, elab(idx)],
+                              overloading_index=None)
     raise ValueError("Not yet implemented indirection", qle)
 
 
 @elab.register
 def elab_IfElse(qle: qlast.IfElse) -> FunAppExpr:
-    return FunAppExpr(fun=IfElseOp, args=[elab(qle.if_expr), elab(qle.condition), elab(qle.else_expr)], overloading_index=None)
+    return FunAppExpr(
+        fun=IfElseOp,
+        args=[elab(qle.if_expr),
+              elab(qle.condition),
+              elab(qle.else_expr)],
+        overloading_index=None)

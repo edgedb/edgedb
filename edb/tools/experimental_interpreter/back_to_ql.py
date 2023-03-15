@@ -1,12 +1,19 @@
 
-from .data.data_ops import *
-from .data.expr_ops import *
+from .data.data_ops import StrLabel, Val, Expr, Label, LinkPropLabel, \
+    Tp, StrTp, JsonTp, DateTimeTp, ShapeExpr, FreeVarExpr, ObjectExpr, \
+    OrderAscending, OrderDescending, StrVal, IntVal, BoolVal, next_name, \
+    InsertExpr, OrderLabelSep, FilterOrderExpr, OffsetLimitExpr, \
+    FunAppExpr, ShapedExprExpr, TpIntersectExpr, TypeCastExpr, \
+    LinkPropProjExpr, BackLinkExpr, NamedTupleExpr, UnnamedTupleExpr, \
+    ArrExpr, UnionExpr, UpdateExpr, MultiSetExpr, WithExpr, OptionalForExpr, \
+    ForExpr, DetachedExpr, SubqueryExpr, ObjectProjExpr
+from .data.expr_ops import object_to_shape, instantiate_expr
 from .elaboration import DEFAULT_HEAD_NAME
 from edb.schema.pointers import PointerDirection
+from typing import Sequence, Any, cast
 
 from edb.edgeql import ast as qlast
 from .basis.built_ins import all_builtin_ops
-from edb.common import debug
 
 
 def reverse_elab_error(msg: str, expr: Val | Expr | Sequence[Val]) -> Any:
@@ -16,9 +23,15 @@ def reverse_elab_error(msg: str, expr: Val | Expr | Sequence[Val]) -> Any:
 def reverse_elab_label(lbl: Label) -> qlast.Path:
     match lbl:
         case StrLabel(l):
-            return qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=l), direction=PointerDirection.Outbound)])
+            return qlast.Path(
+                steps=[qlast.Ptr(
+                    ptr=qlast.ObjectRef(name=l),
+                    direction=PointerDirection.Outbound)])
         case LinkPropLabel(l):
-            return qlast.Path(steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=l), type='property')])
+            return qlast.Path(
+                steps=[qlast.Ptr(
+                    ptr=qlast.ObjectRef(name=l),
+                    type='property')])
         case _:
             raise ValueError(lbl)
 
@@ -41,7 +54,8 @@ def reverse_elab_type_name(tp: Tp) -> qlast.TypeName:
         case JsonTp():
             return qlast.TypeName(maintype=qlast.ObjectRef(name="json"))
         case DateTimeTp():
-            return qlast.TypeName(maintype=qlast.ObjectRef(name="datetime"))
+            return qlast.TypeName(
+                maintype=qlast.ObjectRef(name="datetime"))
     raise ValueError("Unimplemented")
 
 
@@ -61,7 +75,8 @@ def reverse_elab_order(order: Expr) -> Sequence[qlast.SortExpr]:
         return [qlast.SortExpr(path=reverse_elab(order))]
 
 
-def append_path_element(subject: qlast.Base, to_add: qlast.PathElement) -> qlast.Path:
+def append_path_element(
+        subject: qlast.Base, to_add: qlast.PathElement) -> qlast.Path:
     match subject:
         case qlast.Path(steps=steps, partial=partial):
             return qlast.Path(steps=[*steps,
@@ -79,27 +94,34 @@ def reverse_elab(ir_expr: Expr) -> qlast.Base:
         case StrVal(s):
             return qlast.StringConstant(value=s)
         case IntVal(i):
-            return qlast.IntegerConstant(value=str(abs(i)), is_negative=(i < 0))
+            return qlast.IntegerConstant(
+                value=str(abs(i)),
+                is_negative=(i < 0))
         case BoolVal(b):
             return qlast.BooleanConstant(value=str(b))
-        case ObjectExpr(val=dic):
-            return qlast.Shape(expr=None, elements=reverse_elab_shape(object_to_shape(ir_expr)))
+        case ObjectExpr(val=_):
+            return qlast.Shape(expr=None,
+                               elements=reverse_elab_shape(
+                                   object_to_shape(ir_expr)))
         case InsertExpr(name=tname, new=arg):
             return qlast.InsertQuery(subject=qlast.ObjectRef(name=tname),
                                      shape=reverse_elab_shape(
-                                         object_to_shape(cast(ObjectExpr, arg)))
-                                     # reverse_elab(arg)
+                                     object_to_shape(cast(ObjectExpr, arg)))
                                      )
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
             result_name = next_name()
             return qlast.SelectQuery(
                 result=reverse_elab(subject),
                 result_alias=result_name,
-                where=reverse_elab(instantiate_expr(
-                    FreeVarExpr(result_name), filter)),
+                where=reverse_elab(
+                    instantiate_expr(FreeVarExpr(result_name),
+                                     filter)),
                 orderby=reverse_elab_order(
-                    cast(ObjectExpr, instantiate_expr(FreeVarExpr(result_name), order)))
-            )
+                    cast(
+                        ObjectExpr,
+                        instantiate_expr(
+                            FreeVarExpr(result_name),
+                            order))))
         case OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
             return qlast.SelectQuery(
                 result=reverse_elab(subject),
@@ -116,70 +138,104 @@ def reverse_elab(ir_expr: Expr) -> qlast.Base:
                 return qlast.Path(steps=[], partial=True)
             else:
                 return qlast.Path(steps=[qlast.ObjectRef(name=name)])
-        case FunAppExpr(fun=fname, args=args, overloading_index=idx):
+        case FunAppExpr(fun=fname, args=args, overloading_index=_):
             if fname in all_builtin_ops.keys() and len(args) == 2:
-                return qlast.BinOp(op=fname, left=reverse_elab(args[0]), right=reverse_elab(args[1]))
+                return qlast.BinOp(
+                    op=fname, left=reverse_elab(args[0]),
+                    right=reverse_elab(args[1]))
             else:
-                return qlast.FunctionCall(func=fname, args=[reverse_elab(arg) for arg in args])
+                return qlast.FunctionCall(func=fname,
+                                          args=[reverse_elab(arg)
+                                                for arg in args])
                 # raise ValueError ("Unimplemented")
         case ObjectProjExpr(subject=subject, label=label):
-            label_path_component = qlast.Ptr(ptr=qlast.ObjectRef(
-                name=label), direction=PointerDirection.Outbound, type=None)
-            return append_path_element(reverse_elab(subject), label_path_component)
+            label_path_component = qlast.Ptr(
+                ptr=qlast.ObjectRef(name=label),
+                direction=PointerDirection.Outbound, type=None)
+            return append_path_element(
+                reverse_elab(subject),
+                label_path_component)
         case BackLinkExpr(subject=subject, label=label):
             label_path_component = qlast.Ptr(ptr=qlast.ObjectRef(
                 name=label), direction=PointerDirection.Inbound, type=None)
-            return append_path_element(reverse_elab(subject), label_path_component)
+            return append_path_element(
+                reverse_elab(subject),
+                label_path_component)
         case LinkPropProjExpr(subject=subject, linkprop=label):
-            label_path_component = qlast.Ptr(ptr=qlast.ObjectRef(
-                name=label), direction=PointerDirection.Outbound, type="property")
-            return append_path_element(reverse_elab(subject), label_path_component)
+            label_path_component = qlast.Ptr(
+                ptr=qlast.ObjectRef(name=label),
+                direction=PointerDirection.Outbound, type="property")
+            return append_path_element(
+                reverse_elab(subject),
+                label_path_component)
         case TpIntersectExpr(subject=subject, tp=tp_name):
             tp_path_component = qlast.TypeIntersection(
                 type=qlast.TypeName(maintype=qlast.ObjectRef(name=tp_name)))
-            return append_path_element(reverse_elab(subject), tp_path_component)
+            return append_path_element(
+                reverse_elab(subject),
+                tp_path_component)
         case TypeCastExpr(tp=tp, arg=arg):
-            return qlast.TypeCast(type=reverse_elab_type_name(tp), expr=reverse_elab(arg))
+            return qlast.TypeCast(
+                type=reverse_elab_type_name(tp),
+                expr=reverse_elab(arg))
         case UnnamedTupleExpr(val=tuples):
             return qlast.Tuple(elements=[reverse_elab(e) for e in tuples])
         case NamedTupleExpr(val=tuples):
-            return qlast.NamedTuple(elements=[qlast.TupleElement
-                                              (name=qlast.ObjectRef(name=k), val=reverse_elab(v))
-                                              for (k, v) in tuples.items()
-                                              ])
+            return qlast.NamedTuple(
+                elements=[qlast.TupleElement(
+                    name=qlast.ObjectRef(name=k),
+                    val=reverse_elab(v))
+                    for (k, v) in tuples.items()])
         case UnionExpr(left=l, right=r):
-            return qlast.BinOp(op="UNION", left=reverse_elab(l), right=reverse_elab(r))
+            return qlast.BinOp(
+                op="UNION", left=reverse_elab(l),
+                right=reverse_elab(r))
         case ArrExpr(elems=elems):
             return qlast.Array(elements=[reverse_elab(e) for e in elems])
         case UpdateExpr(subject=subject, shape=shape):
-            return qlast.UpdateQuery(subject=reverse_elab(subject), shape=reverse_elab_shape(shape))
+            return qlast.UpdateQuery(
+                subject=reverse_elab(subject),
+                shape=reverse_elab_shape(shape))
         case MultiSetExpr(expr=elems):
             return qlast.Set(elements=[reverse_elab(e) for e in elems])
         case WithExpr(bound=bound, next=next):
             name = next_name()
             body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
-            if isinstance(body, qlast.SelectQuery) or isinstance(body, qlast.InsertQuery) or isinstance(body, qlast.UpdateQuery) or isinstance(body, qlast.ForQuery):
+            if isinstance(
+                    body, qlast.SelectQuery) or isinstance(
+                    body, qlast.InsertQuery) or isinstance(
+                    body, qlast.UpdateQuery) or isinstance(
+                    body, qlast.ForQuery):
                 if body.aliases is None:
                     body.aliases = []
                 body.aliases = [qlast.AliasedExpr(
                     alias=name, expr=reverse_elab(bound)), *body.aliases]
                 return body
             else:
-                return qlast.SelectQuery(result=body, aliases=[qlast.AliasedExpr(alias=name, expr=reverse_elab(bound))])
+                return qlast.SelectQuery(
+                    result=body,
+                    aliases=[qlast.AliasedExpr(
+                        alias=name, expr=reverse_elab(bound))])
                 # raise ValueError("Expression does not suppor alias", body)
         case ForExpr(bound=bound, next=next):
             name = next_name()
             bound_v = reverse_elab(bound)
             body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
-            return qlast.ForQuery(iterator_bindings=[qlast.ForBinding(iterator=bound_v, iterator_alias=name)], result=body)
+            return qlast.ForQuery(
+                iterator_bindings=[qlast.ForBinding(
+                    iterator=bound_v,
+                    iterator_alias=name)],
+                result=body)
         case OptionalForExpr(bound=bound, next=next):
             name = next_name()
             bound_v = reverse_elab(bound)
             body = reverse_elab(instantiate_expr(FreeVarExpr(name), next))
-            return qlast.ForQuery(iterator_bindings=[qlast.ForBinding(iterator=bound_v, iterator_alias=name, optional=True)], result=body)
-            # return qlast.IfElse(condition=qlast.UnaryOp(op="EXISTS", operand=bound_v),
-            #         if_expr=qlast.ForQuery(iterator=bound_v, iterator_alias=name, result=body),
-            #         else_expr=reverse_elab(WithExpr(bound=MultiSetExpr([]), next=next)))
+            return qlast.ForQuery(
+                iterator_bindings=[qlast.ForBinding(
+                    iterator=bound_v,
+                    iterator_alias=name,
+                    optional=True)],
+                result=body)
         case DetachedExpr(expr=expr):
             return qlast.DetachedExpr(expr=reverse_elab(expr))
         case SubqueryExpr(expr=expr):

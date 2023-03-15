@@ -2,7 +2,7 @@
 
 
 from __future__ import annotations
-from edb.testbase.connection import Retry
+# from edb.testbase.connection import Retry
 from typing import *
 
 from pathlib import Path
