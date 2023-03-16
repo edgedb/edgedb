@@ -2120,6 +2120,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
+    async def test_edgeql_ddl_link_target_bad_07(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidLinkTargetError,
+            r"required links may not use `on target delete deferred"
+            r" restrict`",
+        ):
+            await self.con.execute('''
+                create type A;
+                create type Foo {
+                    create required link bar -> A {
+                        on target delete deferred restrict;
+                    };
+                };
+            ''')
+
     async def test_edgeql_ddl_link_target_merge_01(self):
         await self.con.execute('''
 
@@ -13743,6 +13758,8 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             [{
                 'script': textwrap.dedent(
                     '''\
+                    SET generated_by := (schema::MigrationGeneratedBy.\
+DDLStatement);
                     CREATE TYPE Foo {
                         CREATE PROPERTY foo := (1);
                     };'''

@@ -3128,7 +3128,14 @@ class CompositeMetaCommand(MetaCommand):
 
         descendants = [
             child for child in obj.descendants(schema)
-            if has_table(child, schema) and child not in exclude_children
+            if has_table(child, schema)
+            and child not in exclude_children
+            # XXX: Exclude sys/cfg tables from non sys/cfg views. This
+            # probably isn't *really* what we want to do, but until we
+            # figure that out, do *something* so that DDL isn't
+            # excruciatingly slow because of the cost of explicit id
+            # checks. See #5168.
+            and (not is_cfg_view(child, schema) or is_cfg_view(obj, schema))
         ]
 
         # Hackily force 'source' to appear in abstract links. We need

@@ -1358,6 +1358,7 @@ def _compile_ql_explain(
     return dataclasses.replace(
         query,
         is_explain=True,
+        append_rollback=ql.analyze,
         cacheable=False,
         sql=(sql_bytes,),
         sql_hash=sql_hash,
@@ -1579,7 +1580,6 @@ def _compile_ql_transaction(
         action = dbstate.TxAction.DECLARE_SAVEPOINT
 
         sp_name = ql.name
-        sp_id = sp_id
 
     elif isinstance(ql, qlast.ReleaseSavepoint):
         ctx.state.current_tx().release_savepoint(ql.name)
@@ -1963,6 +1963,9 @@ def _try_compile(
             if comp.is_explain:
                 unit.is_explain = True
                 unit.query_asts = comp.query_asts
+
+            if comp.append_rollback:
+                unit.append_rollback = True
 
             if is_trailing_stmt:
                 unit.cardinality = comp.cardinality

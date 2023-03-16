@@ -3932,3 +3932,132 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ''',
             [{'foo': 4}, {'foo': 4}, {'foo': 4}, {'foo': 4}]
         )
+
+    async def test_edgeql_scope_linkprop_assert_01(self):
+        await self.assert_query_result(
+            r'''
+            select User {
+              cards := assert_exists(User.deck {name, c := User.deck@count})
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards": tb.bag([
+                        {"c": 2, "name": "Imp"},
+                        {"c": 2, "name": "Dragon"},
+                        {"c": 3, "name": "Bog monster"},
+                        {"c": 3, "name": "Giant turtle"}
+                    ])
+                }
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select User {
+              cards := assert_exists(User.deck {name, @c := User.deck@count})
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards": tb.bag([
+                        {"@c": 2, "name": "Imp"},
+                        {"@c": 2, "name": "Dragon"},
+                        {"@c": 3, "name": "Bog monster"},
+                        {"@c": 3, "name": "Giant turtle"}
+                    ])
+                }
+            ],
+        )
+
+        # Query builder style
+        await self.assert_query_result(
+            r'''
+            WITH U := DETACHED User
+            SELECT U {
+              deck := assert_exists((
+                WITH
+                  Q := (
+                    SELECT U.deck {
+                      __count := U.deck@count
+                    }
+                  )
+                SELECT Q {
+                  name,
+                  single @count := Q.__count
+                }
+              ))
+            } filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "deck": tb.bag([
+                        {"@count": 2, "name": "Imp"},
+                        {"@count": 2, "name": "Dragon"},
+                        {"@count": 3, "name": "Bog monster"},
+                        {"@count": 3, "name": "Giant turtle"}
+                    ])
+                }
+            ],
+        )
+
+    async def test_edgeql_scope_linkprop_assert_02(self):
+        await self.assert_query_result(
+            '''
+            SELECT User {
+                cards := assert_exists(.deck {name, @count})
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards": tb.bag([
+                        {"@count": 2, "name": "Imp"},
+                        {"@count": 2, "name": "Dragon"},
+                        {"@count": 3, "name": "Bog monster"},
+                        {"@count": 3, "name": "Giant turtle"}
+                    ])
+                }
+            ],
+        )
+
+    async def test_edgeql_scope_linkprop_assert_03(self):
+        await self.assert_query_result(
+            r'''
+            SELECT User {
+                cards := assert_exists(User.deck {name, c := @count})
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards": tb.bag([
+                        {"c": 2, "name": "Imp"},
+                        {"c": 2, "name": "Dragon"},
+                        {"c": 3, "name": "Bog monster"},
+                        {"c": 3, "name": "Giant turtle"}
+                    ])
+                }
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT User {
+                cards := assert_exists(.deck {name, c := @count})
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards": tb.bag([
+                        {"c": 2, "name": "Imp"},
+                        {"c": 2, "name": "Dragon"},
+                        {"c": 3, "name": "Bog monster"},
+                        {"c": 3, "name": "Giant turtle"}
+                    ])
+                }
+            ],
+        )

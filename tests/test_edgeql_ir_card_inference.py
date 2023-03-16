@@ -1063,3 +1063,45 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         MANY
         """
+
+    def test_edgeql_ir_card_inference_123(self):
+        """
+        select Card { req_awards }
+% OK %
+        req_awards: AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_124(self):
+        """
+        select Card { x := .req_awards }
+% OK %
+        x: AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_125(self):
+        """
+        select Card { required x := .req_awards }
+% OK %
+        x: AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_126(self):
+        """
+        select Card { req_tags }
+% OK %
+        req_tags: AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_127(self):
+        """
+        select Card { x := .req_tags }
+% OK %
+        x: AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_128(self):
+        """
+        select Card { required x := .req_tags }
+% OK %
+        x: AT_LEAST_ONE
+        """

@@ -1039,7 +1039,11 @@ cdef class PGConnection:
 
         if state is not None:
             self._build_apply_state_req(state, out)
-            if query.tx_id or not query.is_transactional:
+            if (
+                query.tx_id or
+                not query.is_transactional or
+                query.append_rollback
+            ):
                 # This query has START TRANSACTION or non-transactional command
                 # like CREATE DATABASE in it.
                 # Restoring state must be performed in a separate
@@ -1048,6 +1052,36 @@ cdef class PGConnection:
                 # Hence - inject a SYNC after a state restore step.
                 state_sync = 1
                 self.write_sync(out)
+
+        if query.append_rollback:
+            if self.in_tx():
+                sp_name = f'_edb_{time.monotonic_ns()}'
+                sql = f'SAVEPOINT {sp_name}'.encode('utf-8')
+            else:
+                sp_name = None
+                sql = b'START TRANSACTION'
+
+            buf = WriteBuffer.new_message(b'P')
+            buf.write_bytestring(b'')
+            buf.write_bytestring(sql)
+            buf.write_int16(0)
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'B')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_bytestring(b'')  # statement name
+            buf.write_int16(0)  # number of format codes
+            buf.write_int16(0)  # number of parameters
+            buf.write_int16(0)  # number of result columns
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'E')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_int32(0)  # limit: 0 - return all rows
+            out.write_buffer(buf.end_message())
+
+            # Insert a SYNC as a boundary of the parsing logic later
+            self.write_sync(out)
 
         if use_prep_stmt:
             stmt_name = query.sql_hash
@@ -1111,6 +1145,31 @@ cdef class PGConnection:
             buf.write_int32(0)  # limit: 0 - return all rows
             out.write_buffer(buf.end_message())
 
+        if query.append_rollback:
+            if sp_name:
+                sql = f'ROLLBACK TO SAVEPOINT {sp_name}'.encode('utf-8')
+            else:
+                sql = b'ROLLBACK'
+
+            buf = WriteBuffer.new_message(b'P')
+            buf.write_bytestring(b'')
+            buf.write_bytestring(sql)
+            buf.write_int16(0)
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'B')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_bytestring(b'')  # statement name
+            buf.write_int16(0)  # number of format codes
+            buf.write_int16(0)  # number of parameters
+            buf.write_int16(0)  # number of result columns
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'E')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_int32(0)  # limit: 0 - return all rows
+            out.write_buffer(buf.end_message())
+
         self.write_sync(out)
         self.write(out)
 
@@ -1119,6 +1178,9 @@ cdef class PGConnection:
         try:
             if state is not None:
                 await self.wait_for_state_resp(state, state_sync)
+
+            if query.append_rollback:
+                await self.wait_for_sync()
 
             buf = None
             while True:

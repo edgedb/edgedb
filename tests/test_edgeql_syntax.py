@@ -4209,6 +4209,15 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_create_migration_11(self):
+        """
+        CREATE MIGRATION m123123123 ONTO m134134134 {
+            SET message := "test migration please ignore";
+
+            CREATE TYPE Foo;
+        };
+        """
+
     def test_edgeql_syntax_ddl_create_extension_package_01(self):
         """
         CREATE EXTENSION PACKAGE foo VERSION '1.0';

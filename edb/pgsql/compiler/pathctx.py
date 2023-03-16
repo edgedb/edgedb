@@ -960,10 +960,13 @@ def _get_rel_path_output(
     # and child tables).
     rptr_dir = path_id.rptr_dir()
     ptrref = path_id.rptr()
-    if isinstance(ptrref, irast.PointerRef) and rel.typeref is not None:
+    if isinstance(ptrref, irast.PointerRef) and rel.type_or_ptr_ref:
+        typeref = rel.type_or_ptr_ref
+        if isinstance(typeref, irast.PointerRef):
+            typeref = typeref.out_source
         assert rptr_dir
         actual_ptrref = irtyputils.maybe_find_actual_ptrref(
-            rel.typeref, ptrref, dir=rptr_dir)
+            typeref, ptrref, dir=rptr_dir)
         if actual_ptrref:
             ptrref = actual_ptrref
 
@@ -1013,8 +1016,10 @@ def _get_rel_path_output(
         # looking at an object rel. This check is needed because
         # relgen._lookup_set_rvar_in_source sometimes does some pretty
         # wild maybe_get_path_value_var calls.
-        if ptr_info.table_type == 'link' and (
-                rel.path_id and not rel.path_id.rptr()):
+        if (
+            ptr_info.table_type == 'link'
+            and isinstance(rel.type_or_ptr_ref, irast.TypeRef)
+        ):
             raise LookupError("can't access link table on object rel")
 
         if (
@@ -1022,9 +1027,9 @@ def _get_rel_path_output(
             and rel.name
             and not common.is_inhview_name(rel.name)
         ):
-            assert rel.typeref
+            assert isinstance(rel.type_or_ptr_ref, irast.TypeRef)
             result = pgast.ExprOutputVar(
-                expr=astutils.compile_typeref(rel.typeref))
+                expr=astutils.compile_typeref(rel.type_or_ptr_ref))
         else:
             result = pgast.ColumnRef(
                 name=[ptr_info.column_name],

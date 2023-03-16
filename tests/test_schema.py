@@ -327,6 +327,20 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
+    @tb.must_fail(
+        errors.InvalidLinkTargetError,
+        "required links may not use `on target delete deferred restrict`",
+    )
+    def test_schema_bad_link_05(self):
+        """
+            type A;
+            type Foo {
+                required link foo -> A {
+                    on target delete deferred restrict;
+                }
+            };
+        """
+
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
