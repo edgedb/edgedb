@@ -3560,10 +3560,15 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         tschema = r'''
         type Bar;
         scalar type scl extending str;
+        abstract link friendship {
+            property strength: float64;
+            index on (__subject__@strength);
+        };
         type Foo {
             name: str;
             foo: Foo;
             bar: Bar;
+            bar2 extending friendship: Bar;
             or_: Foo | Bar;
             array1: array<str>;
             array2: array<scl>;
@@ -3578,6 +3583,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         obj.getptr(schema, s_name.UnqualName('array2'), type=s_props.Property)
         obj.getptr(schema, s_name.UnqualName('foo'), type=s_links.Link)
         obj.getptr(schema, s_name.UnqualName('bar'), type=s_links.Link)
+        obj.getptr(schema, s_name.UnqualName('bar2'), type=s_links.Link)
         obj.getptr(schema, s_name.UnqualName('or_'), type=s_links.Link)
 
     def test_schema_migrations_equivalence_01(self):
