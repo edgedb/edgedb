@@ -127,6 +127,10 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             'relation_name': 'default::User',
             'contexts': [{'start': 28, 'end': 32, 'buffer_idx': 0}],
         })
+        self.assert_plan(res['config_vals'], {
+            "allow_user_specified_id": False,
+            "apply_access_policies": True
+        })
 
     async def test_edgeql_explain_with_bound_01(self):
         res = await self.explain('''

@@ -1491,7 +1491,8 @@ def _compile_ql_query(
                 global_schema=ir.schema._global_schema,
                 base_schema=s_schema.FlatSchema(),
             )
-        query_asts = pickle.dumps((ql, ir, qtree))
+        config_vals = _get_compilation_config_vals(ctx)
+        query_asts = pickle.dumps((ql, ir, qtree, config_vals))
     else:
         query_asts = None
 
@@ -2498,6 +2499,14 @@ def _get_config_val(
         current_tx.get_system_config(),
         allow_unrecognized=True,
     )
+
+
+def _get_compilation_config_vals(ctx: CompileContext) -> Any:
+    return {
+        k: _get_config_val(ctx, k)
+        for k in ctx.compiler_state.config_spec
+        if ctx.compiler_state.config_spec[k].affects_compilation
+    }
 
 
 _OUTPUT_FORMAT_MAP = {
