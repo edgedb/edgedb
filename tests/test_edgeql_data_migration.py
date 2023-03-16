@@ -11464,7 +11464,7 @@ class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):
         res = await self.con.query(
             '''
             select schema::Migration {
-                id, name, script, parents: {name, id}, generated_by
+                id, name, script, parents: {name, id}
             }
             '''
         )
@@ -11482,7 +11482,7 @@ class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):
 
     async def assert_migration_history(self, exp_result):
         res = await self.get_migrations()
-        res = serutils.serialize(res)
+        res = [serutils.serialize(x) for x in res]
         assert_data_shape.assert_data_shape(
             res, exp_result, self.fail)
 
@@ -11530,10 +11530,10 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
         """)
 
         await self.assert_migration_history([
-            {'script': 'CREATE TYPE default::A;', 'generated_by': None},
-            {'script': 'CREATE TYPE B;', 'generated_by': None},
-            {'script': 'create type C;', 'generated_by': None},
-            {'script': 'CREATE TYPE D;', 'generated_by': 'DDLStatement'},
+            {'script': 'CREATE TYPE default::A;'},
+            {'script': 'CREATE TYPE B;'},
+            {'script': 'create type C;'},
+            {'script': 'CREATE TYPE D;'},
         ])
 
     async def test_edgeql_migration_rewrite_02(self):
