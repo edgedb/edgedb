@@ -418,6 +418,13 @@ class MigrationState(NamedTuple):
     last_proposed: Optional[Tuple[ProposedMigrationStep, ...]]
 
 
+class MigrationRewriteState(NamedTuple):
+
+    initial_savepoint: Optional[str]
+    target_schema: s_schema.Schema
+    accepted_migrations: Tuple[qlast.CreateMigration, ...]
+
+
 class TransactionState(NamedTuple):
 
     id: int
@@ -431,6 +438,7 @@ class TransactionState(NamedTuple):
     cached_reflection: immutables.Map[str, Tuple[str, ...]]
     tx: Transaction
     migration_state: Optional[MigrationState] = None
+    migration_rewrite_state: Optional[MigrationRewriteState] = None
 
 
 class Transaction:
@@ -606,6 +614,9 @@ class Transaction:
     def get_migration_state(self) -> Optional[MigrationState]:
         return self._current.migration_state
 
+    def get_migration_rewrite_state(self) -> Optional[MigrationRewriteState]:
+        return self._current.migration_rewrite_state
+
     def update_schema(self, new_schema: s_schema.Schema):
         assert isinstance(new_schema, s_schema.ChainedSchema)
         self._current = self._current._replace(
@@ -632,6 +643,11 @@ class Transaction:
         self, mstate: Optional[MigrationState]
     ) -> None:
         self._current = self._current._replace(migration_state=mstate)
+
+    def update_migration_rewrite_state(
+        self, mrstate: Optional[MigrationRewriteState]
+    ) -> None:
+        self._current = self._current._replace(migration_rewrite_state=mrstate)
 
 
 class CompilerConnectionState:

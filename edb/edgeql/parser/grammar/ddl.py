@@ -2939,6 +2939,16 @@ class StartMigrationStmt(Nonterm):
             target=qlast.Schema(declarations=declarations),
         )
 
+    def reduce_StartMigrationToCommitted(self, *kids):
+        r"""%reduce START MIGRATION TO COMMITTED SCHEMA"""
+        self.val = qlast.StartMigration(
+            target=qlast.CommittedSchema()
+        )
+
+    def reduce_StartMigrationRewrite(self, *kids):
+        r"""%reduce START MIGRATION REWRITE"""
+        self.val = qlast.StartMigrationRewrite()
+
 
 class PopulateMigrationStmt(Nonterm):
 
@@ -2957,11 +2967,17 @@ class AbortMigrationStmt(Nonterm):
     def reduce_ABORT_MIGRATION(self, *kids):
         self.val = qlast.AbortMigration()
 
+    def reduce_ABORT_MIGRATION_REWRITE(self, *kids):
+        self.val = qlast.AbortMigrationRewrite()
+
 
 class CommitMigrationStmt(Nonterm):
 
     def reduce_COMMIT_MIGRATION(self, *kids):
         self.val = qlast.CommitMigration()
+
+    def reduce_COMMIT_MIGRATION_REWRITE(self, *kids):
+        self.val = qlast.CommitMigrationRewrite()
 
 
 commands_block(

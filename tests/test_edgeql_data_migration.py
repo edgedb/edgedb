@@ -30,6 +30,7 @@ import edgedb
 from edb.common import assert_data_shape
 
 from edb.testbase import server as tb
+from edb.testbase import serutils
 from edb.tools import test
 
 
@@ -11451,3 +11452,250 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             self.assertEqual(await con2.query_single("SELECT 1"), 1)
         finally:
             await con2.aclose()
+
+
+class EdgeQLMigrationRewriteTestCase(EdgeQLDataMigrationTestCase):
+    DEFAULT_MODULE = 'default'
+
+    async def migrate(self, *args, module: str = 'default', **kwargs):
+        await super().migrate(*args, module=module, **kwargs)
+
+    async def get_migrations(self):
+        res = await self.con.query(
+            '''
+            select schema::Migration {
+                id, name, script, parents: {name, id}
+            }
+            '''
+        )
+        if not res:
+            return []
+        children = {m.parents[0].id: m for m in res if m.parents}
+        root = [m for m in res if not m.parents][0]
+
+        sorted_migs = []
+        while root:
+            sorted_migs.append(root)
+            root = children.get(root.id)
+
+        return sorted_migs
+
+    async def assert_migration_history(self, exp_result):
+        res = await self.get_migrations()
+        res = [serutils.serialize(x) for x in res]
+        assert_data_shape.assert_data_shape(
+            res, exp_result, self.fail)
+
+
+class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
+    # N.B: These test cases get duplicated as nonisolated test cases,
+    # to verify that it all works *outside* a transaction also.
+    # If that is a problem, a test case can be made to skip it
+
+    async def test_edgeql_migration_rewrite_01(self):
+        # Split one migration up into several
+        await self.migrate(r"""
+            type A;
+            type B;
+            type C;
+            type D;
+        """)
+        # Try a bunch of different ways to do it!
+        await self.con.execute(r"""
+            start migration rewrite;
+            start migration to {
+                module default {
+                    type A;
+                }
+            };
+            populate migration;
+            commit migration;
+
+            start migration to {
+                module default {
+                    type A;
+                    type B;
+                }
+            };
+            CREATE type B;
+            commit migration;
+
+            create migration {
+                create type C;
+            };
+
+            CREATE TYPE D;
+
+            commit migration rewrite;
+        """)
+
+        await self.assert_migration_history([
+            {'script': 'CREATE TYPE default::A;'},
+            {'script': 'CREATE TYPE B;'},
+            {'script': 'create type C;'},
+            {'script': 'CREATE TYPE D;'},
+        ])
+
+    async def test_edgeql_migration_rewrite_02(self):
+        # Simulate a potential migration squashing flow from the CLI,
+        # where we generate a script using start migration and then apply it
+        # later.
+        await self.con.execute(r"""
+            create type Foo;
+            create type Tgt;
+            alter type Foo { create link tgt -> Tgt; };
+        """)
+
+        await self.con.execute(r"""
+            start migration rewrite;
+        """)
+        await self.con.execute(r"""
+            start migration to committed schema;
+        """)
+        await self.con.execute(r"""
+            populate migration;
+        """)
+        res = json.loads(await self.con.query_json(r"""
+            describe current migration as json;
+        """))
+
+        await self.con.execute(r"""
+            commit migration;
+        """)
+        await self.con.execute(r"""
+            abort migration rewrite;
+        """)
+
+        self.assertTrue(res[0]['complete'])
+        commands = '\n'.join(res[0]['confirmed'])
+        script = textwrap.dedent('''\
+            start migration rewrite;
+            create migration {
+            %s
+            };
+            commit migration rewrite;
+        ''') % textwrap.indent(commands, ' ' * 4)
+
+        await self.con.execute(script)
+
+        await self.assert_migration_history([
+            {'script': commands}
+        ])
+
+    async def test_edgeql_migration_rewrite_03(self):
+        # Test rolling back to a savepoint after a commit failure
+        await self.con.execute(r"""
+            create type A;
+            create type B;
+        """)
+
+        await self.con.execute(r"""
+            start migration rewrite;
+        """)
+        await self.con.execute(r"""
+            declare savepoint s0;
+        """)
+        await self.con.execute(r"""
+            create type B;
+        """)
+        await self.con.execute(r"""
+            declare savepoint s1;
+        """)
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"does not match"):
+            await self.con.execute(r"""
+                commit migration rewrite;
+            """)
+
+        # Rollback and try again
+        await self.con.execute(r"""
+            rollback to savepoint s1;
+        """)
+        await self.con.execute(r"""
+            create type A;
+        """)
+        await self.con.execute(r"""
+            commit migration rewrite
+        """)
+
+        await self.assert_migration_history([
+            {'script': 'CREATE TYPE B;'},
+            {'script': 'CREATE TYPE A;'},
+        ])
+
+    async def test_edgeql_migration_rewrite_05(self):
+        # Test ABORT MIGRATION REWRITE
+        await self.con.execute(r"""
+            create type A;
+            create type B;
+        """)
+
+        await self.con.execute(r"""
+            start migration rewrite;
+        """)
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"does not match"):
+            await self.con.execute(r"""
+                commit migration rewrite;
+            """)
+        await self.con.execute(r"""
+            abort migration rewrite;
+        """)
+
+    async def test_edgeql_migration_rewrite_06(self):
+        # Test doing the interactive migration flow
+        await self.con.execute(r"""
+            create type A;
+            create type B;
+        """)
+
+        await self.con.execute(r"""
+            start migration rewrite;
+        """)
+
+        await self.start_migration(r"""
+            type A;
+            type B;
+        """, module='default')
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute(r"""
+            commit migration rewrite;
+        """)
+
+        await self.assert_migration_history([
+            {'script': 'CREATE TYPE default::A;\nCREATE TYPE default::B;'},
+        ])
+
+
+class TestEdgeQLMigrationRewriteNonisolated(TestEdgeQLMigrationRewrite):
+    TRANSACTION_ISOLATION = False
+
+    TEARDOWN_COMMANDS = [
+        'rollback;',  # just in case, avoid extra errors
+        '''
+            start migration to { module default {}; };
+            populate migration;
+            commit migration;
+
+            start migration rewrite;
+            commit migration rewrite;
+        ''',
+    ]
+
+    async def test_edgeql_migration_rewrite_raw_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"Cannot leave an incomplete migration rewrite in scripts"):
+            await self.con.execute(r"""
+                START MIGRATION REWRITE;
+                START MIGRATION TO {
+                    module default {
+                        type A;
+                    }
+                };
+                POPULATE MIGRATION;
+                COMMIT MIGRATION;
+            """)

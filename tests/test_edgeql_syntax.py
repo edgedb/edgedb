@@ -3896,13 +3896,21 @@ aa';
         };
         """
 
-    def edgeql_syntax_ddl_delta_06(self):
+    def test_edgeql_syntax_ddl_delta_06(self):
         """
         POPULATE MIGRATION;
         ABORT MIGRATION;
         COMMIT MIGRATION;
         DESCRIBE CURRENT MIGRATION AS JSON;
         ALTER CURRENT MIGRATION REJECT PROPOSED;
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_01(self):
+        """
+        START MIGRATION REWRITE;
+        ABORT MIGRATION REWRITE;
+        COMMIT MIGRATION REWRITE;
+        START MIGRATION TO COMMITTED SCHEMA;
         """
 
     def test_edgeql_syntax_ddl_create_migration_01(self):
