@@ -199,6 +199,33 @@ class TraceContextBase:
         return name, fq_name
 
 
+def ensure_pointer_kind(
+    node: qlast.CreateConcretePointer,
+    ctx: DepTraceContext | LayoutTraceContext,
+) -> qlast.CreateConcretePointer:
+
+    # If the link/property specifier was left off the SDL, fill it
+    # in here.
+    if isinstance(node, qlast.CreateConcreteUnknownPointer):
+        # I /think/ the parser shouldn't let through anything that
+        # violates this but...
+        if not isinstance(node.target, qlast.TypeExpr):
+            raise errors.SchemaError(
+                "declarations without link/property specify must have "
+                "an explicitly specified target type",
+                context=node.context,
+            )
+
+        typ = _resolve_type_expr(node.target, ctx=ctx)
+        cls = (
+            qlast.CreateConcreteLink
+            if typ.is_object_type() else qlast.CreateConcreteProperty
+        )
+        node = node.replace(__class__=cls)
+
+    return node
+
+
 def get_verbosename_from_fqname(
     fq_name: s_name.QualName,
     ctx: DepTraceContext,
@@ -621,6 +648,8 @@ def _trace_item_layout(
                 target = None
                 target_expr = decl.target
 
+            decl = ensure_pointer_kind(decl, ctx=ctx)
+
             pn = s_utils.ast_ref_to_unqualname(decl.name)
 
             PointerType = (
@@ -894,17 +923,6 @@ def trace_ConcretePointer(
     deps: List[Dependency] = []
     if isinstance(node.target, qlast.TypeExpr):
         deps.append(TypeDependency(texpr=node.target))
-
-        # If the link/property specifier was left off the SDL, fill it
-        # in here.
-        if isinstance(node, qlast.CreateConcreteUnknownPointer):
-            typ = _resolve_type_expr(node.target, ctx=ctx)
-            cls = (
-                qlast.CreateConcreteLink
-                if typ.is_object_type() else qlast.CreateConcreteProperty
-            )
-            node = node.replace(__class__=cls)
-
     elif isinstance(node.target, qlast.Expr):
         deps.append(ExprDependency(expr=node.target))
     elif node.target is None:
@@ -913,6 +931,7 @@ def trace_ConcretePointer(
         raise AssertionError(
             f'unexpected CreateConcretePointer.target: {node.target!r}')
 
+    node = ensure_pointer_kind(node, ctx=ctx)
     _register_item(
         node,
         hard_dep_exprs=deps,
