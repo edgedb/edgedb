@@ -1955,7 +1955,7 @@ def get_globals_as_json(
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
         normal_els = []
-        full_objs = []
+        full_objs: list[qlast.Expr] = []
 
         json_type = qlast.TypeName(maintype=qlast.ObjectRef(
             module='__std__', name='json'))
@@ -2000,11 +2000,25 @@ def get_globals_as_json(
                     )
                 ))
 
+        # If access policies are disabled, stick a value in the blob
+        # to indicate that.  We do this using a full object so it
+        # works in constraints and the like, where the tuple->json cast
+        # isn't supported yet.
+        if (
+            not ctx.env.options.apply_user_access_policies
+            or not ctx.env.options.apply_query_rewrites
+        ):
+            full_objs.append(qlast.FunctionCall(
+                func=('__std__', 'to_json'),
+                args=[qlast.StringConstant(
+                    value='{"__disable_access_policies": true}'
+                )],
+            ))
+
         full_expr: qlast.Expr
         if not normal_els and not full_objs:
             full_expr = null_expr
         else:
-
             simple_obj = None
             if normal_els or not full_objs:
                 simple_obj = qlast.TypeCast(

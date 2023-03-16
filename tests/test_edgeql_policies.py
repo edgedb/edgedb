@@ -65,6 +65,7 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                       (global cur_user IN __subject__.watchers.name) ?? false
                   )
             };
+            create function count_Issue() -> int64 using (count(Issue));
 
             create type CurOnly extending Dictionary {
                 create access policy cur_only allow all
@@ -1019,4 +1020,21 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
         await self.assert_query_result(
             r'''select X''',
             [{}],
+        )
+
+    async def test_edgeql_policies_function_01(self):
+        await self.con.execute('''
+            set global filter_owned := true;
+        ''')
+        await self.assert_query_result(
+            r'''select (count(Issue), count_Issue())''',
+            [(0, 0)],
+        )
+
+        await self.con.execute('''
+            configure session set apply_access_policies := false;
+        ''')
+        await self.assert_query_result(
+            r'''select (count(Issue), count_Issue())''',
+            [(4, 4)],
         )
