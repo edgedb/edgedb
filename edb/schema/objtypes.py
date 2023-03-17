@@ -75,9 +75,13 @@ class ObjectTypeRefMixin(so.Object):
 
 
 class ObjectType(
-    s_types.InheritingType,
     sources.Source,
     constraints.ConsistencySubject,
+    s_types.InheritingType,
+
+    so.InheritingObject,  # Help reflection figure out the right db MRO
+    s_types.Type,  # Help reflection figure out the right db MRO
+    s_anno.AnnotationSubject,  # Help reflection figure out the right db MRO
     ObjectTypeRefMixin,
     s_abc.ObjectType,
     qlkind=qltypes.SchemaObjectClass.TYPE,

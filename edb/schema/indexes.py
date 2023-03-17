@@ -117,6 +117,7 @@ def is_index_valid_for_type(
 
 class Index(
     referencing.ReferencedInheritingObject,
+    so.InheritingObject,  # Help reflection figure out the right db MRO
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.INDEX,
     data_safe=True,
