@@ -147,6 +147,7 @@ async def new_connection(
     port: int = None,
     user: str = None,
     password: str = None,
+    secret_key: str = None,
     database: str = None,
     timeout: float = 60,
     tls_ca: str = None,
