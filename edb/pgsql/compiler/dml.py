@@ -583,7 +583,6 @@ def process_insert_body(
 
     # We build the tuples to insert in a select we put into a CTE
     select = pgast.SelectStmt(target_list=[])
-    values = select.target_list
 
     # The main INSERT query of this statement will always be
     # present to insert at least the `id` property.
@@ -624,10 +623,115 @@ def process_insert_body(
     iterator = ctx.enclosing_cte_iterator
     inner_iterator = on_conflict_fake_iterator or iterator
 
-    # Compile the shape
-    external_inserts = []
+    # compile contents CTE
+    elements: List[Tuple[irast.Set, irast.BasePointerRef]] = []
+    for shape_el, shape_op in ir_stmt.subject.shape:
+        assert shape_op is qlast.ShapeOp.ASSIGN
 
-    ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
+        # If the shape element is a linkprop, we do nothing.
+        # It will be picked up by the enclosing DML.
+        if shape_el.path_id.is_linkprop_path():
+            continue
+
+        assert shape_el.rptr is not None
+        ptrref = shape_el.rptr.ptrref
+        if ptrref.material_ptr is not None:
+            ptrref = ptrref.material_ptr
+        assert shape_el.expr
+        elements.append((shape_el, ptrref))
+
+    external_inserts, ptr_map = process_insert_shape(
+        ir_stmt, select, elements, typeref, iterator, inner_iterator, ctx
+    )
+
+    # Put the select that builds the tuples to insert into its own CTE.
+    # We do this for two reasons:
+    # 1. Generating the object ids outside of the actual SQL insert allows
+    #    us to join any enclosing iterators into any nested external inserts.
+    # 2. We can use the contents CTE to evaluate insert access policies
+    #    before we actually try the insert. This is important because
+    #    otherwise an exclusive constraint could be raised first,
+    #    which leaks information.
+    pathctx.put_path_bond(select, ir_stmt.subject.path_id)
+    contents_cte = pgast.CommonTableExpr(
+        query=select,
+        name=ctx.env.aliases.get('ins_contents')
+    )
+    ctx.toplevel_stmt.append_cte(contents_cte)
+    contents_rvar = relctx.rvar_for_rel(contents_cte, ctx=ctx)
+
+    # compile rewrites CTE
+    if ir_stmt.rewrites and (rewrites := ir_stmt.rewrites.by_type[typeref]):
+
+        subject_path_id = ir_stmt.rewrites.subject_path_id
+        object_path_id = ir_stmt.subject.path_id
+
+        rew_stmt = pgast.SelectStmt(target_list=[])
+
+        # pull in contents_select for __subject__
+        relctx.include_rvar(
+            rew_stmt, contents_rvar, subject_path_id, ctx=ctx
+        )
+
+        # # Use a dynamic rvar to return values out of the select purely
+        # # based on material rptr, as if it was a base relation.
+        # # This is to make it easy for access policies to operate on the result
+        # # of the INSERT.
+        # def dynamic_get_path_rew(
+        #     rel: pgast.Query, path_id: irast.PathId, *,
+        #     flavor: str,
+        #     aspect: str, env: context.Environment
+        # ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
+        #     if flavor != 'normal' or aspect not in ('value', 'identity'):
+        #         return None
+        #     if not (rptr := path_id.rptr()):
+        #         return None
+        #     if ret := ptr_map.get(rptr.real_material_ptr):
+        #         return ret
+        #     if rptr.real_material_ptr.shortname.name == '__type__':
+        #         return astutils.compile_typeref(typeref)
+        #     # Properties that aren't specified are {}
+        #     return pgast.NullConstant()
+
+        # fallback_rvar = pgast.DynamicRangeVar(dynamic_get_path=dynamic_get_path_rew)
+        # pathctx.put_path_source_rvar(
+        #     select, object_path_id, fallback_rvar, env=ctx.env)
+        # pathctx.put_path_value_rvar(
+        #     select, object_path_id, fallback_rvar, env=ctx.env)
+        # pathctx.put_path_source_rvar(
+        #     select, subject_path_id, fallback_rvar, env=ctx.env)
+        # pathctx.put_path_value_rvar(
+        #     select, subject_path_id, fallback_rvar, env=ctx.env)
+
+        # compile rewrite shape
+        not_rewritten = {
+            (e, ptrref)
+            for e, ptrref in elements
+            if ptrref.shortname.name not in rewrites
+        }
+        elements = list(rewrites.values())
+
+        _, ptr_map = process_insert_shape(
+            ir_stmt, rew_stmt, elements, typeref, iterator, inner_iterator, ctx
+        )
+
+        # pull-in pointers that were not rewritten
+        for (e, _) in not_rewritten:
+            pathctx.get_path_output(
+                rew_stmt, e.path_id, aspect='value', env=ctx.env
+            )
+
+        # construct the CTE
+        pathctx.put_path_bond(rew_stmt, ir_stmt.subject.path_id)
+        rewrites_cte = pgast.CommonTableExpr(
+            query=rew_stmt,
+            name=ctx.env.aliases.get('ins_rewrites')
+        )
+        ctx.toplevel_stmt.append_cte(rewrites_cte)
+        rewrites_rvar = relctx.rvar_for_rel(rewrites_cte, ctx=ctx)
+    else:
+        rewrites_cte = contents_cte
+        rewrites_rvar = contents_rvar
 
     # Use a dynamic rvar to return values out of the select purely
     # based on material rptr, as if it was a base relation.
@@ -655,109 +759,16 @@ def process_insert_body(
     pathctx.put_path_value_rvar(
         select, ir_stmt.subject.path_id, fallback_rvar, env=ctx.env)
 
-    with ctx.newrel() as subctx:
-        subctx.enclosing_cte_iterator = inner_iterator
-
-        subctx.rel = select
-        subctx.expr_exposed = False
-
-        inner_iterator_id = None
-        if inner_iterator is not None:
-            subctx.path_scope = ctx.path_scope.new_child()
-            merge_iterator(inner_iterator, select, ctx=subctx)
-            inner_iterator_id = relctx.get_path_var(
-                select, inner_iterator.path_id, aspect='identity', ctx=ctx)
-
-        # Process the Insert IR and separate links that go
-        # into the main table from links that are inserted into
-        # a separate link table.
-        for shape_el, shape_op in ir_stmt.subject.shape:
-            assert shape_op is qlast.ShapeOp.ASSIGN
-
-            # If the shape element is a linkprop, we do nothing.
-            # It will be picked up by the enclosing DML.
-            if shape_el.path_id.is_linkprop_path():
-                continue
-
-            rptr = shape_el.rptr
-            assert rptr is not None
-            ptrref = rptr.ptrref
-            if ptrref.material_ptr is not None:
-                ptrref = ptrref.material_ptr
-
-            ptr_info = pg_types.get_ptrref_storage_info(
-                ptrref, resolve_type=True, link_bias=False)
-
-            # First, process all local link inserts.
-            if ptr_info.table_type == 'ObjectType':
-                rel = compile_insert_shape_element(
-                    ir_stmt=ir_stmt,
-                    shape_el=shape_el,
-                    iterator_id=inner_iterator_id,
-                    ctx=subctx,
-                )
-
-                insvalue = pathctx.get_path_value_var(
-                    rel, shape_el.path_id, env=ctx.env)
-
-                if irtyputils.is_tuple(shape_el.typeref):
-                    # Tuples require an explicit cast.
-                    insvalue = pgast.TypeCast(
-                        arg=output.output_as_value(insvalue, env=ctx.env),
-                        type_name=pgast.TypeName(
-                            name=ptr_info.column_type,
-                        ),
-                    )
-
-                ptr_map[ptrref] = insvalue
-                values.append(pgast.ResTarget(
-                    name=ptr_info.column_name, val=insvalue))
-
-            # Register all link table inserts to be run after the main
-            # insert.  Note that single links with link properties are
-            # processed both as a local link insert (for the inline
-            # pointer) and as a link table insert (because lprops are
-            # stored in link tables).
-            link_ptr_info = pg_types.get_ptrref_storage_info(
-                ptrref, resolve_type=False, link_bias=True)
-
-            if link_ptr_info and link_ptr_info.table_type == 'link':
-                external_inserts.append(shape_el)
-
-        if iterator is not None:
-            pathctx.put_path_bond(select, iterator.path_id)
-
-    for aspect in ('value', 'identity'):
-        pathctx._put_path_output_var(
-            select, ir_stmt.subject.path_id, aspect=aspect,
-            var=pgast.ColumnRef(name=['id']), env=ctx.env,
-        )
-
-    # Put the select that builds the tuples to insert into its own CTE.
-    # We do this for two reasons:
-    # 1. Generating the object ids outside of the actual SQL insert allows
-    #    us to join any enclosing iterators into any nested external inserts.
-    # 2. We can use the contents CTE to evaluate insert access policies
-    #    before we actually try the insert. This is important because
-    #    otherwise an exclusive constraint could be raised first,
-    #    which leaks information.
-    pathctx.put_path_bond(select, ir_stmt.subject.path_id)
-    contents_cte = pgast.CommonTableExpr(
-        query=select,
-        name=ctx.env.aliases.get('ins_contents')
-    )
-    ctx.toplevel_stmt.append_cte(contents_cte)
-    contents_rvar = relctx.rvar_for_rel(contents_cte, ctx=ctx)
-
     # Populate the real insert statement based on the select we generated
     insert_stmt.cols = [
-        pgast.InsertTarget(name=not_none(value.name)) for value in values
+        pgast.InsertTarget(name=not_none(value.name))
+        for value in rewrites_cte.query.target_list
     ]
     insert_stmt.select_stmt = pgast.SelectStmt(
         target_list=[
             pgast.ResTarget(val=col) for col in insert_stmt.cols
         ],
-        from_clause=[contents_rvar],
+        from_clause=[rewrites_rvar],
     )
     pathctx.put_path_bond(insert_stmt, ir_stmt.subject.path_id)
 
@@ -774,7 +785,7 @@ def process_insert_body(
         relctx.include_rvar(
             ictx.rel, insert_rvar, ir_stmt.subject.path_id, ctx=ictx)
         relctx.include_rvar(
-            ictx.rel, contents_rvar, ir_stmt.subject.path_id, ctx=ictx)
+            ictx.rel, rewrites_rvar, ir_stmt.subject.path_id, ctx=ictx)
     # TODO: set up dml_parts with a SelectStmt for inserts always?
     insert_cte.query = ictx.rel
 
@@ -785,7 +796,7 @@ def process_insert_body(
         ctx.toplevel_stmt.append_cte(real_insert_cte)
         ctx.toplevel_stmt.append_cte(insert_cte)
 
-    dml_cte = contents_cte if not needs_insert_on_conflict else insert_cte
+    dml_cte = rewrites_cte if not needs_insert_on_conflict else insert_cte
 
     pol_expr = ir_stmt.write_policies.get(typeref.id)
     pol_ctx = None
@@ -815,7 +826,7 @@ def process_insert_body(
         assert not needs_insert_on_conflict
         with pol_ctx.reenter():
             policy_cte = compile_policy_check(
-                contents_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
+                rewrites_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
             )
         force_policy_checks(
             policy_cte,
@@ -839,6 +850,131 @@ def process_insert_body(
             dml_parts,
             ctx=ctx,
         )
+
+
+def process_insert_shape(
+    ir_stmt: irast.InsertStmt,
+    select: pgast.SelectStmt,
+    elements: List[Tuple[irast.Set, irast.BasePointerRef]],
+    typeref: irast.TypeRef,
+    iterator: Optional[pgast.IteratorCTE],
+    inner_iterator: Optional[pgast.IteratorCTE],
+    ctx: context.CompilerContextLevel,
+) -> Tuple[
+    List[irast.Set],
+    Dict[irast.BasePointerRef, pgast.BaseExpr]
+]:
+    # Compile the shape
+    external_inserts = []
+
+    ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
+
+    with ctx.newrel() as subctx:
+        subctx.enclosing_cte_iterator = inner_iterator
+
+        subctx.rel = select
+        subctx.expr_exposed = False
+
+        inner_iterator_id = None
+        if inner_iterator is not None:
+            subctx.path_scope = ctx.path_scope.new_child()
+            merge_iterator(inner_iterator, select, ctx=subctx)
+            inner_iterator_id = relctx.get_path_var(
+                select, inner_iterator.path_id, aspect='identity', ctx=ctx)
+
+        # Process the Insert IR and separate links that go
+        # into the main table from links that are inserted into
+        # a separate link table.
+        for element, ptrref in elements:
+
+            ptr_info = pg_types.get_ptrref_storage_info(
+                ptrref, resolve_type=True, link_bias=False)
+
+            # First, process all local link inserts.
+            if ptr_info.table_type == 'ObjectType':
+                insvalue = compile_insert_shape_element(
+                    element,
+                    ptrref,
+                    ir_stmt=ir_stmt,
+                    iterator_id=inner_iterator_id,
+                    ctx=subctx,
+                )
+
+                if irtyputils.is_tuple(element.typeref):
+                    # Tuples require an explicit cast.
+                    insvalue = pgast.TypeCast(
+                        arg=output.output_as_value(insvalue, env=ctx.env),
+                        type_name=pgast.TypeName(
+                            name=ptr_info.column_type,
+                        ),
+                    )
+
+                ref = pgast.ColumnRef(name=(ptr_info.column_name,))
+
+                ptr_map[ptrref] = ref
+                select.target_list.append(pgast.ResTarget(
+                    name=ptr_info.column_name, val=insvalue))
+
+                # pathctx.put_path_value_var(
+                #     select,
+                #     element.path_id,
+                #     var=ref,
+                #     env=ctx.env,
+                # )
+
+            # Register all link table inserts to be run after the main
+            # insert.  Note that single links with link properties are
+            # processed both as a local link insert (for the inline
+            # pointer) and as a link table insert (because lprops are
+            # stored in link tables).
+            link_ptr_info = pg_types.get_ptrref_storage_info(
+                ptrref, resolve_type=False, link_bias=True)
+
+            if link_ptr_info and link_ptr_info.table_type == 'link':
+                external_inserts.append(element)
+
+        if iterator is not None:
+            pathctx.put_path_bond(select, iterator.path_id)
+
+    for aspect in ('value', 'identity'):
+        pathctx._put_path_output_var(
+            select, ir_stmt.subject.path_id, aspect=aspect,
+            var=pgast.ColumnRef(name=['id']), env=ctx.env,
+        )
+
+    return external_inserts, ptr_map
+
+
+def compile_insert_shape_element(
+    shape_el: irast.Set,
+    ptr_ref: irast.BasePointerRef,
+    *,
+    ir_stmt: irast.MutatingStmt,
+    iterator_id: Optional[pgast.BaseExpr],
+    ctx: context.CompilerContextLevel,
+) -> pgast.BaseExpr:
+
+    with ctx.newscope() as insvalctx:
+        # This method is only called if the upper cardinality of
+        # the expression is one, so we check for AT_MOST_ONE
+        # to determine nullability.
+        if ptr_ref.out_cardinality is qltypes.Cardinality.AT_MOST_ONE:
+            insvalctx.force_optional |= {shape_el.path_id}
+
+        if iterator_id is not None:
+            id = iterator_id
+            insvalctx.volatility_ref = (lambda _stmt, _ctx: id,)
+        else:
+            # Single inserts have no need for forced
+            # computable volatility, and, furthermore,
+            # we do not have a valid identity reference
+            # anyway.
+            insvalctx.volatility_ref = ()
+
+        insvalctx.current_insert_path_id = ir_stmt.subject.path_id
+
+        assert shape_el.expr
+        return dispatch.compile(shape_el.expr, ctx=insvalctx)
 
 
 def merge_overlays_globally(
@@ -1310,40 +1446,6 @@ def compile_insert_else_body_failure_check(
     ctx.rel.target_list.append(
         pgast.ResTarget(name='error', val=maybe_raise)
     )
-
-
-def compile_insert_shape_element(
-    *,
-    ir_stmt: irast.MutatingStmt,
-    shape_el: irast.Set,
-    iterator_id: Optional[pgast.BaseExpr],
-    ctx: context.CompilerContextLevel,
-) -> pgast.Query:
-
-    with ctx.newscope() as insvalctx:
-        # This method is only called if the upper cardinality of
-        # the expression is one, so we check for AT_MOST_ONE
-        # to determine nullability.
-        assert shape_el.rptr is not None
-        if (shape_el.rptr.dir_cardinality
-                is qltypes.Cardinality.AT_MOST_ONE):
-            insvalctx.force_optional |= {shape_el.path_id}
-
-        if iterator_id is not None:
-            id = iterator_id
-            insvalctx.volatility_ref = (lambda _stmt, _ctx: id,)
-        else:
-            # Single inserts have no need for forced
-            # computable volatility, and, furthermore,
-            # we do not have a valid identity reference
-            # anyway.
-            insvalctx.volatility_ref = ()
-
-        insvalctx.current_insert_path_id = ir_stmt.subject.path_id
-
-        dispatch.visit(shape_el, ctx=insvalctx)
-
-    return insvalctx.rel
 
 
 def process_update_body(
