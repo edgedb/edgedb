@@ -73,9 +73,12 @@ STD_SOURCES = (
     sn.UnqualName('sys'),
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
-    sn.UnqualName('fts'),
     sn.UnqualName('ext'),
     sn.UnqualName('pg'),
+)
+TESTMODE_SOURCES = (
+    sn.UnqualName('fts'),
+    sn.UnqualName('_testmode'),
 )
 
 Schema_T = TypeVar('Schema_T', bound='Schema')
