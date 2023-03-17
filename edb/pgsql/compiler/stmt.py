@@ -209,8 +209,14 @@ def compile_DeleteStmt(
         assert range_cte is not None
         ctx.toplevel_stmt.append_cte(range_cte)
 
-        for delete_cte, _ in parts.dml_ctes.values():
-            ctx.toplevel_stmt.append_cte(delete_cte)
+        for typeref, (delete_cte, _) in parts.dml_ctes.items():
+            dml.process_delete_body(
+                ir_stmt=stmt,
+                delete_cte=delete_cte,
+                dml_parts=parts,
+                typeref=typeref,
+                ctx=ctx,
+            )
 
         # Wrap up.
         return dml.fini_dml_stmt(

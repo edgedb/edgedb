@@ -1160,6 +1160,11 @@ class UpdateStmt(MutatingStmt, FilteredStmt):
 class DeleteStmt(MutatingStmt, FilteredStmt):
     _material_type: TypeRef | None = None
 
+    links_to_delete: typing.Dict[
+        uuid.UUID,
+        typing.Tuple[PointerRef, ...]
+    ] = ast.field(factory=dict)
+
     @property
     def material_type(self) -> TypeRef:
         assert self._material_type

@@ -6232,6 +6232,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             return schema
 
         DA = s_links.LinkTargetDeleteAction
+        DS = s_links.LinkSourceDeleteAction
 
         affected_sources: set[s_sources.Source] = set()
         affected_targets = {t for _, t in self.changed_targets}
@@ -6321,46 +6322,6 @@ class UpdateEndpointDeleteActions(MetaCommand):
                         if current_orig_target is not None:
                             affected_targets.add(current_orig_target)
 
-        for source in affected_sources:
-            links = []
-            inline_links = []
-
-            for link in source.get_pointers(schema).objects(schema):
-                if link.is_pure_computable(schema):
-                    continue
-                ptr_stor_info = types.get_pointer_storage_info(
-                    link, schema=schema)
-
-                if ptr_stor_info.table_type == 'link':
-                    links.append(link)
-                elif (
-                    isinstance(link, s_links.Link)
-                    and link.get_on_source_delete(schema) !=
-                    s_links.LinkSourceDeleteAction.Allow
-                ):
-                    inline_links.append(link)
-
-            links.sort(
-                key=lambda l: (
-                    (l.get_on_target_delete(schema),)
-                    if isinstance(l, s_links.Link) else (),
-                    l.get_name(schema)))
-
-            inline_links.sort(
-                key=lambda l: (
-                    (l.get_on_target_delete(schema),)
-                    if isinstance(l, s_links.Link) else (),
-                    l.get_name(schema)))
-
-            if links or modifications:
-                self._update_action_triggers(
-                    schema, source, links, disposition='source')
-
-            if inline_links or modifications:
-                self._update_action_triggers(
-                    schema, source, inline_links,
-                    inline=True, disposition='source')
-
         # All descendants of affected targets also need to have their
         # triggers updated, so track them down.
         all_affected_targets = set()
@@ -6376,6 +6337,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 for descendant in objtype.descendants(schema):
                     if has_table(descendant, schema):
                         all_affected_targets.add(descendant)
+
+        delete_target_targets = set()
 
         for target in all_affected_targets:
             if is_cfg_view(target, schema):
@@ -6397,8 +6360,22 @@ class UpdateEndpointDeleteActions(MetaCommand):
             for link in inbound_links:
                 if link.is_pure_computable(schema):
                     continue
-                action = link.get_on_target_delete(schema)
 
+                source = link.get_source(schema)
+                if (
+                    not source.is_material_object_type(schema)
+                    or is_cfg_view(source, schema)
+                ):
+                    continue
+
+                # We need to track what objects are targets that can be
+                # deleted on a source delete; it feeds into a decision we
+                # need to make when handling source triggers below
+                if link.get_on_source_delete(schema) != DS.Allow:
+                    delete_target_targets.add(target)
+                    affected_sources.add(target)
+
+                action = link.get_on_target_delete(schema)
                 # Enforcing link deletion policies on targets are
                 # handled by looking at the inheritance views, when
                 # restrict is the policy.
@@ -6415,12 +6392,6 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 ):
                     continue
 
-                source = link.get_source(schema)
-                if (
-                    not source.is_material_object_type(schema)
-                    or is_cfg_view(source, schema)
-                ):
-                    continue
                 ptr_stor_info = types.get_pointer_storage_info(
                     link, schema=schema)
                 if ptr_stor_info.table_type != 'link':
@@ -6475,6 +6446,71 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     schema, target, deferred_inline_links,
                     disposition='target', deferred=True,
                     inline=True)
+
+        # Now process source targets
+        for source in affected_sources:
+            links = []
+            inline_links = []
+
+            can_be_deleted_by_trigger = any(
+                link.get_on_target_delete(schema) == DA.DeleteSource
+                for link in source.get_pointers(schema).objects(schema)
+                if isinstance(link, s_links.Link)
+            ) or source in delete_target_targets
+
+            for link in source.get_pointers(schema).objects(schema):
+                if link.is_pure_computable(schema):
+                    continue
+                ptr_stor_info = types.get_pointer_storage_info(
+                    link, schema=schema)
+
+                delete_target = (
+                    isinstance(link, s_links.Link)
+                    and link.get_on_source_delete(schema) != DS.Allow
+                )
+
+                if ptr_stor_info.table_type == 'link' and (
+                    # When a query does a delete, link tables get
+                    # cleared out explicitly in our SQL, and so we
+                    # don't need to run a source trigger unless there
+                    # is an interesting source delete policy.
+                    #
+                    # However, if the object might be deleted by a
+                    # link policy, then we still use a trigger to
+                    # clean up the link table, since handling it
+                    # in the original policy triggers would require
+                    # lots of pretty nonlocal changes (adding a link
+                    # to type Bar might require changing the triggers for
+                    # type Foo that links to Bar).
+                    can_be_deleted_by_trigger
+                    or delete_target
+                ):
+                    links.append(link)
+                # Inline links only need source actions if they might
+                # delete the target
+                elif delete_target:
+                    inline_links.append(link)
+
+            links.sort(
+                key=lambda l: (
+                    (l.get_on_target_delete(schema),)
+                    if isinstance(l, s_links.Link) else (),
+                    l.get_name(schema)))
+
+            inline_links.sort(
+                key=lambda l: (
+                    (l.get_on_target_delete(schema),)
+                    if isinstance(l, s_links.Link) else (),
+                    l.get_name(schema)))
+
+            if links or modifications:
+                self._update_action_triggers(
+                    schema, source, links, disposition='source')
+
+            if inline_links or modifications:
+                self._update_action_triggers(
+                    schema, source, inline_links,
+                    inline=True, disposition='source')
 
         return schema
 
