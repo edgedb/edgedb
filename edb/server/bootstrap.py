@@ -716,7 +716,8 @@ async def _make_stdlib(
         std_texts.append(s_std.get_std_module_text(modname))
 
     if testmode:
-        std_texts.append(s_std.get_std_module_text(sn.UnqualName('_testmode')))
+        for modname in s_schema.TESTMODE_SOURCES:
+            std_texts.append(s_std.get_std_module_text(modname))
 
     ddl_text = '\n'.join(std_texts)
     types: Set[uuid.UUID] = set()
@@ -1057,12 +1058,13 @@ async def _init_stdlib(
 
     if not in_dev_mode and testmode:
         # Running tests on a production build.
-        stdlib, testmode_sql = await _amend_stdlib(
-            ctx,
-            s_std.get_std_module_text(sn.UnqualName('_testmode')),
-            stdlib,
-        )
-        await conn.sql_execute(testmode_sql.encode("utf-8"))
+        for modname in s_schema.TESTMODE_SOURCES:
+            stdlib, testmode_sql = await _amend_stdlib(
+                ctx,
+                s_std.get_std_module_text(modname),
+                stdlib,
+            )
+            await conn.sql_execute(testmode_sql.encode("utf-8"))
         # _testmode includes extra config settings, so make sure
         # those are picked up.
         config_spec = config.load_spec_from_schema(stdlib.stdschema)
