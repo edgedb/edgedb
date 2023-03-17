@@ -49,14 +49,15 @@ def uuid1mc() -> uuid.UUID:
 
 def uuid4() -> uuid.UUID:
     """Generate a random UUID."""
-    return UUID(os.urandom(16))
+    return UUID(uuid.uuid4().bytes)
 
 
 def uuid5_bytes(namespace: uuid.UUID, name: bytes | bytearray) -> uuid.UUID:
     """Generate a UUID from the SHA-1 hash of a namespace UUID and a name."""
+    # Do the hashing ourselves because the stdlib version only supports str
     hasher = hashlib.sha1(namespace.bytes)
     hasher.update(name)
-    return UUID(hasher.digest()[:16])
+    return UUID(uuid.UUID(bytes=hasher.digest()[:16], version=5).bytes)
 
 
 def uuid5(namespace: uuid.UUID, name: str) -> uuid.UUID:
