@@ -58,6 +58,12 @@ uuid_re = re.compile(
 # * `Some-word` -- words with dash -- matches dash
 word_boundary_re = re.compile(r'(?<!^)(?<!\s|-)[\s-]*(?=[A-Z])')
 
+# "affects_compilation" config vals that we don't actually want to report out.
+# This turns out to be a majority of them
+OMITTED_CONFIG_VALS = {
+    "allow_dml_in_functions", "allow_bare_ddl", "force_database_error",
+}
+
 
 ContextDesc = dict[str, int]
 
@@ -396,7 +402,7 @@ def analyze_explain_output(
     ql: qlast.Base
     ir: irast.Statement
     pg: pgast.Base
-    ql, ir, pg = pickle.loads(query_asts_pickled)
+    ql, ir, pg, config_vals = pickle.loads(query_asts_pickled)
     schema = ir.schema
     # We omit the std schema when serializing, so put it back
     if isinstance(schema, s_schema.ChainedSchema):
@@ -416,8 +422,15 @@ def analyze_explain_output(
 
     collapse_plan(plan)
 
+    config_vals = {
+        k: v for k, v in config_vals.items() if k not in OMITTED_CONFIG_VALS
+    }
+    globals_used = sorted([str(k) for k in ir.globals])
+
     output = {
         'buffers': info.buffers,
+        'config_vals': config_vals,
+        'globals_used': globals_used,
         'plan': plan,
     }
     if debug.flags.edgeql_explain:

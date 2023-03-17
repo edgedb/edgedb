@@ -1296,22 +1296,18 @@ def _get_compile_options(
 
     return qlcompiler.CompilerOptions(
         modaliases=ctx.state.current_tx().get_modaliases(),
-        # XXX: All this is_explain checks need to be removed once we
-        # have a real solution to this problem
         implicit_tid_in_shapes=(
             can_have_implicit_fields and ctx.inline_typeids
-            and not is_explain
         ),
         implicit_tname_in_shapes=(
             can_have_implicit_fields and ctx.inline_typenames
-            and not is_explain
         ),
         implicit_id_in_shapes=(
             can_have_implicit_fields and ctx.inline_objectids
         ),
         constant_folding=not disable_constant_folding,
         json_parameters=ctx.json_parameters,
-        implicit_limit=ctx.implicit_limit if not is_explain else 0,
+        implicit_limit=ctx.implicit_limit,
         bootstrap_mode=ctx.bootstrap_mode,
         apply_query_rewrites=(
             not ctx.bootstrap_mode
@@ -1339,6 +1335,14 @@ def _compile_ql_explain(
 ) -> dbstate.BaseQuery:
     analyze = 'ANALYZE true, ' if ql.analyze else ''
     exp_command = f'EXPLAIN ({analyze}FORMAT JSON, VERBOSE true)'
+
+    ctx = dataclasses.replace(
+        ctx,
+        inline_typeids=False,
+        inline_typenames=False,
+        implicit_limit=0,
+        output_format=enums.OutputFormat.BINARY,
+    )
 
     query = _compile_ql_query(
         ctx, ql.query, script_info=script_info,
@@ -1487,7 +1491,8 @@ def _compile_ql_query(
                 global_schema=ir.schema._global_schema,
                 base_schema=s_schema.FlatSchema(),
             )
-        query_asts = pickle.dumps((ql, ir, qtree))
+        config_vals = _get_compilation_config_vals(ctx)
+        query_asts = pickle.dumps((ql, ir, qtree, config_vals))
     else:
         query_asts = None
 
@@ -2494,6 +2499,14 @@ def _get_config_val(
         current_tx.get_system_config(),
         allow_unrecognized=True,
     )
+
+
+def _get_compilation_config_vals(ctx: CompileContext) -> Any:
+    return {
+        k: _get_config_val(ctx, k)
+        for k in ctx.compiler_state.config_spec
+        if ctx.compiler_state.config_spec[k].affects_compilation
+    }
 
 
 _OUTPUT_FORMAT_MAP = {
