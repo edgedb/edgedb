@@ -759,10 +759,30 @@ def compile_DeleteQuery(
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
+            # Compile policies for every concrete type
             if pol_cond := policies.compile_dml_read_policies(
                 dtype, result, mode=qltypes.AccessKind.Delete, ctx=ictx
             ):
                 stmt.read_policies[dtype.id] = pol_cond
+
+            schema = ctx.env.schema
+            # And find any pointers to delete
+            ptrs = []
+            for ptr in dtype.get_pointers(schema).objects(schema):
+                # If there is a pointer that has a real table and doesn't
+                # have a special ON SOURCE DELETE policy, arrange to
+                # delete it in the query itself.
+                if not ptr.is_pure_computable(schema) and (
+                    not ptr.singular(schema)
+                    or ptr.has_user_defined_properties(schema)
+                ) and (
+                    not isinstance(ptr, s_links.Link)
+                    or ptr.get_on_source_delete(schema) ==
+                    s_links.LinkSourceDeleteAction.Allow
+                ):
+                    ptrs.append(typegen.ptr_to_ptrref(ptr, ctx=ctx))
+
+            stmt.links_to_delete[dtype.id] = tuple(ptrs)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 

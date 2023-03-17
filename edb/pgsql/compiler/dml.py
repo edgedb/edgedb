@@ -2548,6 +2548,56 @@ def process_link_values(
     return link_rows, specified_cols
 
 
+def process_delete_body(
+    *,
+    ir_stmt: irast.DeleteStmt,
+    delete_cte: pgast.CommonTableExpr,
+    dml_parts: DMLParts,
+    typeref: irast.TypeRef,
+    ctx: context.CompilerContextLevel,
+) -> None:
+    """Finalize DELETE on an object.
+
+    The actual DELETE was generated in gen_dml_cte, so we only
+    have work to do here if there are link tables to clean up.
+    """
+    ctx.toplevel_stmt.append_cte(delete_cte)
+
+    pointers = ir_stmt.links_to_delete[typeref.id]
+
+    for ptrref in pointers:
+        target_rvar = relctx.range_for_ptrref(
+            ptrref, for_mutation=True, only_self=True, ctx=ctx)
+        # assert isinstance(target_rvar, pgast.RelRangeVar)
+        # assert isinstance(target_rvar.relation, pgast.Relation)
+        # relation = target_rvar.relation
+
+        range_rvar = pgast.RelRangeVar(
+            relation=delete_cte,
+            alias=pgast.Alias(
+                aliasname=ctx.env.aliases.get(hint='range')
+            )
+        )
+
+        where_clause = astutils.new_binop(
+            lexpr=pgast.ColumnRef(name=[
+                target_rvar.alias.aliasname, 'source'
+            ]),
+            op='=',
+            rexpr=pathctx.get_rvar_path_identity_var(
+                range_rvar, ir_stmt.result.path_id, env=ctx.env)
+        )
+        del_query = pgast.DeleteStmt(
+            relation=target_rvar,
+            where_clause=where_clause,
+            using_clause=[range_rvar],
+        )
+        ctx.toplevel_stmt.append_cte(pgast.CommonTableExpr(
+            query=del_query,
+            name=ctx.env.aliases.get(hint='mlink')
+        ))
+
+
 # Trigger compilation
 def compile_triggers(
     triggers: tuple[irast.Trigger, ...],

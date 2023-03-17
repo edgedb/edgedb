@@ -13821,10 +13821,7 @@ DDLStatement);
             INSERT Foo { tgt := (INSERT Tgt) };
         """)
 
-        async with self.assertRaisesRegexTx(
-            edgedb.ConstraintViolationError,
-            'prohibited by link target policy',
-        ):
+        async with self._run_and_rollback():
             await self.con.execute("""
                 WITH D := Foo,
                 SELECT {(DELETE D.tgt), (DELETE D)};
