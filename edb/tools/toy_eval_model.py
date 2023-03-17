@@ -893,15 +893,33 @@ def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> Result:
 @_eval.register
 def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> Result:
     ctx = eval_aliases(node, ctx)
-    iter_vals = strip_shapes(subquery(node.iterator, ctx=ctx))
-    qil = ctx.query_input_list + [(IORef(node.iterator_alias),)]
     out = []
-    for val in iter_vals:
-        subctx = replace(ctx, query_input_list=qil,
-                         input_tuple=ctx.input_tuple + (val,))
-        out.extend(subquery(node.result, ctx=subctx))
 
-    return out
+    def go(i: int, sctx: EvalContext) -> None:
+        if i >= len(node.iterator_bindings):
+            for el in subquery(node.result, ctx=sctx):
+                out.append(sctx.input_tuple + (el,))
+            return
+
+        b = node.iterator_bindings[i]
+
+        iter_vals = strip_shapes(subquery(b.iterator, ctx=sctx))
+        if b.optional and not iter_vals:  # XXX: needs to be per node
+            iter_vals = [None]
+        qil = sctx.query_input_list + [(IORef(b.iterator_alias),)]
+        for val in iter_vals:
+            subctx = replace(sctx, query_input_list=qil,
+                             input_tuple=sctx.input_tuple + (val,))
+            go(i + 1, subctx)
+
+    go(0, ctx)
+
+    new_qil = ctx.query_input_list + [
+        (IORef(b.iterator_alias),) for b in node.iterator_bindings] + [()]
+    if node.orderby:
+        out = eval_orderby(node.orderby, new_qil, out, ctx=ctx)
+
+    return [row[-1] for row in out]
 
 
 @_eval.register

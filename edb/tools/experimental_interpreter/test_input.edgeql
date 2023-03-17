@@ -1,5 +1,26 @@
-select Person filter Person.name = "t1";
-# for X in {1,2,3} union X;
+for X in {1,2,3} union X;
+# select Person.friends@source;
+# with
+#         X :=  
+# "hello,world"
+#     select
+#         (X)[:1]
+# ;
+# with
+#         X :=  
+# "hello,world"
+#     select
+#         (X)[{1,1}]
+# ;
+# with
+#         X :=  
+# "hello,world"
+            
+#     select
+#         (X)[{1, 2}:{5, 6}]
+# ;
+
+# select Person filter Person.name = "t1";
 # with Y:= {1,2,3} for X in Y union X;
 # select (1, 2);
 # insert Person {name := "t1"};

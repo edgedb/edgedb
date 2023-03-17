@@ -150,7 +150,7 @@ def is_trivial_select(ir_expr: irast.Base) -> TypeGuard[irast.SelectStmt]:
 
     return (
         not ir_expr.orderby
-        and ir_expr.iterator_stmt is None
+        and not ir_expr.iterator_stmt
         and ir_expr.where is None
         and ir_expr.limit is None
         and ir_expr.offset is None

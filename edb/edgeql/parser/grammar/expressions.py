@@ -150,14 +150,35 @@ class GroupingElementList(
     pass
 
 
+class OptionalOptional(Nonterm):
+    def reduce_OPTIONAL(self, *kids):
+        self.val = True
+
+    def reduce_empty(self, *kids):
+        self.val = False
+
+
+class ForBinding(Nonterm):
+    def reduce_OptionalOptional_Identifier_IN_AtomicExpr(self, *kids):
+        self.val = qlast.ForBinding(
+            optional=kids[0].val,
+            iterator_alias=kids[1].val, iterator=kids[3].val)
+
+
+class ForBindingList(
+        ListNonterm, element=ForBinding, separator=tokens.T_COMMA):
+    pass
+
+
 class SimpleFor(Nonterm):
     def reduce_For(self, *kids):
-        r"%reduce FOR Identifier IN AtomicExpr \
-                  UNION Expr"
+        r"%reduce FOR ForBindingList \
+                  UNION Expr OptSortClause"
         self.val = qlast.ForQuery(
-            iterator_alias=kids[1].val,
-            iterator=kids[3].val,
-            result=kids[5].val,
+            optional=kids[1].val,
+            iterator_bindings=kids[1].val,
+            result=kids[3].val,
+            orderby=kids[4].val,
         )
 
 

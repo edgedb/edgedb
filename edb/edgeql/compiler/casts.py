@@ -1047,7 +1047,10 @@ def _find_object_by_id(
         )
 
         for_query = qlast.ForQuery(
-            iterator=uuid_anchor, iterator_alias='_id', result=exists_ql
+            iterator_bindings=[
+                qlast.ForBinding(iterator=uuid_anchor, iterator_alias='_id')
+            ],
+            result=exists_ql
         )
 
         return dispatch.compile(for_query, ctx=subctx)
