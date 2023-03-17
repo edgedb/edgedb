@@ -94,7 +94,7 @@ language-native types.
 Parameter types and JSON
 ------------------------
 
-In EdgeDB 2.0, parameters can be only :ref:`scalars
+Prior to EdgeDB 3.0, parameters can be only :ref:`scalars
 <ref_datamodel_scalar_types>` or arrays of scalars. In EdgeDB 3.0, parameters
 can also be tuples. This may seem limiting at first, but in actuality this
 doesn't impose any practical limitation on what can be parameterized. To pass
