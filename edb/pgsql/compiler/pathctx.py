@@ -1095,15 +1095,18 @@ def _get_path_output(
     ref: pgast.BaseExpr
     alias = None
     rptr = path_id.rptr()
-    if rptr is not None and irtyputils.is_id_ptrref(rptr) and (
-        src_path_id := path_id.src_path()
-    ) and not (
-        (src_rptr := src_path_id.rptr())
-        and (
-            src_rptr.real_material_ptr.out_cardinality.is_multi()
+    if (
+        rptr is not None
+        and irtyputils.is_id_ptrref(rptr)
+        and (src_path_id := path_id.src_path())
+        and not disable_output_fusion
+        and not (
+            (src_rptr := src_path_id.rptr())
+            and src_rptr.real_material_ptr.out_cardinality.is_multi()
             and not irtyputils.is_free_object(src_path_id.target)
         )
-    ) and not has_type_rewrite(src_path_id.target, env=env):
+        and not has_type_rewrite(src_path_id.target, env=env)
+    ):
         # A value reference to Object.id is the same as a value
         # reference to the Object itself. (Though we want to only
         # apply this in the cases that process_set_as_path does this
