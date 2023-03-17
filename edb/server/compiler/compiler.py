@@ -73,6 +73,7 @@ from edb.pgsql import types as pg_types
 
 from . import dbstate
 from . import enums
+from . import explain
 from . import sertypes
 from . import status
 from . import ddl
@@ -496,6 +497,8 @@ class Compiler:
         system_config: Mapping[str, config.SettingValue],
         query_str: str,
         tx_state: dbstate.SQLTransactionState,
+        current_database: str,
+        current_user: str,
     ) -> List[dbstate.SQLQueryUnit]:
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
@@ -523,17 +526,30 @@ class Compiler:
                 if isinstance(arg, pgast.StringConstant)
             ]
 
-        frontend_only = {'search_path'}
+        # frontend-only settings (key) and their mutability (value)
+        fe_settings_mutable = {
+            'search_path': True,
+            'server_version': False,
+            'server_version_num': False,
+        }
         stmts = pg_parser.parse(query_str)
         sql_units = []
         for stmt in stmts:
             if isinstance(stmt, pgast.VariableSetStmt):
+                # GOTCHA: setting is frontend-only regardless of its mutability
+                fe_only = stmt.name in fe_settings_mutable
+
                 args = {
                     "query": pg_codegen.generate_source(stmt),
-                    "frontend_only": stmt.name in frontend_only,
+                    "frontend_only": fe_only,
                     "is_local": stmt.scope == pgast.OptionsScope.TRANSACTION,
                 }
-                if stmt.name in frontend_only:
+                if fe_only:
+                    if not fe_settings_mutable[stmt.name]:
+                        raise errors.QueryError(
+                            f'parameter "{stmt.name}" cannot be changed',
+                            pgext_code='55P02',  # cant_change_runtime_param
+                        )
                     value = pg_codegen.generate_source(stmt.args, pretty=False)
                     args["set_vars"] = {stmt.name: value}
                 elif stmt.scope == pgast.OptionsScope.SESSION:
@@ -547,15 +563,18 @@ class Compiler:
                     args["set_vars"] = {stmt.name: value}
                 unit = dbstate.SQLQueryUnit(**args)
             elif isinstance(stmt, pgast.VariableResetStmt):
+                fe_only = stmt.name in fe_settings_mutable
+                if fe_only and not fe_settings_mutable[stmt.name]:
+                    raise errors.QueryError(
+                        f'parameter "{stmt.name}" cannot be changed',
+                        pgext_code='55P02',  # cant_change_runtime_param
+                    )
                 args = {
                     "query": pg_codegen.generate_source(stmt),
-                    "frontend_only": stmt.name in frontend_only,
+                    "frontend_only": fe_only,
                     "is_local": stmt.scope == pgast.OptionsScope.TRANSACTION,
                 }
-                if (
-                    stmt.name in frontend_only
-                    or stmt.scope == pgast.OptionsScope.SESSION
-                ):
+                if fe_only or stmt.scope == pgast.OptionsScope.SESSION:
                     args["set_vars"] = {stmt.name: None}
                 unit = dbstate.SQLQueryUnit(**args)
             elif isinstance(stmt, pgast.VariableShowStmt):
@@ -563,7 +582,7 @@ class Compiler:
                 unit = dbstate.SQLQueryUnit(
                     query=source,
                     get_var=stmt.name,
-                    frontend_only=stmt.name in frontend_only,
+                    frontend_only=stmt.name in fe_settings_mutable,
                 )
             elif isinstance(stmt, pgast.SetTransactionStmt):
                 args = {"query": pg_codegen.generate_source(stmt)}
@@ -624,6 +643,13 @@ class Compiler:
                 raise NotImplementedError
             elif isinstance(stmt, pgast.ExecuteStmt):
                 raise NotImplementedError
+            elif isinstance(stmt, pgast.LockStmt):
+                if stmt.mode not in ('ACCESS SHARE', 'ROW SHARE', 'SHARE'):
+                    raise NotImplementedError(
+                        "exclusive lock is not supported"
+                    )
+                # just ignore
+                unit = dbstate.SQLQueryUnit(query="DO $$ BEGIN END $$;")
             else:
                 args = {}
                 try:
@@ -632,7 +658,12 @@ class Compiler:
                     pass
                 else:
                     args['search_path'] = parse_search_path(search_path)
-                options = pg_resolver.Options(**args)
+                options = pg_resolver.Options(
+                    current_user=current_user,
+                    current_database=current_database,
+                    current_query=query_str,
+                    **args
+                )
                 resolved = pg_resolver.resolve(stmt, schema, options)
                 source = pg_codegen.generate_source(resolved)
                 unit = dbstate.SQLQueryUnit(query=source)
@@ -840,6 +871,7 @@ class Compiler:
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
         dump_server_ver_str: Optional[str],
+        dump_catalog_version: Optional[int],
         schema_ddl: bytes,
         schema_ids: List[Tuple[str, str, bytes]],
         blocks: List[Tuple[bytes, bytes]],  # type_id, typespec
@@ -854,11 +886,16 @@ class Compiler:
         }
 
         # dump_server_ver_str can be None in dumps generated by early
-        # EdgeDB alphas.
+        # EdgeDB alphas, so we call that 0.0.
         if dump_server_ver_str is not None:
             dump_server_ver = verutils.parse_version(dump_server_ver_str)
         else:
-            dump_server_ver = None
+            dump_server_ver = verutils.Version(
+                0, 0, verutils.VersionState.DEV, 0, ())
+
+        # catalog_version didn't exist until late in the 3.0 cycle,
+        # but we can just treat that as being version 0
+        dump_catalog_version = dump_catalog_version or 0
 
         if (
             (dump_server_ver.major, dump_server_ver.minor) == (1, 0)
@@ -899,21 +936,20 @@ class Compiler:
         ctx.state.start_tx()
 
         dump_with_extraneous_computables = (
-            (
-                dump_server_ver is None
-                or dump_server_ver < (1, 0, verutils.VersionStage.ALPHA, 8)
-            )
-            and dump_server_ver.stage is not verutils.VersionStage.DEV
+            dump_server_ver < (1, 0, verutils.VersionStage.ALPHA, 8)
         )
 
         dump_with_ptr_item_id = dump_with_extraneous_computables
 
         allow_dml_in_functions = (
-            (
-                dump_server_ver is None
-                or dump_server_ver < (1, 0, verutils.VersionStage.BETA, 1)
-            )
-            and dump_server_ver.stage is not verutils.VersionStage.DEV
+            dump_server_ver < (1, 0, verutils.VersionStage.BETA, 1)
+        )
+
+        # This change came late in the 3.0 dev cycle, and with it we
+        # switched to using catalog versions for this, so that nightly
+        # dumps might work.
+        dump_with_dunder_type = (
+            dump_catalog_version < 2023_02_16_00_00
         )
 
         schema_ddl_text = schema_ddl.decode('utf-8')
@@ -1013,6 +1049,9 @@ class Compiler:
                     if (
                         dump_with_extraneous_computables
                         and ptr.is_pure_computable(schema)
+                    ) or (
+                        dump_with_dunder_type
+                        and ptr_name == '__type__'
                     ):
                         elided_col_set.add(ptr_name)
                         mending_desc.append(None)
@@ -1079,6 +1118,14 @@ class Compiler:
             blocks=restore_blocks,
             tables=tables,
         )
+
+    def analyze_explain_output(
+        self,
+        query_asts_pickled: bytes,
+        data: list[list[bytes]],
+    ) -> bytes:
+        return explain.analyze_explain_output(
+            query_asts_pickled, data, self.state.std_schema)
 
 
 def compile_schema_storage_in_delta(
@@ -1237,7 +1284,7 @@ def _compile_ql_script(
 
 
 def _get_compile_options(
-    ctx: CompileContext,
+    ctx: CompileContext, *, is_explain: bool = False,
 ) -> qlcompiler.CompilerOptions:
     can_have_implicit_fields = (
         ctx.output_format is enums.OutputFormat.BINARY)
@@ -1249,18 +1296,22 @@ def _get_compile_options(
 
     return qlcompiler.CompilerOptions(
         modaliases=ctx.state.current_tx().get_modaliases(),
+        # XXX: All this is_explain checks need to be removed once we
+        # have a real solution to this problem
         implicit_tid_in_shapes=(
             can_have_implicit_fields and ctx.inline_typeids
+            and not is_explain
         ),
         implicit_tname_in_shapes=(
             can_have_implicit_fields and ctx.inline_typenames
+            and not is_explain
         ),
         implicit_id_in_shapes=(
             can_have_implicit_fields and ctx.inline_objectids
         ),
         constant_folding=not disable_constant_folding,
         json_parameters=ctx.json_parameters,
-        implicit_limit=ctx.implicit_limit,
+        implicit_limit=ctx.implicit_limit if not is_explain else 0,
         bootstrap_mode=ctx.bootstrap_mode,
         apply_query_rewrites=(
             not ctx.bootstrap_mode
@@ -1274,9 +1325,46 @@ def _get_compile_options(
             debug.flags.edgeql_expand_inhviews
             and not ctx.bootstrap_mode
             and not ctx.schema_reflection_mode
-        ),
+        ) or is_explain,
         testmode=_get_config_val(ctx, '__internal_testmode'),
         devmode=_is_dev_instance(ctx),
+    )
+
+
+def _compile_ql_explain(
+    ctx: CompileContext,
+    ql: qlast.Base,
+    *,
+    script_info: Optional[irast.ScriptInfo] = None,
+) -> dbstate.BaseQuery:
+    analyze = 'ANALYZE true, ' if ql.analyze else ''
+    exp_command = f'EXPLAIN ({analyze}FORMAT JSON, VERBOSE true)'
+
+    query = _compile_ql_query(
+        ctx, ql.query, script_info=script_info,
+        is_explain=True, cacheable=False)
+    assert len(query.sql) == 1
+
+    out_type_data, out_type_id = \
+        sertypes.TypeSerializer.describe_json()
+
+    sql_bytes = exp_command.encode('utf-8') + query.sql[0]
+    sql_hash = _hash_sql(
+        sql_bytes,
+        mode=str(ctx.output_format).encode(),
+        intype=query.in_type_id,
+        outtype=out_type_id.bytes)
+
+    return dataclasses.replace(
+        query,
+        is_explain=True,
+        append_rollback=ql.analyze,
+        cacheable=False,
+        sql=(sql_bytes,),
+        sql_hash=sql_hash,
+        cardinality=enums.Cardinality.ONE,
+        out_type_data=out_type_data,
+        out_type_id=out_type_id.bytes,
     )
 
 
@@ -1287,12 +1375,13 @@ def _compile_ql_query(
     script_info: Optional[irast.ScriptInfo] = None,
     cacheable: bool = True,
     migration_block_query: bool = False,
+    is_explain: bool = False,
 ) -> dbstate.BaseQuery:
 
     current_tx = ctx.state.current_tx()
 
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
-    options = _get_compile_options(ctx)
+    options = _get_compile_options(ctx, is_explain=is_explain)
     ir = qlcompiler.compile_ast_to_ir(
         ql,
         schema=schema,
@@ -1302,7 +1391,7 @@ def _compile_ql_query(
 
     result_cardinality = enums.cardinality_from_ir_value(ir.cardinality)
 
-    sql_text, argmap = pg_compiler.compile_ir_to_sql(
+    qtree, sql_text, argmap = pg_compiler.compile_ir_to_tree_and_sql(
         ir,
         pretty=(
             debug.flags.edgeql_compile
@@ -1390,6 +1479,18 @@ def _compile_ql_query(
         intype=in_type_id.bytes,
         outtype=out_type_id.bytes)
 
+    if is_explain:
+        if isinstance(ir.schema, s_schema.ChainedSchema):
+            # Strip the std schema out
+            ir.schema = s_schema.ChainedSchema(
+                top_schema=ir.schema._top_schema,
+                global_schema=ir.schema._global_schema,
+                base_schema=s_schema.FlatSchema(),
+            )
+        query_asts = pickle.dumps((ql, ir, qtree))
+    else:
+        query_asts = None
+
     return dbstate.Query(
         sql=(sql_bytes,),
         sql_hash=sql_hash,
@@ -1402,6 +1503,7 @@ def _compile_ql_query(
         out_type_data=out_type_data,
         cacheable=cacheable,
         has_dml=ir.dml_exprs,
+        query_asts=query_asts,
     )
 
 
@@ -1478,7 +1580,6 @@ def _compile_ql_transaction(
         action = dbstate.TxAction.DECLARE_SAVEPOINT
 
         sp_name = ql.name
-        sp_id = sp_id
 
     elif isinstance(ql, qlast.ReleaseSavepoint):
         ctx.state.current_tx().release_savepoint(ql.name)
@@ -1701,6 +1802,16 @@ def _compile_dispatch_ql(
             capability,
         )
 
+    elif isinstance(ql, qlast.ExplainStmt):
+        query = _compile_ql_explain(ctx, ql, script_info=script_info)
+        caps = enums.Capability(0)
+        if (
+            isinstance(query, (dbstate.Query, dbstate.SimpleQuery))
+            and query.has_dml
+        ):
+            caps |= enums.Capability.MODIFICATIONS
+        return (query, caps)
+
     else:
         query = _compile_ql_query(ctx, ql, script_info=script_info)
         caps = enums.Capability(0)
@@ -1793,6 +1904,9 @@ def _try_compile(
     for i, stmt in enumerate(statements):
         is_trailing_stmt = i == statements_len - 1
         stmt_ctx = ctx if is_trailing_stmt else non_trailing_ctx
+
+        _check_force_database_error(stmt_ctx, stmt)
+
         comp, capabilities = _compile_dispatch_ql(
             stmt_ctx,
             stmt,
@@ -1845,6 +1959,13 @@ def _try_compile(
             unit.in_type_id = comp.in_type_id
 
             unit.cacheable = comp.cacheable
+
+            if comp.is_explain:
+                unit.is_explain = True
+                unit.query_asts = comp.query_asts
+
+            if comp.append_rollback:
+                unit.append_rollback = True
 
             if is_trailing_stmt:
                 unit.cardinality = comp.cardinality
@@ -2082,9 +2203,14 @@ def _extract_params(
         if idx >= user_params:
             continue
 
+        if ctx.json_parameters:
+            schema_type = schema.get('std::json')
+        else:
+            schema_type = param.schema_type
+
         array_tid = None
-        if param.schema_type.is_array():
-            el_type = param.schema_type.get_element_type(schema)
+        if schema_type.is_array():
+            el_type = schema_type.get_element_type(schema)
             array_tid = el_type.id
 
         # NB: We'll need to turn this off for script args
@@ -2099,11 +2225,12 @@ def _extract_params(
 
         oparams[idx] = (
             param.name,
-            param.schema_type,
+            schema_type,
             param.required,
         )
 
         if param.sub_params:
+            assert not ctx.json_parameters
             array_tids = []
             for p in param.sub_params.params:
                 if p.schema_type.is_array():
@@ -2306,6 +2433,46 @@ def _get_data_mending_desc(
                 and any(elements)
             )
         )
+
+
+def _check_force_database_error(
+    ctx: CompileContext,
+    ql: qlast.Base,
+) -> None:
+    if isinstance(ql, qlast.ConfigOp):
+        return
+
+    try:
+        val = _get_config_val(ctx, 'force_database_error')
+        # Check the string directly for false to skip a deserialization
+        if val is None or val == 'false':
+            return
+        err = json.loads(val)
+        if not err:
+            return
+
+        errcls = errors.EdgeDBError.get_error_class_from_name(err['type'])
+        if context := err.get('context'):
+            filename = context.get('filename')
+            position = tuple(
+                context.get(k) for k in ('line', 'col', 'start', 'end')
+            )
+        else:
+            filename = None
+            position = None
+
+        errval = errcls(
+            msg=err.get('message'),
+            hint=err.get('hint'),
+            details=err.get('details'),
+            filename=filename,
+            position=position,
+        )
+    except Exception:
+        raise errors.ConfigurationError(
+            "invalid 'force_database_error' value'")
+
+    raise errval
 
 
 def _is_dev_instance(ctx: CompileContext) -> bool:

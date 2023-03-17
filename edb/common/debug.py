@@ -109,6 +109,9 @@ class flags(metaclass=FlagsMeta):
     edgeql_compile_sql_reordered_text = Flag(
         doc="Dump generated SQL-like text that might better reflect scoping.")
 
+    edgeql_explain = Flag(
+        doc="Dump extra debug info when doing EXPLAIN")
+
     edgeql_disable_normalization = Flag(
         doc="Disable EdgeQL normalization (constant extraction etc)")
 
@@ -123,9 +126,6 @@ class flags(metaclass=FlagsMeta):
 
     delta_pgsql_plan = Flag(
         doc="Print delta command tree annortated with DB ops.")
-
-    delta_plan_input = Flag(
-        doc="Print delta command tree produced from DDL.")
 
     delta_execute = Flag(
         doc="Output SQL commands as executed during migration.")

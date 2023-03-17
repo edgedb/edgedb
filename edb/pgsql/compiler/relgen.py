@@ -23,7 +23,6 @@
 from __future__ import annotations
 from typing import *
 
-import collections
 import contextlib
 
 from edb import errors
@@ -222,14 +221,23 @@ def get_set_rvar(
         # Actually compile the set
         rvars = _get_set_rvar(ir_set, ctx=subctx)
 
+        if ctx.env.expand_inhviews:
+            for srvar in rvars.new:
+                if not srvar.rvar.ir_origins:
+                    srvar.rvar.ir_origins = []
+                srvar.rvar.ir_origins.append(ir_set)
+
         if optional_wrapping:
             rvars = finalize_optional_rel(ir_set, optrel=optrel,
                                           rvars=rvars, ctx=subctx)
         elif not is_optional and is_empty_set:
+            # In most cases it is totally fine for us to represent an
+            # empty set as an empty relation.
+            # (except when it needs to be fed to an optional argument)
             null_query = rvars.main.rvar.query
             assert isinstance(
                 null_query, (pgast.SelectStmt, pgast.NullRelation))
-            null_query.where_clause = pgast.BooleanConstant(val='FALSE')
+            null_query.where_clause = pgast.BooleanConstant(val=False)
 
         result_rvar = _include_rvars(rvars, scope_stmt=scope_stmt, ctx=subctx)
         for aspect in rvars.main.aspects:
@@ -382,6 +390,9 @@ def _get_set_rvar(
             # {<const>[, <const> ...]}
             return process_set_as_const_set(ir_set, ctx=ctx)
 
+        if isinstance(expr, irast.TriggerAnchor):
+            return process_set_as_trigger_anchor(ir_set, ctx=ctx)
+
         # All other expressions.
         return process_set_as_expr(ir_set, ctx=ctx)
 
@@ -396,6 +407,9 @@ def _get_set_rvar(
     if isinstance(ir_set, irast.EmptySet):
         # {}
         return process_set_as_empty(ir_set, ctx=ctx)
+
+    if ir_set.path_id in ctx.external_rels:
+        return process_external_rel(ir_set, ctx=ctx)
 
     # Regular non-computable path start.
     return process_set_as_root(ir_set, ctx=ctx)
@@ -725,6 +739,15 @@ def process_set_as_empty(
     return new_source_set_rvar(ir_set, rvar)
 
 
+def process_external_rel(
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    rel, aspects = ctx.external_rels[ir_set.path_id]
+
+    rvar = relctx.rvar_for_rel(rel, ctx=ctx)
+    return new_simple_set_rvar(ir_set, rvar, aspects)
+
+
 def process_set_as_link_property_ref(
     ir_set: irast.Set, *, ctx: context.CompilerContextLevel
 ) -> SetRVars:
@@ -776,7 +799,7 @@ def process_set_as_link_property_ref(
             source_scope_stmt, link_path_id, aspect='source', env=ctx.env)
 
         if link_rvar is None:
-            src_rvar = get_set_rvar(ir_source, ctx=ctx)
+            src_rvar = get_set_rvar(ir_source, ctx=newctx)
             assert link_prefix.rptr is not None
             link_rvar = relctx.new_pointer_rvar(
                 link_prefix.rptr, src_rvar=src_rvar,
@@ -887,21 +910,15 @@ def process_set_as_path_type_intersection(
         poly_rvar = relctx.range_for_typeref(
             target_typeref,
             path_id=ir_set.path_id,
+            dml_source=irutils.get_nearest_dml_stmt(ir_set),
             lateral=True,
             ctx=ctx,
         )
 
         prefix_path_id = ir_set.path_id.src_path()
         assert prefix_path_id is not None, 'expected a path'
-        pathctx.put_rvar_path_output(
-            rvar=poly_rvar,
-            path_id=prefix_path_id,
-            aspect='identity',
-            var=pathctx.get_rvar_path_identity_var(
-                poly_rvar, ir_set.path_id, env=ctx.env,
-            ),
-            env=ctx.env,
-        )
+        relctx.deep_copy_primitive_rvar_path_var(
+            ir_set.path_id, prefix_path_id, poly_rvar, env=ctx.env)
         pathctx.put_rvar_path_bond(poly_rvar, prefix_path_id)
         relctx.include_rvar(stmt, poly_rvar, ir_set.path_id, ctx=ctx)
         int_rvar = pgast.IntersectionRangeVar(
@@ -1488,7 +1505,7 @@ def process_set_as_membership_expr(
             # A NULL argument to the array variant will produce NULL, so we
             # need to coalesce if that is possible.
             if needs_coalesce:
-                empty_val = str(negated).upper()
+                empty_val = negated
                 set_expr = pgast.CoalesceExpr(args=[
                     set_expr, pgast.BooleanConstant(val=empty_val)])
 
@@ -1747,7 +1764,7 @@ def process_set_as_coalesce(
             with newctx.subrel() as subctx:
                 left = dispatch.compile(left_ir, ctx=subctx)
 
-                with newctx.subrel() as rightctx:
+                with subctx.subrel() as rightctx:
                     dispatch.compile(right_ir, ctx=rightctx)
                     pathctx.get_path_value_output(
                         rightctx.rel,
@@ -1802,7 +1819,7 @@ def process_set_as_coalesce(
             with newctx.subrel() as subctx:
                 subqry = subctx.rel
 
-                with ctx.subrel() as sub2ctx:
+                with subctx.subrel() as sub2ctx:
 
                     with sub2ctx.subrel() as scopectx:
                         larg = scopectx.rel
@@ -2099,7 +2116,7 @@ def process_set_as_type_cast(
 
             subctx.env.output_format = orig_output_format
         else:
-            set_expr = dispatch.compile(expr, ctx=ctx)
+            set_expr = dispatch.compile(expr, ctx=subctx)
 
             # A proper path var mapping way would be to wrap
             # the inner expression in a subquery, but that
@@ -2175,6 +2192,16 @@ def process_set_as_oper_expr(
     )
 
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
+
+
+def process_set_as_trigger_anchor(
+    ir_set: irast.Set, *, ctx: context.CompilerContextLevel
+) -> SetRVars:
+    # XXX: This will need to grow more things
+    if ir_set.path_id in ctx.external_rels:
+        return process_external_rel(ir_set, ctx=ctx)
+
+    return process_set_as_root(ir_set, ctx=ctx)
 
 
 def process_set_as_expr(
@@ -3444,7 +3471,7 @@ def process_set_as_agg_expr_inner(
 
         if serialization_safe and aspect == 'serialized':
             # Serialization has changed the output type.
-            with newctx.new() as ivctx:
+            with ctx.new() as ivctx:
                 iv = dispatch.compile(iv_ir, ctx=ivctx)
 
                 iv = output.serialize_expr_if_needed(
@@ -3452,7 +3479,7 @@ def process_set_as_agg_expr_inner(
                 set_expr = output.serialize_expr_if_needed(
                     set_expr, path_id=ir_set.path_id, ctx=ctx)
         else:
-            with newctx.new() as ivctx:
+            with ctx.new() as ivctx:
                 iv = dispatch.compile(iv_ir, ctx=ivctx)
 
         pathctx.put_path_var(
@@ -3707,10 +3734,7 @@ def process_encoded_param(
         with ctx.newrel() as sctx:
             sctx.pending_query = sctx.rel
             sctx.volatility_ref = ()
-            sctx.type_rel_overlays = collections.defaultdict(
-                lambda: collections.defaultdict(list))
-            sctx.ptr_rel_overlays = collections.defaultdict(
-                lambda: collections.defaultdict(list))
+            sctx.rel_overlays = context.RelOverlays()
             arg_ref = dispatch.compile(decoder, ctx=sctx)
 
             # Force it into a real tuple so we can just always grab it

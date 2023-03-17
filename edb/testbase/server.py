@@ -153,7 +153,7 @@ class TestCaseMeta(type(unittest.TestCase)):
                 except (edgedb.TransactionSerializationError,
                         edgedb.TransactionDeadlockError):
                     if (
-                        try_no == 6
+                        try_no == 10
                         # Only do a retry loop when we have a transaction
                         or not getattr(self, 'TRANSACTION_ISOLATION', False)
                     ):
@@ -161,7 +161,8 @@ class TestCaseMeta(type(unittest.TestCase)):
                     else:
                         self.loop.run_until_complete(self.xact.rollback())
                         self.loop.run_until_complete(asyncio.sleep(
-                            (2 ** try_no) * 0.1 + random.randrange(100) * 0.001
+                            min((2 ** try_no) * 0.1, 10)
+                            + random.randrange(100) * 0.001
                         ))
                         self.xact = self.con.transaction()
                         self.loop.run_until_complete(self.xact.start())
@@ -213,7 +214,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         return True
 
     def add_fail_notes(self, **kwargs):
-        if not hasattr(self, 'fail_notes'):
+        if getattr(self, 'fail_notes', None) is None:
             self.fail_notes = {}
         self.fail_notes.update(kwargs)
 
@@ -317,6 +318,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             '_subtest': self._subtest,
             '_cleanups': [],
             '_type_equality_funcs': self._type_equality_funcs,
+            'fail_notes': getattr(self, 'fail_notes', None),
         }
 
 
@@ -1269,6 +1271,12 @@ class SQLQueryTestCase(BaseQueryTestCase):
             cls.scon = None
         finally:
             super().tearDownClass()
+
+    def tearDown(self):
+        try:
+            self.loop.run_until_complete(self.scon.execute('RESET ALL'))
+        finally:
+            super().tearDown()
 
     async def squery_values(self, query):
         res = await self.scon.fetch(query)

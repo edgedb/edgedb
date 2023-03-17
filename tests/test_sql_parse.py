@@ -3,7 +3,7 @@
 #
 # Copyright 2012-present MagicStack Inc. and the EdgeDB authors.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
+# Licensed under the Apache License, Version 2.0 (the "License")
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
@@ -1073,6 +1073,93 @@ class TestEdgeQLSelect(tb.BaseDocTest):
         """
         SELECT nullif(a, 3) FROM b
         """
+
+    def test_sql_parse_query_50(self):
+        """
+        SELECT 'a'::char, 'a'::"char"
+% OK %
+        SELECT ('a')::pg_catalog.bpchar, ('a')::pg_catalog.char
+        """
+
+    def test_sql_parse_query_51(self):
+        """
+        SELECT ARRAY ((SELECT c FROM a)) FROM b
+        """
+
+    def test_sql_parse_query_52(self):
+        """
+        SELECT * FROM b WHERE (c ILIKE 'blah%' COLLATE collation_name)
+        """
+
+    def test_sql_parse_query_53(self):
+        """
+        SELECT GREATEST(x, y, 0), LEAST(x, y, 100) FROM b
+        """
+
+    def test_sql_parse_query_54(self):
+        """
+        SELECT (x IS DISTINCT FROM y) FROM b
+        """
+
+    def test_sql_parse_query_55(self):
+        """
+        SELECT (x IS NOT DISTINCT FROM y) FROM b
+        """
+
+    def test_sql_parse_lock_01(self):
+        '''
+        LOCK TABLE films IN ACCESS SHARE MODE
+        '''
+
+    def test_sql_parse_lock_02(self):
+        '''
+        LOCK TABLE films IN ACCESS SHARE MODE NOWAIT
+        '''
+
+    def test_sql_parse_lock_03(self):
+        '''
+        LOCK TABLE ONLY (films) IN ACCESS SHARE MODE
+        '''
+
+    def test_sql_parse_lock_04(self):
+        '''
+        LOCK TABLE ONLY (films) IN ACCESS SHARE MODE NOWAIT
+        '''
+
+    def test_sql_parse_lock_05(self):
+        '''
+        LOCK TABLE films IN ROW SHARE MODE
+        '''
+
+    def test_sql_parse_lock_06(self):
+        '''
+        LOCK TABLE films IN ROW EXCLUSIVE MODE
+        '''
+
+    def test_sql_parse_lock_07(self):
+        '''
+        LOCK TABLE films IN SHARE UPDATE EXCLUSIVE MODE
+        '''
+
+    def test_sql_parse_lock_08(self):
+        '''
+        LOCK TABLE films IN SHARE MODE
+        '''
+
+    def test_sql_parse_lock_09(self):
+        '''
+        LOCK TABLE films IN SHARE ROW EXCLUSIVE MODE
+        '''
+
+    def test_sql_parse_lock_10(self):
+        '''
+        LOCK TABLE films IN EXCLUSIVE MODE
+        '''
+
+    def test_sql_parse_lock_11(self):
+        '''
+        LOCK TABLE films IN ACCESS EXCLUSIVE MODE
+        '''
 
     # The transaction_* settings are always on transaction level
 

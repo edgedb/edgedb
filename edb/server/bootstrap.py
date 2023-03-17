@@ -56,6 +56,7 @@ from edb.server import config
 from edb.server import compiler as edbcompiler
 from edb.server import defines as edbdef
 from edb.server import pgcluster
+from edb.server import pgcon
 
 from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
@@ -70,8 +71,6 @@ from edgedb import scram
 
 if TYPE_CHECKING:
     import uuid
-
-    from edb.server import pgcon
 
 
 logger = logging.getLogger('edb.server')
@@ -728,10 +727,6 @@ async def _make_stdlib(
         delta_command = s_ddl.delta_from_ddl(
             ddl_cmd, modaliases={}, schema=schema, stdmode=True)
 
-        if debug.flags.delta_plan_input:
-            debug.header('Delta Plan Input')
-            debug.dump(delta_command)
-
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
         schema, plan = _process_delta(ctx, delta_command, schema)
@@ -848,10 +843,6 @@ async def _amend_stdlib(
         assert isinstance(ddl_cmd, qlast.DDLCommand)
         delta_command = s_ddl.delta_from_ddl(
             ddl_cmd, modaliases={}, schema=schema, stdmode=True)
-
-        if debug.flags.delta_plan_input:
-            debug.header('Delta Plan Input')
-            debug.dump(delta_command)
 
         # Apply and adapt delta, build native delta plan, which
         # will also update the schema.
@@ -1781,6 +1772,11 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
             conn.add_log_listener(_pg_log_listener)
         else:
             tpl_ctx = ctx
+
+        # Some of the views need access to the _edgecon_state table,
+        # so set it up.
+        tmp_table_query = pgcon.SETUP_TEMP_TABLE_SCRIPT
+        await _execute(tpl_ctx.conn, tmp_table_query)
 
         await _populate_misc_instance_data(tpl_ctx)
 

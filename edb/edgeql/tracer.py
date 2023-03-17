@@ -21,7 +21,8 @@ from __future__ import annotations
 
 # Import specific things to avoid name clashes
 from typing import (Dict, FrozenSet, Generator, List, Mapping, Optional,
-                    Union, Set, Tuple, Iterable, Generic, TypeVar, Sequence)
+                    Union, Set, Tuple, Iterable, Generic, TypeVar, Sequence,
+                    AbstractSet)
 
 import functools
 
@@ -79,8 +80,19 @@ class Global(NamedObject):
     pass
 
 
+class Index(NamedObject):
+    pass
+
+
+class ConcreteIndex(NamedObject):
+    pass
+
+
 class Type(NamedObject):
     def is_scalar(self) -> bool:
+        return False
+
+    def is_object_type(self) -> bool:
         return False
 
 
@@ -153,6 +165,9 @@ class ObjectType(Type, Source):
     def is_scalar(self) -> bool:
         return False
 
+    def is_object_type(self) -> bool:
+        return True
+
 
 class Alias(ObjectType):
     pass
@@ -170,6 +185,9 @@ class UnionType(Type):
         component_ids = sorted(str(t.get_name(schema)) for t in self.types)
         nqname = f"({' | '.join(component_ids)})"
         return sn.QualName(name=nqname, module='__derived__')
+
+    def is_object_type(self) -> bool:
+        return True
 
 
 class Pointer(Source):
@@ -253,6 +271,42 @@ class AccessPolicy(NamedObject):
         return self.source
 
 
+class Trigger(NamedObject):
+
+    def __init__(
+        self,
+        name: sn.QualName,
+        *,
+        source: Optional[SourceLike] = None,
+    ) -> None:
+        super().__init__(name)
+        self.source = source
+
+    def get_source(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[SourceLike]:
+        return self.source
+
+
+class Rewrite(NamedObject):
+
+    def __init__(
+        self,
+        name: sn.QualName,
+        *,
+        source: Optional[SourceLike] = None,
+    ) -> None:
+        super().__init__(name)
+        self.source = source
+
+    def get_source(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[SourceLike]:
+        return self.source
+
+
 def qualify_name(name: sn.QualName, qual: str) -> sn.QualName:
     return sn.QualName(name.module, f'{name.name}@{qual}')
 
@@ -261,12 +315,12 @@ def trace_refs(
     qltree: qlast.Base,
     *,
     schema: s_schema.Schema,
-    source: Optional[sn.QualName] = None,
-    subject: Optional[sn.QualName] = None,
+    anchors: Optional[Mapping[str, sn.QualName]] = None,
     path_prefix: Optional[sn.QualName] = None,
     module: str,
     objects: Dict[sn.QualName, Optional[ObjectLike]],
     params: Mapping[str, sn.QualName],
+    local_modules: AbstractSet[str]
 ) -> FrozenSet[sn.QualName]:
 
     """Return a list of schema item names used in an expression."""
@@ -275,15 +329,66 @@ def trace_refs(
         schema=schema,
         module=module,
         objects=objects,
-        source=source,
-        subject=subject,
+        anchors=anchors or {},
         path_prefix=path_prefix,
         modaliases={},
         params=params,
         visited=set(),
+        local_modules=local_modules,
     )
     trace(qltree, ctx=ctx)
     return frozenset(ctx.refs)
+
+
+def resolve_name(
+    ref: qlast.ObjectRef, *,
+    current_module: str,
+    schema: s_schema.Schema,
+    objects: Dict[sn.QualName, Optional[ObjectLike]],
+    modaliases: Optional[Dict[Optional[str], str]],
+    local_modules: AbstractSet[str],
+) -> sn.QualName:
+    """Resolve a name into a fully-qualified one.
+
+    This takes into account the current module and modaliases.
+    """
+    module = ref.module
+
+    no_std = False
+    if module and module.startswith('__current__::'):
+        no_std = True
+        module = f'{current_module}::{module.removeprefix("__current__::")}'
+    elif not module:
+        module = current_module
+    elif modaliases:
+        if module:
+            first, sep, rest = module.partition('::')
+        else:
+            first, sep, rest = module, '', ''
+
+        fq_module = modaliases.get(first)
+        if fq_module is not None:
+            no_std = True
+            module = fq_module + sep + rest
+
+    qname = sn.QualName(module=module, name=ref.name)
+    if type is None:
+        return qname
+
+    # check if there's a name in default module
+    # actually registered to the right type
+    if not no_std and not (
+        ref.module and ref.module in local_modules
+    ) and not (
+        isinstance(objects.get(qname), type)
+        or schema.get(
+            qname, default=None, type=so.Object) is not None
+    ):
+        std_name = sn.QualName(
+            f'std::{ref.module}' if ref.module else 'std', ref.name)
+        if schema.get(std_name, default=None) is not None:
+            return std_name
+    return qname
 
 
 class TracerContext:
@@ -293,22 +398,22 @@ class TracerContext:
         schema: s_schema.Schema,
         module: str,
         objects: Dict[sn.QualName, Optional[ObjectLike]],
-        source: Optional[sn.QualName],
-        subject: Optional[sn.QualName],
+        anchors: Mapping[str, sn.QualName],
         path_prefix: Optional[sn.QualName],
         modaliases: Dict[Optional[str], str],
         params: Mapping[str, sn.QualName],
         visited: Set[Union[s_pointers.Pointer, Pointer]],
+        local_modules: AbstractSet[str],
     ) -> None:
         self.schema = schema
         self.refs: Set[sn.QualName] = set()
         self.module = module
         self.objects = objects
-        self.source = source
-        self.subject = subject
+        self.anchors = anchors
         self.path_prefix = path_prefix
         self.modaliases = modaliases
         self.params = params
+        self.local_modules = local_modules
         self.visited = visited
 
     def get_ref_name(self, ref: qlast.BaseObjectRef) -> sn.QualName:
@@ -316,24 +421,19 @@ class TracerContext:
         # ObjectRef here.
         assert isinstance(ref, qlast.ObjectRef)
 
-        if ref.module:
-            # replace the module alias with the real name
-            module = self.modaliases.get(ref.module, ref.module)
-            return sn.QualName(module=module, name=ref.name)
-        elif ref.name in self.params:
+        if not ref.module and ref.name in self.params:
             return self.params[ref.name]
-        elif (
-            self.module is not None
-            and (
-                (qname := sn.QualName(self.module, ref.name))
-                in self.objects
-            )
-        ):
-            return qname
-        else:
-            return sn.QualName(module="std", name=ref.name)
 
-    def get_ref_name_starstwith(
+        return resolve_name(
+            ref,
+            current_module=self.module,
+            schema=self.schema,
+            objects=self.objects,
+            modaliases=self.modaliases,
+            local_modules=self.local_modules,
+        )
+
+    def get_ref_name_startswith(
         self, ref: qlast.ObjectRef
     ) -> Set[sn.QualName]:
         refs = set()
@@ -343,6 +443,7 @@ class TracerContext:
             # replace the module alias with the real name
             module = self.modaliases.get(ref.module, ref.module)
             prefixes.add(f'{module}::{ref.name}')
+            prefixes.add(f'std::{module}::{ref.name}')
         else:
             prefixes.add(f'{self.module}::{ref.name}')
             prefixes.add(f'std::{ref.name}')
@@ -371,12 +472,12 @@ def alias_context(
                 schema=ctx.schema,
                 module=ctx.module,
                 objects=dict(ctx.objects),
-                source=ctx.source,
-                subject=ctx.subject,
+                anchors=ctx.anchors,
                 path_prefix=ctx.path_prefix,
                 modaliases=dict(ctx.modaliases),
                 params=ctx.params,
                 visited=ctx.visited,
+                local_modules=ctx.local_modules,
             )
             nctx.refs = ctx.refs
 
@@ -425,12 +526,12 @@ def result_alias_context(
             schema=ctx.schema,
             module=ctx.module,
             objects=dict(ctx.objects),
-            source=ctx.source,
-            subject=ctx.subject,
+            anchors=ctx.anchors,
             path_prefix=ctx.path_prefix,
             modaliases=ctx.modaliases,
             params=ctx.params,
             visited=ctx.visited,
+            local_modules=ctx.local_modules,
         )
         # use the same refs set
         nctx.refs = ctx.refs
@@ -556,7 +657,7 @@ def trace_FunctionCall(node: qlast.FunctionCall, *,
     # present, so we add all variations of that function name to the
     # dependency list.
 
-    names = ctx.get_ref_name_starstwith(fname)
+    names = ctx.get_ref_name_startswith(fname)
     ctx.refs.update(names)
 
     for arg in node.args:
@@ -742,6 +843,12 @@ def trace_Path(
                             ctx.refs.add(qualify_name(
                                 tip_name, prev_step.ptr.name))
 
+        elif isinstance(step, qlast.Splat):
+            if step.type is not None:
+                _resolve_type_expr(step.type, ctx=ctx)
+            if step.intersection is not None:
+                _resolve_type_expr(step.intersection.type, ctx=ctx)
+
         else:
             tr = trace(step, ctx=ctx)
             if tr is not None:
@@ -753,22 +860,11 @@ def trace_Path(
 
 
 @trace.register
-def trace_Source(node: qlast.Source, *, ctx: TracerContext) -> ObjectLike:
-    assert ctx.source is not None
-    source = ctx.objects[ctx.source]
-    assert source is not None
-    return source
-
-
-@trace.register
-def trace_Subject(
-    node: qlast.Subject,
-    *,
-    ctx: TracerContext,
+def trace_SpecialAnchor(
+    node: qlast.SpecialAnchor, *, ctx: TracerContext
 ) -> Optional[ObjectLike]:
-    # Apparently for some paths (of length 1) ctx.subject may be None.
-    if ctx.subject is not None:
-        return ctx.objects[ctx.subject]
+    if name := ctx.anchors.get(node.name):
+        return ctx.objects[name]
     return None
 
 
@@ -1085,6 +1181,14 @@ def trace_DescribeStmt(
     if isinstance(node.object, qlast.ObjectRef):
         fq_name = ctx.get_ref_name(node.object)
         ctx.refs.add(fq_name)
+
+
+@trace.register
+def trace_ExplainStmt(
+    node: qlast.ExplainStmt, *,
+    ctx: TracerContext,
+) -> None:
+    pass
 
 
 @trace.register

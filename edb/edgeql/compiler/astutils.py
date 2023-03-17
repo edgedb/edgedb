@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import *
 
 from edb.common import ast
+from edb.common import view_patterns
 
 from edb.edgeql import ast as qlast
 
@@ -149,3 +150,18 @@ def find_parameters(
     v = FindParams(modaliases)
     v.visit(ql)
     return v.params
+
+
+class alias_view(
+    view_patterns.ViewPattern[tuple[str, list[qlast.PathElement]]],
+    targets=(qlast.Base,),
+):
+    @staticmethod
+    def match(obj: object) -> tuple[str, list[qlast.PathElement]]:
+        match obj:
+            case qlast.Path(
+                steps=[qlast.ObjectRef(module=None, name=alias), *rest],
+                partial=False,
+            ):
+                return alias, rest
+        raise view_patterns.NoMatch

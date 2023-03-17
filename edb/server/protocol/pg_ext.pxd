@@ -37,6 +37,8 @@ cdef class ConnectionView:
         object _in_tx_savepoints
         bint _tx_error
 
+        tuple _session_state_db_cache
+
     cpdef inline current_fe_settings(self)
     cdef inline fe_transaction_state(self)
     cpdef inline bint in_tx(self)
@@ -53,7 +55,6 @@ cdef class PgConnection(frontend.FrontendConnection):
         ConnectionView _dbview
 
         bytes secret
-        str client_encoding
         dict prepared_stmts
         bint ignore_till_sync
 

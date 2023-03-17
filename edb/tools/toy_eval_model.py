@@ -1430,6 +1430,8 @@ def simplify_path(path: qlast.Path) -> IPath:
         elif isinstance(step, qlast.TypeIntersection):
             spath.append(ITypeIntersection(
                 step.type.maintype.name))  # type: ignore
+        elif isinstance(step, qlast.Splat):
+            raise AssertionError("splats are not supported yet")
         else:
             assert not spath
             spath.append(IExpr(step))

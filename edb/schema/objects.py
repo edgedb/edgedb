@@ -1242,6 +1242,10 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                 # Turn the list into something hashable so it can be
                 # put in a set.
                 val = tuple(val)
+            elif isinstance(val, collections.abc.MutableMapping):
+                # Turn the dict into something hashable so it can be
+                # put in a set.
+                val = tuple((k, v) for k, v in val.items())
             sig.append((fn, val))
 
         return frozenset(sig)
@@ -1869,6 +1873,8 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             schema=schema,
             orig_schema=orig_schema,
             context=context,
+            object=self,
+            orig_object=orig_object,
         )
         context.parent_ops.pop()
 
@@ -3173,6 +3179,8 @@ class InheritingObject(SubclassableObject):
             schema=schema,
             orig_schema=orig_schema,
             context=context,
+            object=self,
+            orig_object=orig_object,
         )
         context.parent_ops.pop()
 

@@ -74,6 +74,7 @@ __all__ = base.__all__ + (  # type: ignore
     'DivisionByZeroError',
     'NumericOutOfRangeError',
     'AccessPolicyError',
+    'QueryAssertionError',
     'IntegrityError',
     'ConstraintViolationError',
     'CardinalityViolationError',
@@ -82,6 +83,7 @@ __all__ = base.__all__ + (  # type: ignore
     'TransactionConflictError',
     'TransactionSerializationError',
     'TransactionDeadlockError',
+    'WatchError',
     'ConfigurationError',
     'AccessError',
     'AuthenticationError',
@@ -354,6 +356,10 @@ class AccessPolicyError(InvalidValueError):
     _code = 0x_05_01_00_03
 
 
+class QueryAssertionError(InvalidValueError):
+    _code = 0x_05_01_00_04
+
+
 class IntegrityError(ExecutionError):
     _code = 0x_05_02_00_00
 
@@ -384,6 +390,10 @@ class TransactionSerializationError(TransactionConflictError):
 
 class TransactionDeadlockError(TransactionConflictError):
     _code = 0x_05_03_01_02
+
+
+class WatchError(ExecutionError):
+    _code = 0x_05_04_00_00
 
 
 class ConfigurationError(EdgeDBError):

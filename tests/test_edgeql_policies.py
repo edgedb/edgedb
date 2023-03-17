@@ -999,3 +999,24 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             "access policy violation on insert of default::ThreeDenies$",
         ):
             await self.con.query("insert ThreeDenies { val := 'bar' }")
+
+    async def test_edgeql_policies_namespace(self):
+        # ... we were accidentally skipping some important fixups in
+        # access policy compilation
+        await self.con.execute(
+            '''
+            create type X {
+                create access policy foo
+                allow all using (
+                  count((
+                    WITH X := {1, 2}
+                    SELECT (X, (FOR x in {X} UNION (SELECT x)))
+                  )) = 2);
+            };
+            insert X;
+            '''
+        )
+        await self.assert_query_result(
+            r'''select X''',
+            [{}],
+        )

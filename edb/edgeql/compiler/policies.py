@@ -349,7 +349,7 @@ def compile_dml_write_policies(
     if not ctx.env.type_rewrites.get((stype, False)):
         return None
 
-    with ctx.detached() as _, ctx.newscope(fenced=True) as subctx:
+    with ctx.detached() as _, _.newscope(fenced=True) as subctx:
         # TODO: can we make sure to always avoid generating needless
         # select filters
         _prepare_dml_policy_context(stype, result, ctx=subctx)
@@ -394,7 +394,7 @@ def compile_dml_read_policies(
     if not ctx.env.type_rewrites.get((stype, False)):
         return None
 
-    with ctx.detached() as _, ctx.newscope(fenced=True) as subctx:
+    with ctx.detached() as _, _.newscope(fenced=True) as subctx:
         # TODO: can we make sure to always avoid generating needless
         # select filters
         _prepare_dml_policy_context(stype, result, ctx=subctx)

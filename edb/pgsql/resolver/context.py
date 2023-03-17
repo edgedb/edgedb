@@ -29,6 +29,12 @@ from edb.schema import schema as s_schema
 
 @dataclass(frozen=True)
 class Options:
+    current_database: str
+
+    current_user: str
+
+    current_query: str
+
     # schemas that will be searched when idents don't have an explicit one
     search_path: Sequence[str] = ("public",)
 
@@ -65,9 +71,13 @@ class Table:
     # Internal SQL
     reference_as: Optional[str] = None
 
-    # Set for tables that in a parent scope.
-    # This will prevent them from being matched without an explicit table name.
-    in_parent: bool = False
+    # For ambiguous references, this fields determines lookup order.
+    # Higher value is matched before lower.
+    # Aliases from current relation have higher precedence in GROUP BY
+    # than columns of input rel vars (tables).
+    # Columns from parent scopes have lower precedence
+    # than columns of input rel vars (tables).
+    precedence: int = 0
 
     def __str__(self) -> str:
         columns = ', '.join(str(c) for c in self.columns)
@@ -147,7 +157,7 @@ class ResolverContextLevel(compiler.ContextLevel):
             elif mode == ContextSwitchMode.CHILD:
                 self.scope = deepcopy(prevlevel.scope)
                 for t in self.scope.tables:
-                    t.in_parent = True
+                    t.precedence -= 1
             elif mode == ContextSwitchMode.LATERAL:
                 self.scope = deepcopy(prevlevel.scope)
 

@@ -19,11 +19,11 @@
 
 # A tree setup in a simple way with a parent link and computable children.
 type Tree {
-    required property val -> str {
+    required val: str {
         constraint exclusive;
     }
 
-    link parent -> Tree;
+    parent: Tree;
     multi link children := .<parent[IS Tree];
 }
 
@@ -31,12 +31,12 @@ type Tree {
 # A tree setup in a reverse way compared to Tree: children links are
 # real and parent is computable.
 type Eert {
-    required property val -> str {
+    required val: str {
         constraint exclusive;
     }
 
     # We need the limit 1 because children isn't exclusive and we can't
     # have it be exclusive if we want to do an atomic swap...
     link parent := (SELECT .<children[IS Eert] LIMIT 1);
-    multi link children -> Eert;
+    multi children: Eert;
 }

@@ -124,6 +124,18 @@ class PathId:
 
         self._hash = -1
 
+    def __getstate__(self) -> Any:
+        # We need to omit the cached _hash when we pickle because it won't
+        # be correct in a different process.
+        return tuple([
+            getattr(self, k) if k != '_hash' else -1
+            for k in PathId.__slots__
+        ])
+
+    def __setstate__(self, state: Any) -> None:
+        for k, v in zip(PathId.__slots__, state):
+            setattr(self, k, v)
+
     @classmethod
     def from_type(
         cls,

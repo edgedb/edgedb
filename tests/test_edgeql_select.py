@@ -1684,6 +1684,153 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_select_polymorphic_14(self):
+        # This one isn't *really* polymorphic, and that caused some trouble
+        await self.assert_query_result(
+            r'''
+            select Issue { number, related_to }
+            filter exists .related_to;
+            ''',
+            tb.bag([
+                {'number': "3", 'related_to': [{}]},
+                {'number': "4", 'related_to': [{}]},
+            ]),
+        )
+
+    async def test_edgeql_select_splat_01(self):
+        await self.assert_query_result(
+            r'''
+            select Issue { * }
+            filter .number = "1"
+            ''',
+            tb.bag([
+                {
+                    "number": "1",
+                    "name": "Release EdgeDB",
+                    "body": "Initial public release of EdgeDB.",
+                    "time_estimate": 3000,
+                },
+            ]),
+        )
+
+    async def test_edgeql_select_splat_02(self):
+        await self.assert_query_result(
+            r'''
+            select Issue { ** }
+            filter .number = "1"
+            ''',
+            tb.bag([
+                {
+                    "number": "1",
+                    "name": "Release EdgeDB",
+                    "body": "Initial public release of EdgeDB.",
+                    "time_estimate": 3000,
+                    "owner": {
+                        "name": "Elvis",
+                        "@note": "automatic assignment",
+                    },
+                    "watchers": [{
+                        "name": "Yury",
+                    }],
+                    "status": {
+                        "name": "Open",
+                    },
+                },
+            ]),
+        )
+
+    async def test_edgeql_select_splat_03(self):
+        # Partial ad-hoc splat overload
+        await self.assert_query_result(
+            r'''
+            select Issue {
+                **,
+                name := "Release EdgeDB!",
+                status: {
+                    comp := 1,
+                }
+            }
+            filter .number = "1"
+            ''',
+            tb.bag([
+                {
+                    "number": "1",
+                    "name": "Release EdgeDB!",
+                    "body": "Initial public release of EdgeDB.",
+                    "time_estimate": 3000,
+                    "owner": {
+                        "name": "Elvis",
+                        "@note": "automatic assignment",
+                    },
+                    "watchers": [{
+                        "name": "Yury",
+                    }],
+                    "status": {
+                        "comp": 1,
+                    },
+                },
+            ]),
+        )
+
+    async def test_edgeql_select_splat_04(self):
+        # Polymorphic splats
+        await self.con.execute('''
+            insert Issue {
+                name := 'Polymorphic Splat Test 04',
+                body := 'foo',
+                number := '3333',
+                owner := (select User FILTER .name = 'Elvis'),
+                status := (select Status FILTER .name = 'Open'),
+                references := {
+                    (insert Publication {
+                        title := 'Introduction to EdgeDB',
+                        authors := (
+                            FOR v IN enumerate({'Yury', 'Elvis'})
+                            UNION (
+                                SELECT User { @list_order := v.0 }
+                                FILTER .name = v.1
+                            )
+                        ),
+                    }),
+                    (insert File {
+                        name := 'file01.jpg',
+                    }),
+                }
+            }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            select Issue {
+                references: {
+                    [is File].*,
+                    [is Publication].**,
+                }
+            }
+            filter .name = 'Polymorphic Splat Test 04'
+            ''',
+            tb.bag([
+                {
+                    "references": tb.bag([
+                        {
+                            "title": "Introduction to EdgeDB",
+                            "authors": tb.bag([
+                                {
+                                    "name": "Yury",
+                                },
+                                {
+                                    "name": "Elvis",
+                                },
+                            ]),
+                        },
+                        {
+                            "name": "file01.jpg",
+                        }
+                    ]),
+                },
+            ]),
+        )
+
     async def test_edgeql_select_id_01(self):
         # allow assigning id to a computed (#4781)
         await self.con.query('SELECT schema::Type { XYZ := .id};')
@@ -7855,3 +8002,60 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             tb.bag(["Repl tweak.", "Regression."]),
         )
+
+    async def test_edgeql_select_where_order_dml(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "INSERT statements cannot be used in a FILTER clause"):
+            await self.con.query('''
+                select { foo := 1 } filter
+                        (INSERT User {
+                            name := 't1',
+                        })
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UPDATE statements cannot be used in a FILTER clause"):
+            await self.con.query('''
+                select { foo := 1 } filter
+                        (UPDATE User set {
+                            name := 't1',
+                        })
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "DELETE statements cannot be used in a FILTER clause"):
+            await self.con.query('''
+                select { foo := 1 } filter
+                        (DELETE User filter .name = 't1')
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "INSERT statements cannot be used in an ORDER BY clause"):
+            await self.con.query('''
+                select { foo := 1 } order by
+                        (INSERT User {
+                            name := 't1',
+                        })
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UPDATE statements cannot be used in an ORDER BY clause"):
+            await self.con.query('''
+                select { foo := 1 } order by
+                        (UPDATE User set {
+                            name := 't1',
+                        })
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "DELETE statements cannot be used in an ORDER BY clause"):
+            await self.con.query('''
+                select { foo := 1 } order by
+                        (DELETE User filter .name = 't1')
+            ''')

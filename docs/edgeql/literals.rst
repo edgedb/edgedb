@@ -252,7 +252,7 @@ numerical data.
       :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
   * - Arithmetic
     - :eql:op:`+ <plus>` :eql:op:`- <minus>` :eql:op:`- <uminus>`
-      :eql:op:`* <mult>` :eql:op:`/ <div>` :eql:op:`/  <floordiv>`
+      :eql:op:`* <mult>` :eql:op:`/ <div>` :eql:op:`//  <floordiv>`
       :eql:op:`% <mod>` :eql:op:`^ <pow>`
   * - Statistics
     - :eql:func:`sum` :eql:func:`min` :eql:func:`max` :eql:func:`math::mean`
@@ -435,12 +435,10 @@ To declare relative duration literals:
   db> select <cal::relative_duration>'-7 millennia';
   {<cal::relative_duration>'P-7000Y'}
 
-Date durations #New
-^^^^^^^^^^^^^^^^^^^
+Date durations
+^^^^^^^^^^^^^^
 
-.. note::
-
-  This type is only available in EdgeDB 2.0 or later.
+.. versionadded:: 2.0
 
 The :eql:type:`cal::date_duration` represents spans consisting of some number
 of *months* and *days*. This type is primarily intended to simplify logic
@@ -477,12 +475,10 @@ EdgeQL supports a set of functions and operators on duration types.
 
 .. _ref_eql_ranges:
 
-Ranges #New
------------
+Ranges
+------
 
-.. note::
-
-  This type is only available in EdgeDB 2.0 or later.
+.. versionadded:: 2.0
 
 Ranges represent a range of orderable scalar values. A range comprises a lower
 bound, upper bound, and two boolean flags indicating whether each bound is

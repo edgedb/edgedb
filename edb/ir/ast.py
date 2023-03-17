@@ -101,6 +101,19 @@ class Base(ast.AST):
         )
 
 
+# DEBUG: Probably don't actually keep this forever?
+@markup.serializer.serializer.register(Base)
+def _serialize_to_markup_base(
+        ir: Base, *, ctx: typing.Any) -> typing.Any:
+    node = ast.serialize_to_markup(ir, ctx=ctx)
+    has_context = bool(ir.context)
+    node.add_child(
+        label='has_context', node=markup.serialize(has_context, ctx=ctx))
+    child = node.children.pop()
+    node.children.insert(1, child)
+    return node
+
+
 class ImmutableBase(ast.ImmutableASTMixin, Base):
     __abstract_node__ = True
 
@@ -428,6 +441,9 @@ class Pointer(Base):
     ptrref: BasePointerRef
     direction: s_pointers.PointerDirection
     is_definition: bool
+    # Set when we have placed an rptr to help route link properties
+    # but it is not a genuine pointer use.
+    is_phony: bool = False
     anchor: typing.Optional[str] = None
     show_as_anchor: typing.Optional[str] = None
 
@@ -686,6 +702,7 @@ class Statement(Command):
     dml_exprs: typing.List[qlast.Base]
     type_rewrites: typing.Dict[typing.Tuple[uuid.UUID, bool], Set]
     singletons: typing.List[PathId]
+    triggers: tuple[Trigger, ...]
 
 
 class TypeIntrospection(ImmutableExpr):
@@ -1025,7 +1042,29 @@ class GroupStmt(FilteredStmt):
     ] = ast.field(factory=dict)
 
 
-class MutatingStmt(Stmt):
+class MutatingLikeStmt(Expr):
+    """Represents statements that are "like" mutations for certain purposes.
+
+    In particular, it includes both MutatingStmt, representing actual
+    mutations, and TriggerAnchor, which is a way to signal that
+    something should (or should not) see certain mutation overlays in
+    the backend without being an actual mutation.
+    """
+    __abstract_node__ = True
+
+
+class TriggerAnchor(MutatingLikeStmt):
+
+    """A placeholder to be put in trigger __old__ nodes.
+
+    The idea here is that in the backend, it will be treated as if it
+    was a MutatingStmt for the purposes of determining whether to use
+    overlays.
+    """
+    typeref: TypeRef
+
+
+class MutatingStmt(Stmt, MutatingLikeStmt):
     __abstract_node__ = True
     # Parts of the edgeql->IR compiler need to create statements and fill in
     # the subject later, but making it Optional would cause lots of errors,
@@ -1068,6 +1107,22 @@ class WritePolicy(Base):
     error_msg: typing.Optional[str]
 
     cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
+
+
+class Trigger(Base):
+    expr: Set
+    # All the relevant dml
+    affected: set[tuple[TypeRef, MutatingStmt]]
+    source_type: TypeRef
+    kinds: set[qltypes.TriggerKind]
+    scope: qltypes.TriggerScope
+
+    # N.B: Semantically and in the external language, delete triggers
+    # don't have a __new__ set, but we give it one in the
+    # implementation (identical) to the old set, to help make the
+    # implementation more uniform.
+    new_set: Set
+    old_set: typing.Optional[Set]
 
 
 class OnConflictClause(Base):

@@ -894,8 +894,7 @@ class CallableObject(
         return not isinstance(reference, Parameter)
 
 
-class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
-
+class ParametrizedCommand(sd.ObjectCommand[so.Object_T]):
     def _get_params(
         self,
         schema: s_schema.Schema,
@@ -962,6 +961,10 @@ class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT]):
             params.append(param)
 
         return schema, params
+
+
+class CallableCommand(sd.QualifiedObjectCommand[CallableObjectT],
+                      ParametrizedCommand[CallableObjectT]):
 
     def canonicalize_attributes(
         self,
@@ -1874,6 +1877,20 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                         f'unexpected type of the default expression: '
                         f'{default_type.get_displayname(schema)}, expected '
                         f'{p_type.get_displayname(schema)}',
+                        context=self.source_context)
+
+        # Make sure variadic parameters do not contain optional types in
+        # user-defined functions
+        if language == qlast.Language.EdgeQL:
+            if variadic := params.find_variadic(schema):
+                typemod = variadic.get_typemod(schema)
+                if typemod is ft.TypeModifier.OptionalType:
+                    raise errors.InvalidFunctionDefinitionError(
+                        f'cannot create the `{signature}` function: '
+                        f'variadic argument '
+                        f'`{variadic.get_displayname(schema)}` '
+                        f'illegally declared with optional type in '
+                        f'user-defined function',
                         context=self.source_context)
 
         return schema

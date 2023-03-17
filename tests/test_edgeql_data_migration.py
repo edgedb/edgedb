@@ -143,7 +143,7 @@ class EdgeQLDataMigrationTestCase(tb.DDLTestCase):
                     curddl = stmt['text']
 
                     if interpolations:
-                        def _replace(match):
+                        def _replace(match, interpolations=interpolations):
                             var_name = match.group(1)
                             var_value = interpolations.get(var_name)
                             if var_value is None:
@@ -986,7 +986,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text': (
                         'CREATE TYPE test::Type01 {\n'
                         '    CREATE PROPERTY field1'
-                        ' -> std::str;\n'
+                        ': std::str;\n'
                         '};'
                     )
                 }],
@@ -1060,7 +1060,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text': (
                         'CREATE TYPE test::Type02 {\n'
                         '    CREATE PROPERTY field02'
-                        ' -> std::str;\n'
+                        ': std::str;\n'
                         '};'
                     )
                 }],
@@ -1133,7 +1133,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text': (
                         'ALTER TYPE test::Type02 {\n'
                         '    CREATE PROPERTY field02'
-                        ' -> std::str;\n'
+                        ': std::str;\n'
                         '};'
                     )
                 }],
@@ -1180,7 +1180,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text': (
                         'CREATE TYPE test::Type01 {\n'
                         '    CREATE LINK foo1'
-                        ' -> test::Foo;\n'
+                        ': test::Foo;\n'
                         '};'
                     )
                 }],
@@ -1266,7 +1266,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text': (
                         'CREATE TYPE test::Type02 {\n'
                         '    CREATE LINK foo02'
-                        ' -> test::Foo;\n'
+                        ': test::Foo;\n'
                         '};'
                     )
                 }],
@@ -1352,7 +1352,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text': (
                         'ALTER TYPE test::Type02 {\n'
                         '    CREATE LINK foo02'
-                        ' -> test::Foo;\n'
+                        ': test::Foo;\n'
                         '};'
                     )
                 }],
@@ -4024,7 +4024,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.assert_describe_migration({
             'confirmed': ["""
                 ALTER TYPE test::Base {
-                    CREATE PROPERTY foo -> std::str;
+                    CREATE PROPERTY foo: std::str;
                 };
             """, """
                 ALTER TYPE test::Derived {
@@ -8769,7 +8769,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
         await self.assert_query_result(
             'SELECT (SELECT schema::Module FILTER .name LIKE "%test").name;',
-            ['newtest']
+            {'newtest', 'std::_test'},
         )
 
     async def test_edgeql_migration_inherited_optionality_01(self):
@@ -9145,7 +9145,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                         'CREATE TYPE test::NewObj2 {\n'
                         "    CREATE ANNOTATION std::title := 'Obj2';\n"
                         '    CREATE PROPERTY name'
-                        ' -> std::str;\n'
+                        ': std::str;\n'
                         '};'
                 }],
             },
@@ -9190,7 +9190,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.assert_describe_migration({
             'confirmed': [
                 'SELECT 1;',
-                'CREATE TYPE test::Obj1 { CREATE PROPERTY foo -> std::str; };',
+                'CREATE TYPE test::Obj1 { CREATE PROPERTY foo: std::str; };',
                 "INSERT Obj1 { foo := 'test' };"
             ],
             'complete': True,
@@ -9394,8 +9394,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'statements': [{
                     'text':
                         'CREATE TYPE test::NewObj1 {\n'
-                        '    CREATE PROPERTY bar -> std::str;'
-                        '\n    CREATE PROPERTY foo -> std::str;'
+                        '    CREATE PROPERTY bar: std::str;'
+                        '\n    CREATE PROPERTY foo: std::str;'
                         '\n};'
                 }],
                 'confidence': 1.0,
@@ -9460,7 +9460,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'statements': [{
                     'text':
                         'ALTER TYPE test::Obj1 {\n    '
-                        'CREATE PROPERTY x -> std::str;\n};'
+                        'CREATE PROPERTY x: std::str;\n};'
                 }],
                 'confidence': 1.0,
             },
@@ -9498,7 +9498,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                     'text':
                         'ALTER TYPE test::Obj1 {\n    '
                         'ALTER LINK link {\n        '
-                        'CREATE PROPERTY x -> std::str;\n    };\n};'
+                        'CREATE PROPERTY x: std::str;\n    };\n};'
                 }],
                 'confidence': 1.0,
             },
@@ -9578,7 +9578,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'statements': [{
                     'text': """
                         ALTER TYPE test::Obj11 {
-                            CREATE PROPERTY name -> std::str {
+                            CREATE PROPERTY name: std::str {
                                 CREATE CONSTRAINT std::exclusive;
                             };
                         };
@@ -9828,7 +9828,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'statements': [{
                     'text': """
                         CREATE TYPE test::Spam {
-                            CREATE LINK bar -> test::Bar;
+                            CREATE LINK bar: test::Bar;
                         };
                     """,
                 }],
@@ -9848,7 +9848,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'statements': [{
                     'text': """
                         ALTER TYPE test::Bar {
-                            CREATE LINK spam -> test::Spam;
+                            CREATE LINK spam: test::Spam;
                         };
                     """,
                 }],
@@ -9882,6 +9882,9 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                         "Please specify a conversion expression"
                         " to alter the type of property 'foo'"
                     ),
+                    'old_type': 'std::str',
+                    'new_type': 'std::int64',
+                    'pointer_name': 'foo',
                 }],
             },
         })
@@ -9913,6 +9916,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                         " property 'foo' of object type 'test::Bar' to"
                         " 'single' cardinality"
                     ),
+                    'type': 'std::str',
+                    'pointer_name': 'foo',
                 }],
             },
         })
@@ -9941,7 +9946,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'statements': [{
                     'text': '''
                         ALTER TYPE test::Bar {
-                            CREATE REQUIRED PROPERTY bar -> std::str {
+                            CREATE REQUIRED PROPERTY bar: std::str {
                                 SET REQUIRED USING (\\(fill_expr));
                             };
                         };
@@ -9954,6 +9959,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                         "objects in order to make property 'bar' of object "
                         "type 'test::Bar' required"
                     ),
+                    'type': 'std::str',
+                    'pointer_name': 'bar',
                 }],
             },
         })
@@ -10041,17 +10048,62 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             '''
         )
 
-        async with self.assertRaisesRegexTx(
-            edgedb.SchemaError, "cannot include mutating statements"
-        ):
-            try:
-                await self.fast_forward_describe_migration(
-                    user_input=[
-                        'insert test::Organization { name := "default" }'
-                    ]
-                )
-            except Exception as e:
-                raise e.__cause__
+        await self.fast_forward_describe_migration(
+            user_input=[
+                'insert test::Organization { name := "default" }'
+            ]
+        )
+
+    async def test_edgeql_migration_user_input_06(self):
+        await self.migrate('''
+            type Bar {
+                property foo -> int64;
+            };
+        ''')
+        await self.con.execute('''
+            SET MODULE test;
+            INSERT Bar { foo := 42 };
+            INSERT Bar;
+        ''')
+
+        await self.start_migration('''
+            type Bar {
+                required property foo -> str;
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'proposed': {
+                'required_user_input': [
+                    {
+                        'placeholder': 'fill_expr',
+                        'type': 'std::int64',
+                    },
+                    {
+                        'placeholder': 'cast_expr',
+                        'old_type': 'std::int64',
+                        'new_type': 'std::str',
+                    },
+                ],
+            },
+        })
+
+        await self.fast_forward_describe_migration(
+            user_input=[
+                "0",
+                "<str>.foo",
+            ]
+        )
+
+        await self.assert_query_result(
+            '''
+                SELECT Bar {foo} ORDER BY .foo
+            ''',
+            [
+                {'foo': "0"},
+                {'foo': "42"},
+            ],
+        )
 
     async def test_edgeql_migration_union_01(self):
         async with self.assertRaisesRegexTx(
@@ -11266,6 +11318,73 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Bar extending Foo;
         """)
 
+    async def test_edgeql_migration_nested_backticks_01(self):
+        await self.migrate(r"""
+            module nested { type Test };
+        """)
+
+        await self.migrate(r"""
+            module nested { type Test };
+            module `back``ticked` { type Test };
+        """)
+
+    async def test_edgeql_migration_abstract_index_01(self):
+        await self.migrate(r"""
+            abstract index MyIndex(language := 'english')
+                extending fts::textsearch;
+            type Base {
+                property name -> str;
+                index MyIndex on (.name);
+                index fts::textsearch(language:='english') on (.name);
+            };
+        """)
+
+        await self.migrate(r"""
+            abstract index MyIndex(language := 'english')
+                extending fts::textsearch;
+            type Base {
+                property name -> str;
+                index MyIndex on (.name);
+                index fts::textsearch(language:='english') on (.name);
+            };
+            type Child extending Base;
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                r"because other objects in the schema depend on it"):
+            await self.con.execute('''
+                drop abstract index test::MyIndex
+            ''')
+
+        await self.migrate(r"""
+            abstract index MyIndex(language := 'german')
+                extending fts::textsearch;
+            type Base {
+                property name -> str;
+                index MyIndex on (.name);
+                index fts::textsearch(language:='english') on (.name);
+            };
+            type Child extending Base;
+        """)
+
+        await self.migrate(r"""
+            abstract index MyIndex(language := 'german')
+                extending fts::textsearch {
+              annotation title := "test";
+            }
+            type Base {
+                property name -> str;
+                index MyIndex on (.name);
+                index fts::textsearch(language:='english') on (.name) {
+                   annotation description := "test";
+                };
+            };
+            type Child extending Base;
+        """)
+
+        await self.migrate("")
+
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False
@@ -11367,6 +11486,24 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         ''')
 
         await self.migrate('')
+
+    async def test_edgeql_migration_splat_01(self):
+        await self.migrate('''
+            type Foo {
+                property bar := (select <json>Bar { ** })
+            }
+
+            type Bar {
+                property a -> str;
+                link foo -> Foo;
+            }
+        ''')
+
+        await self.migrate('''
+            type Foo {
+                property bar := (<json>{})
+            }
+        ''')
 
     async def test_edgeql_migration_recovery(self):
         await self.con.execute(r"""
@@ -11588,7 +11725,11 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
             {'script': 'CREATE TYPE default::A;', 'generated_by': None},
             {'script': 'CREATE TYPE B;', 'generated_by': None},
             {'script': 'create type C;', 'generated_by': None},
-            {'script': 'CREATE TYPE D;', 'generated_by': 'DDLStatement'},
+            {'script': (
+                'SET generated_by '
+                ':= (schema::MigrationGeneratedBy.DDLStatement);\n'
+                'CREATE TYPE D;'
+            ), 'generated_by': 'DDLStatement'},
         ])
 
     async def test_edgeql_migration_rewrite_02(self):
@@ -11674,9 +11815,12 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
             commit migration rewrite
         """)
 
+        gby = (
+            'SET generated_by := (schema::MigrationGeneratedBy.DDLStatement);'
+        )
         await self.assert_migration_history([
-            {'script': 'CREATE TYPE B;'},
-            {'script': 'CREATE TYPE A;'},
+            {'script': gby + '\n' + 'CREATE TYPE B;'},
+            {'script': gby + '\n' + 'CREATE TYPE A;'},
         ])
 
     async def test_edgeql_migration_rewrite_05(self):

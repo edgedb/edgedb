@@ -103,9 +103,20 @@ cdef dict POSTGRES_SHUTDOWN_ERR_CODES = {
 }
 
 cdef bytes INIT_CON_SCRIPT = None
+cdef object EMPTY_SQL_STATE = b"{}"
 
 cdef object logger = logging.getLogger('edb.server')
 
+
+SETUP_TEMP_TABLE_SCRIPT = '''
+        CREATE TEMPORARY TABLE _edgecon_state (
+            name text NOT NULL,
+            value jsonb NOT NULL,
+            type text NOT NULL CHECK(
+                type = 'C' OR type = 'B'),
+            UNIQUE(name, type)
+        );
+'''
 
 def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     if check_pg_is_in_recovery:
@@ -132,13 +143,7 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     return textwrap.dedent(f'''
         {pg_is_in_recovery}
 
-        CREATE TEMPORARY TABLE _edgecon_state (
-            name text NOT NULL,
-            value jsonb NOT NULL,
-            type text NOT NULL CHECK(
-                type = 'C' OR type = 'B'),
-            UNIQUE(name, type)
-        );
+        {SETUP_TEMP_TABLE_SCRIPT}
 
         PREPARE _clear_state AS
             DELETE FROM _edgecon_state;
@@ -425,6 +430,8 @@ cdef class PGMessage:
         str portal_name=None,
         args=None,
         query_unit=None,
+        orig_query=None,
+        fe_settings=None,
     ):
         self.action = action
         self.stmt_name = stmt_name
@@ -435,6 +442,9 @@ cdef class PGMessage:
             self.portal_name = b''
         self.args = args
         self.query_unit = query_unit
+
+        self.orig_query = orig_query
+        self.fe_settings = fe_settings
 
     cdef inline bint frontend_only(self):
         if self.query_unit is None:
@@ -742,7 +752,7 @@ cdef class PGConnection:
             buf.write_int32(0)  # limit: 0 - return all rows
             out.write_buffer(buf.end_message())
 
-    def _build_apply_sql_state_req(self, settings, WriteBuffer out):
+    def _build_apply_sql_state_req(self, bytes state, WriteBuffer out):
         cdef:
             WriteBuffer buf
 
@@ -759,17 +769,16 @@ cdef class PGConnection:
         buf.write_int32(0)  # limit: 0 - return all rows
         out.write_buffer(buf.end_message())
 
-        if settings:
-            serstate = json.dumps(dict(settings)).encode("utf-8")
+        if state != EMPTY_SQL_STATE:
             buf = WriteBuffer.new_message(b'B')
             buf.write_bytestring(b'')  # portal name
             buf.write_bytestring(b'_apply_sql_state')  # statement name
             buf.write_int16(1)  # number of format codes
             buf.write_int16(1)  # binary
             buf.write_int16(1)  # number of parameters
-            buf.write_int32(len(serstate) + 1)
+            buf.write_int32(len(state) + 1)
             buf.write_byte(1)  # jsonb format version
-            buf.write_bytes(serstate)
+            buf.write_bytes(state)
             buf.write_int16(0)  # number of result columns
             out.write_buffer(buf.end_message())
 
@@ -819,14 +828,19 @@ cdef class PGConnection:
 
     cdef send_query_unit_group(
         self, object query_unit_group, object bind_datas, bytes state,
-        ssize_t start, ssize_t end,
+        ssize_t start, ssize_t end, int dbver, object parse_array
     ):
+        # parse_array is an array of booleans for output with the same size as
+        # the query_unit_group, indicating if each unit is freshly parsed
         cdef:
             WriteBuffer out
             WriteBuffer buf
             WriteBuffer bind_data
+            bytes stmt_name
+            ssize_t idx = start
 
         out = WriteBuffer.new()
+        parsed = set()
 
         if state is not None and start == 0:
             self._build_apply_state_req(state, out)
@@ -837,16 +851,28 @@ cdef class PGConnection:
                 raise RuntimeError(
                     "CONFIGURE INSTANCE command is not allowed in scripts"
                 )
-            for sql in query_unit.sql:
-                buf = WriteBuffer.new_message(b'P')
-                buf.write_bytestring(b'')  # statement name
-                buf.write_bytestring(sql)
-                buf.write_int16(0)
-                out.write_buffer(buf.end_message())
+            stmt_name = query_unit.sql_hash
+            if stmt_name:
+                assert len(query_unit.sql) == 1
+                # The same EdgeQL query may show up twice in the same script.
+                # We just need to know and skip if we've already parsed the
+                # same query within current send batch, because self.prep_stmts
+                # will be updated before the next batch, with maybe a different
+                # dbver after DDL.
+                if stmt_name not in parsed and self.before_prepare(
+                    stmt_name, dbver, out
+                ):
+                    buf = WriteBuffer.new_message(b'P')
+                    buf.write_bytestring(stmt_name)
+                    buf.write_bytestring(query_unit.sql[0])
+                    buf.write_int16(0)
+                    out.write_buffer(buf.end_message())
+                    parse_array[idx] = True
+                    parsed.add(stmt_name)
 
                 buf = WriteBuffer.new_message(b'B')
                 buf.write_bytestring(b'')  # portal name
-                buf.write_bytestring(b'')  # statement name
+                buf.write_bytestring(stmt_name)
                 buf.write_buffer(bind_data)
                 out.write_buffer(buf.end_message())
 
@@ -854,6 +880,27 @@ cdef class PGConnection:
                 buf.write_bytestring(b'')  # portal name
                 buf.write_int32(0)  # limit: 0 - return all rows
                 out.write_buffer(buf.end_message())
+
+            else:
+                for sql in query_unit.sql:
+                    buf = WriteBuffer.new_message(b'P')
+                    buf.write_bytestring(b'')  # statement name
+                    buf.write_bytestring(sql)
+                    buf.write_int16(0)
+                    out.write_buffer(buf.end_message())
+
+                    buf = WriteBuffer.new_message(b'B')
+                    buf.write_bytestring(b'')  # portal name
+                    buf.write_bytestring(b'')  # statement name
+                    buf.write_buffer(bind_data)
+                    out.write_buffer(buf.end_message())
+
+                    buf = WriteBuffer.new_message(b'E')
+                    buf.write_bytestring(b'')  # portal name
+                    buf.write_int32(0)  # limit: 0 - return all rows
+                    out.write_buffer(buf.end_message())
+
+            idx += 1
 
         if end == len(query_unit_group.units):
             self.write_sync(out)
@@ -873,6 +920,9 @@ cdef class PGConnection:
 
     async def wait_for_command(
         self,
+        object query_unit,
+        bint parse,
+        int dbver,
         *,
         bint ignore_data,
         frontend.AbstractFrontendConnection fe_conn = None,
@@ -922,6 +972,8 @@ cdef class PGConnection:
                 elif mtype == b'1':
                     # ParseComplete
                     self.buffer.discard_message()
+                    if parse:
+                        self.prep_stmts[query_unit.sql_hash] = dbver
 
                 elif mtype == b'E':  ## result
                     # ErrorResponse
@@ -939,6 +991,10 @@ cdef class PGConnection:
 
                 elif mtype == b'2':
                     # BindComplete
+                    self.buffer.discard_message()
+
+                elif mtype == b'3':
+                    # CloseComplete
                     self.buffer.discard_message()
 
                 elif mtype == b'I':  ## result
@@ -983,13 +1039,49 @@ cdef class PGConnection:
 
         if state is not None:
             self._build_apply_state_req(state, out)
-            if query.tx_id:
-                # This query has START TRANSACTION in it.
+            if (
+                query.tx_id or
+                not query.is_transactional or
+                query.append_rollback
+            ):
+                # This query has START TRANSACTION or non-transactional command
+                # like CREATE DATABASE in it.
                 # Restoring state must be performed in a separate
-                # implicit transaction (otherwise START TRANSACTION DEFERRABLE)
-                # would fail. Hence - inject a SYNC after a state restore step.
+                # implicit transaction (otherwise START TRANSACTION DEFERRABLE
+                # or CREATE DATABASE (since PG 14.7) would fail).
+                # Hence - inject a SYNC after a state restore step.
                 state_sync = 1
                 self.write_sync(out)
+
+        if query.append_rollback:
+            if self.in_tx():
+                sp_name = f'_edb_{time.monotonic_ns()}'
+                sql = f'SAVEPOINT {sp_name}'.encode('utf-8')
+            else:
+                sp_name = None
+                sql = b'START TRANSACTION'
+
+            buf = WriteBuffer.new_message(b'P')
+            buf.write_bytestring(b'')
+            buf.write_bytestring(sql)
+            buf.write_int16(0)
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'B')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_bytestring(b'')  # statement name
+            buf.write_int16(0)  # number of format codes
+            buf.write_int16(0)  # number of parameters
+            buf.write_int16(0)  # number of result columns
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'E')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_int32(0)  # limit: 0 - return all rows
+            out.write_buffer(buf.end_message())
+
+            # Insert a SYNC as a boundary of the parsing logic later
+            self.write_sync(out)
 
         if use_prep_stmt:
             stmt_name = query.sql_hash
@@ -1053,6 +1145,31 @@ cdef class PGConnection:
             buf.write_int32(0)  # limit: 0 - return all rows
             out.write_buffer(buf.end_message())
 
+        if query.append_rollback:
+            if sp_name:
+                sql = f'ROLLBACK TO SAVEPOINT {sp_name}'.encode('utf-8')
+            else:
+                sql = b'ROLLBACK'
+
+            buf = WriteBuffer.new_message(b'P')
+            buf.write_bytestring(b'')
+            buf.write_bytestring(sql)
+            buf.write_int16(0)
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'B')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_bytestring(b'')  # statement name
+            buf.write_int16(0)  # number of format codes
+            buf.write_int16(0)  # number of parameters
+            buf.write_int16(0)  # number of result columns
+            out.write_buffer(buf.end_message())
+
+            buf = WriteBuffer.new_message(b'E')
+            buf.write_bytestring(b'')  # portal name
+            buf.write_int32(0)  # limit: 0 - return all rows
+            out.write_buffer(buf.end_message())
+
         self.write_sync(out)
         self.write(out)
 
@@ -1061,6 +1178,9 @@ cdef class PGConnection:
         try:
             if state is not None:
                 await self.wait_for_state_resp(state, state_sync)
+
+            if query.append_rollback:
+                await self.wait_for_sync()
 
             buf = None
             while True:
@@ -1381,17 +1501,21 @@ cdef class PGConnection:
             char mtype, field_type
             WriteBuffer buf, msg_buf
             bytes stmt_name, query
-            bint sync_received = 0
+            bint sync_received = 0, state_synced = 0
 
-        settings = None if dbv.in_tx() else dbv.current_settings()
-        if self.debug:
-            self.debug_print("pg_ext settings:", settings)
+        state = None
+        if not dbv.in_tx():
+            state = dbv.serialize_state()
+            if self.last_state == state:
+                state = None
         dbv.start_implicit()
         self.before_command()
         try:
             buf = WriteBuffer.new()
-            if settings is not None:
-                self._build_apply_sql_state_req(settings, buf)
+            if state is not None:
+                if self.debug:
+                    self.debug_print("pg_ext state:", state)
+                self._build_apply_sql_state_req(state, buf)
                 # We need to close the implicit transaction with a SYNC here
                 # because the next command may be "BEGIN DEFERRABLE".
                 self.write_sync(buf)
@@ -1435,9 +1559,13 @@ cdef class PGConnection:
             self.write_sync(buf)
             self.write(buf)
 
-            if settings is not None:
-                await self._parse_apply_state_resp(2 if settings else 1)
+            if state is not None:
+                await self._parse_apply_state_resp(
+                    2 if state != EMPTY_SQL_STATE else 1
+                )
                 await self.wait_for_sync()
+                self.last_state = state
+            state_synced = 1
 
             buf = WriteBuffer.new()
             for unit in query_units:
@@ -1546,16 +1674,35 @@ cdef class PGConnection:
                     else:
                         self.buffer.redirect_messages(buf, mtype, 0)
 
-            # CloseComplete is skipped in wait_for_sync()
-            msg_buf = WriteBuffer.new_message(b'Z')
-            msg_buf.write_byte(await self.wait_for_sync())
-            buf.write_buffer(msg_buf.end_message())
+            while True:
+                if not self.buffer.take_message():
+                    if buf.len() > 0:
+                        fe_conn.write(buf)
+                        fe_conn.flush()
+                        buf = WriteBuffer.new()
+                    await self.wait_for_message()
+                mtype = self.buffer.get_message_type()
+                if mtype == b'3':  # CloseComplete
+                    self.buffer.discard_message()
+                elif mtype == b'Z':  # ReadyForQuery
+                    msg_buf = WriteBuffer.new_message(b'Z')
+                    msg_buf.write_byte(self.parse_sync_message())
+                    buf.write_buffer(msg_buf.end_message())
+                    break
+                else:
+                    # Other messages like ParameterStatus should be forwarded
+                    self.buffer.redirect_messages(buf, mtype, 0)
 
-            fe_conn.write(buf)
-            fe_conn.flush()
+            if buf.len() > 0:
+                fe_conn.write(buf)
+                fe_conn.flush()
         finally:
             await self.after_command()
             dbv.end_implicit()
+            # There could be multiple transactions in the same simple query, so
+            # last_state should be always updated after the initial state sync
+            if state_synced and not dbv.in_tx():
+                self.last_state = dbv.serialize_state()
 
     async def sql_extended_query(
         self,
@@ -1566,10 +1713,20 @@ cdef class PGConnection:
     ):
         self.before_command()
         try:
-            self._write_sql_extended_query(actions, dbver, dbv)
-            return await self._parse_sql_extended_query(
-                actions, fe_conn, dbver, dbv
-            )
+            state = self._write_sql_extended_query(actions, dbver, dbv)
+            if state is not None:
+                await self._parse_apply_state_resp(
+                    2 if state != EMPTY_SQL_STATE else 1
+                )
+                await self.wait_for_sync()
+                self.last_state = state
+            try:
+                return await self._parse_sql_extended_query(
+                    actions, fe_conn, dbver, dbv
+                )
+            finally:
+                if not dbv.in_tx():
+                    self.last_state = dbv.serialize_state()
         finally:
             await self.after_command()
 
@@ -1579,8 +1736,10 @@ cdef class PGConnection:
             PGMessage action
 
         buf = WriteBuffer.new()
+        state = None
         if not dbv.in_tx():
-            self._build_apply_sql_state_req(dbv.current_settings(), buf)
+            state = dbv.serialize_state()
+            self._build_apply_sql_state_req(state, buf)
             # We need to close the implicit transaction with a SYNC here
             # because the next command may be e.g. "BEGIN DEFERRABLE".
             self.write_sync(buf)
@@ -1655,6 +1814,7 @@ cdef class PGConnection:
             buf.write_buffer(msg_buf.end_message())
 
         self.write(buf)
+        return state
 
     async def _parse_sql_extended_query(
         self,
@@ -1667,12 +1827,6 @@ cdef class PGConnection:
             WriteBuffer buf, msg_buf
             PGMessage action
             bint ignore_till_sync = False
-
-        if not dbv.in_tx():
-            await self._parse_apply_state_resp(
-                2 if dbv.current_settings() else 1
-            )
-            await self.wait_for_sync()
 
         buf = WriteBuffer.new()
         rv = True
@@ -1974,10 +2128,14 @@ cdef class PGConnection:
                     'missing the required data packet after a DDL command'
                 )
 
-    async def handle_ddl_in_script(self, object query_unit):
+    async def handle_ddl_in_script(
+        self, object query_unit, bint parse, int dbver
+    ):
         data = None
         for sql in query_unit.sql:
-            data = await self.wait_for_command(ignore_data=bool(data)) or data
+            data = await self.wait_for_command(
+                query_unit, parse, dbver, ignore_data=bool(data)
+            ) or data
         return self.load_ddl_return(query_unit, data)
 
     async def _dump(self, block, output_queue, fragment_suggested_size):

@@ -1167,9 +1167,39 @@ jobs:
         edgedb-pkg/integration/macos/test.sh
 
 
+  collect:
+    needs:
+    - test-debian-stretch-x86_64
+    - test-debian-stretch-aarch64
+    - test-debian-buster-x86_64
+    - test-debian-buster-aarch64
+    - test-debian-bullseye-x86_64
+    - test-debian-bullseye-aarch64
+    - test-ubuntu-xenial-x86_64
+    - test-ubuntu-xenial-aarch64
+    - test-ubuntu-bionic-x86_64
+    - test-ubuntu-bionic-aarch64
+    - test-ubuntu-focal-x86_64
+    - test-ubuntu-focal-aarch64
+    - test-ubuntu-jammy-x86_64
+    - test-ubuntu-jammy-aarch64
+    - test-centos-7-x86_64
+    - test-centos-8-x86_64
+    - test-centos-8-aarch64
+    - test-linux-x86_64
+    - test-linux-aarch64
+    - test-linuxmusl-x86_64
+    - test-linuxmusl-aarch64
+    - test-macos-x86_64
+    - test-macos-aarch64
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'All build+tests passed, ready to publish now!'
+
+
 
   publish-debian-stretch-x86_64:
-    needs: [test-debian-stretch-x86_64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1220,7 +1250,7 @@ jobs:
 
 
   publish-debian-stretch-aarch64:
-    needs: [test-debian-stretch-aarch64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1271,7 +1301,7 @@ jobs:
 
 
   publish-debian-buster-x86_64:
-    needs: [test-debian-buster-x86_64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1322,7 +1352,7 @@ jobs:
 
 
   publish-debian-buster-aarch64:
-    needs: [test-debian-buster-aarch64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1373,7 +1403,7 @@ jobs:
 
 
   publish-debian-bullseye-x86_64:
-    needs: [test-debian-bullseye-x86_64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1424,7 +1454,7 @@ jobs:
 
 
   publish-debian-bullseye-aarch64:
-    needs: [test-debian-bullseye-aarch64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1475,7 +1505,7 @@ jobs:
 
 
   publish-ubuntu-xenial-x86_64:
-    needs: [test-ubuntu-xenial-x86_64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1526,7 +1556,7 @@ jobs:
 
 
   publish-ubuntu-xenial-aarch64:
-    needs: [test-ubuntu-xenial-aarch64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1577,7 +1607,7 @@ jobs:
 
 
   publish-ubuntu-bionic-x86_64:
-    needs: [test-ubuntu-bionic-x86_64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1628,7 +1658,7 @@ jobs:
 
 
   publish-ubuntu-bionic-aarch64:
-    needs: [test-ubuntu-bionic-aarch64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1679,7 +1709,7 @@ jobs:
 
 
   publish-ubuntu-focal-x86_64:
-    needs: [test-ubuntu-focal-x86_64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1730,7 +1760,7 @@ jobs:
 
 
   publish-ubuntu-focal-aarch64:
-    needs: [test-ubuntu-focal-aarch64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1781,7 +1811,7 @@ jobs:
 
 
   publish-ubuntu-jammy-x86_64:
-    needs: [test-ubuntu-jammy-x86_64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1832,7 +1862,7 @@ jobs:
 
 
   publish-ubuntu-jammy-aarch64:
-    needs: [test-ubuntu-jammy-aarch64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1883,7 +1913,7 @@ jobs:
 
 
   publish-centos-7-x86_64:
-    needs: [test-centos-7-x86_64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1934,7 +1964,7 @@ jobs:
 
 
   publish-centos-8-x86_64:
-    needs: [test-centos-8-x86_64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -1985,7 +2015,7 @@ jobs:
 
 
   publish-centos-8-aarch64:
-    needs: [test-centos-8-aarch64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -2036,7 +2066,7 @@ jobs:
 
 
   publish-linux-x86_64:
-    needs: [test-linux-x86_64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -2087,7 +2117,7 @@ jobs:
 
 
   publish-linux-aarch64:
-    needs: [test-linux-aarch64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -2138,7 +2168,7 @@ jobs:
 
 
   publish-linuxmusl-x86_64:
-    needs: [test-linuxmusl-x86_64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -2189,7 +2219,7 @@ jobs:
 
 
   publish-linuxmusl-aarch64:
-    needs: [test-linuxmusl-aarch64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -2241,7 +2271,7 @@ jobs:
 
 
   publish-macos-x86_64:
-    needs: [test-macos-x86_64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:
@@ -2272,7 +2302,7 @@ jobs:
 
 
   publish-macos-aarch64:
-    needs: [test-macos-aarch64]
+    needs: [collect]
     runs-on: ubuntu-latest
 
     steps:

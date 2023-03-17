@@ -26,17 +26,19 @@ from edb.tools.pygments.edgeql import EdgeQLLexer
 import pygments.lexers
 
 from sphinx import domains as s_domains
-from sphinx.directives import code as s_code
+from docutils.parsers.rst import directives as d_directives  # type: ignore
 
 from . import shared
 
 
-class CLISynopsisDirective(s_code.CodeBlock):
+class CLISynopsisDirective(shared.CodeBlock):
 
     has_content = True
     optional_arguments = 0
     required_arguments = 0
-    option_spec: Dict[str, Any] = {}
+    option_spec: Dict[str, Any] = {
+        'version-lt': d_directives.unchanged_required
+    }
 
     def run(self):
         self.arguments = ['cli-synopsis']

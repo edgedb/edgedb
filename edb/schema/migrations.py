@@ -122,7 +122,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
             # An implicit CREATE MIGRATION produced by START MIGRATION
             ddl_text = ';\n'.join(
                 qlcodegen.generate_source(stmt, uppercase=True)
-                for stmt in astnode.body.commands
+                for stmt in [*astnode.commands, *astnode.body.commands]
             ) + ';'
         else:
             ddl_text = ''
@@ -221,11 +221,9 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
     ) -> None:
         assert isinstance(node, qlast.CreateMigration)
         if op.property == 'script':
+            block, _ = qlparser.parse_migration_body_block(op.new_value)
             node.body = qlast.NestedQLBlock(
-                commands=cast(
-                    List[qlast.DDLOperation],
-                    qlparser.parse_block(op.new_value),
-                ),
+                commands=block.commands,
                 text=op.new_value,
             )
         elif op.property == 'parents':

@@ -27,10 +27,12 @@ from __future__ import annotations
 
 from typing import *
 
+from edb.common import ast
 from edb.common import ordered
 from edb.common.compiler import AliasGenerator
 
 from edb.edgeql import ast as qlast
+from edb.edgeql.compiler import astutils
 
 
 def key_name(s: str) -> str:
@@ -165,6 +167,18 @@ def desugar_group(
     )
 
 
+def _count_alias_uses(
+    node: qlast.Expr,
+    alias: str,
+) -> int:
+    uses = 0
+    for child in ast.find_children(node, qlast.Path):
+        match child:
+            case astutils.alias_view((alias2, _)) if alias == alias2:
+                uses += 1
+    return uses
+
+
 def try_group_rewrite(
     node: qlast.Query,
     aliases: AliasGenerator,
@@ -199,7 +213,36 @@ def try_group_rewrite(
         )
     """
 
-    # TODO: would Python's new pattern matching fit well here???
+    # Inline trivial uses of aliases bound to a group and then
+    # immediately used, so that we can apply the other optimizations.
+    match node:
+        case qlast.SelectQuery(
+            aliases=[
+                *_,
+                qlast.AliasedExpr(alias=alias, expr=qlast.GroupQuery() as grp)
+            ] as qaliases,
+            result=qlast.Shape(
+                expr=astutils.alias_view((alias2, [])),
+                elements=elements,
+            ) as result,
+        ) if alias == alias2 and _count_alias_uses(result, alias) == 1:
+            node = node.replace(
+                aliases=qaliases[:-1],
+                result=qlast.Shape(expr=grp, elements=elements),
+            )
+
+        case qlast.ForQuery(
+            aliases=[
+                *_,
+                qlast.AliasedExpr(alias=alias, expr=qlast.GroupQuery() as grp)
+            ] as qaliases,
+            iterator=astutils.alias_view((alias2, [])),
+            result=result,
+        ) if alias == alias2 and _count_alias_uses(result, alias) == 0:
+            node = node.replace(
+                aliases=qaliases[:-1],
+                iterator=grp,
+            )
 
     # Sink shapes into the GROUP
     if (

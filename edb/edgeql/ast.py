@@ -254,7 +254,7 @@ class Anchor(Expr):
 
 
 class SpecialAnchor(Anchor):
-    __abstract_node__ = True
+    pass
 
 
 class Source(SpecialAnchor):  # __source__
@@ -422,7 +422,19 @@ class Ptr(Base):
     type: typing.Optional[str] = None
 
 
-PathElement = typing.Union[Expr, Ptr, TypeIntersection, ObjectRef]
+class Splat(Base):
+    """Represents a splat operation (expansion to all props/links) in shapes"""
+
+    #: Expansion depth
+    depth: int
+    #: Source type expression, e.g in Type.**
+    type: typing.Optional[TypeExpr] = None
+    #: Type intersection on the source which would result
+    #: in polymorphic expansion, e.g. [is Type].**
+    intersection: typing.Optional[TypeIntersection] = None
+
+
+PathElement = typing.Union[Expr, Ptr, TypeIntersection, ObjectRef, Splat]
 
 
 class Path(Expr):
@@ -501,7 +513,6 @@ class SelectClauseMixin(OrderByMixin, OffsetLimitMixin, FilterMixin):
 
 
 class ShapeOp(s_enum.StrEnum):
-
     APPEND = 'APPEND'
     SUBTRACT = 'SUBTRACT'
     ASSIGN = 'ASSIGN'
@@ -510,8 +521,14 @@ class ShapeOp(s_enum.StrEnum):
 
 # Need indirection over ShapeOp to preserve the source context.
 class ShapeOperation(Base):
-
     op: ShapeOp
+
+
+class ShapeOrigin(s_enum.StrEnum):
+    EXPLICIT = 'EXPLICIT'
+    DEFAULT = 'DEFAULT'
+    SPLAT_EXPANSION = 'SPLAT_EXPANSION'
+    MATERIALIZATION = 'MATERIALIZATION'
 
 
 class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
@@ -521,6 +538,7 @@ class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
     cardinality: typing.Optional[qltypes.SchemaCardinality] = None
     required: typing.Optional[bool] = None
     operation: ShapeOperation = ShapeOperation(op=ShapeOp.ASSIGN)
+    origin: ShapeOrigin = ShapeOrigin.EXPLICIT
 
 
 class Shape(Expr):
@@ -1012,6 +1030,10 @@ class CreateConcretePointer(CreateObject, BasesMixin):
     cardinality: qltypes.SchemaCardinality
 
 
+class CreateConcreteUnknownPointer(CreateConcretePointer):
+    pass
+
+
 class CreateConcreteProperty(CreateConcretePointer, PropertyCommand):
     pass
 
@@ -1271,6 +1293,59 @@ class DropAccessPolicy(DropObject, AccessPolicyCommand):
     pass
 
 
+class TriggerCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.TRIGGER)
+
+
+class CreateTrigger(CreateObject, TriggerCommand):
+    timing: qltypes.TriggerTiming
+    kinds: typing.List[qltypes.TriggerKind]
+    scope: qltypes.TriggerScope
+    expr: Expr
+
+
+class AlterTrigger(AlterObject, TriggerCommand):
+    pass
+
+
+class DropTrigger(DropObject, TriggerCommand):
+    pass
+
+
+class RewriteCommand(ObjectDDL):
+    """
+    Mutation rewrite command.
+
+    Note that kinds are basically identifiers of the command, so they need to
+    be present for all commands.
+
+    List of kinds is converted into multiple commands when creating delta
+    commands in `_cmd_tree_from_ast`.
+    """
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.REWRITE
+    )
+
+    kinds: typing.List[qltypes.RewriteKind]
+
+
+class CreateRewrite(CreateObject, RewriteCommand):
+    expr: Expr
+
+
+class AlterRewrite(AlterObject, RewriteCommand):
+    pass
+
+
+class DropRewrite(DropObject, RewriteCommand):
+    pass
+
+
 class Language(s_enum.StrEnum):
     SQL = 'SQL'
     EdgeQL = 'EDGEQL'
@@ -1413,6 +1488,16 @@ class DescribeStmt(Statement):
 
 
 #
+# Explain
+#
+
+class ExplainStmt(Statement):
+
+    query: Query
+    analyze: bool
+
+
+#
 # SDL
 #
 
@@ -1426,7 +1511,7 @@ class ModuleDeclaration(SDL):
     # The 'name' is treated same as in CreateModule, for consistency,
     # since this declaration also implies creating a module.
     name: ObjectRef
-    declarations: typing.List[DDL]
+    declarations: typing.List[typing.Union[NamedDDL, ModuleDeclaration]]
 
 
 class Schema(SDL):

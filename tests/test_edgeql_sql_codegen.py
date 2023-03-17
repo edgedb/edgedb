@@ -47,10 +47,11 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
                 modaliases={None: 'default'},
             ),
         )
-        return pg_compiler.compile_ir_to_sql_tree(
+        sql_tree, _ = pg_compiler.compile_ir_to_sql_tree(
             ir,
             output_format=pg_compiler.OutputFormat.NATIVE,
         )
+        return sql_tree
 
     def _compile(self, source):
         qtree = self._compile_to_tree(source)
@@ -207,6 +208,20 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
         self.assertNotIn(
             "uuid_generate", group_sql,
             "group has unnecessary uuid_generate",
+        )
+
+    def test_codegen_group_binding(self):
+        sql = self._compile('''
+        with g := (group Issue by .status)
+        select g {
+            name := .key.status.name,
+            num := count(.elements),
+        } order by .name
+        ''')
+
+        self.assertNotIn(
+            "array_agg", sql,
+            "group has unnecessary array_agg",
         )
 
     def test_codegen_in_array_unpack_no_dupe(self):

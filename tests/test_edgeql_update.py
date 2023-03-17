@@ -3697,3 +3697,66 @@ class TestUpdate(tb.QueryTestCase):
             """,
             [True],
         )
+
+    async def test_edgeql_update_poly_overlay_01(self):
+        await self.con.execute(r"""
+            insert UpdateTestSubType { name := 'update-test4' };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select (
+                  update UpdateTest filter .name = 'update-test4'
+                  set { name := '!' }
+                ) { c1 := .name, c2 := [is UpdateTestSubType].name };
+            """,
+            [{"c1": "!", "c2": "!"}]
+        )
+
+    async def test_edgeql_update_poly_overlay_02(self):
+        await self.con.execute(r"""
+            insert UpdateTestSubType { name := 'update-test4' };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                with X := (
+                  update UpdateTest filter .name = 'update-test4'
+                  set { name := '!' }
+                ),
+                select X[is UpdateTestSubType] { name };
+            """,
+            [{"name": "!"}]
+        )
+
+    async def test_edgeql_update_where_order_dml(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "INSERT statements cannot be used in a FILTER clause"):
+            await self.con.query('''
+                    update UpdateTest
+                    filter (INSERT UpdateTest {
+                                name := 't1',
+                            })
+                    set { name := '!' }
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "UPDATE statements cannot be used in a FILTER clause"):
+            await self.con.query('''
+                    update UpdateTest
+                    filter (UPDATE UpdateTest set {
+                            name := 't1',
+                        })
+                    set { name := '!' }
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "DELETE statements cannot be used in a FILTER clause"):
+            await self.con.query('''
+                    update UpdateTest
+                    filter (DELETE UpdateTest filter .name = 't1')
+                    set { name := '!' }
+            ''')

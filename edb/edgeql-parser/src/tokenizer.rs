@@ -1,11 +1,11 @@
 use std::fmt;
 use std::borrow::Cow;
 
-use combine::{StreamOnce, Positioned};
+use combine::easy::{Error, Errors};
 use combine::error::{StreamError};
 use combine::stream::{ResetStream};
-use combine::easy::{Error, Errors};
-use twoway::find_str;
+use combine::{StreamOnce, Positioned};
+use memchr::memmem::find;
 
 use crate::position::Pos;
 
@@ -45,6 +45,7 @@ pub enum Kind {
     Colon,            // :
     Add,              // +
     Sub,              // -
+    DoubleSplat,      // **
     Mul,              // *
     Div,              // /
     Modulo,           // %
@@ -332,7 +333,10 @@ impl<'a> TokenStream<'a> {
             '{' => return Ok((OpenBrace, 1)),
             '}' => return Ok((CloseBrace, 1)),
             ';' => return Ok((Semicolon, 1)),
-            '*' => return Ok((Mul, 1)),
+            '*' => match iter.next() {
+                Some((_, '*')) => return Ok((DoubleSplat, 2)),
+                _ => return Ok((Mul, 1)),
+            },
             '%' => return Ok((Modulo, 1)),
             '^' => return Ok((Pow, 1)),
             '&' => return Ok((Ampersand, 1)),
@@ -410,9 +414,9 @@ impl<'a> TokenStream<'a> {
                 if let Some((_, c)) = iter.next() {
                     match c {
                         '$' => {
-                            if let Some(end) = find_str(
-                                &self.buf[self.off+2..], "$$")
-                            {
+                            let suffix = &self.buf[self.off+2..];
+                            let end = find(suffix.as_bytes(), b"$$");
+                            if let Some(end) = end {
                                 for c in self.buf[self.off+2..][..end].chars() {
                                     check_prohibited(c, false)?;
                                 }
@@ -491,9 +495,9 @@ impl<'a> TokenStream<'a> {
                                 return Err(Error::unexpected_static_message(
                                     "dollar quote supports only ascii chars"));
                             }
-                            if let Some(end) = find_str(
-                                &self.buf[self.off+msize..],
-                                &marker)
+                            if let Some(end) = find(
+                                self.buf[self.off+msize..].as_bytes(),
+                                marker.as_bytes())
                             {
                                 let data = &self.buf[self.off+msize..][..end];
                                 for c in data.chars() {
@@ -883,6 +887,9 @@ pub fn is_keyword(s: &str) -> bool {
         | "__std__"
         | "__edgedbsys__"
         | "__edgedbtpl__"
+        | "__new__"
+        | "__old__"
+        | "__specified__"
         | "alter"
         | "and"
         | "anytuple"
@@ -895,9 +902,11 @@ pub fn is_keyword(s: &str) -> bool {
         | "describe"
         | "detached"
         | "distinct"
+        | "do"
         | "drop"
         | "else"
         | "exists"
+        | "explain"
         | "extending"
         | "false"
         | "filter"
@@ -928,17 +937,14 @@ pub fn is_keyword(s: &str) -> bool {
           // Keep in sync with keywords::CURRENT_RESERVED_KEYWORDS
         // # Future reserved keywords #
           // Keep in sync with keywords::FUTURE_RESERVED_KEYWORDS
-        | "analyze"
         | "anyarray"
         | "begin"
         | "case"
         | "check"
         | "deallocate"
         | "discard"
-        | "do"
         | "end"
         | "execute"
-        | "explain"
         | "fetch"
         | "get"
         | "global"

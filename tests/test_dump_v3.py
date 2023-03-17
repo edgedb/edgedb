@@ -33,8 +33,39 @@ class DumpTestCaseMixin:
             await tx.rollback()
 
     async def _ensure_schema_data_integrity(self):
-        # Nothing yet
-        pass
+        await self.assert_query_result(
+            r'''
+            SELECT _ := schema::Module.name
+            FILTER _ LIKE 'default%'
+            ''',
+            {'default', 'default::nested', 'default::back`ticked'},
+        )
+
+        # We don't bother to validate these but we need them to work
+        await self.con.query('describe schema as sdl')
+        await self.con.query('describe schema as ddl')
+
+        # We took a dev version snapshot for 3.0, but then needed to
+        # add more stuff to the 3.0 dump tests. It didn't seem worth
+        # adding a new dump test for it (both ergonomically and
+        # because it would be slower), so just quit early in that case.
+        if (
+            self._testMethodName
+            == 'test_dumpv3_restore_compatibility_3_0_dev_7258'
+        ):
+            return
+
+        await self.assert_query_result(
+            r'''
+            select schema::Migration { script, message, generated_by }
+            order by exists .parents then exists .parents.parents
+            ''',
+            [
+                {"message": None, "generated_by": None},
+                {"message": "test", "generated_by": None},
+                {"message": None, "generated_by": "DDLStatement"},
+            ],
+        )
 
 
 class TestDumpV3(tb.StableDumpTestCase, DumpTestCaseMixin):

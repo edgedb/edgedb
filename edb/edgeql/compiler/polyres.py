@@ -402,8 +402,8 @@ def try_bind_call_args(
             break
 
     # Handle yet unprocessed POSITIONAL & VARIADIC arguments.
-    for pi in range(pi, nparams):
-        param = params[pi]
+    for i in range(pi, nparams):
+        param = params[i]
         param_kind = param.get_kind(schema)
 
         if param_kind is _POSITIONAL:
@@ -568,7 +568,7 @@ def compile_arg(
     new = ctx.newscope(fenced=False) if optional else ctx.new()
     with new as argctx:
         if in_conditional:
-            argctx.in_conditional = arg_ql.context
+            argctx.disallow_dml = "inside conditional expressions"
 
         if optional:
             argctx.path_scope.mark_as_optional()

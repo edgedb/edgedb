@@ -554,9 +554,10 @@ def _infer_set_inner(
     if ir.expr:
         expr_card = infer_cardinality(ir.expr, scope_tree=new_scope, ctx=ctx)
 
-    if rptr is not None:
+    if rptr is not None and not rptr.is_phony:
         rptrref = rptr.ptrref
 
+        assert ir is not rptr.source, "self-referential pointer"
         source_card = infer_cardinality(
             rptr.source, scope_tree=scope_tree, ctx=ctx,
         )
@@ -564,7 +565,6 @@ def _infer_set_inner(
         ctx.env.schema, ptrcls = typeutils.ptrcls_from_ptrref(
             rptrref, schema=ctx.env.schema)
         if ir.expr:
-            assert isinstance(ir.expr, irast.Stmt)
             assert isinstance(ptrcls, s_pointers.Pointer)
             _infer_pointer_cardinality(
                 ptrcls=ptrcls,
@@ -576,7 +576,7 @@ def _infer_set_inner(
 
     # We have now inferred all of the subtrees we need to, so it is
     # safe to return.
-    if rptr is not None:
+    if rptr is not None and not rptr.is_phony:
         if isinstance(rptrref, irast.TypeIntersectionPointerRef):
             ind_prefix, ind_ptrs = irutils.collapse_type_intersection(ir)
             if ind_prefix.rptr is None:
@@ -639,10 +639,7 @@ def _infer_set_inner(
             else:
                 rptrref_card = rptrref.dir_cardinality(rptr.direction)
 
-            if rptrref_card.is_single():
-                card = cartesian_cardinality((source_card, rptrref_card))
-            else:
-                card = MANY
+            card = cartesian_cardinality((source_card, rptrref_card))
 
     elif isinstance(ir, irast.EmptySet):
         card = AT_MOST_ONE
@@ -1409,6 +1406,16 @@ def __infer_tuple(
     return _common_cardinality(
         [el.val for el in ir.elements], scope_tree=scope_tree, ctx=ctx
     )
+
+
+@_infer_cardinality.register
+def __infer_trigger_anchor(
+    ir: irast.TriggerAnchor,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    return MANY
 
 
 def infer_cardinality(

@@ -84,12 +84,31 @@ def _descend(
     internal_schema_mode: bool,
     stdmode: bool,
     prerequisites: bool = False,
+    cmd_filter: Optional[Callable[[sd.Command], bool]] = None,
 ) -> None:
 
     if prerequisites:
         commands = cmd.get_prerequisites()
     else:
         commands = cmd.get_subcommands(include_prerequisites=False)
+
+    if cmd_filter:
+        commands = tuple(filter(cmd_filter, commands))
+
+    def _write_subcommands(
+        commands: Collection[sd.Command]
+    ) -> None:
+        for subcmd in commands:
+            if not isinstance(subcmd, sd.AlterObjectProperty):
+                write_meta(
+                    subcmd,
+                    classlayout=classlayout,
+                    schema=schema,
+                    context=context,
+                    blocks=blocks,
+                    internal_schema_mode=internal_schema_mode,
+                    stdmode=stdmode
+                )
 
     ctxcls = cmd.get_context_class()
     if ctxcls is not None:
@@ -107,31 +126,9 @@ def _descend(
             ctx = ctxcls(schema=schema, op=cmd)  # type: ignore
 
         with context(ctx):
-            for subcmd in commands:
-                if isinstance(subcmd, sd.AlterObjectProperty):
-                    continue
-                write_meta(
-                    subcmd,
-                    classlayout=classlayout,
-                    schema=schema,
-                    context=context,
-                    blocks=blocks,
-                    internal_schema_mode=internal_schema_mode,
-                    stdmode=stdmode,
-                )
+            _write_subcommands(commands)
     else:
-        for subcmd in commands:
-            if isinstance(subcmd, sd.AlterObjectProperty):
-                continue
-            write_meta(
-                subcmd,
-                classlayout=classlayout,
-                schema=schema,
-                context=context,
-                blocks=blocks,
-                internal_schema_mode=internal_schema_mode,
-                stdmode=stdmode,
-            )
+        _write_subcommands(commands)
 
 
 @write_meta.register
@@ -378,6 +375,55 @@ def _build_object_mutation_shape(
                             json_array_unpack(<json>${var_n})
                         )
                     )
+                )
+            '''
+
+            assignments.append(f'{ns}__internal := {shadow_target_expr}')
+
+        elif ftype is sr_struct.FieldType.EXPR_DICT:
+            target_expr = f'''
+                (
+                    WITH
+                        orig_json := json_array_unpack(<json>${var_n})
+                    SELECT
+                        array_agg(
+                            (
+                                name := <str>orig_json['name'],
+                                expr := <str>orig_json['expr']['text'],
+                            )
+                        )
+                )
+            '''
+            if v is not None:
+                target_value = [
+                    {
+                        'name': key,
+                        'expr': {
+                            'text': ex.text,
+                            'refs': (
+                                [str(i) for i in ex.refs.ids(schema)]
+                                if ex.refs else []
+                            )
+                        }
+                    }
+                    for key, ex in v.items()
+                ]
+            else:
+                target_value = []
+
+            shadow_target_expr = f'''
+                (
+                    WITH
+                        orig_json := json_array_unpack(<json>${var_n})
+                    SELECT
+                        array_agg(
+                            (
+                                name := <str>orig_json['name'],
+                                expr := sys::_expr_from_json(
+                                    orig_json['expr']
+                                )
+                            )
+                        )
                 )
             '''
 
@@ -932,6 +978,9 @@ def write_meta_delete_object(
         stdmode=stdmode,
     )
 
+    defer_filter = (
+        lambda cmd: isinstance(cmd, sd.DeleteObject) and cmd.if_unused
+    )
     _descend(
         cmd,
         classlayout=classlayout,
@@ -940,6 +989,7 @@ def write_meta_delete_object(
         blocks=blocks,
         internal_schema_mode=internal_schema_mode,
         stdmode=stdmode,
+        cmd_filter=lambda cmd: not defer_filter(cmd),
     )
 
     mcls = cmd.maybe_get_schema_metaclass()
@@ -1003,6 +1053,17 @@ def write_meta_delete_object(
         '''
         variables = {'__classname': json.dumps(str(cmd.classname))}
         blocks.append((query, variables))
+
+    _descend(
+        cmd,
+        classlayout=classlayout,
+        schema=schema,
+        context=context,
+        blocks=blocks,
+        internal_schema_mode=internal_schema_mode,
+        stdmode=stdmode,
+        cmd_filter=defer_filter,
+    )
 
 
 @write_meta.register

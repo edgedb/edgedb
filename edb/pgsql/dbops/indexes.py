@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import re
 import textwrap
 from typing import *
 
@@ -94,8 +95,13 @@ class Index(tables.InheritableTableObject):
         if using:
             using = f'USING {using}'
 
-        expr = expr[1:-1].replace('__col__', '{}')
-        expr = ', '.join(expr.format(e) for e in exprs)
+        expr = expr[1:-1].replace('__col__', '{col}')
+        expr = ', '.join(expr.format(col=e) for e in exprs)
+
+        kwargs = self.metadata.get('kwargs')
+        if kwargs is not None:
+            expr = re.sub(r'(__kw_(\w+?)__)', r'{\2}', expr)
+            expr = expr.format(**kwargs)
 
         code = '''
             CREATE {unique} INDEX {name}

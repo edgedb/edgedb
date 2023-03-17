@@ -341,12 +341,12 @@ There are 4 available target deletion policies.
   raises an exception at the end of the transaction, unless by
   that time this object is no longer in the set of link targets.
 
-Source deletion #New
-^^^^^^^^^^^^^^^^^^^^
+.. _ref_datamodel_links_source_deletion:
 
-.. note::
+Source deletion
+^^^^^^^^^^^^^^^
 
-  Only available in EdgeDB 2.0 or later.
+.. versionadded:: 2.0
 
 Source deletion policies determine what action should be taken when the
 *source* of a given link is deleted. They are declared with the ``on source

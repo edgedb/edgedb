@@ -290,6 +290,14 @@ def __infer_group_stmt(
 
 
 @_infer_volatility_inner.register
+def __infer_trigger_anchor(
+    ir: irast.TriggerAnchor,
+    env: context.Environment,
+) -> InferredVolatility:
+    return STABLE, STABLE
+
+
+@_infer_volatility_inner.register
 def __infer_dml_stmt(
     ir: irast.MutatingStmt,
     env: context.Environment,

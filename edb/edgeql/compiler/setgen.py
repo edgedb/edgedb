@@ -277,8 +277,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 'could not resolve partial path ',
                 context=expr.context)
 
-    computables = []
-    path_sets = []
+    computables: list[irast.Set] = []
+    path_sets: list[irast.Set] = []
 
     for i, step in enumerate(expr.steps):
         is_computable = False
@@ -345,6 +345,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                             view_scope_info.pinned_path_id_ns is None
                         ),
                         is_binding=view_scope_info.binding_kind,
+                        context=step.context,
                         ctx=ctx,
                     )
 
@@ -483,7 +484,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
             try:
                 path_tip = type_intersection_set(
-                    path_tip, typ, optional=False, ctx=ctx)
+                    path_tip, typ, optional=False, source_context=step.context,
+                    ctx=ctx)
             except errors.SchemaError as e:
                 e.set_source_context(step.type.context)
                 raise
@@ -531,6 +533,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if mapped := get_view_map_remapping(path_tip.path_id, ctx):
             path_tip = new_set_from_set(
                 path_tip, path_id=mapped.path_id, ctx=ctx)
+            if path_tip.rptr:
+                path_tip.rptr = path_tip.rptr.replace(target=path_tip)
             # If we are remapping a source path, then we know that
             # the path is visible, so we shouldn't recompile it
             # if it is a computable path.
@@ -542,9 +546,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if pathctx.path_is_inserting(path_tip.path_id, ctx=ctx):
             raise_self_insert_error(stype, step.context, ctx=ctx)
 
-        path_sets.append(path_tip)
+        # Don't track this step of the path if it didn't change the set
+        # (probably because of do-nothing intersection)
+        if not path_sets or path_sets[-1] != path_tip:
+            path_sets.append(path_tip)
 
-    path_tip.context = expr.context
+    if expr.context:
+        path_tip.context = expr.context
     pathctx.register_set_in_scope(path_tip, ctx=ctx)
 
     for ir_set in computables:
@@ -563,7 +571,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         with ctx.new() as subctx:
             subctx.path_scope = scope
             assert ir_set.rptr is not None
-            comp_ir_set = computable_ptr_set(ir_set.rptr, ctx=subctx)
+            comp_ir_set = computable_ptr_set(
+                ir_set.rptr, srcctx=ir_set.context, ctx=subctx)
             i = path_sets.index(ir_set)
             if i != len(path_sets) - 1:
                 prptr = path_sets[i + 1].rptr
@@ -620,7 +629,8 @@ def ptr_step_set(
     return extend_path(
         path_tip, ptrcls, direction,
         path_id_ptrcls=path_id_ptrcls,
-        ignore_computable=ignore_computable, ctx=ctx)
+        ignore_computable=ignore_computable, srcctx=source_context,
+        ctx=ctx)
 
 
 def _add_target_schema_refs(
@@ -836,7 +846,8 @@ def extend_path(
             if not stype.issubclass(ctx.env.schema, source):
                 # Polymorphic link reference
                 source_set = type_intersection_set(
-                    source_set, source, optional=True, ctx=ctx)
+                    source_set, source, optional=True, source_context=srcctx,
+                    ctx=ctx)
 
         src_path_id = source_set.path_id
 
@@ -1072,6 +1083,7 @@ def type_intersection_set(
     stype: s_types.Type,
     *,
     optional: bool,
+    source_context: Optional[parsing.ParserContext] = None,
     ctx: context.ContextLevel,
 ) -> irast.Set:
     """Return an interesection of *source_set* with type *stype*."""
@@ -1082,7 +1094,7 @@ def type_intersection_set(
     if result.stype == arg_type:
         return source_set
 
-    poly_set = new_set(stype=result.stype, ctx=ctx)
+    poly_set = new_set(stype=result.stype, context=source_context, ctx=ctx)
     rptr = source_set.rptr
     rptr_specialization = []
 

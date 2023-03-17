@@ -98,13 +98,13 @@ def compile_SelectStmt(
                 query.where_clause = astutils.extend_binop(
                     query.where_clause,
                     clauses.compile_filter_clause(
-                        stmt.where, stmt.where_card, ctx=ctx))
+                        stmt.where, stmt.where_card, ctx=ictx))
 
             # The ORDER BY clause
             if stmt.orderby is not None:
-                with ctx.new() as ictx:
+                with ictx.new() as octx:
                     query.sort_clause = clauses.compile_orderby_clause(
-                        stmt.orderby, ctx=ictx)
+                        stmt.orderby, ctx=octx)
 
         if outvar.nullable and query is ctx.toplevel_stmt:
             # A nullable var has bubbled up to the top,

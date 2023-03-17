@@ -18,14 +18,14 @@
 
 
 abstract type Named {
-    required property name -> str {
+    required name: str {
         delegated constraint exclusive;
     }
 }
 
 type User extending Named {
-    multi link deck -> Card {
-        property count -> int64 {
+    multi deck: Card {
+        count: int64 {
             default := 1;
         };
         property total_cost := @count * .cost;
@@ -33,18 +33,18 @@ type User extending Named {
 
     property deck_cost := sum(.deck.cost);
 
-    multi link friends -> User {
-        property nickname -> str;
+    multi friends: User {
+        nickname: str;
         # how the friend responded to requests for a favor
-        #property favor -> array<bool>
+        #favor: array<bool>
     }
 
-    multi link awards -> Award {
+    multi awards: Award {
         constraint exclusive;
     }
 
-    link avatar -> Card {
-        property text -> str;
+    avatar: Card {
+        text: str;
         property tag := .name ++ (("-" ++ @text) ?? "");
     }
 }
@@ -52,12 +52,12 @@ type User extending Named {
 type Bot extending User;
 
 type Card extending Named {
-    required property element -> str;
-    required property cost -> int64;
+    required element: str;
+    required cost: int64;
     multi link owners := .<deck[IS User];
     # computable property
     property elemental_cost := <str>.cost ++ ' ' ++ .element;
-    multi link awards -> Award;
+    multi awards: Award;
     multi link good_awards := (SELECT .awards FILTER .name != '3rd');
     single link best_award := (select .awards order by .name limit 1);
 }

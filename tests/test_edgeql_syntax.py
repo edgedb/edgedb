@@ -1163,7 +1163,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '\.'", line=3, col=21)
+                  r"Unexpected 'name'", line=3, col=22)
     def test_edgeql_syntax_shape_11(self):
         """
         SELECT Foo {
@@ -1199,7 +1199,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '\('", line=2, col=21)
+                  r"Unexpected '}'", line=2, col=26)
     def test_edgeql_syntax_shape_15(self):
         """
         SELECT Foo {(bar)};
@@ -1797,6 +1797,69 @@ aa';
             multi union := 1,
             multi except := 1,
             multi intersect := 1
+        };
+        """
+
+    def test_edgeql_syntax_shape_splat_01(self):
+        """
+        select Foo {
+            *
+        };
+        """
+
+    def test_edgeql_syntax_shape_splat_02(self):
+        """
+        select Foo {
+            **
+        };
+        """
+
+    def test_edgeql_syntax_shape_splat_03(self):
+        """
+        select Foo {
+            bar,
+            **,
+            baz,
+            *,
+            link: {
+                *,
+                foo,
+                **,
+            }
+        };
+        """
+
+    def test_edgeql_syntax_shape_splat_04(self):
+        """
+        select Foo {
+            Type.*,
+            Type.**,
+            (Type | OtherType).*,
+            (Type & OtherType).*,
+        };
+        """
+
+    def test_edgeql_syntax_shape_splat_05(self):
+        """
+        select Foo {
+            [is Type].*,
+            [is Type].**,
+            [is (Type | Type2)].*,
+        };
+        """
+
+    def test_edgeql_syntax_shape_splat_06(self):
+        """
+        select Foo {
+            default::Foo[is Type].*,
+            default::Foo[is Type].**,
+            foo::Bar.*,
+            foo::Bar.**,
+            Foo[is Type].*,
+            (Foo | Bar)[is Type].**,
+            sub: {
+                (Foo & Bar)[is (Type | Type2)].*,
+            },
         };
         """
 
@@ -2466,6 +2529,17 @@ aa';
             spam,
             ham := baz
         } FILTER (foo = 'special');
+
+% OK %
+
+        WITH
+            extra AS MODULE `lib.extra`,
+            foo := Bar.foo,
+            baz := (SELECT extra::Foo.baz)
+        SELECT Bar {
+            spam,
+            ham := baz
+        } FILTER (foo = 'special');
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=5, col=9)
@@ -2496,15 +2570,17 @@ aa';
         WITH MODULE abstract SELECT Foo;
         WITH MODULE all SELECT Foo;
         WITH MODULE all.abstract.bar SELECT Foo;
+
+% OK %
+
+        WITH MODULE abstract SELECT Foo;
+        WITH MODULE all SELECT Foo;
+        WITH MODULE `all.abstract.bar` SELECT Foo;
         """
 
     def test_edgeql_syntax_with_07(self):
         """
         WITH MODULE `all.abstract.bar` SELECT Foo;
-
-% OK %
-
-        WITH MODULE all.abstract.bar SELECT Foo;
         """
 
     def test_edgeql_syntax_with_08(self):
@@ -4032,7 +4108,7 @@ aa';
 
         START MIGRATION TO {
             type test::Foo {
-                property bar -> str;
+                property bar: str;
             };
         };
         """
@@ -4046,7 +4122,7 @@ aa';
         ALTER CURRENT MIGRATION REJECT PROPOSED;
         """
 
-    def test_edgeql_syntax_ddl_rewrite_01(self):
+    def test_edgeql_syntax_ddl_migration_rewrite_01(self):
         """
         START MIGRATION REWRITE;
         ABORT MIGRATION REWRITE;
@@ -4130,6 +4206,15 @@ aa';
         """
         CREATE APPLIED MIGRATION m123123123 ONTO m134134134 {
             WITH MODULE x CREATE TYPE Foo;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_create_migration_11(self):
+        """
+        CREATE MIGRATION m123123123 ONTO m134134134 {
+            SET message := "test migration please ignore";
+
+            CREATE TYPE Foo;
         };
         """
 
@@ -4429,7 +4514,7 @@ aa';
 % OK %
 
         CREATE TYPE Foo {
-            CREATE LINK bar -> Bar {
+            CREATE LINK bar: Bar {
                 CREATE CONSTRAINT my_constraint ON (
                     (__source__{
                         baz := (__source__.a + __source__.b)
@@ -5172,14 +5257,14 @@ aa';
     def test_edgeql_syntax_ddl_type_02(self):
         """
         CREATE TYPE schema::TypeElement {
-            CREATE REQUIRED LINK type -> schema::Type;
-            CREATE REQUIRED LINK num -> std::int64;
-            CREATE PROPERTY name EXTENDING foo, bar -> std::str;
-            CREATE LINK lnk EXTENDING l1 -> schema::Type;
-            CREATE LINK lnk1 EXTENDING l1, l2 -> schema::Type;
-            CREATE LINK lnk2 EXTENDING l1, l2 -> schema::Type {
-                CREATE PROPERTY lnk2_prop -> std::str;
-                CREATE PROPERTY lnk2_prop2 EXTENDING foo -> std::str;
+            CREATE REQUIRED LINK type: schema::Type;
+            CREATE REQUIRED LINK num: std::int64;
+            CREATE PROPERTY name EXTENDING foo, bar: std::str;
+            CREATE LINK lnk EXTENDING l1: schema::Type;
+            CREATE LINK lnk1 EXTENDING l1, l2: schema::Type;
+            CREATE LINK lnk2 EXTENDING l1, l2: schema::Type {
+                CREATE PROPERTY lnk2_prop: std::str;
+                CREATE PROPERTY lnk2_prop2 EXTENDING foo: std::str;
             };
         };
         """
@@ -5193,23 +5278,23 @@ aa';
 % OK %
 
         ALTER TYPE schema::Object {
-            CREATE MULTI LINK attributes -> schema::Attribute;
+            CREATE MULTI LINK attributes: schema::Attribute;
         };
         """
 
     def test_edgeql_syntax_ddl_type_04(self):
         """
         CREATE TYPE mymod::Foo {
-            CREATE LINK bar0 -> mymod::Bar {
+            CREATE LINK bar0: mymod::Bar {
                 ON TARGET DELETE RESTRICT;
             };
-            CREATE LINK bar1 -> mymod::Bar {
+            CREATE LINK bar1: mymod::Bar {
                 ON TARGET DELETE DELETE SOURCE;
             };
-            CREATE LINK bar2 -> mymod::Bar {
+            CREATE LINK bar2: mymod::Bar {
                 ON TARGET DELETE ALLOW;
             };
-            CREATE LINK bar3 -> mymod::Bar {
+            CREATE LINK bar3: mymod::Bar {
                 ON TARGET DELETE DEFERRED RESTRICT;
             };
         };
@@ -5218,20 +5303,20 @@ aa';
     def test_edgeql_syntax_ddl_type_05(self):
         """
         CREATE TYPE mymod::Foo {
-            CREATE SINGLE LINK foo -> mymod::Foo;
-            CREATE MULTI LINK bar -> mymod::Bar;
-            CREATE REQUIRED SINGLE LINK baz -> mymod::Baz;
-            CREATE REQUIRED MULTI LINK spam -> mymod::Spam;
+            CREATE SINGLE LINK foo: mymod::Foo;
+            CREATE MULTI LINK bar: mymod::Bar;
+            CREATE REQUIRED SINGLE LINK baz: mymod::Baz;
+            CREATE REQUIRED MULTI LINK spam: mymod::Spam;
         };
         """
 
     def test_edgeql_syntax_ddl_type_06(self):
         """
         CREATE TYPE mymod::Foo {
-            CREATE SINGLE PROPERTY foo -> str;
-            CREATE MULTI PROPERTY bar -> str;
-            CREATE REQUIRED SINGLE PROPERTY baz -> str;
-            CREATE REQUIRED MULTI PROPERTY spam -> str;
+            CREATE SINGLE PROPERTY foo: str;
+            CREATE MULTI PROPERTY bar: str;
+            CREATE REQUIRED SINGLE PROPERTY baz: str;
+            CREATE REQUIRED MULTI PROPERTY spam: str;
         };
         """
 
@@ -5368,7 +5453,7 @@ aa';
     def test_edgeql_syntax_ddl_type_19(self):
         """
         ALTER TYPE Foo {
-            CREATE PROPERTY bar -> str {
+            CREATE PROPERTY bar: str {
                 USING (4);
             };
         };
@@ -5387,7 +5472,7 @@ aa';
     def test_edgeql_syntax_ddl_type_21(self):
         """
         ALTER TYPE Foo {
-            CREATE LINK bar -> Object {
+            CREATE LINK bar: Object {
                 USING (SELECT Object);
             };
         };
@@ -5406,7 +5491,7 @@ aa';
     def test_edgeql_syntax_ddl_type_23(self):
         """
         CREATE TYPE `123` {
-            CREATE PROPERTY `456` -> str;
+            CREATE PROPERTY `456`: str;
         };
         """
 
@@ -5609,7 +5694,6 @@ aa';
         };
         """
 
-    @test.xerror('index parameters not implemented yet')
     def test_edgeql_syntax_ddl_index_05(self):
         """
         CREATE TYPE Foo {
@@ -5651,7 +5735,6 @@ aa';
                   myindex1;
         """
 
-    @test.xerror('index extending not implemented yet')
     def test_edgeql_syntax_ddl_index_08(self):
         """
         CREATE ABSTRACT INDEX myindex1 EXTENDING fts;
@@ -5856,6 +5939,82 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_trigger_01(self):
+        """
+        create type Foo {
+            create trigger foo
+                after insert
+                for each
+                do (1);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_trigger_02(self):
+        """
+        alter type Foo {
+            create trigger foo
+                after commit of update, delete, insert
+                for all
+                do (1);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_trigger_03(self):
+        """
+        alter type Foo {
+            drop trigger foo;
+        };
+        """
+
+    def test_edgeql_syntax_ddl_trigger_04(self):
+        """
+        alter type Foo {
+            alter trigger foo
+                using (1);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_01(self):
+        """
+        create type Foo {
+            create property foo: i64 {
+                create rewrite update, insert using (1);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_02(self):
+        """
+        alter type Foo {
+            create property name_updated_at: i64 {
+                create rewrite update using ((
+                    datetime_current()
+                    if __specified__.name
+                    else .name_updated_at
+                ));
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_03(self):
+        """
+        alter type Foo {
+            alter property foo {
+                drop rewrite update;
+                alter rewrite insert using (3);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_rewrite_04(self):
+        """
+        alter type Foo {
+            alter property foo {
+                alter rewrite insert using (1);
+            };
+        };
+        """
+
     def test_edgeql_syntax_ddl_empty_01(self):
         """
         CREATE TYPE Foo { };
@@ -5872,7 +6031,7 @@ aa';
 % OK %
 
         CREATE TYPE Foo {
-            CREATE PROPERTY bar -> str;
+            CREATE PROPERTY bar: str;
         };
         """
 
@@ -5905,7 +6064,7 @@ aa';
 
         START MIGRATION to {
             type default::User {
-                property name -> str;
+                property name: str;
             };
         };
         """
@@ -5932,8 +6091,8 @@ aa';
 % OK %
 
         CREATE TYPE Foo {
-            CREATE PROPERTY bar -> str;
-            CREATE PROPERTY baz -> int64;
+            CREATE PROPERTY bar: str;
+            CREATE PROPERTY baz: int64;
         };
         """
 
@@ -5968,8 +6127,8 @@ aa';
 
         START MIGRATION to {
             type default::User {
-                property bar -> int64;
-                property name -> str;
+                property bar: int64;
+                property name: str;
             };
         };
         """

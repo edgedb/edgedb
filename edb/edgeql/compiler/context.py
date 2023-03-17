@@ -186,16 +186,6 @@ class Environment:
 
     view_shapes_metadata: Dict[s_types.Type, irast.ViewShapeMetadata]
 
-    must_use_views: Dict[
-        s_types.Type,
-        Optional[Tuple[s_name.Name, Optional[parsing.ParserContext]]],
-    ]
-    """A set of views that *must* be used in an expression.
-
-    Once a view is used, we set it to None rather than removing it so
-    that we can avoid adding it again if it is defined inside a
-    computable."""
-
     schema_refs: Set[s_obj.Object]
     """A set of all schema objects referenced by an expression."""
 
@@ -217,9 +207,7 @@ class Environment:
     """
 
     dml_stmts: Set[irast.MutatingStmt]
-    """A list of DML expressions (statements and DML-containing
-    functions) that appear in a function body.
-    """
+    """A list of DML statements in the query"""
 
     #: A list of bindings that should be assumed to be singletons.
     singletons: List[irast.PathId]
@@ -299,7 +287,6 @@ class Environment:
         self.view_shapes = collections.defaultdict(list)
         self.view_shapes_metadata = collections.defaultdict(
             irast.ViewShapeMetadata)
-        self.must_use_views = {}
         self.schema_refs = set()
         self.schema_ref_exprs = {} if options.track_schema_ref_exprs else None
         self.created_schema_objects = set()
@@ -544,11 +531,12 @@ class ContextLevel(compiler.ContextLevel):
     compiling_update_shape: bool
     """Whether an UPDATE shape is currently being compiled."""
 
-    in_conditional: Optional[parsing.ParserContext]
-    """Whether currently in a conditional branch."""
-
     active_computeds: ordered.OrderedSet[s_pointers.Pointer]
     """A ordered set of currently compiling computeds"""
+
+    disallow_dml: Optional[str]
+    """Whether we are currently in a place where no dml is allowed,
+        if not None, then it is of the form `in a FILTER clause`  """
 
     def __init__(
         self,
@@ -601,9 +589,10 @@ class ContextLevel(compiler.ContextLevel):
             self.empty_result_type_hint = None
             self.defining_view = None
             self.compiling_update_shape = False
-            self.in_conditional = None
             self.active_computeds = ordered.OrderedSet()
             self.recompiling_schema_alias = False
+
+            self.disallow_dml = None
 
         else:
             self.env = prevlevel.env
@@ -640,9 +629,10 @@ class ContextLevel(compiler.ContextLevel):
             self.empty_result_type_hint = prevlevel.empty_result_type_hint
             self.defining_view = prevlevel.defining_view
             self.compiling_update_shape = prevlevel.compiling_update_shape
-            self.in_conditional = prevlevel.in_conditional
             self.active_computeds = prevlevel.active_computeds
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
+
+            self.disallow_dml = prevlevel.disallow_dml
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()

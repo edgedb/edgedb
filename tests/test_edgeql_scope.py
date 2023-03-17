@@ -2773,30 +2773,13 @@ class TestEdgeQLScope(tb.QueryTestCase):
 
     async def test_edgeql_scope_unused_with_def_01(self):
 
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"unused alias definition: 'foo'",
-                _position=48):
-            await self.con.query("""\
-                WITH
-                    foo := 1
+        await self.assert_query_result(
+            """
+                WITH foo := 1
                 SELECT 1;
-            """)
-
-    async def test_edgeql_scope_unused_with_def_02(self):
-
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"unused alias definition: 'foo'",
-                _position=48):
-            await self.con.query("""\
-                WITH
-                    foo := 1
-                SELECT (
-                    WITH foo := 2
-                    SELECT foo
-                )
-            """)
+            """,
+            [1]
+        )
 
     async def test_edgeql_scope_nested_computable_01(self):
         # This is a test for a bug where the outside filter would get
@@ -3781,6 +3764,39 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ])
         )
 
+    async def test_edgeql_scope_linkprop_rebinding_01(self):
+        # This is a lot like code the querybuilder generates
+        # See issue #4961
+        await self.assert_query_result(
+            r'''
+            select assert_exists((WITH
+              __user := DETACHED User
+            SELECT __user {
+              deck := (
+                WITH
+                  __user2 := (
+                    SELECT __user.deck {
+                      __linkprop_count := __user.deck@count
+                    }
+                  )
+                SELECT __user2 {
+                  single @count := __user2.__linkprop_count
+                }
+              )
+            } filter .name = 'Alice'));
+            ''',
+            [
+                {
+                    "deck": tb.bag([
+                        {"@count": 2},
+                        {"@count": 2},
+                        {"@count": 3},
+                        {"@count": 3},
+                    ])
+                }
+            ]
+        )
+
     async def test_edgeql_scope_for_with_computable_01(self):
         await self.assert_query_result(
             r'''
@@ -3915,4 +3931,133 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 select User { foo }
             ''',
             [{'foo': 4}, {'foo': 4}, {'foo': 4}, {'foo': 4}]
+        )
+
+    async def test_edgeql_scope_linkprop_assert_01(self):
+        await self.assert_query_result(
+            r'''
+            select User {
+              cards := assert_exists(User.deck {name, c := User.deck@count})
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards": tb.bag([
+                        {"c": 2, "name": "Imp"},
+                        {"c": 2, "name": "Dragon"},
+                        {"c": 3, "name": "Bog monster"},
+                        {"c": 3, "name": "Giant turtle"}
+                    ])
+                }
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select User {
+              cards := assert_exists(User.deck {name, @c := User.deck@count})
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards": tb.bag([
+                        {"@c": 2, "name": "Imp"},
+                        {"@c": 2, "name": "Dragon"},
+                        {"@c": 3, "name": "Bog monster"},
+                        {"@c": 3, "name": "Giant turtle"}
+                    ])
+                }
+            ],
+        )
+
+        # Query builder style
+        await self.assert_query_result(
+            r'''
+            WITH U := DETACHED User
+            SELECT U {
+              deck := assert_exists((
+                WITH
+                  Q := (
+                    SELECT U.deck {
+                      __count := U.deck@count
+                    }
+                  )
+                SELECT Q {
+                  name,
+                  single @count := Q.__count
+                }
+              ))
+            } filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "deck": tb.bag([
+                        {"@count": 2, "name": "Imp"},
+                        {"@count": 2, "name": "Dragon"},
+                        {"@count": 3, "name": "Bog monster"},
+                        {"@count": 3, "name": "Giant turtle"}
+                    ])
+                }
+            ],
+        )
+
+    async def test_edgeql_scope_linkprop_assert_02(self):
+        await self.assert_query_result(
+            '''
+            SELECT User {
+                cards := assert_exists(.deck {name, @count})
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards": tb.bag([
+                        {"@count": 2, "name": "Imp"},
+                        {"@count": 2, "name": "Dragon"},
+                        {"@count": 3, "name": "Bog monster"},
+                        {"@count": 3, "name": "Giant turtle"}
+                    ])
+                }
+            ],
+        )
+
+    async def test_edgeql_scope_linkprop_assert_03(self):
+        await self.assert_query_result(
+            r'''
+            SELECT User {
+                cards := assert_exists(User.deck {name, c := @count})
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards": tb.bag([
+                        {"c": 2, "name": "Imp"},
+                        {"c": 2, "name": "Dragon"},
+                        {"c": 3, "name": "Bog monster"},
+                        {"c": 3, "name": "Giant turtle"}
+                    ])
+                }
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT User {
+                cards := assert_exists(.deck {name, c := @count})
+            }
+            filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "cards": tb.bag([
+                        {"c": 2, "name": "Imp"},
+                        {"c": 2, "name": "Dragon"},
+                        {"c": 3, "name": "Bog monster"},
+                        {"c": 3, "name": "Giant turtle"}
+                    ])
+                }
+            ],
         )

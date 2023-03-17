@@ -297,7 +297,7 @@ def type_to_typeref(
                 base_typeref = None
             else:
                 assert isinstance(base_type, s_types.Type)
-                base_typeref = _typeref(base_type)
+                base_typeref = _typeref(base_type, include_children=False)
         else:
             base_typeref = None
 
@@ -536,7 +536,8 @@ def ptrref_from_ptrcls(  # NoQA: F811
     target = ptrcls.get_target(schema)
     if target is not None and not isinstance(target, irast.TypeRef):
         assert isinstance(target, s_types.Type)
-        target_ref = type_to_typeref(schema, target, cache=typeref_cache)
+        target_ref = type_to_typeref(
+            schema, target, include_children=True, cache=typeref_cache)
     else:
         target_ref = target
 

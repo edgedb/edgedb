@@ -542,6 +542,15 @@ def __infer_tuple(
     return tup
 
 
+@_infer_type.register
+def __infer_trigger_anchor(
+    ir: irast.TriggerAnchor,
+    env: context.Environment,
+) -> s_types.Type:
+    env.schema, t = irtyputils.ir_typeref_to_type(env.schema, ir.typeref)
+    return t
+
+
 def infer_type(ir: irast.Base, env: context.Environment) -> s_types.Type:
     result = env.inferred_types.get(ir)
     if result is not None:

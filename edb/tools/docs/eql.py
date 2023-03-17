@@ -218,6 +218,7 @@ from edb import protocol
 
 from docutils import nodes as d_nodes
 from docutils.parsers import rst as d_rst
+from docutils.parsers.rst import directives as d_directives  # type: ignore
 from docutils import utils as d_utils
 
 from sphinx import addnodes as s_nodes
@@ -225,7 +226,6 @@ from sphinx import directives as s_directives
 from sphinx import domains as s_domains
 from sphinx import roles as s_roles
 from sphinx import transforms as s_transforms
-from sphinx.directives import code as s_code
 from sphinx.util import docfields as s_docfields
 from sphinx.util import nodes as s_nodes_utils
 from sphinx.ext.intersphinx import InventoryAdapter
@@ -414,12 +414,19 @@ class BaseEQLDirective(s_directives.ObjectDescription):
         if desc_cnt is None or not desc_cnt.children:
             raise self.error('the directive must include a description')
 
-        first_node = desc_cnt.children[0]
+        first_node_index = 0
+        first_node = desc_cnt.children[first_node_index]
+
         if isinstance(first_node, d_nodes.field_list):
             if len(desc_cnt.children) < 2:
                 raise self.error('the directive must include a description')
 
-            first_node = desc_cnt.children[1]
+            first_node_index += 1
+            first_node = desc_cnt.children[first_node_index]
+
+        if isinstance(first_node, s_nodes.versionmodified):
+            first_node_index += 1
+            first_node = desc_cnt.children[first_node_index]
 
         if not isinstance(first_node, d_nodes.paragraph):
             raise self.error(
@@ -586,12 +593,14 @@ class EQLKeywordDirective(BaseEQLDirective):
             f'keyword::{name}', sig, signode)
 
 
-class EQLSynopsisDirective(s_code.CodeBlock):
+class EQLSynopsisDirective(shared.CodeBlock):
 
     has_content = True
     optional_arguments = 0
     required_arguments = 0
-    option_spec: Dict[str, Any] = {}
+    option_spec: Dict[str, Any] = {
+        'version-lt': d_directives.unchanged_required
+    }
 
     def run(self):
         self.arguments = ['edgeql-synopsis']

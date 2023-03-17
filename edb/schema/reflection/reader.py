@@ -26,6 +26,7 @@ import uuid
 
 import immutables
 
+from edb.common import checked
 from edb.common import verutils
 from edb.common import uuidgen
 
@@ -110,6 +111,7 @@ def parse_into(
         if isinstance(obj, s_obj.QualifiedObject):
             name_to_id[name] = objid
         else:
+            name = s_name.UnqualName(str(name))
             globalname_to_id[mcls, name] = objid
 
         if isinstance(obj, (s_func.Function, s_oper.Operator)):
@@ -179,10 +181,23 @@ def parse_into(
                                     refs_to[refid][mcls, fn][objid] = None
                                 exprs.append(e)
                             val = ftype(exprs)
+                        elif issubclass(ftype, s_expr.ExpressionDict):
+                            expr_dict = dict()
+                            for e_dict in val:
+                                e = _parse_expression(
+                                    e_dict['expr'], objid, k)
+                                assert e.refs is not None
+                                for refid in e.refs.ids(schema):
+                                    refs_to[refid][mcls, fn][objid] = None
+                                expr_dict[e_dict['name']] = e
+                            val = ftype(expr_dict)
                         elif issubclass(ftype, s_obj.Object):
                             val = val.id
                         elif issubclass(ftype, s_name.Name):
-                            val = s_name.name_from_string(val)
+                            if isinstance(obj, s_obj.QualifiedObject):
+                                val = s_name.name_from_string(val)
+                            else:
+                                val = s_name.UnqualName(val)
                         else:
                             val = ftype(val)
 
@@ -195,6 +210,17 @@ def parse_into(
                     if type(v) is not ftype:
                         if issubclass(ftype, verutils.Version):
                             objdata[findex] = _parse_version(v)
+                        elif (
+                            issubclass(ftype, checked.ParametricContainer)
+                            and ftype.types
+                            and len(ftype.types) == 1
+                        ):
+                            # Coerce the elements in a parametric container
+                            # type.
+                            # XXX: Or should we do it in the container?
+                            subtyp = ftype.types[0]
+                            objdata[findex] = ftype(
+                                subtyp(x) for x in v)  # type: ignore
                         else:
                             objdata[findex] = ftype(v)
                     else:

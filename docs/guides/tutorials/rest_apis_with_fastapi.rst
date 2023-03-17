@@ -6,6 +6,11 @@ FastAPI
 
 :edb-alt-title: Building a REST API with EdgeDB and FastAPI
 
+Because FastAPI encourages and facilitates strong typing, it's a natural
+pairing with EdgeDB. Our Python code generation generates not only typed
+query functions but result types you can use to annotate your endpoint handler
+functions.
+
 EdgeDB can help you quickly build REST APIs in Python without getting into the
 rigmarole of using ORM libraries to handle your data effectively. Here, we'll
 be using `FastAPI <https://fastapi.tiangolo.com/>`_ to expose the API endpoints
@@ -14,6 +19,19 @@ and EdgeDB to store the content.
 We'll build a simple event management system where you'll be able to fetch,
 create, update, and delete *events* and *event hosts* via RESTful API
 endpoints.
+
+Watch our video tour of this example project to get a preview of what you'll be
+building in this guide:
+
+.. lint-off
+
+.. raw:: html
+
+    <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; height: auto;">
+       <iframe src="https://www.youtube.com/embed/OZ_UURzDkow" frameborder="0" allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe>
+    </div>
+
+.. lint-on
 
 Prerequisites
 =============
@@ -255,105 +273,29 @@ line like this (from the project root):
 
     $ touch app/__init__.py
 
-We'll work on the user API first since it's the simpler of the two, so create
-``app/users.py`` and open it in your editor.
+We'll work on the users API first since it's the simpler of the two.
 
 
 Users API
-^^^^^^^^^^
+^^^^^^^^^
 
-Let's create a ``GET /users`` endpoint so that we can see the ``User`` objects
-saved in the database.
+We want this app to be type safe, end to end. To achieve this, instead of
+hard-coding string queries into the app, we'll use code generation to generate
+typesafe functions from queries we write in ``.edgeql`` files. These files are
+simple text files containing the queries we want our app to be able to run.
 
-.. code-block:: python
+The code generator will search through our project for all files with the
+``.edgeql`` extension and generate those functions for us as individual Python
+modules. When you installed the EdgeDB client (via ``pip install edgedb``), the
+code generator was installed alongside it, so you're already ready to go. We
+just need to write those queries!
 
-    # app/users.py
-    from __future__ import annotations
-
-    import datetime
-    from http import HTTPStatus
-    from typing import Iterable
-
-    import edgedb
-    from fastapi import APIRouter, HTTPException, Query
-    from pydantic import BaseModel
-
-    router = APIRouter()
-    client = edgedb.create_async_client()
-
-
-    class RequestData(BaseModel):
-        name: str
-
-    class ResponseData(BaseModel):
-        name: str
-        created_at: datetime.datetime
-
-
-    @router.get("/users")
-    async def get_users(
-        name: str = Query(None, max_length=50)
-    ) -> Iterable[ResponseData] | ResponseData:
-
-        if not name:
-            # Query all user objects here
-            response = (
-                ResponseData(
-                    name=user.name,
-                    created_at=user.created_at
-                ) for user in users
-            )
-        else:
-            # Query user objects filtered by name here
-            response = ResponseData(
-                name=user.name,
-                created_at=user.created_at
-            )
-        return response
-
-The ``APIRouter`` instance does the actual work of exposing the API. We also
-create an async EdgeDB client instance to communicate with the database. By
-default, this API will return a list of all users, but you can also filter the
-user objects by name.
-
-In this endpoint's current state, though, the database client we created has
-nothing to do. That's because the actual queries haven't been written yet. We
-could write the queries inline as strings to make this work. That might look
-like this:
-
-.. code-block:: python
-
-    if not name:
-        users = await client.query(
-            "select User {name, created_at};"
-            )
-        response = (
-            ResponseData(
-                name=user.name,
-                created_at=user.created_at
-            ) for user in users
-        )
-    else:
-        user = await client.query(
-        """select User {name, created_at}
-            filter User.name = <str>$name""",
-            name=name,
-        )
-        response = ResponseData(
-            name=user.name,
-            created_at=user.created_at
-        )
-
-But if we do that, the we lose type safety. The better and more maintainable
-alternative is to use the **code generator**. In order to do that, we will
-write our queries each into an individual file with a ``.edgeql`` extension
-that the generator can turn into typesafe Python code.
-
-To keep things organized, create a new directory inside ``app`` called
-``queries``. Create a new file in ``app/queries`` named ``get_users.edgeql``
-and open it in your editor. Write the query into this file. It's the same one
-we would have written inline in our Python code as shown in the code block
-above:
+We'll write queries for one endpoint at a time to start so you can see how the
+pieces fit together. To keep things organized, create a new directory inside
+``app`` called ``queries``. Create a new file in ``app/queries`` named
+``get_users.edgeql`` and open it in your editor. Write the query into this
+file. It's the same one we would have written inline in our Python code as
+shown in the code block above:
 
 .. code-block:: edgeql
 
@@ -370,118 +312,24 @@ Add this query:
 
 Save that file and get ready to kick off the magic that is code generation! 🪄
 
-When you installed the EdgeDB package at the beginning of the guide, that also
-gave you the code generator command line utility. With our two queries in
-place, we're ready to run that now from the root of the project. To make
-importing this generated code a bit simpler, I'll generate all the code in a
-single file by passing the ``--file`` option:
-
 .. code-block:: bash
 
-    $ edgedb-py --file
+    $ edgedb-py
     Found EdgeDB project: <project-path>
     Processing <project-path>/app/queries/get_user_by_name.edgeql
     Processing <project-path>/app/queries/get_users.edgeql
-    Generating <project-path>/generated_async_edgeql.py
+    Generating <project-path>/app/queries/get_user_by_name.py
+    Generating <project-path>/app/queries/get_users.py
 
-.. note::
+The code generator creates one module per query file by default and places them
+at the same path as the query files.
 
-    By default ``edgedb-py`` generates one file per query in the location of
-    the original query file. The ``--file`` option generates a single file in
-    the project root. The default may be the best option when you're working on
-    more complex projects to help you keep your code better organized.
+With code generated, we're ready to write an endpoint. Let's create the ``GET
+/users`` endpoint so that we can request the ``User`` objects saved in the
+database. Create a new file ``app/users.py``, open it in your editor, and add
+the following code:
 
-Now, we need to circle back and utilize the functions we just generated. Add
-another import under the existing imports at the top of ``app/users.py`` to
-bring in the queries:
-
-.. code-block:: python
-
-    # app/users.py
-    ...
-    import generated_async_edgeql as db_queries
-    ...
-
-Get rid of the ``ResponseData`` dataclass and instead import the generated
-dataclass:
-
-.. code-block:: python
-
-    # app/users.py
-    ...
-    UserResult = db_queries.CreateUserResult
-    ...
-
-.. note::
-
-    In file mode, the code generator will reuse the same dataclass rather than
-    creating a new identical one for each function. That's cool because it
-    means even our generated code is DRY! The side effect of this, though, is
-    that the dataclass is named for the first function that is generated (the
-    first occurring one alphabetically — in our case, the ``create_user``
-    function). The dataclass's generated ``CreateUserResult`` name implies it's
-    only the type resulting from ``create_user``, but it's actually a more
-    general dataclass that refers to any kind of user result. That's why we
-    assign it to a new, more generically named variable here.
-
-Replace the ``get_users`` function's return type with the newly imported
-dataclass:
-
-.. code-block:: python
-
-    # app/users.py
-    ...
-    @router.get("/users")
-    async def get_users(
-        name: str = Query(None, max_length=50)
-    ) -> Iterable[UserResult] | UserResult:
-    ...
-
-And replace the comments with calls to the functions:
-
-.. code-block:: python
-
-    # app/users.py
-    ...
-    if not name:
-        users = await db_queries.get_users(client)
-        return users
-    else:
-        user = await db_queries.get_user_by_name(client, name=name)
-        return user
-    ...
-
-This nearly gets us there but not quite. We have one potential outcome not
-accounted for: a query for a user by name that returns no results. In that
-case, we'll want to return a 404 (not found).
-
-To fix it, we'll check in the else case whether we got anything back
-from the single user query. If not, we'll go ahead and raise an exception. This
-will send the 404 (not found) response to the user.
-
-.. code-block:: python
-
-    # app/users.py
-    ...
-    if not name:
-        users = await db_queries.get_users(client)
-        return users
-    else:
-        user = await db_queries.get_user_by_name(client, name=name)
-        if not user:
-            raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND,
-                detail={"error": f"Username '{name}' does not exist."},
-            )
-        return user
-    ...
-
-Let's break this down. In the ``get_users`` function, we use our generated code
-to perform asynchronous queries via the ``edgedb`` client. Then we return the
-query results. Afterward, the JSON serialization part is taken care of by
-FastAPI.
-
-Here's what the entire ``users.py`` module looks like at this point:
+.. lint-off
 
 .. code-block:: python
 
@@ -490,18 +338,17 @@ Here's what the entire ``users.py`` module looks like at this point:
 
     import datetime
     from http import HTTPStatus
-    from typing import Iterable
+    from typing import List
 
     import edgedb
     from fastapi import APIRouter, HTTPException, Query
     from pydantic import BaseModel
 
-    import generated_async_edgeql as db_queries
+    from .queries import get_user_by_name_async_edgeql as get_user_by_name_qry
+    from .queries import get_users_async_edgeql as get_users_qry
 
     router = APIRouter()
     client = edgedb.create_async_client()
-
-    UserResult = db_queries.CreateUserResult
 
 
     class RequestData(BaseModel):
@@ -511,19 +358,65 @@ Here's what the entire ``users.py`` module looks like at this point:
     @router.get("/users")
     async def get_users(
         name: str = Query(None, max_length=50)
-    ) -> Iterable[UserResult] | UserResult:
+    ) -> List[get_users_qry.GetUsersResult] | get_user_by_name_qry.GetUserByNameResult:
 
         if not name:
-            users = await db_queries.get_users(client)
+            users = await get_users_qry.get_users(client)
             return users
         else:
-            user = await db_queries.get_user_by_name(client, name=name)
-            if not user:
-                raise HTTPException(
-                    status_code=HTTPStatus.NOT_FOUND,
-                    detail={"error": f"Username '{name}' does not exist."},
-                )
+            user = await get_user_by_name_qry.get_user_by_name(client, name=name)
             return user
+
+.. lint-on
+
+We've imported the generated code and aliased it (using ``as <new-name>``) to
+make the module names we use in our code a bit neater.
+
+The ``APIRouter`` instance does the actual work of exposing the API. We also
+create an async EdgeDB client instance to communicate with the database.
+
+By default, this API will return a list of all users, but you can also filter
+the user objects by name. We have the ``RequestData`` class to handle the data
+an API consumer will need to send in case they want to get only a single user.
+The types we're using in the return annotation have been generated by the
+EdgeDB code generation based on the queries we wrote and our database's schema.
+
+Note that we're also calling the appropriate generated function based on
+whether or not the API consumer passes an argument for ``name``.
+
+This nearly gets us there but not quite. We have one potential outcome not
+accounted for: a query for a user by name that returns no results. In that
+case, we'll want to return a 404 (not found).
+
+To fix it, we'll check in the else case whether we got anything back
+from the single user query. If not, we'll go ahead and raise an exception. This
+will send the 404 (not found) response to the user.
+
+.. lint-off
+
+.. code-block:: python
+
+    # app/users.py
+    ...
+    if not name:
+        users = await get_users_qry.get_users(client)
+        return users
+    else:
+        user = await get_user_by_name_qry.get_user_by_name(client, name=name)
+        if not user:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail={"error": f"Username '{name}' does not exist."},
+            )
+        return user
+    ...
+
+.. lint-on
+
+To summarize, in the ``get_users`` function, we use our generated code to
+perform asynchronous queries via the ``edgedb`` client. Then we return the
+query results. Afterward, the JSON serialization part is taken care of by
+FastAPI.
 
 Before we can use this endpoint, we need to expose it to the server. We'll do
 that in the ``main.py`` module. Create ``app/main.py`` and open it in your
@@ -561,7 +454,7 @@ To test the endpoint, go to the project root and run:
 
 .. code-block:: bash
 
-    $ uvicorn app.main:fast_api --port 5000 --reload
+    $ uvicorn app.main:fast_api --port 5001 --reload
 
 This will start a ``uvicorn`` server and you'll be able to start making
 requests against it. Earlier, we installed the
@@ -574,7 +467,7 @@ virtual environment by running ``source myenv/bin/activate`` and run:
 
 .. code-block:: bash
 
-    $ httpx -m GET http://localhost:5000/users
+    $ httpx -m GET http://localhost:5001/users
 
 You'll see the following output on the console:
 
@@ -617,24 +510,40 @@ Create and open ``app/queries/create_user.edgeql`` and fill it with this query:
     the ``name`` and ``created_at`` properties. If we just ran the ``insert``
     bare, it would return only the ``id``.
 
-Save the file and run ``edgedb-py --file`` to generate the new function. Now,
-we're ready to open ``app/users.py`` again and add the POST endpoint:
+Save the file and run ``edgedb-py`` to generate the new function. Now,
+we're ready to open ``app/users.py`` again and add the POST endpoint. First,
+import the generated function for the new query:
+
+.. code-block:: python
+
+    # app/users.py
+    ...
+    from .queries import create_user_async_edgeql as create_user_qry
+    from .queries import get_user_by_name_async_edgeql as get_user_by_name_qry
+    from .queries import get_users_async_edgeql as get_users_qry
+    ...
+
+Then write the endpoint to call that function:
+
+.. lint-off
 
 .. code-block:: python
 
     # app/users.py
     ...
     @router.post("/users", status_code=HTTPStatus.CREATED)
-    async def post_user(user: RequestData) -> UserResult:
+    async def post_user(user: RequestData) -> create_user_qry.CreateUserResult:
 
         try:
-            created_user = await db_queries.create_user(client, name=user.name)
+            created_user = await create_user_qry.create_user(client, name=user.name)
         except edgedb.errors.ConstraintViolationError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={"error": f"Username '{user.name}' already exists."},
             )
         return created_user
+
+.. lint-on
 
 In the above snippet, we ingest data with the shape dictated by the
 ``RequestData`` model and return a payload of the query results. The
@@ -647,7 +556,7 @@ To test it out, make a request as follows:
 
 .. code-block:: bash
 
-    $ httpx -m POST http://localhost:5000/users \
+    $ httpx -m POST http://localhost:5001/users \
             --json '{"name" : "Jonathan Harker"}'
 
 The output should look similar to this:
@@ -695,17 +604,26 @@ We'll start again with the query. Create a new file in ``app/queries`` named
             set {name := <str>$new_name}
     ) {name, created_at};
 
-Save the file and generate again using ``edgedb-py --file``. Now, we'll add the
-endpoint over in ``app/users.py``.
+Save the file and generate again using ``edgedb-py``. Now, we'll import that
+and add the endpoint over in ``app/users.py``.
+
+.. lint-off
 
 .. code-block:: python
 
     # app/users.py
     ...
+    from .queries import create_user_async_edgeql as create_user_qry
+    from .queries import get_user_by_name_async_edgeql as get_user_by_name_qry
+    from .queries import get_users_async_edgeql as get_users_qry
+    from .queries import update_user_async_edgeql as update_user_qry
+    ...
     @router.put("/users")
-    async def put_user(user: RequestData, current_name: str) -> UserResult:
+    async def put_user(
+        user: RequestData, current_name: str
+    ) -> update_user_qry.UpdateUserResult:
         try:
-            updated_user = await db_queries.update_user(
+            updated_user = await update_user_qry.update_user(
                 client,
                 new_name=user.name,
                 current_name=current_name,
@@ -723,11 +641,15 @@ endpoint over in ``app/users.py``.
             )
         return updated_user
 
+.. lint-on
+
 Not much new happening here. We wrote our query with a ``current_name``
-parameter for finding the user to be updated. The only thing we can change
-about the user is the name, so the ``new_name`` parameter takes care of setting
-that to a new value. The endpoint calls the generated function passing the
-client and those two values, and the user is updated.
+parameter for finding the user to be updated. The ``user`` argument will give
+us the changes to make to that user, which in this case can only be the
+``name`` since that's the only property a user has. We pull the name out of
+``user`` and pass it as our ``new_name`` argument to the generated function.
+The endpoint calls the generated function passing the client and those two
+values, and the user is updated.
 
 We've accounted for the possibility of a user trying to change a user's name to
 a new name that conflicts with a different user. That will return a 400 (bad
@@ -738,7 +660,7 @@ Let's save everything and test this out.
 
 .. code-block:: bash
 
-    $ httpx -m PUT http://localhost:5000/users \
+    $ httpx -m PUT http://localhost:5001/users \
             -p 'current_name' 'Jonathan Harker' \
             --json '{"name" : "Dr. Van Helsing"}'
 
@@ -761,7 +683,7 @@ endpoint will throw an HTTP 400 (bad request) error:
 
 .. code-block:: bash
 
-    $ httpx -m PUT http://localhost:5000/users \
+    $ httpx -m PUT http://localhost:5001/users \
             -p 'current_name' 'Count Dracula' \
             --json '{"name" : "Dr. Van Helsing"}'
 
@@ -790,18 +712,26 @@ query:
         delete User filter .name = <str>$name
     ) {name, created_at};
 
-Generate the new function by again running ``edgeql-py --file``. Then re-open
+Generate the new function by again running ``edgeql-py``. Then re-open
 ``app/users.py``. This endpoint's code will look similar to the endpoints
-you've already written:
+we've already written:
+
+.. lint-off
 
 .. code-block:: python
 
     # app/users.py
     ...
+    from .queries import create_user_async_edgeql as create_user_qry
+    from .queries import delete_user_async_edgeql as delete_user_qry
+    from .queries import get_user_by_name_async_edgeql as get_user_by_name_qry
+    from .queries import get_users_async_edgeql as get_users_qry
+    from .queries import update_user_async_edgeql as update_user_qry
+    ...
     @router.delete("/users")
-    async def delete_user(name: str) -> UserResult:
+    async def delete_user(name: str) -> delete_user_qry.DeleteUserResult:
         try:
-            deleted_user = await db_queries.delete_user(
+            deleted_user = await delete_user_qry.delete_user(
                 client,
                 name=name,
             )
@@ -818,6 +748,8 @@ you've already written:
             )
         return deleted_user
 
+.. lint-on
+
 This endpoint will simply delete the requested user if the user isn't attached
 to any event. If the targeted object *is* attached to an event, the API will
 throw an HTTP 400 (bad request) error and refuse to delete the object. To
@@ -825,7 +757,7 @@ test it out by deleting ``Count Dracula``, on your console, run:
 
 .. code-block:: bash
 
-    $ httpx -m DELETE http://localhost:5000/users \
+    $ httpx -m DELETE http://localhost:5001/users \
             -p 'name' 'Count Dracula'
 
 If it worked, you should see this result:
@@ -872,10 +804,12 @@ drop this query into it:
         }
     ) {name, address, schedule, host: {name}};
 
-Run ``edgedb-py --file`` to generate a function from that query.
+Run ``edgedb-py`` to generate a function from that query.
 
 Create a file in ``app`` named ``events.py`` and open it in your editor. It's
 time to code up the endpoint to use that freshly generated query.
+
+.. lint-off
 
 .. code-block:: python
 
@@ -883,18 +817,16 @@ time to code up the endpoint to use that freshly generated query.
     from __future__ import annotations
 
     from http import HTTPStatus
-    from typing import Iterable, Optional
+    from typing import List
 
     import edgedb
     from fastapi import APIRouter, HTTPException, Query
     from pydantic import BaseModel
 
-    import generated_async_edgeql as db_queries
+    from .queries import create_event_async_edgeql as create_event_qry
 
     router = APIRouter()
     client = edgedb.create_async_client()
-
-    EventResult = db_queries.CreateEventResult
 
 
     class RequestData(BaseModel):
@@ -905,9 +837,9 @@ time to code up the endpoint to use that freshly generated query.
 
 
     @router.post("/events", status_code=HTTPStatus.CREATED)
-    async def post_event(event: RequestData) -> EventResult:
+    async def post_event(event: RequestData) -> create_event_qry.CreateEventResult:
         try:
-            created_event = await db_queries.create_event(
+            created_event = await create_event_qry.create_event(
                 client,
                 name=event.name,
                 address=event.address,
@@ -919,9 +851,9 @@ time to code up the endpoint to use that freshly generated query.
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={
-                    ("error": "Invalid datetime format. "
+                    "error": "Invalid datetime format. "
                     "Datetime string must look like this: "
-                    "'2010-12-27T23:59:59-07:00'")
+                    "'2010-12-27T23:59:59-07:00'",
                 },
             )
 
@@ -933,12 +865,14 @@ time to code up the endpoint to use that freshly generated query.
 
         return created_event
 
+.. lint-on
+
 Like the ``POST /users`` endpoint, the incoming and outgoing shape of the
 ``POST /events`` endpoint's data are defined by the ``RequestData`` model and
-the generated ``CreateEventResult`` model (renamed here to ``EventResult``)
-respectively. The ``post_events`` function asynchronously inserts the data into
-the database and returns the fields defined in the ``select`` query we wrote
-earlier, along with the new event's ``id``.
+the generated ``CreateEventResult`` model respectively. The ``post_events``
+function asynchronously inserts the data into the database and returns the
+fields defined in the ``select`` query we wrote earlier, along with the new
+event's ``id``.
 
 The exception handling logic validates the shape of the incoming data. For
 example, just as before in the users API, the events API will complain if you
@@ -970,7 +904,7 @@ Let's try it out. Here's how you'd create an event:
 
 .. code-block:: bash
 
-    $ httpx -m POST http://localhost:5000/events \
+    $ httpx -m POST http://localhost:5001/events \
             --json '{
                       "name":"Resuscitation",
                       "address":"Britain",
@@ -1043,23 +977,34 @@ That query will handle PUT requests. The last method left is DELETE. Create
         delete Event filter .name = <str>$name
     ) {name, address, schedule, host : {name}};
 
-Run ``edgedb-py --file`` to generate the new functions. Open ``app/events.py``
+Run ``edgedb-py`` to generate the new functions. Open ``app/events.py``
 so we can start getting these functions implemented in the API! We'll start by
-coding GET. Add this to your ``events.py``:
+coding GET. Import the newly generated queries and write the GET endpoint in
+``events.py``:
+
+.. lint-off
 
 .. code-block:: python
 
     # app/events.py
     ...
+    from .queries import create_event_async_edgeql as create_event_qry
+    from .queries import delete_event_async_edgeql as delete_event_qry
+    from .queries import get_event_by_name_async_edgeql as get_event_by_name_qry
+    from .queries import get_events_async_edgeql as get_events_qry
+    from .queries import update_event_async_edgeql as update_event_qry
+    ...
     @router.get("/events")
     async def get_events(
         name: str = Query(None, max_length=50)
-    ) -> Iterable[EventResult] | EventResult:
+    ) -> List[get_events_qry.GetEventsResult] | get_event_by_name_qry.GetEventByNameResult:
         if not name:
-            events = await db_queries.get_events(client)
+            events = await get_events_qry.get_events(client)
             return events
         else:
-            event = await db_queries.get_event_by_name(client, name=name)
+            event = await get_event_by_name_qry.get_event_by_name(client, name=name)
+                client, name=name
+            )
             if not event:
                 raise HTTPException(
                     status_code=HTTPStatus.NOT_FOUND,
@@ -1067,11 +1012,13 @@ coding GET. Add this to your ``events.py``:
                 )
             return event
 
+.. lint-on
+
 Save that file and test it like this:
 
 .. code-block:: bash
 
-    $ httpx -m GET http://localhost:5000/events
+    $ httpx -m GET http://localhost:5001/events
 
 We should get back an array containing all our events (which, at the moment,
 is just the one):
@@ -1098,7 +1045,7 @@ parameter with the GET API as follows:
 
 .. code-block:: bash
 
-    $ httpx -m GET http://localhost:5000/events \
+    $ httpx -m GET http://localhost:5001/events \
             -p 'name' 'Resuscitation'
 
 That'll return a result that looks like the response we just got without the
@@ -1118,21 +1065,24 @@ That'll return a result that looks like the response we just got without the
       }
     }
 
-If we'd had multiple events, the first response would have given us all of
-them.
+If we'd had multiple events, the response to our first test would have given us
+all of them.
 
 Let's finish off the events API with the PUT and DELETE endpoints. Open
 ``app/events.py`` and add this code:
+
+.. lint-off
 
 .. code-block:: python
 
     # app/events.py
     ...
     @router.put("/events")
-    async def put_event(event: RequestData, current_name: str) -> EventResult:
-
+    async def put_event(
+        event: RequestData, current_name: str
+    ) -> update_event_qry.UpdateEventResult:
         try:
-            updated_event = await db_queries.update_event(
+            updated_event = await update_event_qry.update_event(
                 client,
                 current_name=current_name,
                 name=event.name,
@@ -1145,9 +1095,8 @@ Let's finish off the events API with the PUT and DELETE endpoints. Open
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={
-                    ("error": "Invalid datetime format. "
-                    "Datetime string must look like this:"
-                    "'2010-12-27T23:59:59-07:00'"),
+                    "error": "Invalid datetime format. "
+                    "Datetime string must look like this: '2010-12-27T23:59:59-07:00'",
                 },
             )
 
@@ -1167,8 +1116,8 @@ Let's finish off the events API with the PUT and DELETE endpoints. Open
 
 
     @router.delete("/events")
-    async def delete_event(name: str) -> EventResult:
-        deleted_event = await db_queries.delete_event(client, name=name)
+    async def delete_event(name: str) -> delete_event_qry.DeleteEventResult:
+        deleted_event = await delete_event_qry.delete_event(client, name=name)
 
         if not deleted_event:
             raise HTTPException(
@@ -1178,6 +1127,7 @@ Let's finish off the events API with the PUT and DELETE endpoints. Open
 
         return deleted_event
 
+.. lint-on
 
 The events API is now ready to handle updates and deletion. Let's try out a
 cool alternative way to test these new endpoints.
@@ -1189,7 +1139,7 @@ Browse the endpoints using the native OpenAPI doc
 FastAPI automatically generates OpenAPI schema from the API endpoints and uses
 those to build the API docs. While the ``uvicorn`` server is running, go to
 your browser and head over to
-`http://localhost:5000/docs <http://locahost:5000/docs>`_. You should see an
+`http://localhost:5001/docs <http://locahost:5001/docs>`_. You should see an
 API navigator like this:
 
 .. image::

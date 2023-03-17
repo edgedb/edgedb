@@ -97,6 +97,9 @@ class Query(BaseQuery):
     has_dml: bool = False
     single_unit: bool = False
     cacheable: bool = True
+    is_explain: bool = False
+    query_asts: Any = None
+    append_rollback: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -303,6 +306,10 @@ class QueryUnit:
     # after the command is run. The schema is pickled.
     global_schema: Optional[bytes] = None
 
+    is_explain: bool = False
+    query_asts: Any = None
+    append_rollback: bool = False
+
     @property
     def has_ddl(self) -> bool:
         return bool(self.capabilities & enums.Capability.DDL)
@@ -481,26 +488,19 @@ class ProposedMigrationStep(NamedTuple):
     prompt: str
     prompt_id: str
     data_safe: bool
-    required_user_input: Tuple[Tuple[str, str], ...]
+    required_user_input: tuple[dict[str, str], ...]
     # This isn't part of the output data, but is used to figure out
     # what to prohibit when something is rejected.
     operation_key: s_delta.CommandKey
 
     def to_json(self) -> Dict[str, Any]:
-        user_input_list = []
-        for var_name, var_desc in self.required_user_input:
-            user_input_list.append({
-                'placeholder': var_name,
-                'prompt': var_desc,
-            })
-
         return {
             'statements': [{'text': stmt} for stmt in self.statements],
             'confidence': self.confidence,
             'prompt': self.prompt,
             'prompt_id': self.prompt_id,
             'data_safe': self.data_safe,
-            'required_user_input': user_input_list,
+            'required_user_input': list(self.required_user_input)
         }
 
 

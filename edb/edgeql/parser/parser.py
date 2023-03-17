@@ -287,6 +287,12 @@ class EdgeQLBlockParser(EdgeQLParserBase):
         return block
 
 
+class EdgeQLMigrationBodyParser(EdgeQLParserBase):
+    def get_parser_spec_module(self):
+        from .grammar import migration_body
+        return migration_body
+
+
 class EdgeSDLParser(EdgeQLParserBase):
     def get_parser_spec_module(self):
         from .grammar import sdldocument

@@ -192,13 +192,18 @@ def compile_iterator_expr(
         # If the iterator value is nullable, add a null test. This
         # makes sure that we don't spuriously produce output when
         # iterating over options pointers.
-        assert isinstance(iterator_query, pgast.SelectStmt)
-        iterator_var = pathctx.get_path_value_var(
-            iterator_query, path_id=iterator_expr.path_id, env=ctx.env)
-        if iterator_var.nullable:
-            iterator_query.where_clause = astutils.extend_binop(
-                iterator_query.where_clause,
-                pgast.NullTest(arg=iterator_var, negated=True))
+        if isinstance(iterator_query, pgast.SelectStmt):
+            iterator_var = pathctx.get_path_value_var(
+                iterator_query, path_id=iterator_expr.path_id, env=ctx.env)
+            if iterator_var.nullable:
+                iterator_query.where_clause = astutils.extend_binop(
+                    iterator_query.where_clause,
+                    pgast.NullTest(arg=iterator_var, negated=True))
+        elif isinstance(iterator_query, pgast.Relation):
+            # will never be null
+            pass
+        else:
+            raise NotImplementedError()
 
         # Regardless of result type, we use transient identity,
         # for path identity of the iterator expression.  This is
@@ -257,7 +262,7 @@ def compile_filter_clause(
 
         assert cardinality != qltypes.Cardinality.UNKNOWN
         if cardinality.is_single():
-            where_clause = dispatch.compile(ir_set, ctx=ctx)
+            where_clause = dispatch.compile(ir_set, ctx=ctx1)
         else:
             # In WHERE we compile ir.Set as a boolean disjunction:
             #    EXISTS(SELECT FROM SetRel WHERE SetRel.value)
@@ -365,7 +370,7 @@ def scan_check_ctes(
 
     update_query = pgast.UpdateStmt(
         targets=[pgast.UpdateTarget(
-            name='flag', val=pgast.BooleanConstant(val='true')
+            name='flag', val=pgast.BooleanConstant(val=True)
         )],
         relation=pgast.RelRangeVar(relation=pgast.Relation(
             schemaname='edgedb', name='_dml_dummy')),

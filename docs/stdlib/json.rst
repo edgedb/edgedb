@@ -44,6 +44,9 @@ JSON
     * - :eql:func:`json_array_unpack`
       - :eql:func-desc:`json_array_unpack`
 
+    * - :eql:func:`json_object_pack`
+      - :eql:func-desc:`json_object_pack`
+
     * - :eql:func:`json_object_unpack`
       - :eql:func-desc:`json_object_unpack`
 
@@ -75,6 +78,17 @@ Any value in EdgeDB can be cast to a :eql:type:`json` type as well:
     {Json("2019")}
     db> select <json>cal::to_local_date(datetime_current(), 'UTC');
     {Json("\"2022-11-21\"")}
+
+.. versionadded:: 3.0
+
+    The :eql:func:`json_object_pack` function provides one more way to
+    construct JSON. It constructs a JSON object from an array of key/value
+    tuples:
+
+    .. code-block:: edgeql-repl
+
+        db> select json_object_pack({("hello", <json>"world")});
+        {Json("{\"hello\": \"world\"}")}
 
 Additionally, any :eql:type:`Object` in EdgeDB can be cast as a
 :eql:type:`json` type. This produces the same JSON value as the
@@ -160,6 +174,12 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         {Json("[1, \"a\"]")}
         db> select to_str(<json>[1, 2]);
         {'[1, 2]'}
+
+    .. note::
+
+        This type is backed by the Postgres ``jsonb`` type which has a size
+        limit of 256MiB minus one byte. The EdgeDB ``json`` type is also
+        subject to this limitation.
 
 
 ----------
@@ -364,11 +384,9 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
                       JsonEmpty.ReturnEmpty) \
                   -> optional json
 
+    .. versionadded:: 2.0
+
     Returns an updated JSON target with a new value.
-
-    .. note::
-
-      This function is only available in EdgeDB 2.0 or later.
 
     .. code-block:: edgeql-repl
 
@@ -449,6 +467,37 @@ reversible (i.e., it is not possible to cast a JSON value directly into a
         ...   empty_treatment := JsonEmpty.DeleteKey,
         ... );
         {Json("{\"b\": 20}")}
+
+----------
+
+
+.. eql:function:: std::json_object_pack(pairs: SET OF tuple<str, json>) -> \
+                  json
+
+    .. versionadded:: 3.0
+
+    Returns the given set of key/value tuples as a JSON object.
+
+    .. code-block:: edgeql-repl
+
+        db> select json_object_pack({
+        ...     ("foo", to_json("1")),
+        ...     ("bar", to_json("null")),
+        ...     ("baz", to_json("[]"))
+        ... });
+        {Json("{\"bar\": null, \"baz\": [], \"foo\": 1}")}
+
+    If the key/value tuples being packed have common keys, the last value for
+    each key will make the final object.
+
+    .. code-block:: edgeql-repl
+
+        db> select json_object_pack({
+        ...     ("hello", <json>"world"),
+        ...     ("hello", <json>true)
+        ... });
+        {Json("{\"hello\": true}")}
+
 
 ----------
 

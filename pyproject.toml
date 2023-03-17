@@ -24,10 +24,10 @@ dependencies = [
 test = [
     'black~=21.7b0',
     'coverage~=5.5',
-    'flake8~=3.9.2',
-    'flake8-bugbear~=21.4.3',
-    'pycodestyle~=2.7.0',
-    'pyflakes~=2.3.1',
+    'flake8~=6.0.0',
+    'flake8-bugbear~=23.1.20',
+    'pycodestyle~=2.10.0',
+    'pyflakes~=3.0.1',
     'asyncpg~=0.26.0',
 
     # Needed for test_docs_sphinx_ext
@@ -38,7 +38,7 @@ test = [
     'MarkupSafe~=1.1',
     'PyYAML~=5.4',
 
-    'mypy==0.991',
+    'mypy==1.0.0',
     # mypy stub packages; when updating, you can use mypy --install-types
     # to install stub packages and then pip freeze to read out the specifier
     'types-click~=7.1',
@@ -72,7 +72,7 @@ docs = [
 requires = [
     "Cython (>=0.29.32, <0.30.0)",
     "packaging >= 21.0",
-    "setuptools >= 54",
+    "setuptools >= 67",
     "setuptools-rust ~= 0.12.1",
     "wheel",
 
@@ -131,6 +131,7 @@ module = [
     "edb.server.connpool.*",
     "edb.server.pgcluster",
     "edb.server.pgconnparams",
+    "edb.server.compiler.explain",
 ]
 # Equivalent of --strict on the command line,
 # but without disallow_untyped_calls:

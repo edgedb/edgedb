@@ -46,6 +46,11 @@ class ContextLevel:
     ) -> CompilerContextManager[ContextLevel_T]:
         return self._stack.new(mode, self)  # type: ignore
 
+    def reenter(
+        self: ContextLevel_T,
+    ) -> CompilerReentryContextManager[ContextLevel_T]:
+        return CompilerReentryContextManager(self._stack, self)  # type: ignore
+
 
 class CompilerContextManager(ContextManager[ContextLevel_T]):
     def __init__(
@@ -60,6 +65,22 @@ class CompilerContextManager(ContextManager[ContextLevel_T]):
 
     def __enter__(self) -> ContextLevel_T:
         return self.context.push(self.mode, self.prevlevel)
+
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
+        self.context.pop()
+
+
+class CompilerReentryContextManager(ContextManager[ContextLevel_T]):
+    def __init__(
+        self,
+        context: CompilerContext[ContextLevel_T],
+        level: ContextLevel_T,
+    ) -> None:
+        self.context = context
+        self.level = level
+
+    def __enter__(self) -> ContextLevel_T:
+        return self.context._push(None, initial=self.level)
 
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         self.context.pop()
@@ -91,7 +112,18 @@ class CompilerContext(Generic[ContextLevel_T]):
         if initial is not None:
             level = initial
         else:
-            prevlevel = self.current
+            if prevlevel is None:
+                prevlevel = self.current
+            elif prevlevel is not self.current:
+                # In the past, we always used self.current as the
+                # previous level and simply ignored the prevlevel
+                # parameter. Actually using prevlevel makes more sense
+                # and has fewer gotchas, but enough code had grown to
+                # depend on the old behavior that changing it required
+                # asserting that they were the same.  We can consider
+                # dropping the assertion if it proves tedious.
+                raise AssertionError(
+                    'Calling new() on a context other than the current one')
             level = self.ContextLevelClass(prevlevel, mode)
         level._stack = self  # type: ignore
         self.stack.append(level)
