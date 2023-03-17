@@ -2955,6 +2955,29 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_select_setops_29(self):
+        # These queries all produced compiler ISEs in the past
+        # The results aren't super important, so just run them
+        await self.con.query('''
+            select std::BaseObject
+                UNION schema::Object UNION schema::TupleElement;
+        ''')
+
+        await self.con.query('''
+            select std::BaseObject
+                EXCEPT schema::Object EXCEPT schema::TupleElement;
+        ''')
+
+        await self.con.query('''
+            select std::BaseObject
+                EXCEPT schema::Object INTERSECT schema::TupleElement;
+        ''')
+
+        await self.con.query('''
+            select std::BaseObject
+                INTERSECT schema::Object INTERSECT schema::TupleElement;
+        ''')
+
     async def test_edgeql_select_order_01(self):
         await self.assert_query_result(
             r'''

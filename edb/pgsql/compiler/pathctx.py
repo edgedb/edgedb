@@ -1099,6 +1099,7 @@ def _get_path_output(
         rptr is not None
         and irtyputils.is_id_ptrref(rptr)
         and (src_path_id := path_id.src_path())
+        and not disable_output_fusion
         and not (
             (src_rptr := src_path_id.rptr())
             and src_rptr.real_material_ptr.out_cardinality.is_multi()
