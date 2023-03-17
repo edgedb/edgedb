@@ -34,7 +34,6 @@ def generate_secret_key(
     claims = {
         "iat": int(datetime.now(timezone.utc).timestamp()),
         "iss": "edgedb-server",
-        "aud": "edgedb tests",
     }
 
     if instances is None:

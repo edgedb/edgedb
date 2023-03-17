@@ -479,8 +479,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                         f'authentication failed: malformed claims section in'
                         f' JWT: expected a list in "{namespace}.roles"'
                     )
-            else:
-                token_roles = None
 
         if (
             token_instances is not None
