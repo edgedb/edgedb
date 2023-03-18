@@ -158,7 +158,12 @@ async def new_connection(
     **kwargs
 ):
     connect_config, client_config = con_utils.parse_connect_arguments(
-        dsn=dsn, host=host, port=port, user=user, password=password,
+        dsn=dsn,
+        host=host,
+        port=port,
+        user=user,
+        password=password,
+        secret_key=secret_key,
         database=database,
         timeout=timeout,
         command_timeout=None,
