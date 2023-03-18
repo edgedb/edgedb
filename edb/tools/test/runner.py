@@ -376,30 +376,6 @@ class SequentialTestSuite(unittest.TestSuite):
 
         return result
 
-class ExperimentalInterpreterTestSuite(unittest.TestSuite):
-
-    def __init__(self, tests ):
-        self.tests = tests
-        self.stop_requested = False
-
-    def run(self, result_):
-        global result
-        result = result_
-
-        random.seed(py_random_seed)
-
-        for test in self.tests:
-            _run_test(test)
-            if self.stop_requested:
-                break
-
-        # Make sure the class and the module teardown methods are
-        # executed for the trailing test, _run_test() does not do
-        # this for us.
-        teardown_suite()
-
-        return result
-
 
 class Markers(enum.Enum):
     passed = '.'
@@ -821,7 +797,7 @@ class ParallelTextTestRunner:
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
                  failfast=False, shuffle=False, backend_dsn=None,
-                 data_dir=None, try_cached_db=False, use_experimental_interpreter=False):
+                 data_dir=None, try_cached_db=False):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
@@ -832,7 +808,6 @@ class ParallelTextTestRunner:
         self.backend_dsn = backend_dsn
         self.data_dir = data_dir
         self.try_cached_db = try_cached_db
-        self.use_experimental_interpreter = use_experimental_interpreter
 
     def run(self, test, selected_shard, total_shards, running_times_log_file):
         session_start = time.monotonic()
@@ -939,7 +914,6 @@ class ParallelTextTestRunner:
                         backend_dsn=self.backend_dsn,
                         cleanup_atexit=False,
                         data_dir=data_dir,
-                        use_experimental_interpreter=self.use_experimental_interpreter,
                     )
 
                     if self.verbosity > 1:
@@ -956,7 +930,6 @@ class ParallelTextTestRunner:
                         self.num_workers,
                         verbose=self.verbosity > 1,
                         try_cached_db=self.try_cached_db,
-                        use_experimental_interpreter=self.use_experimental_interpreter,
                     )
                     if self.try_cached_db and any(
                         not x[1]['cached'] for x in stats
@@ -1009,9 +982,7 @@ class ParallelTextTestRunner:
             all_tests = list(itertools.chain.from_iterable(
                 tests for tests in cases.values()))
 
-            if self.use_experimental_interpreter:
-                suite = ExperimentalInterpreterTestSuite(self._sort_tests(cases))
-            elif self.num_workers > 1:
+            if self.num_workers > 1:
                 suite = ParallelTestSuite(
                     self._sort_tests(cases),
                     conn,

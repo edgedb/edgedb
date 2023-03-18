@@ -99,12 +99,10 @@ __all__ = ('not_implemented', 'xerror', 'xfail', 'skip')
               help='Attempt to use a cache of the test databases (unsound!)')
 @click.option('--data-dir', type=str,
               help='Use a specified data dir')
-@click.option('--use-experimental-interpreter', is_flag=True, default=False,
-              help='Use a experimental interpreter to run the tests')
 def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
          output_format, warnings, failfast, shuffle, cov, repeat,
          running_times_log_file, list_tests, backend_dsn, use_db_cache,
-         data_dir, use_experimental_interpreter):
+         data_dir):
     """Run EdgeDB test suite.
 
     Discovers and runs tests in the specified files or directories.
@@ -183,7 +181,6 @@ def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
         backend_dsn=backend_dsn,
         try_cached_db=use_db_cache,
         data_dir=data_dir,
-        use_experimental_interpreter=use_experimental_interpreter
     )
 
     if cov:
@@ -260,10 +257,7 @@ def _coverage_wrapper(paths):
 def _run(*, include, exclude, verbosity, files, jobs, output_format,
          warnings, failfast, shuffle, repeat, selected_shard, total_shards,
          running_times_log_file, list_tests, backend_dsn, try_cached_db,
-         data_dir, use_experimental_interpreter):
-    if use_experimental_interpreter:
-        click.echo("Running tests using the experimental interpreter ...")
-        # return 0
+         data_dir):
     suite = unittest.TestSuite()
 
     total = 0
@@ -307,9 +301,6 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
         return 0
 
     jobs = max(min(total, jobs), 1)
-    
-    if use_experimental_interpreter:
-        jobs = 1
 
     if verbosity > 0:
         click.echo()
@@ -326,7 +317,7 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
             verbosity=verbosity, output_format=output_format,
             warnings=warnings, num_workers=jobs,
             failfast=failfast, shuffle=shuffle, backend_dsn=backend_dsn,
-            try_cached_db=try_cached_db, data_dir=data_dir, use_experimental_interpreter=use_experimental_interpreter)
+            try_cached_db=try_cached_db, data_dir=data_dir)
 
         result = test_runner.run(
             suite, selected_shard, total_shards, running_times_log_file,
