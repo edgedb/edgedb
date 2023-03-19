@@ -60,7 +60,7 @@ from edb.testbase import server as tb
 from . import cpython_state
 from . import mproc_fixes
 from . import styles
-
+from edb.tools.experimental_interpreter import new_interpreter as model
 
 result: Optional[unittest.result.TestResult] = None
 coverage_run: Optional[Any] = None
@@ -378,8 +378,9 @@ class SequentialTestSuite(unittest.TestSuite):
 
 class ExperimentalInterpreterTestSuite(unittest.TestSuite):
 
-    def __init__(self, tests ):
-        self.tests = tests
+    def __init__(self, test_suites, sort_test_func):
+        self.test_suites = test_suites
+        self.sort_test_func = sort_test_func
         self.stop_requested = False
 
     def run(self, result_):
@@ -388,11 +389,28 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
 
         random.seed(py_random_seed)
 
-        for test in self.tests:
-            _run_test(test)
+        for sk, suite in self.test_suites.items():
+            setup = tb.get_test_cases_setup(
+                    {sk: suite},
+                    use_experimental_interpreter=True)
+            assert len(setup) <= 1, "expecting optional single setup"
+            if len(setup) == 1:
+                (init_sdl, init_ql) = setup[0][2]
+                db = model.db_with_initilial_schema_and_queries(
+                    init_sdl, init_ql, surround_schema_with_default=False)
+            else:
+                db = model.empty_db()
+
+            for test in self.sort_test_func({sk: suite}):
+                test.use_experimental_interpreter = True
+                test.experimental_interpreter_db = db
+                test.run(result)
+            
+                if self.stop_requested:
+                    break
+            
             if self.stop_requested:
                 break
-
         # Make sure the class and the module teardown methods are
         # executed for the trailing test, _run_test() does not do
         # this for us.
@@ -679,7 +697,8 @@ class MultiLineRenderer(BaseRenderer):
 
 class ParallelTextTestResult(unittest.result.TestResult):
     def __init__(self, *, stream, verbosity, warnings, tests,
-                 output_format=OutputFormat.auto, failfast=False, suite):
+                 output_format=OutputFormat.auto, failfast=False, suite, 
+                 use_experimental_interpreter):
         super().__init__(stream, False, verbosity)
         self.verbosity = verbosity
         self.catch_warnings = warnings
@@ -693,6 +712,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
         # of repeated warnings.
         self._warnings = {}
         self.suite = suite
+        self.use_experimental_interpreter = use_experimental_interpreter
 
         if (output_format is OutputFormat.verbose or
                 (output_format is OutputFormat.auto and self.verbosity > 1)):
@@ -821,7 +841,8 @@ class ParallelTextTestRunner:
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
                  failfast=False, shuffle=False, backend_dsn=None,
-                 data_dir=None, try_cached_db=False, use_experimental_interpreter=False):
+                 data_dir=None, try_cached_db=False,
+                 use_experimental_interpreter=False):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
@@ -847,8 +868,11 @@ class ParallelTextTestRunner:
         cases = tb.get_cases_by_shard(
             cases, selected_shard, total_shards, self.verbosity, stats,
         )
-        setup = tb.get_test_cases_setup(cases)
-        server_used = tb.test_cases_use_server(cases)
+        setup = tb.get_test_cases_setup(
+                cases,
+                use_experimental_interpreter=self.use_experimental_interpreter)
+        server_used = (False if self.use_experimental_interpreter
+                       else tb.test_cases_use_server(cases))
         lang_setup = tb_lang.get_test_cases_setup(cases)
         bootstrap_time_taken = 0
         tests_time_taken = 0
@@ -892,7 +916,9 @@ class ParallelTextTestRunner:
             tb_lang.run_test_cases_setup(lang_setup, jobs=self.num_workers)
 
         try:
-            if setup:
+            if setup and not self.use_experimental_interpreter:
+            # if setup:
+            # NOTE: THE setup is actually not USED!!!
                 if self.verbosity >= 1:
                     self._echo(
                         'Populating test databases... ',
@@ -1010,7 +1036,11 @@ class ParallelTextTestRunner:
                 tests for tests in cases.values()))
 
             if self.use_experimental_interpreter:
-                suite = ExperimentalInterpreterTestSuite(self._sort_tests(cases))
+                # self._sort_tests(cases)
+                def sort_tests_func(cases2):
+                    return self._sort_tests(cases2)
+                suite = ExperimentalInterpreterTestSuite(
+                            cases, sort_tests_func)
             elif self.num_workers > 1:
                 suite = ParallelTestSuite(
                     self._sort_tests(cases),
@@ -1029,7 +1059,8 @@ class ParallelTextTestRunner:
                 stream=self.stream, verbosity=self.verbosity,
                 warnings=self.warnings, failfast=self.failfast,
                 output_format=self.output_format,
-                tests=all_tests, suite=suite)
+                tests=all_tests, suite=suite,
+                use_experimental_interpreter=self.use_experimental_interpreter)
             unittest.signals.registerResult(result)
 
             self._echo()

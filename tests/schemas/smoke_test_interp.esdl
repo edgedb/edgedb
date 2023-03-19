@@ -21,7 +21,7 @@ type Card {
     single name : str;
     multi awards : Award;
     element : str;
-    cost : int;
+    cost : int64;
 }
 
 

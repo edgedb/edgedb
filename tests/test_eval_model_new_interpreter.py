@@ -22,7 +22,8 @@ import unittest
 from edb.tools.experimental_interpreter import new_interpreter as model
 
 from edb.common import assert_data_shape
-
+import os
+from edb.testbase import server as tb
 bag = assert_data_shape.bag
 
 # queries to populate the required data for this test
@@ -30,131 +31,131 @@ bag = assert_data_shape.bag
 # Person has name, multi_prop, notes, tag
 # Note has name, note
 # Foo has val, opt
-initial_schema = """
-type Note {
-    required single property name -> str;
-    optional single property note -> str;
-}
-type Person {
-    required single property name -> str;
-    optional multi property multi_prop -> str;
-    multi link notes -> Note {
-        property metanote -> str;
-    }
-    optional single property tag -> str;
-}
-type Foo {
-    required single property val -> str;
-    optional single property opt -> int64;
-}
-type Award {
-    name : str;
-}
-type Card {
-    single name : str;
-    multi awards : Award;
-    element : str;
-    cost : int;
-}
+# initial_schema = """
+# type Note {
+#     required single property name -> str;
+#     optional single property note -> str;
+# }
+# type Person {
+#     required single property name -> str;
+#     optional multi property multi_prop -> str;
+#     multi link notes -> Note {
+#         property metanote -> str;
+#     }
+#     optional single property tag -> str;
+# }
+# type Foo {
+#     required single property val -> str;
+#     optional single property opt -> int64;
+# }
+# type Award {
+#     name : str;
+# }
+# type Card {
+#     single name : str;
+#     multi awards : Award;
+#     element : str;
+#     cost : int;
+# }
 
 
-type User {
-    required name: str {
-        delegated constraint exclusive;
-    }
+# type User {
+#     required name: str {
+#         delegated constraint exclusive;
+#     }
 
-    multi deck: Card {
-        count: int64 {
-            default := 1;
-        };
-        property total_cost := @count * .cost;
-    }
+#     multi deck: Card {
+#         count: int64 {
+#             default := 1;
+#         };
+#         property total_cost := @count * .cost;
+#     }
 
-    property deck_cost := sum(.deck.cost);
+#     property deck_cost := sum(.deck.cost);
 
-    multi friends: User {
-        nickname: str;
-        # how the friend responded to requests for a favor
-        #favor: array<bool>
-    }
+#     multi friends: User {
+#         nickname: str;
+#         # how the friend responded to requests for a favor
+#         #favor: array<bool>
+#     }
 
-    multi awards: Award {
-        constraint exclusive;
-    }
+#     multi awards: Award {
+#         constraint exclusive;
+#     }
 
-    avatar: Card {
-        text: str;
-        property tag := .name ++ (("-" ++ @text) ?? "");
-    }
-}
-"""
-initial_queries = """
-with n0 := (insert Note {name := "boxing", note := {}}),
-     n1 := (insert Note {name := "unboxing", note := "lolol"}),
-     n2 := (insert Note {name := "dynamic", note := "blarg"}),
-     p0 := (insert Person {name := "Phil Emarg",
-                           notes := {n0, n1 {@metanote := "arg!"}}}),
-     p1 := (insert Person {name := "Madeline Hatch",
-                           notes:={n1 {@metanote := "sigh"}}}),
-     p2 := (insert Person {name := "Emmanuel Villip"}),
-     a_15 := (insert Award {name := "1st"}),
-     a_e1 := (insert Award {name := "2nd"}),
-     a_ca := (insert Award {name := "3rd"}),
-     c_27 := (insert Card {name := "Imp", element := "Fire",
-                           cost := 1, awards := {a_e1}}),
-     c_49 := (insert Card {name := "Dragon", element := "Fire",
-                           cost := 5, awards := {a_15}}),
-     c_80 := (insert Card {name := "Bog monster", element := "Water",
-                           cost := 2}),
-     c_d2 := (insert Card {name := "Giant turtle", element := "Water",
-                           cost := 3}),
-     c_46 := (insert Card {name := 'Dwarf', element := 'Earth',
-                           cost := 1}),
-     c_25 := (insert Card {name := 'Golem', element := 'Earth',
-                           cost := 3}),
-     c_bd := (insert Card {name := 'Sprite', element := 'Air',
-                           cost := 1}),
-     c_69 := (insert Card {name := 'Giant eagle', element := 'Air',
-                           cost := 2}),
-     c_87 := (insert Card {name := 'Djinn', element := 'Air',
-                           cost := 4, awards := {a_ca}}),
-     u_3e := (insert User {name := "Carol", deck := {c_80 { @count := 3},
-            c_d2 {@count := 2}, c_46 {@count := 4}, c_25 {@count := 2},
-            c_bd {@count := 4}, c_69 {@count := 3}, c_87 {@count := 1}
-        }}),
-    u_fc := (insert User {name := "Bob", deck := {
-            c_80 {@count := 3},
-            c_d2 {@count := 3},
-            c_46 {@count := 3},
-            c_25 {@count := 3}
-        }}),
-    u_56 := (insert User {name := "Dave", deck := {
-           c_49  {@count:= 1},
-           c_80  {@count:= 1},
-           c_d2  {@count:= 1},
-           c_25  {@count:= 1},
-           c_bd  {@count:= 4},
-           c_69  {@count:= 1},
-           c_87  {@count:= 1}
-        }, friends := {u_fc}, avatar := c_87 {@text := "Wow"}}),
-    u_f3 := (insert User {name := "Alice", deck := {
-            c_27 {@count:= 2},
-            c_49 {@count:= 2},
-            c_80 {@count:= 3},
-            c_d2 {@count:= 3}
-        }, friends := {
-            u_fc {@nickname := "Swampy"},
-            u_3e {@nickname := "Firefighter"},
-            u_56 {@nickname := "Grumpy"}
-        }, awards := {a_15, a_31},
-            avatar := {c_49 {@text := "Best"}}
-        }),
+#     avatar: Card {
+#         text: str;
+#         property tag := .name ++ (("-" ++ @text) ?? "");
+#     }
+# }
+# """
+# initial_queries = """
+# with n0 := (insert Note {name := "boxing", note := {}}),
+#      n1 := (insert Note {name := "unboxing", note := "lolol"}),
+#      n2 := (insert Note {name := "dynamic", note := "blarg"}),
+#      p0 := (insert Person {name := "Phil Emarg",
+#                            notes := {n0, n1 {@metanote := "arg!"}}}),
+#      p1 := (insert Person {name := "Madeline Hatch",
+#                            notes:={n1 {@metanote := "sigh"}}}),
+#      p2 := (insert Person {name := "Emmanuel Villip"}),
+#      a_15 := (insert Award {name := "1st"}),
+#      a_e1 := (insert Award {name := "2nd"}),
+#      a_ca := (insert Award {name := "3rd"}),
+#      c_27 := (insert Card {name := "Imp", element := "Fire",
+#                            cost := 1, awards := {a_e1}}),
+#      c_49 := (insert Card {name := "Dragon", element := "Fire",
+#                            cost := 5, awards := {a_15}}),
+#      c_80 := (insert Card {name := "Bog monster", element := "Water",
+#                            cost := 2}),
+#      c_d2 := (insert Card {name := "Giant turtle", element := "Water",
+#                            cost := 3}),
+#      c_46 := (insert Card {name := 'Dwarf', element := 'Earth',
+#                            cost := 1}),
+#      c_25 := (insert Card {name := 'Golem', element := 'Earth',
+#                            cost := 3}),
+#      c_bd := (insert Card {name := 'Sprite', element := 'Air',
+#                            cost := 1}),
+#      c_69 := (insert Card {name := 'Giant eagle', element := 'Air',
+#                            cost := 2}),
+#      c_87 := (insert Card {name := 'Djinn', element := 'Air',
+#                            cost := 4, awards := {a_ca}}),
+#      u_3e := (insert User {name := "Carol", deck := {c_80 { @count := 3},
+#             c_d2 {@count := 2}, c_46 {@count := 4}, c_25 {@count := 2},
+#             c_bd {@count := 4}, c_69 {@count := 3}, c_87 {@count := 1}
+#         }}),
+#     u_fc := (insert User {name := "Bob", deck := {
+#             c_80 {@count := 3},
+#             c_d2 {@count := 3},
+#             c_46 {@count := 3},
+#             c_25 {@count := 3}
+#         }}),
+#     u_56 := (insert User {name := "Dave", deck := {
+#            c_49  {@count:= 1},
+#            c_80  {@count:= 1},
+#            c_d2  {@count:= 1},
+#            c_25  {@count:= 1},
+#            c_bd  {@count:= 4},
+#            c_69  {@count:= 1},
+#            c_87  {@count:= 1}
+#         }, friends := {u_fc}, avatar := c_87 {@text := "Wow"}}),
+#     u_f3 := (insert User {name := "Alice", deck := {
+#             c_27 {@count:= 2},
+#             c_49 {@count:= 2},
+#             c_80 {@count:= 3},
+#             c_d2 {@count:= 3}
+#         }, friends := {
+#             u_fc {@nickname := "Swampy"},
+#             u_3e {@nickname := "Firefighter"},
+#             u_56 {@nickname := "Grumpy"}
+#         }, awards := {a_15, a_31},
+#             avatar := {c_49 {@text := "Best"}}
+#         }),
 
-select 0;
-"""
+# select 0;
+# """
 
 
-class TestNewInterpreterModelSmokeTests(unittest.TestCase):
+class TestNewInterpreterModelSmokeTests(tb.QueryTestCase):
     """Unit tests for the toy evaluator model.
 
     These are intended as smoke tests. Since obviously we don't want
@@ -162,45 +163,53 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
     goal should be that we could run the real tests against the model.
     """
 
-    db = None
+    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
+                          'smoke_test_interp.esdl')
 
-    def assert_test_query(
-        self, query, expected, *, sort=None, singleton_cheating=False
-    ):
-        if self.db is None:
-            self.db = model.db_with_initilial_schema_and_queries(
-                initial_schema_defs=initial_schema,
-                initial_queries=initial_queries,
-                # debug_print=True
-            )
-        # qltree = model.parse(query)
-        (result, _) = model.run_single_str_get_json(
-            self.db, query, print_asts=True)
+    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
+                         'smoke_test_interp_setup.edgeql')
 
-        try:
-            assert_data_shape.assert_data_shape(
-                result, expected, self.fail)
-        except AssertionError as e:
-            raise AssertionError(
-                str(e),
-                "Expected", expected, "Actual", result)
 
-    def test_model_basic_01(self):
-        self.assert_test_query(
+    # db = None
+
+    # def assert_query_result(
+    #     self, query, expected, *, sort=None, singleton_cheating=False
+    # ):
+    #     if self.db is None:
+    #         self.db = model.db_with_initilial_schema_and_queries(
+    #             initial_schema_defs=initial_schema,
+    #             initial_queries=initial_queries,
+    #             surround_schema_with_default=True,
+    #             # debug_print=True
+    #         )
+    #     # qltree = model.parse(query)
+    #     (result, _) = model.run_single_str_get_json(
+    #         self.db, query, print_asts=True)
+
+    #     try:
+    #         assert_data_shape.assert_data_shape(
+    #             result, expected, self.fail)
+    #     except AssertionError as e:
+    #         raise AssertionError(
+    #             str(e),
+    #             "Expected", expected, "Actual", result)
+
+    async def test_model_basic_01(self):
+        await self.assert_query_result(
             "SELECT 1",
             [1],
         )
 
-    def test_model_basic_02(self):
-        self.assert_test_query(
+    async def test_model_basic_02(self):
+        await self.assert_query_result(
             r"""
             SELECT Person.name
             """,
             ['Phil Emarg', 'Madeline Hatch', 'Emmanuel Villip'],
         )
 
-    def test_model_basic_03(self):
-        self.assert_test_query(
+    async def test_model_basic_03(self):
+        await self.assert_query_result(
             r"""
             SELECT (Person.name, Person.name)
             """,
@@ -209,16 +218,16 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
              ('Emmanuel Villip', 'Emmanuel Villip')]
         )
 
-    def test_model_link_dedup(self):
-        self.assert_test_query(
+    async def test_model_link_dedup(self):
+        await self.assert_query_result(
             r"""
             SELECT Person.notes.name
             """,
             {'boxing', 'unboxing'},
         )
 
-    def test_model_link_correlation(self):
-        self.assert_test_query(
+    async def test_model_link_correlation(self):
+        await self.assert_query_result(
             r"""
             SELECT Person.name ++ "-" ++ Person.notes.name
             """,
@@ -226,24 +235,24 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
              'Madeline Hatch-unboxing'}
         )
 
-    def test_model_optional_prop_01(self):
-        self.assert_test_query(
+    async def test_model_optional_prop_01(self):
+        await self.assert_query_result(
             r"""
             SELECT (Note.note ?= "lolol", Note.name)
             """,
             {(False, 'boxing'), (True, 'unboxing'), (False, 'dynamic')}
         )
 
-    def test_model_optional_prop_02(self):
-        self.assert_test_query(
+    async def test_model_optional_prop_02(self):
+        await self.assert_query_result(
             r"""
             SELECT (Note.note = "lolol", Note.name)
             """,
             {(False, 'dynamic'), (True, 'unboxing')}
         )
 
-    def test_model_optional_prop_03(self):
-        self.assert_test_query(
+    async def test_model_optional_prop_03(self):
+        await self.assert_query_result(
             r"""
             SELECT (Note.name, ('SOME "' ++ Note.note ++ '"') ?? 'NONE')
             """,
@@ -251,72 +260,72 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
              ('dynamic', 'SOME "blarg"')}
         )
 
-    def test_model_optional_prop_04(self):
-        self.assert_test_query(
+    async def test_model_optional_prop_04(self):
+        await self.assert_query_result(
             r"""
             SELECT (Note.name, EXISTS Note.note)
             """,
             {('boxing', False), ('unboxing', True), ('dynamic', True)}
         )
 
-    def test_model_optional_prop_05(self):
-        self.assert_test_query(
+    async def test_model_optional_prop_05(self):
+        await self.assert_query_result(
             r"""
             SELECT (User.name ++ User.avatar.name) ?? 'hm';
             """,
             {'AliceDragon', 'DaveDjinn'},
         )
 
-    def test_model_optional_prop_06(self):
-        self.assert_test_query(
+    async def test_model_optional_prop_06(self):
+        await self.assert_query_result(
             r"""
             SELECT User.name ?= User.name;
             """,
             [True, True, True, True],
         )
 
-    def test_model_optional_prop_07(self):
-        self.assert_test_query(
+    async def test_model_optional_prop_07(self):
+        await self.assert_query_result(
             r"""
             SELECT (User.name ?= 'Alice', count(User.name))
             """,
             bag([(True, 1), (False, 1), (False, 1), (False, 1)]),
         )
 
-    def test_model_subqueries_01(self):
-        self.assert_test_query(
+    async def test_model_subqueries_01(self):
+        await self.assert_query_result(
             r"""
             SELECT count(((SELECT Person), (SELECT Person)))
             """,
             [9]
         )
 
-    def test_model_subqueries_02(self):
-        self.assert_test_query(
+    async def test_model_subqueries_02(self):
+        await self.assert_query_result(
             r"""
             WITH X := {true, false, true} SELECT (any(X), all(X))
             """,
             [(True, False)]
         )
 
-    def test_model_subqueries_03(self):
-        self.assert_test_query(
+    async def test_model_subqueries_03(self):
+        await self.assert_query_result(
             r"""
             SELECT enumerate((SELECT X := {"foo", "bar", "baz"} ORDER BY X));
             """,
             [(0, 'bar'), (1, 'baz'), (2, 'foo')],
         )
 
-    def test_model_set_union(self):
-        self.assert_test_query(
+    async def test_model_set_union(self):
+        await self.assert_query_result(
             r"""
             SELECT count({User, Card})
             """,
             [13],
         )
 
-    def test_edgeql_coalesce_set_of_01(self):
-        self.assert_test_query(
+    async def test_edgeql_coalesce_set_of_01(self):
+        await self.assert_query_result(
             r'''
 
                 SELECT <str>Publication.id ?? <str>count(Publication)
@@ -324,8 +333,8 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             ['0'],
         )
 
-    def test_edgeql_coalesce_set_of_02(self):
-        self.assert_test_query(
+    async def test_edgeql_coalesce_set_of_02(self):
+        await self.assert_query_result(
             r'''
                 SELECT (
                     Publication ?= Publication,
@@ -337,8 +346,8 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             [(True, False)]
         )
 
-    def test_edgeql_select_clauses_01(self):
-        self.assert_test_query(
+    async def test_edgeql_select_clauses_01(self):
+        await self.assert_query_result(
             r'''
             SELECT (Person.name, Person.notes.name)
             FILTER Person.name != "Madeline Hatch"
@@ -347,9 +356,9 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             [('Phil Emarg', 'unboxing'), ('Phil Emarg', 'boxing')],
         )
 
-    def test_edgeql_select_clauses_02(self):
+    async def test_edgeql_select_clauses_02(self):
         # This is a funky one.
-        self.assert_test_query(
+        await self.assert_query_result(
             r'''
             SELECT (
                 Person.name,
@@ -360,8 +369,8 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             [('Phil Emarg', 'unboxing')]
         )
 
-    def test_edgeql_select_clauses_03(self):
-        self.assert_test_query(
+    async def test_edgeql_select_clauses_03(self):
+        await self.assert_query_result(
             r'''
             WITH X := {9, 8, 7, 6, 5, 4, 3, 2, 1}
             SELECT _ := X
@@ -373,75 +382,75 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             [5, 7],
         )
 
-    def test_edgeql_for_01(self):
-        self.assert_test_query(
+    async def test_edgeql_for_01(self):
+        await self.assert_query_result(
             r'''
             FOR X IN {1,2,3} UNION ((SELECT X), (SELECT X));
             ''',
             {(1, 1), (2, 2), (3, 3)},
         )
 
-    def test_edgeql_for_02(self):
-        self.assert_test_query(
+    async def test_edgeql_for_02(self):
+        await self.assert_query_result(
             r'''
             WITH X := 1, FOR x in {X} UNION (x);
             ''',
             [1],
         )
 
-    def test_edgeql_with_01(self):
-        self.assert_test_query(
+    async def test_edgeql_with_01(self):
+        await self.assert_query_result(
             r'''
             WITH X := {1, 2} SELECT ((SELECT X), (SELECT X));
             ''',
             {(1, 1), (1, 2), (2, 1), (2, 2)}
         )
 
-    def test_edgeql_with_02(self):
+    async def test_edgeql_with_02(self):
         # For a while, the model produced the right answer here while
         # the real compiler didn't!
         # See https://github.com/edgedb/edgedb/issues/1381
-        self.assert_test_query(
+        await self.assert_query_result(
             r'''
             WITH X := {1, 2}, Y := X+1 SELECT (X, Y);
             ''',
             {(1, 2), (1, 3), (2, 2), (2, 3)}
         )
 
-    def test_edgeql_array_01(self):
-        self.assert_test_query(
+    async def test_edgeql_array_01(self):
+        await self.assert_query_result(
             r'''
             WITH X := [0,1,2,3,4,5,6,7,8,9] SELECT X[{1,2}:{5,6}];
             ''',
             bag([[1, 2, 3, 4], [1, 2, 3, 4, 5], [2, 3, 4], [2, 3, 4, 5]]),
         )
 
-    def test_edgeql_array_02(self):
-        self.assert_test_query(
+    async def test_edgeql_array_02(self):
+        await self.assert_query_result(
             r'''
             SELECT array_unpack({[1,2,3],[3,4,5]});
             ''',
             [1, 2, 3, 3, 4, 5]
         )
 
-    def test_edgeql_array_03(self):
-        self.assert_test_query(
+    async def test_edgeql_array_03(self):
+        await self.assert_query_result(
             r'''
             SELECT array_agg(Person.name ORDER BY Person.name);
             ''',
             [['Emmanuel Villip', 'Madeline Hatch', 'Phil Emarg']]
         )
 
-    def test_edgeql_lprop_01(self):
-        self.assert_test_query(
+    async def test_edgeql_lprop_01(self):
+        await self.assert_query_result(
             r'''
             SELECT (Person.notes.name, Person.notes@metanote ?? '<n/a>')
             ''',
             {('boxing', '<n/a>'), ('unboxing', 'arg!'), ('unboxing', 'sigh')},
         )
 
-    def test_edgeql_lprop_02(self):
-        self.assert_test_query(
+    async def test_edgeql_lprop_02(self):
+        await self.assert_query_result(
             r'''
             SELECT (User.name,
                     (SELECT (User.friends.name, User.friends@nickname)));
@@ -453,8 +462,8 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             }
         )
 
-    def test_edgeql_lprop_03(self):
-        self.assert_test_query(
+    async def test_edgeql_lprop_03(self):
+        await self.assert_query_result(
             r'''
                 SELECT (
                     User.name,
@@ -476,16 +485,16 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             ])
         )
 
-    def test_edgeql_lprop_04(self):
-        self.assert_test_query(
+    async def test_edgeql_lprop_04(self):
+        await self.assert_query_result(
             r'''
                 SELECT count(Card.<deck[IS User]@count);
             ''',
             [22]
         )
 
-    def test_edgeql_lprop_reverse_01(self):
-        self.assert_test_query(
+    async def test_edgeql_lprop_reverse_01(self):
+        await self.assert_query_result(
             r'''
                 SELECT count((
                     Card.name,
@@ -496,9 +505,9 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             [22]
         )
 
-    def test_edgeql_lprop_reverse_02(self):
+    async def test_edgeql_lprop_reverse_02(self):
         # This should (I claim), but does not yet, work for real.
-        self.assert_test_query(
+        await self.assert_query_result(
             r'''
                 SELECT Card {
                     name,
@@ -511,32 +520,32 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             ]}])
         )
 
-    def test_edgeql_partial_path_01(self):
-        self.assert_test_query(
+    async def test_edgeql_partial_path_01(self):
+        await self.assert_query_result(
             r'''
             SELECT (SELECT User FILTER User.deck != .deck).name;
             ''',
             []
         )
 
-    def test_edgeql_partial_path_02(self):
-        self.assert_test_query(
+    async def test_edgeql_partial_path_02(self):
+        await self.assert_query_result(
             r'''
             SELECT count((SELECT X := User FILTER User.deck != .deck));
             ''',
             [4]
         )
 
-    def test_edgeql_partial_path_03(self):
-        self.assert_test_query(
+    async def test_edgeql_partial_path_03(self):
+        await self.assert_query_result(
             r'''
             SELECT count((SELECT X := User FILTER X.deck != .deck));
             ''',
             [0]
         )
 
-    def test_edgeql_shape_01(self):
-        self.assert_test_query(
+    async def test_edgeql_shape_01(self):
+        await self.assert_query_result(
             r"""
             SELECT User {
                 name,
@@ -624,9 +633,9 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
                      "tag": ["5 Fire"]}, ],
                 "name": ["Alice"], }, ],)
 
-    def test_edgeql_shape_for_01(self):
+    async def test_edgeql_shape_for_01(self):
         # we have a lot of trouble with this one in the real compiler.
-        self.assert_test_query(
+        await self.assert_query_result(
             r"""
             SELECT (FOR x IN {1,2} UNION (SELECT User { m := x })) { name, m }
             ORDER BY .name THEN .m;
@@ -643,38 +652,37 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
             ],
         )
 
-    def test_edgeql_detached_01(self):
-        self.assert_test_query(
+    async def test_edgeql_detached_01(self):
+        await self.assert_query_result(
             r"""
             SELECT count((User.deck.name, DETACHED User.name));
             """,
             [36],
         )
 
-    def test_edgeql_result_alias_binding_01(self):
+    async def test_edgeql_result_alias_binding_01(self):
         # Because of the result alias being a shorthand for a WITH binding,
         # the two User refs should be in different subqueries
-        self.assert_test_query(
+        await self.assert_query_result(
             r"""
             SELECT count((SELECT _ := User {name} FILTER User.name = 'Alice'));
             """,
             [4],
         )
 
-    def test_model_singleton_cheat(self):
-        self.assert_test_query(
+    async def test_model_singleton_cheat(self):
+        await self.assert_query_result(
             r"""
             SELECT User { name } FILTER .name = 'Alice';
             """,
             [
                 {'name': ['Alice']}
             ],
-            singleton_cheating=True,
         )
 
 # TODO : DEFER COMPUTED
-    # def test_model_computed_01(self):
-    #     self.assert_test_query(
+    # async def test_model_computed_01(self):
+    #     await self.assert_query_result(
     #         r"""
     #         SELECT User { name, deck_cost } ORDER BY .name;
     #         """,
@@ -687,8 +695,8 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
     #         singleton_cheating=True,
     #     )
 
-    # def test_model_computed_02(self):
-    #     self.assert_test_query(
+    # async def test_model_computed_02(self):
+    #     await self.assert_query_result(
     #         r"""
     #         SELECT User { deck: {name, @total_cost} ORDER BY .name}
     #         FILTER .name = 'Alice';
@@ -702,16 +710,16 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
     #         singleton_cheating=True,
     #     )
 
-    # def test_model_alias_correlation_01(self):
-    #     self.assert_test_query(
+    # async def test_model_alias_correlation_01(self):
+    #     await self.assert_query_result(
     #         r"""
     #         SELECT (Note.name, EXISTS (WITH W := Note.note SELECT W))
     #         """,
     #         {('boxing', False), ('unboxing', True), ('dynamic', True)}
     #     )
 
-    def test_model_alias_shadowing_01(self):
-        self.assert_test_query(
+    async def test_model_alias_shadowing_01(self):
+        await self.assert_query_result(
             r"""
             SELECT (User.name, (WITH User := {1,2} SELECT User))
             """,
@@ -729,7 +737,7 @@ class TestNewInterpreterModelSmokeTests(unittest.TestCase):
 
 # TODO : DEFER COMPUTED
     # def test_model_alias_computable_correlate(self):
-    #     self.assert_test_query(
+    #     await self.assert_query_result(
     #         r"""
     #         WITH X := (SELECT Obj {m := {1, 2}}) SELECT (X {n, m}, X.m);
     #         """,

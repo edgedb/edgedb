@@ -146,9 +146,13 @@ def repl(*, init_sdl_file=None, init_ql_file=None, debug_print=False) -> None:
 
 def db_with_initilial_schema_and_queries(
         initial_schema_defs: str,
-        initial_queries: str, debug_print=False) -> DB:
+        initial_queries: str,
+        surround_schema_with_default: bool,
+        debug_print=False) -> DB:
     db = empty_db()
-    dbschema = schema_from_sdl_defs(initial_schema_defs)
+    dbschema = schema_from_sdl_defs(
+                    initial_schema_defs,
+                    surround_with_default=surround_schema_with_default)
     (_, db) = run_str(db, dbschema, initial_queries, print_asts=debug_print)
     return db
 
