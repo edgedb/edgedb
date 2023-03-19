@@ -144,7 +144,7 @@ def repl(*, init_sdl_file=None, init_ql_file=None, debug_print=False) -> None:
             traceback.print_exception(*sys.exc_info())
 
 
-def db_with_initilial_schema_and_queries(
+def db_with_initial_schema_and_queries(
         initial_schema_defs: str,
         initial_queries: str,
         surround_schema_with_default: bool,

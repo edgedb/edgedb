@@ -176,7 +176,7 @@ class TestNewInterpreterModelSmokeTests(tb.QueryTestCase):
     #     self, query, expected, *, sort=None, singleton_cheating=False
     # ):
     #     if self.db is None:
-    #         self.db = model.db_with_initilial_schema_and_queries(
+    #         self.db = model.db_with_initial_schema_and_queries(
     #             initial_schema_defs=initial_schema,
     #             initial_queries=initial_queries,
     #             surround_schema_with_default=True,
