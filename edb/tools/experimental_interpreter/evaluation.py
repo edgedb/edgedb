@@ -144,7 +144,7 @@ def singular_proj(data: RTData, subject: Val, label: Label) -> MultiSetVal:
             if label in objVal.val.keys():
                 return objVal.val[label][1]
             else:
-                raise ValueError("Label not found")
+                raise ValueError("Label not found", label)
         case RefVal(refid=id, val=objVal):
             entry_obj = data.read_snapshots[0].dbdata[id].data
             if label in objVal.val.keys():
