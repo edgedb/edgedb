@@ -22,12 +22,12 @@ import hashlib
 import http
 import os
 import time
-from jwcrypto import jwt
 
 from edgedb import scram
 
 from edb.common import debug
 from edb.common import markup
+from edb.common import secretkey
 
 
 SESSION_TIMEOUT = 30
@@ -237,7 +237,10 @@ def handle_request(scheme, auth_str, response, server):
         ).decode("ascii")
 
         try:
-            response.body = b"edbt_" + generate_jwt_token(username, server)
+            response.body = secretkey.generate_secret_key(
+                server.get_jws_key(),
+                roles=[username],
+            ).encode("ascii")
         except ValueError as ex:
             if debug.flags.server:
                 markup.dump(ex)
@@ -278,18 +281,3 @@ def get_scram_verifier(user, server):
     )
     is_mock = True
     return verifier, is_mock
-
-
-def generate_jwt_token(user, server):
-    skey = server.get_jws_key()
-
-    namespace = "edgedb.server"
-    token = jwt.JWT(
-        header={"alg": "ES256" if skey["kty"] == "EC" else "RS256"},
-        claims={
-            f"{namespace}.roles": [user],
-            "iat": int(time.time()),
-        },
-    )
-    token.make_signed_token(skey)
-    return token.serialize().encode("ascii")
