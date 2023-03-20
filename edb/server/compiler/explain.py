@@ -258,7 +258,7 @@ def json_fixup(
 
         if 'actual_total_time' in obj:
             obj['full_total_time'] = (
-                obj["actual_total_time"] * obj.get("Actual Loops", 1))
+                obj["actual_total_time"] * obj.get("actual_loops", 1))
             obj['self_time'] = obj['full_total_time'] - (
                 sum([subplan['full_total_time'] for subplan in obj['plans']])
                 if 'plans' in obj else 0)
@@ -370,14 +370,17 @@ def collapse_plan(
             for sib_plan in ctx_subplans:
                 if sib_plan != subplan:
                     sibling_ctxs += sib_plan['contexts']
+            selected_ctx = None
             if sibling_ctxs:
                 for ctx in reversed(plan_ctxs):
                     if not ctx_in_ctxs(ctx, sibling_ctxs):
-                        subplan['suggested_display_ctx_idx'] = (
-                            plan_ctxs.index(ctx))
+                        selected_ctx = ctx
                         break
-            else:
-                subplan['suggested_display_ctx_idx'] = len(plan_ctxs) - 1
+
+            subplan['suggested_display_ctx_idx'] = (
+                plan_ctxs.index(selected_ctx) if selected_ctx
+                else len(plan_ctxs) - 1
+            )
 
     return found_nearest
 
