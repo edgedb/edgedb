@@ -659,17 +659,24 @@ class ClusterTestCase(BaseHTTPTestCase):
         return _fetch_metrics(host, port)
 
     @classmethod
-    def get_connect_args(cls, *,
-                         cluster=None,
-                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
-                         user=edgedb_defines.EDGEDB_SUPERUSER,
-                         password='test'):
+    def get_connect_args(
+        cls,
+        *,
+        cluster=None,
+        database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+        user=edgedb_defines.EDGEDB_SUPERUSER,
+        password=None,
+        secret_key=None,
+    ):
+        if password is None and secret_key is None:
+            password = "test"
         if cluster is None:
             cluster = cls.cluster
         conargs = cluster.get_connect_args().copy()
         conargs.update(dict(user=user,
                             password=password,
-                            database=database))
+                            database=database,
+                            secret_key=secret_key))
         return conargs
 
     @classmethod
@@ -803,13 +810,22 @@ class RollbackChanges:
 class ConnectedTestCaseMixin:
 
     @classmethod
-    async def connect(cls, *,
-                      cluster=None,
-                      database=edgedb_defines.EDGEDB_SUPERUSER_DB,
-                      user=edgedb_defines.EDGEDB_SUPERUSER,
-                      password='test'):
+    async def connect(
+        cls,
+        *,
+        cluster=None,
+        database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+        user=edgedb_defines.EDGEDB_SUPERUSER,
+        password=None,
+        secret_key=None,
+    ):
         conargs = cls.get_connect_args(
-            cluster=cluster, database=database, user=user, password=password)
+            cluster=cluster,
+            database=database,
+            user=user,
+            password=password,
+            secret_key=secret_key,
+        )
         return await tconn.async_connect_test_client(**conargs)
 
     def repl(self):
@@ -833,6 +849,8 @@ class ConnectedTestCaseMixin:
         env['EDGEDB_PORT'] = str(conargs['port'])
         if password := conargs.get('password'):
             env['EDGEDB_PASSWORD'] = password
+        if secret_key := conargs.get('secret_key'):
+            env['EDGEDB_SECRET_KEY'] = secret_key
 
         proc = subprocess.Popen(
             cmd, stdin=sys.stdin, stdout=sys.stdout, env=env)

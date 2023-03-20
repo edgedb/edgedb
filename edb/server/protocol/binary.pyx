@@ -418,9 +418,12 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             raise errors.AuthenticationError(
                 'authentication failed: no authorization data provided')
 
-        for prefix in ["nbwt_", "edbt_"]:
+        token_version = 0
+        for prefix in ["nbwt1_", "nbwt_", "edbt1_", "edbt_"]:
             encoded_token = prefixed_token.removeprefix(prefix)
             if encoded_token != prefixed_token:
+                if prefix == "nbwt1_" or prefix == "edbt1_":
+                    token_version = 1
                 break
         else:
             raise errors.AuthenticationError(
@@ -449,8 +452,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'authentication failed: cannot decode JWT'
             ) from None
 
-        namespace = "edgedb.server"
-
         try:
             claims = json.loads(token.claims)
         except Exception as e:
@@ -458,17 +459,59 @@ cdef class EdgeConnection(frontend.FrontendConnection):
                 f'authentication failed: malformed claims section in JWT'
             ) from None
 
-        if not claims.get(f"{namespace}.any_role"):
-            token_roles = claims.get(f"{namespace}.roles")
-            if not isinstance(token_roles, list):
-                raise errors.AuthenticationError(
-                    f'authentication failed: malformed claims section in JWT'
-                    f' expected mapping in "role_names"'
-                )
+        self._check_jwt_authz(claims, token_version, user)
 
-            if user not in token_roles:
+    def _check_jwt_authz(self, claims, token_version, user):
+        token_instances = None
+        token_roles = None
+        token_databases = None
+
+        if token_version == 1:
+            token_roles = self._get_jwt_edb_scope(claims, "edb.r")
+            token_instances = self._get_jwt_edb_scope(claims, "edb.i")
+            token_databases = self._get_jwt_edb_scope(claims, "edb.d")
+        else:
+            namespace = "edgedb.server"
+            if not claims.get(f"{namespace}.any_role"):
+                token_roles = claims.get(f"{namespace}.roles")
+                if not isinstance(token_roles, list):
+                    raise errors.AuthenticationError(
+                        f'authentication failed: malformed claims section in'
+                        f' JWT: expected a list in "{namespace}.roles"'
+                    )
+
+        if (
+            token_instances is not None
+            and self.server.get_instance_name() not in token_instances
+        ):
+            raise errors.AuthenticationError(
+                'authentication failed: secret key does not authorize '
+                f'access to this instance')
+
+        if (
+            token_databases is not None
+            and self.dbname not in token_databases
+        ):
+            raise errors.AuthenticationError(
+                'authentication failed: secret key does not authorize '
+                f'access to database "{self.dbname}"')
+
+        if token_roles is not None and user not in token_roles:
+            raise errors.AuthenticationError(
+                'authentication failed: secret key does not authorize '
+                f'access in role "{user}"')
+
+    def _get_jwt_edb_scope(self, claims, claim):
+        if not claims.get(f"{claim}.all"):
+            scope = claims.get(claim, [])
+            if not isinstance(scope, list):
                 raise errors.AuthenticationError(
-                    'authentication failed: role not authorized by this JWT')
+                    f'authentication failed: malformed claims section in'
+                    f' JWT: expected a list in "{claim}"'
+                )
+            return frozenset(scope)
+        else:
+            return None
 
     cdef WriteBuffer _make_authentication_sasl_initial(self, list methods):
         cdef WriteBuffer msg_buf

@@ -30,6 +30,8 @@ import sys
 import tempfile
 import time
 
+from jwcrypto import jwk
+
 from edb import buildmeta
 from edb.common import devmode
 from edb.edgeql import quote
@@ -407,6 +409,7 @@ class Cluster(BaseCluster):
         self._edgedb_cmd.extend(['-D', str(self._data_dir)])
         self._pg_connect_args['user'] = pg_superuser
         self._pg_connect_args['database'] = 'template1'
+        self._jws_key: Optional[jwk.JWK] = None
 
     async def _new_pg_cluster(self) -> pgcluster.Cluster:
         return await pgcluster.get_local_pg_cluster(
@@ -417,6 +420,38 @@ class Cluster(BaseCluster):
 
     def get_data_dir(self) -> pathlib.Path:
         return self._data_dir
+
+    def get_runstate_dir(self) -> pathlib.Path:
+        return self._runstate_dir
+
+    def get_jws_key(self) -> jwk.JWK:
+        if self._jws_key is None:
+            self._jws_key = self._load_jws_key()
+        return self._jws_key
+
+    def _load_jws_key(self) -> jwk.JWK:
+        jws_key_file = self._get_jws_key_path()
+        try:
+            with open(jws_key_file, 'rb') as kf:
+                jws_key = jwk.JWK.from_pem(kf.read())
+        except Exception as e:
+            raise ClusterError(f"cannot load JWS key: {e}") from e
+
+        if (
+            not jws_key.has_public
+            or jws_key['kty'] not in {"RSA", "EC"}
+        ):
+            raise ClusterError(
+                f"the cluster JWS key file does not "
+                f"contain a valid RSA or EC public key")
+
+        return jws_key
+
+    def _get_jws_key_path(self) -> pathlib.Path:
+        if path := os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE"):
+            return pathlib.Path(path)
+        else:
+            return self.get_runstate_dir() / edgedb_args.JWS_KEY_FILE_NAME
 
     async def init(
         self,
