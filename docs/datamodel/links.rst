@@ -13,10 +13,17 @@ Defining links
 --------------
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    link best_friend -> Person;
-  }
+    type Person {
+      link best_friend -> Person;
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      best_friend: Person;
+    }
 
 Links are *directional*; they have a source (the object type on which they are
 declared) and a *target* (the type they point to).
@@ -29,10 +36,17 @@ All links have a cardinality: either ``single`` or ``multi``. The default is
 link.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    multi link friends -> Person;
-  }
+    type Person {
+      multi link friends -> Person;
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      multi friends: Person;
+    }
 
 Required links
 --------------
@@ -43,23 +57,41 @@ point to *at least one* target instance. In this scenario, every ``Person``
 must have a ``best_friend``:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    required link best_friend -> Person;
-  }
+    type Person {
+      required link best_friend -> Person;
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      required best_friend: Person;
+    }
 
 Links with cardinality ``multi`` can also be ``required``;
 ``required multi`` links must point to *at least one* target object.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    property name -> str;
-  }
+    type Person {
+      property name -> str;
+    }
 
-  type GroupChat {
-    required multi link members -> Person;
-  }
+    type GroupChat {
+      required multi link members -> Person;
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      name: str;
+    }
+
+    type GroupChat {
+      required multi members: Person;
+    }
 
 In this scenario, each ``GroupChat`` must contain at least one person.
 Attempting to create a ``GroupChat`` with no members would fail.
@@ -71,16 +103,29 @@ You can add an ``exclusive`` constraint to a link to guarantee that no other
 instances can link to the same target(s).
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    property name -> str;
-  }
-
-  type GroupChat {
-    required multi link members -> Person {
-      constraint exclusive;
+    type Person {
+      property name -> str;
     }
-  }
+
+    type GroupChat {
+      required multi link members -> Person {
+        constraint exclusive;
+      }
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      name: str;
+    }
+
+    type GroupChat {
+      required multi members: Person {
+        constraint exclusive;
+      }
+    }
 
 In the ``GroupChat`` example, the ``GroupChat.members`` link is now
 ``exclusive``. Two ``GroupChat`` objects cannot link to the same ``Person``;
@@ -123,15 +168,27 @@ membership, or hierarchies. For example, ``Person`` and ``Shirt``. One person
 may own many shirts, and a shirt is (usually) owned by just one person.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    required property name -> str
-  }
+    type Person {
+      required property name -> str
+    }
 
-  type Shirt {
-    required property color -> str;
-    link owner -> Person;
-  }
+    type Shirt {
+      required property color -> str;
+      link owner -> Person;
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      required name: str
+    }
+
+    type Shirt {
+      required color: str;
+      owner: Person;
+    }
 
 Since links are ``single`` by default, each ``Shirt`` only corresponds to
 one ``Person``. In the absence of any exclusivity constraints, multiple shirts
@@ -150,21 +207,36 @@ One-to-many
 
 Conceptually, one-to-many and many-to-one relationships are identical; the
 "directionality" of a relation is just a matter of perspective. Here, the
-same "shirt owner" relationship is represented with a ``multi link``.
+same "shirt owner" relationship is represented with a ``multi`` link.
+
+.. code-block:: sdl
+    :version-lt: 3.0
+
+    type Person {
+      required property name -> str;
+      multi link shirts -> Shirt {
+        # ensures a one-to-many relationship
+        constraint exclusive;
+      }
+    }
+
+    type Shirt {
+      required property color -> str;
+    }
 
 .. code-block:: sdl
 
-  type Person {
-    required property name -> str;
-    multi link shirts -> Shirt {
-      # ensures a one-to-many relationship
-      constraint exclusive;
+    type Person {
+      required name: str;
+      multi shirts: Shirt {
+        # ensures a one-to-many relationship
+        constraint exclusive;
+      }
     }
-  }
 
-  type Shirt {
-    required property color -> str;
-  }
+    type Shirt {
+      required color: str;
+    }
 
 .. note::
 
@@ -172,11 +244,11 @@ same "shirt owner" relationship is represented with a ``multi link``.
   ``Shirt`` corresponds to a single ``Person``. Without it, the relationship
   will be many-to-many.
 
-Under the hood, a ``multi link`` is stored in an intermediate `association
-table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a ``single
-link`` is stored as a column in the object type where it is declared. As a
-result, single links are marginally more efficient. Generally ``single`` links
-are recommended when modeling 1:N relations.
+Under the hood, a ``multi`` link is stored in an intermediate `association
+table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a
+``single`` link is stored as a column in the object type where it is declared.
+As a result, single links are marginally more efficient. Generally ``single``
+links are recommended when modeling 1:N relations.
 
 .. _ref_guide_one_to_one:
 
@@ -188,17 +260,31 @@ of the target type, and vice versa. As an example consider a schema to
 represent assigned parking spaces.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Employee {
-    required property name -> str;
-    link assigned_space -> ParkingSpace {
-      constraint exclusive;
+    type Employee {
+      required property name -> str;
+      link assigned_space -> ParkingSpace {
+        constraint exclusive;
+      }
     }
-  }
 
-  type ParkingSpace {
-    required property number -> int64;
-  }
+    type ParkingSpace {
+      required property number -> int64;
+    }
+
+.. code-block:: sdl
+
+    type Employee {
+      required name: str;
+      assigned_space: ParkingSpace {
+        constraint exclusive;
+      }
+    }
+
+    type ParkingSpace {
+      required number: int64;
+    }
 
 All links are ``single`` unless otherwise specified, so no ``Employee`` can
 have more than one ``assigned_space``. Moreover, the
@@ -216,14 +302,25 @@ is no exclusivity or cardinality constraints in either direction. As an example
 consider a simple app where a ``User`` can "like" their favorite ``Movies``.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type User {
-    required property name -> str;
-    multi link likes -> Movie;
-  }
-  type Movie {
-    required property title -> str;
-  }
+    type User {
+      required property name -> str;
+      multi link likes -> Movie;
+    }
+    type Movie {
+      required property title -> str;
+    }
+
+.. code-block:: sdl
+
+    type User {
+      required name: str;
+      multi likes: Movie;
+    }
+    type Movie {
+      required title: str;
+    }
 
 A user can like multiple movies. And in the absence of an ``exclusive``
 constraint, each movie can be liked by multiple users. Thus this is a
@@ -238,14 +335,23 @@ expression, which will be executed upon insertion. In the example below, new
 people are automatically assigned three random friends.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    required property name -> str;
-    multi link friends -> Person {
-      default := (select Person order by random() limit 3);
+    type Person {
+      required property name -> str;
+      multi link friends -> Person {
+        default := (select Person order by random() limit 3);
+      }
     }
-  }
 
+.. code-block:: sdl
+
+    type Person {
+      required name: str;
+      multi friends: Person {
+        default := (select Person order by random() limit 3);
+      }
+    }
 
 .. _ref_datamodel_link_properties:
 
@@ -257,13 +363,23 @@ can be used to store metadata about links, such as *when* they were created or
 the *nature/strength* of the relationship.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    property name -> str;
-    multi link family_members -> Person {
-      property relationship -> str;
+    type Person {
+      property name -> str;
+      multi link family_members -> Person {
+        property relationship -> str;
+      }
     }
-  }
+
+.. code-block:: sdl
+
+    type Person {
+      name: str;
+      multi family_members: Person {
+        relationship: str;
+      }
+    }
 
 Above, we model a family tree with a single ``Person`` type. The ``Person.
 family_members`` link is a many-to-many relation; each ``family_members`` link
@@ -309,17 +425,31 @@ Target deletion policies determine what action should be taken when the
 delete`` clause.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type MessageThread {
-    property title -> str;
-  }
-
-  type Message {
-    property content -> str;
-    link chat -> MessageThread {
-      on target delete delete source;
+    type MessageThread {
+      property title -> str;
     }
-  }
+
+    type Message {
+      property content -> str;
+      link chat -> MessageThread {
+        on target delete delete source;
+      }
+    }
+
+.. code-block:: sdl
+
+    type MessageThread {
+      title: str;
+    }
+
+    type Message {
+      content: str;
+      chat: MessageThread {
+        on target delete delete source;
+      }
+    }
 
 The ``Message.chat`` link in the example uses the ``delete source`` policy.
 There are 4 available target deletion policies.
@@ -353,17 +483,31 @@ Source deletion policies determine what action should be taken when the
 delete`` clause.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type MessageThread {
-    property title -> str;
-    multi link messages -> Message {
-      on source delete delete target;
+    type MessageThread {
+      property title -> str;
+      multi link messages -> Message {
+        on source delete delete target;
+      }
     }
-  }
 
-  type Message {
-    property content -> str;
-  }
+    type Message {
+      property content -> str;
+    }
+
+.. code-block:: sdl
+
+    type MessageThread {
+      title: str;
+      multi messages: Message {
+        on source delete delete target;
+      }
+    }
+
+    type Message {
+      content: str;
+    }
 
 Under this policy, deleting a ``MessageThread`` will *unconditionally* delete
 its ``messages`` as well.
@@ -373,14 +517,25 @@ objects via their ``message`` link, append ``if orphan`` to that link's
 deletion policy.
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
-    type MessageThread {
-      property title -> str;
-      multi link messages -> Message {
-  -     on source delete delete target;
-  +     on source delete delete target if orphan;
+      type MessageThread {
+        property title -> str;
+        multi link messages -> Message {
+    -     on source delete delete target;
+    +     on source delete delete target if orphan;
+        }
       }
-    }
+
+.. code-block:: sdl-diff
+
+      type MessageThread {
+        title: str;
+        multi messages: Message {
+    -     on source delete delete target;
+    +     on source delete delete target if orphan;
+        }
+      }
 
 .. note::
 
@@ -412,29 +567,52 @@ Links can have ``abstract`` targets, in which case the link is considered
 **polymorphic**. Consider the following schema:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  abstract type Person {
-    property name -> str;
-  }
+    abstract type Person {
+      property name -> str;
+    }
 
-  type Hero extending Person {
-    # additional fields
-  }
+    type Hero extending Person {
+      # additional fields
+    }
 
-  type Villain extending Person {
-    # additional fields
-  }
+    type Villain extending Person {
+      # additional fields
+    }
+
+.. code-block:: sdl
+
+    abstract type Person {
+      name: str;
+    }
+
+    type Hero extending Person {
+      # additional fields
+    }
+
+    type Villain extending Person {
+      # additional fields
+    }
 
 The ``abstract`` type ``Person`` has two concrete subtypes: ``Hero`` and
 ``Villain``. Despite being abstract, ``Person`` can be used as a link target in
 concrete object types.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Movie {
-    property title -> str;
-    multi link characters -> Person;
-  }
+    type Movie {
+      property title -> str;
+      multi link characters -> Person;
+    }
+
+.. code-block:: sdl
+
+    type Movie {
+      title: str;
+      multi characters: Person;
+    }
 
 In practice, the ``Movie.characters`` link can point to a ``Hero``,
 ``Villain``, or any other non-abstract subtype of ``Person``. For details on
@@ -451,15 +629,29 @@ of properties, annotations, constraints, or indexes, abstract links can be used
 to eliminate repetitive SDL.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  abstract link link_with_strength {
-    property strength -> float64;
-    index on (__subject__@strength);
-  }
+    abstract link link_with_strength {
+      property strength -> float64;
+      index on (__subject__@strength);
+    }
 
-  type Person {
-    multi link friends extending link_with_strength -> Person;
-  }
+    type Person {
+      multi link friends extending link_with_strength -> Person;
+    }
+
+.. code-block:: sdl
+
+    abstract link link_with_strength {
+      strength: float64;
+      index on (__subject__@strength);
+    }
+
+    type Person {
+      multi friends: Person {
+        extending link_with_strength;
+      };
+    }
 
 
 .. list-table::

@@ -13,9 +13,16 @@ as the needs of the project evolve.
 We'll start with a fairly simple schema:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type User {
       property name -> str;
+    }
+
+.. code-block:: sdl
+
+    type User {
+      name: str;
     }
 
 At this stage we don't think that this property needs to be unique or
@@ -39,9 +46,16 @@ that for a little while we realize that we want to make ``name`` a
 file:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type User {
       required property name -> str;
+    }
+
+.. code-block:: sdl
+
+    type User {
+      required name: str;
     }
 
 Next we try to migrate:
@@ -69,9 +83,18 @@ avoid confusion or to use them as reliable human-readable identifiers
 (unlike ``id``). We update the schema again:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type User {
       required property name -> str {
+        constraint exclusive;
+      }
+    }
+
+.. code-block:: sdl
+
+    type User {
+      required name: str {
         constraint exclusive;
       }
     }

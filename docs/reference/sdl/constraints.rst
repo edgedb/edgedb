@@ -33,10 +33,21 @@ Declare a *concrete* constraint on an integer type:
 Declare a *concrete* constraint on an object type:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type Vector {
         required property x -> float64;
         required property y -> float64;
+        constraint expression on (
+            __subject__.x^2 + __subject__.y^2 < 25
+        );
+    }
+
+.. code-block:: sdl
+
+    type Vector {
+        required x: float64;
+        required y: float64;
         constraint expression on (
             __subject__.x^2 + __subject__.y^2 < 25
         );

@@ -164,17 +164,31 @@ Let's build a simple movie database. We'll need to define two **object types**
 ``dbschema/default.esdl`` in your editor of choice and paste the following:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  module default {
-    type Person {
-      required property name -> str;
-    }
+    module default {
+      type Person {
+        required property name -> str;
+      }
 
-    type Movie {
-      property title -> str;
-      multi link actors -> Person;
-    }
-  };
+      type Movie {
+        property title -> str;
+        multi link actors -> Person;
+      }
+    };
+
+.. code-block:: sdl
+
+    module default {
+      type Person {
+        required name: str;
+      }
+
+      type Movie {
+        title: str;
+        multi actors: Person;
+      }
+    };
 
 
 A few things to note here.
@@ -243,13 +257,21 @@ Before we proceed, let's try making a small change to our schema: making the
 ``title`` property of ``Movie`` required. First, update the schema file:
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
+        type Movie {
+    -     property title -> str;
+    +     required property title -> str;
+          multi link actors -> Person;
+        }
 
-      type Movie {
-  -     property title -> str;
-  +     required property title -> str;
-        multi link actors -> Person;
-      }
+.. code-block:: sdl-diff
+
+        type Movie {
+    -     title: str;
+    +     required title: str;
+          multi actors: Person;
+        }
 
 Then create another migration. Because this isn't the initial migration, we
 see something a little different than before.

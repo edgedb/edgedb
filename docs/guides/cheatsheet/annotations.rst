@@ -6,12 +6,25 @@ Declaring annotations
 Use annotations to add descriptions to types and links:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type Label {
         annotation description :=
             'Special label to stick on reviews';
         required property comments -> str;
         link review -> Review {
+            annotation description :=
+                'This review needs some attention';
+        };
+    }
+
+.. code-block:: sdl
+
+    type Label {
+        annotation description :=
+            'Special label to stick on reviews';
+        required comments: str;
+        review: Review {
             annotation description :=
                 'This review needs some attention';
         };
