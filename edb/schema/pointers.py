@@ -1167,6 +1167,19 @@ class PointerCommandOrFragment(
             # There is an expression, therefore it is a computable.
             self.set_attribute_value('computable', True)
 
+        # If a change to the computable definition might be changing
+        # the bases, we need to create a rebase.
+        if base is not None and isinstance(self, sd.AlterObject):
+            assert isinstance(self, inheriting.InheritingObjectCommand)
+            assert isinstance(base, Pointer)
+            _, cmd = self._rebase_ref_cmd(
+                schema, context, self.scls,
+                self.scls.get_bases(schema).objects(schema),
+                [base],
+            )
+            if cmd:
+                self.add(cmd)
+
         return schema
 
     def _parse_computable(

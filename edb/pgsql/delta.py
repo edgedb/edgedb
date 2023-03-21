@@ -5020,9 +5020,8 @@ class RebaseLink(LinkMetaCommand, adapts=s_links.RebaseLink):
 
         schema = super()._alter_innards(schema, context)
 
-        if not self.scls.is_pure_computable(schema):
-            self.schedule_endpoint_delete_action_update(
-                self.scls, orig_schema, schema, context)
+        self.schedule_endpoint_delete_action_update(
+            self.scls, orig_schema, schema, context)
 
         return schema
 

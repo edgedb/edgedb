@@ -15019,6 +15019,25 @@ DDLStatement);
             delete Foo;
         """)
 
+    async def test_edgeql_ddl_switch_link_computed_01(self):
+        await self.con.execute(r"""
+            create type Tgt;
+            create type Src {
+                create multi link l1 -> Tgt { create property s1 -> str; };
+                create multi link l2 -> Tgt { create property s2 -> str; };
+                create link c := (.l1);
+            };
+        """)
+        await self.con.execute(r"""
+            select Src { c: {@s1} };
+        """)
+        await self.con.execute(r"""
+            alter type Src alter link c using (.l2);
+        """)
+        await self.con.execute(r"""
+            select Src { c: {@s2} };
+        """)
+
     async def test_edgeql_ddl_set_abs_linkprop_type(self):
         await self.con.execute(r"""
             CREATE ABSTRACT LINK orderable {

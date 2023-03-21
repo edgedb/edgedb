@@ -434,14 +434,14 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         return schema, deleted_refs
 
-    def _rebase_ref(
+    def _rebase_ref_cmd(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         scls: s_referencing.ReferencedInheritingObject,
         old_bases: Sequence[so.InheritingObject],
         new_bases: Sequence[so.InheritingObject],
-    ) -> Tuple[s_schema.Schema, sd.Command]:
+    ) -> tuple[sd.Command, Optional[sd.Command]]:
         from . import referencing as s_referencing
 
         old_base_names = [b.get_name(schema) for b in old_bases]
@@ -494,6 +494,19 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             'ancestors',
             ancestors_coll,
         )
+
+        return alter_cmd_root, rebase_cmd
+
+    def _rebase_ref(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: s_referencing.ReferencedInheritingObject,
+        old_bases: Sequence[so.InheritingObject],
+        new_bases: Sequence[so.InheritingObject],
+    ) -> Tuple[s_schema.Schema, sd.Command]:
+        alter_cmd_root, _ = self._rebase_ref_cmd(
+            schema, context, scls, old_bases, new_bases)
 
         schema = alter_cmd_root.apply(schema, context)
 
