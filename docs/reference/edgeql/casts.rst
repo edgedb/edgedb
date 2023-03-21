@@ -30,6 +30,8 @@ For example, the following expression casts an integer value into a string:
 See the :eql:op:`type cast operator <cast>` section for more
 information on type casting rules.
 
+.. lint-off
+
 .. versionadded:: 3.0
 
     You can cast a UUID into an object:
@@ -42,15 +44,12 @@ information on type casting rules.
     If you try to cast a UUID that no object of the type has as its ``id``
     property, you'll get an error:
 
-    .. lint-off
-
     .. code-block:: edgeql-repl
 
         db> select <Hero><uuid>'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
         edgedb error: CardinalityViolationError: 'default::Hero' with id 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' does not exist
 
-    .. lint-on
-
+.. lint-on
 
 
 Assignment Casts
