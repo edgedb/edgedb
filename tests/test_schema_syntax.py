@@ -189,8 +189,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
 
                 link priority: Priority;
 
-                multi link watchers extending orderable: User {
-                    property foo extending bar: str;
+                multi link watchers: User {
+                    extending orderable;
+                    property foo: str {
+                        extending bar;
+                    };
                 };
 
                 multi link time_spent_log: LogEntry;
@@ -675,7 +678,9 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module default {
             type Foo {
-                property union extending except: str;
+                property union: str {
+                    extending except;
+                };
             };
         };
         """
@@ -684,7 +689,8 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
         module default {
             type Foo {
-                link union extending except: Object {
+                link union: Object {
+                    extending except;
                     property intersect: str;
                 };
             };
@@ -1162,14 +1168,17 @@ abstract property test::foo {
     def test_eschema_syntax_property_02(self):
         """
         module test {
-            abstract property bar extending foo;
+            abstract property bar {
+                extending foo;
+            };
         };
         """
 
     def test_eschema_syntax_property_03(self):
         """
         module test {
-            abstract property bar extending foo {
+            abstract property bar {
+                extending foo;
                 title := 'Another property';
             };
         };
@@ -1182,7 +1191,8 @@ abstract property test::foo {
                 title := 'Sample property';
             };
 
-            abstract property bar extending foo {
+            abstract property bar {
+                extending foo;
                 title := 'Another property';
             };
         };
@@ -1200,7 +1210,9 @@ abstract property test::foo {
     def test_eschema_syntax_property_06(self):
         """
         module test {
-            abstract property union extending except;
+            abstract property union {
+                extending except;
+            };
         };
         """
 
@@ -1214,7 +1226,9 @@ abstract property test::foo {
     def test_eschema_syntax_link_02(self):
         """
         module test {
-            abstract link coollink extending boringlink;
+            abstract link coollink {
+                extending boringlink;
+            };
         };
         """
 
@@ -1245,7 +1259,8 @@ abstract property test::foo {
                 title := 'Sample property';
             };
 
-            abstract property bar extending foo {
+            abstract property bar {
+                extending foo;
                 title := 'Another property';
             };
 
@@ -1349,14 +1364,17 @@ abstract property test::foo {
     def test_eschema_syntax_property_13(self):
         """
         module test {
-            abstract link union extending except;
+            abstract link union {
+                extending except;
+            };
         };
         """
 
     def test_eschema_syntax_property_14(self):
         """
         module test {
-            abstract link union extending intersect {
+            abstract link union {
+                extending intersect;
                 property except: str;
             };
         };

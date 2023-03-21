@@ -837,6 +837,28 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._write_keywords(' EXTENDING ')
             self.visit_list(node.bases, newlines=False)
 
+    PointerNode = TypeVar(
+        'PointerNode',
+        qlast.CreateConcretePointer,
+        qlast.CreateLink,
+        qlast.CreateProperty
+    )
+
+    def _ddl_add_pointer_bases(
+        self,
+        node: PointerNode,
+    ) -> PointerNode:
+        # We very carefully strained EXTENDING clauses out of subcommands
+        # when parsing, but now that we're printing, we want to print it
+        # back in the commands block. Do that by "faking" an extending
+        # node in the subcommands of a scoped copy of this node.
+        if node.bases:
+            return node.replace(commands=(
+                [qlast.AlterAddInherit(bases=node.bases)] + node.commands
+            ))
+        else:
+            return node
+
     def _ddl_clean_up_commands(
         self,
         commands: Sequence[qlast.Base],
@@ -1614,9 +1636,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_CreateObject(node, *keywords)
 
     def visit_CreateProperty(self, node: qlast.CreateProperty) -> None:
-        after_name = lambda: self._ddl_visit_bases(node)
-        self._visit_CreateObject(node, 'ABSTRACT PROPERTY',
-                                 after_name=after_name)
+        node = self._ddl_add_pointer_bases(node)
+        self._visit_CreateObject(node, 'ABSTRACT PROPERTY')
 
     def visit_AlterProperty(self, node: qlast.AlterProperty) -> None:
         self._visit_AlterObject(node, 'ABSTRACT PROPERTY')
@@ -1691,8 +1712,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'PROPERTY', unqualified=True)
 
     def visit_CreateLink(self, node: qlast.CreateLink) -> None:
-        after_name = lambda: self._ddl_visit_bases(node)
-        self._visit_CreateObject(node, 'ABSTRACT LINK', after_name=after_name)
+        node = self._ddl_add_pointer_bases(node)
+        self._visit_CreateObject(node, 'ABSTRACT LINK')
 
     def visit_AlterLink(self, node: qlast.AlterLink) -> None:
         self._visit_AlterObject(node, 'ABSTRACT LINK')
@@ -1723,7 +1744,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             keywords.append(kind)
 
         def after_name() -> None:
-            self._ddl_visit_bases(node)
             if node.target is not None:
                 if isinstance(node.target, qlast.TypeExpr):
                     self.write(': ')
@@ -1733,6 +1753,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.write(' := (')
                     self.visit(node.target)
                     self.write(')')
+
+        node = self._ddl_add_pointer_bases(node)
 
         pure_computable = (
             len(node.commands) == 0
