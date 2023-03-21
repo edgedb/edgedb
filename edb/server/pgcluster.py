@@ -145,7 +145,7 @@ class BaseCluster:
         )
 
     async def start_watching(
-        self, cluster_protocol: Optional[ha_base.ClusterProtocol] = None
+        self, failover_cb: Optional[Callable[[], None]] = None
     ) -> None:
         pass
 
@@ -779,10 +779,11 @@ class RemoteCluster(BaseCluster):
         raise ClusterError('cannot modify HBA records of unmanaged cluster')
 
     async def start_watching(
-        self, cluster_protocol: Optional[ha_base.ClusterProtocol] = None
+        self, failover_cb: Optional[Callable[[], None]] = None
     ) -> None:
         if self._ha_backend is not None:
-            await self._ha_backend.start_watching(cluster_protocol)
+            self._ha_backend.set_failover_callback(failover_cb)
+            await self._ha_backend.start_watching()
 
     def stop_watching(self) -> None:
         if self._ha_backend is not None:
