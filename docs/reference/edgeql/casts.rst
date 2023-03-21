@@ -39,8 +39,8 @@ information on type casting rules.
         db> select <Hero><uuid>'01d9cc22-b776-11ed-8bef-73f84c7e91e7';
         {default::Hero {id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7}}
 
-    If you try to cast a UUID that doesn't exist on the object, you'll get an
-    error:
+    If you try to cast a UUID that no object of the type has as its ``id``
+    property, you'll get an error:
 
     .. lint-off
 
