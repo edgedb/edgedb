@@ -535,6 +535,8 @@ def _populate_migration(
     # The actual check for whether the schema matches is done
     # by DESCRIBE CURRENT MIGRATION AS JSON, to populate the
     # 'complete' flag.
+    if debug.flags.delta_plan:
+        debug.header('Populate Migration Applied Diff')
     for cmd in new_ddl:
         reloaded_diff = s_ddl.delta_from_ddl(
             cmd,
@@ -543,6 +545,9 @@ def _populate_migration(
             **_get_delta_context_args(ctx),
         )
         schema = reloaded_diff.apply(schema, delta_context)
+        if debug.flags.delta_plan:
+            debug.dump(reloaded_diff, schema=schema)
+
     current_tx.update_schema(schema)
 
     return dbstate.MigrationControlQuery(

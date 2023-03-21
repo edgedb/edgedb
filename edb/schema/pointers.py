@@ -288,13 +288,6 @@ def _merge_types(
 
     # When two pointers are merged, check target compatibility
     # and return a target that satisfies both specified targets.
-
-    # This is a hack: when deriving computed backlink pointers, we
-    # (ab)use inheritance to populate them with the appropriate
-    # linkprops. We fix it up to remove the bogus parents later.
-    if ptr.get_computed_backlink(schema):
-        return schema, t2
-
     elif (isinstance(t1, s_abc.ScalarType) !=
             isinstance(t2, s_abc.ScalarType)):
         # Mixing a property with a link.
@@ -532,6 +525,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
     computed_backlink = so.SchemaField(
         so.Object,
         default=None,
+        compcoef=0.99,
     )
 
     def is_tuple_indirection(self) -> bool:
@@ -1208,9 +1202,11 @@ class PointerCommandOrFragment(
             target = schema.get('std::BaseObject', type=s_types.Type)
             target_shell = target.as_shell(schema)
 
-        result_expr = expression.irast.expr
+        orig_expr = expression.irast.expr
+        if isinstance(orig_expr, irast.Set):
+            orig_expr = irutils.unwrap_set(orig_expr)
+        result_expr = orig_expr
         if isinstance(result_expr, irast.Set):
-            result_expr = irutils.unwrap_set(result_expr)
             if result_expr.rptr is not None:
                 result_expr, _ = irutils.collapse_type_intersection(
                     result_expr)
@@ -1239,6 +1235,32 @@ class PointerCommandOrFragment(
                 ):
                     base = aliased_ptr
                     schema = new_schema
+
+        # Do similar logic, but in reverse, to see if the computed pointer
+        # is a computed backlink that we need to keep track of.
+        computed_backlink = None
+        if (
+            base is None
+            and isinstance(orig_expr, irast.Set)
+            and orig_expr.rptr
+            and isinstance(
+                orig_expr.rptr.ptrref, irast.TypeIntersectionPointerRef)
+            and len(orig_expr.rptr.ptrref.rptr_specialization) == 1
+            and expr_rptr.direction is not PointerDirection.Outbound
+        ):
+            ptrref = list(orig_expr.rptr.ptrref.rptr_specialization)[0]
+            new_schema, aliased_ptr = irtyputils.ptrcls_from_ptrref(
+                ptrref, schema=schema
+            )
+            if (
+                aliased_ptr.get_target(new_schema) == source
+                and not ptrref.out_source.is_opaque_union
+                and isinstance(aliased_ptr, self.get_schema_metaclass())
+            ):
+                computed_backlink = aliased_ptr
+                schema = new_schema
+
+        self.set_attribute_value('computed_backlink', computed_backlink)
 
         self.set_attribute_value('expr', expression)
         required, card = expression.irast.cardinality.to_schema_value()
@@ -2049,6 +2071,7 @@ class AlterPointer(
                     and not self.has_attribute_value('cardinality')
                 ):
                     self.set_attribute_value('cardinality', None)
+                self.set_attribute_value('computed_backlink', None)
 
             # Clear the placeholder value for 'expr'.
             self.set_attribute_value('expr', None)

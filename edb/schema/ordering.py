@@ -500,6 +500,7 @@ def _trace_op(
         op: sd.AlterObjectProperty,
         parent_op: sd.ObjectCommand[so.Object],
     ) -> str:
+        nvn = None
         if isinstance(op.new_value, (so.Object, so.ObjectShell)):
             obj = op.new_value
             nvn = obj.get_name(new_schema)
@@ -524,7 +525,6 @@ def _trace_op(
         if isinstance(op.old_value, (so.Object, so.ObjectShell)):
             assert old_schema is not None
             ovn = op.old_value.get_name(old_schema)
-            nvn = op.new_value.get_name(new_schema)
             if ovn != nvn:
                 ov_item = get_deps(('delete', str(ovn)))
                 ov_item.deps.add((tag, graph_key))

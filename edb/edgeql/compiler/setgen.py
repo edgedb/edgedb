@@ -703,6 +703,26 @@ def resolve_ptr_with_intersections(
             s_name.UnqualName(pointer_name),
         )
 
+        # If we couldn't anything, but the source is a computed backlink,
+        # look for a link property on the reverse side of it. This allows
+        # us to access link properties in both directions on links, including
+        # when the backlink has been stuck in a computed.
+        if (
+            ptr is None
+            and isinstance(near_endpoint, s_pointers.Pointer)
+            and (back := near_endpoint.get_computed_backlink(ctx.env.schema))
+            and isinstance(back, s_links.Link)
+            and (nptr := back.maybe_get_ptr(
+                ctx.env.schema,
+                s_name.UnqualName(pointer_name),
+            ))
+            # We can't handle computeds yet, since we would need to switch
+            # around a bunch of stuff inside them.
+            and not nptr.is_pure_computable(ctx.env.schema)
+        ):
+            ptr = schemactx.derive_ptr(nptr, near_endpoint, ctx=ctx)
+            path_id_ptr = ptr
+
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
             if track_ref is not False:
