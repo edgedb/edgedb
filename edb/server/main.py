@@ -229,7 +229,12 @@ async def _run_server(
         ss.init_tls(
             args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
 
-        ss.init_jwcrypto(args.jws_key_file, jws_keys_newly_generated)
+        ss.init_jwcrypto(
+            args.jws_key_file,
+            args.jwt_sub_allowlist_file,
+            args.jwt_revocation_list_file,
+            jws_keys_newly_generated,
+        )
 
         def load_configuration(_signum):
             logger.info("reloading configuration")
@@ -237,7 +242,11 @@ async def _run_server(
                 if args.readiness_state_file:
                     ss.reload_readiness_state(args.readiness_state_file)
                 ss.reload_tls(args.tls_cert_file, args.tls_key_file)
-                ss.load_jwcrypto(args.jws_key_file)
+                ss.load_jwcrypto(
+                    args.jws_key_file,
+                    args.jwt_sub_allowlist_file,
+                    args.jwt_revocation_list_file,
+                )
             except Exception:
                 logger.critical(
                     "Unexpected error occurred during reload configuration; "

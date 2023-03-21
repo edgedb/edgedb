@@ -34,6 +34,7 @@ from jwcrypto import jwk
 
 from edb import buildmeta
 from edb.common import devmode
+from edb.common import secretkey
 from edb.edgeql import quote
 
 from edb.server import args as edgedb_args
@@ -430,22 +431,10 @@ class Cluster(BaseCluster):
         return self._jws_key
 
     def _load_jws_key(self) -> jwk.JWK:
-        jws_key_file = self._get_jws_key_path()
         try:
-            with open(jws_key_file, 'rb') as kf:
-                jws_key = jwk.JWK.from_pem(kf.read())
-        except Exception as e:
-            raise ClusterError(f"cannot load JWS key: {e}") from e
-
-        if (
-            not jws_key.has_public
-            or jws_key['kty'] not in {"RSA", "EC"}
-        ):
-            raise ClusterError(
-                f"the cluster JWS key file does not "
-                f"contain a valid RSA or EC public key")
-
-        return jws_key
+            return secretkey.load_secret_key(self._get_jws_key_path())
+        except secretkey.SecretKeyReadError as e:
+            raise ClusterError(e.args[0]) from e
 
     def _get_jws_key_path(self) -> pathlib.Path:
         if path := os.environ.get("EDGEDB_SERVER_JWS_KEY_FILE"):
