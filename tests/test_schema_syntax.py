@@ -1216,6 +1216,75 @@ abstract property test::foo {
         };
         """
 
+    def test_eschema_syntax_property_07(self):
+        """
+        module test {
+            abstract property foo {
+                extending bar;
+            };
+        };
+        """
+
+    def test_eschema_syntax_property_08(self):
+        """
+        module test {
+            type foo {
+                required property bar: str {
+                    extending baz;
+                };
+            };
+        };
+
+        """
+
+    def test_eschema_syntax_property_09(self):
+        """
+        module test {
+            type foo {
+                optional property bar: str {
+                    extending baz;
+                };
+            };
+        };
+
+        """
+
+    def test_eschema_syntax_property_10(self):
+        """
+        module test {
+            type foo {
+                property bar: str {
+                    extending baz;
+                };
+            };
+        };
+
+        """
+
+    def test_eschema_syntax_property_11(self):
+        """
+        module test {
+            type foo {
+                bar: str {
+                    extending baz;
+                };
+            };
+        };
+        """
+
+    @tb.must_fail(
+        errors.EdgeQLSyntaxError,
+        r'specifying EXTENDING twice is not allowed'
+    )
+    def test_eschema_syntax_property_12(self):
+        """
+        module test {
+            abstract property foo extending bar {
+                extending bar;
+            }
+        }
+        """
+
     def test_eschema_syntax_link_01(self):
         """
         module test {
@@ -1361,7 +1430,7 @@ abstract property test::foo {
         };
         """
 
-    def test_eschema_syntax_property_13(self):
+    def test_eschema_syntax_link_13(self):
         """
         module test {
             abstract link union {
@@ -1370,7 +1439,7 @@ abstract property test::foo {
         };
         """
 
-    def test_eschema_syntax_property_14(self):
+    def test_eschema_syntax_link_14(self):
         """
         module test {
             abstract link union {
@@ -1378,6 +1447,51 @@ abstract property test::foo {
                 property except: str;
             };
         };
+        """
+
+    def test_eschema_syntax_link_15(self):
+        """
+        module test {
+            abstract link foo {
+                extending bar;
+            };
+        };
+        """
+
+    def test_eschema_syntax_link_16(self):
+        """
+        module test {
+            type foo {
+                required link bar: test::foo {
+                    extending baz;
+                };
+            };
+        };
+
+        """
+
+    def test_eschema_syntax_link_17(self):
+        """
+        module test {
+            type foo {
+                optional link bar: test::foo {
+                    extending baz;
+                };
+            };
+        };
+
+        """
+
+    def test_eschema_syntax_link_18(self):
+        """
+        module test {
+            type foo {
+                link bar: test::foo {
+                    extending baz;
+                };
+            };
+        };
+
         """
 
     def test_eschema_syntax_function_01(self):
