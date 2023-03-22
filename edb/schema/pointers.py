@@ -46,6 +46,7 @@ from . import inheriting
 from . import name as sn
 from . import objects as so
 from . import referencing
+from . import rewrites as s_rewrites
 from . import schema as s_schema
 from . import types as s_types
 from . import utils
@@ -532,6 +533,22 @@ class Pointer(referencing.NamedReferencedInheritingObject,
     computed_backlink = so.SchemaField(
         so.Object,
         default=None,
+    )
+
+    rewrites_refs = so.RefDict(
+        attr="rewrites",
+        requires_explicit_overloaded=True,
+        backref_attr="subject",
+        ref_cls=s_rewrites.Rewrite,
+    )
+
+    rewrites = so.SchemaField(
+        so.ObjectIndexByUnqualifiedName[s_rewrites.Rewrite],
+        inheritable=False,
+        ephemeral=True,
+        coerce=True,
+        compcoef=0.857,
+        default=so.DEFAULT_CONSTRUCTOR,
     )
 
     def is_tuple_indirection(self) -> bool:
@@ -1083,8 +1100,11 @@ class ComputableRef:
         self.specified_type = specified_type
 
 
-class PointerCommandContext(sd.ObjectCommandContext[Pointer_T],
-                            s_anno.AnnotationSubjectCommandContext):
+class PointerCommandContext(
+    sd.ObjectCommandContext[Pointer_T],
+    s_anno.AnnotationSubjectCommandContext,
+    s_rewrites.RewriteSubjectCommandContext,
+):
     pass
 
 

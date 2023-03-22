@@ -35,6 +35,7 @@ from . import name as sn
 from . import objects as so
 from . import pointers
 from . import referencing
+from . import rewrites as s_rewrites
 from . import sources
 from . import types as s_types
 from . import utils
@@ -203,10 +204,13 @@ class LinkSourceCommand(inheriting.InheritingObjectCommand[sources.Source_T]):
     pass
 
 
-class LinkCommandContext(pointers.PointerCommandContext[Link],
-                         constraints.ConsistencySubjectCommandContext,
-                         properties.PropertySourceContext[Link],
-                         sources.SourceCommandContext[Link]):
+class LinkCommandContext(
+    pointers.PointerCommandContext[Link],
+    constraints.ConsistencySubjectCommandContext,
+    properties.PropertySourceContext[Link],
+    sources.SourceCommandContext[Link],
+    s_rewrites.RewriteSubjectCommandContext,
+):
     pass
 
 
