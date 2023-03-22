@@ -194,6 +194,8 @@ class TestNewInterpreterModelSmokeTests(tb.QueryTestCase):
     #             str(e),
     #             "Expected", expected, "Actual", result)
 
+
+
     async def test_model_basic_01(self):
         await self.assert_query_result(
             "SELECT 1",

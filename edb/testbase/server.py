@@ -880,13 +880,13 @@ class ConnectedTestCaseMixin:
                 (result, _) = model.run_single_str_get_json(
                     self.experimental_interpreter_db, query, print_asts=False)
                 res = result
-                # try:
-                #     assert_data_shape.assert_data_shape(
-                #         res, exp_result_json, self.fail, message=msg)
-                # except AssertionError as e:
-                #     raise AssertionError(
-                #         str(e),
-                #         "Expected", exp_result_json, "Actual", result)
+                try:
+                    assert_data_shape.assert_data_shape(
+                        res, exp_result_json, self.fail, message=msg)
+                except AssertionError as e:
+                    raise AssertionError(
+                        str(e),
+                        "Expected", exp_result_json, "Actual", result)
             else:
                 tx = self.con.transaction()
                 await tx.start()

@@ -11,20 +11,22 @@ from edb.edgeql import ast as qlast
 from .back_to_ql import reverse_elab
 from .basis.built_ins import all_builtin_funcs
 from .data.data_ops import DB, DBSchema, MultiSetVal, empty_db
+from .data import expr_ops as eops
 from .data.path_factor import select_hoist
-from .data.val_to_json import (json_like, multi_set_val_to_json_like,
-                               val_to_json_like)
+from .data.val_to_json import (json_like, multi_set_val_to_json_like)
 from .elab_schema import schema_from_sdl_defs, schema_from_sdl_file
 from .elaboration import elab
 from .evaluation import RTData, RTExpr, eval_config_toplevel
 from .helper_funcs import parse_ql
+from .logs import write_logs_to_file
 
 # CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
 # sys.setrecursionlimit(10000)
 
 
 def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema,
-                  should_print: bool) -> Tuple[MultiSetVal, DB]:
+                  should_print: bool,
+                  logs: Optional[List[Any]]) -> Tuple[MultiSetVal, DB]:
     if should_print:
         print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
         debug.dump_edgeql(stmt)
@@ -52,27 +54,30 @@ def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema,
                dbschema,
                False
                ), factored)
-    result = eval_config_toplevel(config)
+    result = eval_config_toplevel(config, logs=logs)
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
         debug.print(result.val)
-        print([val_to_json_like(v) for v in result.val])
+        print(multi_set_val_to_json_like(eops.assume_link_target(result.val)))
         print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
     return (result.val, result.data.cur_db)
     # debug.dump(stmt)
 
 
 def run_stmts(db: DB, stmts: Sequence[qlast.Expr],
-              dbschema: DBSchema, debug_print: bool
+              dbschema: DBSchema, debug_print: bool,
+              logs: Optional[List[Any]]
               ) -> Tuple[Sequence[MultiSetVal], DB]:
     match stmts:
         case []:
             return ([], db)
         case current, *rest:
             (cur_val, next_db) = run_statement(
-                db, current, dbschema, should_print=debug_print)
+                db, current, dbschema, should_print=debug_print, 
+                logs=logs)
             (rest_val, final_db) = run_stmts(
-                next_db, rest, dbschema, debug_print)
+                next_db, rest, dbschema, debug_print,
+                logs=logs)
             return ([cur_val, *rest_val], final_db)
     raise ValueError("Not Possible")
 
@@ -81,12 +86,13 @@ def run_str(
     db: DB,
     dbschema: DBSchema,
     s: str,
-    print_asts: bool = False
+    print_asts: bool = False,
+    logs: Optional[List[str]] = None
 ) -> Tuple[Sequence[MultiSetVal], DB]:
     q = parse_ql(s)
     # if print_asts:
     #     debug.dump(q)
-    (res, next_db) = run_stmts(db, q, dbschema, print_asts)
+    (res, next_db) = run_stmts(db, q, dbschema, print_asts, logs)
     # if output_mode == 'pprint':
     #     pprint.pprint(res)
     # elif output_mode == 'json':
@@ -105,7 +111,8 @@ def run_single_str(
     if len(q) != 1:
         raise ValueError("Not a single query")
     (res, next_db) = run_statement(
-        db, q[0], DBSchema({}, all_builtin_funcs), print_asts)
+        db, q[0], DBSchema({}, all_builtin_funcs), print_asts,
+        logs=None)
     return (res, next_db)
 
 
@@ -118,20 +125,28 @@ def run_single_str_get_json(
     return (multi_set_val_to_json_like(res), next_db)
 
 
-def repl(*, init_sdl_file=None, init_ql_file=None, debug_print=False) -> None:
+def repl(*, init_sdl_file=None,
+         init_ql_file=None,
+         debug_print=False,
+         trace_to_file_path=None,
+         ) -> None:
     # for now users should just invoke this script with rlwrap since I
     # don't want to fiddle with history or anything
     db = empty_db()
+    logs: List[Any] = []  # type: ignore[var]
     dbschema: DBSchema
     if init_sdl_file is not None:
-        dbschema = schema_from_sdl_file(init_sdl_file_path=init_sdl_file)
+        dbschema = schema_from_sdl_file(init_sdl_file_path=init_sdl_file,
+                                        surround_with_default=True)
     else:
         dbschema = DBSchema({}, all_builtin_funcs)
     if init_ql_file is not None:
         initial_queries = open(init_ql_file).read()
         (_, db) = run_str(db, dbschema, initial_queries,
-                          print_asts=debug_print)
+                          print_asts=debug_print, logs=logs)
     while True:
+        if trace_to_file_path is not None:
+            write_logs_to_file(logs, trace_to_file_path)
         print("> ", end="", flush=True)
         s = ""
         while ';' not in s:
@@ -139,7 +154,8 @@ def repl(*, init_sdl_file=None, init_ql_file=None, debug_print=False) -> None:
             if not s:
                 return
         try:
-            (_, db) = run_str(db, dbschema, s, print_asts=debug_print)
+            (_, db) = run_str(db, dbschema, s, print_asts=debug_print,
+                              logs=logs)
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
@@ -148,12 +164,15 @@ def db_with_initial_schema_and_queries(
         initial_schema_defs: str,
         initial_queries: str,
         surround_schema_with_default: bool,
-        debug_print=False) -> DB:
+        debug_print=False,
+        logs: Optional[List[Any]] = None,
+        ) -> DB:
     db = empty_db()
     dbschema = schema_from_sdl_defs(
                     initial_schema_defs,
                     surround_with_default=surround_schema_with_default)
-    (_, db) = run_str(db, dbschema, initial_queries, print_asts=debug_print)
+    (_, db) = run_str(db, dbschema, initial_queries,
+                      print_asts=debug_print, logs=logs)
     return db
 
 

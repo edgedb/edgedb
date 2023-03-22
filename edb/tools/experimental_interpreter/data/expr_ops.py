@@ -225,7 +225,22 @@ def appears_in_expr(search: Expr, subject: Expr):
     class ReturnTrue(Exception):
         pass
 
+    expr_is_var: Optional[str]
+    match search:
+        case FreeVarExpr(vname):
+            expr_is_var = vname
+        case BoundVarExpr(vname):
+            expr_is_var = vname
+        case _:
+            expr_is_var = None
+
     def map_func(candidate: Expr) -> Optional[Expr]:
+        if (expr_is_var is not None
+                and isinstance(candidate, BindingExpr)
+                and candidate.var == expr_is_var):
+
+            # terminate search here
+            return candidate
         if candidate == search:
             raise ReturnTrue()
         else:
@@ -350,7 +365,10 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
                     else:
                         return RefVal(id, ObjectVal({}))
         case _:
-            return val
+            if isinstance(tp, LinkPropTp):
+                return val
+            else:
+                return val
 
 
 def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> ObjectVal:

@@ -15,32 +15,12 @@ from .data.data_ops import (
     ParamSingleton, RefVal, ShapedExprExpr, ShapeExpr, StrLabel, StrVal,
     SubqueryExpr, TpIntersectExpr, TypeCastExpr, UnionExpr,
     UnnamedTupleExpr, UnnamedTupleVal, UpdateExpr, Val, VarTp, Visible,
-    WithExpr, next_id)
+    WithExpr, next_id, RTData, RTExpr, RTVal)
 from .data.expr_ops import (
     assume_link_target, coerce_to_storage, combine_object_val,
     convert_to_link, get_object_val, instantiate_expr,
     map_assume_link_target, val_is_link_convertible, val_is_ref_val)
 from .data.type_ops import is_nominal_subtype_in_schema
-
-# RT Stands for Run Time
-
-
-@dataclass(frozen=True)
-class RTData:
-    cur_db: DB
-    read_snapshots: Sequence[DB]
-    schema: DBSchema
-    eval_only: bool  # a.k.a. no DML, no effect
-
-
-class RTExpr(NamedTuple):
-    data: RTData
-    expr: Expr
-
-
-class RTVal(NamedTuple):
-    data: RTData
-    val: MultiSetVal
 
 
 def make_eval_only(data: RTData) -> RTData:
@@ -90,7 +70,7 @@ def apply_shape(ctx: RTData, shape: ShapeExpr, value: Val) -> Val:
         for (key, (_, pval)) in objectval.val.items():
             if key not in shape.shape.keys():
                 result = {
-                    **result, key: (Invisible(), assume_link_target(pval))}
+                    **result, key: (Invisible(), (pval))}
             else:
                 pass
         for (key, shape_elem) in shape.shape.items():
@@ -99,14 +79,14 @@ def apply_shape(ctx: RTData, shape: ShapeExpr, value: Val) -> Val:
                     RTExpr(make_eval_only(ctx),
                            instantiate_expr(value, shape.shape[key]))).val
                 result = {
-                    **result, key: (Visible(), assume_link_target(new_val))}
+                    **result, key: (Visible(), (new_val))}
             else:
                 new_val = eval_config(RTExpr(make_eval_only(ctx),
                                              instantiate_expr(
                                                  value, shape_elem)
                                              )).val
                 result = {
-                    **result, key: (Visible(), assume_link_target(new_val))}
+                    **result, key: (Visible(), (new_val))}
 
         return ObjectVal(result)
 
@@ -202,21 +182,26 @@ def limit_vals(val: Sequence[RTVal], limit: Val):
         case _:
             raise ValueError("offset must be an int")
 
+class FunctionWrapper:
+    def __init__(self, func=None):
+        self.func = func
+        self.original_eval_config = None
 
-def trace_input_output(func):
-    def wrapper(rt):
-        indent = "| " * wrapper.depth
-        print(f"{indent}input: {rt.expr} ")
-        wrapper.depth += 1
-        result = func(rt)
-        wrapper.depth -= 1
-        print(f"{indent}output: {result.val}")
-        return result
-    wrapper.depth = 0
-    return wrapper
+    def __call__(self, eval_config):
+        self.original_eval_config = eval_config
+
+        def wrapper(*args, **kwargs):
+            if self.func is None:
+                self.original_eval_config(*args, **kwargs)
+            else:
+                self.func(*args, **kwargs)
+
+        return wrapper
 
 
-# @trace_input_output
+eval_config_tracer = FunctionWrapper()
+
+@eval_config_tracer
 def eval_config(rt: RTExpr) -> RTVal:
     match rt.expr:
         case (StrVal(_)
@@ -430,8 +415,10 @@ def eval_config(rt: RTExpr) -> RTVal:
                     {u.refid:
                      DBEntry(
                          old_dbdata[u.refid].tp,
-                         combine_object_val(
-                             old_dbdata[u.refid].data, u.val))
+                         coerce_to_storage(
+                            combine_object_val(
+                                old_dbdata[u.refid].data, u.val),
+                            rt.data.schema.val[old_dbdata[u.refid].tp.name]))
                      for u in cast(Sequence[RefVal],
                                    updated)}}
                 return RTVal(
@@ -490,8 +477,38 @@ def eval_config(rt: RTExpr) -> RTVal:
     raise ValueError("Not Implemented", rt.expr)
 
 
-def eval_config_toplevel(rt: RTExpr) -> RTVal:
-    match (eval_config(rt)):
+def eval_config_toplevel(rt: RTExpr, logs: Optional[Any] = None) -> RTVal:
+
+    # set up tracing
+    indexes: List[int] = []
+
+    def trace_input_output(func: Callable[[RTExpr], RTVal]):
+        nonlocal logs, indexes
+        
+        def wrapper(rt_expr):
+            nonlocal logs, indexes
+            parent = logs
+            [parent := parent[i] for i in indexes]
+            indexes.append(len(parent))
+            parent.append([rt_expr])
+            rt_val = func(rt)
+            parent[indexes[-1]] = (parent[indexes[-1]], rt_val)
+            indexes.pop()
+            return rt_val
+        return wrapper
+
+    assert eval_config_tracer.func is None
+
+    if logs is not None:
+        eval_config_tracer.func = trace_input_output(
+            eval_config_tracer.original_eval_config)
+
+    final_v = eval_config(rt)
+
+    # restore the decorator state
+    eval_config_tracer.func = None
+
+    match (final_v):
         case RTVal(data=data, val=val):
             # Do not dedup (see one of the test cases)
             return RTVal(data=data, val=(val))

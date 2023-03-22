@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, Sequence, Tuple, Optional, Callable
+from typing import Dict, NamedTuple, Sequence, Tuple, Optional, Callable
 
 from dataclasses import dataclass
 
@@ -549,6 +549,26 @@ class BuiltinFuncDef():
 class DBSchema:
     val: Dict[str, ObjectTp]
     fun_defs: Dict[str, BuiltinFuncDef]
+
+# RT Stands for Run Time
+
+
+@dataclass(frozen=True)
+class RTData:
+    cur_db: DB
+    read_snapshots: Sequence[DB]
+    schema: DBSchema
+    eval_only: bool  # a.k.a. no DML, no effect
+
+
+class RTExpr(NamedTuple):
+    data: RTData
+    expr: Expr
+
+
+class RTVal(NamedTuple):
+    data: RTData
+    val: MultiSetVal
 
 
 def empty_db():

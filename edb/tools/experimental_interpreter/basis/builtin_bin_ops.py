@@ -182,6 +182,21 @@ def exists_impl(arg: Sequence[MultiSetVal]) -> MultiSetVal:
     raise FunCallErr()
 
 
+or_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()], args_ret_types=[
+                    FunArgRetType(args_tp=[BoolTp(), BoolTp()],
+                                  ret_tp=(BoolTp(), CardOne))])
+
+
+def or_impl(arg: Sequence[MultiSetVal]) -> MultiSetVal:
+    match arg:
+        case [[BoolVal(b1)], [BoolVal(b2)]]:
+            return [BoolVal(b1 or b2)]
+        case [_]:
+            return [BoolVal(True)]
+    raise FunCallErr()
+
+
+
 all_builtin_ops: Dict[str, BuiltinFuncDef] = {
     "+": BuiltinFuncDef(tp=add_tp, impl=add_impl),
     "-": BuiltinFuncDef(tp=subtract_tp, impl=subtract_impl),
@@ -194,4 +209,5 @@ all_builtin_ops: Dict[str, BuiltinFuncDef] = {
     "??": BuiltinFuncDef(tp=coalescing_tp, impl=coalescing_impl),
     "IN": BuiltinFuncDef(tp=in_tp, impl=in_impl),
     "EXISTS": BuiltinFuncDef(tp=exists_tp, impl=exists_impl),
+    "OR": BuiltinFuncDef(tp=or_tp, impl=or_impl),
 }
