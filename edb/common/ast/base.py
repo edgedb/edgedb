@@ -252,7 +252,7 @@ class AST:
             object.__setattr__(copied, field, copy.deepcopy(value, memo))
         return copied
 
-    def replace(self, **changes):
+    def replace(self: T, **changes) -> T:
         copied = copy.copy(self)
         for field, value in changes.items():
             object.__setattr__(copied, field, value)

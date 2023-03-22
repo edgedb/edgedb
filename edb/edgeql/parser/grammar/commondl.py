@@ -71,6 +71,21 @@ def _validate_declarations(
                 context=decl.name.context)
 
 
+def extract_bases(bases, commands):
+    vbases = bases
+    vcommands = []
+    for command in commands:
+        if isinstance(command, qlast.AlterAddInherit):
+            if vbases:
+                raise EdgeQLSyntaxError(
+                    "specifying EXTENDING twice is not allowed",
+                    context=command.context)
+            vbases = command.bases
+        else:
+            vcommands.append(command)
+    return vbases, vcommands
+
+
 class NewNontermHelper:
     def __init__(self, modname):
         self.name = modname
@@ -135,6 +150,11 @@ class OptExtending(Nonterm):
 
     def reduce_empty(self):
         self.val = []
+
+
+class CreateSimpleExtending(Nonterm):
+    def reduce_EXTENDING_SimpleTypeNameList(self, *kids):
+        self.val = qlast.AlterAddInherit(bases=kids[1].val)
 
 
 class OnExpr(Nonterm):

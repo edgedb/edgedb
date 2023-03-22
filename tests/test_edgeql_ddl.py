@@ -3708,6 +3708,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     };
                 """)
 
+    async def test_edgeql_ddl_link_bad_05(self):
+        with self.assertRaisesRegex(
+                edgedb.EdgeQLSyntaxError,
+                f'specifying EXTENDING twice is not allowed'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    CREATE ABSTRACT LINK Foo extending Bar {
+                        EXTENDING Bar;
+                    };
+                """)
+
     async def test_edgeql_ddl_property_long_01(self):
         prop_name = (
             'f123456789_123456789_123456789_123456789'
