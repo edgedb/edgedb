@@ -194,11 +194,26 @@ def resolve_CommonTableExpr(
     reference_as = None
 
     with ctx.child() as subctx:
-        if cte.recursive and cte.aliascolnames:
-            reference_as = [subctx.names.get('col') for _ in cte.aliascolnames]
+        if cte.recursive:
+            aliascolnames = cte.aliascolnames
+            if not aliascolnames:
+                # No explicit column names given, so we look into the actual
+                # select to see if we can extract the column names from that
+                # instead. This is a recursive query, so we expect both a larg
+                # and rarg to be present. We can just look into larg for
+                # column names, though.
+                if isinstance(cte.query.larg, pgast.SelectStmt):
+                    aliascolnames = [
+                        t.name or t.val.name[-1]
+                        for t in cte.query.larg.target_list
+                    ]
+
+            reference_as = [
+                subctx.names.get('col') for _ in aliascolnames
+            ]
             columns = [
                 context.Column(name=col, reference_as=ref_as)
-                for col, ref_as in zip(cte.aliascolnames, reference_as)
+                for col, ref_as in zip(aliascolnames, reference_as)
             ]
             subctx.scope.ctes.append(
                 context.CTE(name=cte.name, columns=columns)
@@ -208,7 +223,7 @@ def resolve_CommonTableExpr(
 
         result = context.CTE(name=cte.name, columns=[])
 
-        alias = pgast.Alias(aliasname=cte.name, colnames=cte.aliascolnames)
+        alias = pgast.Alias(aliasname=cte.name, colnames=aliascolnames)
 
         for col, al in _zip_column_alias(table.columns, alias, cte.context):
             result.columns.append(
