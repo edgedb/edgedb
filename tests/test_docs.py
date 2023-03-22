@@ -23,6 +23,7 @@ try:
     import docutils.parsers
     import docutils.utils
     import docutils.frontend
+    import docutils.parsers.rst.directives.body
 except ImportError:
     docutils = None  # type: ignore
 
@@ -34,6 +35,13 @@ except ImportError:
 from graphql.language import parser as graphql_parser
 
 from edb.edgeql import parser as ql_parser
+
+from edb.tools.docs.shared import make_CodeBlock
+
+docutils.parsers.rst.directives.register_directive(
+    'code-block',
+    make_CodeBlock(docutils.parsers.rst.directives.body.CodeBlock)
+)
 
 
 def find_edgedb_root():
@@ -194,7 +202,8 @@ class TestDocSnippets(unittest.TestCase):
                                 'code' in node.attributes['classes'])
                         )
                         for subdir in subdirs:
-                            subdir.line += node_parent_line
+                            if subdir.line is not None:
+                                subdir.line += node_parent_line
                             directives.append(subdir)
 
         for directive in directives:
