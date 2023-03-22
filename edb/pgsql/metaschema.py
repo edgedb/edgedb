@@ -5418,7 +5418,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         SELECT oid, nspname, nspowner, nspacl,
             tableoid, xmin, cmin, xmax, cmax, ctid
         FROM pg_namespace
-        WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
+        WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
+                          'edgedb')
         UNION ALL
         SELECT edgedbsql.uuid_to_oid(t.module_id), t.schema_name, 10, NULL,
             NULL, NULL, NULL, NULL, NULL, NULL
@@ -5590,16 +5591,18 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE pa.attname NOT IN ('__type__')
         """,
         ),
-        dbops.View(
-            name=("edgedbsql", "pg_range"),
-            query="""
-        SELECT pr.*, pr.tableoid, pr.xmin, pr.cmin, pr.xmax, pr.cmax, pr.ctid
-        FROM pg_range pr
-        JOIN pg_type pt ON pt.oid = pr.rngtypid
-        JOIN pg_namespace pn ON pt.typnamespace = pn.oid
-        WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
-        """,
-        ),
+        # # We want to expose our built-in ranges in addition to PG native
+        # # built-in ranges.
+        # dbops.View(
+        #     name=("edgedbsql", "pg_range"),
+        #     query="""
+        # SELECT pr.*, pr.tableoid, pr.xmin, pr.cmin, pr.xmax, pr.cmax, pr.ctid
+        # FROM pg_range pr
+        # JOIN pg_type pt ON pt.oid = pr.rngtypid
+        # JOIN pg_namespace pn ON pt.typnamespace = pn.oid
+        # WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
+        #                   'edgedb')
+        # """,
         dbops.View(
             name=("edgedbsql", "pg_database"),
             query="""
@@ -5761,6 +5764,27 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         )
         """,
         ),
+        dbops.View(
+            name=("edgedbsql", "pg_rewrite"),
+            query="""
+        SELECT pr.*, pr.tableoid, pr.xmin, pr.cmin, pr.xmax, pr.cmax, pr.ctid
+        FROM pg_rewrite pr
+        JOIN edgedbsql.pg_class pn ON pr.ev_class = pn.oid
+        """,
+        ),
+        # HACK: Automatically generated cast function for ranges/multiranges
+        # was causing issues for pg_dump. So at the end of the day we opt for
+        # not exposing any casts at all here since there is no real reason for
+        # this compatibility layer that is read-only to have elaborate casts
+        # present.
+        dbops.View(
+            name=("edgedbsql", "pg_cast"),
+            query="""
+        SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
+        FROM pg_cast pc
+        WHERE false
+        """,
+        ),
     ]
 
     def construct_pg_view(table_name: str, columns: List[str]) -> dbops.View:
@@ -5868,7 +5892,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_type',
             'pg_attribute',
             'pg_namespace',
-            'pg_range',
             'pg_class',
             'pg_database',
             'pg_proc',
@@ -5879,6 +5902,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_statistic',
             'pg_statistic_ext',
             'pg_statistic_ext_data',
+            'pg_rewrite',
+            'pg_cast',
         ]:
             continue
 
