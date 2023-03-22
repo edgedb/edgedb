@@ -624,6 +624,7 @@ def process_insert_body(
     inner_iterator = on_conflict_fake_iterator or iterator
 
     ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
+
     # Use a dynamic rvar to return values out of the select purely
     # based on material rptr, as if it was a base relation.
     # This is to make it easy for access policies to operate on the result
@@ -696,9 +697,13 @@ def process_insert_body(
 
         rew_stmt = pgast.SelectStmt(target_list=[])
 
+        pathctx.put_path_id_map(select, subject_path_id, object_path_id)
         # pull in contents_select for __subject__
         relctx.include_rvar(
             rew_stmt, contents_rvar, subject_path_id, ctx=ctx
+        )
+        relctx.include_rvar(
+            rew_stmt, contents_rvar, object_path_id, ctx=ctx
         )
 
         # # Use a dynamic rvar to return values out of the select purely
@@ -739,17 +744,26 @@ def process_insert_body(
         }
         elements = list(rewrites.values())
 
-        ptr_map = {}
-        _, ptr_map = process_insert_shape(
-            ir_stmt, rew_stmt, ptr_map, elements, typeref, iterator,
+        # breakpoint()
+        nptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
+        _, nptr_map = process_insert_shape(
+            ir_stmt, rew_stmt, nptr_map, elements, typeref, iterator,
             inner_iterator, ctx
         )
 
         # pull-in pointers that were not rewritten
-        for (e, _) in not_rewritten:
-            pathctx.get_path_output(
+        for e, ptrref in not_rewritten:
+            # XXX: WHAT DO; this duplicates some
+            # pathctx.get_path_output(
+            #     rew_stmt, e.path_id, aspect='value', env=ctx.env
+            # )
+            val = pathctx.get_path_var(
                 rew_stmt, e.path_id, aspect='value', env=ctx.env
             )
+            ptr_info = pg_types.get_ptrref_storage_info(
+                ptrref, resolve_type=True, link_bias=False)
+            rew_stmt.target_list.append(pgast.ResTarget(
+                name=ptr_info.column_name, val=val))
 
         # construct the CTE
         pathctx.put_path_bond(rew_stmt, ir_stmt.subject.path_id)
@@ -920,7 +934,7 @@ def process_insert_shape(
 
                 ref = pgast.ColumnRef(name=(ptr_info.column_name,))
 
-                ptr_map[ptrref] = ref
+                ptr_map[ptrref] = insvalue
                 select.target_list.append(pgast.ResTarget(
                     name=ptr_info.column_name, val=insvalue))
 
@@ -1788,7 +1802,7 @@ def prepare_update_shape(
 
         # apply rewrite
         if ptr_name in rewrites:
-            value = cast(irast.Set, rewrites.pop(ptr_name))
+            value, _ = rewrites.pop(ptr_name)
         else:
             value = shape_el
 
