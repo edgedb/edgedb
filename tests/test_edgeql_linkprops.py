@@ -1300,6 +1300,182 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_props_schema_back_00(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"has no property 'total_cost'"):
+
+            await self.con.query(
+                r'''
+                    select (Card.name, Card.owners@total_cost)
+                '''
+            )
+
+    async def test_edgeql_props_schema_back_01(self):
+        await self.assert_query_result(
+            r'''
+                select (Card.name, Card.owners.name, Card.owners@count)
+                filter Card.name = 'Dragon'
+                order by Card.owners.name
+            ''',
+            [["Dragon", "Alice", 2], ["Dragon", "Dave", 1]],
+        )
+
+    async def test_edgeql_props_schema_back_02(self):
+        await self.assert_query_result(
+            r'''
+            select Card { name, z := .owners { name, @count }}
+            filter .name = 'Dragon';
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "z": tb.bag([
+                        {"@count": 2, "name": "Alice"},
+                        {"@count": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+        await self.assert_query_result(
+            r'''
+            select Card { name, owners: { name, @count }}
+            filter .name = 'Dragon';
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "owners": tb.bag([
+                        {"@count": 2, "name": "Alice"},
+                        {"@count": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            select SpecialCard { name, owners: { name, @count }}
+            filter .name = 'Djinn';
+            ''',
+            [
+                {
+                    "name": "Djinn",
+                    "owners": tb.bag([
+                        {"@count": 1, "name": "Carol"},
+                        {"@count": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
+    async def test_edgeql_props_schema_back_03(self):
+        await self.assert_query_result(
+            r'''
+            select Card { name, z := .owners { name, x := @count }}
+            filter .name = 'Dragon';
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "z": tb.bag([
+                        {"x": 2, "name": "Alice"},
+                        {"x": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            select Card { name, owners: { name, x := @count }}
+            filter .name = 'Dragon';
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "owners": tb.bag([
+                        {"x": 2, "name": "Alice"},
+                        {"x": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
+    async def test_edgeql_props_schema_back_04(self):
+        await self.assert_query_result(
+            r'''
+            select assert_exists((
+                select Card { name, z := .owners { name, @count }}
+                filter .name = 'Dragon'
+            ));
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "z": tb.bag([
+                        {"@count": 2, "name": "Alice"},
+                        {"@count": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            select assert_exists((
+                select Card { name, owners: { name, @count }}
+                filter .name = 'Dragon'
+            ));
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "owners": tb.bag([
+                        {"@count": 2, "name": "Alice"},
+                        {"@count": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
+    async def test_edgeql_props_schema_back_05(self):
+        await self.assert_query_result(
+            r'''
+            select assert_exists((
+                select Card { name, z := .owners { name, x := @count }}
+                filter .name = 'Dragon'
+            ));
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "z": tb.bag([
+                        {"x": 2, "name": "Alice"},
+                        {"x": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            select assert_exists((
+                select Card { name, owners: { name, x := @count }}
+                filter .name = 'Dragon'
+            ));
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "owners": tb.bag([
+                        {"x": 2, "name": "Alice"},
+                        {"x": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
     async def test_edgeql_props_intersect_01(self):
         await self.assert_query_result(
             r'''
