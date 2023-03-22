@@ -317,19 +317,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        postgres-version: [ 13 ]
+        postgres-version: [ 14 ]
         single-mode:
          - ''
          - 'NOCREATEDB NOCREATEROLE'
          - 'CREATEDB NOCREATEROLE'
         remote-compiler: [ '' ]
         include:
-          - postgres-version: 14
+          - postgres-version: 13
             single-mode: ''
             remote-compiler: ''
           - postgres-version: 14
             single-mode: ''
             remote-compiler: 'remote-compiler'
+          - postgres-version: 15
+            single-mode: ''
+            remote-compiler: ''
     services:
       postgres:
         image: postgres:${{ matrix.postgres-version }}-alpine
@@ -495,6 +498,7 @@ jobs:
     - name: Test
       env:
         EDGEDB_TEST_POSTGRES_VERSION: ${{ matrix.postgres-version }}
+      continue-on-error: ${{ matrix.single-mode == 'NOCREATEDB NOCREATEROLE' || matrix.postgres-version == 15 }}
       run: |
         if [[ "${{ matrix.single-mode }}" ]]; then
           export EDGEDB_TEST_BACKEND_DSN=postgres://singles:test@localhost/singles

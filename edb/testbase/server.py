@@ -1401,9 +1401,11 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
     async def check_dump_restore_single_db(self, check_method):
         with tempfile.NamedTemporaryFile() as f:
             dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
-            self.run_cli('-d', dbname, 'dump', f.name)
+            await asyncio.to_thread(self.run_cli, '-d', dbname, 'dump', f.name)
             await self.tearDownSingleDB()
-            self.run_cli('-d', dbname, 'restore', f.name)
+            await asyncio.to_thread(
+                self.run_cli, '-d', dbname, 'restore', f.name
+            )
         await check_method(self)
 
     async def check_dump_restore(self, check_method):
@@ -1414,11 +1416,15 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
         tgt_dbname = f'{src_dbname}_restored'
         q_tgt_dbname = qlquote.quote_ident(tgt_dbname)
         with tempfile.NamedTemporaryFile() as f:
-            self.run_cli('-d', src_dbname, 'dump', f.name)
+            await asyncio.to_thread(
+                self.run_cli, '-d', src_dbname, 'dump', f.name
+            )
 
             await self.con.execute(f'CREATE DATABASE {q_tgt_dbname}')
             try:
-                self.run_cli('-d', tgt_dbname, 'restore', f.name)
+                await asyncio.to_thread(
+                    self.run_cli, '-d', tgt_dbname, 'restore', f.name
+                )
                 con2 = await self.connect(database=tgt_dbname)
             except Exception:
                 await drop_db(self.con, q_tgt_dbname)
