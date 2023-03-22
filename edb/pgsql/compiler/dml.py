@@ -623,6 +623,33 @@ def process_insert_body(
     iterator = ctx.enclosing_cte_iterator
     inner_iterator = on_conflict_fake_iterator or iterator
 
+    ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
+    # Use a dynamic rvar to return values out of the select purely
+    # based on material rptr, as if it was a base relation.
+    # This is to make it easy for access policies to operate on the result
+    # of the INSERT.
+    def dynamic_get_path(
+        rel: pgast.Query, path_id: irast.PathId, *,
+        flavor: str,
+        aspect: str, env: context.Environment
+    ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
+        if flavor != 'normal' or aspect not in ('value', 'identity'):
+            return None
+        if not (rptr := path_id.rptr()):
+            return None
+        if ret := ptr_map.get(rptr.real_material_ptr):
+            return ret
+        if rptr.real_material_ptr.shortname.name == '__type__':
+            return astutils.compile_typeref(typeref)
+        # Properties that aren't specified are {}
+        return pgast.NullConstant()
+
+    fallback_rvar = pgast.DynamicRangeVar(dynamic_get_path=dynamic_get_path)
+    pathctx.put_path_source_rvar(
+        select, ir_stmt.subject.path_id, fallback_rvar, env=ctx.env)
+    pathctx.put_path_value_rvar(
+        select, ir_stmt.subject.path_id, fallback_rvar, env=ctx.env)
+
     # compile contents CTE
     elements: List[Tuple[irast.Set, irast.BasePointerRef]] = []
     for shape_el, shape_op in ir_stmt.subject.shape:
@@ -641,7 +668,8 @@ def process_insert_body(
         elements.append((shape_el, ptrref))
 
     external_inserts, ptr_map = process_insert_shape(
-        ir_stmt, select, elements, typeref, iterator, inner_iterator, ctx
+        ir_stmt, select, ptr_map, elements, typeref, iterator, inner_iterator,
+        ctx
     )
 
     # Put the select that builds the tuples to insert into its own CTE.
@@ -711,8 +739,10 @@ def process_insert_body(
         }
         elements = list(rewrites.values())
 
+        ptr_map = {}
         _, ptr_map = process_insert_shape(
-            ir_stmt, rew_stmt, elements, typeref, iterator, inner_iterator, ctx
+            ir_stmt, rew_stmt, ptr_map, elements, typeref, iterator,
+            inner_iterator, ctx
         )
 
         # pull-in pointers that were not rewritten
@@ -732,32 +762,6 @@ def process_insert_body(
     else:
         rewrites_cte = contents_cte
         rewrites_rvar = contents_rvar
-
-    # Use a dynamic rvar to return values out of the select purely
-    # based on material rptr, as if it was a base relation.
-    # This is to make it easy for access policies to operate on the result
-    # of the INSERT.
-    def dynamic_get_path(
-        rel: pgast.Query, path_id: irast.PathId, *,
-        flavor: str,
-        aspect: str, env: context.Environment
-    ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
-        if flavor != 'normal' or aspect not in ('value', 'identity'):
-            return None
-        if not (rptr := path_id.rptr()):
-            return None
-        if ret := ptr_map.get(rptr.real_material_ptr):
-            return ret
-        if rptr.real_material_ptr.shortname.name == '__type__':
-            return astutils.compile_typeref(typeref)
-        # Properties that aren't specified are {}
-        return pgast.NullConstant()
-
-    fallback_rvar = pgast.DynamicRangeVar(dynamic_get_path=dynamic_get_path)
-    pathctx.put_path_source_rvar(
-        select, ir_stmt.subject.path_id, fallback_rvar, env=ctx.env)
-    pathctx.put_path_value_rvar(
-        select, ir_stmt.subject.path_id, fallback_rvar, env=ctx.env)
 
     # Populate the real insert statement based on the select we generated
     insert_stmt.cols = [
@@ -855,6 +859,7 @@ def process_insert_body(
 def process_insert_shape(
     ir_stmt: irast.InsertStmt,
     select: pgast.SelectStmt,
+    ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr],
     elements: List[Tuple[irast.Set, irast.BasePointerRef]],
     typeref: irast.TypeRef,
     iterator: Optional[pgast.IteratorCTE],
@@ -867,7 +872,7 @@ def process_insert_shape(
     # Compile the shape
     external_inserts = []
 
-    ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
+    # ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
 
     with ctx.newrel() as subctx:
         subctx.enclosing_cte_iterator = inner_iterator
@@ -892,13 +897,17 @@ def process_insert_shape(
 
             # First, process all local link inserts.
             if ptr_info.table_type == 'ObjectType':
-                insvalue = compile_insert_shape_element(
+                insvalue_xxx = compile_insert_shape_element(
                     element,
                     ptrref,
                     ir_stmt=ir_stmt,
                     iterator_id=inner_iterator_id,
                     ctx=subctx,
                 )
+
+                # XXX: wtf
+                insvalue = pathctx.get_path_value_var(
+                    subctx.rel, element.path_id, env=ctx.env)
 
                 if irtyputils.is_tuple(element.typeref):
                     # Tuples require an explicit cast.
@@ -958,7 +967,11 @@ def compile_insert_shape_element(
         # This method is only called if the upper cardinality of
         # the expression is one, so we check for AT_MOST_ONE
         # to determine nullability.
-        if ptr_ref.out_cardinality is qltypes.Cardinality.AT_MOST_ONE:
+        # XXX: WHY DID ALJAŽ MAKE PTR_REF AN ARGUMENT
+        # if ptr_ref.out_cardinality is qltypes.Cardinality.AT_MOST_ONE:
+        assert shape_el.rptr is not None
+        if (shape_el.rptr.dir_cardinality
+                is qltypes.Cardinality.AT_MOST_ONE):
             insvalctx.force_optional |= {shape_el.path_id}
 
         if iterator_id is not None:
@@ -973,8 +986,12 @@ def compile_insert_shape_element(
 
         insvalctx.current_insert_path_id = ir_stmt.subject.path_id
 
-        assert shape_el.expr
-        return dispatch.compile(shape_el.expr, ctx=insvalctx)
+        # assert shape_el.expr
+        # return dispatch.compile(shape_el.expr, ctx=insvalctx)
+        dispatch.visit(shape_el, ctx=insvalctx)
+
+    return insvalctx.rel
+
 
 
 def merge_overlays_globally(
