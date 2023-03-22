@@ -70,8 +70,8 @@ scalar type constraint_my_enum extending str {
 
 
 abstract link translated_label {
-    property lang -> str;
-    property prop1 -> str;
+    lang: str;
+    prop1: str;
 }
 
 abstract link link_with_unique_property {
