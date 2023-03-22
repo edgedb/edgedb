@@ -1186,6 +1186,8 @@ sdl_commands_block(
     ConcreteConstraintShort,
     ConcretePropertyBlock,
     ConcretePropertyShort,
+    ConcreteUnknownPointerBlock,
+    ConcreteUnknownPointerShort,
     ConcreteIndexDeclarationBlock,
     ConcreteIndexDeclarationShort,
     RewriteDeclarationShort,
