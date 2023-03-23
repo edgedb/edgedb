@@ -182,26 +182,41 @@ def limit_vals(val: Sequence[RTVal], limit: Val):
         case _:
             raise ValueError("offset must be an int")
 
-class FunctionWrapper:
-    def __init__(self, func=None):
-        self.func = func
-        self.original_eval_config = None
 
-    def __call__(self, eval_config):
+class EvaluationLogsWrapper:
+    def __init__(self):
+        self.original_eval_config = None
+        self.reset_logs(None)
+    
+    def reset_logs(self, logs: Optional[List[Any]]):
+        self.logs = logs
+        self.indexes: List[int] = []
+
+    def __call__(self, eval_config: Callable[[RTExpr], RTVal]):
         self.original_eval_config = eval_config
 
-        def wrapper(*args, **kwargs):
-            if self.func is None:
-                self.original_eval_config(*args, **kwargs)
+        def wrapper(rt_expr: RTExpr) -> RTVal:
+            if self.logs is None:
+                return self.original_eval_config(rt_expr)
             else:
-                self.func(*args, **kwargs)
+                parent = self.logs
+                [parent := parent[i] for i in self.indexes]
+                self.indexes.append(len(parent))
+                parent.append([(rt_expr.expr, [StrVal("NOT AVAILABLE!!!")])])
+                rt_val = self.original_eval_config(rt_expr)
+                parent[self.indexes[-1]][0] = (parent[self.indexes[-1]][0][0],
+                                               rt_val.val)
+                assert len(parent[self.indexes[-1]][0]) == 2
+                self.indexes.pop()
+                return rt_val
 
         return wrapper
 
 
-eval_config_tracer = FunctionWrapper()
+eval_logs_wrapper = EvaluationLogsWrapper()
 
-@eval_config_tracer
+
+@eval_logs_wrapper
 def eval_config(rt: RTExpr) -> RTVal:
     match rt.expr:
         case (StrVal(_)
@@ -479,34 +494,17 @@ def eval_config(rt: RTExpr) -> RTVal:
 
 def eval_config_toplevel(rt: RTExpr, logs: Optional[Any] = None) -> RTVal:
 
-    # set up tracing
-    indexes: List[int] = []
 
-    def trace_input_output(func: Callable[[RTExpr], RTVal]):
-        nonlocal logs, indexes
-        
-        def wrapper(rt_expr):
-            nonlocal logs, indexes
-            parent = logs
-            [parent := parent[i] for i in indexes]
-            indexes.append(len(parent))
-            parent.append([rt_expr])
-            rt_val = func(rt)
-            parent[indexes[-1]] = (parent[indexes[-1]], rt_val)
-            indexes.pop()
-            return rt_val
-        return wrapper
 
-    assert eval_config_tracer.func is None
-
+    # on exception, this is not none
+    # assert eval_logs_wrapper.logs is None
     if logs is not None:
-        eval_config_tracer.func = trace_input_output(
-            eval_config_tracer.original_eval_config)
+        eval_logs_wrapper.reset_logs(logs)
 
     final_v = eval_config(rt)
 
     # restore the decorator state
-    eval_config_tracer.func = None
+    eval_logs_wrapper.reset_logs(None)
 
     match (final_v):
         case RTVal(data=data, val=val):

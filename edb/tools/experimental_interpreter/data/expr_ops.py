@@ -364,11 +364,20 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
                         raise ValueError("Redundant Link Properties")
                     else:
                         return RefVal(id, ObjectVal({}))
+        case LinkPropVal(obj=RefVal(refid=id, val=ObjectVal({})),
+                         linkprop=linkprop):
+            match tp:
+                case LinkPropTp(subject=_, linkprop=linkprop_tp):
+                    temp_obj = convert_back_from_link_prop_obj(
+                        linkprop)
+                    after_obj = coerce_to_storage(temp_obj, linkprop_tp)
+                    after_link_prop = convert_to_link_prop_obj(after_obj)
+                    return RefVal(id, after_link_prop)
+                case _:
+                    return make_storage_atomic(RefVal(refid=id,
+                                                      val=ObjectVal({})), tp)
         case _:
-            if isinstance(tp, LinkPropTp):
-                return val
-            else:
-                return val
+            return val
 
 
 def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> ObjectVal:
