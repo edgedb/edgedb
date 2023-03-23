@@ -944,7 +944,7 @@ class Pointer(referencing.NamedReferencedInheritingObject,
 
         return delta
 
-    def get_rewrite(
+    def get_local_rewrite(
         self, schema: s_schema.Schema, kind: qltypes.RewriteKind
     ) -> Optional[s_rewrites.Rewrite]:
         rewrites = self.get_rewrites(schema)
@@ -952,6 +952,16 @@ class Pointer(referencing.NamedReferencedInheritingObject,
             for rewrite in rewrites.objects(schema):
                 if rewrite.get_kind(schema) == kind:
                     return rewrite
+        return None
+
+    def get_rewrite(
+        self, schema: s_schema.Schema, kind: qltypes.RewriteKind
+    ) -> Optional[s_rewrites.Rewrite]:
+        if rw := self.get_local_rewrite(schema, kind):
+            return rw
+        for anc in self.get_ancestors(schema).objects(schema):
+            if rw := anc.get_local_rewrite(schema, kind):
+                return rw
         return None
 
 

@@ -382,7 +382,6 @@ class TestRewrites(tb.QueryTestCase):
 
     async def test_edgeql_rewrites_11(self):
         # Update triggers child overrides on unknown fields
-        # TODO: side inheritance
 
         await self.con.execute(
             '''
@@ -407,5 +406,41 @@ class TestRewrites(tb.QueryTestCase):
             'select Movie { title, release_year }',
             [
                 {"title": "The Godfather!", "release_year": 1973},
+            ],
+        )
+
+    async def test_edgeql_rewrites_12(self):
+        # Update triggers child overrides on unknown fields
+        # inherited from an unrelated base
+
+        await self.con.execute(
+            '''
+            create type Counted {
+              create required property count -> int64 {
+                set default := 0;
+                create rewrite update
+                    using (__subject__.count + 1);
+              }
+            };
+
+            alter type Movie extending Counted;
+            '''
+        )
+
+        await self.con.execute('''
+            insert Movie { title := "The Godfather" }
+        ''')
+
+        await self.con.execute('''
+            update Content set { title := .title ++ "!"}
+        ''')
+        await self.con.execute('''
+            update Content set { title := .title ++ "!"}
+        ''')
+
+        await self.assert_query_result(
+            'select Movie { title, count }',
+            [
+                {"title": "The Godfather!!", "count": 2},
             ],
         )

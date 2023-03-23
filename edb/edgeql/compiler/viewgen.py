@@ -851,10 +851,8 @@ def _compile_rewrites(
         specified_ptrs, kind, stype, ctx
     )
 
-    # Rewrites are not inherited, which means we need to traverse ancestors
-    # of stype and look for any applicable rewrites.
-    rewrites = _compile_rewrites_and_inherit(
-        stype, kind, view_scls, ir_set, anchors, s_ctx, ctx
+    rewrites = _compile_rewrites_for_stype(
+        stype, kind, view_scls, ir_set, anchors, s_ctx, ctx=ctx
     )
 
     if kind == qltypes.RewriteKind.Insert:
@@ -917,31 +915,6 @@ def _compile_rewrites(
     )
 
 
-def _compile_rewrites_and_inherit(
-    stype: s_objtypes.ObjectType,
-    kind: qltypes.RewriteKind,
-    view_scls: s_objtypes.ObjectType,
-    ir_set: irast.Set,
-    anchors: RewriteAnchors,
-    s_ctx: ShapeContext,
-    ctx: context.ContextLevel,
-) -> Dict[sn.UnqualName, EarlyShapePtr]:
-    rewrites: Dict[sn.UnqualName, EarlyShapePtr] = {}
-
-    bases = stype.get_bases(ctx.env.schema)
-    for base in bases.objects(ctx.env.schema):
-        base_rewrites = _compile_rewrites_and_inherit(
-            base, kind, view_scls, ir_set, anchors, s_ctx, ctx
-        )
-        rewrites.update(base_rewrites)
-
-    my_rewrites = _compile_rewrites_for_stype(
-        stype, kind, view_scls, ir_set, anchors, s_ctx, ctx
-    )
-    rewrites.update(my_rewrites)
-    return rewrites
-
-
 def _compile_rewrites_of_children(
     stype: s_objtypes.ObjectType,
     parent_rewrites: Dict[sn.UnqualName, EarlyShapePtr],
@@ -957,7 +930,6 @@ def _compile_rewrites_of_children(
     ] = {}
 
     # save parent to result
-    # XXX: won't work in general
     type_ref = typegen.type_to_typeref(stype, ctx.env)
     rewrites_for_type[type_ref] = parent_rewrites.copy()
 
@@ -969,7 +941,9 @@ def _compile_rewrites_of_children(
         child_rewrites = parent_rewrites.copy()
         # override with rewrites defined here
         rewrites_defined_here = _compile_rewrites_for_stype(
-            child, kind, view_scls, ir_set, anchors, s_ctx, ctx
+            child, kind, view_scls, ir_set, anchors, s_ctx,
+            already_defined_rewrites=child_rewrites,
+            ctx=ctx
         )
         child_rewrites.update(rewrites_defined_here)
 
@@ -983,7 +957,7 @@ def _compile_rewrites_of_children(
                 ir_set,
                 anchors,
                 s_ctx,
-                ctx
+                ctx=ctx,
             )
         )
 
@@ -997,6 +971,9 @@ def _compile_rewrites_for_stype(
     ir_set: irast.Set,
     anchors: RewriteAnchors,
     s_ctx: ShapeContext,
+    *,
+    already_defined_rewrites: Optional[
+        Mapping[sn.UnqualName, EarlyShapePtr]] = None,
     ctx: context.ContextLevel,
 ) -> Dict[sn.UnqualName, EarlyShapePtr]:
     schema = ctx.env.schema
@@ -1013,14 +990,24 @@ def _compile_rewrites_for_stype(
         rewrite = ptrcls.get_rewrite(schema, kind)
         if not rewrite:
             continue
-        # XXX: check overload situation
+        rewrite_pointer = downcast(
+            s_pointers.Pointer, rewrite.get_subject(schema))
+        rewrite_source = downcast(
+            s_objtypes.ObjectType, rewrite_pointer.get_source(schema))
+
+        # get_rewrite searches in ancestors for rewrites, but if the rewrite
+        # for that ancestor has already been compiled, skip it to avoid
+        # duplicating work
+        if (
+            already_defined_rewrites
+            and (existing := already_defined_rewrites.get(pn))
+            and (existing[0].get_nearest_non_derived_parent(schema)
+                 == rewrite_pointer)
+        ):
+            continue
 
         subject_set, specified_set, old_set = anchors
 
-        rewrite_source = downcast(
-            s_pointers.Pointer, rewrite.get_subject(schema)).get_source(schema)
-        assert isinstance(rewrite_source, s_objtypes.ObjectType)
-        assert rewrite_source
         # ???
         rewrite_view = view_scls
         if rewrite_source != view_scls.get_nearest_non_derived_parent(schema):
@@ -1035,7 +1022,6 @@ def _compile_rewrites_for_stype(
             )
             subject_set = setgen.class_set(
                 rewrite_view, path_id=subject_set.path_id, ctx=ctx)
-            nold_set = old_set
             if old_set:
                 old_set = setgen.class_set(
                     rewrite_view, path_id=old_set.path_id, ctx=ctx)
