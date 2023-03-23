@@ -31,6 +31,11 @@ class TestRewrites(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'movies.esdl')
     SETUP = []
 
+    # TO TEST:
+    # * Trigger interactions
+    # * Access policy interactions
+    # * multi (need to at least disallow for now)
+
     async def test_edgeql_rewrites_01(self):
         # basic overriding of properties
         await self.con.execute(
@@ -203,62 +208,6 @@ class TestRewrites(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_rewrites_06b(self):
-        # Rewrites need to obey the covariant check
-        await self.con.execute('insert Movie { title:= "Whiplash" }')
-
-        await self.con.execute(
-            '''
-            create type Collection {
-                create property name -> str;
-                create link elements -> Content;
-            };
-            create type Library extending Collection {
-                alter link elements set type Book;
-            };
-
-
-            alter type Collection {
-              alter link elements {
-                create rewrite update
-                    using ((select Content filter .title = 'Whiplash' limit 1));
-              };
-            };
-            '''
-        )
-
-        await self.con.execute('insert Library')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.InvalidLinkTargetError,
-                r"invalid target for link 'elements"):
-            await self.con.execute('update Collection set { elements := {} }')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.InvalidLinkTargetError,
-                r"invalid target for link 'elements"):
-            await self.con.execute('update Library set { elements := {} }')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.InvalidLinkTargetError,
-                r"invalid target for link 'elements"):
-            await self.con.execute('update Collection set { name := "x" }')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.InvalidLinkTargetError,
-                r"invalid target for link 'elements"):
-            await self.con.execute('update Library set { name := "x" }')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.InvalidLinkTargetError,
-                r"invalid target for link 'elements"):
-            await self.con.execute('update Collection set { }')
-
-        async with self.assertRaisesRegexTx(
-                edgedb.InvalidLinkTargetError,
-                r"invalid target for link 'elements"):
-            await self.con.execute('update Library set { }')
-
     async def test_edgeql_rewrites_07(self):
         await self.con.execute(
             '''
@@ -374,3 +323,59 @@ class TestRewrites(tb.QueryTestCase):
                 {"title": "Up", "title_updated": "just now"},
             ],
         )
+
+    async def test_edgeql_rewrites_10(self):
+        # Rewrites need to obey the covariant check
+        await self.con.execute('insert Movie { title:= "Whiplash" }')
+
+        await self.con.execute(
+            '''
+            create type Collection {
+                create property name -> str;
+                create link elements -> Content;
+            };
+            create type Library extending Collection {
+                alter link elements set type Book;
+            };
+
+
+            alter type Collection {
+              alter link elements {
+                create rewrite update
+                  using ((select Content filter .title = 'Whiplash' limit 1));
+              };
+            };
+            '''
+        )
+
+        await self.con.execute('insert Library')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'elements"):
+            await self.con.execute('update Collection set { elements := {} }')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'elements"):
+            await self.con.execute('update Library set { elements := {} }')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'elements"):
+            await self.con.execute('update Collection set { name := "x" }')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'elements"):
+            await self.con.execute('update Library set { name := "x" }')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'elements"):
+            await self.con.execute('update Collection set { }')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'elements"):
+            await self.con.execute('update Library set { }')

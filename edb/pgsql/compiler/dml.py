@@ -706,10 +706,14 @@ def process_insert_body(
             rew_stmt, contents_rvar, object_path_id, ctx=ctx
         )
 
+        # XXX: I think we are going to need to do something like this
+        # for access policies. Probably want to just define the
+        # function once and parameterize it over ptr_map.
+
         # # Use a dynamic rvar to return values out of the select purely
         # # based on material rptr, as if it was a base relation.
-        # # This is to make it easy for access policies to operate on the result
-        # # of the INSERT.
+        # # This is to make it easy for access policies to operate on the
+        # # result of the INSERT.
         # def dynamic_get_path_rew(
         #     rel: pgast.Query, path_id: irast.PathId, *,
         #     flavor: str,
@@ -726,7 +730,8 @@ def process_insert_body(
         #     # Properties that aren't specified are {}
         #     return pgast.NullConstant()
 
-        # fallback_rvar = pgast.DynamicRangeVar(dynamic_get_path=dynamic_get_path_rew)
+        # fallback_rvar = pgast.DynamicRangeVar(
+        #     dynamic_get_path=dynamic_get_path_rew)
         # pathctx.put_path_source_rvar(
         #     select, object_path_id, fallback_rvar, env=ctx.env)
         # pathctx.put_path_value_rvar(
@@ -911,7 +916,7 @@ def process_insert_shape(
 
             # First, process all local link inserts.
             if ptr_info.table_type == 'ObjectType':
-                insvalue_xxx = compile_insert_shape_element(
+                compile_insert_shape_element(
                     element,
                     ptrref,
                     ir_stmt=ir_stmt,
@@ -932,18 +937,9 @@ def process_insert_shape(
                         ),
                     )
 
-                ref = pgast.ColumnRef(name=(ptr_info.column_name,))
-
                 ptr_map[ptrref] = insvalue
                 select.target_list.append(pgast.ResTarget(
                     name=ptr_info.column_name, val=insvalue))
-
-                # pathctx.put_path_value_var(
-                #     select,
-                #     element.path_id,
-                #     var=ref,
-                #     env=ctx.env,
-                # )
 
             # Register all link table inserts to be run after the main
             # insert.  Note that single links with link properties are
@@ -975,7 +971,7 @@ def compile_insert_shape_element(
     ir_stmt: irast.MutatingStmt,
     iterator_id: Optional[pgast.BaseExpr],
     ctx: context.CompilerContextLevel,
-) -> pgast.BaseExpr:
+) -> None:
 
     with ctx.newscope() as insvalctx:
         # This method is only called if the upper cardinality of
@@ -1003,9 +999,6 @@ def compile_insert_shape_element(
         # assert shape_el.expr
         # return dispatch.compile(shape_el.expr, ctx=insvalctx)
         dispatch.visit(shape_el, ctx=insvalctx)
-
-    return insvalctx.rel
-
 
 
 def merge_overlays_globally(
