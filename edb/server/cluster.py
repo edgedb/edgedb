@@ -471,19 +471,6 @@ class TempCluster(Cluster):
             compiler_pool_mode=compiler_pool_mode,
         )
 
-# class InMemoryClusterWithExperimentalImplementation(Cluster):
-#     pass
-#     def __init__(
-#         self,
-#     ) -> None:
-#         tempdir = pathlib.Path(
-#             tempfile.mkdtemp(),
-#         )
-#         super().__init__(
-#             data_dir=tempdir,
-#         )
-
-
 
 class RunningCluster(BaseCluster):
     def __init__(self, **conn_args: Any) -> None:
