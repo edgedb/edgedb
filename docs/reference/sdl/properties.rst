@@ -28,7 +28,7 @@ Declare *concrete* properties "name" and "address" within a "User" type:
     type User {
         # define concrete properties
         required property name -> str;
-        property address extending address_base: str;
+        property address extending address_base -> str;
 
         multi link friends -> User;
 

@@ -212,18 +212,18 @@ If you have this schema:
       }
 
       type Hero extending Person {
-        property secret_identity: str;
+        secret_identity: str;
         multi link villains := .<nemesis[is Villain];
       }
 
       type Villain extending Person {
-        link nemesis: Hero;
+        nemesis: Hero;
       }
 
       type Movie {
-        required property title: str { constraint exclusive };
-        required property release_year: int64;
-        multi link characters: Person;
+        required title: str { constraint exclusive };
+        required release_year: int64;
+        multi characters: Person;
       }
     }
 
@@ -750,7 +750,7 @@ common to add them directly into your schema as computed links.
 
 .. note::
 
-  In the example above, the ``Person.movies`` is a ``multi link``. Including
+  In the example above, the ``Person.movies`` is a ``multi`` link. Including
   these keywords is optional, since EdgeDB can infer this from the assigned
   expression ``.<characters[is Movie]``. However, it's a good practice to
   include the explicit keywords to make the schema more readable and "sanity
