@@ -1154,6 +1154,8 @@ class InsertStmt(MutatingStmt):
         return self.subject.typeref.real_material_type
 
 
+# N.B: The PointerRef corresponds to the *definition* point.
+# (XXX: Wait is that true.)
 RewritesOfType = typing.Dict[str, typing.Tuple[Set, BasePointerRef]]
 
 

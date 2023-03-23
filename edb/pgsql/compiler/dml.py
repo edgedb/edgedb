@@ -1788,16 +1788,17 @@ def prepare_update_shape(
 ]:
     rewrites = dict(rewrites)
 
-    elements: List[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]] = []
+    elements: List[
+        Tuple[irast.Set, irast.BasePointerRef,
+              irast.BasePointerRef, qlast.ShapeOp]
+    ] = []
     for shape_el, shape_op in ir_stmt.subject.shape:
         if shape_op == qlast.ShapeOp.MATERIALIZE:
             continue
 
         assert shape_el.rptr is not None
-        ptrref: Optional[irast.BasePointerRef] = shape_el.rptr.ptrref
-        actual_ptrref = irtyputils.find_actual_ptrref(
-            typeref, cast(irast.BasePointerRef, ptrref)
-        )
+        ptrref: irast.BasePointerRef = shape_el.rptr.ptrref
+        actual_ptrref = irtyputils.find_actual_ptrref(typeref, ptrref)
         ptr_name = actual_ptrref.shortname.name
 
         # apply rewrite
@@ -1806,17 +1807,19 @@ def prepare_update_shape(
         else:
             value = shape_el
 
-        elements.append((value, actual_ptrref, shape_op))
+        elements.append((value, ptrref, actual_ptrref, shape_op))
 
     # apply remaining rewrites
     for element, ptrref in rewrites.values():
-        elements.append((element, ptrref, qlast.ShapeOp.ASSIGN))
+        # XXX! clean up this actual_ptrref stuff?
+        actual_ptrref = irtyputils.find_actual_ptrref(typeref, ptrref)
+        elements.append((element, ptrref, actual_ptrref, qlast.ShapeOp.ASSIGN))
 
     values: List[Tuple[pgast.ResTarget, irast.PathId]] = []
     external_updates: List[Tuple[irast.Set, qlast.ShapeOp]] = []
     ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
 
-    for element, actual_ptrref, shape_op in elements:
+    for element, shape_ptrref, actual_ptrref, shape_op in elements:
         ptr_info = pg_types.get_ptrref_storage_info(
             actual_ptrref, resolve_type=True, link_bias=False
         )
@@ -1857,7 +1860,6 @@ def prepare_update_shape(
 
                     assert isinstance(updvalue, irast.Stmt)
 
-                    ptrref = element.rptr.ptrref if element.rptr else None
                     val = check_update_type(
                         val,
                         val,
@@ -1865,7 +1867,7 @@ def prepare_update_shape(
                         ir_stmt=ir_stmt,
                         ir_set=updvalue.result,
                         subject_typeref=typeref,
-                        shape_ptrref=ptrref,
+                        shape_ptrref=shape_ptrref,
                         actual_ptrref=actual_ptrref,
                         ctx=scopectx,
                     )
@@ -1968,7 +1970,7 @@ def check_update_type(
     ir_stmt: irast.UpdateStmt,
     ir_set: irast.Set,
     subject_typeref: irast.TypeRef,
-    shape_ptrref: Optional[irast.BasePointerRef],
+    shape_ptrref: irast.BasePointerRef,
     actual_ptrref: irast.BasePointerRef,
     ctx: context.CompilerContextLevel,
 ) -> pgast.BaseExpr:
@@ -1979,11 +1981,6 @@ def check_update_type(
     the target in a base type being UPDATEd does not match the
     target type for this concrete subtype being handled.
     """
-
-    # TODO: is this sound?
-    # For rewrites, this check is unnessary
-    if not shape_ptrref:
-        return val
 
     base_ptrref = irtyputils.find_actual_ptrref(
         ir_stmt.material_type, shape_ptrref)

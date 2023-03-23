@@ -908,7 +908,7 @@ def _compile_rewrites(
                 is_definition=True,
             )
 
-            by_type[ty][pn] = (ptr_set, actual_ptrref)
+            by_type[ty][pn] = (ptr_set, ptrref.real_material_ptr)
 
     return irast.Rewrites(
         subject_path_id=anchors[0].path_id,
