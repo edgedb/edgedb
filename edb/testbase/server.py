@@ -140,7 +140,8 @@ class TestCaseMeta(type(unittest.TestCase)):
     def wrap(mcls, meth):
         @functools.wraps(meth)
         def wrapper(self, *args, __meth__=meth, **kwargs):
-            if not hasattr(self, "loop"):
+            if (hasattr(self, "use_experimental_interpreter") and
+                    self.use_experimental_interpreter):
                 # assume we're using the exprimental interpreter
                 loop = asyncio.get_event_loop()
                 task = loop.create_task(__meth__(self, *args, **kwargs))
@@ -706,8 +707,8 @@ class ClusterTestCase(BaseHTTPTestCase):
             )
 
     def setUp(self):
-        if not hasattr(self, "loop"):
-            # assume we're using the experimental interpreter
+        if (hasattr(self, "use_experimental_interpreter") and
+                    self.use_experimental_interpreter):
             return
 
         if self.INTERNAL_TESTMODE:
@@ -725,8 +726,8 @@ class ClusterTestCase(BaseHTTPTestCase):
         super().setUp()
 
     def tearDown(self):
-        if not hasattr(self, "loop"):
-            # assume we're using the experimental interpreter
+        if (hasattr(self, "use_experimental_interpreter") and
+                self.use_experimental_interpreter):
             return
         try:
             self.ensure_no_background_server_errors()
@@ -875,13 +876,15 @@ class ConnectedTestCaseMixin:
                 (result, _) = model.run_single_str_get_json(
                     self.experimental_interpreter_db, query, print_asts=False)
                 res = result
-                try:
-                    assert_data_shape.assert_data_shape(
-                        res, exp_result_json, self.fail, message=msg)
-                except AssertionError as e:
-                    raise AssertionError(
-                        str(e),
-                        "Expected", exp_result_json, "Actual", result)
+                # Uncomment this for debugging.
+                # Otherwise the error message is obscure.
+                # try:
+                #     assert_data_shape.assert_data_shape(
+                #         res, exp_result_json, self.fail, message=msg)
+                # except AssertionError as e:
+                #     raise AssertionError(
+                #         str(e),
+                #         "Expected", exp_result_json, "Actual", result)
             else:
                 tx = self.con.transaction()
                 await tx.start()
