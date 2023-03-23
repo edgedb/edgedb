@@ -446,11 +446,10 @@ async def init_cluster(
     security=edgedb_args.ServerSecurityMode.Strict,
     http_endpoint_security=edgedb_args.ServerEndpointSecurityMode.Optional,
     compiler_pool_mode=edgedb_args.CompilerPoolMode.Fixed,
-    use_experimental_interpreter=False
 ) -> edgedb_cluster.BaseCluster:
-    if (backend_dsn is not None):
-        if  (data_dir is not None) or (use_experimental_interpreter is True):
-            raise ValueError("(data_dir or use_experimental_interpreter) and backend_dsn cannot be set at the same time")
+    if data_dir is not None and backend_dsn is not None:
+         raise ValueError(
+             "data_dir and backend_dsn cannot be set at the same time")
     if init_settings is None:
         init_settings = {}
 
@@ -467,10 +466,6 @@ async def init_cluster(
             compiler_pool_mode=compiler_pool_mode,
         )
         destroy = True
-    elif use_experimental_interpreter:
-        cluster = edgedb_cluster.InMemoryClusterWithExperimentalImplementation()
-        destroy = True
-        return cluster
     elif data_dir is None:
         cluster = edgedb_cluster.TempCluster(
             testmode=True,

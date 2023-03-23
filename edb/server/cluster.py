@@ -471,39 +471,17 @@ class TempCluster(Cluster):
             compiler_pool_mode=compiler_pool_mode,
         )
 
-class InMemoryClusterWithExperimentalImplementation(Cluster):
-    pass
-    def __init__(
-        self,
-    #     data_dir_suffix: Optional[str] = None,
-    #     data_dir_prefix: Optional[str] = None,
-    #     data_dir_parent: Optional[str] = None,
-    #     env: Optional[Mapping[str, str]] = None,
-    #     testmode: bool = False,
-    #     log_level: Optional[str] = None,
-    #     security: Optional[
-    #         edgedb_args.ServerSecurityMode
-    #     ] = None,
-    #     http_endpoint_security: Optional[
-    #         edgedb_args.ServerEndpointSecurityMode
-    #     ] = None,
-    #     compiler_pool_mode: Optional[
-    #         edgedb_args.CompilerPoolMode
-    #     ] = None,
-    ) -> None:
-        tempdir = pathlib.Path(
-            tempfile.mkdtemp(),
-        )
-        super().__init__(
-            data_dir=tempdir,
-            # runstate_dir=tempdir,
-            # env=env,
-            # testmode=testmode,
-            # log_level=log_level,
-            # security=security,
-            # http_endpoint_security=http_endpoint_security,
-            # compiler_pool_mode=compiler_pool_mode,
-        )
+# class InMemoryClusterWithExperimentalImplementation(Cluster):
+#     pass
+#     def __init__(
+#         self,
+#     ) -> None:
+#         tempdir = pathlib.Path(
+#             tempfile.mkdtemp(),
+#         )
+#         super().__init__(
+#             data_dir=tempdir,
+#         )
 
 
 
