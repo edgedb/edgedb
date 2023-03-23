@@ -30,7 +30,7 @@ from typing import *
 from edb import errors
 from edb.common import ast
 from edb.common import topological
-from edb.common.typeutils import not_none
+from edb.common.typeutils import downcast, not_none
 
 from edb.ir import ast as irast
 from edb.ir import typeutils
@@ -957,6 +957,7 @@ def _compile_rewrites_of_children(
     ] = {}
 
     # save parent to result
+    # XXX: won't work in general
     type_ref = typegen.type_to_typeref(stype, ctx.env)
     rewrites_for_type[type_ref] = parent_rewrites.copy()
 
@@ -966,7 +967,6 @@ def _compile_rewrites_of_children(
 
         # base on parent rewrites
         child_rewrites = parent_rewrites.copy()
-
         # override with rewrites defined here
         rewrites_defined_here = _compile_rewrites_for_stype(
             child, kind, view_scls, ir_set, anchors, s_ctx, ctx
@@ -999,19 +999,49 @@ def _compile_rewrites_for_stype(
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> Dict[sn.UnqualName, EarlyShapePtr]:
+    schema = ctx.env.schema
+
     path_id = ir_set.path_id
-    (subject_set, specified_set, old_set) = anchors
 
     res = {}
 
-    scls_pointers = stype.get_pointers(ctx.env.schema)
-    for pn, ptrcls in scls_pointers.items(ctx.env.schema):
-        if ptrcls.is_pure_computable(ctx.env.schema):
+    scls_pointers = stype.get_pointers(schema)
+    for pn, ptrcls in scls_pointers.items(schema):
+        if ptrcls.is_pure_computable(schema):
             continue
 
-        rewrite = ptrcls.get_rewrite(ctx.env.schema, kind)
+        rewrite = ptrcls.get_rewrite(schema, kind)
         if not rewrite:
             continue
+        # XXX: check overload situation
+
+        subject_set, specified_set, old_set = anchors
+
+        rewrite_source = downcast(
+            s_pointers.Pointer, rewrite.get_subject(schema)).get_source(schema)
+        assert isinstance(rewrite_source, s_objtypes.ObjectType)
+        assert rewrite_source
+        # ???
+        rewrite_view = view_scls
+        if rewrite_source != view_scls.get_nearest_non_derived_parent(schema):
+            # XXX: CREAM
+            rewrite_view = downcast(
+                s_objtypes.ObjectType,
+                schemactx.derive_view(
+                    rewrite_source,
+                    exprtype=s_ctx.exprtype,
+                    ctx=ctx,
+                )
+            )
+            subject_set = setgen.class_set(
+                rewrite_view, path_id=subject_set.path_id, ctx=ctx)
+            nold_set = old_set
+            if old_set:
+                old_set = setgen.class_set(
+                    rewrite_view, path_id=old_set.path_id, ctx=ctx)
+
+            ir_set = setgen.class_set(
+                rewrite_view, path_id=ir_set.path_id, ctx=ctx)
 
         rewrite_expr = rewrite.get_expr(ctx.env.schema)
         assert rewrite_expr
@@ -1049,14 +1079,17 @@ def _compile_rewrites_for_stype(
                 ),
             )
             shape_ql_desc = _shape_el_ql_to_shape_el_desc(
-                shape_ql, source=view_scls, s_ctx=s_ctx, ctx=scopectx
+                shape_ql,
+                source=rewrite_view,
+                s_ctx=s_ctx,
+                ctx=scopectx,
             )
 
             # compile as normal shape element
             pointer, ptr_set = _normalize_view_ptr_expr(
                 ir_set,
                 shape_ql_desc,
-                view_scls,
+                rewrite_view,
                 path_id=path_id,
                 from_default=True,
                 s_ctx=s_ctx,

@@ -379,3 +379,33 @@ class TestRewrites(tb.QueryTestCase):
                 edgedb.InvalidLinkTargetError,
                 r"invalid target for link 'elements"):
             await self.con.execute('update Library set { }')
+
+    async def test_edgeql_rewrites_11(self):
+        # Update triggers child overrides on unknown fields
+        # TODO: side inheritance
+
+        await self.con.execute(
+            '''
+            alter type Movie {
+              alter property release_year {
+                create rewrite update
+                    using (__subject__.release_year + 1);
+              };
+            };
+            '''
+        )
+
+        await self.con.execute('''
+            insert Movie { title := "The Godfather", release_year := 1972 }
+        ''')
+
+        await self.con.execute('''
+            update Content set { title := .title ++ "!"}
+        ''')
+
+        await self.assert_query_result(
+            'select Movie { title, release_year }',
+            [
+                {"title": "The Godfather!", "release_year": 1973},
+            ],
+        )

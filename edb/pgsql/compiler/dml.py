@@ -749,7 +749,6 @@ def process_insert_body(
         }
         elements = list(rewrites.values())
 
-        # breakpoint()
         nptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
         _, nptr_map = process_insert_shape(
             ir_stmt, rew_stmt, nptr_map, elements, typeref, iterator,
@@ -1800,7 +1799,7 @@ def prepare_update_shape(
 
         # apply rewrite
         if ptr_name in rewrites:
-            value, _ = rewrites.pop(ptr_name)
+            value, ptrref = rewrites.pop(ptr_name)
         else:
             value = shape_el
 
@@ -1979,8 +1978,8 @@ def check_update_type(
     target type for this concrete subtype being handled.
     """
 
-    base_ptrref = irtyputils.find_actual_ptrref(
-        ir_stmt.material_type, shape_ptrref)
+    base_ptrref = shape_ptrref.real_material_ptr
+
     # We skip the check if either the base type matches exactly
     # or the shape type matches exactly. FIXME: *Really* we want to do
     # a subtype check, here, though, since this could do a needless
