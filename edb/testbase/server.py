@@ -449,8 +449,8 @@ async def init_cluster(
     compiler_pool_mode=edgedb_args.CompilerPoolMode.Fixed,
 ) -> edgedb_cluster.BaseCluster:
     if data_dir is not None and backend_dsn is not None:
-         raise ValueError(
-             "data_dir and backend_dsn cannot be set at the same time")
+        raise ValueError(
+            "data_dir and backend_dsn cannot be set at the same time")
     if init_settings is None:
         init_settings = {}
 
@@ -1489,17 +1489,16 @@ def test_cases_use_server(cases: Iterable[unittest.TestCase]) -> bool:
 
 
 async def setup_test_cases(
-        cases, conn, num_jobs, try_cached_db=False, verbose=False,
-        use_experimental_interpreter=False):
+        cases, conn, num_jobs, try_cached_db=False, verbose=False):
     setup = get_test_cases_setup(
-            cases, use_experimental_interpreter=use_experimental_interpreter)
+            cases, use_experimental_interpreter=False)
 
     stats = []
     if num_jobs == 1:
         # Special case for --jobs=1
         for _case, dbname, setup_script in setup:
             await _setup_database(
-                dbname, setup_script, conn, stats, try_cached_db, use_experimental_interpreter)
+                dbname, setup_script, conn, stats, try_cached_db)
             if verbose:
                 print(f' -> {dbname}: OK', flush=True)
     else:
@@ -1519,15 +1518,12 @@ async def setup_test_cases(
             for _case, dbname, setup_script in setup:
                 g.create_task(controller(
                     _setup_database, dbname, setup_script, conn, stats,
-                    try_cached_db, use_experimental_interpreter))
+                    try_cached_db))
     return stats
 
 
 async def _setup_database(
-        dbname, setup_script, conn_args, stats, try_cached_db, use_experimental_interpreter):
-
-    if use_experimental_interpreter:
-        return #TODO
+        dbname, setup_script, conn_args, stats, try_cached_db):
 
     start_time = time.monotonic()
     default_args = {
@@ -1537,16 +1533,10 @@ async def _setup_database(
 
     default_args.update(conn_args)
 
-    admin_conn : tconn.Connection = None
-
     try:
-        if use_experimental_interpreter:
-            pass
-            # admin_conn = experimental_interpreter.admin_connection
-        else:
-            admin_conn = await tconn.async_connect_test_client(
-                database=edgedb_defines.EDGEDB_SUPERUSER_DB,
-                **default_args)
+        admin_conn = await tconn.async_connect_test_client(
+            database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+            **default_args)
         
     except Exception as ex:
         raise RuntimeError(
@@ -1577,22 +1567,13 @@ async def _setup_database(
     finally:
         await admin_conn.aclose()
 
-    dbconn = None
-
-    if use_experimental_interpreter:
-        pass
-        # dbconn = experimental_interpreter.db_connection
-    else:
-        dbconn = await tconn.async_connect_test_client(
-            database=dbname, **default_args
-        )
+    dbconn = await tconn.async_connect_test_client(
+        database=dbname, **default_args
+    )
     try:
-        if use_experimental_interpreter:
-            await dbconn.execute(setup_script)
-        else:
-            async for tx in dbconn.retrying_transaction():
-                async with tx:
-                    await dbconn.execute(setup_script)
+        async for tx in dbconn.retrying_transaction():
+            async with tx:
+                await dbconn.execute(setup_script)
     except Exception as ex:
         raise RuntimeError(
             f'exception during initialization of {dbname!r} test DB: '

@@ -965,7 +965,6 @@ class ParallelTextTestRunner:
                         backend_dsn=self.backend_dsn,
                         cleanup_atexit=False,
                         data_dir=data_dir,
-                        use_experimental_interpreter=self.use_experimental_interpreter,
                     )
 
                     if self.verbosity > 1:
@@ -982,7 +981,6 @@ class ParallelTextTestRunner:
                         self.num_workers,
                         verbose=self.verbosity > 1,
                         try_cached_db=self.try_cached_db,
-                        use_experimental_interpreter=self.use_experimental_interpreter,
                     )
                     if self.try_cached_db and any(
                         not x[1]['cached'] for x in stats
