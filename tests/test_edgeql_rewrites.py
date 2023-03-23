@@ -249,16 +249,15 @@ class TestRewrites(tb.QueryTestCase):
                 r"invalid target for link 'elements"):
             await self.con.execute('update Library set { name := "x" }')
 
-        # # XXX: check empty update
-        # async with self.assertRaisesRegexTx(
-        #         edgedb.InvalidLinkTargetError,
-        #         r"invalid target for link 'elements"):
-        #     await self.con.execute('update Collection set { }')
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'elements"):
+            await self.con.execute('update Collection set { }')
 
-        # async with self.assertRaisesRegexTx(
-        #         edgedb.InvalidLinkTargetError,
-        #         r"invalid target for link 'elements"):
-        #     await self.con.execute('update Library set { }')
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidLinkTargetError,
+                r"invalid target for link 'elements"):
+            await self.con.execute('update Library set { }')
 
     async def test_edgeql_rewrites_07(self):
         await self.con.execute(

@@ -1572,7 +1572,16 @@ def process_update_body(
         )
 
     update_stmt = None
-    if not values:
+
+    if ir_stmt.rewrites:
+        rewrites = ir_stmt.rewrites.by_type.get(typeref)
+    else:
+        rewrites = None
+
+    # XXX: Not confident in this setup; rewrite processing needs to go
+    # first, right? (in the general case where it can do multi, at
+    # least.)
+    if not values and not rewrites:
         # No updates directly to the set target table,
         # so convert the UPDATE statement into a SELECT.
         update_cte.query = contents_select
@@ -1594,12 +1603,7 @@ def process_update_body(
         contents_rvar = relctx.rvar_for_rel(contents_cte, ctx=ctx)
         subject_path_id = ir_stmt.subject.path_id
 
-        # compile rewrites CTE
-        if ir_stmt.rewrites:
-            rewrites = ir_stmt.rewrites.by_type.get(typeref)
-        else:
-            rewrites = None
-
+        # Compile rewrites CTE
         if rewrites:
             assert ir_stmt.rewrites
             object_path_id = ir_stmt.subject.path_id
