@@ -2299,7 +2299,7 @@ def process_link_update(
             relation=target_rvar,
             select_stmt=data_select,
             cols=[
-                pgast.InsertTarget(name=downcast(col.name[0], str))
+                pgast.InsertTarget(name=downcast(str, col.name[0]))
                 for col in cols
             ],
             on_conflict=conflict_clause,
