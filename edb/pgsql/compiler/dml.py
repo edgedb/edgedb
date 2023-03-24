@@ -623,29 +623,39 @@ def process_insert_body(
     iterator = ctx.enclosing_cte_iterator
     inner_iterator = on_conflict_fake_iterator or iterator
 
-    ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
+    ptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
 
     # Use a dynamic rvar to return values out of the select purely
     # based on material rptr, as if it was a base relation.
     # This is to make it easy for access policies to operate on the result
     # of the INSERT.
-    def dynamic_get_path(
-        rel: pgast.Query, path_id: irast.PathId, *,
-        flavor: str,
-        aspect: str, env: context.Environment
-    ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
-        if flavor != 'normal' or aspect not in ('value', 'identity'):
-            return None
-        if not (rptr := path_id.rptr()):
-            return None
-        if ret := ptr_map.get(rptr.real_material_ptr):
-            return ret
-        if rptr.real_material_ptr.shortname.name == '__type__':
-            return astutils.compile_typeref(typeref)
-        # Properties that aren't specified are {}
-        return pgast.NullConstant()
+    def mk_get_path(
+        ptr_map: Dict[sn.Name, pgast.BaseExpr],
+        fallback_rvar: Optional[pgast.PathRangeVar] = None,
+    ) -> pgast.DynamicRangeVarFunc:
+        def dynamic_get_path(
+            rel: pgast.Query, path_id: irast.PathId, *,
+            flavor: str,
+            aspect: str, env: context.Environment
+        ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
+            if flavor != 'normal' or aspect not in ('value', 'identity'):
+                return None
+            if not (rptr := path_id.rptr()):
+                return None
+            if ret := ptr_map.get(rptr.real_material_ptr.name):
+                return ret
+            if rptr.real_material_ptr.shortname.name == '__type__':
+                return astutils.compile_typeref(typeref)
+            # If a fallback rvar is specified, defer to that.
+            # This is used in rewrites to go back to the original
+            if fallback_rvar:
+                return fallback_rvar
+            # Properties that aren't specified are {}
+            return pgast.NullConstant()
+        return dynamic_get_path
 
-    fallback_rvar = pgast.DynamicRangeVar(dynamic_get_path=dynamic_get_path)
+    fallback_rvar = pgast.DynamicRangeVar(
+        dynamic_get_path=mk_get_path(ptr_map))
     pathctx.put_path_source_rvar(
         select, ir_stmt.subject.path_id, fallback_rvar, env=ctx.env)
     pathctx.put_path_value_rvar(
@@ -706,40 +716,14 @@ def process_insert_body(
             rew_stmt, contents_rvar, object_path_id, ctx=ctx
         )
 
-        # XXX: I think we are going to need to do something like this
-        # for access policies. Probably want to just define the
-        # function once and parameterize it over ptr_map.
-
-        # # Use a dynamic rvar to return values out of the select purely
-        # # based on material rptr, as if it was a base relation.
-        # # This is to make it easy for access policies to operate on the
-        # # result of the INSERT.
-        # def dynamic_get_path_rew(
-        #     rel: pgast.Query, path_id: irast.PathId, *,
-        #     flavor: str,
-        #     aspect: str, env: context.Environment
-        # ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
-        #     if flavor != 'normal' or aspect not in ('value', 'identity'):
-        #         return None
-        #     if not (rptr := path_id.rptr()):
-        #         return None
-        #     if ret := ptr_map.get(rptr.real_material_ptr):
-        #         return ret
-        #     if rptr.real_material_ptr.shortname.name == '__type__':
-        #         return astutils.compile_typeref(typeref)
-        #     # Properties that aren't specified are {}
-        #     return pgast.NullConstant()
-
-        # fallback_rvar = pgast.DynamicRangeVar(
-        #     dynamic_get_path=dynamic_get_path_rew)
-        # pathctx.put_path_source_rvar(
-        #     select, object_path_id, fallback_rvar, env=ctx.env)
-        # pathctx.put_path_value_rvar(
-        #     select, object_path_id, fallback_rvar, env=ctx.env)
-        # pathctx.put_path_source_rvar(
-        #     select, subject_path_id, fallback_rvar, env=ctx.env)
-        # pathctx.put_path_value_rvar(
-        #     select, subject_path_id, fallback_rvar, env=ctx.env)
+        nptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
+        fallback_rvar = pgast.DynamicRangeVar(
+            dynamic_get_path=mk_get_path(nptr_map, contents_rvar))
+        # XXX: should only need one of these
+        pathctx.put_path_source_rvar(
+            rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
+        pathctx.put_path_value_rvar(
+            rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
 
         # compile rewrite shape
         not_rewritten = {
@@ -749,7 +733,6 @@ def process_insert_body(
         }
         elements = list(rewrites.values())
 
-        nptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
         _, nptr_map = process_insert_shape(
             ir_stmt, rew_stmt, nptr_map, elements, typeref, iterator,
             inner_iterator, ctx
@@ -877,7 +860,7 @@ def process_insert_body(
 def process_insert_shape(
     ir_stmt: irast.InsertStmt,
     select: pgast.SelectStmt,
-    ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr],
+    ptr_map: Dict[sn.Name, pgast.BaseExpr],
     elements: List[Tuple[irast.Set, irast.BasePointerRef]],
     typeref: irast.TypeRef,
     iterator: Optional[pgast.IteratorCTE],
@@ -885,7 +868,7 @@ def process_insert_shape(
     ctx: context.CompilerContextLevel,
 ) -> Tuple[
     List[irast.Set],
-    Dict[irast.BasePointerRef, pgast.BaseExpr]
+    Dict[sn.Name, pgast.BaseExpr]
 ]:
     # Compile the shape
     external_inserts = []
@@ -936,7 +919,7 @@ def process_insert_shape(
                         ),
                     )
 
-                ptr_map[ptrref] = insvalue
+                ptr_map[ptrref.name] = insvalue
                 select.target_list.append(pgast.ResTarget(
                     name=ptr_info.column_name, val=insvalue))
 
@@ -1509,6 +1492,30 @@ def process_update_body(
         parent=ctx.enclosing_cte_iterator,
     )
 
+    # Use a dynamic rvar to return values out of the select purely
+    # based on material rptr, as if it was a base relation (and to
+    # fall back to the base relation if the value wasn't updated.)
+    def mk_get_path(
+        ptr_map: Dict[sn.Name, pgast.BaseExpr],
+        fallback_rvar: pgast.PathRangeVar,
+    ) -> pgast.DynamicRangeVarFunc:
+        def dynamic_get_path(
+            rel: pgast.Query,
+            path_id: irast.PathId,
+            *,
+            flavor: str,
+            aspect: str,
+            env: context.Environment,
+        ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
+            if flavor != "normal" or aspect not in ("value", "identity"):
+                return None
+            if (rptr := path_id.rptr()) and (
+                var := ptr_map.get(rptr.real_material_ptr.name)
+            ):
+                return var
+            return fallback_rvar
+        return dynamic_get_path
+
     with ctx.newscope() as subctx:
         # It is necessary to process the expressions in
         # the UpdateStmt shape body in the context of the
@@ -1528,27 +1535,8 @@ def process_update_body(
         relation = contents_select.from_clause[0]
         assert isinstance(relation, pgast.PathRangeVar)
 
-        # Use a dynamic rvar to return values out of the select purely
-        # based on material rptr, as if it was a base relation (and to
-        # fall back to the base relation if the value wasn't updated.)
-        def dynamic_get_path(
-            rel: pgast.Query,
-            path_id: irast.PathId,
-            *,
-            flavor: str,
-            aspect: str,
-            env: context.Environment,
-        ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
-            if flavor != "normal" or aspect not in ("value", "identity"):
-                return None
-            if (rptr := path_id.rptr()) and (
-                var := ptr_map.get(rptr.real_material_ptr)
-            ):
-                return var
-            return relation
-
         fallback_rvar = pgast.DynamicRangeVar(
-            dynamic_get_path=dynamic_get_path
+            dynamic_get_path=mk_get_path(ptr_map, relation),
         )
         pathctx.put_path_source_rvar(
             contents_select,
@@ -1606,7 +1594,7 @@ def process_update_body(
             with ctx.newrel() as rctx:
                 rewrites_stmt = rctx.rel
 
-                # punned down version of gen_dml_cte
+                # pruned down version of gen_dml_cte
                 rewrites_stmt.from_clause.append(range_relation)
 
                 # pull in contents_select for __subject__
@@ -1670,9 +1658,16 @@ def process_update_body(
                     (subject_path_id, "value")
                 ] = table_rel.path_outputs[(object_path_id, "value")]
 
-                values, _, _ = prepare_update_shape(
+                values, _, nptr_map = prepare_update_shape(
                     ir_stmt, rewrites_stmt, typeref, rewrites, rctx
                 )
+                fallback_rvar = pgast.DynamicRangeVar(
+                    dynamic_get_path=mk_get_path(nptr_map, contents_rvar),
+                )
+                pathctx.put_path_source_rvar(
+                    rctx.rel, object_path_id, fallback_rvar, env=ctx.env)
+                pathctx.put_path_value_rvar(
+                    rctx.rel, object_path_id, fallback_rvar, env=ctx.env)
 
                 rewrites_cte = pgast.CommonTableExpr(
                     query=rctx.rel, name=ctx.env.aliases.get("upd_rewrites")
@@ -1780,7 +1775,7 @@ def prepare_update_shape(
 ) -> Tuple[
     List[Tuple[pgast.ResTarget, irast.PathId]],
     List[Tuple[irast.Set, qlast.ShapeOp]],
-    Dict[irast.BasePointerRef, pgast.BaseExpr],
+    Dict[sn.Name, pgast.BaseExpr],
 ]:
     rewrites = dict(rewrites)
 
@@ -1813,7 +1808,7 @@ def prepare_update_shape(
 
     values: List[Tuple[pgast.ResTarget, irast.PathId]] = []
     external_updates: List[Tuple[irast.Set, qlast.ShapeOp]] = []
-    ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
+    ptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
 
     for element, shape_ptrref, actual_ptrref, shape_op in elements:
         ptr_info = pg_types.get_ptrref_storage_info(
@@ -1882,7 +1877,7 @@ def prepare_update_shape(
                         ],
                     )
 
-                ptr_map[actual_ptrref] = val
+                ptr_map[actual_ptrref.name] = val
                 updtarget = pgast.ResTarget(
                     name=ptr_info.column_name,
                     val=val,

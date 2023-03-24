@@ -33,7 +33,6 @@ class TestRewrites(tb.QueryTestCase):
 
     # TO TEST:
     # * Trigger interactions
-    # * Access policy interactions
     # * multi (once supported)
 
     async def test_edgeql_rewrites_01(self):
@@ -442,5 +441,54 @@ class TestRewrites(tb.QueryTestCase):
             'select Movie { title, count }',
             [
                 {"title": "The Godfather!!", "count": 2},
+            ],
+        )
+
+    async def test_edgeql_rewrites_13(self):
+        # basic overriding of properties
+        await self.con.execute(
+            '''
+            alter type Movie {
+              alter property release_year {
+                create rewrite insert using (__subject__.release_year + 1);
+                create rewrite update using (__subject__.release_year + 1);
+              };
+              create access policy ok allow all;
+              create access policy no_even deny insert, update write using
+                ((.release_year ?? 0) % 2 = 0);
+            };
+            '''
+        )
+
+        async with self.assertRaisesRegexTx(edgedb.AccessPolicyError, ''):
+            await self.con.execute('''
+                insert Movie {
+                    title := "The Godfather", release_year := 1971 };
+            ''')
+
+        await self.con.execute('''
+            insert Movie { title := "The Godfather", release_year := 1972 };
+        ''')
+
+        await self.assert_query_result(
+            'select Movie { title, release_year }',
+            [
+                {"title": "The Godfather", "release_year": 1973},
+            ],
+        )
+
+        async with self.assertRaisesRegexTx(edgedb.AccessPolicyError, ''):
+            await self.con.execute('''
+                update Movie set { release_year := 101 };
+            ''')
+
+        await self.con.execute('''
+            update Movie set { release_year := 100 };
+        ''')
+
+        await self.assert_query_result(
+            'select Movie { title, release_year }',
+            [
+                {"title": "The Godfather", "release_year": 101},
             ],
         )
