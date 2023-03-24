@@ -1611,19 +1611,6 @@ def process_update_body(
                     ),
                 )
 
-                # add overlay that will makes sure that any references to
-                # __subject__ will use contents_cte
-                # TODO: this should not be needed, because there should no
-                # references to __subject__
-                relctx.add_type_rel_overlay(
-                    subject_path_id.target,
-                    "replace",
-                    contents_cte,
-                    dml_stmts=(),
-                    path_id=subject_path_id,
-                    ctx=rctx,
-                )
-
                 # add entries in path_var_map for __subject__
                 contents_select.path_rvar_map[
                     (subject_path_id, "source")

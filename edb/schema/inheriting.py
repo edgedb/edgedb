@@ -562,26 +562,6 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             return super().get_ast_attr_for_field(field, astnode)
 
 
-def get_dict_of_references(
-    obj: so.Object, schema: s_schema.Schema
-) -> Dict[sn.Name, s_referencing.ReferencedInheritingObject]:
-    match obj:
-        case so.ObjectIndexBase() | so.ObjectDict():
-            return dict(obj.items(schema))
-
-        case so.ObjectSet():
-            # Field value is a Set, which means that the reference
-            # does not have a name. For inheritance purposes, let's use the
-            # hash of the object as the reference.
-            return {
-                sn.QualName(module="__derived__", name=str(hash(o))): o
-                for o in obj.objects(schema)
-            }
-        case _:
-            print(obj)
-            raise NotImplementedError()
-
-
 BaseDeltaItem_T = Tuple[
     List[so.ObjectShell[so.InheritingObjectT]],
     Union[str, Tuple[str, so.ObjectShell[so.InheritingObjectT]]],
