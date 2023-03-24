@@ -1073,7 +1073,7 @@ def _compile_rewrites_for_stype(
 
             # compile as normal shape element
             pointer, ptr_set = _normalize_view_ptr_expr(
-                ir_set,
+                subject_set,
                 shape_ql_desc,
                 rewrite_view,
                 path_id=path_id,

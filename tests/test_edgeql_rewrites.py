@@ -69,14 +69,14 @@ class TestRewrites(tb.QueryTestCase):
             '''
             alter type Movie {
               alter property title {
-                create rewrite insert using (__subject__.title);
-                create rewrite update using (__subject__.title);
+                create rewrite insert using (.title);
+                create rewrite update using (.title);
               };
             };
             '''
         )
 
-        await self.con.execute('insert Movie { title:= "Whiplash" }')
+        await self.con.execute('insert Movie { title := "Whiplash" }')
         await self.assert_query_result(
             'select Movie { title }',
             [{"title": "Whiplash"}],
@@ -109,7 +109,7 @@ class TestRewrites(tb.QueryTestCase):
             '''
             alter type Movie {
               alter property title {
-                create rewrite insert using (__subject__.title ++ ' (new)');
+                create rewrite insert using (.title ++ ' (new)');
                 set default := 'untitled';
               };
             };
@@ -445,7 +445,6 @@ class TestRewrites(tb.QueryTestCase):
         )
 
     async def test_edgeql_rewrites_13(self):
-        # basic overriding of properties
         await self.con.execute(
             '''
             alter type Movie {
