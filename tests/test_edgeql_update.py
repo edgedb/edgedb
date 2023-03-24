@@ -3374,6 +3374,17 @@ class TestUpdate(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_update_assert_calls_01(self):
+        await self.assert_query_result(
+            r"""
+            select assert_exists(assert_single((
+              select (update UpdateTest filter .name = 'update-test1'
+                      set {comment := "test"}) { comment }
+            )));
+            """,
+            [{"comment": "test"}]
+        )
+
     async def test_edgeql_update_covariant_01(self):
         await self.con.execute("""
             INSERT UpdateTestSubSubType {
