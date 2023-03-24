@@ -52,6 +52,7 @@ from . import setgen
 from . import compile_ast_to_ir
 from . import options
 
+
 class SettingInfo(NamedTuple):
     param_name: str
     param_type: s_types.Type
