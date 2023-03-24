@@ -34,7 +34,7 @@ class TestRewrites(tb.QueryTestCase):
     # TO TEST:
     # * Trigger interactions
     # * Access policy interactions
-    # * multi (need to at least disallow for now)
+    # * multi (once supported)
 
     async def test_edgeql_rewrites_01(self):
         # basic overriding of properties

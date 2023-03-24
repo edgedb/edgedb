@@ -1769,7 +1769,7 @@ class PointerCommand(
                 if s_pointer.is_property(schema) and card.is_multi():
                     raise errors.SchemaDefinitionError(
                         f"default expression cannot refer to multi properties "
-                        "of insterted object",
+                        "of inserted object",
                         context=source_context,
                         hint="this is a temporary implementation restriction",
                     )
@@ -1777,10 +1777,32 @@ class PointerCommand(
                 if not s_pointer.is_property(schema):
                     raise errors.SchemaDefinitionError(
                         f"default expression cannot refer to links "
-                        "of insterted object",
+                        "of inserted object",
                         context=source_context,
                         hint='this is a temporary implementation restriction'
                     )
+
+        if (
+            self.scls.get_rewrite(schema, qltypes.RewriteKind.Update)
+            or self.scls.get_rewrite(schema, qltypes.RewriteKind.Insert)
+        ):
+            if self.scls.get_cardinality(schema).is_multi():
+                raise errors.SchemaDefinitionError(
+                    f"cannot specify a rewrite for "
+                    f"{scls.get_verbosename(schema, with_parent=True)} "
+                    f"because it is multi",
+                    context=self.source_context,
+                    hint='this is a temporary implementation restriction'
+                )
+
+            if self.scls.has_user_defined_properties(schema):
+                raise errors.SchemaDefinitionError(
+                    f"cannot specify a rewrite for "
+                    f"{scls.get_verbosename(schema, with_parent=True)} "
+                    f"because it has link properties",
+                    context=self.source_context,
+                    hint='this is a temporary implementation restriction'
+                )
 
     def _check_id_default(
         self,
