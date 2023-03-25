@@ -1425,6 +1425,9 @@ def _normalize_view_ptr_expr(
             ctx.env.schema, 'cardinality', ptr_cardinality)
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema, 'required', ptr_required)
+
+        ctx.env.pointer_specified_info[ptrcls] = (
+            ptr_cardinality, ptr_required, shape_el.context)
     else:
         if qlexpr is None and ptrcls is not base_ptrcls:
             ctx.env.pointer_derivation_map[base_ptrcls].append(ptrcls)
