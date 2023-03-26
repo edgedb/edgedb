@@ -1088,7 +1088,7 @@ class ParallelTextTestRunner:
             if tempdir is not None:
                 tempdir.cleanup()
 
-            if setup:
+            if setup and not self.use_experimental_interpreter:
                 self._echo()
                 self._echo('Shutting down test cluster... ', nl=False)
                 tb._shutdown_cluster(cluster, destroy=self.data_dir is None)
