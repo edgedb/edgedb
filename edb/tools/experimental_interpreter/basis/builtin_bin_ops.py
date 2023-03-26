@@ -115,6 +115,19 @@ def opt_not_eq_impl(arg: Sequence[MultiSetVal]) -> MultiSetVal:
     raise FunCallErr()
 
 
+gt_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
+                args_ret_types=[
+                FunArgRetType(args_tp=[SomeTp(0), SomeTp(0)],
+                              ret_tp=(BoolTp(), CardOne))])
+
+
+def gt_impl(arg: Sequence[MultiSetVal]) -> MultiSetVal:
+    match arg:
+        case [[IntVal(i1)], [IntVal(i2)]]:
+            return [BoolVal(i1 > i2)]
+    raise FunCallErr()
+
+
 concatenate_tp = FunType(
     args_mod=[ParamSingleton(),
               ParamSingleton()],
@@ -205,6 +218,7 @@ all_builtin_ops: Dict[str, BuiltinFuncDef] = {
     "!=": BuiltinFuncDef(tp=not_eq_tp, impl=not_eq_impl),
     "?=": BuiltinFuncDef(tp=opt_eq_tp, impl=opt_eq_impl),
     "?!=": BuiltinFuncDef(tp=opt_not_eq_tp, impl=opt_not_eq_impl),
+    ">": BuiltinFuncDef(tp=gt_tp, impl=gt_impl),
     "++": BuiltinFuncDef(tp=concatenate_tp, impl=concatenate_impl),
     "??": BuiltinFuncDef(tp=coalescing_tp, impl=coalescing_impl),
     "IN": BuiltinFuncDef(tp=in_tp, impl=in_impl),
