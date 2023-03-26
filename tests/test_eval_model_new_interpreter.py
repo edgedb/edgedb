@@ -509,8 +509,8 @@ class TestNewInterpreterModelSmokeTests(tb.QueryTestCase):
                 } FILTER .name = 'Dragon'
             ''',
             bag([{"name": ["Dragon"], "z": [
-                {"name": ["Dave"], "@count": [1]},
                 {"name": ["Alice"], "@count": [2]},
+                {"name": ["Dave"], "@count": [1]},
             ]}])
         )
 

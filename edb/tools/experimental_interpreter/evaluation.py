@@ -234,7 +234,7 @@ def eval_config(rt: RTExpr) -> RTVal:
             for (key, expr) in dic.items():  # type: ignore[has-type]
                 (cur_data, val) = eval_config(RTExpr(cur_data, expr))
                 result = {
-                    **result, key: (Visible(), assume_link_target(val))}
+                    **result, key: (Visible(), (val))}
             return RTVal(cur_data, [FreeVal(ObjectVal(result))])
         case InsertExpr(tname, arg):
             if rt.data.eval_only:
