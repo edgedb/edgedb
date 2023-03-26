@@ -10,10 +10,10 @@ from edb.edgeql import ast as qlast
 
 from .back_to_ql import reverse_elab
 from .basis.built_ins import all_builtin_funcs
-from .data.data_ops import DB, DBSchema, MultiSetVal, empty_db
 from .data import expr_ops as eops
+from .data.data_ops import DB, DBSchema, MultiSetVal, empty_db
 from .data.path_factor import select_hoist
-from .data.val_to_json import (json_like, multi_set_val_to_json_like)
+from .data.val_to_json import json_like, multi_set_val_to_json_like
 from .elab_schema import schema_from_sdl_defs, schema_from_sdl_file
 from .elaboration import elab
 from .evaluation import RTData, RTExpr, eval_config_toplevel
