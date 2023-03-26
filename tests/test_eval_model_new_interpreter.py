@@ -220,6 +220,47 @@ class TestNewInterpreterModelSmokeTests(tb.QueryTestCase):
             {'boxing', 'unboxing'},
         )
 
+    async def test_model_link_dedup_02(self):
+        await self.assert_query_result(
+            r"""
+            SELECT count(User.friends)
+            """,
+            {3},
+        )
+
+    async def test_model_link_dedup_03(self):
+        await self.assert_query_result(
+            r"""
+            SELECT count((User.friends, User.friends@nickname));
+            """,
+            {3},
+        )
+
+    async def test_model_link_dedup_04(self):
+        await self.assert_query_result(
+            r"""
+            SELECT count((User.friends, User.friends@nickname ?? "None"));
+            """,
+            {4},
+        )
+
+    async def test_model_link_dedup_05(self):
+        await self.assert_query_result(
+            r"""
+            SELECT count(((select User.friends), (select User.friends.name)));
+            """,
+            {9},
+        )
+
+    async def test_model_link_dedup_06(self):
+        await self.assert_query_result(
+            r"""
+            SELECT count(((select User.friends),
+                          (select User.friends@nickname)));
+            """,
+            {9},
+        )
+
     async def test_model_link_correlation(self):
         await self.assert_query_result(
             r"""
