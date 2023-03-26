@@ -299,6 +299,7 @@ def eval_config(rt: RTExpr) -> RTVal:
             return RTVal(rt.data, all_ids)
         case FunAppExpr(fun=fname, args=args, overloading_index=_):
             (new_data, argsv) = eval_expr_list(rt.data, args)
+            argsv = map_assume_link_target(argsv)
             looked_up_fun = rt.data.schema.fun_defs[fname]
             f_modifier = looked_up_fun.tp.args_mod
             assert len(f_modifier) == len(argsv)
@@ -322,7 +323,7 @@ def eval_config(rt: RTExpr) -> RTVal:
                         argv_final = [[*cur, argv_i] for cur in argv_final]
                     case _:
                         raise ValueError()
-            argv_final = [map_assume_link_target(f) for f in argv_final]
+            # argv_final = [map_assume_link_target(f) for f in argv_final]
             after_fun_vals: Sequence[Val] = [
                 v for arg in argv_final for v in looked_up_fun.impl(arg)]
             return RTVal(new_data, after_fun_vals)
