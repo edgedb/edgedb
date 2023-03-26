@@ -333,14 +333,15 @@ def eval_config(rt: RTExpr) -> RTVal:
                 p
                 for v in assume_link_target(subjectv)
                 for p in singular_proj(new_data, v, StrLabel(label))]
-            if all([val_is_link_convertible(v) for v in projected]):
-                return RTVal(
-                    new_data, [convert_to_link(v) for v in projected])
-            elif all([not val_is_link_convertible(v) for v in projected]):
-                return RTVal(new_data, projected)
-            else:
-                return eval_error(
-                    projected, "Returned objects are not uniform")
+            return RTVal(new_data, projected)
+            # if all([val_is_link_convertible(v) for v in projected]):
+            #     return RTVal(
+            #         new_data, [convert_to_link(v) for v in projected])
+            # elif all([not val_is_link_convertible(v) for v in projected]):
+            #     return RTVal(new_data, projected)
+            # else:
+            #     return eval_error(
+            #         projected, "Returned objects are not uniform")
         case BackLinkExpr(subject=subject, label=label):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
             subject_ids = [v.refid
