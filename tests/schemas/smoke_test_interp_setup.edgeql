@@ -1,5 +1,5 @@
-# I really hope this query could work, but due to multiple bugs, it cannot work at the momoent.
-# 
+# # I really hope this query could work, but due to multiple bugs, it cannot work at the momoent.
+
 # with n0 := (insert Note {name := "boxing", note := {}}),
 #      n1 := (insert Note {name := "unboxing", note := "lolol"}),
 #      n2 := (insert Note {name := "dynamic", note := "blarg"}),
@@ -49,12 +49,14 @@
 #         }, awards := {a_15, a_31}, 
 #             avatar := {c_49 {@text := "Best"}}
 #         }),
-#     
-# 
+    
+
 # select 0;
-# 
+
 
 # COPY of CARDS_SETUP
+
+
 insert Note {name := "boxing", note := {}};
 insert Note {name := "unboxing", note := "lolol"};
 insert Note {name := "dynamic", note := "blarg"};
@@ -144,7 +146,7 @@ INSERT User {
     ),
     awards := (SELECT Award FILTER .name IN {'1st', '2nd'}),
     avatar := (
-        SELECT Card {@text := 'Best'} FILTER .name = 'Dragon'
+        SELECT Card {@text := 'Best'} FILTER .name = 'Dragon' LIMIT 1
     ),
 };
 
@@ -170,7 +172,7 @@ INSERT User {
         FILTER .element = 'Air' OR .cost != 1
     ),
     avatar := (
-        SELECT Card {@text := 'Wow'} FILTER .name = 'Djinn'
+        SELECT Card {@text := 'Wow'} FILTER .name = 'Djinn' LIMIT 1
     ),
 };
 

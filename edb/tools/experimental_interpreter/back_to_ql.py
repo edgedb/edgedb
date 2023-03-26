@@ -17,6 +17,7 @@ from .data.data_ops import (ArrExpr, BackLinkExpr, BoolVal, DateTimeTp,
                             SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
                             UnionExpr, UnnamedTupleExpr, UpdateExpr, Val,
                             WithExpr, LinkPropVal)
+from .data import data_ops as e
 from .data.expr_ops import (abstract_over_expr, instantiate_expr,
                             object_to_shape)
 from .elaboration import DEFAULT_HEAD_NAME
@@ -196,7 +197,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
             return qlast.TypeCast(
                 type=reverse_elab_type_name(tp),
                 expr=reverse_elab(arg))
-        case UnnamedTupleExpr(val=tuples):
+        case (UnnamedTupleExpr(val=tuples) | e.UnnamedTupleVal(val=tuples)):
             return qlast.Tuple(elements=[reverse_elab(e) for e in tuples])
         case NamedTupleExpr(val=tuples):
             return qlast.NamedTuple(
