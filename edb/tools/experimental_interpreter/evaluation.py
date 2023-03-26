@@ -414,7 +414,8 @@ def eval_config(rt: RTExpr) -> RTVal:
             (new_data, elemsv) = eval_expr_list(rt.data, elems)
             return RTVal(new_data,
                          [ArrVal(list(el))
-                          for el in itertools.product(*elemsv)])
+                          for el in itertools.product(
+                              *map_assume_link_target(elemsv))])
         case UpdateExpr(subject=subject, shape=shape):
             if rt.data.eval_only:
                 eval_error(
