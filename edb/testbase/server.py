@@ -708,7 +708,7 @@ class ClusterTestCase(BaseHTTPTestCase):
 
     def setUp(self):
         if (hasattr(self, "use_experimental_interpreter") and
-                    self.use_experimental_interpreter):
+                self.use_experimental_interpreter):
             return
 
         if self.INTERNAL_TESTMODE:
@@ -1491,7 +1491,7 @@ def test_cases_use_server(cases: Iterable[unittest.TestCase]) -> bool:
 async def setup_test_cases(
         cases, conn, num_jobs, try_cached_db=False, verbose=False):
     setup = get_test_cases_setup(
-            cases, use_experimental_interpreter=False)
+        cases, use_experimental_interpreter=False)
 
     stats = []
     if num_jobs == 1:
@@ -1537,7 +1537,7 @@ async def _setup_database(
         admin_conn = await tconn.async_connect_test_client(
             database=edgedb_defines.EDGEDB_SUPERUSER_DB,
             **default_args)
-        
+
     except Exception as ex:
         raise RuntimeError(
             f'exception during creation of {dbname!r} test DB; '

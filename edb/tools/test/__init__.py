@@ -307,7 +307,7 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
         return 0
 
     jobs = max(min(total, jobs), 1)
-    
+
     if use_experimental_interpreter:
         jobs = 1
 
@@ -326,7 +326,8 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
             verbosity=verbosity, output_format=output_format,
             warnings=warnings, num_workers=jobs,
             failfast=failfast, shuffle=shuffle, backend_dsn=backend_dsn,
-            try_cached_db=try_cached_db, data_dir=data_dir, use_experimental_interpreter=use_experimental_interpreter)
+            try_cached_db=try_cached_db, data_dir=data_dir,
+            use_experimental_interpreter=use_experimental_interpreter)
 
         result = test_runner.run(
             suite, selected_shard, total_shards, running_times_log_file,

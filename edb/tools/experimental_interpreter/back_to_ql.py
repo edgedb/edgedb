@@ -83,10 +83,16 @@ def reverse_elab_order(order: Expr) -> Optional[List[qlast.SortExpr]]:
     else:
         return [qlast.SortExpr(path=reverse_elab(order))]
 
+
 def reverse_elab_object_val(val: ObjectVal) -> qlast.Expr:
-    return qlast.Shape(expr=None,
-                       elements=reverse_elab_shape(ShapeExpr(
-                        shape={lbl: abstract_over_expr(MultiSetExpr([e for e in mv])) for (lbl, (u, mv)) in val.val.items()})))
+    return qlast.Shape(
+        expr=None,
+        elements=reverse_elab_shape(
+            ShapeExpr(
+                shape={lbl: abstract_over_expr(
+                    MultiSetExpr([e for e in mv]))
+                    for (lbl, (u, mv)) in val.val.items()})))
+
 
 def append_path_element(
         subject: qlast.Expr, to_add: qlast.PathElement) -> qlast.Path:
@@ -113,7 +119,8 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
         case BoolVal(b):
             return qlast.BooleanConstant(value=str(b))
         case RefVal(_):
-            return qlast.StringConstant(value=str("<REFVAL, TODO: UUID_CASTING>"))
+            return qlast.StringConstant(
+                value=str("<REFVAL, TODO: UUID_CASTING>"))
         case LinkPropVal(_):
             return qlast.StringConstant(value=str("<TODO: LINK_PROP_VAL>"))
         case FreeVal(val=val):

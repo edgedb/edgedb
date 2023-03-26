@@ -182,7 +182,8 @@ def exists_impl(arg: Sequence[MultiSetVal]) -> MultiSetVal:
     raise FunCallErr()
 
 
-or_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()], args_ret_types=[
+or_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
+                args_ret_types=[
                     FunArgRetType(args_tp=[BoolTp(), BoolTp()],
                                   ret_tp=(BoolTp(), CardOne))])
 
@@ -194,7 +195,6 @@ def or_impl(arg: Sequence[MultiSetVal]) -> MultiSetVal:
         case [_]:
             return [BoolVal(True)]
     raise FunCallErr()
-
 
 
 all_builtin_ops: Dict[str, BuiltinFuncDef] = {

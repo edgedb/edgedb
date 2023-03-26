@@ -73,7 +73,7 @@ def run_stmts(db: DB, stmts: Sequence[qlast.Expr],
             return ([], db)
         case current, *rest:
             (cur_val, next_db) = run_statement(
-                db, current, dbschema, should_print=debug_print, 
+                db, current, dbschema, should_print=debug_print,
                 logs=logs)
             (rest_val, final_db) = run_stmts(
                 next_db, rest, dbschema, debug_print,
@@ -165,12 +165,11 @@ def db_with_initial_schema_and_queries(
         initial_queries: str,
         surround_schema_with_default: bool,
         debug_print=False,
-        logs: Optional[List[Any]] = None,
-        ) -> DB:
+        logs: Optional[List[Any]] = None) -> DB:
     db = empty_db()
     dbschema = schema_from_sdl_defs(
-                    initial_schema_defs,
-                    surround_with_default=surround_schema_with_default)
+        initial_schema_defs,
+        surround_with_default=surround_schema_with_default)
     (_, db) = run_str(db, dbschema, initial_queries,
                       print_asts=debug_print, logs=logs)
     return db

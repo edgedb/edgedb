@@ -1,11 +1,10 @@
 
 import itertools
-from dataclasses import dataclass
 from typing import *
 
 from .data.casts import type_cast
 from .data.data_ops import (
-    DB, ArrExpr, ArrVal, BackLinkExpr, BoolVal, DBEntry, DBSchema,
+    DB, ArrExpr, ArrVal, BackLinkExpr, BoolVal, DBEntry,
     DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVal, FreeVarExpr,
     FunAppExpr, InsertExpr, IntInfVal, IntVal, Invisible, Label,
     LinkPropLabel, LinkPropProjExpr, LinkPropVal, Marker, MultiSetExpr,
@@ -187,7 +186,7 @@ class EvaluationLogsWrapper:
     def __init__(self):
         self.original_eval_config = None
         self.reset_logs(None)
-    
+
     def reset_logs(self, logs: Optional[List[Any]]):
         self.logs = logs
         self.indexes: List[int] = []
@@ -431,9 +430,10 @@ def eval_config(rt: RTExpr) -> RTVal:
                      DBEntry(
                          old_dbdata[u.refid].tp,
                          coerce_to_storage(
-                            combine_object_val(
-                                old_dbdata[u.refid].data, u.val),
-                            rt.data.schema.val[old_dbdata[u.refid].tp.name]))
+                             combine_object_val(
+                                 old_dbdata[u.refid].data, u.val),
+                             rt.data.schema.val
+                             [old_dbdata[u.refid].tp.name]))
                      for u in cast(Sequence[RefVal],
                                    updated)}}
                 return RTVal(
@@ -493,8 +493,6 @@ def eval_config(rt: RTExpr) -> RTVal:
 
 
 def eval_config_toplevel(rt: RTExpr, logs: Optional[Any] = None) -> RTVal:
-
-
 
     # on exception, this is not none
     # assert eval_logs_wrapper.logs is None

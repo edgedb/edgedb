@@ -17,10 +17,6 @@
 #
 
 
-import unittest
-
-from edb.tools.experimental_interpreter import new_interpreter as model
-
 from edb.common import assert_data_shape
 import os
 from edb.testbase import server as tb
@@ -169,9 +165,7 @@ class TestNewInterpreterModelSmokeTests(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'smoke_test_interp_setup.edgeql')
 
-
     # db = None
-
     # def assert_query_result(
     #     self, query, expected, *, sort=None, singleton_cheating=False
     # ):
@@ -193,8 +187,6 @@ class TestNewInterpreterModelSmokeTests(tb.QueryTestCase):
     #         raise AssertionError(
     #             str(e),
     #             "Expected", expected, "Actual", result)
-
-
 
     async def test_model_basic_01(self):
         await self.assert_query_result(

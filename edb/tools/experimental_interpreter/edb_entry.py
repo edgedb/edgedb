@@ -14,7 +14,7 @@ from .new_interpreter import repl
 @click.option("--trace-to-file", type=str, required=False)
 @click.option("-v", "--verbose", default=False, required=False, is_flag=True)
 def interperter_entry(
-        *, init_sdl_file=None, init_ql_file=None, verbose=False, 
+        *, init_sdl_file=None, init_ql_file=None, verbose=False,
         trace_to_file=None) -> None:
     """ Run the experimental interpreter for EdgeQL """
     repl(init_sdl_file=init_sdl_file,

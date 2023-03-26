@@ -36,4 +36,3 @@ def parse_sdl(sdlstr: str, surround_with_default) -> qlast.Schema:
         return parser.parse_sdl(f'module default {{{sdlstr}}}')
     else:
         return parser.parse_sdl(sdlstr)
-
