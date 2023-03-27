@@ -954,26 +954,26 @@ class TestServerConfig(tb.QueryTestCase):
             edgedb.ConfigurationError, 'invalid setting value'
         ):
             await self.con.execute('''
-                CONFIGURE INSTANCE SET statement_cache_size := -5;
+                CONFIGURE INSTANCE SET pg_prepared_statement_cache_size := -5;
             ''')
         with self.assertRaisesRegex(
             edgedb.ConfigurationError, 'invalid setting value'
         ):
             await self.con.execute('''
-                CONFIGURE INSTANCE SET statement_cache_size := 0;
+                CONFIGURE INSTANCE SET pg_prepared_statement_cache_size := 0;
             ''')
 
         try:
             await self.con.execute('''
-                CONFIGURE INSTANCE SET statement_cache_size := 42;
+                CONFIGURE INSTANCE SET pg_prepared_statement_cache_size := 42;
             ''')
             conf = await self.con.query_single('''
-                SELECT cfg::Config.statement_cache_size LIMIT 1
+                SELECT cfg::Config.pg_prepared_statement_cache_size LIMIT 1
             ''')
             self.assertEqual(conf, 42)
         finally:
             await self.con.execute('''
-                CONFIGURE INSTANCE RESET statement_cache_size;
+                CONFIGURE INSTANCE RESET pg_prepared_statement_cache_size;
             ''')
 
     async def test_server_proto_configure_describe_system_config(self):
