@@ -96,9 +96,9 @@ def apply_shape(ctx: RTData, shape: ShapeExpr, value: Val) -> Val:
         case RefVal(refid=id, val=dictval):
             return RefVal(
                 refid=id, val=apply_shape_to_prodval(shape, dictval))
-        case LinkPropVal(refid=id, linkprop=objval):
+        case LinkPropVal(refid=id, linkprop=_):
             return RefVal(
-                refid=id, val=apply_shape_to_prodval(shape, objval))
+                refid=id, val=apply_shape_to_prodval(shape, ObjectVal({})))
         case _:
             return eval_error(value, "Cannot apply shape to value")
 
@@ -150,14 +150,16 @@ def singular_proj(data: RTData, subject: Val, label: Label) -> MultiSetVal:
                     else:
                         raise ValueError("key DNE")
             raise ValueError("Label not Str")
-        case LinkPropVal(obj=obj, linkprop=linkprop):
+        case LinkPropVal(refid=id, linkprop=linkprop):
             match label:
-                case LinkPropLabel(_):
+                case LinkPropLabel(label=lp_label):
                     return singular_proj(
                         data, FreeVal(val=linkprop),
-                        label=label)
+                        label=StrLabel(lp_label))
                 case StrLabel(_):
-                    return singular_proj(data, obj, label=label)
+                    return singular_proj(data,
+                                         RefVal(refid=id, val=ObjectVal({})),
+                                         label=label)
                 case _:
                     raise ValueError(label)
     raise ValueError("Cannot project, unknown subject", subject)
