@@ -473,7 +473,7 @@ class Server(ha_base.ClusterProtocol):
                 )
 
             self._stmt_cache_size = config.lookup(
-                'pg_prepared_statement_cache_size', sys_config
+                '_pg_prepared_statement_cache_size', sys_config
             )
 
             self._reinit_idle_gc_collector()
@@ -504,7 +504,7 @@ class Server(ha_base.ClusterProtocol):
 
     def _reload_stmt_cache_size(self):
         size = config.lookup(
-            'pg_prepared_statement_cache_size', self._dbindex.get_sys_config()
+            '_pg_prepared_statement_cache_size', self._dbindex.get_sys_config()
         )
         self._stmt_cache_size = size
         for conn in self._pg_pool.iterate_connections():
@@ -1282,7 +1282,7 @@ class Server(ha_base.ClusterProtocol):
             elif setting_name == 'session_idle_timeout':
                 self._reinit_idle_gc_collector()
 
-            elif setting_name == 'pg_prepared_statement_cache_size':
+            elif setting_name == '_pg_prepared_statement_cache_size':
                 self._reload_stmt_cache_size()
 
             self.schedule_reported_config_if_needed(setting_name)
@@ -1304,7 +1304,7 @@ class Server(ha_base.ClusterProtocol):
             elif setting_name == 'session_idle_timeout':
                 self._reinit_idle_gc_collector()
 
-            elif setting_name == 'pg_prepared_statement_cache_size':
+            elif setting_name == '_pg_prepared_statement_cache_size':
                 self._reload_stmt_cache_size()
 
             self.schedule_reported_config_if_needed(setting_name)
