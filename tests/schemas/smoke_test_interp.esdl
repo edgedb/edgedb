@@ -54,3 +54,11 @@ type User {
         property tag := .name ++ (("-" ++ @text) ?? "");
     }
 }
+
+type Publication {
+    required title: str;
+
+    multi authors: User {
+        list_order: int64;
+    };
+}
