@@ -1476,6 +1476,24 @@ def process_update_body(
                     )
                     values.append(updtarget)
 
+                    # Register the output as both a var and an output
+                    # so that if it is referenced in a policy or
+                    # rewrite, the find_path_output optimization fires
+                    # and we reuse the output instead of duplicating
+                    # it.
+                    # XXX: Maybe this suggests a rework of the
+                    # DynamicRangeVar mechanism would be a good idea.
+                    pathctx.put_path_var(
+                        contents_select, shape_el.path_id, aspect='value',
+                        var=val,
+                        env=ctx.env,
+                    )
+                    pathctx._put_path_output_var(
+                        contents_select, shape_el.path_id, aspect='value',
+                        var=pgast.ColumnRef(name=[ptr_info.column_name]),
+                        env=ctx.env,
+                    )
+
             # Register all link table inserts to be run after the main
             # insert.  Note that single links with link properties are
             # processed both as a local link update (for the inline
