@@ -491,3 +491,37 @@ class TestRewrites(tb.QueryTestCase):
                 {"title": "The Godfather", "release_year": 101},
             ],
         )
+
+    async def test_edgeql_rewrites_14(self):
+        await self.con.execute(
+            '''
+            create type Foo {
+                create property r -> float64;
+                create property x -> float64 {
+                    create rewrite insert, update using (.r * 2);
+                };
+             };
+            '''
+        )
+
+        await self.con.execute('''
+            insert Foo { r := random() };
+        ''')
+
+        await self.assert_query_result(
+            'select Foo { z := (.r * 2 = .x) }',
+            [
+                {"z": True},
+            ],
+        )
+
+        await self.con.execute('''
+            update Foo set { r := random() };
+        ''')
+
+        await self.assert_query_result(
+            'select Foo { z := (.r * 2 = .x) }',
+            [
+                {"z": True},
+            ],
+        )

@@ -741,9 +741,6 @@ def process_insert_body(
         # pull-in pointers that were not rewritten
         for e, ptrref in not_rewritten:
             # XXX: WHAT DO; this duplicates some
-            # pathctx.get_path_output(
-            #     rew_stmt, e.path_id, aspect='value', env=ctx.env
-            # )
             val = pathctx.get_path_var(
                 rew_stmt, e.path_id, aspect='value', env=ctx.env
             )
@@ -1528,8 +1525,14 @@ def process_update_body(
         clauses.setup_iterator_volatility(iterator, is_cte=True, ctx=subctx)
 
         # compile contents CTE
+        elements = [
+            (shape_el, not_none(shape_el.rptr).ptrref, shape_op)
+            for shape_el, shape_op in ir_stmt.subject.shape
+            if shape_op != qlast.ShapeOp.MATERIALIZE
+        ]
+
         values, external_updates, ptr_map = prepare_update_shape(
-            ir_stmt, contents_select, typeref, {}, subctx
+            ir_stmt, contents_select, elements, typeref, subctx
         )
 
         relation = contents_select.from_clause[0]
@@ -1645,9 +1648,34 @@ def process_update_body(
                     (subject_path_id, "value")
                 ] = table_rel.path_outputs[(object_path_id, "value")]
 
+                # XXX Refactor
+                not_rewritten = {
+                    (e, ptrref)
+                    for e, ptrref, _ in elements
+                    if ptrref.shortname.name not in rewrites
+                }
+                elements = [
+                    (el, ptrref, qlast.ShapeOp.ASSIGN)
+                    for el, ptrref in rewrites.values()
+                ]
                 values, _, nptr_map = prepare_update_shape(
-                    ir_stmt, rewrites_stmt, typeref, rewrites, rctx
+                    ir_stmt, rewrites_stmt, elements, typeref, rctx,
                 )
+                # pull-in pointers that were not rewritten
+                for e, ptrref in not_rewritten:
+                    # XXX: WHAT DO; this duplicates some
+                    val = pathctx.get_path_var(
+                        rewrites_stmt, e.path_id, aspect='value', env=ctx.env
+                    )
+                    actual_ptrref = irtyputils.find_actual_ptrref(
+                        typeref, ptrref)
+                    ptr_info = pg_types.get_ptrref_storage_info(
+                        actual_ptrref, resolve_type=True, link_bias=False)
+                    updval = pgast.ResTarget(
+                        name=ptr_info.column_name, val=val)
+                    values.append((updval, e.path_id))
+                    rewrites_stmt.target_list.append(updval)
+
                 fallback_rvar = pgast.DynamicRangeVar(
                     dynamic_get_path=mk_get_path(nptr_map, contents_rvar),
                 )
@@ -1756,48 +1784,20 @@ def process_update_body(
 def prepare_update_shape(
     ir_stmt: irast.UpdateStmt,
     rel: pgast.SelectStmt,
+    elements: List[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
     typeref: irast.TypeRef,
-    rewrites: irast.RewritesOfType,
     ctx: context.CompilerContextLevel,
 ) -> Tuple[
     List[Tuple[pgast.ResTarget, irast.PathId]],
     List[Tuple[irast.Set, qlast.ShapeOp]],
     Dict[sn.Name, pgast.BaseExpr],
 ]:
-    rewrites = dict(rewrites)
-
-    elements: List[
-        Tuple[irast.Set, irast.BasePointerRef,
-              irast.BasePointerRef, qlast.ShapeOp]
-    ] = []
-    for shape_el, shape_op in ir_stmt.subject.shape:
-        if shape_op == qlast.ShapeOp.MATERIALIZE:
-            continue
-
-        assert shape_el.rptr is not None
-        ptrref: irast.BasePointerRef = shape_el.rptr.ptrref
-        actual_ptrref = irtyputils.find_actual_ptrref(typeref, ptrref)
-        ptr_name = actual_ptrref.shortname.name
-
-        # apply rewrite
-        if ptr_name in rewrites:
-            value, ptrref = rewrites.pop(ptr_name)
-        else:
-            value = shape_el
-
-        elements.append((value, ptrref, actual_ptrref, shape_op))
-
-    # apply remaining rewrites
-    for element, ptrref in rewrites.values():
-        # XXX! clean up this actual_ptrref stuff?
-        actual_ptrref = irtyputils.find_actual_ptrref(typeref, ptrref)
-        elements.append((element, ptrref, actual_ptrref, qlast.ShapeOp.ASSIGN))
-
     values: List[Tuple[pgast.ResTarget, irast.PathId]] = []
     external_updates: List[Tuple[irast.Set, qlast.ShapeOp]] = []
     ptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
 
-    for element, shape_ptrref, actual_ptrref, shape_op in elements:
+    for element, shape_ptrref, shape_op in elements:
+        actual_ptrref = irtyputils.find_actual_ptrref(typeref, shape_ptrref)
         ptr_info = pg_types.get_ptrref_storage_info(
             actual_ptrref, resolve_type=True, link_bias=False
         )
