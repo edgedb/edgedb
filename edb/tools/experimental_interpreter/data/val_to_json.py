@@ -3,6 +3,7 @@ from typing import Any, Dict, Sequence
 from .data_ops import (ArrVal, BoolVal, FreeVal, IntVal, Label, LinkPropLabel,
                        MultiSetVal, NamedTupleVal, ObjectVal, RefVal, StrLabel,
                        StrVal, UnnamedTupleVal, Val, Visible, LinkPropVal)
+from . import expr_ops as eops
 
 json_like = str | int | bool | Dict[str, Any] | Sequence[Any]
 
@@ -40,12 +41,13 @@ def val_to_json_like(v: Val) -> json_like:
             return [val_to_json_like(v) for v in array]
         case NamedTupleVal(val=dic):
             return {k: val_to_json_like(v) for (k, v) in dic.items()}
-        case LinkPropVal(obj=obj, linkprop=linkprop):
-            obj_json = val_to_json_like(obj)
-            assert isinstance(obj_json, dict)
-            linkprop_json = objectval_to_json_like(linkprop)
+        case LinkPropVal(refid=_, linkprop=linkprop):
+            # obj_json = val_to_json_like(obj)
+            # assert isinstance(obj_json, dict)
+            linkprop_json = objectval_to_json_like(
+                eops.link_prop_obj_to_obj(linkprop))
             assert isinstance(linkprop_json, dict)
-            return {**obj_json, **linkprop_json}
+            return linkprop_json
     raise ValueError("MATCH", v)
 
 

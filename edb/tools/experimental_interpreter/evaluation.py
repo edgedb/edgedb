@@ -17,7 +17,7 @@ from .data.data_ops import (
     WithExpr, next_id, RTData, RTExpr, RTVal)
 from .data.expr_ops import (
     assume_link_target, coerce_to_storage, combine_object_val,
-    convert_to_link, get_object_val, instantiate_expr,
+    get_object_val, instantiate_expr,
     map_assume_link_target, val_is_link_convertible, val_is_ref_val)
 from .data.type_ops import is_nominal_subtype_in_schema
 
@@ -345,6 +345,7 @@ def eval_config(rt: RTExpr) -> RTVal:
             #         projected, "Returned objects are not uniform")
         case BackLinkExpr(subject=subject, label=label):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            subjectv = assume_link_target(subjectv)
             subject_ids = [v.refid
                            if
                            isinstance(v, RefVal) else
@@ -356,19 +357,19 @@ def eval_config(rt: RTExpr) -> RTVal:
             for (id, obj) in cur_read_data.items():
                 if StrLabel(label) in obj.data.val.keys():
                     object_vals = obj.data.val[StrLabel(label)][1]
-                    if all(isinstance(object_val, RefVal)
+                    if all(isinstance(object_val, LinkPropVal)
                            for object_val in object_vals):
                         object_id_mapping = {
-                            object_val.refid: object_val.val
+                            object_val.refid: object_val.linkprop
                             for object_val in object_vals
-                            if isinstance(object_val, RefVal)}
+                            if isinstance(object_val, LinkPropVal)}
                         for (object_id,
                              obj_linkprop_val) in object_id_mapping.items():
                             if object_id in subject_ids:
                                 results = [
                                     *results,
                                     LinkPropVal(
-                                        obj=RefVal(id, ObjectVal({})),
+                                        refid=id,
                                         linkprop=obj_linkprop_val)]
             return RTVal(new_data, results)
         case TpIntersectExpr(subject=subject, tp=tp_name):
@@ -377,7 +378,7 @@ def eval_config(rt: RTExpr) -> RTVal:
             for v in subjectv:
                 match v:
                     case (RefVal(refid=vid, val=_)
-                          | LinkPropVal(obj=RefVal(refid=vid, val=_),
+                          | LinkPropVal(refid=vid,
                                         linkprop=_)):
                         if is_nominal_subtype_in_schema(
                                 new_data.cur_db.dbdata[vid].tp.name, tp_name,

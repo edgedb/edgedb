@@ -14,6 +14,7 @@ from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoolVal,
                        UnionExpr, UnnamedTupleExpr, UnnamedTupleVal,
                        UpdateExpr, Val, VarExpr, Visible, WithExpr, next_id,
                        next_name)
+from . import data_ops as e
 
 
 def map_expr(
@@ -323,14 +324,14 @@ def conversion_error():
     raise ConversionError
 
 
-def convert_to_link_prop_obj(dic: ObjectVal) -> ObjectVal:
+def obj_to_link_prop_obj(dic: ObjectVal) -> ObjectVal:
     return ObjectVal(
         val={(LinkPropLabel(k.label)
               if isinstance(k, StrLabel) else conversion_error()): v
              for (k, v) in dic.val.items()})
 
 
-def convert_back_from_link_prop_obj(dic: ObjectVal) -> ObjectVal:
+def link_prop_obj_to_obj(dic: ObjectVal) -> ObjectVal:
     return ObjectVal(
         val={(StrLabel(k.label)
               if
@@ -349,35 +350,28 @@ def object_to_shape(expr: ObjectExpr) -> ShapeExpr:
 
 
 def make_storage_atomic(val: Val, tp: Tp) -> Val:
-    match val:
-        case RefVal(id, obj):
-            obj_link_prop = remove_unless_link_props(obj)
-            match tp:
-                case LinkPropTp(subject=_, linkprop=tp_linkprop):
-                    temp_obj = convert_back_from_link_prop_obj(
-                        obj_link_prop)
-                    after_obj = coerce_to_storage(temp_obj, tp_linkprop)
-                    after_link_prop = convert_to_link_prop_obj(after_obj)
-                    return RefVal(id, after_link_prop)
-                case _:
-                    if obj_link_prop.val.keys():
-                        raise ValueError("Redundant Link Properties")
-                    else:
-                        return RefVal(id, ObjectVal({}))
-        case LinkPropVal(obj=RefVal(refid=id, val=ObjectVal({})),
-                         linkprop=linkprop):
-            match tp:
-                case LinkPropTp(subject=_, linkprop=linkprop_tp):
-                    temp_obj = convert_back_from_link_prop_obj(
-                        linkprop)
-                    after_obj = coerce_to_storage(temp_obj, linkprop_tp)
-                    after_link_prop = convert_to_link_prop_obj(after_obj)
-                    return RefVal(id, after_link_prop)
-                case _:
-                    return make_storage_atomic(RefVal(refid=id,
-                                                      val=ObjectVal({})), tp)
-        case _:
+    def do_coerce_value_to_linkprop_tp(tp_linkprop: ObjectTp) -> Val:
+        match val:
+            case RefVal(id, obj):
+                obj_link_prop = remove_unless_link_props(obj)
+                temp_obj = link_prop_obj_to_obj(obj_link_prop)
+                after_obj = coerce_to_storage(temp_obj, tp_linkprop)
+                return LinkPropVal(id, after_obj)
+            case LinkPropVal(refid=id,
+                             linkprop=linkprop):
+                after_obj = coerce_to_storage(linkprop, tp_linkprop)
+                return LinkPropVal(id, after_obj)
+            case _:
+                raise ValueError("Cannot Coerce to LinkPropType", val)
+    match tp:
+        case LinkPropTp(subject=_, linkprop=tp_linkprop):
+            return do_coerce_value_to_linkprop_tp(tp_linkprop=tp_linkprop)
+        case e.VarTp():
+            return do_coerce_value_to_linkprop_tp(tp_linkprop=ObjectTp({}))
+        case (e.IntTp() | e.StrTp()):
             return val
+        case _:
+            raise ValueError("Coercion Not Implemented for", tp)
 
 
 def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> ObjectVal:
@@ -414,8 +408,8 @@ def object_dedup(val: Sequence[Val]) -> Sequence[Val]:
 
 def get_link_target(val: Val) -> Val:
     match val:
-        case LinkPropVal(obj=target, linkprop=_):
-            return target
+        case LinkPropVal(refid=id, linkprop=_):
+            return RefVal(refid=id, val=ObjectVal({}))
         case _:
             raise ValueError("Not LinkPropVal")
 
@@ -446,15 +440,14 @@ def val_is_link_convertible(val: Val) -> bool:
             return False
 
 
-def convert_to_link(val: Val) -> LinkPropVal:
-    assert val_is_link_convertible(val)
-    match val:
-        case RefVal(refid=id, val=obj):
-            return LinkPropVal(
-                obj=RefVal(refid=id, val=ObjectVal({})),
-                linkprop=obj)
-        case _:
-            raise ValueError("Val is not link convertible, check va")
+# def convert_to_link(val: Val) -> LinkPropVal:
+#     assert val_is_link_convertible(val)
+#     match val:
+#         case RefVal(refid=id, val=obj):
+#             return LinkPropVal(refid=id,
+#                 linkprop=obj)
+#         case _:
+#             raise ValueError("Val is not link convertible, check va")
 
 
 def is_path(e: Expr) -> bool:
