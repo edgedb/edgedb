@@ -5772,8 +5772,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         aspect += '-t'
 
         # Postgres applies triggers in alphabetical order, and
-        # get_backend_name produces essentially cryptographically
-        # random trigger names.
+        # the names are uuids, which are not useful here.
         #
         # All we want for now is for source triggers to apply first,
         # though, so that a loop of objects with
@@ -5783,8 +5782,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
         # Fortunately S comes before T.
         order_prefix = disposition[0]
 
-        return order_prefix + common.get_backend_name(
-            schema, target, catenate=False, aspect=aspect)[1]
+        name = common.get_backend_name(schema, target, catenate=False)
+        return f'{order_prefix}_{name[1]}_{aspect}'
 
     def get_trigger_proc_name(self, schema, target,
                               disposition, deferred=False, inline=False):
@@ -5805,8 +5804,8 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         aspect += '-f'
 
-        return common.get_backend_name(
-            schema, target, catenate=False, aspect=aspect)
+        name = common.get_backend_name(schema, target, catenate=False)
+        return (name[0], f'{name[1]}_{aspect}')
 
     def get_trigger_proc_text(self, target, links, *,
                               disposition, inline, schema):
