@@ -35,6 +35,7 @@ from . import name as sn
 from . import objects as so
 from . import pointers
 from . import referencing
+from . import rewrites as s_rewrites
 from . import sources
 from . import types as s_types
 from . import utils
@@ -203,10 +204,13 @@ class LinkSourceCommand(inheriting.InheritingObjectCommand[sources.Source_T]):
     pass
 
 
-class LinkCommandContext(pointers.PointerCommandContext[Link],
-                         constraints.ConsistencySubjectCommandContext,
-                         properties.PropertySourceContext[Link],
-                         sources.SourceCommandContext[Link]):
+class LinkCommandContext(
+    pointers.PointerCommandContext[Link],
+    constraints.ConsistencySubjectCommandContext,
+    properties.PropertySourceContext[Link],
+    sources.SourceCommandContext[Link],
+    s_rewrites.RewriteSubjectCommandContext,
+):
     pass
 
 
@@ -589,7 +593,19 @@ class AlterLinkOwned(
     referrer_context_class=LinkSourceCommandContext,
     field='owned',
 ):
-    pass
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
+
+        # Ownership status can impact the details of how backlinks are compiled
+        if not context.canonical:
+            desc = self.get_friendly_description(schema=schema)
+            schema = self._propagate_if_expr_refs(schema, context, action=desc)
+
+        return schema
 
 
 class SetTargetDeletePolicy(sd.Command):

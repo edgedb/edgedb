@@ -200,6 +200,8 @@ class ServerConfig(NamedTuple):
 
     jws_key_file: pathlib.Path
     jose_key_mode: JOSEKeyMode
+    jwt_sub_allowlist_file: Optional[pathlib.Path]
+    jwt_revocation_list_file: Optional[pathlib.Path]
 
     default_auth_method: ServerAuthMethods
     security: ServerSecurityMode
@@ -810,6 +812,26 @@ _server_options = [
              '--runstate-dir.\n\nThe default is "require_file" when the '
              '--security option is set to "strict", and "generate" when the '
              '--security option is set to "insecure_dev_mode"'),
+    click.option(
+        '--jwt-sub-allowlist-file',
+        type=PathPath(),
+        envvar="EDGEDB_SERVER_JWT_SUB_ALLOWLIST_FILE",
+        hidden=True,
+        help='A file where the server can obtain a list of all JWT subjects '
+             'that are allowed to access this instance. '
+             'The file must contain one JWT "sub" claim value per line. '
+             'Applies only to the JWT authentication method.'
+    ),
+    click.option(
+        '--jwt-revocation-list-file',
+        type=PathPath(),
+        envvar="EDGEDB_SERVER_JWT_REVOCATION_LIST_FILE",
+        hidden=True,
+        help='A file where the server can obtain a list of all JWT ids '
+             'that are allowed to access this instance. '
+             'The file must contain one JWT "jti" claim value per line. '
+             'Applies only to the JWT authentication method.'
+    ),
     click.option(
         "--default-auth-method",
         envvar="EDGEDB_SERVER_DEFAULT_AUTH_METHOD", cls=EnvvarResolver,

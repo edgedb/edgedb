@@ -325,9 +325,15 @@ def derive_ptr(
     if ptr.get_name(ctx.env.schema) == derived_name:
         qualifiers = qualifiers + (ctx.aliases.get('d'),)
 
+    # If we are deriving a backlink, we just register that instead of
+    # actually deriving from it.
     if derive_backlink:
         attrs = attrs.copy() if attrs else {}
         attrs['computed_backlink'] = ptr
+        ntarget = ptr.get_source(ctx.env.schema)
+        assert isinstance(ntarget, s_types.Type)
+        target = ntarget
+        ptr = ctx.env.schema.get('std::link', type=s_pointers.Pointer)
 
     ctx.env.schema, derived = ptr.derive_ref(
         ctx.env.schema,
@@ -340,14 +346,6 @@ def derive_ptr(
         mark_derived=True,
         transient=True,
         attrs=attrs)
-
-    # Delete the bogus parents from a derived computed backlink.
-    if derive_backlink:
-        link = [ctx.env.schema.get('std::link')]
-        ctx.env.schema = derived.set_field_value(
-            ctx.env.schema, 'bases', link)
-        ctx.env.schema = derived.set_field_value(
-            ctx.env.schema, 'ancestors', link)
 
     if not ptr.generic(ctx.env.schema):
         if isinstance(derived, s_sources.Source):

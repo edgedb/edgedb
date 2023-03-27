@@ -5259,12 +5259,21 @@ aa';
         CREATE TYPE schema::TypeElement {
             CREATE REQUIRED LINK type: schema::Type;
             CREATE REQUIRED LINK num: std::int64;
-            CREATE PROPERTY name EXTENDING foo, bar: std::str;
-            CREATE LINK lnk EXTENDING l1: schema::Type;
-            CREATE LINK lnk1 EXTENDING l1, l2: schema::Type;
-            CREATE LINK lnk2 EXTENDING l1, l2: schema::Type {
+            CREATE PROPERTY name: std::str {
+                EXTENDING foo, bar;
+            };
+            CREATE LINK lnk: schema::Type {
+                EXTENDING l1;
+            };
+            CREATE LINK lnk1: schema::Type {
+                EXTENDING l1, l2;
+            };
+            CREATE LINK lnk2: schema::Type {
+                EXTENDING l1, l2;
                 CREATE PROPERTY lnk2_prop: std::str;
-                CREATE PROPERTY lnk2_prop2 EXTENDING foo: std::str;
+                CREATE PROPERTY lnk2_prop2: std::str {
+                    EXTENDING foo;
+                };
             };
         };
         """

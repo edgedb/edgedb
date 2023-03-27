@@ -813,11 +813,12 @@ class ConcreteUnknownPointerBlock(Nonterm):
         name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
             opt_target.val, block.val, name.context)
+        vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteUnknownPointer(
             name=name.val,
-            bases=opt_bases.val,
+            bases=vbases,
             target=target,
-            commands=cmds,
+            commands=vcmds,
         )
         self._validate()
 
@@ -829,13 +830,14 @@ class ConcreteUnknownPointerBlock(Nonterm):
         quals, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
             opt_target.val, block.val, name.context)
+        vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteUnknownPointer(
             is_required=quals.val.required,
             cardinality=quals.val.cardinality,
             name=name.val,
-            bases=opt_bases.val,
+            bases=vbases,
             target=target,
-            commands=cmds,
+            commands=vcmds,
         )
         self._validate()
 
@@ -848,14 +850,15 @@ class ConcreteUnknownPointerBlock(Nonterm):
         _, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
             opt_target.val, block.val, name.context, overloaded=True)
+        vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteUnknownPointer(
             name=name.val,
-            bases=opt_bases.val,
+            bases=vbases,
             declared_overloaded=True,
             is_required=None,
             cardinality=None,
             target=target,
-            commands=cmds,
+            commands=vcmds,
         )
         self._validate()
 
@@ -868,14 +871,15 @@ class ConcreteUnknownPointerBlock(Nonterm):
         _, quals, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
             opt_target.val, block.val, name.context, overloaded=True)
+        vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteUnknownPointer(
             name=name.val,
-            bases=opt_bases.val,
+            bases=vbases,
             declared_overloaded=True,
             is_required=quals.val.required,
             cardinality=quals.val.cardinality,
             target=target,
-            commands=cmds,
+            commands=vcmds,
         )
         self._validate()
 
@@ -943,17 +947,30 @@ class ConcreteUnknownPointerShort(Nonterm):
 #
 # Properties
 #
+sdl_commands_block(
+    'CreateProperty',
+    Using,
+    SetField,
+    SetAnnotation,
+    commondl.CreateSimpleExtending,
+)
+
+
 class PropertyDeclaration(Nonterm):
     def reduce_CreateProperty(self, *kids):
         r"""%reduce ABSTRACT PROPERTY PtrNodeName OptExtendingSimple \
-                    CreateSDLCommandsBlock \
+                    CreatePropertySDLCommandsBlock \
         """
         _, _, name, extending, commands_block = kids
 
+        vbases, vcommands = commondl.extract_bases(
+            extending.val,
+            commands_block.val
+        )
         self.val = qlast.CreateProperty(
             name=name.val,
-            bases=extending.val,
-            commands=commands_block.val,
+            bases=vbases,
+            commands=vcommands,
             abstract=True,
         )
 
@@ -978,6 +995,7 @@ sdl_commands_block(
     ConcreteConstraintShort,
     RewriteDeclarationBlock,
     RewriteDeclarationShort,
+    commondl.CreateSimpleExtending,
 )
 
 
@@ -1011,11 +1029,12 @@ class ConcretePropertyBlock(Nonterm):
         target, cmds = self._extract_target(
             target.val, commands_block.val, name.context
         )
+        vbases, vcmds = commondl.extract_bases(extending.val, cmds)
         self.val = qlast.CreateConcreteProperty(
             name=name.val,
-            bases=extending.val,
+            bases=vbases,
             target=target,
-            commands=cmds,
+            commands=vcmds,
         )
 
     def reduce_CreateRegularQualifiedProperty(self, *kids):
@@ -1028,13 +1047,14 @@ class ConcretePropertyBlock(Nonterm):
         target, cmds = self._extract_target(
             target.val, commands.val, property.context
         )
+        vbases, vcmds = commondl.extract_bases(extending.val, cmds)
         self.val = qlast.CreateConcreteProperty(
             name=name.val,
-            bases=extending.val,
+            bases=vbases,
             is_required=quals.val.required,
             cardinality=quals.val.cardinality,
             target=target,
-            commands=cmds,
+            commands=vcmds,
         )
 
     def reduce_CreateOverloadedProperty(self, *kids):
@@ -1045,14 +1065,15 @@ class ConcretePropertyBlock(Nonterm):
         _, _, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
             opt_target.val, block.val, name.context, overloaded=True)
+        vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteProperty(
             name=name.val,
-            bases=opt_bases.val,
+            bases=vbases,
             declared_overloaded=True,
             is_required=None,
             cardinality=None,
             target=target,
-            commands=cmds,
+            commands=vcmds,
         )
 
     def reduce_CreateOverloadedQualifiedProperty(self, *kids):
@@ -1063,14 +1084,15 @@ class ConcretePropertyBlock(Nonterm):
         _, quals, _, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
             opt_target.val, block.val, name.context, overloaded=True)
+        vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteProperty(
             name=name.val,
-            bases=opt_bases.val,
+            bases=vbases,
             declared_overloaded=True,
             is_required=quals.val.required,
             cardinality=quals.val.cardinality,
             target=target,
-            commands=cmds,
+            commands=vcmds,
         )
 
 
@@ -1164,10 +1186,13 @@ sdl_commands_block(
     ConcreteConstraintShort,
     ConcretePropertyBlock,
     ConcretePropertyShort,
+    ConcreteUnknownPointerBlock,
+    ConcreteUnknownPointerShort,
     ConcreteIndexDeclarationBlock,
     ConcreteIndexDeclarationShort,
     RewriteDeclarationShort,
     RewriteDeclarationBlock,
+    commondl.CreateSimpleExtending,
 )
 
 
@@ -1178,10 +1203,11 @@ class LinkDeclaration(Nonterm):
             CreateLinkSDLCommandsBlock \
         """
         _, _, name, extending, commands = kids
+        vbases, vcommands = commondl.extract_bases(extending.val, commands.val)
         self.val = qlast.CreateLink(
             name=name.val,
-            bases=extending.val,
-            commands=commands.val,
+            bases=vbases,
+            commands=vcommands,
             abstract=True,
         )
 
@@ -1223,6 +1249,7 @@ sdl_commands_block(
     commondl.OnSourceDeleteStmt,
     RewriteDeclarationShort,
     RewriteDeclarationBlock,
+    commondl.CreateSimpleExtending,
 )
 
 
@@ -1266,11 +1293,12 @@ class ConcreteLinkBlock(Nonterm):
         target, cmds = self._extract_target(
             target.val, commands.val, name.context
         )
+        vbases, vcmds = commondl.extract_bases(extending.val, cmds)
         self.val = qlast.CreateConcreteLink(
             name=name.val,
-            bases=extending.val,
+            bases=vbases,
             target=target,
-            commands=cmds,
+            commands=vcmds,
         )
         self._validate()
 
@@ -1283,13 +1311,14 @@ class ConcreteLinkBlock(Nonterm):
         target, cmds = self._extract_target(
             target.val, commands.val, name.context
         )
+        vbases, vcmds = commondl.extract_bases(extending.val, cmds)
         self.val = qlast.CreateConcreteLink(
             is_required=quals.val.required,
             cardinality=quals.val.cardinality,
             name=name.val,
-            bases=extending.val,
+            bases=vbases,
             target=target,
-            commands=cmds,
+            commands=vcmds,
         )
         self._validate()
 
@@ -1301,14 +1330,15 @@ class ConcreteLinkBlock(Nonterm):
         _, _, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
             opt_target.val, block.val, name.context, overloaded=True)
+        vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteLink(
             name=name.val,
-            bases=opt_bases.val,
+            bases=vbases,
             declared_overloaded=True,
             is_required=None,
             cardinality=None,
             target=target,
-            commands=cmds,
+            commands=vcmds,
         )
         self._validate()
 
@@ -1320,14 +1350,15 @@ class ConcreteLinkBlock(Nonterm):
         _, quals, _, name, opt_bases, opt_target, block = kids
         target, cmds = self._extract_target(
             opt_target.val, block.val, name.context, overloaded=True)
+        vbases, vcmds = commondl.extract_bases(opt_bases.val, cmds)
         self.val = qlast.CreateConcreteLink(
             name=name.val,
-            bases=opt_bases.val,
+            bases=vbases,
             declared_overloaded=True,
             is_required=quals.val.required,
             cardinality=quals.val.cardinality,
             target=target,
-            commands=cmds,
+            commands=vcmds,
         )
         self._validate()
 

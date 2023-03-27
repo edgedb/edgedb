@@ -7924,7 +7924,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             type test::Child extending test::Parent, test::Parent2 {
                 annotation test::anno := 'annotated';
-                overloaded link foo extending test::f: test::Foo {
+                overloaded link foo: test::Foo {
+                    extending test::f;
                     annotation test::anno := 'annotated link';
                     constraint std::exclusive {
                         annotation test::anno := 'annotated constraint';
@@ -7942,7 +7943,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 required single link __type__: schema::ObjectType {
                     readonly := true;
                 };
-                overloaded single link foo extending test::f: test::Foo {
+                overloaded single link foo: test::Foo {
+                    extending test::f;
                     annotation test::anno := 'annotated link';
                     constraint std::exclusive {
                         annotation test::anno := 'annotated constraint';
@@ -7966,7 +7968,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 required single link __type__: schema::ObjectType {
                     readonly := true;
                 };
-                overloaded single link foo extending test::f: test::Foo {
+                overloaded single link foo: test::Foo {
+                    extending test::f;
                     optional single property p: test::int_t;
                 };
                 required single property id: std::uuid {
@@ -8329,8 +8332,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             type test::UniqueName {
-                link translated_label extending test::translated_label:
-                        test::Label {
+                link translated_label: test::Label {
+                    extending test::translated_label;
                     constraint std::exclusive on (__subject__@prop1);
                     constraint std::exclusive on (
                         (__subject__@source, __subject__@lang)
@@ -8346,10 +8349,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 required single link __type__: schema::ObjectType {
                     readonly := true;
                 };
-                optional single link translated_label
-                extending test::translated_label:
-                    test::Label
-                {
+                optional single link translated_label: test::Label {
+                    extending test::translated_label;
                     optional single property lang: std::str;
                     optional single property prop1: std::str;
                 };
@@ -8366,10 +8367,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 required single link __type__: schema::ObjectType {
                     readonly := true;
                 };
-                optional single link translated_label
-                extending test::translated_label:
-                    test::Label
-                {
+                optional single link translated_label: test::Label {
+                    extending test::translated_label;
                     constraint std::exclusive on (__subject__@prop1);
                     constraint std::exclusive on (
                         (__subject__@source, __subject__@lang));
@@ -8881,8 +8880,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                       schema::Type,
                       schema::Source
             {
-                CREATE MULTI LINK access_policies
-                  EXTENDING schema::reference: schema::AccessPolicy {
+                CREATE MULTI LINK access_policies: schema::AccessPolicy {
+                    EXTENDING schema::reference;
                     ON TARGET DELETE ALLOW;
                     CREATE CONSTRAINT std::exclusive;
                 };
@@ -8898,8 +8897,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 CREATE MULTI LINK properties := (
                     .pointers[IS schema::Property]
                 );
-                CREATE MULTI LINK triggers
-                  EXTENDING schema::reference: schema::Trigger {
+                CREATE MULTI LINK triggers: schema::Trigger {
+                    EXTENDING schema::reference;
                     ON TARGET DELETE ALLOW;
                     CREATE CONSTRAINT std::exclusive;
                 };
@@ -8916,8 +8915,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     schema::Type,
                     schema::Source
             {
-                multi link access_policies
-                  extending schema::reference: schema::AccessPolicy {
+                multi link access_policies: schema::AccessPolicy {
+                    extending schema::reference;
                     on target delete allow;
                     constraint std::exclusive;
                 };
@@ -8926,8 +8925,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 multi link properties := (
                     .pointers[IS schema::Property]
                 );
-                multi link triggers
-                  extending schema::reference: schema::Trigger {
+                multi link triggers: schema::Trigger {
+                    extending schema::reference;
                     on target delete allow;
                     constraint std::exclusive;
                 };
@@ -9200,7 +9199,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 };
                 type Child extending test::Parent, test::Parent2 {
                     annotation test::anno := 'annotated';
-                    overloaded link foo extending test::f: test::Foo {
+                    overloaded link foo: test::Foo {
+                        extending test::f;
                         annotation test::anno := 'annotated link';
                         constraint std::exclusive {
                             annotation test::anno := 'annotated constraint';

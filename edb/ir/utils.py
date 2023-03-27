@@ -250,9 +250,10 @@ def get_nearest_dml_stmt(
             return cur_set.expr
         elif isinstance(cur_set.expr, irast.SelectStmt):
             cur_set = cur_set.expr.result
-        # FIXME: This is a very narrow hack around issue #3030
-        # designed to make simple cases work. The critical one is
-        # assert_exists inserted by access policies.
+        # FIXME: This is a narrow hack around issue #3030 designed to
+        # make simple cases work. This probably covers most cases but
+        # does not cover everything in general.
+        # The critical one is assert_exists inserted by access policies.
         elif (
             isinstance(cur_set.expr, irast.Call)
             and str(cur_set.expr.func_shortname) in {

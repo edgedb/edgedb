@@ -24,12 +24,12 @@ with the following caveats:
 * It has enough range (EdgeDB has timestamps from year 1 to 9999)
 * And it has good enough precision (at least microseconds)
 
-If any of the above is not true we tend to provide a custom type in the client
-library itself that is convertible to whatever type language or any popular
-external dependencies have. Exceptions: JavaScript has millisecond precision on
-their ``Date`` type (which is actually a timestamp) and we decided that it's
-better to use that type by default even though it doesn't have enough
-precision.
+If any of the above criteria is not met, we usually provide a custom type in
+the client library itself that can be converted to a type from the language's
+standard library or from a popular third-party library. Exception: The
+JavaScript ``Date`` type (which is actually a timestamp) has millisecond
+precision. We decided it would be better to use that type by default even
+though it doesn't have sufficient precision.
 
 
 Precision

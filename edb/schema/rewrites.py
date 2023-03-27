@@ -30,11 +30,10 @@ from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
 from . import name as sn
+from . import inheriting as s_inheriting
 from . import objects as so
-from . import pointers as s_pointers
 from . import referencing
 from . import schema as s_schema
-from . import sources as s_sources
 from . import types as s_types
 
 
@@ -54,13 +53,12 @@ class Rewrite(
 
     expr = so.SchemaField(
         s_expr.Expression,
-        default=None,
         compcoef=0.909,
         special_ddl_syntax=True,
     )
 
     subject = so.SchemaField(
-        s_pointers.Pointer, compcoef=None, inheritable=False
+        so.InheritingObject, compcoef=None, inheritable=False
     )
 
 
@@ -71,17 +69,21 @@ class RewriteCommandContext(
     pass
 
 
-class RewriteSourceCommandContext(
-    s_sources.SourceCommandContext[s_sources.Source_T]
+class RewriteSubjectCommandContext:
+    pass
+
+
+class RewriteSubjectCommand(
+    s_inheriting.InheritingObjectCommand[so.InheritingObjectT],
 ):
     pass
 
 
 class RewriteCommand(
-    referencing.NamedReferencedInheritingObjectCommand[Rewrite],
+    referencing.ReferencedInheritingObjectCommand[Rewrite],
     s_anno.AnnotationSubjectCommand[Rewrite],
     context_class=RewriteCommandContext,
-    referrer_context_class=RewriteSourceCommandContext,
+    referrer_context_class=RewriteSubjectCommandContext,
 ):
     def canonicalize_attributes(
         self,
