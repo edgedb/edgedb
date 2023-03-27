@@ -65,10 +65,11 @@ from edb.testbase import serutils
 
 from edb.testbase import connection as tconn
 
+import edb.tools.experimental_interpreter.new_interpreter as model
 
 if TYPE_CHECKING:
     DatabaseName = str
-    SetupScript = str
+    SetupScript = str | Tuple[List[str], List[str]]
 
 
 def _add_test(result, test):
@@ -139,6 +140,14 @@ class TestCaseMeta(type(unittest.TestCase)):
     def wrap(mcls, meth):
         @functools.wraps(meth)
         def wrapper(self, *args, __meth__=meth, **kwargs):
+            if (hasattr(self, "use_experimental_interpreter") and
+                    self.use_experimental_interpreter):
+                # assume we're using the exprimental interpreter
+                loop = asyncio.get_event_loop()
+                task = loop.create_task(__meth__(self, *args, **kwargs))
+                loop.run_until_complete(task)
+                return
+
             try_no = 1
 
             while True:
@@ -698,6 +707,10 @@ class ClusterTestCase(BaseHTTPTestCase):
             )
 
     def setUp(self):
+        if (hasattr(self, "use_experimental_interpreter") and
+                self.use_experimental_interpreter):
+            return
+
         if self.INTERNAL_TESTMODE:
             self.loop.run_until_complete(
                 self.con.execute(
@@ -713,6 +726,9 @@ class ClusterTestCase(BaseHTTPTestCase):
         super().setUp()
 
     def tearDown(self):
+        if (hasattr(self, "use_experimental_interpreter") and
+                self.use_experimental_interpreter):
+            return
         try:
             self.ensure_no_background_server_errors()
 
@@ -855,18 +871,34 @@ class ConnectedTestCaseMixin:
         fetch_args = variables if isinstance(variables, tuple) else ()
         fetch_kw = variables if isinstance(variables, dict) else {}
         try:
-            tx = self.con.transaction()
-            await tx.start()
-            try:
-                res = await self.con._fetchall_json(
-                    query,
-                    *fetch_args,
-                    __limit__=implicit_limit,
-                    **fetch_kw)
-            finally:
-                await tx.rollback()
+            if (hasattr(self, "use_experimental_interpreter") and
+                    self.use_experimental_interpreter):
+                (result, _) = model.run_single_str_get_json(
+                    self.experimental_interpreter_db, query, print_asts=False)
+                res = result
+                # Uncomment this for debugging.
+                # Otherwise the error message is obscure.
+                try:
+                    assert_data_shape.assert_data_shape(
+                        res, exp_result_json, self.fail, message=msg)
+                except AssertionError as e:
+                    raise AssertionError(
+                        str(e),
+                        "Expected", exp_result_json, "Actual", result)
+            else:
+                tx = self.con.transaction()
+                await tx.start()
+                try:
+                    res = await self.con._fetchall_json(
+                        query,
+                        *fetch_args,
+                        __limit__=implicit_limit,
+                        **fetch_kw)
+                finally:
+                    await tx.rollback()
 
-            res = json.loads(res)
+                res = json.loads(res)
+
             if sort is not None:
                 assert_data_shape.sort_results(res, sort)
             assert_data_shape.assert_data_shape(
@@ -878,6 +910,10 @@ class ConnectedTestCaseMixin:
             raise
 
         if json_only:
+            return
+
+        if (hasattr(self, "use_experimental_interpreter") and
+                self.use_experimental_interpreter):
             return
 
         if exp_result_binary is ...:
@@ -1117,7 +1153,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         return f'/db/{cls.get_database_name()}'
 
     @classmethod
-    def get_setup_script(cls):
+    def get_setup_script(cls, use_experimental_interpreter=False):
         script = ''
 
         # allow the setup script to also run in test mode
@@ -1151,6 +1187,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             script += f'\nPOPULATE MIGRATION;'
             script += f'\nCOMMIT MIGRATION;'
 
+        setup_scripts = []
+
         if cls.SETUP:
             if not isinstance(cls.SETUP, (list, tuple)):
                 scripts = [cls.SETUP]
@@ -1164,6 +1202,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 else:
                     setup = scr
 
+                setup_scripts.append(setup)
                 script += '\n' + setup
 
             # If the SETUP script did a SET MODULE, make sure it is cleared
@@ -1173,6 +1212,9 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         # allow the setup script to also run in test mode
         if cls.INTERNAL_TESTMODE:
             script += '\nCONFIGURE SESSION SET __internal_testmode := false;'
+
+        if use_experimental_interpreter:
+            return ("".join(schema), "".join(setup_scripts))
 
         return script.strip(' \n')
 
@@ -1417,7 +1459,8 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
 
 
 def get_test_cases_setup(
-    cases: Iterable[unittest.TestCase]
+    cases: Iterable[unittest.TestCase],
+    use_experimental_interpreter: bool
 ) -> List[Tuple[unittest.TestCase, DatabaseName, SetupScript]]:
     result: List[Tuple[unittest.TestCase, DatabaseName, SetupScript]] = []
 
@@ -1425,7 +1468,8 @@ def get_test_cases_setup(
         if not hasattr(case, 'get_setup_script'):
             continue
 
-        setup_script = case.get_setup_script()
+        setup_script = case.get_setup_script(
+            use_experimental_interpreter=use_experimental_interpreter)
         if not setup_script:
             continue
 
@@ -1446,7 +1490,8 @@ def test_cases_use_server(cases: Iterable[unittest.TestCase]) -> bool:
 
 async def setup_test_cases(
         cases, conn, num_jobs, try_cached_db=False, verbose=False):
-    setup = get_test_cases_setup(cases)
+    setup = get_test_cases_setup(
+        cases, use_experimental_interpreter=False)
 
     stats = []
     if num_jobs == 1:
@@ -1479,6 +1524,7 @@ async def setup_test_cases(
 
 async def _setup_database(
         dbname, setup_script, conn_args, stats, try_cached_db):
+
     start_time = time.monotonic()
     default_args = {
         'user': edgedb_defines.EDGEDB_SUPERUSER,
@@ -1491,6 +1537,7 @@ async def _setup_database(
         admin_conn = await tconn.async_connect_test_client(
             database=edgedb_defines.EDGEDB_SUPERUSER_DB,
             **default_args)
+
     except Exception as ex:
         raise RuntimeError(
             f'exception during creation of {dbname!r} test DB; '

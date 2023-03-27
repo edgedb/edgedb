@@ -7,16 +7,19 @@ from edb.schema.pointers import PointerDirection
 from .basis.built_ins import all_builtin_ops
 from .data.data_ops import (ArrExpr, BackLinkExpr, BoolVal, DateTimeTp,
                             DetachedExpr, Expr, FilterOrderExpr, ForExpr,
-                            FreeVarExpr, FunAppExpr, InsertExpr, IntVal,
-                            JsonTp, Label, LinkPropLabel, LinkPropProjExpr,
-                            MultiSetExpr, NamedTupleExpr, ObjectExpr,
-                            ObjectProjExpr, OffsetLimitExpr, OptionalForExpr,
-                            OrderAscending, OrderDescending, OrderLabelSep,
+                            FreeVal, FreeVarExpr, FunAppExpr, InsertExpr,
+                            IntVal, JsonTp, Label, LinkPropLabel,
+                            LinkPropProjExpr, MultiSetExpr, NamedTupleExpr,
+                            ObjectExpr, ObjectProjExpr, ObjectVal,
+                            OffsetLimitExpr, OptionalForExpr, OrderAscending,
+                            OrderDescending, OrderLabelSep, RefVal,
                             ShapedExprExpr, ShapeExpr, StrLabel, StrTp, StrVal,
                             SubqueryExpr, Tp, TpIntersectExpr, TypeCastExpr,
                             UnionExpr, UnnamedTupleExpr, UpdateExpr, Val,
-                            WithExpr)
-from .data.expr_ops import instantiate_expr, object_to_shape
+                            WithExpr, LinkPropVal)
+from .data import data_ops as e
+from .data.expr_ops import (abstract_over_expr, instantiate_expr,
+                            object_to_shape)
 from .elaboration import DEFAULT_HEAD_NAME
 
 
@@ -81,6 +84,16 @@ def reverse_elab_order(order: Expr) -> Optional[List[qlast.SortExpr]]:
         return [qlast.SortExpr(path=reverse_elab(order))]
 
 
+def reverse_elab_object_val(val: ObjectVal) -> qlast.Expr:
+    return qlast.Shape(
+        expr=None,
+        elements=reverse_elab_shape(
+            ShapeExpr(
+                shape={lbl: abstract_over_expr(
+                    MultiSetExpr([e for e in mv]))
+                    for (lbl, (u, mv)) in val.val.items()})))
+
+
 def append_path_element(
         subject: qlast.Expr, to_add: qlast.PathElement) -> qlast.Path:
     match subject:
@@ -105,6 +118,13 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                 is_negative=(i < 0))
         case BoolVal(b):
             return qlast.BooleanConstant(value=str(b))
+        case RefVal(_):
+            return qlast.StringConstant(
+                value=str("<REFVAL, TODO: UUID_CASTING>"))
+        case LinkPropVal(_):
+            return qlast.StringConstant(value=str("<TODO: LINK_PROP_VAL>"))
+        case FreeVal(val=val):
+            return reverse_elab_object_val(val)
         case ObjectExpr(val=_):
             return qlast.Shape(expr=None,
                                elements=reverse_elab_shape(
@@ -184,7 +204,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
             return qlast.TypeCast(
                 type=reverse_elab_type_name(tp),
                 expr=reverse_elab(arg))
-        case UnnamedTupleExpr(val=tuples):
+        case (UnnamedTupleExpr(val=tuples) | e.UnnamedTupleVal(val=tuples)):
             return qlast.Tuple(elements=[reverse_elab(e) for e in tuples])
         case NamedTupleExpr(val=tuples):
             return qlast.NamedTuple(

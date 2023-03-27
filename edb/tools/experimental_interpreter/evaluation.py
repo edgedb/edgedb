@@ -1,11 +1,10 @@
 
 import itertools
-from dataclasses import dataclass
 from typing import *
 
 from .data.casts import type_cast
 from .data.data_ops import (
-    DB, ArrExpr, ArrVal, BackLinkExpr, BoolVal, DBEntry, DBSchema,
+    DB, ArrExpr, ArrVal, BackLinkExpr, BoolVal, DBEntry,
     DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVal, FreeVarExpr,
     FunAppExpr, InsertExpr, IntInfVal, IntVal, Invisible, Label,
     LinkPropLabel, LinkPropProjExpr, LinkPropVal, Marker, MultiSetExpr,
@@ -15,32 +14,12 @@ from .data.data_ops import (
     ParamSingleton, RefVal, ShapedExprExpr, ShapeExpr, StrLabel, StrVal,
     SubqueryExpr, TpIntersectExpr, TypeCastExpr, UnionExpr,
     UnnamedTupleExpr, UnnamedTupleVal, UpdateExpr, Val, VarTp, Visible,
-    WithExpr, next_id)
+    WithExpr, next_id, RTData, RTExpr, RTVal)
 from .data.expr_ops import (
     assume_link_target, coerce_to_storage, combine_object_val,
     convert_to_link, get_object_val, instantiate_expr,
     map_assume_link_target, val_is_link_convertible, val_is_ref_val)
 from .data.type_ops import is_nominal_subtype_in_schema
-
-# RT Stands for Run Time
-
-
-@dataclass(frozen=True)
-class RTData:
-    cur_db: DB
-    read_snapshots: Sequence[DB]
-    schema: DBSchema
-    eval_only: bool  # a.k.a. no DML, no effect
-
-
-class RTExpr(NamedTuple):
-    data: RTData
-    expr: Expr
-
-
-class RTVal(NamedTuple):
-    data: RTData
-    val: MultiSetVal
 
 
 def make_eval_only(data: RTData) -> RTData:
@@ -90,7 +69,7 @@ def apply_shape(ctx: RTData, shape: ShapeExpr, value: Val) -> Val:
         for (key, (_, pval)) in objectval.val.items():
             if key not in shape.shape.keys():
                 result = {
-                    **result, key: (Invisible(), assume_link_target(pval))}
+                    **result, key: (Invisible(), (pval))}
             else:
                 pass
         for (key, shape_elem) in shape.shape.items():
@@ -99,14 +78,14 @@ def apply_shape(ctx: RTData, shape: ShapeExpr, value: Val) -> Val:
                     RTExpr(make_eval_only(ctx),
                            instantiate_expr(value, shape.shape[key]))).val
                 result = {
-                    **result, key: (Visible(), assume_link_target(new_val))}
+                    **result, key: (Visible(), (new_val))}
             else:
                 new_val = eval_config(RTExpr(make_eval_only(ctx),
                                              instantiate_expr(
                                                  value, shape_elem)
                                              )).val
                 result = {
-                    **result, key: (Visible(), assume_link_target(new_val))}
+                    **result, key: (Visible(), (new_val))}
 
         return ObjectVal(result)
 
@@ -144,7 +123,7 @@ def singular_proj(data: RTData, subject: Val, label: Label) -> MultiSetVal:
             if label in objVal.val.keys():
                 return objVal.val[label][1]
             else:
-                raise ValueError("Label not found")
+                raise ValueError("Label not found", label)
         case RefVal(refid=id, val=objVal):
             entry_obj = data.read_snapshots[0].dbdata[id].data
             if label in objVal.val.keys():
@@ -203,20 +182,40 @@ def limit_vals(val: Sequence[RTVal], limit: Val):
             raise ValueError("offset must be an int")
 
 
-def trace_input_output(func):
-    def wrapper(rt):
-        indent = "| " * wrapper.depth
-        print(f"{indent}input: {rt.expr} ")
-        wrapper.depth += 1
-        result = func(rt)
-        wrapper.depth -= 1
-        print(f"{indent}output: {result.val}")
-        return result
-    wrapper.depth = 0
-    return wrapper
+class EvaluationLogsWrapper:
+    def __init__(self):
+        self.original_eval_config = None
+        self.reset_logs(None)
+
+    def reset_logs(self, logs: Optional[List[Any]]):
+        self.logs = logs
+        self.indexes: List[int] = []
+
+    def __call__(self, eval_config: Callable[[RTExpr], RTVal]):
+        self.original_eval_config = eval_config
+
+        def wrapper(rt_expr: RTExpr) -> RTVal:
+            if self.logs is None:
+                return self.original_eval_config(rt_expr)
+            else:
+                parent = self.logs
+                [parent := parent[i] for i in self.indexes]
+                self.indexes.append(len(parent))
+                parent.append([(rt_expr.expr, [StrVal("NOT AVAILABLE!!!")])])
+                rt_val = self.original_eval_config(rt_expr)
+                parent[self.indexes[-1]][0] = (parent[self.indexes[-1]][0][0],
+                                               rt_val.val)
+                assert len(parent[self.indexes[-1]][0]) == 2
+                self.indexes.pop()
+                return rt_val
+
+        return wrapper
 
 
-# @trace_input_output
+eval_logs_wrapper = EvaluationLogsWrapper()
+
+
+@eval_logs_wrapper
 def eval_config(rt: RTExpr) -> RTVal:
     match rt.expr:
         case (StrVal(_)
@@ -235,7 +234,7 @@ def eval_config(rt: RTExpr) -> RTVal:
             for (key, expr) in dic.items():  # type: ignore[has-type]
                 (cur_data, val) = eval_config(RTExpr(cur_data, expr))
                 result = {
-                    **result, key: (Visible(), assume_link_target(val))}
+                    **result, key: (Visible(), (val))}
             return RTVal(cur_data, [FreeVal(ObjectVal(result))])
         case InsertExpr(tname, arg):
             if rt.data.eval_only:
@@ -430,8 +429,11 @@ def eval_config(rt: RTExpr) -> RTVal:
                     {u.refid:
                      DBEntry(
                          old_dbdata[u.refid].tp,
-                         combine_object_val(
-                             old_dbdata[u.refid].data, u.val))
+                         coerce_to_storage(
+                             combine_object_val(
+                                 old_dbdata[u.refid].data, u.val),
+                             rt.data.schema.val
+                             [old_dbdata[u.refid].tp.name]))
                      for u in cast(Sequence[RefVal],
                                    updated)}}
                 return RTVal(
@@ -490,8 +492,19 @@ def eval_config(rt: RTExpr) -> RTVal:
     raise ValueError("Not Implemented", rt.expr)
 
 
-def eval_config_toplevel(rt: RTExpr) -> RTVal:
-    match (eval_config(rt)):
+def eval_config_toplevel(rt: RTExpr, logs: Optional[Any] = None) -> RTVal:
+
+    # on exception, this is not none
+    # assert eval_logs_wrapper.logs is None
+    if logs is not None:
+        eval_logs_wrapper.reset_logs(logs)
+
+    final_v = eval_config(rt)
+
+    # restore the decorator state
+    eval_logs_wrapper.reset_logs(None)
+
+    match (final_v):
         case RTVal(data=data, val=val):
             # Do not dedup (see one of the test cases)
             return RTVal(data=data, val=(val))

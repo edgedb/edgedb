@@ -225,7 +225,22 @@ def appears_in_expr(search: Expr, subject: Expr):
     class ReturnTrue(Exception):
         pass
 
+    expr_is_var: Optional[str]
+    match search:
+        case FreeVarExpr(vname):
+            expr_is_var = vname
+        case BoundVarExpr(vname):
+            expr_is_var = vname
+        case _:
+            expr_is_var = None
+
     def map_func(candidate: Expr) -> Optional[Expr]:
+        if (expr_is_var is not None
+                and isinstance(candidate, BindingExpr)
+                and candidate.var == expr_is_var):
+
+            # terminate search here
+            return candidate
         if candidate == search:
             raise ReturnTrue()
         else:
@@ -349,6 +364,18 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
                         raise ValueError("Redundant Link Properties")
                     else:
                         return RefVal(id, ObjectVal({}))
+        case LinkPropVal(obj=RefVal(refid=id, val=ObjectVal({})),
+                         linkprop=linkprop):
+            match tp:
+                case LinkPropTp(subject=_, linkprop=linkprop_tp):
+                    temp_obj = convert_back_from_link_prop_obj(
+                        linkprop)
+                    after_obj = coerce_to_storage(temp_obj, linkprop_tp)
+                    after_link_prop = convert_to_link_prop_obj(after_obj)
+                    return RefVal(id, after_link_prop)
+                case _:
+                    return make_storage_atomic(RefVal(refid=id,
+                                                      val=ObjectVal({})), tp)
         case _:
             return val
 

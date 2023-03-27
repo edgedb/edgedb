@@ -21,7 +21,7 @@ type Card {
     single name : str;
     multi awards : Award;
     element : str;
-    cost : int;
+    cost : int64;
 }
 
 
@@ -53,4 +53,12 @@ type User {
         text: str;
         property tag := .name ++ (("-" ++ @text) ?? "");
     }
+}
+
+type Publication {
+    required title: str;
+
+    multi authors: User {
+        list_order: int64;
+    };
 }

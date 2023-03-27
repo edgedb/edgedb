@@ -30,6 +30,9 @@ def parse_ql(querystr: str) -> Sequence[qlast.Expr]:
     return statements
 
 
-def parse_sdl(sdlstr: str) -> qlast.Schema:
+def parse_sdl(sdlstr: str, surround_with_default) -> qlast.Schema:
     # See test_docs.py if this doesn't work
-    return parser.parse_sdl(f'module default {{{sdlstr}}}')
+    if surround_with_default:
+        return parser.parse_sdl(f'module default {{{sdlstr}}}')
+    else:
+        return parser.parse_sdl(sdlstr)
