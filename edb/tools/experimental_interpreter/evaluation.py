@@ -96,8 +96,7 @@ def apply_shape(ctx: RTData, shape: ShapeExpr, value: Val) -> Val:
         case RefVal(refid=id, val=dictval):
             return RefVal(
                 refid=id, val=apply_shape_to_prodval(shape, dictval))
-        case LinkPropVal(obj=RefVal(refid=id, val=ObjectVal({})),
-                         linkprop=objval):
+        case LinkPropVal(refid=id, linkprop=objval):
             return RefVal(
                 refid=id, val=apply_shape_to_prodval(shape, objval))
         case _:

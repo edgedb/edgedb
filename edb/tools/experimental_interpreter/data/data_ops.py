@@ -502,7 +502,7 @@ class ArrVal:
 
 @dataclass(frozen=True)
 class LinkPropVal:
-    obj: Val
+    refid: int
     linkprop: ObjectVal
 
 # @dataclass(frozen=True)
