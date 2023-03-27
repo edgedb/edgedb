@@ -1087,5 +1087,46 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.no_wait:
             self.write(' NOWAIT')
 
+    def visit_CopyStmt(self, node: pgast.CreateStmt) -> None:
+        self.write('COPY ')
+        if node.query:
+            self.write('(')
+            self.indentation += 1
+            self.new_lines = 1
+            self.visit(node.query)
+            self.indentation -= 1
+            self.write(')')
+        else:
+            self.visit_Relation(node.relation)
+            if node.colnames:
+                self.write(' (')
+                self.write(
+                    ', '.join(common.quote_ident(n) for n in node.colnames))
+                self.write(')')
+
+        if node.is_from:
+            self.write(' FROM ')
+        else:
+            self.write(' TO ')
+
+        if node.is_program:
+            self.write('PROGRAM ')
+        if node.filename:
+            self.visit(node.filename)
+        else:
+            if node.is_from:
+                self.write('STDIN')
+            else:
+                self.write('STDOUT')
+
+        if node.where_clause:
+            self.indentation += 1
+            self.new_lines = 1
+            self.write('WHERE')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.where_clause)
+            self.indentation -= 2
+
 
 generate_source = SQLSourceGenerator.to_source

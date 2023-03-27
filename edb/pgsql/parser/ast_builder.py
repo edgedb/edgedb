@@ -187,6 +187,7 @@ def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
             "CreateStmt": _build_create,
             "CreateTableAsStmt": _build_create_table_as,
             "LockStmt": _build_lock,
+            "CopyStmt": _build_copy,
         },
         [_build_query],
     )
@@ -1120,4 +1121,19 @@ def _build_string_or_star(node: Node, c: Context) -> pgast.Star | str:
         node,
         c,
         {"String": _build_str, "A_Star": _build_star},
+    )
+
+def _build_copy(n: Node, c: Context) -> pgast.CopyStmt:
+    filename = _maybe(n, c, 'filename', _build_any)
+
+    return pgast.CopyStmt(
+        relation=_build_relation(n['relation'], c),
+        colnames=_maybe_list(n, c, 'attlist', _build_str),
+        query=_maybe(n, c, 'query', _build_query),
+        is_from=_bool_or_false(n, 'is_from'),
+        is_program=_bool_or_false(n, 'is_from'),
+        filename=pgast.StringConstant(val=filename) if filename else None,
+        # FIXME: options are currently not handled
+        where_clause=_maybe(n, c, "whereClause", _build_base_expr),
+        context=_build_context(n, c),
     )

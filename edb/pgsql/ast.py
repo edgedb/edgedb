@@ -1189,3 +1189,39 @@ class LockStmt(Statement):
     relations: typing.List[BaseRangeVar]
     mode: str
     no_wait: bool = False
+
+
+class CopyFormat(enum.IntEnum):
+    TEXT = enum.auto()
+    CSV = enum.auto()
+    BINARY = enum.auto()
+
+
+class CopyOptions(Base):
+    # Options for the copy command
+    format: CopyFormat = CopyFormat.TEXT
+    freeze: bool = False
+    delimiter: bytes
+    null: str
+    header: bool = False
+    quote: bytes = b'"'
+    escape: bytes
+    force_quote: typing.List[str] = []
+    force_not_null: typing.List[str] = []
+    force_null: typing.List[str] = []
+    encoding: typing.Optional[str]
+
+
+class CopyStmt(Statement):
+    relation: Relation
+    colnames: typing.Optional[typing.List[str]]
+    query: Query
+
+    is_from: bool = False
+    is_program: bool = False
+    filename: typing.Optional[StringConstant]
+
+    options: CopyOptions
+
+    # The WHERE clause
+    where_clause: typing.Optional[BaseExpr] = None
