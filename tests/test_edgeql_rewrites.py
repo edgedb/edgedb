@@ -577,7 +577,6 @@ class TestRewrites(tb.QueryTestCase):
                 update X filter .bar = x set { bar := x*2 } );
         ''')
 
-
         await self.assert_query_result(
             'select math::floor(X.foo);',
             {2, 4},
@@ -587,3 +586,37 @@ class TestRewrites(tb.QueryTestCase):
             'select count(distinct (X { z := .foo - math::floor(.foo) }).z)',
             [2],
         )
+
+    async def test_edgeql_rewrites_17(self):
+        # Test stuff that *references* multi properties
+        check = 'select S.sum'
+
+        # XXX: I bet it doesn't work for defaults
+        await self.con.execute('''
+            create type S {
+                create multi property vals -> int64;
+                create property sum -> int64 {
+                    create rewrite insert, update using (sum(.vals))
+                }
+            };
+        ''')
+
+        await self.con.execute('''
+            insert S { vals := {1, 2, 3} }
+        ''')
+        await self.assert_query_result(check, [6])
+
+        await self.con.execute('''
+            update S set { vals := {4, 5, 6} }
+        ''')
+        await self.assert_query_result(check, [15])
+
+        await self.con.execute('''
+            update S set { vals += {2, 3, 4} }
+        ''')
+        await self.assert_query_result(check, [24])
+
+        await self.con.execute('''
+            update S set { vals -= 5 }
+        ''')
+        await self.assert_query_result(check, [19])

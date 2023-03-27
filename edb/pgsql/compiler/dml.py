@@ -705,22 +705,68 @@ def process_insert_body(
     ctx.toplevel_stmt.append_cte(contents_cte)
     contents_rvar = relctx.rvar_for_rel(contents_cte, ctx=ctx)
 
+    rewrites = None
+    if ir_stmt.rewrites:
+        rewrites = ir_stmt.rewrites.by_type[typeref]
+
+    pol_expr = ir_stmt.write_policies.get(typeref.id)
+    pol_ctx = None
+    if pol_expr or rewrites:
+        with ctx.new() as pol_ctx:
+            pass
+
+    needs_insert_on_conflict = bool(
+        ir_stmt.on_conflict and not on_conflict_fake_iterator)
+
+    # The first serious bit of trickiness: if there are rewrites, the link
+    # table updates need to be done *before* we compute the rewrites, since
+    # the rewrites might refer to them.
+    #
+    # However, we can't unconditionally do it like this, because we
+    # want to be able to use ON CONFLICT to implement UNLESS CONFLICT
+    # ON when possible, and in that case the link table operations
+    # need to be done after the *actual insert*.
+    link_ctes = []
+
+    def _update_link_tables(inp_cte: pgast.CommonTableExpr) -> None:
+        # Process necessary updates to the link tables.
+        for shape_el in external_inserts:
+            link_cte, check_cte = process_link_update(
+                ir_stmt=ir_stmt,
+                ir_set=shape_el,
+                dml_cte=inp_cte,
+                source_typeref=typeref,
+                iterator=iterator,
+                policy_ctx=pol_ctx,
+                ctx=ctx,
+            )
+            if link_cte:
+                link_ctes.append(link_cte)
+            if check_cte is not None:
+                ctx.env.check_ctes.append(check_cte)
+
     # compile rewrites CTE
-    if ir_stmt.rewrites and (rewrites := ir_stmt.rewrites.by_type[typeref]):
-        rewrites_cte, rewrites_rvar = process_insert_rewrites(
-            ir_stmt,
-            contents_rvar=contents_rvar,
-            iterator=iterator,
-            inner_iterator=inner_iterator,
-            rewrites=rewrites,
-            elements=elements,
-            ctx=ctx,
-        )
+    if rewrites:
+        assert not needs_insert_on_conflict
+        _update_link_tables(contents_cte)
+
+        assert pol_ctx
+        with pol_ctx.reenter(), pol_ctx.new() as rctx:
+            # Pull in ptr rel overlays, so we can see the pointers
+            merge_overlays_globally((ir_stmt,), ctx=rctx)
+
+            rewrites_cte, rewrites_rvar = process_insert_rewrites(
+                ir_stmt,
+                contents_rvar=contents_rvar,
+                iterator=iterator,
+                inner_iterator=inner_iterator,
+                rewrites=rewrites,
+                elements=elements,
+                ctx=rctx,
+            )
     else:
         rewrites_cte = contents_cte
         rewrites_rvar = contents_rvar
-
-    # XXX yeah shit need to futz around with the link tables
 
     # Populate the real insert statement based on the select we generated
     insert_stmt.cols = [
@@ -752,37 +798,15 @@ def process_insert_body(
     # TODO: set up dml_parts with a SelectStmt for inserts always?
     insert_cte.query = ictx.rel
 
-    needs_insert_on_conflict = bool(
-        ir_stmt.on_conflict and not on_conflict_fake_iterator)
-
     if needs_insert_on_conflict:
         ctx.toplevel_stmt.append_cte(real_insert_cte)
         ctx.toplevel_stmt.append_cte(insert_cte)
 
+    # XXX: what's the reason here again
     dml_cte = rewrites_cte if not needs_insert_on_conflict else insert_cte
 
-    pol_expr = ir_stmt.write_policies.get(typeref.id)
-    pol_ctx = None
-    if pol_expr:
-        with ctx.new() as pol_ctx:
-            pass
-
-    # Process necessary updates to the link tables.
-    link_ctes = []
-    for shape_el in external_inserts:
-        link_cte, check_cte = process_link_update(
-            ir_stmt=ir_stmt,
-            ir_set=shape_el,
-            dml_cte=dml_cte,
-            source_typeref=typeref,
-            iterator=iterator,
-            policy_ctx=pol_ctx,
-            ctx=ctx,
-        )
-        if link_cte:
-            link_ctes.append(link_cte)
-        if check_cte is not None:
-            ctx.env.check_ctes.append(check_cte)
+    if not rewrites:
+        _update_link_tables(dml_cte)
 
     if pol_expr:
         assert pol_ctx
@@ -872,13 +896,14 @@ def process_insert_rewrites(
     # pull-in pointers that were not rewritten
     for e, ptrref in not_rewritten:
         # XXX: WHAT DO; this duplicates some
-        val = pathctx.get_path_var(
-            rew_stmt, e.path_id, aspect='value', env=ctx.env
-        )
         ptr_info = pg_types.get_ptrref_storage_info(
             ptrref, resolve_type=True, link_bias=False)
-        rew_stmt.target_list.append(pgast.ResTarget(
-            name=ptr_info.column_name, val=val))
+        if ptr_info.table_type == 'ObjectType':
+            val = pathctx.get_path_var(
+                rew_stmt, e.path_id, aspect='value', env=ctx.env
+            )
+            rew_stmt.target_list.append(pgast.ResTarget(
+                name=ptr_info.column_name, val=val))
 
     # construct the CTE
     pathctx.put_path_bond(rew_stmt, ir_stmt.subject.path_id)
@@ -1254,6 +1279,9 @@ def insert_needs_conflict_cte(
     ):
         return True
 
+    if ir_stmt.rewrites:
+        return True  # XXX is this right?
+
     for shape_el, _ in ir_stmt.subject.shape:
         assert shape_el.rptr is not None
         ptrref = shape_el.rptr.ptrref
@@ -1578,45 +1606,70 @@ def process_update_body(
     else:
         rewrites = None
 
-    # XXX: Not confident in this setup; rewrite processing needs to go
-    # first, right? (in the general case where it can do multi, at
-    # least.)
+    pol_expr = ir_stmt.write_policies.get(typeref.id)
+    pol_ctx = None
+    if pol_expr or rewrites:
+        with ctx.new() as pol_ctx:
+            pass
+
     if not values and not rewrites:
         # No updates directly to the set target table,
         # so convert the UPDATE statement into a SELECT.
         update_cte.query = contents_select
         contents_cte = update_cte
-
-        toplevel.append_cte(update_cte)
-
-        rewrites_cte = contents_cte
     else:
         contents_cte = pgast.CommonTableExpr(
             query=contents_select, name=ctx.env.aliases.get("upd_contents")
         )
+    toplevel.append_cte(contents_cte)
+
+    # Process necessary updates to the link tables.
+    link_ctes = []
+    for expr, shape_op in external_updates:
+        link_cte, check_cte = process_link_update(
+            ir_stmt=ir_stmt,
+            ir_set=expr,
+            dml_cte=contents_cte,
+            iterator=iterator,
+            shape_op=shape_op,
+            source_typeref=typeref,
+            ctx=ctx,
+            policy_ctx=pol_ctx,
+        )
+        if link_cte:
+            link_ctes.append(link_cte)
+
+        if check_cte is not None:
+            ctx.env.check_ctes.append(check_cte)
+
+    if not values and not rewrites:
+        rewrites_cte = contents_cte
+    else:
         table_relation = contents_select.from_clause[0]
         assert isinstance(table_relation, pgast.RelRangeVar)
         range_relation = contents_select.from_clause[1]
         assert isinstance(range_relation, pgast.PathRangeVar)
 
-        toplevel.append_cte(contents_cte)
         contents_rvar = relctx.rvar_for_rel(contents_cte, ctx=ctx)
         subject_path_id = ir_stmt.subject.path_id
 
         # Compile rewrites CTE
         if rewrites:
-            rewrites_cte, rewrites_rvar, values = process_update_rewrites(
-                ir_stmt,
-                typeref=typeref,
-                contents_rvar=contents_rvar,
-                iterator=iterator,
-                contents_select=contents_select,
-                table_relation=table_relation,
-                range_relation=range_relation,
-                rewrites=rewrites,
-                elements=elements,
-                ctx=ctx,
-            )
+            assert pol_ctx
+            with pol_ctx.reenter(), pol_ctx.new() as rctx:
+                merge_overlays_globally((ir_stmt,), ctx=rctx)
+                rewrites_cte, rewrites_rvar, values = process_update_rewrites(
+                    ir_stmt,
+                    typeref=typeref,
+                    contents_rvar=contents_rvar,
+                    iterator=iterator,
+                    contents_select=contents_select,
+                    table_relation=table_relation,
+                    range_relation=range_relation,
+                    rewrites=rewrites,
+                    elements=elements,
+                    ctx=rctx,
+                )
         else:
             rewrites_rvar = contents_rvar
             rewrites_cte = contents_cte
@@ -1663,31 +1716,6 @@ def process_update_body(
         )
 
         update_cte.query = update_stmt
-
-    pol_expr = ir_stmt.write_policies.get(typeref.id)
-    pol_ctx = None
-    if pol_expr:
-        with ctx.new() as pol_ctx:
-            pass
-
-    # Process necessary updates to the link tables.
-    link_ctes = []
-    for expr, shape_op in external_updates:
-        link_cte, check_cte = process_link_update(
-            ir_stmt=ir_stmt,
-            ir_set=expr,
-            dml_cte=contents_cte,
-            iterator=iterator,
-            shape_op=shape_op,
-            source_typeref=typeref,
-            ctx=ctx,
-            policy_ctx=pol_ctx,
-        )
-        if link_cte:
-            link_ctes.append(link_cte)
-
-        if check_cte is not None:
-            ctx.env.check_ctes.append(check_cte)
 
     if pol_expr:
         assert pol_ctx
@@ -1804,17 +1832,18 @@ def process_update_rewrites(
         # pull-in pointers that were not rewritten
         for e, ptrref in not_rewritten:
             # XXX: WHAT DO; this duplicates some
-            val = pathctx.get_path_var(
-                rewrites_stmt, e.path_id, aspect='value', env=ctx.env
-            )
             actual_ptrref = irtyputils.find_actual_ptrref(
                 typeref, ptrref)
             ptr_info = pg_types.get_ptrref_storage_info(
                 actual_ptrref, resolve_type=True, link_bias=False)
-            updval = pgast.ResTarget(
-                name=ptr_info.column_name, val=val)
-            values.append((updval, e.path_id))
-            rewrites_stmt.target_list.append(updval)
+            if ptr_info.table_type == 'ObjectType':
+                val = pathctx.get_path_var(
+                    rewrites_stmt, e.path_id, aspect='value', env=ctx.env
+                )
+                updval = pgast.ResTarget(
+                    name=ptr_info.column_name, val=val)
+                values.append((updval, e.path_id))
+                rewrites_stmt.target_list.append(updval)
 
         fallback_rvar = pgast.DynamicRangeVar(
             dynamic_get_path=_mk_dynamic_get_path(
