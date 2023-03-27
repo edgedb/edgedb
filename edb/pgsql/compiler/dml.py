@@ -558,6 +558,39 @@ def compile_iterator_cte(
         parent=last_iterator)
 
 
+def _mk_dynamic_get_path(
+    ptr_map: Dict[sn.Name, pgast.BaseExpr],
+    typeref: irast.TypeRef,
+    fallback_rvar: Optional[pgast.PathRangeVar] = None,
+) -> pgast.DynamicRangeVarFunc:
+    """A dynamic rvar function for insert/update.
+
+    It returns values out of a select purely based on material rptr,
+    as if it was a base relation. This is to make it easy for access
+    policies to operate on the results.
+    """
+
+    def dynamic_get_path(
+        rel: pgast.Query, path_id: irast.PathId, *,
+        flavor: str,
+        aspect: str, env: context.Environment
+    ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
+        if flavor != 'normal' or aspect not in ('value', 'identity'):
+            return None
+        if rptr := path_id.rptr():
+            if ret := ptr_map.get(rptr.real_material_ptr.name):
+                return ret
+            if rptr.real_material_ptr.shortname.name == '__type__':
+                return astutils.compile_typeref(typeref)
+        # If a fallback rvar is specified, defer to that.
+        # This is used in rewrites to go back to the original
+        if fallback_rvar:
+            return fallback_rvar
+        # Properties that aren't specified are {}
+        return pgast.NullConstant()
+    return dynamic_get_path
+
+
 def process_insert_body(
     *,
     ir_stmt: irast.InsertStmt,
@@ -589,9 +622,7 @@ def process_insert_body(
     insert_stmt = insert_cte.query
     assert isinstance(insert_stmt, pgast.InsertStmt)
 
-    typeref = ir_stmt.subject.typeref
-    if typeref.material_type is not None:
-        typeref = typeref.material_type
+    typeref = ir_stmt.subject.typeref.real_material_type
 
     # Handle an UNLESS CONFLICT if we need it
 
@@ -629,33 +660,8 @@ def process_insert_body(
     # based on material rptr, as if it was a base relation.
     # This is to make it easy for access policies to operate on the result
     # of the INSERT.
-    def mk_get_path(
-        ptr_map: Dict[sn.Name, pgast.BaseExpr],
-        fallback_rvar: Optional[pgast.PathRangeVar] = None,
-    ) -> pgast.DynamicRangeVarFunc:
-        def dynamic_get_path(
-            rel: pgast.Query, path_id: irast.PathId, *,
-            flavor: str,
-            aspect: str, env: context.Environment
-        ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
-            if flavor != 'normal' or aspect not in ('value', 'identity'):
-                return None
-            if not (rptr := path_id.rptr()):
-                return None
-            if ret := ptr_map.get(rptr.real_material_ptr.name):
-                return ret
-            if rptr.real_material_ptr.shortname.name == '__type__':
-                return astutils.compile_typeref(typeref)
-            # If a fallback rvar is specified, defer to that.
-            # This is used in rewrites to go back to the original
-            if fallback_rvar:
-                return fallback_rvar
-            # Properties that aren't specified are {}
-            return pgast.NullConstant()
-        return dynamic_get_path
-
     fallback_rvar = pgast.DynamicRangeVar(
-        dynamic_get_path=mk_get_path(ptr_map))
+        dynamic_get_path=_mk_dynamic_get_path(ptr_map, typeref))
     pathctx.put_path_source_rvar(
         select, ir_stmt.subject.path_id, fallback_rvar, env=ctx.env)
     pathctx.put_path_value_rvar(
@@ -701,65 +707,20 @@ def process_insert_body(
 
     # compile rewrites CTE
     if ir_stmt.rewrites and (rewrites := ir_stmt.rewrites.by_type[typeref]):
-
-        subject_path_id = ir_stmt.rewrites.subject_path_id
-        object_path_id = ir_stmt.subject.path_id
-
-        rew_stmt = pgast.SelectStmt(target_list=[])
-
-        pathctx.put_path_id_map(select, subject_path_id, object_path_id)
-        # pull in contents_select for __subject__
-        relctx.include_rvar(
-            rew_stmt, contents_rvar, subject_path_id, ctx=ctx
+        rewrites_cte, rewrites_rvar = process_insert_rewrites(
+            ir_stmt,
+            contents_rvar=contents_rvar,
+            iterator=iterator,
+            inner_iterator=inner_iterator,
+            rewrites=rewrites,
+            elements=elements,
+            ctx=ctx,
         )
-        relctx.include_rvar(
-            rew_stmt, contents_rvar, object_path_id, ctx=ctx
-        )
-
-        nptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
-        fallback_rvar = pgast.DynamicRangeVar(
-            dynamic_get_path=mk_get_path(nptr_map, contents_rvar))
-        # XXX: should only need one of these
-        pathctx.put_path_source_rvar(
-            rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
-        pathctx.put_path_value_rvar(
-            rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
-
-        # compile rewrite shape
-        not_rewritten = {
-            (e, ptrref)
-            for e, ptrref in elements
-            if ptrref.shortname.name not in rewrites
-        }
-        elements = list(rewrites.values())
-
-        _, nptr_map = process_insert_shape(
-            ir_stmt, rew_stmt, nptr_map, elements, typeref, iterator,
-            inner_iterator, ctx
-        )
-
-        # pull-in pointers that were not rewritten
-        for e, ptrref in not_rewritten:
-            # XXX: WHAT DO; this duplicates some
-            val = pathctx.get_path_var(
-                rew_stmt, e.path_id, aspect='value', env=ctx.env
-            )
-            ptr_info = pg_types.get_ptrref_storage_info(
-                ptrref, resolve_type=True, link_bias=False)
-            rew_stmt.target_list.append(pgast.ResTarget(
-                name=ptr_info.column_name, val=val))
-
-        # construct the CTE
-        pathctx.put_path_bond(rew_stmt, ir_stmt.subject.path_id)
-        rewrites_cte = pgast.CommonTableExpr(
-            query=rew_stmt,
-            name=ctx.env.aliases.get('ins_rewrites')
-        )
-        ctx.toplevel_stmt.append_cte(rewrites_cte)
-        rewrites_rvar = relctx.rvar_for_rel(rewrites_cte, ctx=ctx)
     else:
         rewrites_cte = contents_cte
         rewrites_rvar = contents_rvar
+
+    # XXX yeah shit need to futz around with the link tables
 
     # Populate the real insert statement based on the select we generated
     insert_stmt.cols = [
@@ -852,6 +813,83 @@ def process_insert_body(
             dml_parts,
             ctx=ctx,
         )
+
+
+def process_insert_rewrites(
+    ir_stmt: irast.InsertStmt,
+    *,
+    contents_rvar: pgast.PathRangeVar,
+    iterator: Optional[pgast.IteratorCTE],
+    inner_iterator: Optional[pgast.IteratorCTE],
+    rewrites: irast.RewritesOfType,
+    elements: List[Tuple[irast.Set, irast.BasePointerRef]],
+    ctx: context.CompilerContextLevel,
+) -> tuple[pgast.CommonTableExpr, pgast.PathRangeVar]:
+    assert ir_stmt.rewrites
+
+    typeref = ir_stmt.subject.typeref.real_material_type
+
+    subject_path_id = ir_stmt.rewrites.subject_path_id
+    object_path_id = ir_stmt.subject.path_id
+
+    rew_stmt = pgast.SelectStmt(target_list=[])
+
+    # XXX: was select
+    assert isinstance(contents_rvar.query, pgast.Query)
+    pathctx.put_path_id_map(
+        contents_rvar.query, subject_path_id, object_path_id)
+    # pull in contents_select for __subject__
+    relctx.include_rvar(
+        rew_stmt, contents_rvar, subject_path_id, ctx=ctx
+    )
+    relctx.include_rvar(
+        rew_stmt, contents_rvar, object_path_id, ctx=ctx
+    )
+
+    nptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
+    fallback_rvar = pgast.DynamicRangeVar(
+        dynamic_get_path=_mk_dynamic_get_path(
+            nptr_map, typeref, contents_rvar))
+    # XXX: should only need one of these
+    pathctx.put_path_source_rvar(
+        rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
+    pathctx.put_path_value_rvar(
+        rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
+
+    # compile rewrite shape
+    not_rewritten = {
+        (e, ptrref)
+        for e, ptrref in elements
+        if ptrref.shortname.name not in rewrites
+    }
+    elements = list(rewrites.values())
+
+    _, nptr_map = process_insert_shape(
+        ir_stmt, rew_stmt, nptr_map, elements, typeref, iterator,
+        inner_iterator, ctx
+    )
+
+    # pull-in pointers that were not rewritten
+    for e, ptrref in not_rewritten:
+        # XXX: WHAT DO; this duplicates some
+        val = pathctx.get_path_var(
+            rew_stmt, e.path_id, aspect='value', env=ctx.env
+        )
+        ptr_info = pg_types.get_ptrref_storage_info(
+            ptrref, resolve_type=True, link_bias=False)
+        rew_stmt.target_list.append(pgast.ResTarget(
+            name=ptr_info.column_name, val=val))
+
+    # construct the CTE
+    pathctx.put_path_bond(rew_stmt, ir_stmt.subject.path_id)
+    rewrites_cte = pgast.CommonTableExpr(
+        query=rew_stmt,
+        name=ctx.env.aliases.get('ins_rewrites')
+    )
+    ctx.toplevel_stmt.append_cte(rewrites_cte)
+    rewrites_rvar = relctx.rvar_for_rel(rewrites_cte, ctx=ctx)
+
+    return rewrites_cte, rewrites_rvar
 
 
 def process_insert_shape(
@@ -1489,30 +1527,6 @@ def process_update_body(
         parent=ctx.enclosing_cte_iterator,
     )
 
-    # Use a dynamic rvar to return values out of the select purely
-    # based on material rptr, as if it was a base relation (and to
-    # fall back to the base relation if the value wasn't updated.)
-    def mk_get_path(
-        ptr_map: Dict[sn.Name, pgast.BaseExpr],
-        fallback_rvar: pgast.PathRangeVar,
-    ) -> pgast.DynamicRangeVarFunc:
-        def dynamic_get_path(
-            rel: pgast.Query,
-            path_id: irast.PathId,
-            *,
-            flavor: str,
-            aspect: str,
-            env: context.Environment,
-        ) -> Optional[pgast.BaseExpr | pgast.PathRangeVar]:
-            if flavor != "normal" or aspect not in ("value", "identity"):
-                return None
-            if (rptr := path_id.rptr()) and (
-                var := ptr_map.get(rptr.real_material_ptr.name)
-            ):
-                return var
-            return fallback_rvar
-        return dynamic_get_path
-
     with ctx.newscope() as subctx:
         # It is necessary to process the expressions in
         # the UpdateStmt shape body in the context of the
@@ -1538,8 +1552,11 @@ def process_update_body(
         relation = contents_select.from_clause[0]
         assert isinstance(relation, pgast.PathRangeVar)
 
+        # Use a dynamic rvar to return values out of the select purely
+        # based on material rptr, as if it was a base relation (and to
+        # fall back to the base relation if the value wasn't updated.)
         fallback_rvar = pgast.DynamicRangeVar(
-            dynamic_get_path=mk_get_path(ptr_map, relation),
+            dynamic_get_path=_mk_dynamic_get_path(ptr_map, typeref, relation),
         )
         pathctx.put_path_source_rvar(
             contents_select,
@@ -1588,109 +1605,18 @@ def process_update_body(
 
         # Compile rewrites CTE
         if rewrites:
-            assert ir_stmt.rewrites
-            object_path_id = ir_stmt.subject.path_id
-            subject_path_id = ir_stmt.rewrites.subject_path_id
-            old_path_id = ir_stmt.rewrites.old_path_id
-            assert old_path_id
-
-            with ctx.newrel() as rctx:
-                rewrites_stmt = rctx.rel
-                clauses.setup_iterator_volatility(
-                    iterator, is_cte=True, ctx=rctx)
-
-                # pruned down version of gen_dml_cte
-                rewrites_stmt.from_clause.append(range_relation)
-
-                # pull in contents_select for __subject__
-                relctx.include_rvar(
-                    rewrites_stmt, contents_rvar, subject_path_id, ctx=ctx
-                )
-                rewrites_stmt.where_clause = astutils.new_binop(
-                    lexpr=pathctx.get_rvar_path_identity_var(
-                        contents_rvar, object_path_id, env=ctx.env
-                    ),
-                    op="=",
-                    rexpr=pathctx.get_rvar_path_identity_var(
-                        range_relation, object_path_id, env=ctx.env
-                    ),
-                )
-
-                # add entries in path_var_map for __subject__
-                contents_select.path_rvar_map[
-                    (subject_path_id, "source")
-                ] = contents_select.path_rvar_map[(object_path_id, "source")]
-                contents_select.path_rvar_map[
-                    (subject_path_id, "value")
-                ] = contents_select.path_rvar_map[(object_path_id, "value")]
-
-                # pull in table_relation for __old__
-                relctx.include_rvar(
-                    rewrites_stmt, table_relation, old_path_id, ctx=ctx
-                )
-                rewrites_stmt.where_clause = astutils.extend_binop(
-                    rewrites_stmt.where_clause,
-                    astutils.new_binop(
-                        lexpr=pgast.ColumnRef(
-                            name=[table_relation.alias.aliasname, "id"]
-                        ),
-                        op="=",
-                        rexpr=pathctx.get_rvar_path_identity_var(
-                            range_relation, object_path_id, env=ctx.env
-                        ),
-                    ),
-                )
-
-                relctx.pull_path_namespace(
-                    target=rewrites_stmt, source=table_relation, ctx=ctx
-                )
-                table_rel = table_relation.relation
-                assert isinstance(table_rel, pgast.Relation)
-                table_rel.path_outputs[
-                    (subject_path_id, "value")
-                ] = table_rel.path_outputs[(object_path_id, "value")]
-
-                # XXX Refactor
-                not_rewritten = {
-                    (e, ptrref)
-                    for e, ptrref, _ in elements
-                    if ptrref.shortname.name not in rewrites
-                }
-                elements = [
-                    (el, ptrref, qlast.ShapeOp.ASSIGN)
-                    for el, ptrref in rewrites.values()
-                ]
-                values, _, nptr_map = prepare_update_shape(
-                    ir_stmt, rewrites_stmt, elements, typeref, rctx,
-                )
-                # pull-in pointers that were not rewritten
-                for e, ptrref in not_rewritten:
-                    # XXX: WHAT DO; this duplicates some
-                    val = pathctx.get_path_var(
-                        rewrites_stmt, e.path_id, aspect='value', env=ctx.env
-                    )
-                    actual_ptrref = irtyputils.find_actual_ptrref(
-                        typeref, ptrref)
-                    ptr_info = pg_types.get_ptrref_storage_info(
-                        actual_ptrref, resolve_type=True, link_bias=False)
-                    updval = pgast.ResTarget(
-                        name=ptr_info.column_name, val=val)
-                    values.append((updval, e.path_id))
-                    rewrites_stmt.target_list.append(updval)
-
-                fallback_rvar = pgast.DynamicRangeVar(
-                    dynamic_get_path=mk_get_path(nptr_map, contents_rvar),
-                )
-                pathctx.put_path_source_rvar(
-                    rctx.rel, object_path_id, fallback_rvar, env=ctx.env)
-                pathctx.put_path_value_rvar(
-                    rctx.rel, object_path_id, fallback_rvar, env=ctx.env)
-
-                rewrites_cte = pgast.CommonTableExpr(
-                    query=rctx.rel, name=ctx.env.aliases.get("upd_rewrites")
-                )
-                toplevel.append_cte(rewrites_cte)
-                rewrites_rvar = relctx.rvar_for_rel(rewrites_cte, ctx=ctx)
+            rewrites_cte, rewrites_rvar, values = process_update_rewrites(
+                ir_stmt,
+                typeref=typeref,
+                contents_rvar=contents_rvar,
+                iterator=iterator,
+                contents_select=contents_select,
+                table_relation=table_relation,
+                range_relation=range_relation,
+                rewrites=rewrites,
+                elements=elements,
+                ctx=ctx,
+            )
         else:
             rewrites_rvar = contents_rvar
             rewrites_cte = contents_cte
@@ -1781,6 +1707,131 @@ def process_update_body(
 
     for link_cte in link_ctes:
         toplevel.append_cte(link_cte)
+
+
+def process_update_rewrites(
+    ir_stmt: irast.UpdateStmt,
+    *,
+    typeref: irast.TypeRef,
+    contents_rvar: pgast.PathRangeVar,
+    iterator: Optional[pgast.IteratorCTE],
+    contents_select: pgast.SelectStmt,
+    table_relation: pgast.RelRangeVar,
+    range_relation: pgast.PathRangeVar,
+    rewrites: irast.RewritesOfType,
+    elements: List[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
+    ctx: context.CompilerContextLevel,
+) -> tuple[
+    pgast.CommonTableExpr,
+    pgast.PathRangeVar,
+    list[tuple[pgast.ResTarget, irast.PathId]],
+]:
+    assert ir_stmt.rewrites
+    object_path_id = ir_stmt.subject.path_id
+    subject_path_id = ir_stmt.rewrites.subject_path_id
+    old_path_id = ir_stmt.rewrites.old_path_id
+    assert old_path_id
+
+    with ctx.newrel() as rctx:
+        rewrites_stmt = rctx.rel
+        clauses.setup_iterator_volatility(
+            iterator, is_cte=True, ctx=rctx)
+
+        # pruned down version of gen_dml_cte
+        rewrites_stmt.from_clause.append(range_relation)
+
+        # pull in contents_select for __subject__
+        relctx.include_rvar(
+            rewrites_stmt, contents_rvar, subject_path_id, ctx=ctx
+        )
+        rewrites_stmt.where_clause = astutils.new_binop(
+            lexpr=pathctx.get_rvar_path_identity_var(
+                contents_rvar, object_path_id, env=ctx.env
+            ),
+            op="=",
+            rexpr=pathctx.get_rvar_path_identity_var(
+                range_relation, object_path_id, env=ctx.env
+            ),
+        )
+
+        # add entries in path_var_map for __subject__
+        contents_select.path_rvar_map[
+            (subject_path_id, "source")
+        ] = contents_select.path_rvar_map[(object_path_id, "source")]
+        contents_select.path_rvar_map[
+            (subject_path_id, "value")
+        ] = contents_select.path_rvar_map[(object_path_id, "value")]
+
+        # pull in table_relation for __old__
+        relctx.include_rvar(
+            rewrites_stmt, table_relation, old_path_id, ctx=ctx
+        )
+        rewrites_stmt.where_clause = astutils.extend_binop(
+            rewrites_stmt.where_clause,
+            astutils.new_binop(
+                lexpr=pgast.ColumnRef(
+                    name=[table_relation.alias.aliasname, "id"]
+                ),
+                op="=",
+                rexpr=pathctx.get_rvar_path_identity_var(
+                    range_relation, object_path_id, env=ctx.env
+                ),
+            ),
+        )
+
+        relctx.pull_path_namespace(
+            target=rewrites_stmt, source=table_relation, ctx=ctx
+        )
+        table_rel = table_relation.relation
+        assert isinstance(table_rel, pgast.Relation)
+        table_rel.path_outputs[
+            (subject_path_id, "value")
+        ] = table_rel.path_outputs[(object_path_id, "value")]
+
+        # XXX Refactor
+        not_rewritten = {
+            (e, ptrref)
+            for e, ptrref, _ in elements
+            if ptrref.shortname.name not in rewrites
+        }
+        elements = [
+            (el, ptrref, qlast.ShapeOp.ASSIGN)
+            for el, ptrref in rewrites.values()
+        ]
+        values, _, nptr_map = prepare_update_shape(
+            ir_stmt, rewrites_stmt, elements, typeref, rctx,
+        )
+        # pull-in pointers that were not rewritten
+        for e, ptrref in not_rewritten:
+            # XXX: WHAT DO; this duplicates some
+            val = pathctx.get_path_var(
+                rewrites_stmt, e.path_id, aspect='value', env=ctx.env
+            )
+            actual_ptrref = irtyputils.find_actual_ptrref(
+                typeref, ptrref)
+            ptr_info = pg_types.get_ptrref_storage_info(
+                actual_ptrref, resolve_type=True, link_bias=False)
+            updval = pgast.ResTarget(
+                name=ptr_info.column_name, val=val)
+            values.append((updval, e.path_id))
+            rewrites_stmt.target_list.append(updval)
+
+        fallback_rvar = pgast.DynamicRangeVar(
+            dynamic_get_path=_mk_dynamic_get_path(
+                nptr_map, typeref, contents_rvar),
+        )
+        pathctx.put_path_source_rvar(
+            rctx.rel, object_path_id, fallback_rvar, env=ctx.env)
+        pathctx.put_path_value_rvar(
+            rctx.rel, object_path_id, fallback_rvar, env=ctx.env)
+
+        rewrites_cte = pgast.CommonTableExpr(
+            query=rctx.rel, name=ctx.env.aliases.get("upd_rewrites")
+        )
+        ctx.toplevel_stmt.append_cte(rewrites_cte)
+        rewrites_rvar = relctx.rvar_for_rel(rewrites_cte, ctx=ctx)
+
+    return rewrites_cte, rewrites_rvar, values
 
 
 def prepare_update_shape(
