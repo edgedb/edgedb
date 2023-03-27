@@ -525,3 +525,65 @@ class TestRewrites(tb.QueryTestCase):
                 {"z": True},
             ],
         )
+
+    async def test_edgeql_rewrites_15(self):
+        await self.con.execute('''
+            create type X {
+                create property foo -> float64 {
+                    create rewrite insert, update using (random())
+                }
+            };
+        ''')
+
+        await self.con.execute('''
+            for _ in {1, 2} union (insert X);
+        ''')
+
+        await self.assert_query_result(
+            'select count(distinct X.foo);',
+            [2],
+        )
+
+        await self.con.execute('''
+            update X set {};
+        ''')
+
+        await self.assert_query_result(
+            'select count(distinct X.foo);',
+            [2],
+        )
+
+    async def test_edgeql_rewrites_16(self):
+        await self.con.execute('''
+            create type X {
+                create required property bar -> int64;
+                create property foo -> float64 {
+                    create rewrite insert, update using (.bar + random())
+                }
+            };
+        ''')
+
+        await self.con.execute('''
+            for x in {1, 2} union (insert X { bar := x } );
+        ''')
+
+        await self.assert_query_result(
+            'select math::floor(X.foo);',
+            {1, 2},
+        )
+
+        await self.con.execute('''
+            for x in {1, 2} union (
+                update X filter .bar = x set { bar := x*2 } );
+        ''')
+
+
+        await self.assert_query_result(
+            'select math::floor(X.foo);',
+            {2, 4},
+        )
+
+        await self.assert_query_result(
+            'select count(distinct (X { z := .foo - math::floor(.foo) }).z)',
+            [2],
+        )

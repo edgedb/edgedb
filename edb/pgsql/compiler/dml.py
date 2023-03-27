@@ -1596,6 +1596,8 @@ def process_update_body(
 
             with ctx.newrel() as rctx:
                 rewrites_stmt = rctx.rel
+                clauses.setup_iterator_volatility(
+                    iterator, is_cte=True, ctx=rctx)
 
                 # pruned down version of gen_dml_cte
                 rewrites_stmt.from_clause.append(range_relation)
