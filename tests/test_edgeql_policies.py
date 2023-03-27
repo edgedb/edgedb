@@ -941,6 +941,93 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                     owner := {}};
             ''')
 
+    async def test_edgeql_policies_volatile_01(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property r -> float64;
+                create access policy ok allow all;
+                create access policy no deny
+                    update write, insert using (.r <= 0.5);
+            };
+        ''')
+
+        for _ in range(10):
+            async with self._run_and_rollback():
+                try:
+                    await self.con.execute('''
+                        insert Bar { r := random() };
+                    ''')
+                except edgedb.AccessPolicyError:
+                    # If it failed, nothing to do, keep trying
+                    pass
+                else:
+                    r = (await self.con.query('''
+                        select Bar.r
+                    '''))[0]
+                    self.assertGreater(r, 0.5)
+
+        await self.con.execute('''
+            insert Bar { r := 1.0 };
+        ''')
+        for _ in range(10):
+            async with self._run_and_rollback():
+                try:
+                    await self.con.execute('''
+                        update Bar set { r := random() };
+                    ''')
+                except edgedb.AccessPolicyError:
+                    # If it failed, nothing to do, keep trying
+                    pass
+                else:
+                    r = (await self.con.query('''
+                        select Bar.r
+                    '''))[0]
+                    self.assertGreater(r, 0.5)
+
+    async def test_edgeql_policies_volatile_02(self):
+        # Same as above but multi
+        await self.con.execute('''
+            create type Bar {
+                create required multi property r -> float64;
+                create access policy ok allow all;
+                create access policy no deny
+                    update write, insert using (all(.r <= 0.5));
+            };
+        ''')
+
+        for _ in range(10):
+            async with self._run_and_rollback():
+                try:
+                    await self.con.execute('''
+                        insert Bar { r := random() };
+                    ''')
+                except edgedb.AccessPolicyError:
+                    # If it failed, nothing to do, keep trying
+                    pass
+                else:
+                    r = (await self.con.query('''
+                        select Bar.r
+                    '''))[0]
+                    self.assertGreater(r, 0.5)
+
+        await self.con.execute('''
+            insert Bar { r := 1.0 };
+        ''')
+        for _ in range(10):
+            async with self._run_and_rollback():
+                try:
+                    await self.con.execute('''
+                        update Bar set { r := random() };
+                    ''')
+                except edgedb.AccessPolicyError:
+                    # If it failed, nothing to do, keep trying
+                    pass
+                else:
+                    r = (await self.con.query('''
+                        select Bar.r
+                    '''))[0]
+                    self.assertGreater(r, 0.5)
+
     async def test_edgeql_policies_messages(self):
         await self.con.execute(
             '''
