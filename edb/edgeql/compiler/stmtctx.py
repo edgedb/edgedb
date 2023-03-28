@@ -121,7 +121,6 @@ def init_context(
         typ = setgen.get_set_type(ctx.partial_path_prefix, ctx=ctx)
         assert isinstance(typ, s_objtypes.ObjectType)
         ctx.active_rewrites |= {typ, *typ.descendants(ctx.env.schema)}
-        # breakpoint()
 
     ctx.derived_target_module = options.derived_target_module
     ctx.toplevel_result_view_name = options.result_view_name

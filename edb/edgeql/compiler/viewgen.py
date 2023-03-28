@@ -35,6 +35,7 @@ from edb.common.typeutils import downcast, not_none
 from edb.ir import ast as irast
 from edb.ir import typeutils
 from edb.ir import utils as irutils
+import edb.ir.typeutils as irtypeutils
 
 from edb.schema import links as s_links
 from edb.schema import name as sn
@@ -844,8 +845,6 @@ def _compile_rewrites(
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> irast.Rewrites:
-    import edb.ir.typeutils as irtypeutils
-
     # init
     anchors = prepare_rewrite_anchors(
         specified_ptrs, kind, stype, ctx
@@ -1014,10 +1013,9 @@ def _compile_rewrites_for_stype(
 
         subject_set, specified_set, old_set = anchors
 
-        # ???
         rewrite_view = view_scls
         if rewrite_source != view_scls.get_nearest_non_derived_parent(schema):
-            # XXX: CREAM
+            # FIXME: Caching?
             rewrite_view = downcast(
                 s_objtypes.ObjectType,
                 schemactx.derive_view(
@@ -1069,12 +1067,7 @@ def _compile_rewrites_for_stype(
             shape_ql = qlast.ShapeElement(
                 expr=qlast.Path(
                     steps=[
-                        qlast.Ptr(
-                            ptr=qlast.ObjectRef(
-                                name=ptrcls_sn.name,
-                                module=ptrcls_sn.module,
-                            ),
-                        ),
+                        qlast.Ptr(ptr=s_utils.name_to_ast_ref(ptrcls_sn)),
                     ],
                 ),
                 compexpr=qlast.DetachedExpr(
@@ -1117,6 +1110,7 @@ def prepare_rewrite_anchors(
     schema = ctx.env.schema
 
     # init set for __subject__
+    # TODO: Do we really need a separate path id for __subject__?
     subject_name = sn.QualName("__derived__", "__subject__")
     subject_path_id = irast.PathId.from_type(
         schema, stype, typename=subject_name, namespace=ctx.path_id_namespace
@@ -1148,7 +1142,7 @@ def prepare_rewrite_anchors(
                 name=pn.name,
                 val=setgen.ensure_set(
                     irast.BooleanConstant(
-                        value="true" if pn in specified_ptrs else "false",
+                        value=str(pn in specified_ptrs),
                         typeref=bool_path.target,
                     ),
                     ctx=ctx

@@ -1888,8 +1888,7 @@ def range_for_ptrref(
             src_ptrref, resolve_type=False, link_bias=True,
         )
         if not ptr_info:
-            # TODO: bootstrap was failing with this assertion
-            # assert ptrref.union_components
+            assert ptrref.union_components
 
             ptr_info = pg_types.get_ptrref_storage_info(
                 src_ptrref, resolve_type=False, link_bias=False,

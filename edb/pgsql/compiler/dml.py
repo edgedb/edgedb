@@ -654,6 +654,8 @@ def process_insert_body(
     iterator = ctx.enclosing_cte_iterator
     inner_iterator = on_conflict_fake_iterator or iterator
 
+    # ptr_map needs to be set up in advance of compiling the shape
+    # because defaults might reference earlier pointers.
     ptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
 
     # Use a dynamic rvar to return values out of the select purely
@@ -684,7 +686,7 @@ def process_insert_body(
         assert shape_el.expr
         elements.append((shape_el, ptrref))
 
-    external_inserts, ptr_map = process_insert_shape(
+    external_inserts = process_insert_shape(
         ir_stmt, select, ptr_map, elements, typeref, iterator, inner_iterator,
         ctx
     )
@@ -705,9 +707,7 @@ def process_insert_body(
     ctx.toplevel_stmt.append_cte(contents_cte)
     contents_rvar = relctx.rvar_for_rel(contents_cte, ctx=ctx)
 
-    rewrites = None
-    if ir_stmt.rewrites:
-        rewrites = ir_stmt.rewrites.by_type[typeref]
+    rewrites = ir_stmt.rewrites and ir_stmt.rewrites.by_type.get(typeref)
 
     pol_expr = ir_stmt.write_policies.get(typeref.id)
     pol_ctx = None
@@ -725,7 +725,13 @@ def process_insert_body(
     # However, we can't unconditionally do it like this, because we
     # want to be able to use ON CONFLICT to implement UNLESS CONFLICT
     # ON when possible, and in that case the link table operations
-    # need to be done after the *actual insert*.
+    # need to be done after the *actual insert*, because it is the actual
+    # insert that filters out conflicting rows. (This also means that we
+    # can't ues ON CONFLICT if there are rewrites.)
+    #
+    # Similar issues obtain with access policies: we can't use ON
+    # CONFLICT if there are access policies, since we can't "see" all
+    # possible conflicting objects.
     link_ctes = []
 
     def _update_link_tables(inp_cte: pgast.CommonTableExpr) -> None:
@@ -755,7 +761,7 @@ def process_insert_body(
             # Pull in ptr rel overlays, so we can see the pointers
             merge_overlays_globally((ir_stmt,), ctx=rctx)
 
-            rewrites_cte, rewrites_rvar = process_insert_rewrites(
+            contents_cte, contents_rvar = process_insert_rewrites(
                 ir_stmt,
                 contents_cte=contents_cte,
                 contents_rvar=contents_rvar,
@@ -765,20 +771,17 @@ def process_insert_body(
                 elements=elements,
                 ctx=rctx,
             )
-    else:
-        rewrites_cte = contents_cte
-        rewrites_rvar = contents_rvar
 
     # Populate the real insert statement based on the select we generated
     insert_stmt.cols = [
         pgast.InsertTarget(name=not_none(value.name))
-        for value in rewrites_cte.query.target_list
+        for value in contents_cte.query.target_list
     ]
     insert_stmt.select_stmt = pgast.SelectStmt(
         target_list=[
             pgast.ResTarget(val=col) for col in insert_stmt.cols
         ],
-        from_clause=[rewrites_rvar],
+        from_clause=[contents_rvar],
     )
     pathctx.put_path_bond(insert_stmt, ir_stmt.subject.path_id)
 
@@ -795,26 +798,30 @@ def process_insert_body(
         relctx.include_rvar(
             ictx.rel, insert_rvar, ir_stmt.subject.path_id, ctx=ictx)
         relctx.include_rvar(
-            ictx.rel, rewrites_rvar, ir_stmt.subject.path_id, ctx=ictx)
+            ictx.rel, contents_rvar, ir_stmt.subject.path_id, ctx=ictx)
     # TODO: set up dml_parts with a SelectStmt for inserts always?
     insert_cte.query = ictx.rel
 
+    # If there is an ON CONFLICT clause, insert the CTEs now so that the
+    # link inserts can depend on it. Otherwise we have the link updates
+    # depend on the contents cte so that policies can operate before
+    # doing any actual INSERTs.
     if needs_insert_on_conflict:
         ctx.toplevel_stmt.append_cte(real_insert_cte)
         ctx.toplevel_stmt.append_cte(insert_cte)
-
-    # XXX: what's the reason here again
-    dml_cte = rewrites_cte if not needs_insert_on_conflict else insert_cte
+        link_op_cte = insert_cte
+    else:
+        link_op_cte = contents_cte
 
     if not rewrites:
-        _update_link_tables(dml_cte)
+        _update_link_tables(link_op_cte)
 
     if pol_expr:
         assert pol_ctx
         assert not needs_insert_on_conflict
         with pol_ctx.reenter():
             policy_cte = compile_policy_check(
-                rewrites_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
+                contents_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
             )
         force_policy_checks(
             policy_cte,
@@ -860,9 +867,11 @@ def process_insert_rewrites(
 
     rew_stmt = pgast.SelectStmt(target_list=[])
 
-    # XXX: both path situation; this is a mess
+    # Use the original contents as the iterator.
+    # FIXME: Having both subject_path_id and object_path_id is messy
     inner_iterator = pgast.IteratorCTE(
-        path_id=subject_path_id, cte=contents_cte,
+        path_id=subject_path_id,
+        cte=contents_cte,
         parent=inner_iterator,
         other_paths=(
             (object_path_id, 'identity'),
@@ -876,16 +885,10 @@ def process_insert_rewrites(
         contents_rvar.query, subject_path_id, object_path_id)
 
     # compile rewrite shape
-    not_rewritten = {
-        (e, ptrref)
-        for e, ptrref in elements
-        if ptrref.shortname.name not in rewrites
-    }
-    elements = list(rewrites.values())
-
+    rewrite_elements = list(rewrites.values())
     nptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
-    _, nptr_map = process_insert_shape(
-        ir_stmt, rew_stmt, nptr_map, elements, typeref, iterator,
+    process_insert_shape(
+        ir_stmt, rew_stmt, nptr_map, rewrite_elements, typeref, iterator,
         inner_iterator, ctx, force_optional=True
     )
 
@@ -899,9 +902,13 @@ def process_insert_rewrites(
     pathctx.put_path_value_rvar(
         rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
 
-    # pull-in pointers that were not rewritten
+    # Pull in pointers that were not rewritten
+    not_rewritten = {
+        (e, ptrref) for e, ptrref in elements
+        if ptrref.shortname.name not in rewrites
+    }
     for e, ptrref in not_rewritten:
-        # XXX: WHAT DO; this duplicates some
+        # FIXME: Duplicates some with process_insert_shape
         ptr_info = pg_types.get_ptrref_storage_info(
             ptrref, resolve_type=True, link_bias=False)
         if ptr_info.table_type == 'ObjectType':
@@ -933,10 +940,7 @@ def process_insert_shape(
     inner_iterator: Optional[pgast.IteratorCTE],
     ctx: context.CompilerContextLevel,
     force_optional: bool=False
-) -> Tuple[
-    List[irast.Set],
-    Dict[sn.Name, pgast.BaseExpr]
-]:
+) -> List[irast.Set]:
     # Compile the shape
     external_inserts = []
 
@@ -965,7 +969,6 @@ def process_insert_shape(
             if ptr_info.table_type == 'ObjectType':
                 compile_insert_shape_element(
                     element,
-                    ptrref,
                     ir_stmt=ir_stmt,
                     iterator_id=inner_iterator_id,
                     force_optional=force_optional,
@@ -1008,12 +1011,11 @@ def process_insert_shape(
             var=pgast.ColumnRef(name=['id']), env=ctx.env,
         )
 
-    return external_inserts, ptr_map
+    return external_inserts
 
 
 def compile_insert_shape_element(
     shape_el: irast.Set,
-    ptr_ref: irast.BasePointerRef,
     *,
     ir_stmt: irast.MutatingStmt,
     iterator_id: Optional[pgast.BaseExpr],
@@ -1025,8 +1027,6 @@ def compile_insert_shape_element(
         # This method is only called if the upper cardinality of
         # the expression is one, so we check for AT_MOST_ONE
         # to determine nullability.
-        # XXX: WHY DID ALJAŽ MAKE PTR_REF AN ARGUMENT
-        # if ptr_ref.out_cardinality is qltypes.Cardinality.AT_MOST_ONE:
         # FIXME: Doing force_optional for all rewrites is kind of a bummer.
         assert shape_el.rptr is not None
         if (shape_el.rptr.dir_cardinality
@@ -1045,8 +1045,6 @@ def compile_insert_shape_element(
 
         insvalctx.current_insert_path_id = ir_stmt.subject.path_id
 
-        # assert shape_el.expr
-        # return dispatch.compile(shape_el.expr, ctx=insvalctx)
         dispatch.visit(shape_el, ctx=insvalctx)
 
 
@@ -1279,6 +1277,9 @@ def insert_needs_conflict_cte(
     if on_conflict.always_check or ir_stmt.conflict_checks:
         return True
 
+    # We can't use ON CONFLICT if there are access policies
+    # on the type, since UNLESS CONFLICT only should avoid
+    # conflicts with objects that are visible.
     type_id = ir_stmt.subject.typeref.real_material_type.id
     if (
         (type_id, True) in ctx.env.type_rewrites
@@ -1286,8 +1287,11 @@ def insert_needs_conflict_cte(
     ):
         return True
 
+    # We can't use ON CONFLICT if there are rewrites on the type
+    # because rewrites might reference multi pointers, which means
+    # we need to execute link operations before the final INSERT.
     if ir_stmt.rewrites and ir_stmt.rewrites.by_type:
-        return True  # XXX is this right?
+        return True
 
     for shape_el, _ in ir_stmt.subject.shape:
         assert shape_el.rptr is not None
@@ -1552,8 +1556,7 @@ def process_update_body(
 
     if ctx.enclosing_cte_iterator:
         pathctx.put_path_bond(
-            contents_select, ctx.enclosing_cte_iterator.path_id
-        )
+            contents_select, ctx.enclosing_cte_iterator.path_id)
 
     assert dml_parts.range_cte
     iterator = pgast.IteratorCTE(
@@ -1580,7 +1583,7 @@ def process_update_body(
             if shape_op != qlast.ShapeOp.MATERIALIZE
         ]
 
-        values, external_updates, ptr_map = prepare_update_shape(
+        values, external_updates, ptr_map = process_update_shape(
             ir_stmt, contents_select, elements, typeref, subctx
         )
 
@@ -1608,10 +1611,7 @@ def process_update_body(
 
     update_stmt = None
 
-    if ir_stmt.rewrites:
-        rewrites = ir_stmt.rewrites.by_type.get(typeref)
-    else:
-        rewrites = None
+    rewrites = ir_stmt.rewrites and ir_stmt.rewrites.by_type.get(typeref)
 
     pol_expr = ir_stmt.write_policies.get(typeref.id)
     pol_ctx = None
@@ -1619,7 +1619,8 @@ def process_update_body(
         with ctx.new() as pol_ctx:
             pass
 
-    if not values and not rewrites:
+    no_update = not values and not rewrites
+    if no_update:
         # No updates directly to the set target table,
         # so convert the UPDATE statement into a SELECT.
         update_cte.query = contents_select
@@ -1631,6 +1632,7 @@ def process_update_body(
     toplevel.append_cte(contents_cte)
 
     # Process necessary updates to the link tables.
+    # We do link tables before we do the main update so that
     link_ctes = []
     for expr, shape_op in external_updates:
         link_cte, check_cte = process_link_update(
@@ -1649,9 +1651,7 @@ def process_update_body(
         if check_cte is not None:
             ctx.env.check_ctes.append(check_cte)
 
-    if not values and not rewrites:
-        rewrites_cte = contents_cte
-    else:
+    if not no_update:
         table_relation = contents_select.from_clause[0]
         assert isinstance(table_relation, pgast.RelRangeVar)
         range_relation = contents_select.from_clause[1]
@@ -1665,7 +1665,7 @@ def process_update_body(
             assert pol_ctx
             with pol_ctx.reenter(), pol_ctx.new() as rctx:
                 merge_overlays_globally((ir_stmt,), ctx=rctx)
-                rewrites_cte, rewrites_rvar, values = process_update_rewrites(
+                contents_cte, contents_rvar, values = process_update_rewrites(
                     ir_stmt,
                     typeref=typeref,
                     contents_cte=contents_cte,
@@ -1678,9 +1678,6 @@ def process_update_body(
                     elements=elements,
                     ctx=rctx,
                 )
-        else:
-            rewrites_rvar = contents_rvar
-            rewrites_cte = contents_cte
 
         update_stmt = pgast.UpdateStmt(
             relation=table_relation,
@@ -1690,10 +1687,10 @@ def process_update_body(
                 ),
                 op="=",
                 rexpr=pathctx.get_rvar_path_identity_var(
-                    rewrites_rvar, subject_path_id, env=ctx.env
+                    contents_rvar, subject_path_id, env=ctx.env
                 ),
             ),
-            from_clause=[rewrites_rvar],
+            from_clause=[contents_rvar],
             targets=[
                 pgast.UpdateTarget(
                     name=[not_none(value.name) for value, _ in values],
@@ -1702,7 +1699,7 @@ def process_update_body(
                             pgast.ResTarget(
                                 val=pgast.ColumnRef(
                                     name=[
-                                        rewrites_rvar.alias.aliasname,
+                                        contents_rvar.alias.aliasname,
                                         not_none(value.name),
                                     ]
                                 )
@@ -1714,7 +1711,7 @@ def process_update_body(
             ],
         )
         relctx.pull_path_namespace(
-            target=update_stmt, source=rewrites_rvar, ctx=ctx
+            target=update_stmt, source=contents_rvar, ctx=ctx
         )
         pathctx.put_path_value_rvar(
             update_stmt, subject_path_id, table_relation, env=ctx.env
@@ -1729,7 +1726,7 @@ def process_update_body(
         assert pol_ctx
         with pol_ctx.reenter():
             policy_cte = compile_policy_check(
-                rewrites_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
+                contents_cte, ir_stmt, pol_expr, typeref=typeref, ctx=pol_ctx
             )
         force_policy_checks(
             policy_cte,
@@ -1769,12 +1766,12 @@ def process_update_rewrites(
     old_path_id = ir_stmt.rewrites.old_path_id
     assert old_path_id
 
-    # XXX: both path situation
-    # __old__
+    # Need to set up an iterator for any internal DML.
     iterator = pgast.IteratorCTE(
         path_id=subject_path_id,
         cte=contents_cte,
         parent=iterator,
+        # __old__
         other_paths=(
             ((old_path_id, 'identity'),)
         ),
@@ -1837,24 +1834,22 @@ def process_update_rewrites(
             (subject_path_id, "value")
         ] = table_rel.path_outputs[(object_path_id, "value")]
 
-        # XXX Refactor
-        not_rewritten = {
-            (e, ptrref)
-            for e, ptrref, _ in elements
-            if ptrref.shortname.name not in rewrites
-        }
-        elements = [
+        rewrite_elements = [
             (el, ptrref, qlast.ShapeOp.ASSIGN)
             for el, ptrref in rewrites.values()
         ]
-        values, _, nptr_map = prepare_update_shape(
-            ir_stmt, rewrites_stmt, elements, typeref, rctx,
+        values, _, nptr_map = process_update_shape(
+            ir_stmt, rewrites_stmt, rewrite_elements, typeref, rctx,
         )
-        # pull-in pointers that were not rewritten
+
+        # Pull in pointers that were not rewritten
+        not_rewritten = {
+            (e, ptrref) for e, ptrref, _ in elements
+            if ptrref.shortname.name not in rewrites
+        }
         for e, ptrref in not_rewritten:
-            # XXX: WHAT DO; this duplicates some
-            actual_ptrref = irtyputils.find_actual_ptrref(
-                typeref, ptrref)
+            # FIXME: Duplicates some with process_update_shape
+            actual_ptrref = irtyputils.find_actual_ptrref(typeref, ptrref)
             ptr_info = pg_types.get_ptrref_storage_info(
                 actual_ptrref, resolve_type=True, link_bias=False)
             if ptr_info.table_type == 'ObjectType':
@@ -1884,7 +1879,7 @@ def process_update_rewrites(
     return rewrites_cte, rewrites_rvar, values
 
 
-def prepare_update_shape(
+def process_update_shape(
     ir_stmt: irast.UpdateStmt,
     rel: pgast.SelectStmt,
     elements: List[Tuple[irast.Set, irast.BasePointerRef, qlast.ShapeOp]],
