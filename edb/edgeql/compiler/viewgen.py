@@ -982,6 +982,12 @@ def _compile_rewrites_for_stype(
 
     res = {}
 
+    if stype in ctx.active_rewrites:
+        vn = stype.get_verbosename(ctx.env.schema)
+        raise errors.QueryError(
+            f"rewrite rule on {vn} is part of a rewrite rule cycle",
+        )
+
     scls_pointers = stype.get_pointers(schema)
     for pn, ptrcls in scls_pointers.items(schema):
         if ptrcls.is_pure_computable(schema):
@@ -1033,6 +1039,8 @@ def _compile_rewrites_for_stype(
         assert rewrite_expr
 
         with ctx.newscope(fenced=True) as scopectx:
+            scopectx.active_rewrites |= {stype}
+
             # prepare context
             scopectx.partial_path_prefix = subject_set
             nanchors = {}

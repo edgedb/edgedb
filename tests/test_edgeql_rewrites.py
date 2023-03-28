@@ -782,3 +782,27 @@ class TestRewrites(tb.QueryTestCase):
                 {'name': "ham!", 'tname': "ham!!"},
             ]),
         )
+
+    async def test_edgeql_rewrites_20(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, r"rewrite rule cycle"
+        ):
+            await self.con.execute('''
+                create type Recursive;
+                alter type Recursive {
+                    create link rec -> Recursive {
+                        create rewrite insert using (insert Recursive) } };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError, r"rewrite rule cycle"
+        ):
+            await self.con.execute('''
+                create type Foo;
+                create type Bar {
+                    create link rec -> Foo {
+                        create rewrite insert using (insert Foo) } };
+                alter type Foo {
+                    create link rec -> Bar {
+                        create rewrite insert using (insert Bar) } };
+            ''')

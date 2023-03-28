@@ -542,6 +542,8 @@ class ContextLevel(compiler.ContextLevel):
     """Whether we are currently in a place where no dml is allowed,
         if not None, then it is of the form `in a FILTER clause`  """
 
+    active_rewrites: FrozenSet[s_objtypes.ObjectType]
+
     def __init__(
         self,
         prevlevel: Optional[ContextLevel],
@@ -595,6 +597,7 @@ class ContextLevel(compiler.ContextLevel):
             self.compiling_update_shape = False
             self.active_computeds = ordered.OrderedSet()
             self.recompiling_schema_alias = False
+            self.active_rewrites = frozenset()
 
             self.disallow_dml = None
 
@@ -635,6 +638,7 @@ class ContextLevel(compiler.ContextLevel):
             self.compiling_update_shape = prevlevel.compiling_update_shape
             self.active_computeds = prevlevel.active_computeds
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
+            self.active_rewrites = prevlevel.active_rewrites
 
             self.disallow_dml = prevlevel.disallow_dml
 
