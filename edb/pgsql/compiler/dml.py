@@ -860,34 +860,20 @@ def process_insert_rewrites(
 
     rew_stmt = pgast.SelectStmt(target_list=[])
 
-    # XXX: WE ARE JOINING TWICE SOME HOW
-
-    # XXX: both path situation
+    # XXX: both path situation; this is a mess
     inner_iterator = pgast.IteratorCTE(
         path_id=subject_path_id, cte=contents_cte,
-        parent=inner_iterator)
+        parent=inner_iterator,
+        other_paths=(
+            (object_path_id, 'identity'),
+            (object_path_id, 'value'),
+            (object_path_id, 'source'),
+        ),
+    )
 
-    # XXX: was select
     assert isinstance(contents_rvar.query, pgast.Query)
     pathctx.put_path_id_map(
         contents_rvar.query, subject_path_id, object_path_id)
-    # pull in contents_select for __subject__
-    relctx.include_rvar(
-        rew_stmt, contents_rvar, subject_path_id, ctx=ctx
-    )
-    relctx.include_rvar(
-        rew_stmt, contents_rvar, object_path_id, ctx=ctx
-    )
-
-    nptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
-    fallback_rvar = pgast.DynamicRangeVar(
-        dynamic_get_path=_mk_dynamic_get_path(
-            nptr_map, typeref, contents_rvar))
-    # XXX: should only need one of these
-    pathctx.put_path_source_rvar(
-        rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
-    pathctx.put_path_value_rvar(
-        rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
 
     # compile rewrite shape
     not_rewritten = {
@@ -897,10 +883,21 @@ def process_insert_rewrites(
     }
     elements = list(rewrites.values())
 
+    nptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
     _, nptr_map = process_insert_shape(
         ir_stmt, rew_stmt, nptr_map, elements, typeref, iterator,
         inner_iterator, ctx, force_optional=True
     )
+
+    iterator_rvar = pathctx.get_path_rvar(
+        rew_stmt, path_id=subject_path_id, aspect='value', env=ctx.env)
+    fallback_rvar = pgast.DynamicRangeVar(
+        dynamic_get_path=_mk_dynamic_get_path(
+            nptr_map, typeref, iterator_rvar))
+    pathctx.put_path_source_rvar(
+        rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
+    pathctx.put_path_value_rvar(
+        rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
 
     # pull-in pointers that were not rewritten
     for e, ptrref in not_rewritten:
@@ -943,8 +940,6 @@ def process_insert_shape(
     # Compile the shape
     external_inserts = []
 
-    # ptr_map: Dict[irast.BasePointerRef, pgast.BaseExpr] = {}
-
     with ctx.newrel() as subctx:
         subctx.enclosing_cte_iterator = inner_iterator
 
@@ -977,7 +972,6 @@ def process_insert_shape(
                     ctx=subctx,
                 )
 
-                # XXX: wtf
                 insvalue = pathctx.get_path_value_var(
                     subctx.rel, element.path_id, env=ctx.env)
 
