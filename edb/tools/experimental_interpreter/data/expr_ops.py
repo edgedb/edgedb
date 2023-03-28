@@ -415,25 +415,26 @@ def get_link_target(val: Val) -> Val:
             raise ValueError("Not LinkPropVal")
 
 
-def assume_link_target(val: Sequence[Val]) -> Sequence[Val]:
+def assume_link_target(val: MultiSetVal) -> MultiSetVal:
     targets = [get_link_target(v) if isinstance(
-        v, LinkPropVal) else v for v in val]
+        v, LinkPropVal) else v for v in val.vals]
     if all(val_is_object(t) for t in targets):
-        return object_dedup(targets)
+        return MultiSetVal(object_dedup(targets),
+                           singleton=val.singleton)
     elif all(val_is_primitive(t) for t in targets):
-        return targets
+        return MultiSetVal(targets, singleton=val.singleton)
     else:
         raise ValueError("link targets not uniform", val)
 
 
-def map_assume_link_target_multiset_val(
-        sv: Sequence[MultiSetVal]) -> Sequence[MultiSetVal]:
-    return [MultiSetVal(assume_link_target(v.vals)) for v in sv]
-
-
 def map_assume_link_target(
-        sv: Sequence[Sequence[Val]]) -> Sequence[Sequence[Val]]:
+        sv: Sequence[MultiSetVal]) -> Sequence[MultiSetVal]:
     return [assume_link_target(v) for v in sv]
+
+
+# def map_assume_link_target(
+#         sv: Sequence[Sequence[Val]]) -> Sequence[Sequence[Val]]:
+#     return [assume_link_target(v) for v in sv]
 
 
 def map_expand_multiset_val(

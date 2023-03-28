@@ -52,5 +52,12 @@ def val_to_json_like(v: Val) -> json_like:
 
 
 def multi_set_val_to_json_like(m: MultiSetVal) -> json_like:
-    result = [val_to_json_like(v) for v in m]
+    if m.singleton:
+        assert len(m.vals) <= 1, "Single Multiset must have cardinality at most 1"
+        if len(m.vals) == 1:
+            result = val_to_json_like(m.vals[0])
+        else:
+            result = []
+    else:
+        result = [val_to_json_like(v) for v in m.vals]
     return result

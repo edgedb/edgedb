@@ -19,7 +19,7 @@ from .data import expr_ops as eops
 from .data.expr_ops import (
     assume_link_target, coerce_to_storage, combine_object_val,
     get_object_val, instantiate_expr,
-    map_assume_link_target, map_assume_link_target_multiset_val,
+    map_assume_link_target, map_expand_multiset_val,
       val_is_link_convertible, val_is_ref_val)
 from .data.type_ops import is_nominal_subtype_in_schema
 
@@ -303,7 +303,7 @@ def eval_config(rt: RTExpr) -> RTVal:
             return RTVal(rt.data, MultiSetVal(all_ids))
         case FunAppExpr(fun=fname, args=args, overloading_index=_):
             (new_data, argsv) = eval_expr_list(rt.data, args)
-            argsv = map_assume_link_target_multiset_val(argsv)
+            argsv = map_assume_link_target(argsv)
             looked_up_fun = rt.data.schema.fun_defs[fname]
             f_modifier = looked_up_fun.tp.args_mod
             assert len(f_modifier) == len(argsv)
@@ -335,7 +335,7 @@ def eval_config(rt: RTExpr) -> RTVal:
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
             projected = [
                 p
-                for v in assume_link_target(subjectv.vals)
+                for v in assume_link_target(subjectv).vals
                 for p in singular_proj(new_data, v, StrLabel(label))]
             return RTVal(new_data, MultiSetVal(projected))
             # if all([val_is_link_convertible(v) for v in projected]):
@@ -399,30 +399,34 @@ def eval_config(rt: RTExpr) -> RTVal:
             constructed = [
                 UnnamedTupleVal(list(p))
                 for p in itertools.product(
-                    *map_assume_link_target(tuplesv))]
+                    *map_expand_multiset_val(
+                      map_assume_link_target(tuplesv)))]
             return RTVal(
-                new_data,
+                new_data, MultiSetVal(constructed)
                 )
         case NamedTupleExpr(val=tuples):
             (new_data, tuplesv) = eval_expr_list(
                 rt.data, list(tuples.values()))
-            return RTVal(new_data,
-                         [NamedTupleVal({k: p})
-                          for prod in itertools.product(
-                              *map_assume_link_target(tuplesv))
-                          for (k, p) in zip(
-                              tuples.keys(),
-                              prod, strict=True)])
+            result_list: List[Val] = [
+                           NamedTupleVal({k: p})
+                           for prod in itertools.product(
+                             *map_expand_multiset_val(
+                               map_assume_link_target(tuplesv)))
+                           for (k, p) in zip(
+                               tuples.keys(),
+                               prod, strict=True)]
+            return RTVal(new_data, MultiSetVal(result_list))
         case UnionExpr(left=l, right=r):
             (new_data, lvals) = eval_config(RTExpr(rt.data, l))
             (new_data2, rvals) = eval_config(RTExpr(new_data, r))
-            return RTVal(new_data2, [*lvals, *rvals])
+            return RTVal(new_data2, MultiSetVal([*lvals, *rvals]))
         case ArrExpr(elems=elems):
             (new_data, elemsv) = eval_expr_list(rt.data, elems)
-            return RTVal(new_data,
-                         [ArrVal(list(el))
+            arr_result = [ArrVal(list(el))
                           for el in itertools.product(
-                              *map_assume_link_target(elemsv))])
+                          *map_expand_multiset_val(
+                              map_assume_link_target(elemsv)))]
+            return RTVal(new_data, MultiSetVal(arr_result))
         case UpdateExpr(subject=subject, shape=shape):
             if rt.data.eval_only:
                 eval_error(
@@ -451,12 +455,13 @@ def eval_config(rt: RTExpr) -> RTVal:
                         DB(new_dbdata),
                         rt.data.read_snapshots, rt.data.schema,
                         rt.data.eval_only),
-                    updated)
+                    MultiSetVal(updated))
             else:
                 return eval_error(rt.expr, "expecting all references")
         case MultiSetExpr(expr=elems):
             (new_data, elemsv) = eval_expr_list(rt.data, elems)
-            return RTVal(new_data, [e for el in elemsv for e in el])
+            result_list = [e for el in elemsv for e in el.vals]
+            return RTVal(new_data, MultiSetVal(result_list))
         case WithExpr(bound=bound, next=next):
             (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
             (new_data2, nextv) = eval_config(RTExpr(new_data, instantiate_expr(
@@ -480,18 +485,20 @@ def eval_config(rt: RTExpr) -> RTVal:
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
             projected = [p for v in subjectv for p in singular_proj(
                 new_data, v, LinkPropLabel(label))]
-            return RTVal(new_data, projected)
+            return RTVal(new_data, MultiSetVal(projected))
         case ForExpr(bound=bound, next=next):
             (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
             (new_data2, vv) = eval_expr_list(new_data, [
                 instantiate_expr(v, next) for v in boundv])
-            return RTVal(new_data2, [p for v in vv for p in v])
+            result_list = [p for v in vv for p in v.vals]
+            return RTVal(new_data2, MultiSetVal(result_list))
         case OptionalForExpr(bound=bound, next=next):
             (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
             if boundv:
                 (new_data2, vv) = eval_expr_list(new_data, [
                     instantiate_expr(v, next) for v in boundv])
-                return RTVal(new_data2, [p for v in vv for p in v])
+                result_list = [p for v in vv for p in v.vals]
+                return RTVal(new_data2, MultiSetVal(result_list))
             else:
                 return eval_config(
                     RTExpr(
