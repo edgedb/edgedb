@@ -602,7 +602,7 @@ class TestRewrites(tb.QueryTestCase):
 
     async def test_edgeql_rewrites_17(self):
         # Test stuff that *references* multi properties
-        check = 'select S.sum'
+        check = 'select (S.sum, S.delta)'
 
         # XXX: I bet it doesn't work for defaults
         await self.con.execute('''
@@ -610,26 +610,102 @@ class TestRewrites(tb.QueryTestCase):
                 create multi property vals -> int64;
                 create property sum -> int64 {
                     create rewrite insert, update using (sum(.vals))
-                }
+                };
+                create property delta -> int64 {
+                    create rewrite insert using (sum(.vals));
+                    create rewrite update using
+                      (sum(.vals) - sum(__old__.vals))
+                };
             };
         ''')
 
         await self.con.execute('''
             insert S { vals := {1, 2, 3} }
         ''')
-        await self.assert_query_result(check, [6])
+        await self.assert_query_result(check, [(6, 6)])
 
         await self.con.execute('''
             update S set { vals := {4, 5, 6} }
         ''')
-        await self.assert_query_result(check, [15])
+        await self.assert_query_result(check, [(15, 9)])
 
         await self.con.execute('''
-            update S set { vals += {2, 3, 4} }
+            update S set { vals += {3, 4} }
         ''')
-        await self.assert_query_result(check, [24])
+        await self.assert_query_result(check, [(22, 7)])
 
         await self.con.execute('''
             update S set { vals -= 5 }
         ''')
-        await self.assert_query_result(check, [19])
+        await self.assert_query_result(check, [(17, -5)])
+
+    async def test_edgeql_rewrites_18(self):
+        # Rewrites with DML in them
+        await self.con.execute('''
+            create type Tgt { create property name -> str };
+            create type D {
+                create property name -> str;
+                create link t -> Tgt {
+                    create rewrite insert, update using (
+                        insert Tgt { name := __subject__.name }
+                    );
+                };
+            };
+        ''')
+
+        await self.con.execute('''
+            insert D { name := "foo" }
+        ''')
+
+        await self.con.execute('''
+            for x in {'bar', 'baz'} union (
+                insert D { name := x }
+            )
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select D { name, tname := .t.name }
+            ''',
+            tb.bag([
+                {'name': "foo", 'tname': "foo"},
+                {'name': "bar", 'tname': "bar"},
+                {'name': "baz", 'tname': "baz"},
+            ]),
+        )
+
+        await self.con.execute('''
+            update D filter .name = 'foo' set { name := "spam" }
+        ''')
+
+        await self.con.execute('''
+            for x in {('bar', 'eggs'), ('baz', 'ham')} union (
+                update D filter .name = x.0 set { name := x.1 }
+            )
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select D { name, tname := .t.name }
+            ''',
+            tb.bag([
+                {'name': "spam", 'tname': "spam"},
+                {'name': "eggs", 'tname': "eggs"},
+                {'name': "ham", 'tname': "ham"},
+            ]),
+        )
+
+        await self.con.execute('''
+            update D set { name := .name ++ "!" }
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select D { name, tname := .t.name }
+            ''',
+            tb.bag([
+                {'name': "spam!", 'tname': "spam!"},
+                {'name': "eggs!", 'tname': "eggs!"},
+                {'name': "ham!", 'tname': "ham!"},
+            ]),
+        )

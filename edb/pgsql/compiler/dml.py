@@ -757,6 +757,7 @@ def process_insert_body(
 
             rewrites_cte, rewrites_rvar = process_insert_rewrites(
                 ir_stmt,
+                contents_cte=contents_cte,
                 contents_rvar=contents_rvar,
                 iterator=iterator,
                 inner_iterator=inner_iterator,
@@ -842,6 +843,7 @@ def process_insert_body(
 def process_insert_rewrites(
     ir_stmt: irast.InsertStmt,
     *,
+    contents_cte: pgast.CommonTableExpr,
     contents_rvar: pgast.PathRangeVar,
     iterator: Optional[pgast.IteratorCTE],
     inner_iterator: Optional[pgast.IteratorCTE],
@@ -857,6 +859,13 @@ def process_insert_rewrites(
     object_path_id = ir_stmt.subject.path_id
 
     rew_stmt = pgast.SelectStmt(target_list=[])
+
+    # XXX: WE ARE JOINING TWICE SOME HOW
+
+    # XXX: both path situation
+    inner_iterator = pgast.IteratorCTE(
+        path_id=subject_path_id, cte=contents_cte,
+        parent=inner_iterator)
 
     # XXX: was select
     assert isinstance(contents_rvar.query, pgast.Query)
@@ -890,7 +899,7 @@ def process_insert_rewrites(
 
     _, nptr_map = process_insert_shape(
         ir_stmt, rew_stmt, nptr_map, elements, typeref, iterator,
-        inner_iterator, ctx
+        inner_iterator, ctx, force_optional=True
     )
 
     # pull-in pointers that were not rewritten
@@ -926,6 +935,7 @@ def process_insert_shape(
     iterator: Optional[pgast.IteratorCTE],
     inner_iterator: Optional[pgast.IteratorCTE],
     ctx: context.CompilerContextLevel,
+    force_optional: bool=False
 ) -> Tuple[
     List[irast.Set],
     Dict[sn.Name, pgast.BaseExpr]
@@ -963,6 +973,7 @@ def process_insert_shape(
                     ptrref,
                     ir_stmt=ir_stmt,
                     iterator_id=inner_iterator_id,
+                    force_optional=force_optional,
                     ctx=subctx,
                 )
 
@@ -1012,6 +1023,7 @@ def compile_insert_shape_element(
     *,
     ir_stmt: irast.MutatingStmt,
     iterator_id: Optional[pgast.BaseExpr],
+    force_optional: bool,
     ctx: context.CompilerContextLevel,
 ) -> None:
 
@@ -1021,9 +1033,10 @@ def compile_insert_shape_element(
         # to determine nullability.
         # XXX: WHY DID ALJAŽ MAKE PTR_REF AN ARGUMENT
         # if ptr_ref.out_cardinality is qltypes.Cardinality.AT_MOST_ONE:
+        # FIXME: Doing force_optional for all rewrites is kind of a bummer.
         assert shape_el.rptr is not None
         if (shape_el.rptr.dir_cardinality
-                is qltypes.Cardinality.AT_MOST_ONE):
+                is qltypes.Cardinality.AT_MOST_ONE) or force_optional:
             insvalctx.force_optional |= {shape_el.path_id}
 
         if iterator_id is not None:
@@ -1279,7 +1292,7 @@ def insert_needs_conflict_cte(
     ):
         return True
 
-    if ir_stmt.rewrites:
+    if ir_stmt.rewrites and ir_stmt.rewrites.by_type:
         return True  # XXX is this right?
 
     for shape_el, _ in ir_stmt.subject.shape:
@@ -1661,6 +1674,7 @@ def process_update_body(
                 rewrites_cte, rewrites_rvar, values = process_update_rewrites(
                     ir_stmt,
                     typeref=typeref,
+                    contents_cte=contents_cte,
                     contents_rvar=contents_rvar,
                     iterator=iterator,
                     contents_select=contents_select,
@@ -1741,6 +1755,7 @@ def process_update_rewrites(
     ir_stmt: irast.UpdateStmt,
     *,
     typeref: irast.TypeRef,
+    contents_cte: pgast.CommonTableExpr,
     contents_rvar: pgast.PathRangeVar,
     iterator: Optional[pgast.IteratorCTE],
     contents_select: pgast.SelectStmt,
@@ -1760,10 +1775,22 @@ def process_update_rewrites(
     old_path_id = ir_stmt.rewrites.old_path_id
     assert old_path_id
 
+    # XXX: both path situation
+    # __old__
+    iterator = pgast.IteratorCTE(
+        path_id=subject_path_id,
+        cte=contents_cte,
+        parent=iterator,
+        other_paths=(
+            ((old_path_id, 'identity'),)
+        ),
+    )
+
     with ctx.newrel() as rctx:
         rewrites_stmt = rctx.rel
         clauses.setup_iterator_volatility(
             iterator, is_cte=True, ctx=rctx)
+        rctx.enclosing_cte_iterator = iterator
 
         # pruned down version of gen_dml_cte
         rewrites_stmt.from_clause.append(range_relation)

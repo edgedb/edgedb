@@ -890,11 +890,11 @@ def _compile_rewrites(
             path_id = irast.PathId.from_pointer(schema, element.ptrcls)
 
             # construct a new set with correct path_id
-            ptr_set = irast.Set(
+            ptr_set = setgen.new_set_from_set(
+                target,
                 path_id=path_id,
-                typeref=target.typeref,
-                expr=target.expr,
-                rptr=None
+                rptr=None,
+                ctx=ctx,
             )
 
             # construct a new set with correct path_id
@@ -1032,18 +1032,28 @@ def _compile_rewrites_for_stype(
         rewrite_expr = rewrite.get_expr(ctx.env.schema)
         assert rewrite_expr
 
-        with ctx.new() as scopectx:
+        with ctx.newscope(fenced=True) as scopectx:
             # prepare context
             scopectx.partial_path_prefix = subject_set
-            scopectx.anchors["__specified__"] = specified_set
-            scopectx.anchors["__subject__"] = subject_set
+            nanchors = {}
+            nanchors["__specified__"] = specified_set
+            nanchors["__subject__"] = subject_set
             if old_set:
-                scopectx.anchors["__old__"] = old_set
+                nanchors["__old__"] = old_set
 
-            scopectx.env.path_scope.attach_path(
-                subject_set.path_id, context=None
-            )
+            for key, anchor in nanchors.items():
+                scopectx.path_scope.attach_path(
+                    anchor.path_id, context=None,
+                    optional=(anchor is subject_set),
+                )
+                scopectx.iterator_path_ids |= {anchor.path_id}
+                scopectx.anchors[key] = anchor
+
+            # XXX: I am pretty sure this must be wrong, but we get
+            # a failure without due to volatility issues in
+            # test_edgeql_rewrites_16
             scopectx.env.singletons.append(subject_set.path_id)
+
             ctx.path_scope.factoring_allowlist.add(subject_set.path_id)
 
             # prepare expression
@@ -1150,6 +1160,7 @@ def prepare_rewrite_anchors(
         old_set = setgen.new_set(
             stype=stype, path_id=old_path_id, ctx=ctx
         )
+        old_set.expr = irast.TriggerAnchor(typeref=old_set.typeref)
     else:
         old_set = None
 

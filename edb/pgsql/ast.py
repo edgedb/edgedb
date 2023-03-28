@@ -341,7 +341,10 @@ class DynamicRangeVar(PathRangeVar):
 
     @property
     def query(self) -> BaseRelation:
-        raise AssertionError('cannot retrieve query from a dynamic range var')
+        # XXX: Is this legit?
+        raise LookupError('cannot retrieve query from a dynamic range var')
+        # raise AssertionError(
+        #     'cannot retrieve query from a dynamic range var')
 
     # pickling is broken here, oh well
     def __getstate__(self) -> typing.Any:

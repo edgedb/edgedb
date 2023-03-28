@@ -672,8 +672,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.pending_stmt_full_path_id_namespace = frozenset()
                 self.inserting_paths = {}
 
-                self.iterator_path_ids = frozenset()
-
                 self.view_rptr = None
                 self.view_scls = None
                 self.stmt = prevlevel.stmt
