@@ -505,16 +505,18 @@ class LinkPropVal:
     refid: int
     linkprop: ObjectVal
 
-# @dataclass(frozen=True)
-# class MultiSetVal: # U
-#     val : Sequence[Val]
+
+@dataclass(frozen=True)
+class MultiSetVal:
+    vals: Sequence[Val]
+    singleton: bool = False
 
 
 Val = (PrimVal | RefVal | FreeVal
        # | RefLinkVal | LinkWithPropertyVal
        | UnnamedTupleVal | NamedTupleVal | ArrVal | LinkPropVal)  # V
 
-MultiSetVal = Sequence[Val]
+# MultiSetVal = Sequence[Val]
 
 VarExpr = (FreeVarExpr | BoundVarExpr)
 

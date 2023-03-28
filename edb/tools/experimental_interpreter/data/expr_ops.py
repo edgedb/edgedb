@@ -384,10 +384,11 @@ def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> ObjectVal:
             "when coercing ", val, " to ", fmt)
     return ObjectVal(val={
         StrLabel(k): (Visible(),
-                      ([make_storage_atomic(v, tp[0])
-                        for v in val.val[StrLabel(k)][1]]
+                      (MultiSetVal(
+                        [make_storage_atomic(v, tp[0])
+                         for v in val.val[StrLabel(k)][1].vals])
                        if StrLabel(k) in val.val.keys()
-                       else [])
+                       else MultiSetVal([]))
                       ) for (k, tp) in fmt.val.items()
     })
 
@@ -414,7 +415,7 @@ def get_link_target(val: Val) -> Val:
             raise ValueError("Not LinkPropVal")
 
 
-def assume_link_target(val: MultiSetVal) -> MultiSetVal:
+def assume_link_target(val: Sequence[Val]) -> Sequence[Val]:
     targets = [get_link_target(v) if isinstance(
         v, LinkPropVal) else v for v in val]
     if all(val_is_object(t) for t in targets):
@@ -425,9 +426,19 @@ def assume_link_target(val: MultiSetVal) -> MultiSetVal:
         raise ValueError("link targets not uniform", val)
 
 
-def map_assume_link_target(
+def map_assume_link_target_multiset_val(
         sv: Sequence[MultiSetVal]) -> Sequence[MultiSetVal]:
+    return [MultiSetVal(assume_link_target(v.vals)) for v in sv]
+
+
+def map_assume_link_target(
+        sv: Sequence[Sequence[Val]]) -> Sequence[Sequence[Val]]:
     return [assume_link_target(v) for v in sv]
+
+
+def map_expand_multiset_val(
+        sv: Sequence[MultiSetVal]) -> Sequence[Sequence[Val]]:
+    return [v.vals for v in sv]
 
 
 def val_is_link_convertible(val: Val) -> bool:

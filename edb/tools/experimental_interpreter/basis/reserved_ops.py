@@ -4,7 +4,7 @@ from typing import *
 from ..data.data_ops import (ArrTp, ArrVal, BoolTp, BoolVal, BuiltinFuncDef,
                              CardAny, CardOne, FunArgRetType, FunType,
                              IfElseOp, IndirectionIndexOp, IndirectionSliceOp,
-                             IntInfTp, IntInfVal, IntTp, IntVal, MultiSetVal,
+                             IntInfTp, IntInfVal, IntTp, IntVal, Val,
                              ParamSetOf, ParamSingleton, SomeTp, StrTp, StrVal)
 from .errors import FunCallErr
 
@@ -28,7 +28,7 @@ indirection_index_tp = FunType(
                 CardOne))])
 
 
-def indirection_index_impl(arg: Sequence[MultiSetVal]) -> MultiSetVal:
+def indirection_index_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [[StrVal(val=s)], [IntVal(val=i)]]:
             return [StrVal(val=s[i])]
@@ -46,7 +46,7 @@ indirection_slice_tp = FunType(
                       ret_tp=(ArrTp(SomeTp(0)), CardOne))])
 
 
-def indirection_slice_impl(arg: Sequence[MultiSetVal]) -> MultiSetVal:
+def indirection_slice_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [[StrVal(val=s)], [IntVal(val=start)], [IntVal(val=end)]]:
             return [StrVal(val=s[start:end])]
@@ -67,7 +67,7 @@ if_else_tp = FunType(
             ret_tp=(SomeTp(0), CardAny))])
 
 
-def if_else_impl(arg: Sequence[MultiSetVal]) -> MultiSetVal:
+def if_else_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [l1, [BoolVal(val=True)], l2]:
             return l1
