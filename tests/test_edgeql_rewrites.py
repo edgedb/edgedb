@@ -709,3 +709,76 @@ class TestRewrites(tb.QueryTestCase):
                 {'name': "ham!", 'tname': "ham!"},
             ]),
         )
+
+    async def test_edgeql_rewrites_19(self):
+        # Rewrites with DML in them, and the DML has a chained rewrite
+        await self.con.execute('''
+            create type Tgt { create property name -> str {
+                create rewrite insert using (.name ++ '!')
+            } };
+            create type D {
+                create property name -> str;
+                create link t -> Tgt {
+                    create rewrite insert, update using (
+                        insert Tgt { name := __subject__.name }
+                    );
+                };
+            };
+        ''')
+
+        await self.con.execute('''
+            insert D { name := "foo" }
+        ''')
+
+        await self.con.execute('''
+            for x in {'bar', 'baz'} union (
+                insert D { name := x }
+            )
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select D { name, tname := .t.name }
+            ''',
+            tb.bag([
+                {'name': "foo", 'tname': "foo!"},
+                {'name': "bar", 'tname': "bar!"},
+                {'name': "baz", 'tname': "baz!"},
+            ]),
+        )
+
+        await self.con.execute('''
+            update D filter .name = 'foo' set { name := "spam" }
+        ''')
+
+        await self.con.execute('''
+            for x in {('bar', 'eggs'), ('baz', 'ham')} union (
+                update D filter .name = x.0 set { name := x.1 }
+            )
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select D { name, tname := .t.name }
+            ''',
+            tb.bag([
+                {'name': "spam", 'tname': "spam!"},
+                {'name': "eggs", 'tname': "eggs!"},
+                {'name': "ham", 'tname': "ham!"},
+            ]),
+        )
+
+        await self.con.execute('''
+            update D set { name := .name ++ "!" }
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select D { name, tname := .t.name }
+            ''',
+            tb.bag([
+                {'name': "spam!", 'tname': "spam!!"},
+                {'name': "eggs!", 'tname': "eggs!!"},
+                {'name': "ham!", 'tname': "ham!!"},
+            ]),
+        )

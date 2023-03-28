@@ -1111,7 +1111,7 @@ def prepare_rewrite_anchors(
     # init set for __subject__
     subject_name = sn.QualName("__derived__", "__subject__")
     subject_path_id = irast.PathId.from_type(
-        schema, stype, typename=subject_name
+        schema, stype, typename=subject_name, namespace=ctx.path_id_namespace
     )
     subject_set = setgen.new_set(
         stype=stype, path_id=subject_path_id, ctx=ctx
@@ -1132,6 +1132,7 @@ def prepare_rewrite_anchors(
             schema,
             bool_type,
             typename=sn.QualName(module="__derived__", name=pn.name),
+            namespace=ctx.path_id_namespace,
         )
 
         specified_pointers.append(
@@ -1155,7 +1156,7 @@ def prepare_rewrite_anchors(
     if rewrite_kind == qltypes.RewriteKind.Update:
         old_name = sn.QualName("__derived__", "__old__")
         old_path_id = irast.PathId.from_type(
-            schema, stype, typename=old_name
+            schema, stype, typename=old_name, namespace=ctx.path_id_namespace
         )
         old_set = setgen.new_set(
             stype=stype, path_id=old_path_id, ctx=ctx
