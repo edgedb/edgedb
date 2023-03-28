@@ -52,4 +52,5 @@ def val_to_json_like(v: Val) -> json_like:
 
 
 def multi_set_val_to_json_like(m: MultiSetVal) -> json_like:
-    return [val_to_json_like(v) for v in m]
+    result = [val_to_json_like(v) for v in m]
+    return result
