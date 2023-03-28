@@ -610,17 +610,6 @@ def compile_anchor(
         step = setgen.class_set(
             stype, path_id=anchor, ignore_rewrites=True, ctx=ctx)
 
-    elif isinstance(anchor, irast.ComputedObjectSet):
-        # ensure_set for each of the pointers
-        # (this is used for compiling __specified__ in rewrites)
-
-        compiled = {}
-        for pn, pointer in anchor.computed_pointers.items():
-            compiled[pn] = setgen.ensure_set(pointer, ctx=ctx)
-
-        anchor.computed_pointers.update(compiled)
-        step = anchor
-
     else:
         raise RuntimeError(f'unexpected anchor value: {anchor!r}')
 

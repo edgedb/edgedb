@@ -719,15 +719,6 @@ class EmptySet(Set, ConstExpr):
     pass
 
 
-class ComputedObjectSet(Set):
-    # A set of objects whose shape is composed from computed pointers only.
-    # Used for __subject__ in DML, where some pointers have been overridden
-    # by defaults, some we specified constants from the original statement and
-    # some refer to actual object pointers.
-
-    computed_pointers: typing.Dict[str, Set]
-
-
 class BaseConstant(ConstExpr, ImmutableExpr):
     __abstract_node__ = True
     value: typing.Any
