@@ -506,7 +506,9 @@ class LinkPropVal:
     linkprop: ObjectVal
 
 
-@dataclass(frozen=True)
+# TODO: Check the eval_order_by code to make sure 
+# emptyfirst/emptylast is handled correctly
+@dataclass(frozen=True, order=True)
 class MultiSetVal:
     vals: Sequence[Val]
     singleton: bool = False

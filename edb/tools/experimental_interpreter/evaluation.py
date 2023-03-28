@@ -54,9 +54,8 @@ def eval_order_by(
                 StrLabel(str(idx) + OrderLabelSep + spec)]
         result = sorted(
             result, key=key_extract,
-            reverse=(False
-                     if spec == OrderAscending else True
-                     if spec == OrderDescending else
+            reverse=(False if spec == OrderAscending else
+                     True if spec == OrderDescending else
                      eval_error(
                          cast(Sequence[Val],
                               orders),
@@ -175,7 +174,8 @@ def offset_vals(val: Sequence[Val], offset: Val):
             raise ValueError("offset must be an int")
 
 
-def limit_vals(val: Sequence[RTVal], limit: Val):
+def limit_vals(val: Sequence[Val],
+               limit: Val) -> Sequence[Val]:
     match limit:
         case IntVal(val=v):
             return val[:v]
@@ -245,7 +245,7 @@ def eval_config(rt: RTExpr) -> RTVal:
                     rt.expr,
                     "Attempting to Insert in an Eval-Only evaluation")
             (new_data, argmv) = eval_config(RTExpr(rt.data, arg))
-            [argv] = argmv
+            [argv] = argmv.vals
             id = next_id()
             new_object = coerce_to_storage(
                 get_object_val(argv), new_data.schema.val[tname])
@@ -292,7 +292,7 @@ def eval_config(rt: RTExpr) -> RTVal:
         case ShapedExprExpr(expr=subject, shape=shape):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
             after_shape: Sequence[Val] = [apply_shape(
-                new_data, shape, v) for v in subjectv]
+                new_data, shape, v) for v in subjectv.vals]
             return RTVal(new_data, MultiSetVal(after_shape))
         case FreeVarExpr(var=name):
             cur_db_data = rt.data.read_snapshots[0].dbdata
@@ -353,7 +353,7 @@ def eval_config(rt: RTExpr) -> RTVal:
                            if
                            isinstance(v, RefVal) else
                            eval_error(v, "expecting references")
-                           for v in subjectv]
+                           for v in subjectv.vals]
             cur_read_data: Dict[int,
                                 DBEntry] = rt.data.read_snapshots[0].dbdata
             results: List[Val] = []
@@ -378,7 +378,7 @@ def eval_config(rt: RTExpr) -> RTVal:
         case TpIntersectExpr(subject=subject, tp=tp_name):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
             after_intersect: List[Val] = []
-            for v in subjectv:
+            for v in subjectv.vals:
                 match v:
                     case (RefVal(refid=vid, val=_)
                           | LinkPropVal(refid=vid,
@@ -392,7 +392,7 @@ def eval_config(rt: RTExpr) -> RTVal:
             return RTVal(new_data, MultiSetVal(after_intersect))
         case TypeCastExpr(tp=tp, arg=arg):
             (new_data, argv2) = eval_config(RTExpr(rt.data, arg))
-            casted = [type_cast(tp, v) for v in argv2]
+            casted = [type_cast(tp, v) for v in argv2.vals]
             return RTVal(new_data, MultiSetVal(casted))
         case UnnamedTupleExpr(val=tuples):
             (new_data, tuplesv) = eval_expr_list(rt.data, tuples)
@@ -433,10 +433,10 @@ def eval_config(rt: RTExpr) -> RTVal:
                     rt.expr,
                     "Attempting to Update in an Eval-Only evaluation")
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
-            if all([val_is_ref_val(v) for v in subjectv]):
+            if all([val_is_ref_val(v) for v in subjectv.vals]):
                 updated: Sequence[Val] = [apply_shape(
                     new_data, shape, v)
-                    for v in subjectv]  # type: ignore[misc]
+                    for v in subjectv.vals]  # type: ignore[misc]
                 old_dbdata = rt.data.cur_db.dbdata
                 new_dbdata = {
                     **old_dbdata, **
@@ -465,16 +465,18 @@ def eval_config(rt: RTExpr) -> RTVal:
         case WithExpr(bound=bound, next=next):
             (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
             (new_data2, nextv) = eval_config(RTExpr(new_data, instantiate_expr(
-                MultiSetExpr(cast(Sequence[Expr], boundv)), next)))
+                MultiSetExpr(cast(Sequence[Expr], boundv.vals)), next)))
             return RTVal(new_data2, nextv)
         case OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
-            (new_data2, [offsetv]) = eval_config(RTExpr(new_data, offset))
-            (new_data3, [limitv]) = eval_config(RTExpr(new_data2, limit))
-            return RTVal(new_data3,
-                         limit_vals(
-                             offset_vals(subjectv, offsetv),
+            (new_data2, offsetv_m) = eval_config(RTExpr(new_data, offset))
+            offsetv = offsetv_m.vals[0]
+            (new_data3, limitv_m) = eval_config(RTExpr(new_data2, limit))
+            limitv = limitv_m.vals[0]
+            result_list = list(limit_vals(
+                             offset_vals(subjectv.vals, offsetv),
                              limitv))
+            return RTVal(new_data3, MultiSetVal(result_list))
         case SubqueryExpr(expr=expr):
             (new_data, exprv) = eval_config(RTExpr(rt.data, expr))
             return RTVal(new_data, exprv)
@@ -483,20 +485,20 @@ def eval_config(rt: RTExpr) -> RTVal:
             return RTVal(new_data, exprv)
         case LinkPropProjExpr(subject=subject, linkprop=label):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
-            projected = [p for v in subjectv for p in singular_proj(
+            projected = [p for v in subjectv.vals for p in singular_proj(
                 new_data, v, LinkPropLabel(label))]
             return RTVal(new_data, MultiSetVal(projected))
         case ForExpr(bound=bound, next=next):
             (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
             (new_data2, vv) = eval_expr_list(new_data, [
-                instantiate_expr(v, next) for v in boundv])
+                instantiate_expr(v, next) for v in boundv.vals])
             result_list = [p for v in vv for p in v.vals]
             return RTVal(new_data2, MultiSetVal(result_list))
         case OptionalForExpr(bound=bound, next=next):
             (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
-            if boundv:
+            if boundv.vals:
                 (new_data2, vv) = eval_expr_list(new_data, [
-                    instantiate_expr(v, next) for v in boundv])
+                    instantiate_expr(v, next) for v in boundv.vals])
                 result_list = [p for v in vv for p in v.vals]
                 return RTVal(new_data2, MultiSetVal(result_list))
             else:
