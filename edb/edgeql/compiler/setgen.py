@@ -1089,7 +1089,7 @@ def tuple_indirection_set(
     ptr = irast.TupleIndirectionPointer(
         source=path_tip,
         target=ti_set,
-        ptrref=downcast(path_id.rptr(), irast.TupleIndirectionPointerRef),
+        ptrref=downcast(irast.TupleIndirectionPointerRef, path_id.rptr()),
         direction=not_none(path_id.rptr_dir()),
     )
 
@@ -1179,7 +1179,7 @@ def type_intersection_set(
     ptr = irast.TypeIntersectionPointer(
         source=source_set,
         target=poly_set,
-        ptrref=downcast(ptrref, irast.TypeIntersectionPointerRef),
+        ptrref=downcast(irast.TypeIntersectionPointerRef, ptrref),
         direction=not_none(poly_set.path_id.rptr_dir()),
         optional=optional,
     )
