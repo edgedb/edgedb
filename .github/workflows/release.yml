@@ -2277,7 +2277,7 @@ jobs:
       uses: docker/setup-buildx-action@v2
 
     - name: Publish Docker Image
-      uses: elgohr/Publish-Docker-Github-Action@v4
+      uses: elgohr/Publish-Docker-Github-Action@v5
       with:
         name: edgedb/edgedb
         username: ${{ secrets.DOCKER_USERNAME }}
