@@ -319,17 +319,12 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                         }
                     ],
                     "nearest_context_plan": {
-                        "node_type": "Bitmap Heap Scan",
+                        # I've seen this as both Index Scan and Bitmap
+                        # Heap Scan with a subnode Bitmap Index Scan.
+                        # Just don't check, it's fine.
+                        # "node_type": "Index Scan",
                         "parent_relationship": "Outer",
                         "relation_name": "default::Issue",
-                        "plans": [
-                            {
-                                "node_type": "Bitmap Index Scan",
-                                "parent_relationship": "Outer",
-                                "index_name": (
-                                    "default::Issue.owner index"),
-                            }
-                        ],
                         # We get a stack of contexts back
                         "contexts": [
                             {

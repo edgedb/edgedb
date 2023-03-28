@@ -5940,3 +5940,39 @@ class TestInsert(tb.QueryTestCase):
         await self.con._fetchall(
             query, __typenames__=True,
         )
+
+    async def test_edgeql_insert_single_linkprop(self):
+        await self.con.execute('''
+            insert Subordinate { name := "1" };
+            insert Subordinate { name := "2" };
+        ''')
+
+        for _ in range(10):
+            await self.con.execute('''
+                insert InsertTest {
+                    l2 := -1,
+                    sub := (select Subordinate { @note := "!" }
+                             order by random() limit 1)
+                };
+            ''')
+
+        await self.assert_query_result(
+            '''
+            select InsertTest { sub: {name, @note} };
+            ''',
+            [{"sub": {"name": str, "@note": "!"}}] * 10,
+        )
+
+        await self.con.execute('''
+            update InsertTest set {
+                sub := (select Subordinate { @note := "!" }
+                         order by random() limit 1)
+            };
+        ''')
+
+        await self.assert_query_result(
+            '''
+            select InsertTest { sub: {name, @note} };
+            ''',
+            [{"sub": {"name": str, "@note": "!"}}] * 10,
+        )
