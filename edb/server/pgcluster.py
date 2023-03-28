@@ -305,13 +305,15 @@ class BaseCluster:
 class Cluster(BaseCluster):
     def __init__(
         self,
-        data_dir: pathlib.Path,
+        data_dir: pathlib.Path | str,
         *,
         runstate_dir: Optional[pathlib.Path] = None,
         instance_params: Optional[pgparams.BackendInstanceParams] = None,
         log_level: str = 'i',
     ):
         super().__init__(instance_params=instance_params)
+        if isinstance(data_dir, str):
+            data_dir = pathlib.Path(data_dir)
         self._data_dir = data_dir
         self._runstate_dir = (
             runstate_dir if runstate_dir is not None else data_dir)
@@ -524,7 +526,8 @@ class Cluster(BaseCluster):
             self._daemon_supervisor = None
 
     def destroy(self) -> None:
-        shutil.rmtree(self._data_dir)
+        if self._data_dir.exists():
+            shutil.rmtree(self._data_dir)
 
     def reset_hba(self) -> None:
         """Remove all records from pg_hba.conf."""
@@ -813,7 +816,7 @@ async def get_pg_config() -> Dict[str, str]:
 
 
 async def get_local_pg_cluster(
-    data_dir: pathlib.Path,
+    data_dir: pathlib.Path | str,
     *,
     runstate_dir: Optional[pathlib.Path] = None,
     max_connections: Optional[int] = None,

@@ -44,6 +44,7 @@ from edb.testbase import server as tb
 from edb.schema import objects as s_obj
 
 from edb.server import args
+from edb.server import cluster
 from edb.server import config
 from edb.server.config import ops
 from edb.server.config import spec
@@ -1677,6 +1678,12 @@ class TestSeparateCluster(tb.TestCase):
                 '\nedgedb_server_backend_connections_aborted_total',
                 data
             )
+
+    async def test_server_config_pg_env(self):
+        env = {"EDGEDB_SERVER_CFG_PG_UNKNOWN": "xx"}
+        with self.assertRaises(cluster.ClusterError):
+            async with tb.start_edgedb_server(env=env):
+                pass
 
 
 class CfgCommand(args.CfgArgsCommandMixin, click.Command):

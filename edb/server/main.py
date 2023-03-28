@@ -536,7 +536,9 @@ async def run_server(
                         f'stop it to proceed'
                     )
                 elif cluster_status == 'stopped':
-                    await cluster.start()
+                    await cluster.start(
+                        server_settings={**args.cfg_pg_env, **args.cfg_pg_args}
+                    )
                 else:
                     abort('could not initialize data directory "%s"',
                           args.data_dir)
