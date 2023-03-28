@@ -29,6 +29,7 @@ import tempfile
 import textwrap
 import typing
 import unittest
+import unittest.mock
 
 import immutables
 
@@ -1684,7 +1685,8 @@ class CfgCommand(args.CfgArgsCommandMixin, click.Command):
 
 @click.command(cls=CfgCommand)
 @args.server_options
-def cfg_test_command(version, **kwargs):
+def cfg_test_command(**kwargs):
+    kwargs.pop("version")
     return args.parse_args(**kwargs)
 
 
@@ -1705,3 +1707,21 @@ class TestCfgArgs(unittest.TestCase):
 
         with self.assertRaises(click.NoSuchOption):
             cfg_test_command(["--unknown-option"], standalone_mode=False)
+
+    def test_server_config_env(self):
+        env = {
+            "EDGEDB_SERVER_CFG_TEST_A": "123",
+            "EDGEDB_SERVER_CFG_PG_TEST_B": "xyz",
+            "EDGEDB_SERVER_DATADIR": "/tmp",
+            "EDGEDB_SERVER_BIND_ADDRESS": "127.0.0.1",
+            "EDGEDB_SERVER_PORT": "5858",
+        }
+        with unittest.mock.patch.dict('os.environ', env):
+            result: args.ServerConfig = cfg_test_command(
+                [], standalone_mode=False
+            )
+            self.assertEqual(result.cfg_env["test_a"], "123")
+            self.assertEqual(result.cfg_pg_env["test_b"], "xyz")
+            self.assertEqual(result.data_dir, pathlib.Path("/tmp"))
+            self.assertEqual(result.bind_addresses, ("127.0.0.1",))
+            self.assertEqual(result.port, 5858)

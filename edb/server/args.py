@@ -215,6 +215,8 @@ class ServerConfig(NamedTuple):
     admin_ui: bool
     cfg_args: Dict[str, str]
     cfg_pg_args: Dict[str, str]
+    cfg_env: Dict[str, str]
+    cfg_pg_env: Dict[str, str]
 
 
 class PathPath(click.Path):
@@ -977,6 +979,16 @@ def parse_args(**kwargs_in: Any):
         else:
             kwargs[k] = v
 
+    cfg_env = {}
+    cfg_pg_env = {}
+    for k, v in os.environ.items():
+        cfg_pg_key = k.removeprefix("EDGEDB_SERVER_CFG_PG_")
+        cfg_key = k.removeprefix("EDGEDB_SERVER_CFG_")
+        if cfg_pg_key != k:
+            cfg_pg_env[cfg_pg_key.lower()] = v
+        elif cfg_key != k:
+            cfg_env[cfg_key.lower()] = v
+
     kwargs['bind_addresses'] = kwargs.pop('bind_address')
 
     if kwargs['echo_runtime_info']:
@@ -1362,5 +1374,7 @@ def parse_args(**kwargs_in: Any):
         status_sinks=status_sinks,
         cfg_args=cfg_args,
         cfg_pg_args=cfg_pg_args,
+        cfg_env=cfg_env,
+        cfg_pg_env=cfg_pg_env,
         **kwargs,
     )
