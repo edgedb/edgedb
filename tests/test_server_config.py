@@ -18,9 +18,11 @@
 
 
 import asyncio
+import click
 import dataclasses
 import datetime
 import json
+import pathlib
 import platform
 import random
 import tempfile
@@ -1674,3 +1676,32 @@ class TestSeparateCluster(tb.TestCase):
                 '\nedgedb_server_backend_connections_aborted_total',
                 data
             )
+
+
+class CfgCommand(args.CfgArgsCommandMixin, click.Command):
+    pass
+
+
+@click.command(cls=CfgCommand)
+@args.server_options
+def cfg_test_command(version, **kwargs):
+    return args.parse_args(**kwargs)
+
+
+class TestCfgArgs(unittest.TestCase):
+    def test_server_config_args(self):
+        result: args.ServerConfig = cfg_test_command([
+            "-I", "127.0.0.1",
+            "--cfg-test-a=123",
+            "--cfg-pg-test-b", "xyz",
+            "--port", "5858",
+            "-D", "/tmp",
+        ], standalone_mode=False)
+        self.assertEqual(result.cfg_args["test_a"], "123")
+        self.assertEqual(result.cfg_pg_args["test_b"], "xyz")
+        self.assertEqual(result.data_dir, pathlib.Path("/tmp"))
+        self.assertEqual(result.bind_addresses, ("127.0.0.1",))
+        self.assertEqual(result.port, 5858)
+
+        with self.assertRaises(click.NoSuchOption):
+            cfg_test_command(["--unknown-option"], standalone_mode=False)

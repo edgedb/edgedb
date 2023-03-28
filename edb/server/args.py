@@ -213,6 +213,8 @@ class ServerConfig(NamedTuple):
     backend_capability_sets: BackendCapabilitySets
 
     admin_ui: bool
+    cfg_args: Dict[str, str]
+    cfg_pg_args: Dict[str, str]
 
 
 class PathPath(click.Path):
@@ -937,7 +939,44 @@ def compiler_options(func):
     return func
 
 
-def parse_args(**kwargs: Any):
+class CfgArgsParser(click.OptionParser):
+    def _match_long_opt(self, opt, explicit_value, state):
+        try:
+            super()._match_long_opt(opt, explicit_value, state)
+        except click.NoSuchOption:
+            if opt.startswith('--cfg-'):
+                # Allow any `--cfg-*` long options
+                option = click.Option((opt,))
+                self.ctx.command.params.append(option)
+                option.add_to_parser(self, self.ctx)
+                super()._match_long_opt(opt, explicit_value, state)
+            else:
+                raise
+
+
+class CfgArgsCommandMixin:
+    def make_parser(self, ctx):
+        # This method is only here to provide a customized parser
+        parser = CfgArgsParser(ctx)
+        for param in self.get_params(ctx):
+            param.add_to_parser(parser, ctx)
+        return parser
+
+
+def parse_args(**kwargs_in: Any):
+    kwargs = {}
+    cfg_args = {}
+    cfg_pg_args = {}
+    for k, v in kwargs_in.items():
+        cfg_pg_key = k.removeprefix("cfg_pg_")
+        cfg_key = k.removeprefix("cfg_")
+        if cfg_pg_key != k:
+            cfg_pg_args[cfg_pg_key] = v
+        elif cfg_key != k:
+            cfg_args[cfg_key] = v
+        else:
+            kwargs[k] = v
+
     kwargs['bind_addresses'] = kwargs.pop('bind_address')
 
     if kwargs['echo_runtime_info']:
@@ -1321,5 +1360,7 @@ def parse_args(**kwargs: Any):
     return ServerConfig(
         startup_script=startup_script,
         status_sinks=status_sinks,
+        cfg_args=cfg_args,
+        cfg_pg_args=cfg_pg_args,
         **kwargs,
     )

@@ -687,8 +687,13 @@ def server_main(**kwargs):
             asyncio.run(run_server(server_args))
 
 
+class CfgArgsGroup(srvargs.CfgArgsCommandMixin, click.Group):
+    pass
+
+
 @click.group(
     'EdgeDB Server',
+    cls=CfgArgsGroup,
     invoke_without_command=True,
     context_settings=dict(help_option_names=['-h', '--help']))
 @srvargs.server_options

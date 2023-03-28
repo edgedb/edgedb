@@ -43,7 +43,11 @@ def edbcommands(ctx, devmode: bool):
         dm.enable_dev_mode()
 
 
-@edbcommands.command()
+class CfgArgsCommand(srv_args.CfgArgsCommandMixin, click.Command):
+    pass
+
+
+@edbcommands.command(cls=CfgArgsCommand)
 @srv_args.server_options
 def server(version=False, **kwargs):
     if version:
