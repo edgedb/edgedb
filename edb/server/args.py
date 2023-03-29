@@ -213,6 +213,7 @@ class ServerConfig(NamedTuple):
     backend_capability_sets: BackendCapabilitySets
 
     admin_ui: bool
+    cfg_args: List[str]
 
 
 class PathPath(click.Path):
@@ -1317,6 +1318,8 @@ def parse_args(**kwargs: Any):
             kwargs['instance_name'] = '_localdev'
         else:
             kwargs['instance_name'] = '_unknown'
+
+    kwargs['cfg_args'] = list(kwargs['cfg_args'])
 
     return ServerConfig(
         startup_script=startup_script,

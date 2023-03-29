@@ -43,11 +43,13 @@ from . import logsetup
 logsetup.early_setup()
 
 from edb import buildmeta
+from edb.ir import statypes
 from edb.common import exceptions
 from edb.common import devmode
 from edb.common import signalctl
 from edb.common import debug
 
+from . import config
 from . import args as srvargs
 from . import daemon
 from . import defines
@@ -140,11 +142,11 @@ def _internal_state_dir(runstate_dir):
 async def _init_cluster(cluster, args: srvargs.ServerConfig) -> bool:
     from edb.server import bootstrap
 
-    need_restart = await bootstrap.ensure_bootstrapped(cluster, args)
+    new_instance = await bootstrap.ensure_bootstrapped(cluster, args)
     global _server_initialized
     _server_initialized = True
 
-    return need_restart
+    return new_instance
 
 
 def _init_parsers():
@@ -531,6 +533,7 @@ async def run_server(
             cluster_status = await cluster.get_status()
 
             if isinstance(cluster, pgcluster.Cluster):
+                is_local_cluster = True
                 if cluster_status == 'running':
                     # Refuse to start local instance on an occupied datadir,
                     # as it's very likely that Postgres was orphaned by an
@@ -548,15 +551,24 @@ async def run_server(
                           args.data_dir)
             else:
                 # We expect the remote cluster to be running
+                is_local_cluster = False
                 if cluster_status != "running":
                     abort('specified PostgreSQL instance is not running')
 
-            need_cluster_restart = await _init_cluster(cluster, args)
+            new_instance = await _init_cluster(cluster, args)
 
-            if need_cluster_restart:
+            cfg, backend_settings = initialize_static_cfg(
+                args.cfg_args, is_remote_cluster=not is_local_cluster
+            )
+            if cfg:
+                from . import pgcon
+                pgcon.set_init_con_script_data(cfg)
+
+            if is_local_cluster and (new_instance or backend_settings):
                 logger.info('Restarting server to reload configuration...')
                 await cluster.stop()
-                await cluster.start()
+                await cluster.start(server_settings=backend_settings)
+                backend_settings = {}
 
             if (
                 not args.bootstrap_only
@@ -577,6 +589,7 @@ async def run_server(
                     conn_params,
                     server_settings={
                         **conn_params.server_settings,
+                        **backend_settings,
                         'application_name': f'edgedb_instance_{instance_name}',
                         'edgedb.instance_name': instance_name,
                         'edgedb.server_version': buildmeta.get_version_json(),
@@ -622,7 +635,7 @@ async def run_server(
                         runstate_dir,
                         int_runstate_dir,
                         do_setproctitle=do_setproctitle,
-                        new_instance=need_cluster_restart,
+                        new_instance=new_instance,
                     )
 
         except server.StartupError as e:
@@ -693,10 +706,41 @@ def server_main(**kwargs):
             asyncio.run(run_server(server_args))
 
 
+class CfgArgsGroup(click.Group):
+    # The default click.Group cannot simply take remaining arguments because
+    # it won't pass the subcommand check; on the other hand, an argument with
+    # `nargs=-1` would cripple subcommands. So we patch click.Group here to
+    # support both, with a drawback that extra arguments must all come together
+    # in the end.
+    def invoke(self, ctx):
+        if not ctx.protected_args:
+            ctx.params["cfg_args"] = ()
+            return super().invoke(ctx)
+        args = ctx.protected_args + ctx.args
+        resilient_parsing = ctx.resilient_parsing
+        ctx.resilient_parsing = True
+        try:
+            cmd = self.resolve_command(ctx, args)[1]
+        finally:
+            ctx.resilient_parsing = resilient_parsing
+        if cmd is None:
+            ctx.args = []
+            ctx.protected_args = []
+            ctx.params["cfg_args"] = args
+            return click.Command.invoke(self, ctx)
+        else:
+            return super().invoke(ctx)
+
+
 @click.group(
     'EdgeDB Server',
     invoke_without_command=True,
-    context_settings=dict(help_option_names=['-h', '--help']))
+    cls=CfgArgsGroup,
+    context_settings=dict(
+        ignore_unknown_options=True,
+        help_option_names=['-h', '--help'],
+    )
+)
 @srvargs.server_options
 @click.pass_context
 def main(ctx, version=False, **kwargs):
@@ -723,6 +767,113 @@ def compiler(**kwargs):
 def main_dev():
     devmode.enable_dev_mode()
     main()
+
+
+def _coerce_cfg_value(setting: config.Setting, value):
+    if setting.set_of:
+        return frozenset(
+            config.coerce_single_value(setting, v) for v in value
+        )
+    else:
+        return config.coerce_single_value(setting, value)
+
+
+def initialize_static_cfg(
+    cfg_args: List[str], is_remote_cluster: bool
+) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
+    result = []
+    backend_settings = {}
+    command_line_argument = "A"
+    environment_variable = "E"
+    spec = config.get_settings()
+
+    def add_config(name, value, type_):
+        setting = spec[name]
+        if is_remote_cluster:
+            if setting.backend_setting and setting.requires_restart:
+                if type_ == command_line_argument:
+                    where = "on command line"
+                else:
+                    where = "as an environment variable"
+                raise server.StartupError(
+                    f"Can't set config {name:r} {where} when using "
+                    f"a remote Postgres cluster"
+                )
+        value = _coerce_cfg_value(setting, value)
+        result.append({
+            "name": name,
+            "value": config.value_to_json_value(setting, value),
+            "type": type_,
+        })
+        if setting.backend_setting:
+            if isinstance(value, statypes.ScalarType):
+                value = value.to_backend_str()
+            backend_settings[setting.backend_setting] = str(value)
+
+    env_value: Any
+    setting: config.Setting
+    for env_name, env_value in os.environ.items():
+        cfg_name = env_name.removeprefix("EDGEDB_SERVER_CFG_")
+        if cfg_name == env_name:
+            continue
+        cfg_name = cfg_name.lower()
+        try:
+            setting = spec[cfg_name]
+        except KeyError:
+            continue
+        choices = None
+        if setting.type == bool:
+            choices = ['true', 'false']
+        env_value = env_value.lower()
+        if choices is not None and env_value not in choices:
+            raise server.StartupError(
+                f"Environment variable {env_name:r} can only be one of: " +
+                ", ".join(choices)
+            )
+        if setting.type == bool:
+            env_value = env_value == 'true'
+        elif not issubclass(setting.type, statypes.ScalarType):
+            env_value = setting.type(env_value)  # type: ignore
+        add_config(cfg_name, env_value, environment_variable)
+
+    if not cfg_args:
+        return result, backend_settings
+
+    default = object()
+
+    class RealOptionalOption(click.Option):
+        def get_default(self, ctx):
+            return default
+
+    params: List[click.Parameter] = []
+    for cfg_name, setting in spec.items():
+        type_: Any = None
+        decl = cfg_name.replace("_", "-")
+        if setting.type == bool:
+            decl = f"--cfg-{decl}/--cfg-no-{decl}"
+        else:
+            decl = f"--cfg-{decl}"
+            if not issubclass(setting.type, statypes.ScalarType):
+                type_ = setting.type
+        params.append(RealOptionalOption(
+            (decl, cfg_name),
+            multiple=setting.set_of,
+            type=type_,
+        ))
+
+    cmd = click.Command("", params=params, callback=lambda **kwargs: kwargs)
+    try:
+        args = cmd.main(cfg_args, standalone_mode=False)
+    except click.UsageError as e:
+        e.ctx = click.get_current_context()
+        raise
+
+    for cfg_name, arg_value in args.items():
+        if arg_value is default:
+            continue
+        add_config(cfg_name, arg_value, command_line_argument)
+
+    return result, backend_settings
 
 
 if __name__ == '__main__':

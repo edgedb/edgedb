@@ -100,6 +100,7 @@ def _get_initdb_options(initdb_options=None):
 
 @click.command()
 @edb_args.server_options
+@click.argument("cfg_args", nargs=-1)
 def get_default_args(version, **kwargs):
     pickle.dump(kwargs, sys.stdout.buffer)
 
