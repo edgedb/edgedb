@@ -277,7 +277,6 @@ CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
 CREATE ABSTRACT TYPE schema::Pointer
     EXTENDING
         schema::ConsistencySubject,
-        schema::InheritingObject,
         schema::AnnotationSubject
 {
     CREATE PROPERTY cardinality -> schema::Cardinality;
@@ -327,7 +326,6 @@ CREATE TYPE schema::ScalarType
     EXTENDING
         schema::PrimitiveType,
         schema::ConsistencySubject,
-        schema::InheritingObject,
         schema::AnnotationSubject
 {
     CREATE PROPERTY default -> std::str;
