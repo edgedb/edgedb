@@ -62,6 +62,20 @@ if TYPE_CHECKING:
     SettingsMap = immutables.Map[str, SettingValue]
 
 
+def coerce_single_value(setting: spec.Setting, value: Any) -> Any:
+    if isinstance(value, setting.type):
+        return value
+    elif (isinstance(value, str) and
+          issubclass(setting.type, statypes.Duration)):
+        return statypes.Duration(value)
+    elif (isinstance(value, (str, int)) and
+          issubclass(setting.type, statypes.ConfigMemory)):
+        return statypes.ConfigMemory(value)
+    else:
+        raise errors.ConfigurationError(
+            f'invalid value type for the {setting.name!r} setting')
+
+
 class Operation(NamedTuple):
 
     opcode: OpCode
@@ -93,27 +107,17 @@ class Operation(NamedTuple):
                     f'invalid value type for the '
                     f'{setting.name!r} setting')
             else:
-                for v in self.value:  # type: ignore
-                    if not isinstance(v, setting.type):
-                        raise errors.ConfigurationError(
-                            f'invalid value type for the '
-                            f'{setting.name!r} setting')
-
-                return frozenset(self.value)  # type: ignore
+                return frozenset(
+                    coerce_single_value(setting, v)
+                    for v in self.value)  # type: ignore
         else:
-            if isinstance(self.value, setting.type):
-                return self.value
-            elif (isinstance(self.value, str) and
-                    issubclass(setting.type, statypes.Duration)):
-                return statypes.Duration(self.value)
-            elif (isinstance(self.value, (str, int)) and
-                    issubclass(setting.type, statypes.ConfigMemory)):
-                return statypes.ConfigMemory(self.value)
-            elif self.value is None and allow_missing:
-                return None
-            else:
-                raise errors.ConfigurationError(
-                    f'invalid value type for the {setting.name!r} setting')
+            try:
+                return coerce_single_value(setting, self.value)
+            except errors.ConfigurationError:
+                if self.value is None and allow_missing:
+                    return None
+                else:
+                    raise
 
     def coerce_global_value(
             self, *, allow_missing: bool = False) -> Optional[bytes]:
