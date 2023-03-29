@@ -3107,6 +3107,8 @@ class SysConfigSourceType(dbops.Enum):
                 'postgres default',
                 'postgres environment variable',
                 'postgres configuration file',
+                'environment variable',
+                'command line',
                 'postgres command line',
                 'postgres global',
                 'system override',
@@ -3528,12 +3530,16 @@ class SysConfigFullFunction(dbops.Function):
             SELECT
                 s.name AS name,
                 s.value AS value,
-                'session' AS source,
-                FALSE AS from_backend  -- 'C' is for non-backend settings
+                (CASE
+                    WHEN s.type = 'A' THEN 'command line'
+                    WHEN s.type = 'E' THEN 'environment variable'
+                    ELSE 'session'
+                END) AS source,
+                FALSE AS from_backend  -- only 'B' is for backend settings
             FROM
                 _edgecon_state s
             WHERE
-                s.type = 'C'
+                s.type != 'B'
         ),
 
         pg_db_setting AS (

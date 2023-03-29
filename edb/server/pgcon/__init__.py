@@ -26,10 +26,13 @@ from .errors import (
     BackendCatalogNameError,
 )
 
-from .pgcon import connect, PGConnection, SETUP_TEMP_TABLE_SCRIPT
+from .pgcon import (
+    connect, PGConnection, SETUP_TEMP_TABLE_SCRIPT, set_init_con_script_data
+)
 
 __all__ = (
     'connect',
+    'set_init_con_script_data',
     'PGConnection',
     'BackendError',
     'BackendConnectionError',
