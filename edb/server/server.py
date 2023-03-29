@@ -1193,7 +1193,12 @@ class Server(ha_base.ClusterProtocol):
                     'address/port, please see server log for more information.'
                 )
         self._servers = servers
-        self._listen_hosts = nethosts
+        self._listen_hosts = [
+            s.getsockname()[0]
+            for host, tcp_srv in servers.items()
+            if host != ADMIN_PLACEHOLDER
+            for s in tcp_srv.sockets
+        ]
         self._listen_port = netport
 
         await self._stop_servers_with_logging(servers_to_stop)
@@ -2157,7 +2162,7 @@ class Server(ha_base.ClusterProtocol):
             self._listen_port,
             sockets=self._listen_sockets,
         )
-        self._listen_hosts = listen_addrs
+        self._listen_hosts = [addr[0] for addr in listen_addrs]
         self._listen_port = actual_port
 
         self._accepting_connections = True
