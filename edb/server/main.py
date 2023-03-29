@@ -821,7 +821,7 @@ def initialize_static_cfg(
             setting = spec[cfg_name]
         except KeyError:
             continue
-        choices = None
+        choices = setting.enum_values
         if setting.type == bool:
             choices = ['true', 'false']
         env_value = env_value.lower()
@@ -853,7 +853,9 @@ def initialize_static_cfg(
             decl = f"--cfg-{decl}/--cfg-no-{decl}"
         else:
             decl = f"--cfg-{decl}"
-            if not issubclass(setting.type, statypes.ScalarType):
+            if setting.enum_values is not None:
+                type_ = click.Choice(setting.enum_values)
+            elif not issubclass(setting.type, statypes.ScalarType):
                 type_ = setting.type
         params.append(RealOptionalOption(
             (decl, cfg_name),
