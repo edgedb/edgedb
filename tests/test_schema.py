@@ -8874,11 +8874,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             # the links order is non-deterministic
             """
             CREATE TYPE schema::ObjectType
-            EXTENDING schema::InheritingObject,
+            EXTENDING schema::Source,
                       schema::ConsistencySubject,
-                      schema::AnnotationSubject,
+                      schema::InheritingObject,
                       schema::Type,
-                      schema::Source
+                      schema::AnnotationSubject
             {
                 CREATE MULTI LINK access_policies: schema::AccessPolicy {
                     EXTENDING schema::reference;
@@ -8908,12 +8908,12 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             'DESCRIBE TYPE schema::ObjectType AS SDL',
 
             """
-            type schema::ObjectType extending
-                    schema::InheritingObject,
-                    schema::ConsistencySubject,
-                    schema::AnnotationSubject,
-                    schema::Type,
-                    schema::Source
+            type schema::ObjectType
+            extending schema::Source,
+                      schema::ConsistencySubject,
+                      schema::InheritingObject,
+                      schema::Type,
+                      schema::AnnotationSubject
             {
                 multi link access_policies: schema::AccessPolicy {
                     extending schema::reference;

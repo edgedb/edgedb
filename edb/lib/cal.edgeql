@@ -19,10 +19,10 @@
 CREATE MODULE cal;
 
 CREATE SCALAR TYPE cal::local_datetime
-    EXTENDING std::anyscalar, std::anycontiguous;
+    EXTENDING std::anycontiguous;
 
 CREATE SCALAR TYPE cal::local_date
-    EXTENDING std::anyscalar, std::anydiscrete;
+    EXTENDING std::anydiscrete;
 
 CREATE SCALAR TYPE cal::local_time EXTENDING std::anyscalar;
 

@@ -44,6 +44,7 @@ if TYPE_CHECKING:
 
 class AccessPolicy(
     referencing.NamedReferencedInheritingObject,
+    so.InheritingObject,  # Help reflection figure out the right db MRO
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.ACCESS_POLICY,
     data_safe=True,

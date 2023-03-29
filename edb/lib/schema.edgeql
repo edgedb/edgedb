@@ -239,7 +239,8 @@ CREATE TYPE schema::Constraint
 };
 
 
-CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
+CREATE ABSTRACT TYPE schema::ConsistencySubject
+      EXTENDING schema::InheritingObject {
     CREATE MULTI LINK constraints EXTENDING schema::reference
     -> schema::Constraint {
         CREATE CONSTRAINT std::exclusive;
@@ -275,7 +276,7 @@ CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
 
 CREATE ABSTRACT TYPE schema::Pointer
     EXTENDING
-        schema::InheritingObject, schema::ConsistencySubject,
+        schema::ConsistencySubject,
         schema::AnnotationSubject
 {
     CREATE PROPERTY cardinality -> schema::Cardinality;
@@ -323,8 +324,9 @@ CREATE TYPE schema::Alias EXTENDING schema::AnnotationSubject
 
 CREATE TYPE schema::ScalarType
     EXTENDING
-        schema::InheritingObject, schema::ConsistencySubject,
-        schema::AnnotationSubject, schema::PrimitiveType
+        schema::PrimitiveType,
+        schema::ConsistencySubject,
+        schema::AnnotationSubject
 {
     CREATE PROPERTY default -> std::str;
     CREATE PROPERTY enum_values -> array<std::str>;
@@ -397,8 +399,11 @@ CREATE FUNCTION std::sequence_next(
 
 CREATE TYPE schema::ObjectType
     EXTENDING
-        schema::InheritingObject, schema::ConsistencySubject,
-        schema::AnnotationSubject, schema::Type, schema::Source;
+        schema::Source,
+        schema::ConsistencySubject,
+        schema::InheritingObject,
+        schema::Type,
+        schema::AnnotationSubject;
 
 
 ALTER TYPE std::BaseObject {

@@ -353,6 +353,7 @@ def make_func_param(
 
 class Parameter(
     so.ObjectFragment,
+    so.Object,  # Help reflection figure out the right db MRO
     ParameterLike,
     qlkind=ft.SchemaObjectClass.PARAMETER,
     data_safe=True,
