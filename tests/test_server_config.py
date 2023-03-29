@@ -41,6 +41,7 @@ from edb.testbase import server as tb
 from edb.schema import objects as s_obj
 
 from edb.server import args
+from edb.server import cluster
 from edb.server import config
 from edb.server.config import ops
 from edb.server.config import spec
@@ -1702,3 +1703,95 @@ class TestSeparateCluster(tb.TestCase):
                 '\nedgedb_server_backend_connections_aborted_total',
                 data
             )
+
+
+class TestStaticServerConfig(tb.TestCase):
+    async def test_server_config_args_01(self):
+        async with tb.start_edgedb_server(
+            extra_args=[
+                "--cfg-session-idle-timeout", "2m18s",
+                "--cfg-query-execution-timeout", "609",
+                "--cfg-no-apply-access-policies",
+            ]
+        ) as sd:
+            conn = await sd.connect()
+            try:
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.session_idle_timeout)
+                    """),
+                    datetime.timedelta(minutes=2, seconds=18),
+                )
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(
+                            cfg::Config.query_execution_timeout)
+                    """),
+                    datetime.timedelta(seconds=609),
+                )
+                self.assertFalse(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.apply_access_policies)
+                    """)
+                )
+            finally:
+                await conn.aclose()
+
+    async def test_server_config_args_02(self):
+        with self.assertRaises(cluster.ClusterError):
+            async with tb.start_edgedb_server(
+                extra_args=["--cfg-session-idle-timeout", "illegal input"]
+            ):
+                pass
+
+    async def test_server_config_args_03(self):
+        with self.assertRaises(cluster.ClusterError):
+            async with tb.start_edgedb_server(
+                extra_args=["--cfg-non-exist"]
+            ):
+                pass
+
+    async def test_server_config_env_01(self):
+        async with tb.start_edgedb_server(
+            env={
+                "EDGEDB_SERVER_CFG_SESSION_IDLE_TIMEOUT": "1m22s",
+                "EDGEDB_SERVER_CFG_QUERY_EXECUTION_TIMEOUT": "403",
+                "EDGEDB_SERVER_CFG_APPLY_ACCESS_POLICIES": "false",
+            }
+        ) as sd:
+            conn = await sd.connect()
+            try:
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.session_idle_timeout)
+                    """),
+                    datetime.timedelta(minutes=1, seconds=22),
+                )
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(
+                            cfg::Config.query_execution_timeout)
+                    """),
+                    datetime.timedelta(seconds=403),
+                )
+                self.assertFalse(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.apply_access_policies)
+                    """)
+                )
+            finally:
+                await conn.aclose()
+
+    async def test_server_config_env_02(self):
+        with self.assertRaises(cluster.ClusterError):
+            async with tb.start_edgedb_server(
+                env={"EDGEDB_SERVER_CFG_ALLOW_BARE_DDL": "illegal_input"}
+            ):
+                pass
+
+    async def test_server_config_env_03(self):
+        with self.assertRaises(cluster.ClusterError):
+            async with tb.start_edgedb_server(
+                env={"EDGEDB_SERVER_CFG_APPLY_ACCESS_POLICIES": "on"}
+            ):
+                pass

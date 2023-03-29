@@ -1885,6 +1885,7 @@ class _EdgeDBServer:
         jwt_sub_allowlist_file: Optional[os.PathLike] = None,
         jwt_revocation_list_file: Optional[os.PathLike] = None,
         env: Optional[Dict[str, str]] = None,
+        extra_args: Optional[List[str]] = None,
     ) -> None:
         self.bind_addrs = bind_addrs
         self.auto_shutdown_after = auto_shutdown_after
@@ -1915,6 +1916,7 @@ class _EdgeDBServer:
         self.jwt_sub_allowlist_file = jwt_sub_allowlist_file
         self.jwt_revocation_list_file = jwt_revocation_list_file
         self.env = env
+        self.extra_args = extra_args
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
@@ -2074,6 +2076,9 @@ class _EdgeDBServer:
             cmd += ['--jwt-revocation-list-file',
                     self.jwt_revocation_list_file]
 
+        if self.extra_args:
+            cmd.extend(self.extra_args)
+
         if self.debug:
             print(
                 f'Starting EdgeDB cluster with the following params:\n'
@@ -2198,6 +2203,7 @@ def start_edgedb_server(
     jwt_sub_allowlist_file: Optional[os.PathLike] = None,
     jwt_revocation_list_file: Optional[os.PathLike] = None,
     env: Optional[Dict[str, str]] = None,
+    extra_args: Optional[List[str]] = None,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
         if backend_dsn or adjacent_to:
@@ -2247,6 +2253,7 @@ def start_edgedb_server(
         jwt_sub_allowlist_file=jwt_sub_allowlist_file,
         jwt_revocation_list_file=jwt_revocation_list_file,
         env=env,
+        extra_args=extra_args,
     )
 
 
