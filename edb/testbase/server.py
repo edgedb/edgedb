@@ -2396,7 +2396,20 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
     return cases
 
 
-def find_available_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("localhost", 0))
-        return sock.getsockname()[1]
+def find_available_port(max_value=None) -> int:
+    if max_value is None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("localhost", 0))
+            return sock.getsockname()[1]
+    elif max_value > 1024:
+        port = max_value
+        while port > 1024:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.bind(("localhost", port))
+                    return port
+            except IOError:
+                port -= 1
+        raise RuntimeError("cannot find an available port")
+    else:
+        raise ValueError("max_value must be greater than 1024")

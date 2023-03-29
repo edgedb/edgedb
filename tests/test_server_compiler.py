@@ -26,6 +26,8 @@ import sys
 import tempfile
 import time
 
+import immutables
+
 from edb import edgeql
 from edb.testbase import lang as tb
 from edb.testbase import server as tbs
@@ -392,6 +394,7 @@ class TestCompilerPool(tbs.TestCase):
                     std_schema=self._std_schema,
                     global_schema=None,
                     sys_config={},
+                    default_sysconfig=immutables.Map(),
                 ),
                 backend_runtime_params=None,
                 std_schema=self._std_schema,

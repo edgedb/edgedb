@@ -440,6 +440,7 @@ class Server(ha_base.ClusterProtocol):
 
             global_schema = await self.introspect_global_schema()
             sys_config = await self.load_sys_config()
+            default_sysconfig = await self.load_sys_config('sysconfig_default')
             await self.load_reported_config()
 
             self._dbindex = dbview.DatabaseIndex(
@@ -447,6 +448,7 @@ class Server(ha_base.ClusterProtocol):
                 std_schema=self._std_schema,
                 global_schema=global_schema,
                 sys_config=sys_config,
+                default_sysconfig=default_sysconfig,
             )
 
             self._fetch_roles()
@@ -630,9 +632,9 @@ class Server(ha_base.ClusterProtocol):
             metrics.background_errors.inc(1.0, 'release_pgcon')
             raise
 
-    async def load_sys_config(self):
+    async def load_sys_config(self, query_name='sysconfig'):
         async with self._use_sys_pgcon() as syscon:
-            query = self.get_sys_query('sysconfig')
+            query = self.get_sys_query(query_name)
             sys_config_json = await syscon.sql_fetch_val(query)
 
         return config.from_json(config.get_settings(), sys_config_json)
@@ -1349,12 +1351,18 @@ class Server(ha_base.ClusterProtocol):
         # CONFIGURE INSTANCE RESET setting_name;
         try:
             if setting_name == 'listen_addresses':
+                cfg = self._dbindex.get_sys_config()
                 await self._restart_servers_new_addr(
-                    ('localhost',), self._listen_port)
+                    config.lookup('listen_addresses', cfg) or ('localhost',),
+                    self._listen_port,
+                )
 
             elif setting_name == 'listen_port':
+                cfg = self._dbindex.get_sys_config()
                 await self._restart_servers_new_addr(
-                    self._listen_hosts, defines.EDGEDB_PORT)
+                    self._listen_hosts,
+                    config.lookup('listen_port', cfg) or defines.EDGEDB_PORT,
+                )
 
             elif setting_name == 'session_idle_timeout':
                 self._reinit_idle_gc_collector()

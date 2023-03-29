@@ -1795,3 +1795,48 @@ class TestStaticServerConfig(tb.TestCase):
                 env={"EDGEDB_SERVER_CFG_APPLY_ACCESS_POLICIES": "on"}
             ):
                 pass
+
+    async def test_server_config_default(self):
+        p1 = tb.find_available_port(max_value=32767)
+        async with tb.start_edgedb_server(
+            extra_args=["--port", str(p1)]
+        ) as sd:
+            conn = await sd.connect()
+            try:
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.listen_port)
+                    """),
+                    p1,
+                )
+                p2 = tb.find_available_port(p1 - 1)
+                await conn.execute(f"""\
+                    configure instance set listen_port := {p2}
+                """)
+            finally:
+                await conn.aclose()
+
+            conn = await sd.connect(port=p2)
+            try:
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.listen_port)
+                    """),
+                    p2,
+                )
+                await conn.execute("""\
+                    configure instance reset listen_port
+                """)
+            finally:
+                await conn.aclose()
+
+            conn = await sd.connect()
+            try:
+                self.assertEqual(
+                    await conn.query_single("""\
+                        select assert_single(cfg::Config.listen_port)
+                    """),
+                    p1,
+                )
+            finally:
+                await conn.aclose()
