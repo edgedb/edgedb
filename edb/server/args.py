@@ -1319,7 +1319,36 @@ def parse_args(**kwargs: Any):
         else:
             kwargs['instance_name'] = '_unknown'
 
-    kwargs['cfg_args'] = list(kwargs['cfg_args'])
+    cfg_args = list(kwargs['cfg_args'])
+
+    if '--cfg-listen-addresses' in cfg_args:
+        abort(
+            "--cfg-listen-addresses is disallowed; "
+            "use -I or --bind-address instead"
+        )
+    if '--cfg-listen-port' in cfg_args:
+        abort("--cfg-listen-port is disallowed; use -P or --port instead")
+    if 'EDGEDB_SERVER_CFG_LISTEN_ADDRESSES' in os.environ:
+        abort(
+            "EDGEDB_SERVER_CFG_LISTEN_ADDRESSES is disallowed; "
+            "use EDGEDB_SERVER_BIND_ADDRESS instead"
+        )
+    if 'EDGEDB_SERVER_CFG_LISTEN_PORT' in os.environ:
+        abort(
+            "EDGEDB_SERVER_CFG_LISTEN_PORT is disallowed; "
+            "use EDGEDB_SERVER_PORT instead"
+        )
+
+    for addr in kwargs['bind_addresses']:
+        cfg_args.append("--cfg-listen-addresses")
+        cfg_args.append(addr)
+
+    port = kwargs['port']
+    if port is not None:
+        cfg_args.append("--cfg-listen-port")
+        cfg_args.append(str(port))
+
+    kwargs['cfg_args'] = cfg_args
 
     return ServerConfig(
         startup_script=startup_script,
