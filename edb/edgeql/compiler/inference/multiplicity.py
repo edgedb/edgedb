@@ -709,6 +709,16 @@ def _infer_mutating_stmt(
     for read_pol in ir.read_policies.values():
         infer_multiplicity(read_pol.expr, scope_tree=scope_tree, ctx=ctx)
 
+    if ir.rewrites:
+        for rewrites in ir.rewrites.by_type.values():
+            for rewrite, _ in rewrites.values():
+                infer_multiplicity(
+                    rewrite,
+                    is_mutation=True,
+                    scope_tree=scope_tree,
+                    ctx=ctx,
+                )
+
 
 def _infer_on_conflict_clause(
     ir: irast.OnConflictClause,

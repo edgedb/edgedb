@@ -1006,7 +1006,7 @@ def _get_rel_path_output(
         result = pgast.ColumnRef(name=[name], nullable=True)
     else:
         if ptrref is None or ptr_info is None:
-            raise ValueError(
+            raise LookupError(
                 f'could not resolve trailing pointer class for {path_id}')
 
         if ptrref.is_computable:

@@ -1140,6 +1140,16 @@ def _infer_dml_check_cardinality(
                 scope_tree=scope_tree, ctx=ctx,
             )
 
+    if ir.rewrites:
+        for rewrites in ir.rewrites.by_type.values():
+            for rewrite, _ in rewrites.values():
+                infer_cardinality(
+                    rewrite,
+                    is_mutation=True,
+                    scope_tree=scope_tree,
+                    ctx=ctx,
+                )
+
 
 def _infer_stmt_cardinality(
     ir: irast.FilteredStmt,

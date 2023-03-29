@@ -61,6 +61,13 @@ class Rewrite(
         so.InheritingObject, compcoef=None, inheritable=False
     )
 
+    def should_propagate(self, schema: s_schema.Schema) -> bool:
+        # Rewrites should override rewrites on properties of an extended object
+        # type. But overriding *objects* would be hard, so we just disable
+        # inheritance for rewrites, and do lookups into parent object types
+        # when retrieving them.
+        return False
+
 
 class RewriteCommandContext(
     sd.ObjectCommandContext[Rewrite],
@@ -121,9 +128,12 @@ class RewriteCommand(
     ) -> s_expr.CompiledExpression:
         if field.name == 'expr':
             from edb.ir import pathid
+            from . import pointers
 
             parent_ctx = self.get_referrer_context_or_die(context)
-            source = parent_ctx.op.get_object(schema, context)
+            pointer = parent_ctx.op.get_object(schema, context)
+            assert isinstance(pointer, pointers.Pointer)
+            source = pointer.get_source(schema)
             assert isinstance(source, s_types.Type)
             # XXX: in_ddl_context_name is disabled for now because
             # it causes the compiler to reject DML; we might actually
@@ -136,20 +146,32 @@ class RewriteCommand(
             kind = self._get_kind(schema)
 
             anchors = {}
+
+            # __subject__
+            anchors["__subject__"] = pathid.PathId.from_type(
+                schema,
+                source,
+                typename=sn.QualName(module="__derived__", name="__subject__"),
+            )
+            # __specified__
+            bool_type = schema.get("std::bool", type=s_types.Type)
+            schema, specified_type = s_types.Tuple.create(
+                schema,
+                named=True,
+                element_types={
+                    pn.name: bool_type
+                    for pn in source.get_pointers(schema).keys(schema)
+                },
+            )
+            anchors['__specified__'] = specified_type
+
+            # __old__
             if qltypes.RewriteKind.Update == kind:
                 anchors['__old__'] = pathid.PathId.from_type(
                     schema,
                     source,
                     typename=sn.QualName(module='__derived__', name='__old__'),
                 )
-
-            anchors['__specified__'] = pathid.PathId.from_type(
-                schema,
-                source,
-                typename=sn.QualName(
-                    module='__derived__', name='__specified__'
-                ),
-            )
 
             singletons = frozenset(anchors.values())
 
@@ -161,6 +183,7 @@ class RewriteCommand(
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
                     schema_object_context=self.get_schema_metaclass(),
+                    path_prefix_anchor="__subject__",
                     anchors=anchors,
                     singletons=singletons,
                     apply_query_rewrites=not context.stdmode,
@@ -214,6 +237,9 @@ class RewriteCommand(
         assert isinstance(astnode, qlast.RewriteCommand)
 
         for kind in astnode.kinds:
+            # use kind for the name
+            astnode.name = qlast.ObjectRef(name=str(kind))
+
             cmd = super()._cmd_tree_from_ast(schema, astnode, context)
             assert isinstance(cmd, RewriteCommand)
 

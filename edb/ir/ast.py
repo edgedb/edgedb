@@ -1082,6 +1082,9 @@ class MutatingStmt(Stmt, MutatingLikeStmt):
         factory=dict
     )
 
+    # Rewrites of the subject shape
+    rewrites: typing.Optional[Rewrites] = None
+
     @property
     def material_type(self) -> TypeRef:
         """The proper material type being operated on.
@@ -1140,6 +1143,19 @@ class InsertStmt(MutatingStmt):
     @property
     def material_type(self) -> TypeRef:
         return self.subject.typeref.real_material_type
+
+
+# N.B: The PointerRef corresponds to the *definition* point of the rewrite.
+RewritesOfType = typing.Dict[str, typing.Tuple[Set, BasePointerRef]]
+
+
+@dataclasses.dataclass(kw_only=True, frozen=True)
+class Rewrites:
+    subject_path_id: PathId
+
+    old_path_id: typing.Optional[PathId]
+
+    by_type: typing.Dict[TypeRef, RewritesOfType]
 
 
 class UpdateStmt(MutatingStmt, FilteredStmt):

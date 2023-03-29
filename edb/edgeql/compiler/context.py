@@ -259,6 +259,9 @@ class Environment:
     path_scope_map: Dict[irast.Set, ScopeInfo]
     """A dictionary of scope info that are appropriate for a given view."""
 
+    dml_rewrites: Dict[irast.Set, irast.Rewrites]
+    """Compiled rewrites that should be attached to InsertStmt or UpdateStmt"""
+
     def __init__(
         self,
         *,
@@ -307,6 +310,7 @@ class Environment:
         self.shape_type_cache = {}
         self.expr_view_cache = {}
         self.path_scope_map = {}
+        self.dml_rewrites = {}
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
@@ -538,6 +542,8 @@ class ContextLevel(compiler.ContextLevel):
     """Whether we are currently in a place where no dml is allowed,
         if not None, then it is of the form `in a FILTER clause`  """
 
+    active_rewrites: FrozenSet[s_objtypes.ObjectType]
+
     def __init__(
         self,
         prevlevel: Optional[ContextLevel],
@@ -591,6 +597,7 @@ class ContextLevel(compiler.ContextLevel):
             self.compiling_update_shape = False
             self.active_computeds = ordered.OrderedSet()
             self.recompiling_schema_alias = False
+            self.active_rewrites = frozenset()
 
             self.disallow_dml = None
 
@@ -631,6 +638,7 @@ class ContextLevel(compiler.ContextLevel):
             self.compiling_update_shape = prevlevel.compiling_update_shape
             self.active_computeds = prevlevel.active_computeds
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
+            self.active_rewrites = prevlevel.active_rewrites
 
             self.disallow_dml = prevlevel.disallow_dml
 
@@ -667,8 +675,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.pending_stmt_own_path_id_namespace = frozenset()
                 self.pending_stmt_full_path_id_namespace = frozenset()
                 self.inserting_paths = {}
-
-                self.iterator_path_ids = frozenset()
 
                 self.view_rptr = None
                 self.view_scls = None

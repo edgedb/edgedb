@@ -35,6 +35,7 @@ from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
+from edb.schema import rewrites as s_rewrites
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -114,6 +115,12 @@ def init_context(
 
     if options.detached:
         ctx.path_id_namespace = frozenset({ctx.aliases.get('ns')})
+
+    if options.schema_object_context is s_rewrites.Rewrite:
+        assert ctx.partial_path_prefix
+        typ = setgen.get_set_type(ctx.partial_path_prefix, ctx=ctx)
+        assert isinstance(typ, s_objtypes.ObjectType)
+        ctx.active_rewrites |= {typ, *typ.descendants(ctx.env.schema)}
 
     ctx.derived_target_module = options.derived_target_module
     ctx.toplevel_result_view_name = options.result_view_name

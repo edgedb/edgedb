@@ -56,6 +56,7 @@ from edb.schema import operators as s_opers
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import roles as s_roles
+from edb.schema import rewrites as s_rewrites
 from edb.schema import sources as s_sources
 from edb.schema import triggers as s_triggers
 from edb.schema import types as s_types
@@ -840,6 +841,38 @@ class AlterTrigger(
 class DeleteTrigger(
     TriggerCommand,
     adapts=s_triggers.DeleteTrigger,
+):
+    pass
+
+
+class RewriteCommand(MetaCommand):
+    pass
+
+
+class CreateRewrite(
+    RewriteCommand,
+    adapts=s_rewrites.CreateRewrite,
+):
+    pass
+
+
+class RebaseRewrite(
+    RewriteCommand,
+    adapts=s_rewrites.RebaseRewrite,
+):
+    pass
+
+
+class AlterRewrite(
+    RewriteCommand,
+    adapts=s_rewrites.AlterRewrite,
+):
+    pass
+
+
+class DeleteRewrite(
+    RewriteCommand,
+    adapts=s_rewrites.DeleteRewrite,
 ):
     pass
 

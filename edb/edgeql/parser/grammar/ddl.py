@@ -1457,7 +1457,6 @@ class CreateRewriteStmt(Nonterm):
             OptCreateRewriteCommandsBlock
         """
         _, _, kinds, _, expr, commands = kids
-        print(expr.val)
         self.val = qlast.CreateRewrite(
             kinds=kinds.val,
             expr=expr.val,
