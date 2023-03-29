@@ -27,7 +27,7 @@ materializing too much data, sets are compiled in two steps:
 
 ## Overlays
 
-Postgres as a limitation where effects of any DML are not visible in the same
+Postgres has a limitation where effects of any DML are not visible in the same
 query.
 
 For example:

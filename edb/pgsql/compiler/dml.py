@@ -712,6 +712,9 @@ def process_insert_body(
     pol_expr = ir_stmt.write_policies.get(typeref.id)
     pol_ctx = None
     if pol_expr or rewrites:
+        # Create a context for handling policies/rewrites that we will
+        # use later. We do this in advance so that the link update code
+        # can populate overlay fields in it.
         with ctx.new() as pol_ctx:
             pass
 
@@ -727,7 +730,7 @@ def process_insert_body(
     # ON when possible, and in that case the link table operations
     # need to be done after the *actual insert*, because it is the actual
     # insert that filters out conflicting rows. (This also means that we
-    # can't ues ON CONFLICT if there are rewrites.)
+    # can't use ON CONFLICT if there are rewrites.)
     #
     # Similar issues obtain with access policies: we can't use ON
     # CONFLICT if there are access policies, since we can't "see" all
@@ -1028,6 +1031,9 @@ def compile_insert_shape_element(
         # the expression is one, so we check for AT_MOST_ONE
         # to determine nullability.
         # FIXME: Doing force_optional for all rewrites is kind of a bummer.
+        # (The issue is that the rewrites are compiled without fully
+        # understanding which of the pointers might not have been truly
+        # present in the original DML shape.)
         assert shape_el.rptr is not None
         if (shape_el.rptr.dir_cardinality
                 is qltypes.Cardinality.AT_MOST_ONE) or force_optional:
@@ -1616,6 +1622,9 @@ def process_update_body(
     pol_expr = ir_stmt.write_policies.get(typeref.id)
     pol_ctx = None
     if pol_expr or rewrites:
+        # Create a context for handling policies/rewrites that we will
+        # use later. We do this in advance so that the link update code
+        # can populate overlay fields in it.
         with ctx.new() as pol_ctx:
             pass
 

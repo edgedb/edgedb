@@ -23,8 +23,6 @@ import edgedb
 
 from edb.testbase import server as tb
 
-# from edb.tools import test
-
 
 class TestRewrites(tb.QueryTestCase):
 
