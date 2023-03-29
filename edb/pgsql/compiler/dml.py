@@ -256,6 +256,8 @@ def gen_dml_cte(
         for_mutation=True,
         ctx=ctx,
     )
+    assert isinstance(relation, pgast.RelRangeVar), (
+        "spurious overlay on DML target")
     if isinstance(dml_stmt, pgast.DMLQuery):
         dml_stmt.relation = relation
     pathctx.put_path_value_rvar(
@@ -2999,7 +3001,7 @@ def process_delete_body(
 
 # Trigger compilation
 def compile_triggers(
-    triggers: tuple[irast.Trigger, ...],
+    triggers: tuple[tuple[irast.Trigger, ...], ...],
     stmt: pgast.Base,
     *,
     ctx: context.CompilerContextLevel,
@@ -3023,9 +3025,17 @@ def compile_triggers(
         ictx.type_ctes = {}
         ictx.toplevel_stmt = stmt
 
-        for trigger in triggers:
-            ictx.path_scope = ctx.path_scope.new_child()
-            compile_trigger(trigger, ctx=ictx)
+        for stage in triggers:
+            new_overlays = []
+            for trigger in stage:
+                ictx.path_scope = ctx.path_scope.new_child()
+                new_overlays.append(compile_trigger(trigger, ctx=ictx))
+
+            for overlay in new_overlays:
+                ictx.rel_overlays.type = (
+                    ictx.rel_overlays.type.update(overlay.type))
+                ictx.rel_overlays.ptr = (
+                    ictx.rel_overlays.ptr.update(overlay.ptr))
 
     # Install any newly created type CTEs before the CTEs created from
     # this trigger compilation but after anything compiled before.
@@ -3036,7 +3046,7 @@ def compile_trigger(
     trigger: irast.Trigger,
     *,
     ctx: context.CompilerContextLevel,
-) -> None:
+) -> context.RelOverlays:
     # N.B: The *base type* overlays have the whole union, while subtypes
     # just have subtype things.
     # The things we produce for `affected` take this into account.
@@ -3131,9 +3141,6 @@ def compile_trigger(
                 tctx.external_rels[old_path] = (
                     contents_cte, ('value', 'identity',))
 
-        # TODO: clear everything but None out? nothing else should ever
-        # come up.
-
         # This is somewhat subtle: we merge *every* DML into
         # the "None" overlay, so that all the new database state shows
         # up everywhere...  but __old__ has a TriggerAnchor set up in
@@ -3148,6 +3155,11 @@ def compile_trigger(
         all_dml = [
             x for x in ctx.dml_stmts if isinstance(x, irast.MutatingStmt)]
         merge_overlays_globally(all_dml, ctx=tctx)
+
+        # Strip out everything but None. This tidies things up and makes
+        # it easy to detect new additions.
+        tctx.rel_overlays.type = immu.Map({None: tctx.rel_overlays.type[None]})
+        tctx.rel_overlays.ptr = immu.Map({None: tctx.rel_overlays.ptr[None]})
 
         # Copy over the global overlay to __new__, since it should see
         # the new data also.
@@ -3182,3 +3194,8 @@ def compile_trigger(
             )
             tctx.toplevel_stmt.append_cte(trigger_cte)
             tctx.env.check_ctes.append(trigger_cte)
+
+    saved_overlays = tctx.rel_overlays.copy()
+    saved_overlays.type = saved_overlays.type.delete(trigger.new_set.expr)
+    saved_overlays.ptr = saved_overlays.ptr.delete(trigger.new_set.expr)
+    return saved_overlays

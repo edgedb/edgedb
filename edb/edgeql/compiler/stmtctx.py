@@ -148,7 +148,7 @@ def fini_expression(
         ir = setgen.scoped_set(ir, ctx=ctx)
 
     # Compile any triggers that were triggered by the query
-    ir_triggers = triggers.compile_triggers(ctx.env.dml_stmts, ctx=ctx)
+    ir_triggers = triggers.compile_triggers(ctx=ctx)
 
     # Collect all of the expressions stored in various side sets
     # that can make it into the output, so that we can make sure
@@ -164,7 +164,7 @@ def fini_expression(
         p.sub_params.decoder_ir for p in ctx.env.query_parameters.values()
         if p.sub_params and p.sub_params.decoder_ir
     ]
-    extra_exprs += [trigger.expr for trigger in ir_triggers]
+    extra_exprs += [trigger.expr for stage in ir_triggers for trigger in stage]
 
     all_exprs = [ir] + extra_exprs
 

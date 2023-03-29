@@ -54,15 +54,25 @@ class TestTriggers(tb.QueryTestCase):
 
         We'll run this with different triggers and observe the results
         """
+
+        # This is multiple queries instead of one so that if one of them
+        # errors, it is immediately obvious which.
+        #
+        # ... I forgot this at some point and merged them, so now I am
+        # adding a note.
         await self.con.execute('''
             insert InsertTest { name := "a" };
+        ''')
 
+        await self.con.execute('''
             select {
               (insert InsertTest { name := "b" }),
               (update InsertTest filter .name = 'a'
                set { name := 'a!' }),
             };
+        ''')
 
+        await self.con.execute('''
             select {
               (insert InsertTest { name := "c" }),
               (insert DerivedTest { name := "d" }),
@@ -70,26 +80,36 @@ class TestTriggers(tb.QueryTestCase):
                set { name := 'b!' }),
               (delete InsertTest filter .name = "a!"),
             };
+        ''')
 
+        await self.con.execute('''
             select {
               (for x in {'e', 'f'} union (insert DerivedTest { name := x })),
               (delete InsertTest filter .name = "b!"),
              };
+        ''')
 
+        await self.con.execute('''
             update InsertTest filter .name = 'd'
             set { name := .name ++ '!' };
+        ''')
 
+        await self.con.execute('''
             for x in {'c', 'e'} union (
                 update InsertTest filter .name = x
                 set { name := x ++ '!' }
             );
+        ''')
 
+        await self.con.execute('''
             select {
               (update DerivedTest filter .name = 'f'
                set { name := 'f!' }),
               (delete DerivedTest filter .name = 'd!'),
             };
+        ''')
 
+        await self.con.execute('''
             delete InsertTest;
         ''')
 
@@ -118,6 +138,14 @@ class TestTriggers(tb.QueryTestCase):
         await self.assert_notes([
             {'name': "insert", 'notes': set("abcdef")},
         ])
+
+        # We should still be able to insert Note normally
+        await self.con.execute('''
+            select {
+              (insert InsertTest { name := "foo" }),
+              (insert Note { name := "manual", note := "!" }),
+            };
+        ''')
 
     async def test_edgeql_triggers_update_01(self):
         await self.con.execute('''
@@ -939,3 +967,66 @@ class TestTriggers(tb.QueryTestCase):
             ''',
             [{'note': "2"}],
         )
+
+    async def test_edgeql_triggers_chain_01(self):
+        await self.con.execute('''
+            alter type InsertTest {
+              create trigger log after insert for each do (
+                insert Note { name := "insert", note := __new__.name }
+              );
+            };
+            alter type Note {
+              create trigger log after insert for each do (
+                insert Subordinate { val := 1, name := __new__.note }
+              );
+            };
+        ''')
+
+        await self.do_basic_work()
+
+        await self.assert_notes([
+            {'name': "insert", 'notes': set("abcdef")},
+        ])
+
+        await self.assert_query_result(
+            '''
+            select Subordinate.name
+            ''',
+            set("abcdef"),
+        )
+
+    async def test_edgeql_triggers_chain_02(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaDefinitionError,
+                'default::InsertTest would need to fire recursively'):
+            await self.con.execute('''
+                alter type InsertTest {
+                  create trigger log after insert for each do (
+                    insert InsertTest { name := __new__.name ++ "!" }
+                  );
+                };
+            ''')
+
+    async def test_edgeql_triggers_chain_03(self):
+        await self.con.execute('''
+            alter type InsertTest {
+              create trigger log after insert for each do (
+                insert Note { name := "insert", note := __new__.name }
+              );
+            };
+            alter type Note {
+              create trigger log after insert for each do (
+                insert Subordinate { val := 1, name := __new__.note }
+              );
+            };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                'would need to be executed in multiple stages'):
+            await self.con.execute('''
+                select {
+                    (insert InsertTest { name := "foo" }),
+                    (insert Note { name := "foo" }),
+                }
+            ''')

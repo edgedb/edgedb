@@ -206,7 +206,7 @@ class Environment:
     functions) that appear in a function body.
     """
 
-    dml_stmts: Set[irast.MutatingStmt]
+    dml_stmts: list[irast.MutatingStmt]
     """A list of DML statements in the query"""
 
     #: A list of bindings that should be assumed to be singletons.
@@ -296,7 +296,7 @@ class Environment:
         self.ptr_ref_cache = PointerRefCache()
         self.type_ref_cache = {}
         self.dml_exprs = []
-        self.dml_stmts = set()
+        self.dml_stmts = []
         self.pointer_derivation_map = collections.defaultdict(list)
         self.pointer_specified_info = {}
         self.singletons = []
