@@ -39,6 +39,7 @@ from . import types as s_types
 
 class Rewrite(
     referencing.ReferencedInheritingObject,
+    so.InheritingObject,  # Help reflection figure out the right db MRO
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.REWRITE,
     data_safe=True,
