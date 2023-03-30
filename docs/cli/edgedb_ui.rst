@@ -44,4 +44,6 @@ connection target see :ref:`connection options <ref_cli_edgedb_connopts>`.
     browser.
 
 :cli:synopsis:`--no-server-check`
-    Don't probe the UI endpoint of the server instance.
+    Skip probing the UI endpoint of the server instance. The endpoint probe is
+    in place to provide a friendly error if you try to connect to a UI on a
+    remote instance that does not have the UI enabled.
