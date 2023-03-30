@@ -1030,3 +1030,29 @@ class TestTriggers(tb.QueryTestCase):
                     (insert Note { name := "foo" }),
                 }
             ''')
+
+    async def test_edgeql_triggers_tricky_01(self):
+        await self.con.execute('''
+            alter type InsertTest {
+              create trigger log after insert for each do (
+                with X := (insert Note{ name := "x", subject := __new__.sub }),
+                insert Note { name := "y", note := <str>count(X.subject) }
+              );
+            };
+        ''')
+
+        await self.con.execute('''
+            insert InsertTest {
+                name := "test", sub := (insert Subordinate { name := "!" })
+            }
+        ''')
+
+        await self.assert_query_result(
+            '''
+            select Note { name, note, subject } order by .name
+            ''',
+            [
+                {'name': 'x', 'note': None, 'subject': {'id': str}},
+                {'name': 'y', 'note': "1", 'subject': None},
+            ]
+        )

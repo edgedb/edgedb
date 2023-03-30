@@ -3220,8 +3220,6 @@ def compile_trigger(
         # up everywhere...  but __old__ has a TriggerAnchor set up in
         # it, which acts like a dml statement, and *diverts* __old__
         # away from the new data!
-        # XXX: TODO: what about the overlays induced by *new* DML...
-        # Those need to be rooted at `None`
 
         # We grab the list of DML out of dml_stmts instead of just
         # from the overlays for determinism reasons; it effects the
@@ -3245,6 +3243,8 @@ def compile_trigger(
         tctx.rel_overlays.ptr = tctx.rel_overlays.ptr.set(
             trigger.new_set.expr, tctx.rel_overlays.ptr[None])
 
+        # N.B: Any DML in the trigger will have the "global" overlay (None)
+        # as its starting point.
         dispatch.compile(trigger.expr, ctx=tctx)
         # Force the value to get output so that if it might error
         # it will be forced up by check_ctes
