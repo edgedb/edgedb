@@ -40,6 +40,7 @@ from edb.pgsql import compiler as pg_compiler
 
 from edb import edgeql
 from edb.common import debug
+from edb.common import devmode
 from edb.common import verutils
 from edb.common import uuidgen
 
@@ -1372,6 +1373,23 @@ def _compile_ql_explain(
     )
 
 
+def _compile_ql_analyze(
+    ctx: CompileContext,
+    ql: qlast.MaintenanceQuery,
+    *,
+    script_info: Optional[irast.ScriptInfo] = None,
+) -> dbstate.BaseQuery:
+    if not devmode.is_in_dev_mode():
+        raise errors.QueryError(
+            'ANALYZE can only be executed in dev mode')
+
+    sql = (b'ANALYZE',)
+
+    return dbstate.MaintenanceQuery(
+        sql=sql,
+    )
+
+
 def _compile_ql_query(
     ctx: CompileContext,
     ql: qlast.Base,
@@ -1817,6 +1835,11 @@ def _compile_dispatch_ql(
             caps |= enums.Capability.MODIFICATIONS
         return (query, caps)
 
+    elif isinstance(ql, qlast.AnalyzeStmt):
+        query = _compile_ql_analyze(ctx, ql, script_info=script_info)
+        caps = enums.Capability(0)
+        return (query, caps)
+
     else:
         query = _compile_ql_query(ctx, ql, script_info=script_info)
         caps = enums.Capability(0)
@@ -2081,6 +2104,9 @@ def _try_compile(
                 unit.config_ops.append(comp.config_op)
 
             unit.has_set = True
+
+        elif isinstance(comp, dbstate.MaintenanceQuery):
+            unit.sql = comp.sql
 
         elif isinstance(comp, dbstate.NullQuery):
             pass

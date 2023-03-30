@@ -34,22 +34,27 @@ from . import tokens
 
 
 class Stmt(Nonterm):
-    def reduce_TransactionStmt(self, *kids):
-        self.val = kids[0].val
 
-    def reduce_DescribeStmt(self, *kids):
+    def reduce_TransactionStmt(self, stmt):
+        self.val = stmt.val
+
+    def reduce_DescribeStmt(self, stmt):
         # DESCRIBE
-        self.val = kids[0].val
+        self.val = stmt.val
 
-    def reduce_ExplainStmt(self, *kids):
+    def reduce_ExplainStmt(self, stmt):
         # Explain
-        self.val = kids[0].val
+        self.val = stmt.val
 
-    def reduce_ExprStmt(self, *kids):
-        self.val = kids[0].val
+    def reduce_AnalyzeStmt(self, stmt):
+        self.val = stmt.val
+
+    def reduce_ExprStmt(self, stmt):
+        self.val = stmt.val
 
 
 class TransactionMode(Nonterm):
+
     def reduce_ISOLATION_SERIALIZABLE(self, *kids):
         self.val = (qltypes.TransactionIsolationLevel.SERIALIZABLE,
                     kids[0].context)
@@ -77,6 +82,7 @@ class TransactionModeList(ListNonterm, element=TransactionMode,
 
 
 class OptTransactionModeList(Nonterm):
+
     def reduce_TransactionModeList(self, *kids):
         self.val = kids[0].val
 
@@ -85,6 +91,7 @@ class OptTransactionModeList(Nonterm):
 
 
 class TransactionStmt(Nonterm):
+
     def reduce_START_TRANSACTION_OptTransactionModeList(self, *kids):
         modes = kids[2].val
 
@@ -135,6 +142,7 @@ class TransactionStmt(Nonterm):
 
 
 class DescribeFmt(typing.NamedTuple):
+
     language: typing.Optional[qltypes.DescribeLanguage] = None
     options: typing.Optional[qlast.Options] = None
 
@@ -258,6 +266,7 @@ class DescribeStmt(Nonterm):
 
 
 class OptAnalyze(Nonterm):
+
     def reduce_ANALYZE(self, *kids):
         self.val = True
 
@@ -272,3 +281,9 @@ class ExplainStmt(Nonterm):
             analyze=kids[1].val,
             query=kids[2].val,
         )
+
+
+class AnalyzeStmt(Nonterm):
+
+    def reduce_ANALYZE(self, *kids):
+        self.val = qlast.AnalyzeStmt()

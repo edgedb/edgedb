@@ -19,10 +19,8 @@
 
 import json
 import os.path
-import unittest
 
 from edb.testbase import server as tb
-from edb.server import pgconnparams
 from edb.common import assert_data_shape
 
 
@@ -55,59 +53,10 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             update User set {
               todo += (select .owned_issues filter <int64>.number % 3 = 0)
             };
+
+            analyze;
         '''
     ]
-
-    @classmethod
-    async def _get_raw_sql_connection(cls):
-        """Get a raw connection to the underlying SQL server, if possible
-
-        We have to do this miserable hack in order to get access to ANALYZE
-        """
-        try:
-            import asyncpg
-        except ImportError:
-            raise unittest.SkipTest(
-                'explain tests skipped: asyncpg not installed')
-
-        settings = cls.con.get_settings()
-        pgaddr = settings.get('pgaddr')
-        if pgaddr is None:
-            raise unittest.SkipTest('explain tests skipped: not in devmode')
-        pgaddr = json.loads(pgaddr)
-
-        # Try to grab a password from the specified DSN, if one is
-        # present, since the pgaddr won't have a real one. (The non
-        # specified DSN test suite setup doesn't have one, so it is
-        # fine.)
-        password = None
-        spec_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
-        if spec_dsn:
-            _, params = pgconnparams.parse_dsn(spec_dsn)
-            password = params.password
-
-        pgdsn = (
-            f'postgres:///{pgaddr["database"]}?user={pgaddr["user"]}'
-            f'&port={pgaddr["port"]}&host={pgaddr["host"]}'
-        )
-        if password is not None:
-            pgdsn += f'&password={password}'
-
-        return await asyncpg.connect(pgdsn)
-
-    @classmethod
-    async def _analyze_db(cls):
-        # HACK: Run ANALYZE so that test results are more deterministic
-        scon = await cls._get_raw_sql_connection()
-        try:
-            await scon.execute('ANALYZE')
-        finally:
-            await scon.close()
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.loop.run_until_complete(cls._analyze_db())
 
     def assert_plan(self, data, shape, message=None):
         assert_data_shape.assert_data_shape(

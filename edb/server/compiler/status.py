@@ -199,3 +199,8 @@ def _rename(ql):
 @get_status.register(qlast.ExplainStmt)
 def _explain(ql):
     return b'EXPLAIN'
+
+
+@get_status.register(qlast.AnalyzeStmt)
+def _analyze(ql):
+    return b'ANALYZE'

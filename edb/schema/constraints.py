@@ -254,7 +254,7 @@ class Constraint(
             )
 
             expr = constr_base.get_field_value(schema, 'expr')
-            expr_ql = qlparser.parse(expr.text)
+            expr_ql = qlparser.parse_query(expr.text)
 
             qlutils.inline_parameters(expr_ql, index_parameters)
 
@@ -751,7 +751,7 @@ class ConstraintCommand(
 
         # Re-parse instead of using expr.qlast, because we mutate
         # the AST below.
-        expr_ql = qlparser.parse(expr.text)
+        expr_ql = qlparser.parse_query(expr.text)
 
         if not args:
             args = constr_base.get_field_value(schema, 'args')

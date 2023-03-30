@@ -275,10 +275,16 @@ class EdgeQLParserBase(parsing.Parser):
         return rust_lexer.EdgeQLLexer()
 
 
-class EdgeQLExpressionParser(EdgeQLParserBase):
+class EdgeQLSingleParser(EdgeQLParserBase):
     def get_parser_spec_module(self):
         from .grammar import single
         return single
+
+
+class EdgeQLExpressionParser(EdgeQLParserBase):
+    def get_parser_spec_module(self):
+        from .grammar import fragment
+        return fragment
 
 
 class EdgeQLBlockParser(EdgeQLParserBase):

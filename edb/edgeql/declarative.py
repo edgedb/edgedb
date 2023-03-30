@@ -1003,7 +1003,7 @@ def trace_Function(
         and node.code.code
     ):
         # Need to parse the actual code string and use that as the dependency.
-        fcode = qlparser.parse(node.code.code)
+        fcode = qlparser.parse_query(node.code.code)
         assert isinstance(fcode, qlast.Expr)
         deps.append(FunctionDependency(expr=fcode, params=params))
 

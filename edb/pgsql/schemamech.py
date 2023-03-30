@@ -566,7 +566,7 @@ def ptr_default_to_col_default(schema, ptr, expr):
         # Blindly cast the default expression into the ptr target
         # type, validation of the expression type is not the concern
         # of this function.
-        eql = ql_parser.parse(expr.text)
+        eql = ql_parser.parse_query(expr.text)
         eql = ql_astutils.ensure_qlstmt(
             qlast.TypeCast(
                 type=s_utils.typeref_to_ast(
