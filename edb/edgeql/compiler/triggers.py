@@ -150,7 +150,7 @@ def compile_triggers_phase(
                     ctx.env.schema, defining_trigger_on):
                 name = str(defining_trigger_on.get_name(ctx.env.schema))
                 raise errors.SchemaDefinitionError(
-                    f"trigger on {name} would need to fire recursively"
+                    f"trigger on {name} is recursive"
                 )
 
             for trigger in subtype.get_relevant_triggers(kind, schema):

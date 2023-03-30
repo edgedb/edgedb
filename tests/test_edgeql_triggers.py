@@ -998,7 +998,7 @@ class TestTriggers(tb.QueryTestCase):
     async def test_edgeql_triggers_chain_02(self):
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaDefinitionError,
-                'default::InsertTest would need to fire recursively'):
+                'trigger on default::InsertTest is recursive'):
             await self.con.execute('''
                 alter type InsertTest {
                   create trigger log after insert for each do (
