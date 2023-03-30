@@ -4033,6 +4033,7 @@ class PointerMetaCommand(
         context: sd.CommandContext,
         *,
         fill_expr: Optional[s_expr.Expression],
+        is_default: bool=False,
     ) -> None:
         new_required = self.scls.get_required(schema)
 
@@ -4125,7 +4126,8 @@ class PointerMetaCommand(
                 schema=schema,
                 orig_schema=orig_schema,
                 context=context,
-                check_non_null=is_required and not is_multi
+                check_non_null=is_required and not is_multi,
+                allow_globals=is_default,
             )
 
             if not is_multi:
@@ -4433,6 +4435,7 @@ class PointerMetaCommand(
         target_as_singleton: bool = True,
         check_non_null: bool = False,
         produce_ctes: bool = True,
+        allow_globals: bool=False,
     ) -> Tuple[
         str,  # SQL
         bool,  # is_nullable
@@ -4468,6 +4471,7 @@ class PointerMetaCommand(
                 context,
                 conv_expr,
                 target_as_singleton=target_as_singleton,
+                make_globals_empty=allow_globals,
                 no_query_rewrites=True,
             )
         ir = conv_expr.irast
@@ -4490,6 +4494,7 @@ class PointerMetaCommand(
                     schema=orig_schema,
                 ),
                 target_as_singleton=target_as_singleton,
+                make_globals_empty=allow_globals,
                 no_query_rewrites=True,
             )
 
@@ -4934,7 +4939,8 @@ class LinkMetaCommand(PointerMetaCommand[s_links.Link]):
                 and not fills_required
             ):
                 self._alter_pointer_optionality(
-                    schema, schema, context, fill_expr=default)
+                    schema, schema, context,
+                    fill_expr=default, is_default=True)
             # If we're creating a required multi pointer without a SET
             # REQUIRED USING inside, run the alter_pointer_optionality
             # path to produce an error if there is existing data.
@@ -5403,7 +5409,8 @@ class PropertyMetaCommand(PointerMetaCommand[s_props.Property]):
                 and not prop.is_link_property(schema)
             ):
                 self._alter_pointer_optionality(
-                    schema, schema, context, fill_expr=default)
+                    schema, schema, context,
+                    fill_expr=default, is_default=True)
             # If we're creating a required multi pointer without a SET
             # REQUIRED USING inside, run the alter_pointer_optionality
             # path to produce an error if there is existing data.
