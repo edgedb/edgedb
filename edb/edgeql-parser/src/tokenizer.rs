@@ -890,6 +890,7 @@ pub fn is_keyword(s: &str) -> bool {
         | "__new__"
         | "__old__"
         | "__specified__"
+        | "administer"
         | "alter"
         | "and"
         | "anytuple"

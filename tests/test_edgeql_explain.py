@@ -54,7 +54,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
               todo += (select .owned_issues filter <int64>.number % 3 = 0)
             };
 
-            analyze;
+            administer statistics_update();
         '''
     ]
 

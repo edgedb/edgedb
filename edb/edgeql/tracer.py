@@ -1192,8 +1192,8 @@ def trace_ExplainStmt(
 
 
 @trace.register
-def trace_AnalyzeStmt(
-    node: qlast.AnalyzeStmt, *,
+def trace_AdministerStmt(
+    node: qlast.AdministerStmt, *,
     ctx: TracerContext,
 ) -> None:
     pass

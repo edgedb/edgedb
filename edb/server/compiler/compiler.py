@@ -1373,17 +1373,29 @@ def _compile_ql_explain(
     )
 
 
-def _compile_ql_analyze(
+def _compile_ql_administer(
     ctx: CompileContext,
-    ql: qlast.MaintenanceQuery,
+    ql: qlast.AdministerStmt,
     *,
     script_info: Optional[irast.ScriptInfo] = None,
 ) -> dbstate.BaseQuery:
     if not devmode.is_in_dev_mode():
         raise errors.QueryError(
-            'ANALYZE can only be executed in dev mode')
+            'ADMINISTER can only be executed in dev mode',
+            context=ql.context)
 
-    sql = (b'ANALYZE',)
+    if ql.expr.func == 'statistics_update':
+        if ql.expr.args or ql.expr.kwargs:
+            raise errors.QueryError(
+                'statistics_update() does not take arguments',
+                context=ql.expr.context,
+            )
+        sql = (b'ANALYZE',)
+    else:
+        raise errors.QueryError(
+            'Unknown ADMINISTER function',
+            context=ql.expr.context,
+        )
 
     return dbstate.MaintenanceQuery(
         sql=sql,
@@ -1835,8 +1847,8 @@ def _compile_dispatch_ql(
             caps |= enums.Capability.MODIFICATIONS
         return (query, caps)
 
-    elif isinstance(ql, qlast.AnalyzeStmt):
-        query = _compile_ql_analyze(ctx, ql, script_info=script_info)
+    elif isinstance(ql, qlast.AdministerStmt):
+        query = _compile_ql_administer(ctx, ql, script_info=script_info)
         caps = enums.Capability(0)
         return (query, caps)
 

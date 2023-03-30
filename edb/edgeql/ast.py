@@ -1498,13 +1498,12 @@ class ExplainStmt(Statement):
 
 
 #
-# Analyze
+# Administer
 #
 
-class AnalyzeStmt(Statement):
+class AdministerStmt(Statement):
 
-    verbose: bool = False
-    skip_locked: bool = False
+    expr: FunctionCall
 
 
 #

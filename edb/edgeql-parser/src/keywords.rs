@@ -164,6 +164,7 @@ pub const CURRENT_RESERVED_KEYWORDS: &[&str] = &[
     "__new__",
     "__old__",
     "__specified__",
+    "administer",
     "alter",
     "and",
     "anytuple",
