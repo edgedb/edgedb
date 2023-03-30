@@ -2042,8 +2042,12 @@ def _add_type_rel_overlay(
         ctx: context.CompilerContextLevel) -> None:
     entry = (op, rel, path_id)
     dml_stmts2 = dml_stmts if dml_stmts else (None,)
+    # If there is a "global" overlay, and there is none for the
+    # current statements, use it as the base. This is important for
+    # not losing track of the global environment in triggers.
+    root = ctx.rel_overlays.type.get(None, immu.Map())
     for dml_stmt in dml_stmts2:
-        ds_overlays = ctx.rel_overlays.type.get(dml_stmt, immu.Map())
+        ds_overlays = ctx.rel_overlays.type.get(dml_stmt, root)
         overlays = ds_overlays.get(typeid, ())
         if entry not in overlays:
             ds_overlays = ds_overlays.set(typeid, overlays + (entry,))
@@ -2129,8 +2133,12 @@ def _add_ptr_rel_overlay(
     entry = (op, rel, path_id)
     dml_stmts2 = dml_stmts if dml_stmts else (None,)
     key = typeid, ptrref_name
+    # If there is a "global" overlay, and there is none for the
+    # current statements, use it as the base. This is important for
+    # not losing track of the global environment in triggers.
+    root = ctx.rel_overlays.ptr.get(None, immu.Map())
     for dml_stmt in dml_stmts2:
-        ds_overlays = ctx.rel_overlays.ptr.get(dml_stmt, immu.Map())
+        ds_overlays = ctx.rel_overlays.ptr.get(dml_stmt, root)
         overlays = ds_overlays.get(key, ())
         if entry not in overlays:
             ds_overlays = ds_overlays.set(key, overlays + (entry,))
