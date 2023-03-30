@@ -1186,7 +1186,7 @@ def compile_policy_check(
         msg = f'access policy violation on {op} of {typeref.name_hint}'
 
         allow_hints = (pol.error_msg for pol, _ in allow if pol.error_msg)
-        allow_hint = ', '.join(allow_hints)
+        allow_hint = '; '.join(allow_hints)
 
         hints = [(allow_hint, no_allow_expr)] + [
             (pol.error_msg, cond) for pol, cond in deny if pol.error_msg
@@ -1250,7 +1250,7 @@ def _conditional_string_agg(
                     name=('string_agg',),
                     args=[
                         pgast.ColumnRef(name=('error_msg',)),
-                        pgast.StringConstant(val=', '),
+                        pgast.StringConstant(val='; '),
                     ],
                 ),
             )
