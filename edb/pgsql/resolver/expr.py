@@ -306,6 +306,7 @@ def resolve_SortBy(
 func_calls_remapping: Dict[Tuple[str, ...], Tuple[str, ...]] = {
     ('information_schema', '_pg_truetypid'): ('edgedbsql', '_pg_truetypid'),
     ('information_schema', '_pg_truetypmod'): ('edgedbsql', '_pg_truetypmod'),
+    ('pg_catalog', 'format_type'): ('edgedb', '_format_type'),
 }
 
 
