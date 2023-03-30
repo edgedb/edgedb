@@ -5,7 +5,7 @@
 edgedb ui
 =========
 
-Start the EdgeDB UI in your default browser.
+Open the EdgeDB UI of the current instance in your default browser.
 
 .. cli:synopsis::
 
@@ -15,7 +15,7 @@ Start the EdgeDB UI in your default browser.
 Description
 ===========
 
-``edgedb ui`` is a terminal command used to start the EdgeDB UI in your default
+``edgedb ui`` is a terminal command used to open the EdgeDB UI in your default
 browser. Alternatively, it can be used to print the UI URL with the
 ``--print-url`` option.
 
