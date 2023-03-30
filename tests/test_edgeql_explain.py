@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import edgedb
 
 import json
 import os.path
@@ -62,9 +63,10 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         assert_data_shape.assert_data_shape(
             data, shape, fail=self.fail, message=message)
 
-    async def explain(self, query, *, analyze=False, con=None):
+    async def explain(self, query, *, execute=True, con=None):
+        no_ex = '(execute := False) ' if not execute else ''
         return json.loads(await (con or self.con).query_single(
-            f'explain {"analyze " if analyze else ""}{query}'
+            f'analyze {no_ex}{query}'
         ))[0]
 
     async def test_edgeql_explain_simple_01(self):
@@ -443,7 +445,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         try:
             res = await self.explain('''
                 insert User { name := 'Fantix' }
-            ''', analyze=True, con=con)
+            ''', execute=True, con=con)
             self.assert_plan(res['plan'], {
                 'node_type': 'Nested Loop',
             })
@@ -460,7 +462,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             ''')
             res = await self.explain('''
                 insert User { name := 'Fantix' }
-            ''', analyze=True)
+            ''', execute=True)
             self.assert_plan(res['plan'], {
                 'node_type': 'Nested Loop',
             })
@@ -477,3 +479,36 @@ class TestEdgeQLExplain(tb.QueryTestCase):
         self.assertFalse(await self.con.query('''
             select User { id, name } filter .name = 'Fantix'
         '''))
+
+    async def test_edgeql_explain_options_01(self):
+        res = await self.explain('''
+            select User
+        ''', execute=False)
+        self.assertNotIn('actual_startup_time', res['plan'])
+
+        res = json.loads(await self.con.query_single('''
+            analyze (buffers := True) select User
+        '''))[0]
+        self.assertIn('shared_read_blocks', res['plan'])
+
+        res = json.loads(await self.con.query_single('''
+            analyze (buffers := false) select User
+        '''))[0]
+        self.assertNotIn('shared_read_blocks', res['plan'])
+
+    async def test_edgeql_explain_options_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"unknown ANALYZE argument"
+        ):
+            await self.con.query_single('''
+                analyze (bogus_argument := True) select User
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"incorrect type"
+        ):
+            await self.con.query_single('''
+                analyze (execute := "hell yeah") select User
+            ''')

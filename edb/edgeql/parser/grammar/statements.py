@@ -42,8 +42,8 @@ class Stmt(Nonterm):
         # DESCRIBE
         self.val = stmt.val
 
-    def reduce_ExplainStmt(self, stmt):
-        # Explain
+    def reduce_AnalyzeStmt(self, stmt):
+        # ANALYZE
         self.val = stmt.val
 
     def reduce_AdministerStmt(self, stmt):
@@ -274,12 +274,19 @@ class OptAnalyze(Nonterm):
         self.val = False
 
 
-class ExplainStmt(Nonterm):
+class AnalyzeStmt(Nonterm):
 
-    def reduce_EXPLAIN_OptAnalyze_ExprStmt(self, *kids):
+    def reduce_ANALYZE_NamedTuple_ExprStmt(self, *kids):
+        _, args, stmt = kids
         self.val = qlast.ExplainStmt(
-            analyze=kids[1].val,
-            query=kids[2].val,
+            args=args.val,
+            query=stmt.val,
+        )
+
+    def reduce_ANALYZE_ExprStmt(self, *kids):
+        _, stmt = kids
+        self.val = qlast.ExplainStmt(
+            query=stmt.val,
         )
 
 

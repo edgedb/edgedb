@@ -405,7 +405,7 @@ def analyze_explain_output(
     ql: qlast.Base
     ir: irast.Statement
     pg: pgast.Base
-    ql, ir, pg, config_vals = pickle.loads(query_asts_pickled)
+    ql, ir, pg, (config_vals, _args) = pickle.loads(query_asts_pickled)
     schema = ir.schema
     # We omit the std schema when serializing, so put it back
     if isinstance(schema, s_schema.ChainedSchema):
