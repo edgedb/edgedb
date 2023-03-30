@@ -1680,3 +1680,32 @@ class TestConstraintsDDL(tb.DDLTestCase):
             await self.con.execute("""
                 INSERT Obj { asdf := assert_single((SELECT Tgt)) };
             """)
+
+    async def test_constraints_non_strict_01(self):
+        # Test constraints that use a function that is implemented
+        # "non-strictly" (and so requires some special handling in the
+        # compiler)
+        await self.con.execute("""
+            create type X {
+                create property a -> array<str>;
+                create property b -> array<str>;
+                create constraint expression on (
+                    .a ++ .b != ["foo", "bar", "baz"]);
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "invalid X",
+        ):
+            await self.con.execute("""
+                insert X { a := ['foo'], b := ['bar', 'baz'] };
+            """)
+
+        # These should succeed, though, because the LHS is just {}
+        await self.con.execute("""
+            insert X { a := {}, b := ['foo', 'bar', 'baz'] };
+        """)
+        await self.con.execute("""
+            insert X { a := ['foo', 'bar', 'baz'], b := {} };
+        """)

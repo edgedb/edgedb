@@ -360,22 +360,39 @@ def compile_TypeIntrospection(
 def _compile_call_args(
     expr: irast.Call, *,
     ctx: context.CompilerContextLevel
-) -> List[pgast.BaseExpr]:
+) -> tuple[list[pgast.BaseExpr], list[pgast.BaseExpr]]:
     args = []
+    maybe_null = []
     if isinstance(expr, irast.FunctionCall) and expr.global_args:
         args += [dispatch.compile(arg, ctx=ctx) for arg in expr.global_args]
-    args += [dispatch.compile(a.expr, ctx=ctx) for a in expr.args]
-    for ref, ir_arg, typemod in zip(args, expr.args, expr.params_typemods):
+    for ir_arg, typemod in zip(expr.args, expr.params_typemods):
+        ref = dispatch.compile(ir_arg.expr, ctx=ctx)
+        args.append(ref)
         if (
             not expr.impl_is_strict
             and ir_arg.cardinality.can_be_zero()
             and ref.nullable
             and typemod == ql_ft.TypeModifier.SingletonType
         ):
-            raise errors.UnsupportedFeatureError(
-                'operations on potentially empty arguments not supported in '
-                'simple expressions')
-    return args
+            maybe_null.append(ref)
+    return args, maybe_null
+
+
+def _wrap_call(
+    expr: pgast.BaseExpr, maybe_nulls: list[pgast.BaseExpr], *,
+    ctx: context.CompilerContextLevel
+) -> pgast.BaseExpr:
+    # If necessary, use CASE to filter out NULLs while calling a
+    # non-strict function.
+    if maybe_nulls:
+        tests = [pgast.NullTest(arg=arg, negated=True) for arg in maybe_nulls]
+        expr = pgast.CaseExpr(
+            args=[pgast.CaseWhen(
+                expr=astutils.extend_binop(None, *tests, op='AND'),
+                result=expr,
+            )]
+        )
+    return expr
 
 
 @dispatch.compile.register(irast.OperatorCall)
@@ -409,8 +426,9 @@ def compile_OperatorCall(
             f'set returning operator {expr.func_shortname!r} is not supported '
             f'in simple expressions')
 
-    args = _compile_call_args(expr, ctx=ctx)
-    return compile_operator(expr, args, ctx=ctx)
+    args, maybe_null = _compile_call_args(expr, ctx=ctx)
+    return _wrap_call(
+        compile_operator(expr, args, ctx=ctx), maybe_null, ctx=ctx)
 
 
 def compile_operator(
@@ -632,7 +650,7 @@ def compile_FunctionCall(
         raise errors.UnsupportedFeatureError(
             'set returning functions are not supported in simple expressions')
 
-    args = _compile_call_args(expr, ctx=ctx)
+    args, maybe_null = _compile_call_args(expr, ctx=ctx)
 
     if expr.has_empty_variadic and expr.variadic_param_type is not None:
         var = pgast.TypeCast(
@@ -647,6 +665,8 @@ def compile_FunctionCall(
     name = relgen.get_func_call_backend_name(expr, ctx=ctx)
 
     result: pgast.BaseExpr = pgast.FuncCall(name=name, args=args)
+
+    result = _wrap_call(result, maybe_null, ctx=ctx)
 
     if expr.force_return_cast:
         # The underlying function has a return value type
