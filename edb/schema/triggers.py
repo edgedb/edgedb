@@ -159,7 +159,7 @@ class TriggerCommand(
             scope = self._get_scope(schema)
             kinds = self._get_kinds(schema)
 
-            anchors = {}
+            anchors: dict[str, pathid.PathId | s_types.Type] = {}
             if qltypes.TriggerKind.Insert not in kinds:
                 anchors['__old__'] = pathid.PathId.from_type(
                     schema, source, typename=sn.QualName(
@@ -175,23 +175,30 @@ class TriggerCommand(
                 frozenset(anchors.values())
                 if scope == qltypes.TriggerScope.Each else frozenset()
             )
+            anchors['__trigger_type__'] = source
 
             assert isinstance(source, s_types.Type)
 
-            return type(value).compiled(
-                value,
-                schema=schema,
-                options=qlcompiler.CompilerOptions(
-                    modaliases=context.modaliases,
-                    schema_object_context=self.get_schema_metaclass(),
-                    anchors=anchors,
-                    singletons=singletons,
-                    apply_query_rewrites=not context.stdmode,
-                    track_schema_ref_exprs=track_schema_ref_exprs,
-                    # in_ddl_context_name=in_ddl_context_name,
-                    detached=True,
-                ),
-            )
+            try:
+                return type(value).compiled(
+                    value,
+                    schema=schema,
+                    options=qlcompiler.CompilerOptions(
+                        modaliases=context.modaliases,
+                        schema_object_context=self.get_schema_metaclass(),
+                        anchors=anchors,
+                        singletons=singletons,
+                        apply_query_rewrites=not context.stdmode,
+                        track_schema_ref_exprs=track_schema_ref_exprs,
+                        # in_ddl_context_name=in_ddl_context_name,
+                        detached=True,
+                    ),
+                )
+            except errors.QueryError as e:
+                if not e.has_source_context():
+                    e.set_source_context(
+                        self.get_attribute_source_context(field.name))
+                raise
         else:
             return super().compile_expr_field(
                 schema, context, field, value, track_schema_ref_exprs)

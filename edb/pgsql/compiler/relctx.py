@@ -1665,6 +1665,7 @@ def range_for_typeref(
             lateral=lateral,
             include_descendants=include_descendants,
             ignore_rewrites=ignore_rewrites,
+            include_overlays=not for_mutation,
             for_mutation=for_mutation,
             dml_source=dml_source,
             ctx=ctx,

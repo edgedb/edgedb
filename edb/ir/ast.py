@@ -702,7 +702,7 @@ class Statement(Command):
     dml_exprs: typing.List[qlast.Base]
     type_rewrites: typing.Dict[typing.Tuple[uuid.UUID, bool], Set]
     singletons: typing.List[PathId]
-    triggers: tuple[Trigger, ...]
+    triggers: tuple[tuple[Trigger, ...], ...]
 
 
 class TypeIntrospection(ImmutableExpr):
@@ -1116,13 +1116,14 @@ class Trigger(Base):
     expr: Set
     # All the relevant dml
     affected: set[tuple[TypeRef, MutatingStmt]]
+    all_affected_types: set[TypeRef]
     source_type: TypeRef
     kinds: set[qltypes.TriggerKind]
     scope: qltypes.TriggerScope
 
     # N.B: Semantically and in the external language, delete triggers
     # don't have a __new__ set, but we give it one in the
-    # implementation (identical) to the old set, to help make the
+    # implementation (identical to the old set), to help make the
     # implementation more uniform.
     new_set: Set
     old_set: typing.Optional[Set]

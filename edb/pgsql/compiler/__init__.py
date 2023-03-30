@@ -71,7 +71,7 @@ def compile_ir_to_sql_tree(
         query_params = []
         query_globals = []
         type_rewrites = {}
-        triggers: tuple[irast.Trigger, ...] = ()
+        triggers: tuple[tuple[irast.Trigger, ...], ...] = ()
 
         singletons = []
         if isinstance(ir_expr, irast.Statement):

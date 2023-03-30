@@ -1166,7 +1166,7 @@ def fini_stmt(
     path_id: Optional[irast.PathId]
 
     if isinstance(irstmt, irast.MutatingStmt):
-        ctx.env.dml_stmts.add(irstmt)
+        ctx.env.dml_stmts.append(irstmt)
         irstmt.rewrites = ctx.env.dml_rewrites.pop(irstmt.subject, None)
 
     if (isinstance(t, s_pseudo.PseudoType)
