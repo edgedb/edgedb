@@ -46,7 +46,7 @@ class Stmt(Nonterm):
         # Explain
         self.val = stmt.val
 
-    def reduce_AnalyzeStmt(self, stmt):
+    def reduce_AdministerStmt(self, stmt):
         self.val = stmt.val
 
     def reduce_ExprStmt(self, stmt):
@@ -283,7 +283,8 @@ class ExplainStmt(Nonterm):
         )
 
 
-class AnalyzeStmt(Nonterm):
+class AdministerStmt(Nonterm):
 
-    def reduce_ANALYZE(self, *kids):
-        self.val = qlast.AnalyzeStmt()
+    def reduce_ADMINISTER_FuncExpr(self, *kids):
+        _, expr = kids
+        self.val = qlast.AdministerStmt(expr=expr.val)

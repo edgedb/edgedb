@@ -2,6 +2,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "abort",
     "abstract",
     "access",
+    "administer",
     "after",
     "alias",
     "allow",
