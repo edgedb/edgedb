@@ -104,6 +104,9 @@ type Object {
     property c_length_3 -> constraint_length_2 {
         constraint min_len_value(10);
     }
+    property c_one_of -> str {
+        constraint one_of('foo', 'bar');
+    }
 
     property c_minmax -> constraint_minmax;
     property c_ex_minmax -> constraint_minmax_2;

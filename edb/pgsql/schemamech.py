@@ -158,6 +158,10 @@ class ConstraintMech:
         exprdata = cls._edgeql_tree_to_exprdata(
             sql_expr, is_multicol=is_multicol, refs=refs)
 
+        # Scalar constraints shouldn't ever fail on NULL
+        if isinstance(subject, s_scalars.ScalarType):
+            exprdata['plain'] = f"VALUE IS NULL OR ({exprdata['plain']})"
+
         return dict(
             exprdata=exprdata, is_multicol=is_multicol, is_trivial=is_trivial)
 
@@ -173,9 +177,15 @@ class ConstraintMech:
         assert constraint.get_subject(schema) is not None
 
         constraint_origins = constraint.get_constraint_origins(schema)
+        first_subject = constraint_origins[0].get_subject(schema)
 
         TypeOrPointer = s_types.Type | s_pointers.Pointer
-        singletons: Collection[TypeOrPointer] = frozenset({subject})
+        is_optional = (
+            isinstance(first_subject, s_pointers.Pointer)
+            and not first_subject.get_required(schema)
+        )
+        singletons: Collection[tuple[TypeOrPointer, bool]] = (
+            frozenset({(subject, is_optional)}))
 
         options = qlcompiler.CompilerOptions(
             anchors={qlast.Subject().name: subject},
@@ -189,7 +199,7 @@ class ConstraintMech:
             # look at one constraint origin, because if there were
             # multiple different origins, they couldn't get away with
             # referring to the type explicitly.
-            type_remaps={constraint_origins[0].get_subject(schema): subject},
+            type_remaps={first_subject: subject},
         )
 
         final_expr = constraint.get_finalexpr(schema)
@@ -254,7 +264,7 @@ class ConstraintMech:
                 qlast.Subject().name
                 if isinstance(origin_subject, s_types.Type) else None
             )
-            singletons = frozenset({origin_subject})
+            singletons = frozenset({(origin_subject, is_optional)})
 
             origin_options = qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: origin_subject},

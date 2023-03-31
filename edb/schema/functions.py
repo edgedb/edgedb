@@ -1666,7 +1666,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
             if (
                 self.has_attribute_value("code")
                 or self.has_attribute_value("nativecode")
-            ):
+            ) and not self.has_attribute_value('impl_is_strict'):
                 self.set_attribute_value(
                     'impl_is_strict',
                     _params_are_all_required_singletons(cp, schema),

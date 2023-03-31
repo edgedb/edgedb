@@ -87,11 +87,24 @@ def init_context(
         # references as singletons for the purposes of the overall
         # expression cardinality inference, so we set up the scope
         # tree in the necessary fashion.
-        for singleton in options.singletons:
+        had_optional = False
+        for singleton_ent in options.singletons:
+            singleton, optional = (
+                singleton_ent if isinstance(singleton_ent, tuple)
+                else (singleton_ent, False)
+            )
+            had_optional |= optional
             path_id = compile_anchor('__', singleton, ctx=ctx).path_id
-            ctx.env.path_scope.attach_path(path_id, context=None)
-            ctx.env.singletons.append(path_id)
+            ctx.env.path_scope.attach_path(
+                path_id, optional=optional, context=None)
+            if not optional:
+                ctx.env.singletons.append(path_id)
             ctx.iterator_path_ids |= {path_id}
+
+        # If we installed any optional singletons, run the rest of the
+        # compilation under a fence to protect them.
+        if had_optional:
+            ctx.path_scope = ctx.path_scope.attach_fence()
 
     for orig, remapped in options.type_remaps.items():
         rset = compile_anchor('__', remapped, ctx=ctx)
@@ -138,6 +151,8 @@ def fini_expression(
     *,
     ctx: context.ContextLevel,
 ) -> irast.Command:
+
+    ctx.path_scope = ctx.env.path_scope
 
     ir = eta_expand.eta_expand_ir(ir, toplevel=True, ctx=ctx)
 
