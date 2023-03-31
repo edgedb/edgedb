@@ -7930,7 +7930,7 @@ type default::Foo {
     async def test_edgeql_ddl_extending_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r"Could not find consistent ancestor order for "
+                r"could not find consistent ancestor order for "
                 r"object type 'default::Merged1'"):
 
             await self.con.execute(r"""
@@ -7944,17 +7944,17 @@ type default::Foo {
             """)
 
     async def test_edgeql_ddl_extending_02(self):
-        await self.con.execute(r"""
-            CREATE TYPE ExtA2;
-            # Create two types with a different position of Object
-            # in the bases. This doesn't impact the linearized
-            # bases because Object is already implicitly included
-            # as the first element of the base types.
-            CREATE TYPE ExtC2 EXTENDING ExtA2, Object;
-            CREATE TYPE ExtD2 EXTENDING Object, ExtA2;
-            # extending from both of these types
-            CREATE TYPE Merged2 EXTENDING ExtC2, ExtD2;
-        """)
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r"could not find consistent ancestor order for "
+                r"object type 'default::ExtD2'"):
+            await self.con.execute(r"""
+                CREATE TYPE ExtA2;
+                CREATE TYPE ExtC2 EXTENDING ExtA2, Object;
+                # This is busted because no ordering can be consistent
+                # with the base ordering here.
+                CREATE TYPE ExtD2 EXTENDING Object, ExtA2;
+            """)
 
     async def test_edgeql_ddl_extending_03(self):
         # Check that ancestors are recomputed properly on rebase.
@@ -8209,6 +8209,18 @@ type default::Foo {
             await self.con.execute("""
                 CREATE TYPE SomeObject6;
                 ALTER TYPE SomeObject6 EXTENDING FreeObject;
+            """)
+
+    async def test_edgeql_ddl_extending_07(self):
+        await self.con.execute(r"""
+            create type A;
+            create type B extending A;
+        """)
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r"could not find consistent ancestor order"):
+            await self.con.execute(r"""
+                create type C extending A, B;
             """)
 
     async def test_edgeql_ddl_modules_01(self):

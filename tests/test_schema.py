@@ -1384,7 +1384,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             CREATE MODULE default;
             CREATE TYPE default::A;
             CREATE TYPE default::B EXTENDING A;
-            CREATE TYPE default::C EXTENDING A, B;
+            CREATE TYPE default::C EXTENDING B, A;
         ''')
 
         orig_get_children = type(schema).get_children
@@ -7775,7 +7775,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 abstract type C extending B;
                 abstract type C2 extending C;
                 abstract type D;
-                type F extending C, C2, B;
+                type F extending C2, C, B;
             """,
             r"""
             """,
@@ -7807,8 +7807,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 abstract type C extending B;
                 abstract type C2 extending C;
                 abstract type D;
-                type F extending C, C2, B;
-                type F2 extending C, C2, B, F;
+                type F extending C2, C, B;
+                type F2 extending F, C2, C, B;
             """,
             r"""
             """,
