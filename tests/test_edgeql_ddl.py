@@ -12605,6 +12605,42 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             [{'generated_by': 'DDLStatement'}]
         )
 
+    async def test_edgeql_ddl_create_migration_04(self):
+        await self.con.execute('''
+            CREATE MIGRATION
+            {
+                create global foo -> str;
+                create type Foo;
+            };
+        ''')
+        await self.con.execute('''
+            insert Foo;
+        ''')
+
+        # Currently, SET GLOBAL is not allowed in migration scripts.
+        # Once we make it allowed, we will need to make it actually
+        # work, and there is a commented bit below to test that.
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "Unexpected keyword 'global'"):
+            await self.con.execute('''
+                CREATE MIGRATION
+                {
+                    set global foo := "test";
+                    alter type Foo {
+                        create required property name -> str {
+                        set default := (global foo);
+                    }
+                };
+            ''')
+
+        # await self.assert_query_result(
+        #     '''
+        #     SELECT Foo.name
+        #     ''',
+        #     ['test'],
+        # )
+
     async def test_edgeql_ddl_naked_backlink_in_computable(self):
         await self.con.execute('''
             CREATE TYPE User {
