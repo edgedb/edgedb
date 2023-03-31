@@ -7,6 +7,7 @@ import dataclasses
 from edb.server.compiler.explain import to_json
 from edb.server.compiler.explain import pg_tree
 from edb.server.compiler.explain import ir_analyze
+from edb.server.compiler import explain
 
 
 @dataclasses.dataclass
@@ -133,7 +134,7 @@ class TreeBuilder:
         self.by_alias = {}
         self.by_id = {}
 
-    def build(self, plan: pg_tree.Plan) -> Plan:
+    def build(self, plan: pg_tree.Plan, args: explain.Arguments) -> Plan:
         pipeline = []
         aliases = set()
 
@@ -142,16 +143,16 @@ class TreeBuilder:
         if alias:
             aliases.add(alias)
 
-        plans = _filter_plans(plan)
+        plans = _filter_plans(plan, args)
         while len(plans) == 1 and not alias:
             node = plans[0]
             pipeline.append(self._make_stage(node))
-            plans = _filter_plans(node)
+            plans = _filter_plans(node, args)
             alias = getattr(node, 'alias', None)
             if alias:
                 aliases.add(alias)
 
-        subplans = [self.build(subplan)
+        subplans = [self.build(subplan, args)
                     for subplan in plans]
 
         alias_info = self.alias_info.get(alias)
@@ -227,16 +228,16 @@ class TreeBuilder:
         )
 
 
-def _filter_plans(node: pg_tree.Plan):
-    if node.actual_total_time is not None:  # TODO(tailhook) use some flag
-        min_time = node.actual_total_time * 0.01
+def _filter_plans(node: pg_tree.Plan, args: explain.Arguments):
+    if args.execute:
+        min_time = (node.actual_total_time or 0) * 0.01
         # TODO(tailhook) maybe we should scan inner plans to figure out that
         # there are no inner contexts in the children
         plans = [
             p
             for p in node.plans
             if not isinstance(p, pg_tree.Result) or
-            p.actual_total_time or 0 > min_time or p.actual_rows or 0 > 1
+            (p.actual_total_time or 0) > min_time or (p.actual_rows or 0) > 1
         ]
         return plans
     else:
@@ -254,10 +255,11 @@ def _filter_plans(node: pg_tree.Plan):
 
 def build(
     plan: pg_tree.Plan,
-    info: ir_analyze.AnalysisInfo
+    info: ir_analyze.AnalysisInfo,
+    args: explain.Arguments,
 ) -> Tuple[Plan, Index]:
     tree = TreeBuilder(info)
-    result = tree.build(plan)
+    result = tree.build(plan, args)
     result.contexts = context_optimize(result.contexts)
     index = Index(by_id=tree.by_id, by_alias=tree.by_alias)
     return result, index

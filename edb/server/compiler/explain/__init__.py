@@ -23,6 +23,7 @@ from typing import *
 import json
 import logging
 import pickle
+import dataclasses
 
 from edb.common import debug
 from edb.edgeql import ast as qlast
@@ -47,6 +48,12 @@ OMITTED_CONFIG_VALS = {
 }
 
 
+@dataclasses.dataclass
+class Arguments(to_json.ToJson):
+    execute: bool
+    buffers: bool
+
+
 def analyze_explain_output(
     query_asts_pickled: bytes,
     data: list[list[bytes]],
@@ -58,7 +65,9 @@ def analyze_explain_output(
     ql: qlast.Base
     ir: irast.Statement
     pg: pgast.Base
-    ql, ir, pg, config_vals = pickle.loads(query_asts_pickled)
+    ql, ir, pg, (config_vals, args) = pickle.loads(query_asts_pickled)
+    args = Arguments(**args)
+
     schema = ir.schema
     # We omit the std schema when serializing, so put it back
     if isinstance(schema, s_schema.ChainedSchema):
@@ -86,7 +95,7 @@ def analyze_explain_output(
     try:
         info = ir_analyze.analyze_queries(ql, ir, pg, schema=schema)
         debug_tree = pg_tree.Plan.from_json(plan, schema)
-        fg_tree, index = fine_grained.build(debug_tree, info)
+        fg_tree, index = fine_grained.build(debug_tree, info, args)
         if debug.flags.edgeql_explain:
             debug.dump(fg_tree)
             debug.dump(info)
@@ -107,9 +116,10 @@ def analyze_explain_output(
         buffers = []  # should never happen
 
     output = {
-        'buffers': buffers,
         'config_vals': config_vals,
         'globals_used': globals_used,
+        'arguments': args,
+        'buffers': buffers,
         'debug_info': {
             'full_plan': debug_tree,
             'alias_info': info,
