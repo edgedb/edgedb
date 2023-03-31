@@ -1437,6 +1437,7 @@ class PointerCommandOrFragment(
         target_as_singleton: bool = False,
         expr_description: Optional[str] = None,
         no_query_rewrites: bool = False,
+        make_globals_empty: bool = False,
         source_context: Optional[parsing.ParserContext] = None,
     ) -> s_expr.CompiledExpression:
         singletons: List[Union[s_types.Type, Pointer]] = []
@@ -1493,6 +1494,7 @@ class PointerCommandOrFragment(
                 apply_query_rewrites=(
                     not context.stdmode and not no_query_rewrites
                 ),
+                make_globals_empty=make_globals_empty,
                 track_schema_ref_exprs=track_schema_ref_exprs,
                 in_ddl_context_name=in_ddl_context_name,
             )

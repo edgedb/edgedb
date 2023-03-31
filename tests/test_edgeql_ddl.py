@@ -6587,25 +6587,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             create type X;
         """)
 
-        # We can't set a default that uses a global when creating a new
-        # pointer, since it would need to run *now* and populate the data
-        async with self.assertRaisesRegexTx(
-            edgedb.UnsupportedFeatureError,
-            r"globals may not be used when converting/populating data "
-            r"in migrations"
-        ):
-            await self.con.execute("""
-                alter type X {
-                    create property foo -> str {
-                        set default := (global foo);
-                    }
-                };
-            """)
-
         await self.con.execute("""
             set global foo := "test"
         """)
-        # But we *can* do it when creating a brand new type
         await self.con.execute("""
             create type Y {
                 create property foo -> str {
@@ -6850,6 +6834,61 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute("""
                 alter global foo set type str using ('lol');
             """)
+
+    async def test_edgeql_ddl_global_default(self):
+        await self.con.execute('''
+            create global foo -> str;
+            create type Foo;
+        ''')
+
+        # Should work; no data in the table to cause trouble
+        await self.con.execute('''
+            alter type Foo { create required property name -> str {
+                set default := (global foo);
+            } }
+        ''')
+
+        await self.con.execute('''
+            set global foo := "test";
+            insert Foo;
+            reset global foo;
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select Foo { name }
+            ''',
+            [{'name': "test"}],
+        )
+
+        # Should fail because there is data
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required property"
+        ):
+            await self.con.execute('''
+                alter type Foo { create required property name2 -> str {
+                    set default := (global foo);
+                } }
+            ''')
+
+        await self.con.execute('''
+            alter global foo set default := "!";
+        ''')
+
+        # Try it again now that there is a default
+        await self.con.execute('''
+            alter type Foo { create required property name2 -> str {
+                set default := (global foo);
+            } }
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select Foo { name, name2 }
+            ''',
+            [{'name': "test", 'name2': "!"}],
+        )
 
     async def test_edgeql_ddl_property_computable_01(self):
         await self.con.execute('''\

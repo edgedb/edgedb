@@ -479,14 +479,23 @@ def compile_GlobalExpr(
         qry = qlast.SelectQuery(result=qlast.Path(steps=[obj_ref]))
         return dispatch.compile(qry, ctx=ctx)
 
+    default = glob.get_default(ctx.env.schema)
+
+    # If we are compiling with globals suppressed but still allowed, always
+    # treat it as being empty.
+    if ctx.env.options.make_globals_empty:
+        if default:
+            return dispatch.compile(default.qlast, ctx=ctx)
+        else:
+            return setgen.new_empty_set(
+                stype=glob.get_target(ctx.env.schema), ctx=ctx)
+
     objctx = ctx.env.options.schema_object_context
     if objctx in (s_constr.Constraint, s_indexes.Index):
         typname = objctx.get_schema_class_displayname()
         raise errors.SchemaDefinitionError(
             f'global variables cannot be referenced from {typname}',
             context=expr.context)
-
-    default = glob.get_default(ctx.env.schema)
 
     param_set: qlast.Expr | irast.Set
     present_set: qlast.Expr | irast.Set | None
