@@ -1493,8 +1493,8 @@ class DescribeStmt(Statement):
 
 class ExplainStmt(Statement):
 
+    args: typing.Optional[NamedTuple]
     query: Query
-    analyze: bool
 
 
 #

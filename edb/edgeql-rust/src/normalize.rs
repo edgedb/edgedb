@@ -218,7 +218,7 @@ pub fn normalize<'x>(text: &'x str)
             }
             Kind::Keyword
             if (matches!(&(&tok.value[..].to_uppercase())[..],
-                         "CONFIGURE"|"CREATE"|"ALTER"|"DROP"|"START")
+                         "CONFIGURE"|"CREATE"|"ALTER"|"DROP"|"START"|"ANALYZE")
                 || (last_was_set &&
                     matches!(&(&tok.value[..].to_uppercase())[..],
                              "GLOBAL"))
