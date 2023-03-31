@@ -136,6 +136,9 @@ class EdgeQLParserBase(parsing.Parser):
                     msg = f'Unexpected {token.val!r}'
                 elif token_kind == 'NL':
                     msg = 'Unexpected end of line'
+                elif token.text() == "explain":
+                    msg = f'Unexpected keyword {token.text()!r}'
+                    hint = f'Use `analyze` to show query performance details'
                 elif is_reserved and not isinstance(ltok, gr_exprs.Expr):
                     # Another token followed by a reserved keyword:
                     # likely an attempt to use keyword as identifier
