@@ -102,7 +102,7 @@ def init_context(
             ctx.iterator_path_ids |= {path_id}
 
         # If we installed any optional singletons, run the rest of the
-        # compmilation under a fence to protect them.
+        # compilation under a fence to protect them.
         if had_optional:
             ctx.path_scope = ctx.path_scope.attach_fence()
 
