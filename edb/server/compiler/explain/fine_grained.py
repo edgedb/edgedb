@@ -22,20 +22,6 @@ class Prop(to_json.ToJson):
         return self.title
 
 
-@dataclasses.dataclass
-class CostMixin:
-    startup_cost: float
-    total_cost: float
-    plan_rows: float
-    plan_width: int
-
-    # analyze (zeros if never executed)
-    actual_startup_time: Optional[float]  # if timing
-    actual_total_time: Optional[float]  # if timing
-    actual_rows: Optional[float]
-    actual_loops: Optional[float]
-
-
 class Properties(to_json.ToJson):
 
     def __init__(self, props: Iterable[Prop]):
@@ -49,7 +35,7 @@ class Properties(to_json.ToJson):
 
 
 @dataclasses.dataclass(kw_only=True)
-class Stage(to_json.ToJson, CostMixin):
+class Stage(to_json.ToJson, pg_tree.CostMixin):
     plan_type: str
     plan_id: uuid.UUID
     properties: Properties
@@ -225,6 +211,16 @@ class TreeBuilder:
             actual_total_time=plan.actual_total_time,
             actual_rows=plan.actual_rows,
             actual_loops=plan.actual_loops,
+            shared_hit_blocks=plan.shared_hit_blocks,
+            shared_read_blocks=plan.shared_read_blocks,
+            shared_dirtied_blocks=plan.shared_dirtied_blocks,
+            shared_written_blocks=plan.shared_written_blocks,
+            local_hit_blocks=plan.local_hit_blocks,
+            local_read_blocks=plan.local_read_blocks,
+            local_dirtied_blocks=plan.local_dirtied_blocks,
+            local_written_blocks=plan.local_written_blocks,
+            temp_read_blocks=plan.temp_read_blocks,
+            temp_written_blocks=plan.temp_written_blocks,
         )
 
 

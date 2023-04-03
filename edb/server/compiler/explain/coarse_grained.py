@@ -63,7 +63,7 @@ class _PlanInfo:
 
 
 @dataclasses.dataclass
-class Node(to_json.ToJson, fine_grained.CostMixin):
+class Node(to_json.ToJson, pg_tree.CostMixin):
     plan_id: uuid.UUID
     relations: FrozenSet[str]
     contexts: Optional[list[ir_analyze.ContextDesc]]
@@ -165,6 +165,16 @@ def _build_shape(
         actual_total_time=top.actual_total_time,
         actual_rows=top.actual_rows,
         actual_loops=top.actual_loops,
+        shared_hit_blocks=top.shared_hit_blocks,
+        shared_read_blocks=top.shared_read_blocks,
+        shared_dirtied_blocks=top.shared_dirtied_blocks,
+        shared_written_blocks=top.shared_written_blocks,
+        local_hit_blocks=top.local_hit_blocks,
+        local_read_blocks=top.local_read_blocks,
+        local_dirtied_blocks=top.local_dirtied_blocks,
+        local_written_blocks=top.local_written_blocks,
+        temp_read_blocks=top.temp_read_blocks,
+        temp_written_blocks=top.temp_written_blocks,
     )
 
 

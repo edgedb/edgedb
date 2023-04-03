@@ -44,6 +44,14 @@ class FromJson(ast.AST, to_json.ToJson):
                 result.__dict__[name] = value
                 continue
 
+            if get_origin(prop) is Annotated:
+                prop = get_args(prop)[0]
+            if get_origin(prop) is Union:  # actually an option
+                prop = get_args(prop)[0]
+                if value is None:
+                    result.__dict__[name] = value
+                    continue
+
             if prop is Index:
                 result.__dict__[name] = _translate_index(value, schema)
             elif prop is Relation:
@@ -53,12 +61,6 @@ class FromJson(ast.AST, to_json.ToJson):
                 if type(inner) is type and issubclass(inner, FromJson):
                     result.__dict__[name] = [inner.from_json(v, schema)
                                              for v in value]
-                else:
-                    result.__dict__[name] = value
-            elif get_origin(prop) is Union:  # actually optional!
-                inner = get_args(prop)[0]
-                if value is not None and isinstance(inner, FromJson):
-                    result.__dict__[name] = inner.from_json(value, schema)
                 else:
                     result.__dict__[name] = value
             elif type(prop) is type and issubclass(prop, FromJson):
@@ -227,7 +229,34 @@ class Worker(FromJson):
 PlanT = TypeVar('PlanT', bound='Plan')
 
 
-class Plan(FromJson):
+@dataclasses.dataclass(kw_only=True)
+class CostMixin:
+    # if cost
+    startup_cost: float
+    total_cost: float
+    plan_rows: float
+    plan_width: int
+
+    # if analyze (zeros if never executed)
+    actual_startup_time: Optional[float] = None  # if timing
+    actual_total_time: Optional[float] = None  # if timing
+    actual_rows: Optional[float] = None
+    actual_loops: Optional[float] = None
+
+    # if buffers
+    shared_hit_blocks: Optional[int] = None
+    shared_read_blocks: Optional[int] = None
+    shared_dirtied_blocks: Optional[int] = None
+    shared_written_blocks: Optional[int] = None
+    local_hit_blocks: Optional[int] = None
+    local_read_blocks: Optional[int] = None
+    local_dirtied_blocks: Optional[int] = None
+    local_written_blocks: Optional[int] = None
+    temp_read_blocks: Optional[int] = None
+    temp_written_blocks: Optional[int] = None
+
+
+class Plan(FromJson, CostMixin):
     # TODO(tailhook) output is lost somewhere
     node_type: str
     plan_id: uuid.UUID
@@ -236,18 +265,6 @@ class Plan(FromJson):
     parallel_aware: bool  # true always shown as a prefix of node name
     async_capable: bool  # true always shown as a prefix of node name
     workers: Sequence[Worker]  # shown if non-empty
-
-    # if cost
-    startup_cost: float
-    total_cost: float
-    plan_rows: float
-    plan_width: int
-
-    # analyze (zeros if never executed)
-    actual_startup_time: Optional[float]  # if timing
-    actual_total_time: Optional[float]  # if timing
-    actual_rows: Optional[float]
-    actual_loops: Optional[float]
 
     plans: list[Plan]
 
@@ -273,8 +290,11 @@ class Plan(FromJson):
     def get_props(cls) -> dict[str, PropInfo]:
         result = {}
         for name, prop in get_type_hints(cls).items():
+            if name in CostMixin.__annotations__:
+                # these are stored in the node itself
+                continue
             if get_origin(prop) is Annotated:
-                prop = prop
+                prop = get_args(prop)[0]
                 imp = important in get_args(prop)
             else:
                 imp = False
