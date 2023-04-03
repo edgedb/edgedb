@@ -411,7 +411,6 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "type": "expr",
                         },
                     ],
-                    "startup_cost": 0.28,
                 }
             ],
             "subplans": [
@@ -455,7 +454,6 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "value": "Simple",
                                 },
                             ],
-                            "startup_cost": 26.67,
                         },
                         {
                             "actual_loops": 1,
@@ -477,7 +475,6 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "value": "Inner",
                                 },
                             ],
-                            "startup_cost": 0.56,
                         },
                     ],
                     "subplans": [
@@ -543,7 +540,6 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                             "value": 2,
                                         },
                                     ],
-                                    "startup_cost": 0.28,
                                 }
                             ],
                             "subplans": [],
@@ -608,7 +604,6 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                             '"todo~1".target)',
                                         },
                                     ],
-                                    "startup_cost": 0.28,
                                 }
                             ],
                             "subplans": [],
