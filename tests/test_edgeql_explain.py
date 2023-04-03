@@ -486,60 +486,9 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "plan_rows": 2,
                                     "plan_type": "IndexOnlyScan",
                                     "plan_width": 16,
-                                    "properties": tb.bag([
-                                        {
-                                            "important": False,
-                                            "title": "parent_relationship",
-                                            "type": "text",
-                                            "value": "Outer",
-                                        },
-                                        {
-                                            "important": False,
-                                            "title": "schema",
-                                            "type": "text",
-                                            "value": "edgedbpub",
-                                        },
-                                        {
-                                            "important": False,
-                                            "title": "alias",
-                                            "type": "text",
-                                            "value": "todo~1",
-                                        },
-                                        {
-                                            "important": False,
-                                            "title": "relation_name",
-                                            "type": "relation",
-                                        },
-                                        {
-                                            "important": False,
-                                            "title": "scan_direction",
-                                            "type": "text",
-                                            "value": "Forward",
-                                        },
-                                        {
-                                            "important": False,
-                                            "title": "index_name",
-                                            "type": "index",
-                                            "value": "default::User.todo "
-                                            "forward "
-                                            "link "
-                                            "index",
-                                        },
-                                        {
-                                            "important": False,
-                                            "title": "index_cond",
-                                            "type": "expr",
-                                            "value": '("todo~1".source '
-                                            "= "
-                                            '"User~2".id)',
-                                        },
-                                        {
-                                            "important": False,
-                                            "title": "heap_fetches",
-                                            "type": "float",
-                                            "value": 2,
-                                        },
-                                    ]),
+                                    # This has property `heap_fetches`
+                                    # that vary on github an locally.
+                                    # So skip checking "properties"
                                 }
                             ],
                             "subplans": [],
