@@ -328,3 +328,23 @@ Create and execute the current migration:
 .. code-block:: edgeql
 
     commit migration;
+
+
+Reset schema to initial
+=======================
+
+.. versionadded:: 3.0
+
+:eql-statement:
+
+Reset the database schema to its initial state.
+
+.. eql:synopsis::
+
+    reset schema to inital ;
+
+.. warning::
+
+    This command will drop all entities and, as a consequence, all data. You
+    won't want to use this statement on a production instance unless you want
+    to lose all that instance's data.
