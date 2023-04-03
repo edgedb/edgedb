@@ -224,12 +224,20 @@ def compile_cast(
     # Constraints and indexes require an immutable expression, but pg cast is
     # only stable. In this specific case, we use cast wrapper function that
     # is declared to be immutable.
-    if new_stype.is_enum(ctx.env.schema):
+    if orig_stype.is_enum(ctx.env.schema) or new_stype.is_enum(ctx.env.schema):
         objctx = ctx.env.options.schema_object_context
         if objctx in (s_constr.Constraint, s_indexes.Index):
-            return _cast_enum_immutable(
-                ir_expr, orig_stype, new_stype, ctx=ctx
+
+            str_typ = ctx.env.schema.get(
+                sn.QualName("std", "str"),
+                type=s_types.Type,
             )
+            orig_str = orig_stype.issubclass(ctx.env.schema, str_typ)
+            new_str = new_stype.issubclass(ctx.env.schema, str_typ)
+            if orig_str or new_str:
+                return _cast_enum_str_immutable(
+                    ir_expr, orig_stype, new_stype, ctx=ctx
+                )
 
     return _compile_cast(
         ir_expr,
@@ -962,19 +970,33 @@ def _cast_array_literal(
     return setgen.ensure_set(cast_ir, ctx=ctx)
 
 
-def _cast_enum_immutable(
+def _cast_enum_str_immutable(
     ir_expr: Union[irast.Set, irast.Expr],
     orig_stype: s_types.Type,
     new_stype: s_types.Type,
     *,
     ctx: context.ContextLevel,
 ) -> irast.Set:
+    """
+    Compiles cast between an enum and std::str
+    under the assumption that this expression must be immutable.
+    """
+
+    if new_stype.is_enum(ctx.env.schema):
+        enum_stype = new_stype
+        suffix = "_from_str"
+    else:
+        enum_stype = orig_stype
+        suffix = "_into_str"
+
+    name: s_name.Name = enum_stype.get_name(ctx.env.schema)
+    name = cast(s_name.QualName, name)
+    cast_name = s_name.QualName(
+        module=name.module, name=str(enum_stype.id) + suffix
+    )
+
     orig_typeref = typegen.type_to_typeref(orig_stype, env=ctx.env)
     new_typeref = typegen.type_to_typeref(new_stype, env=ctx.env)
-
-    name: s_name.Name = new_stype.get_name(ctx.env.schema)
-    name = cast(s_name.QualName, name)
-    cast_name = s_name.QualName(module=name.module, name=str(new_stype.id))
 
     cast_ir = irast.TypeCast(
         expr=setgen.ensure_set(ir_expr, ctx=ctx),

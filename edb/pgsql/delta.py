@@ -2397,7 +2397,7 @@ class CreateScalarType(ScalarTypeMetaCommand,
         # needed for casting within indexes/constraints.
         # (Postgres casts are only stable)
         cast_func_name = common.get_backend_name(
-            schema, scalar, catenate=False, aspect="enum-cast"
+            schema, scalar, catenate=False, aspect="enum-cast-from-str"
         )
         cast_func = dbops.Function(
             name=cast_func_name,
@@ -2407,6 +2407,19 @@ class CreateScalarType(ScalarTypeMetaCommand,
             text=f"SELECT value::{qt(new_enum_name)}",
         )
         ops.add_command(dbops.CreateFunction(cast_func))
+
+        # Simialry, uncast from enum to str
+        uncast_func_name = common.get_backend_name(
+            schema, scalar, catenate=False, aspect="enum-cast-into-str"
+        )
+        uncast_func = dbops.Function(
+            name=uncast_func_name,
+            args=[("value", ("anyelement",))],
+            volatility="immutable",
+            returns="text",
+            text=f"SELECT value::text",
+        )
+        ops.add_command(dbops.CreateFunction(uncast_func))
         return ops
 
     def _create_begin(
@@ -2842,7 +2855,7 @@ class DeleteScalarType(ScalarTypeMetaCommand,
             cond = dbops.EnumExists(old_enum_name)
 
             cast_func_name = common.get_backend_name(
-                orig_schema, scalar, catenate=False, aspect="enum-cast"
+                orig_schema, scalar, False, aspect="enum-cast-from-str"
             )
             cast_func = dbops.DropFunction(
                 name=cast_func_name,
@@ -2850,6 +2863,16 @@ class DeleteScalarType(ScalarTypeMetaCommand,
                 conditions=[cond],
             )
             ops.add_command(cast_func)
+
+            uncast_func_name = common.get_backend_name(
+                orig_schema, scalar, False, aspect="enum-cast-into-str"
+            )
+            uncast_func = dbops.DropFunction(
+                name=uncast_func_name,
+                args=[("value", ("anyelement",))],
+                conditions=[cond],
+            )
+            ops.add_command(uncast_func)
 
             enum = dbops.DropEnum(name=old_enum_name, conditions=[cond])
             ops.add_command(enum)
