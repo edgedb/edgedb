@@ -863,6 +863,13 @@ class RebaseRewrite(
     pass
 
 
+class RenameRewrite(
+    RewriteCommand,
+    adapts=s_rewrites.RenameRewrite,
+):
+    pass
+
+
 class AlterRewrite(
     RewriteCommand,
     adapts=s_rewrites.AlterRewrite,

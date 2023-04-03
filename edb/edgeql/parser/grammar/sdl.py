@@ -727,7 +727,11 @@ class RewriteDeclarationBlock(Nonterm):
             USING ParenExpr
             CreateRewriteSDLCommandsBlock
         """
+        # The name isn't important (it gets replaced) but we need to
+        # have one.
+        name = '/'.join(str(kind) for kind in kinds.val)
         self.val = qlast.CreateRewrite(
+            name=qlast.ObjectRef(name=name),
             kinds=kinds.val,
             expr=expr.val,
             commands=commands.val,
@@ -740,7 +744,11 @@ class RewriteDeclarationShort(Nonterm):
             REWRITE RewriteKindList
             USING ParenExpr
         """
+        # The name isn't important (it gets replaced) but we need to
+        # have one.
+        name = '/'.join(str(kind) for kind in kinds.val)
         self.val = qlast.CreateRewrite(
+            name=qlast.ObjectRef(name=name),
             kinds=kinds.val,
             expr=expr.val,
         )

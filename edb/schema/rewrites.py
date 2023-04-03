@@ -52,9 +52,10 @@ class Rewrite(
         special_ddl_syntax=True,
     )
 
+    # 0.0 because we don't support ALTER yet
     expr = so.SchemaField(
         s_expr.Expression,
-        compcoef=0.909,
+        compcoef=0.0,
         special_ddl_syntax=True,
     )
 
@@ -239,9 +240,12 @@ class RewriteCommand(
 
         for kind in astnode.kinds:
             # use kind for the name
-            astnode.name = qlast.ObjectRef(name=str(kind))
+            newnode = astnode.replace(
+                name=qlast.ObjectRef(module='__', name=str(kind)),
+                kinds=kind,
+            )
 
-            cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+            cmd = super()._cmd_tree_from_ast(schema, newnode, context)
             assert isinstance(cmd, RewriteCommand)
 
             cmd.set_attribute_value('kind', kind)
@@ -293,10 +297,30 @@ class CreateRewrite(
             )
         return group
 
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        if op.property == 'kind':
+            assert isinstance(node, qlast.CreateRewrite)
+            node.kinds = [self.get_attribute_value('kind')]
+        else:
+            super()._apply_field_ast(schema, context, node, op)
+
 
 class RebaseRewrite(
     RewriteCommand,
     referencing.RebaseReferencedInheritingObject[Rewrite],
+):
+    pass
+
+
+class RenameRewrite(
+    RewriteCommand,
+    referencing.RenameReferencedInheritingObject[Rewrite],
 ):
     pass
 
@@ -333,3 +357,16 @@ class DeleteRewrite(
     referencing.DeleteReferencedInheritingObject[Rewrite],
 ):
     referenced_astnode = astnode = qlast.DropRewrite
+
+    def _get_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        *,
+        parent_node: Optional[qlast.DDLOperation] = None,
+    ) -> Optional[qlast.DDLOperation]:
+        node = super()._get_ast(schema, context, parent_node=parent_node)
+        assert isinstance(node, qlast.DropRewrite)
+        skind = sn.shortname_from_fullname(self.classname).name
+        node.kinds = [qltypes.RewriteKind(skind)]
+        return node
