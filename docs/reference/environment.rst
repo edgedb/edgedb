@@ -157,6 +157,8 @@ files.
 Maps directly to the ``edgedb-server`` flag ``--runstate-dir``.
 
 
+.. _ref_reference_envvar_admin_ui:
+
 EDGEDB_SERVER_ADMIN_UI
 ......................
 
