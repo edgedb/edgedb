@@ -40,7 +40,6 @@ from edb.pgsql import compiler as pg_compiler
 
 from edb import edgeql
 from edb.common import debug
-from edb.common import devmode
 from edb.common import verutils
 from edb.common import uuidgen
 
@@ -1422,9 +1421,9 @@ def _compile_ql_administer(
     *,
     script_info: Optional[irast.ScriptInfo] = None,
 ) -> dbstate.BaseQuery:
-    if not devmode.is_in_dev_mode():
+    if not _is_dev_instance(ctx):
         raise errors.QueryError(
-            'ADMINISTER can only be executed in dev mode',
+            'ADMINISTER can only be executed in test mode',
             context=ql.context)
 
     if ql.expr.func == 'statistics_update':
