@@ -1,6 +1,6 @@
 
 
-from typing import Callable, Dict, Optional, Sequence
+from typing import Callable, Dict, Optional, Sequence, Tuple
 
 from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoolVal,
                        BoundVarExpr, DetachedExpr, Expr, FilterOrderExpr,
@@ -222,6 +222,25 @@ def iterative_subst_expr_for_expr(
     return result
 
 
+def appears_in_expr_pred(search_pred: Callable[[Expr], bool],
+                         subject: Expr) -> bool:
+
+    class ReturnTrue(Exception):
+        pass
+
+    def map_func(candidate: Expr) -> Optional[Expr]:
+        if search_pred(candidate):
+            raise ReturnTrue()
+        else:
+            return None
+
+    try:
+        map_expr(map_func, subject)
+    except ReturnTrue:
+        return True
+    return False
+
+
 def appears_in_expr(search: Expr, subject: Expr):
     class ReturnTrue(Exception):
         pass
@@ -342,6 +361,10 @@ def link_prop_obj_to_obj(dic: ObjectVal) -> ObjectVal:
 
 def combine_object_val(o1: ObjectVal, o2: ObjectVal) -> ObjectVal:
     return ObjectVal({**o1.val, **o2.val})
+
+
+def combine_object_tp(o1: ObjectTp, o2: ObjectTp) -> ObjectTp:
+    return ObjectTp({**o1.val, **o2.val})
 
 
 def object_to_shape(expr: ObjectExpr) -> ShapeExpr:
@@ -474,3 +497,22 @@ def is_path(e: Expr) -> bool:
             return is_path(subject)
         case _:
             return False
+
+
+def tcctx_add_binding(ctx: e.TcCtx,
+                      bnd_e: BindingExpr,
+                      binder_tp: e.ResultTp) -> Tuple[e.TcCtx, Expr, str]:
+    bnd_e = ensure_no_capture(list(get_free_vars(bnd_e))
+                              + list(ctx.varctx.keys()), bnd_e)
+    new_ctx = e.TcCtx(ctx.statics, {**ctx.varctx, bnd_e.var: binder_tp})
+    after_e = instantiate_expr(e.FreeVarExpr(bnd_e.var), bnd_e)
+    return new_ctx, after_e, bnd_e.var
+
+
+def is_effect_free(expr: Expr) -> bool:
+    def pred(expr: Expr) -> bool:
+        if isinstance(expr, e.InsertExpr) or isinstance(expr, e.UpdateExpr):
+            return True
+        else:
+            return False
+    return appears_in_expr_pred(pred, expr)

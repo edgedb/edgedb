@@ -5,11 +5,13 @@ import traceback
 from typing import *
 from typing import Tuple
 
+import json
 from edb.common import debug
 from edb.edgeql import ast as qlast
 
 from .back_to_ql import reverse_elab
 from .basis.built_ins import all_builtin_funcs
+from .data import data_ops as e
 from .data import expr_ops as eops
 from .data.data_ops import DB, DBSchema, MultiSetVal, empty_db
 from .data.path_factor import select_hoist
@@ -19,6 +21,8 @@ from .elaboration import elab
 from .evaluation import RTData, RTExpr, eval_config_toplevel
 from .helper_funcs import parse_ql
 from .logs import write_logs_to_file
+from .sqlite import sqlite_adapter
+from . import typechecking as tc
 
 # CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
 # sys.setrecursionlimit(10000)
@@ -46,14 +50,17 @@ def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema,
         debug.print(factored)
         reverse_elabed = reverse_elab(factored)
         debug.dump_edgeql(reverse_elabed)
+        print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Type Checking")
+
+    statics = RTData(DB(db.dbdata), [DB({**db.dbdata})], dbschema, False)
+
+    tp, type_checked = tc.synthesize_type(e.TcCtx(statics, {}), factored)
+
+    if should_print:
+        debug.print(tp)
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
 
-    config = RTExpr(
-        RTData(DB(db.dbdata),
-               [DB({**db.dbdata})],
-               dbschema,
-               False
-               ), factored)
+    config = RTExpr(statics, type_checked)
     result = eval_config_toplevel(config, logs=logs)
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
@@ -129,17 +136,26 @@ def repl(*, init_sdl_file=None,
          init_ql_file=None,
          debug_print=False,
          trace_to_file_path=None,
+         read_sqlite_file=None,
+         write_sqlite_file=None
          ) -> None:
-    # for now users should just invoke this script with rlwrap since I
-    # don't want to fiddle with history or anything
-    db = empty_db()
-    logs: List[Any] = []  # type: ignore[var]
+    if init_sdl_file is not None and read_sqlite_file is not None:
+        raise ValueError("Init SDL file and Read SQLite file cannot"
+                         " be specified at the same time")
+
     dbschema: DBSchema
-    if init_sdl_file is not None:
-        dbschema = schema_from_sdl_file(init_sdl_file_path=init_sdl_file,
-                                        surround_with_default=True)
+    db: DB
+    logs: List[Any] = []  # type: ignore[var]
+
+    if read_sqlite_file is not None:
+        (dbschema, db) = sqlite_adapter.unpickle_from_sqlite(read_sqlite_file)
     else:
-        dbschema = DBSchema({}, all_builtin_funcs)
+        db = empty_db()
+        if init_sdl_file is not None:
+            dbschema = schema_from_sdl_file(init_sdl_file_path=init_sdl_file)
+        else:
+            dbschema = DBSchema({}, all_builtin_funcs)
+
     if init_ql_file is not None:
         initial_queries = open(init_ql_file).read()
         (_, db) = run_str(db, dbschema, initial_queries,
@@ -147,6 +163,8 @@ def repl(*, init_sdl_file=None,
     while True:
         if trace_to_file_path is not None:
             write_logs_to_file(logs, trace_to_file_path)
+        if write_sqlite_file is not None:
+            sqlite_adapter.pickle_to_sqlite(dbschema, db, write_sqlite_file)
         print("> ", end="", flush=True)
         s = ""
         while ';' not in s:
@@ -154,8 +172,10 @@ def repl(*, init_sdl_file=None,
             if not s:
                 return
         try:
-            (_, db) = run_str(db, dbschema, s, print_asts=debug_print,
-                              logs=logs)
+            (res, db) = run_str(db, dbschema, s, print_asts=debug_print,
+                                logs=logs)
+            print("\n".join(json.dumps(multi_set_val_to_json_like(v))
+                            for v in res))
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
@@ -163,13 +183,11 @@ def repl(*, init_sdl_file=None,
 def db_with_initial_schema_and_queries(
         initial_schema_defs: str,
         initial_queries: str,
-        surround_schema_with_default: bool,
         debug_print=False,
         logs: Optional[List[Any]] = None) -> DB:
     db = empty_db()
     dbschema = schema_from_sdl_defs(
-        initial_schema_defs,
-        surround_with_default=surround_schema_with_default)
+        initial_schema_defs)
     (_, db) = run_str(db, dbschema, initial_queries,
                       print_asts=debug_print, logs=logs)
     return db

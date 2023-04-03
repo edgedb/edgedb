@@ -154,6 +154,14 @@ class FiniteCardinal:
                 return InfiniteCardinal()
         raise ValueError()
 
+    def __le__(self, other: Cardinal):
+        match other:
+            case FiniteCardinal(otherCard):
+                return self.value <= otherCard
+            case InfiniteCardinal():
+                return True
+        raise ValueError()
+
 
 @dataclass(frozen=True)
 class InfiniteCardinal:
@@ -173,6 +181,14 @@ class InfiniteCardinal:
                 return InfiniteCardinal()
         raise ValueError()
 
+    def __le__(self, other: Cardinal):
+        match other:
+            case FiniteCardinal(_):
+                return False
+            case InfiniteCardinal():
+                return True
+        raise ValueError()
+
 
 Cardinal = FiniteCardinal | InfiniteCardinal
 
@@ -183,6 +199,31 @@ def Inf():
 
 def Fin(i):
     return FiniteCardinal(i)
+
+def max_cardinal(a: Cardinal, b: Cardinal):
+    match a:
+        case FiniteCardinal(aVal):
+            match b:
+                case FiniteCardinal(bVal):
+                    return Fin(max(aVal, bVal))
+                case InfiniteCardinal():
+                    return Inf()
+        case InfiniteCardinal():
+            return Inf()
+    raise ValueError()
+
+
+def min_cardinal(a: Cardinal, b: Cardinal):
+    match a:
+        case FiniteCardinal(aVal):
+            match b:
+                case FiniteCardinal(bVal):
+                    return Fin(min(aVal, bVal))
+                case InfiniteCardinal():
+                    return a
+        case InfiniteCardinal():
+            return b
+    raise ValueError()
 
 
 @dataclass(frozen=True)
@@ -211,7 +252,12 @@ CardAtMostOne = CMMode(Fin(0), Fin(1))
 CardAtLeastOne = CMMode(Fin(1), Inf())
 CardAny = CMMode(Fin(0), Inf())
 
-ResultTp = Tuple[Tp, CMMode]
+# ResultTp = Tuple[Tp, CMMode]
+
+
+class ResultTp(NamedTuple):
+    tp: Tp
+    mode: CMMode
 
 
 # DEFINE PARAMETER MODIFIERS
@@ -245,6 +291,7 @@ class FunType:
     # all (overloaded) args need to have the same modifier
     args_mod: Sequence[ParamModifier]
     args_ret_types: Sequence[FunArgRetType]
+    effect_free: bool = False
 
 # DEFINE PRIM VALUES
 
@@ -356,6 +403,11 @@ class LinkPropProjExpr:
 
 @dataclass(frozen=True)
 class SubqueryExpr:  # select e in formalism
+    expr: Expr
+
+
+@dataclass(frozen=True)
+class SingularExpr:  # select e in formalism
     expr: Expr
 
 
@@ -528,7 +580,7 @@ Expr = (
     TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr |
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
     ObjectExpr | BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr |
-    ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr)
+    ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr | SingularExpr)
 
 
 @dataclass(frozen=True)
@@ -573,6 +625,12 @@ class RTExpr(NamedTuple):
 class RTVal(NamedTuple):
     data: RTData
     val: MultiSetVal
+
+
+@dataclass
+class TcCtx:
+    statics: RTData
+    varctx: Dict[str, ResultTp]
 
 
 def empty_db():

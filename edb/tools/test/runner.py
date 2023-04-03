@@ -398,7 +398,7 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
             if len(setup) == 1:
                 (init_sdl, init_ql) = setup[0][2]
                 db = model.db_with_initial_schema_and_queries(
-                    init_sdl, init_ql, surround_schema_with_default=False)
+                    init_sdl, init_ql)
             else:
                 db = model.empty_db()
 

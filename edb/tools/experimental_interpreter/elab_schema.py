@@ -114,12 +114,12 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
 
 
 def schema_from_sdl_defs(schema_defs: str,
-                         surround_with_default: bool) -> DBSchema:
-    return elab_schema(parse_sdl(schema_defs, surround_with_default))
+                         ) -> DBSchema:
+    return elab_schema(parse_sdl(schema_defs))
 
 
 def schema_from_sdl_file(init_sdl_file_path: str,
-                         surround_with_default: bool) -> DBSchema:
+                         ) -> DBSchema:
     with open(init_sdl_file_path) as f:
         return schema_from_sdl_defs(
-            f.read(), surround_with_default=surround_with_default)
+            f.read(), )

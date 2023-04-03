@@ -5,6 +5,7 @@ import json
 from typing import *
 import uuid
 from edb.errors import EdgeQLSyntaxError
+import re
 
 
 class EdbJSONEncoder(json.JSONEncoder):
@@ -30,9 +31,18 @@ def parse_ql(querystr: str) -> Sequence[qlast.Expr]:
     return statements
 
 
-def parse_sdl(sdlstr: str, surround_with_default) -> qlast.Schema:
+def parse_sdl(sdlstr: str) -> qlast.Schema:
     # See test_docs.py if this doesn't work
-    if surround_with_default:
-        return parser.parse_sdl(f'module default {{{sdlstr}}}')
-    else:
+    contains_module = re.match(
+        r'''(?xm)\s*
+            (\bmodule\s+\w+\s*{) |
+            (^.*
+                (type|annotation|link|property|constraint)
+                \s+(\w+::\w+)\s+
+                ({|extending)
+            )
+        ''', sdlstr)
+    if contains_module:
         return parser.parse_sdl(sdlstr)
+    else:
+        return parser.parse_sdl(f'module default {{{sdlstr}}}')
