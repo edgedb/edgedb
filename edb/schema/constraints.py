@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 from typing import *
+import re
 
 from edb import errors
 from edb.common import verutils
@@ -235,7 +236,7 @@ class Constraint(
         schema: s_schema.Schema,
         subjtitle: str,
     ) -> str:
-        errmsg = self.get_errmessage(schema)
+        errmsg: Optional[str] = self.get_errmessage(schema)
         args = self.get_args(schema)
         if args:
             args_ql: List[qlast.Base] = [
@@ -264,9 +265,7 @@ class Constraint(
             args_map = {'__subject__': subjtitle}
 
         assert errmsg is not None
-        formatted = errmsg.format(**args_map)
-
-        return formatted
+        return interpolate_errmessage(errmsg, args_map)
 
     def as_alter_delta(
         self,
@@ -1568,3 +1567,23 @@ class RebaseConstraint(
         bases: Tuple[so.ObjectShell[Constraint], ...],
     ) -> Tuple[so.ObjectShell[Constraint], ...]:
         return ()
+
+
+def interpolate_errmessage(message: str, args: Dict[str, str]) -> str:
+    """
+    Converts "hello {world}! {nope}" and {"world":"Alice", "hell":"Eve"}
+    into "hello Alice! {nope}".
+    """
+    formatted = ""
+    last_start = 0
+    for match in re.finditer(r"\{([A-Za-z_0-9]+)\}", message, flags=0):
+        formatted += message[last_start : match.start()]
+        last_start = match.end()
+
+        if match[1] in args:
+            formatted += args[match[1]]
+        else:
+            formatted += match[0]
+
+    formatted += message[last_start:]
+    return formatted

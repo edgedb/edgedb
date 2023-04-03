@@ -46,6 +46,7 @@ from edb import buildmeta
 from edb.common import exceptions
 from edb.common import devmode
 from edb.common import signalctl
+from edb.common import debug
 
 from . import args as srvargs
 from . import daemon
@@ -454,6 +455,11 @@ async def run_server(
     logger.debug(
         f"defaulting to the '{args.default_auth_method}' authentication method"
     )
+
+    if debug.flags.pydebug_listen:
+        import debugpy
+
+        debugpy.listen(38782)
 
     _init_parsers()
 
