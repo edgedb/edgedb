@@ -1421,7 +1421,7 @@ def _compile_ql_administer(
     *,
     script_info: Optional[irast.ScriptInfo] = None,
 ) -> dbstate.BaseQuery:
-    if not _get_config_val(ctx, '__internal_testmode'):
+    if not _is_dev_instance(ctx):
         raise errors.QueryError(
             'ADMINISTER can only be executed in test mode',
             context=ql.context)
