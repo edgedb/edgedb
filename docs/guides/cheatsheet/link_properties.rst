@@ -158,6 +158,53 @@ Querying
     },
   }
 
+.. note::
+
+    Specifying link properties of a computed backlink in your shape is
+    supported as of EdgeDB 3.0.
+
+    If you have this schema:
+
+    .. code-block:: sdl
+
+        type Person {
+          required name: str;
+          multi follows: Person {
+            followed: datetime {
+              default := datetime_of_statement();
+            };
+          };
+          multi link followers := .<follows[is Person];
+        }
+
+    this query will work as of EdgeDB 3.0:
+
+    .. code-block:: edgeql
+
+        select Person {
+          name,
+          followers: {
+            name,
+            @followed
+          }
+        };
+
+    even though ``@followed`` is a link property of ``follows`` and we are
+    accessing is through the computed backlink ``followers`` instead.
+
+    If you need link properties on backlinks in earlier versions of EdgeDB, you
+    can use this workaround:
+
+    .. code-block:: edgeql
+
+        select Person {
+          name,
+          followers := .<follows[is Person] {
+            name,
+            followed := @followed
+          }
+        };
+
 .. list-table::
   :class: seealso
 
