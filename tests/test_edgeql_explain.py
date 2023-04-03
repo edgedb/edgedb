@@ -82,7 +82,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     "plan_rows": 1,
                     "plan_type": "IndexScan",
                     "plan_width": 32,
-                    "properties": [
+                    "properties": tb.bag([
                         {
                             "important": False,
                             "title": "schema",
@@ -118,7 +118,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "title": "index_cond",
                             "type": "expr",
                         },
-                    ],
+                    ]),
                     "startup_cost": 0.28,
                 }
             ],
@@ -374,7 +374,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     "plan_rows": 1,
                     "plan_type": "IndexScan",
                     "plan_width": 32,
-                    "properties": [
+                    "properties": tb.bag([
                         {
                             "important": False,
                             "title": "schema",
@@ -410,7 +410,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "title": "index_cond",
                             "type": "expr",
                         },
-                    ],
+                    ]),
                 }
             ],
             "subplans": [
@@ -428,7 +428,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "plan_rows": 1,
                             "plan_type": "Aggregate",
                             "plan_width": 32,
-                            "properties": [
+                            "properties": tb.bag([
                                 {
                                     "important": False,
                                     "title": "parent_relationship",
@@ -453,7 +453,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "type": "text",
                                     "value": "Simple",
                                 },
-                            ],
+                            ]),
                         },
                         {
                             "actual_loops": 1,
@@ -461,7 +461,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "plan_rows": 2,
                             "plan_type": "NestedLoop",
                             "plan_width": 32,
-                            "properties": [
+                            "properties": tb.bag([
                                 {
                                     "important": False,
                                     "title": "parent_relationship",
@@ -474,7 +474,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "type": "text",
                                     "value": "Inner",
                                 },
-                            ],
+                            ]),
                         },
                     ],
                     "subplans": [
@@ -486,7 +486,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "plan_rows": 2,
                                     "plan_type": "IndexOnlyScan",
                                     "plan_width": 16,
-                                    "properties": [
+                                    "properties": tb.bag([
                                         {
                                             "important": False,
                                             "title": "parent_relationship",
@@ -539,7 +539,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                             "type": "float",
                                             "value": 2,
                                         },
-                                    ],
+                                    ]),
                                 }
                             ],
                             "subplans": [],
@@ -552,7 +552,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "plan_rows": 1,
                                     "plan_type": "IndexScan",
                                     "plan_width": 32,
-                                    "properties": [
+                                    "properties": tb.bag([
                                         {
                                             "important": False,
                                             "title": "parent_relationship",
@@ -603,7 +603,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                             "= "
                                             '"todo~1".target)',
                                         },
-                                    ],
+                                    ]),
                                 }
                             ],
                             "subplans": [],
@@ -634,7 +634,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     "plan_rows": 1,
                     "plan_type": "IndexScan",
                     "plan_width": 32,
-                    "properties": [
+                    "properties": tb.bag([
                         {
                             "important": False,
                             "title": "schema",
@@ -670,7 +670,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "title": "index_cond",
                             "type": "expr",
                         },
-                    ],
+                    ]),
                     "startup_cost": 0.28,
                     "total_cost": 16.69,
                 }
@@ -698,7 +698,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "plan_rows": 1,
                             "plan_type": "Aggregate",
                             "plan_width": 32,
-                            "properties": [
+                            "properties": tb.bag([
                                 {
                                     "important": False,
                                     "title": "parent_relationship",
@@ -723,7 +723,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "type": "text",
                                     "value": "Simple",
                                 },
-                            ],
+                            ]),
                             "startup_cost": 8.38,
                             "total_cost": 8.39,
                         },
@@ -733,7 +733,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "plan_rows": 5,
                             "plan_type": "Result",
                             "plan_width": 32,
-                            "properties": [
+                            "properties": tb.bag([
                                 {
                                     "important": False,
                                     "title": "parent_relationship",
@@ -746,7 +746,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "type": "expr",
                                     "value": '("User~2".id = "User~2".id)',
                                 },
-                            ],
+                            ]),
                             "startup_cost": 0.28,
                             "total_cost": 8.37,
                         },
@@ -756,7 +756,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "plan_rows": 5,
                             "plan_type": "IndexScan",
                             "plan_width": 32,
-                            "properties": [
+                            "properties": tb.bag([
                                 {
                                     "important": False,
                                     "title": "parent_relationship",
@@ -797,7 +797,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "title": "index_cond",
                                     "type": "expr",
                                 },
-                            ],
+                            ]),
                             "startup_cost": 0.28,
                             "total_cost": 8.37,
                         },
@@ -836,14 +836,14 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                     "plan_rows": 5001,
                     "plan_type": "Append",
                     "plan_width": 16,
-                    "properties": [
+                    "properties": tb.bag([
                         {
                             "important": False,
                             "title": "parent_relationship",
                             "type": "text",
                             "value": "Outer",
                         }
-                    ],
+                    ]),
                     "startup_cost": 0.0,
                 },
             ],
@@ -858,7 +858,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "actual_loops": 1,
                             "plan_type": "SeqScan",
                             "plan_width": 16,
-                            "properties": [
+                            "properties": tb.bag([
                                 {
                                     "important": False,
                                     "title": "parent_relationship",
@@ -881,7 +881,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "title": "relation_name",
                                     "type": "relation",
                                 },
-                            ],
+                            ]),
                             "startup_cost": 0.0,
                         }
                     ],
@@ -893,7 +893,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "actual_loops": 1,
                             "plan_type": "SeqScan",
                             "plan_width": 16,
-                            "properties": [
+                            "properties": tb.bag([
                                 {
                                     "important": False,
                                     "title": "parent_relationship",
@@ -916,7 +916,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "title": "relation_name",
                                     "type": "relation",
                                 },
-                            ],
+                            ]),
                             "startup_cost": 0.0,
                         }
                     ],
@@ -928,7 +928,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "actual_loops": 1,
                             "plan_type": "SeqScan",
                             "plan_width": 16,
-                            "properties": [
+                            "properties": tb.bag([
                                 {
                                     "important": False,
                                     "title": "parent_relationship",
@@ -951,7 +951,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "title": "relation_name",
                                     "type": "relation",
                                 },
-                            ],
+                            ]),
                             "startup_cost": 0.0,
                         }
                     ],
@@ -998,14 +998,14 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                             "plan_rows": 5001,
                             "plan_type": "Append",
                             "plan_width": 20,
-                            "properties": [
+                            "properties": tb.bag([
                                 {
                                     "important": False,
                                     "title": "parent_relationship",
                                     "type": "text",
                                     "value": "Outer",
                                 }
-                            ],
+                            ]),
                             "startup_cost": 0.0,
                             "total_cost": 149.02,
                         }
