@@ -235,7 +235,7 @@ def get_path_var(
 
     # Find which rvar will have path_id as an output
     src_aspect, rel_rvar, found_path_var = _find_rel_rvar(
-        rel, path_id, src_path_id, aspect=aspect, flavor=flavor, env=env)
+        rel, path_id, src_path_id, aspect=aspect, flavor=flavor)
 
     if found_path_var:
         return found_path_var
@@ -300,7 +300,7 @@ def get_path_var(
 
 def _find_rel_rvar(
     rel: pgast.Query, path_id: irast.PathId, src_path_id: irast.PathId, *,
-    aspect: str, flavor: str, env: context.Environment,
+    aspect: str, flavor: str,
 ) -> Tuple[str, Optional[pgast.PathRangeVar], Optional[pgast.BaseExpr]]:
     """Rummage around rel looking for an appropriate rvar for path_id.
 
@@ -333,7 +333,7 @@ def _find_rel_rvar(
                 src_aspect = 'value'
 
             if (var := _find_in_output_tuple(
-                    rel, path_id, src_aspect, env=env)):
+                    rel, path_id, src_aspect)):
                 return src_aspect, None, var
 
             rel_rvar = maybe_get_path_rvar(
@@ -497,8 +497,7 @@ def _find_rvar_in_intersection_by_typeref(
 def _find_in_output_tuple(
         rel: pgast.Query,
         path_id: irast.PathId,
-        aspect: str,
-        env: context.Environment) -> Optional[pgast.BaseExpr]:
+        aspect: str) -> Optional[pgast.BaseExpr]:
     """Try indirecting a source tuple already present as an output.
 
     Normally tuple indirections are handled by
