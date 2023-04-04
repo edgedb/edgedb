@@ -36,6 +36,8 @@ Properties can be either ``optional`` (the default) or ``required``.
     required property email -> str;
   }
 
+.. _ref_datamodel_props_cardinality:
+
 Property cardinality
 --------------------
 
