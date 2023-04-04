@@ -258,7 +258,7 @@ conflicts and provide a fallback expression.
 .. note::
 
     Using ``unless conflict`` on :ref:`multi properties
-    <ref_datamodel_props_cardinality>` is only supported in 3.0 and later.
+    <ref_datamodel_props_cardinality>` is only supported in 2.10 and later.
 
 .. _ref_eql_upsert:
 
