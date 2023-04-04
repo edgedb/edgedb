@@ -910,7 +910,7 @@ def process_insert_rewrites(
     )
 
     iterator_rvar = pathctx.get_path_rvar(
-        rew_stmt, path_id=subject_path_id, aspect='value', env=ctx.env)
+        rew_stmt, path_id=subject_path_id, aspect='value')
     fallback_rvar = pgast.DynamicRangeVar(
         dynamic_get_path=_mk_dynamic_get_path(
             nptr_map, typeref, iterator_rvar))

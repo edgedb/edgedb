@@ -111,7 +111,7 @@ def _pull_path_namespace(
                 continue
 
             rvar = pathctx.maybe_get_path_rvar(
-                target, path_id, aspect=aspect, flavor=flavor, env=ctx.env)
+                target, path_id, aspect=aspect, flavor=flavor)
             if rvar is None or flavor == 'packed':
                 pathctx.put_path_rvar(
                     target, path_id, source, aspect=aspect, flavor=flavor)
@@ -165,7 +165,7 @@ def find_rvar(
                                aspect='value', flavor=flavor, ctx=ctx)
     if rvar is not None:
         pathctx.put_path_rvar_if_not_exists(
-            stmt, path_id, rvar, aspect='value', flavor=flavor, env=ctx.env)
+            stmt, path_id, rvar, aspect='value', flavor=flavor)
 
         src_rvar = maybe_get_path_rvar(source_stmt, path_id=path_id,
                                        aspect='source', flavor=flavor, ctx=ctx)
@@ -173,7 +173,7 @@ def find_rvar(
         if src_rvar is not None:
             pathctx.put_path_rvar_if_not_exists(
                 stmt, path_id, src_rvar,
-                aspect='source', flavor=flavor, env=ctx.env)
+                aspect='source', flavor=flavor)
 
     return rvar
 
@@ -273,7 +273,7 @@ def include_specific_rvar(
                 stmt, path_id, rvar, flavor=flavor, aspect=aspect)
         else:
             pathctx.put_path_rvar_if_not_exists(
-                stmt, path_id, rvar, flavor=flavor, aspect=aspect, env=ctx.env)
+                stmt, path_id, rvar, flavor=flavor, aspect=aspect)
 
     if update_mask:
         scopes = [ctx.scope_tree]
@@ -329,7 +329,7 @@ def _maybe_get_path_rvar(
     qry: Optional[pgast.Query] = stmt
     while qry is not None:
         rvar = pathctx.maybe_get_path_rvar(
-            qry, path_id, aspect=aspect, flavor=flavor, env=ctx.env)
+            qry, path_id, aspect=aspect, flavor=flavor)
         if rvar is not None:
             if qry is not stmt:
                 # Cache the rvar reference.

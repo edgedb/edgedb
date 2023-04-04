@@ -310,13 +310,13 @@ def _find_rel_rvar(
     """
     src_aspect = aspect
     rel_rvar = maybe_get_path_rvar(
-        rel, path_id, aspect=aspect, flavor=flavor, env=env)
+        rel, path_id, aspect=aspect, flavor=flavor)
 
     if rel_rvar is None:
         alt_aspect = get_less_specific_aspect(path_id, aspect)
         if alt_aspect is not None:
             rel_rvar = maybe_get_path_rvar(
-                rel, path_id, aspect=alt_aspect, env=env)
+                rel, path_id, aspect=alt_aspect)
     else:
         alt_aspect = None
 
@@ -337,21 +337,21 @@ def _find_rel_rvar(
                 return src_aspect, None, var
 
             rel_rvar = maybe_get_path_rvar(
-                rel, src_path_id, aspect=src_aspect, env=env)
+                rel, src_path_id, aspect=src_aspect)
 
             if rel_rvar is None:
                 _src_path_id_prefix = src_path_id.src_path()
                 if _src_path_id_prefix is not None:
                     rel_rvar = maybe_get_path_rvar(
-                        rel, _src_path_id_prefix, aspect=src_aspect, env=env)
+                        rel, _src_path_id_prefix, aspect=src_aspect)
         else:
             rel_rvar = maybe_get_path_rvar(
-                rel, src_path_id, aspect=src_aspect, env=env)
+                rel, src_path_id, aspect=src_aspect)
 
         if (rel_rvar is None
                 and src_aspect != 'source' and path_id != src_path_id):
             rel_rvar = maybe_get_path_rvar(
-                rel, src_path_id, aspect='source', env=env)
+                rel, src_path_id, aspect='source')
 
     if rel_rvar is None and alt_aspect is not None and flavor == 'normal':
         # There is no source range var for the requested aspect,
@@ -788,7 +788,7 @@ def has_rvar(stmt: pgast.Query, rvar: pgast.PathRangeVar) -> bool:
 def put_path_rvar_if_not_exists(
         stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
         flavor: str='normal',
-        aspect: str, env: context.Environment) -> None:
+        aspect: str) -> None:
     if (path_id, aspect) not in stmt.get_rvar_map(flavor):
         put_path_rvar(
             stmt, path_id, rvar, aspect=aspect, flavor=flavor)
@@ -797,9 +797,9 @@ def put_path_rvar_if_not_exists(
 def get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
         flavor: str='normal',
-        aspect: str, env: context.Environment) -> pgast.PathRangeVar:
+        aspect: str) -> pgast.PathRangeVar:
     rvar = maybe_get_path_rvar(
-        stmt, path_id, aspect=aspect, flavor=flavor, env=env)
+        stmt, path_id, aspect=aspect, flavor=flavor)
     if rvar is None:
         raise LookupError(
             f'there is no range var for {path_id} {aspect} in {stmt}')
@@ -808,8 +808,7 @@ def get_path_rvar(
 
 def maybe_get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *, aspect: str,
-        flavor: str='normal',
-        env: context.Environment) -> Optional[pgast.PathRangeVar]:
+        flavor: str='normal') -> Optional[pgast.PathRangeVar]:
     rvar = None
     path_rvar_map = stmt.maybe_get_rvar_map(flavor)
     if path_rvar_map is not None:
@@ -851,9 +850,9 @@ def list_path_aspects(stmt: pgast.Query, path_id: irast.PathId) -> Set[str]:
 
 
 def maybe_get_path_value_rvar(
-        stmt: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> Optional[pgast.BaseRangeVar]:
-    return maybe_get_path_rvar(stmt, path_id, aspect='value', env=env)
+    stmt: pgast.Query, path_id: irast.PathId
+) -> Optional[pgast.BaseRangeVar]:
+    return maybe_get_path_rvar(stmt, path_id, aspect='value')
 
 
 def _same_expr(expr1: pgast.BaseExpr, expr2: pgast.BaseExpr) -> bool:
