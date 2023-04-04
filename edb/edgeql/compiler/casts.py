@@ -97,14 +97,14 @@ def compile_cast(
             f'`...[IS {new_stype.get_displayname(ctx.env.schema)}]` instead',
             context=srcctx)
 
-    uuid_t = ctx.env.get_track_schema_type(sn.QualName('std', 'uuid'))
+    uuid_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'uuid'))
     if (
         orig_stype.issubclass(ctx.env.schema, uuid_t)
         and new_stype.is_object_type()
     ):
         return _find_object_by_id(ir_expr, new_stype, ctx=ctx)
 
-    json_t = ctx.env.get_track_schema_type(
+    json_t = ctx.env.get_schema_type_and_track(
         sn.QualName('std', 'json'))
 
     if isinstance(ir_set.expr, irast.Array):
@@ -164,7 +164,7 @@ def compile_cast(
             # Casts from json to enums need some special handling
             # here, where we have access to the enum type. Just turn
             # it into json->str and str->enum.
-            str_typ = ctx.env.get_track_schema_type(sn.QualName('std', 'str'))
+            str_typ = ctx.env.get_schema_type_and_track(sn.QualName('std', 'str'))
             str_ir = compile_cast(ir_expr, str_typ, srcctx=srcctx, ctx=ctx)
             return compile_cast(
                 str_ir,
@@ -729,7 +729,7 @@ def _cast_json_to_range(
 
         range_el_t = new_stype.get_element_type(ctx.env.schema)
         ql_range_el_t = typegen.type_to_ql_typeref(range_el_t, ctx=subctx)
-        bool_t = ctx.env.get_track_schema_type(sn.QualName('std', 'bool'))
+        bool_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'bool'))
         ql_bool_t = typegen.type_to_ql_typeref(bool_t, ctx=subctx)
 
         cast = qlast.FunctionCall(

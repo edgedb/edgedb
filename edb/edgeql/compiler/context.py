@@ -319,7 +319,7 @@ class Environment:
             self.schema_ref_exprs.setdefault(sobj, set()).add(expr)
 
     @overload
-    def get_track_schema_object(  # NoQA: F811
+    def get_schema_object_and_track(  # NoQA: F811
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base],
@@ -333,7 +333,7 @@ class Environment:
         ...
 
     @overload
-    def get_track_schema_object(  # NoQA: F811
+    def get_schema_object_and_track(  # NoQA: F811
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base],
@@ -346,7 +346,7 @@ class Environment:
     ) -> Optional[s_obj.Object]:
         ...
 
-    def get_track_schema_object(  # NoQA: F811
+    def get_schema_object_and_track(  # NoQA: F811
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base],
@@ -381,7 +381,7 @@ class Environment:
 
         return sobj
 
-    def get_track_schema_type(
+    def get_schema_type_and_track(
         self,
         name: s_name.Name,
         expr: Optional[qlast.Base]=None,
@@ -392,7 +392,7 @@ class Environment:
         condition: Optional[Callable[[s_obj.Object], bool]]=None,
     ) -> s_types.Type:
 
-        stype = self.get_track_schema_object(
+        stype = self.get_schema_object_and_track(
             name, expr, modaliases=modaliases, default=default, label=label,
             condition=condition, type=s_types.Type,
         )
