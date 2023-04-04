@@ -246,7 +246,6 @@ def get_set_rvar(
                 path_id,
                 result_rvar,
                 aspect=aspect,
-                env=ctx.env,
             )
 
     return result_rvar
@@ -297,7 +296,6 @@ def _process_toplevel_query(
                 ir_set.path_id,
                 result_rvar,
                 aspect=aspect,
-                env=ctx.env,
             )
     else:
         result_rvar = rvars.main.rvar
@@ -663,7 +661,7 @@ def finalize_optional_rel(
         for aspect in rvars.main.aspects:
             pathctx.put_path_rvar_if_not_exists(
                 setrel, ir_set.path_id, rvars.main.rvar,
-                aspect=aspect, env=subctx.env)
+                aspect=aspect)
 
         lvar = pathctx.get_path_value_var(
             setrel, path_id=ir_set.path_id, env=subctx.env)
@@ -796,7 +794,7 @@ def process_set_as_link_property_ref(
             ir_source.path_id, ctx=newctx)
 
         link_rvar = pathctx.maybe_get_path_rvar(
-            source_scope_stmt, link_path_id, aspect='source', env=ctx.env)
+            source_scope_stmt, link_path_id, aspect='source')
 
         if link_rvar is None:
             src_rvar = get_set_rvar(ir_source, ctx=newctx)
@@ -1402,7 +1400,7 @@ def process_set_as_subquery(
     # also expose a pointer path source. See tests like
     # test_edgeql_select_linkprop_rebind_01
     if pathctx.maybe_get_path_rvar(
-            stmt, inner_id.ptr_path(), aspect='source', env=ctx.env):
+            stmt, inner_id.ptr_path(), aspect='source'):
         rvars.new.append(
             SetRVar(
                 rvars.main.rvar,
@@ -3374,7 +3372,6 @@ def process_set_as_agg_expr_inner(
                             ctx.rel,
                             ir_arg.path_id,
                             aspect='value',
-                            env=argctx.env,
                         )
                         query = qrvar.query
                         assert isinstance(query, pgast.SelectStmt)
