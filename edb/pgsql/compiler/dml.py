@@ -1041,7 +1041,7 @@ def process_insert_shape(
     for aspect in ('value', 'identity'):
         pathctx._put_path_output_var(
             select, ir_stmt.subject.path_id, aspect=aspect,
-            var=pgast.ColumnRef(name=['id']), env=ctx.env,
+            var=pgast.ColumnRef(name=['id']),
         )
 
     return external_inserts
@@ -2070,7 +2070,6 @@ def process_update_shape(
                 pathctx._put_path_output_var(
                     rel, element.path_id, aspect='value',
                     var=pgast.ColumnRef(name=[ptr_info.column_name]),
-                    env=ctx.env,
                 )
 
         if link_ptr_info and link_ptr_info.table_type == "link":
@@ -3000,7 +2999,6 @@ def process_link_values(
         pathctx._put_path_output_var(
             row_query, col_path_id, aspect='value',
             var=pgast.ColumnRef(name=[col]),
-            env=ctx.env,
         )
 
     link_rows = pgast.CommonTableExpr(

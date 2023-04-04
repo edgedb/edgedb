@@ -472,7 +472,7 @@ def deep_copy_primitive_rvar_path_var(
         rref = pathctx.get_path_output(
             rvar.query, orig_id, aspect='identity', env=env)
         pathctx.put_rvar_path_output(
-            rvar, new_id, aspect='identity', var=rref, env=env)
+            rvar, new_id, aspect='identity', var=rref)
 
 
 def new_primitive_rvar(
@@ -632,17 +632,21 @@ def _new_mapped_pointer_rvar(
 
     ptr_rvar.query.path_id = ptr_pid
     pathctx.put_rvar_path_bond(ptr_rvar, src_pid)
-    pathctx.put_rvar_path_output(ptr_rvar, src_pid, aspect='identity',
-                                 var=near_ref, env=ctx.env)
-    pathctx.put_rvar_path_output(ptr_rvar, src_pid, aspect='value',
-                                 var=near_ref, env=ctx.env)
-    pathctx.put_rvar_path_output(ptr_rvar, tgt_pid, aspect='value',
-                                 var=far_ref, env=ctx.env)
+    pathctx.put_rvar_path_output(
+        ptr_rvar, src_pid, aspect='identity', var=near_ref
+    )
+    pathctx.put_rvar_path_output(
+        ptr_rvar, src_pid, aspect='value', var=near_ref
+    )
+    pathctx.put_rvar_path_output(
+        ptr_rvar, tgt_pid, aspect='value', var=far_ref
+    )
 
     if tgt_pid.is_objtype_path():
         pathctx.put_rvar_path_bond(ptr_rvar, tgt_pid)
-        pathctx.put_rvar_path_output(ptr_rvar, tgt_pid, aspect='identity',
-                                     var=far_ref, env=ctx.env)
+        pathctx.put_rvar_path_output(
+            ptr_rvar, tgt_pid, aspect='identity', var=far_ref
+        )
 
     return ptr_rvar
 
@@ -824,7 +828,7 @@ def set_to_array(
     )
 
     result = pgast.SelectStmt()
-    aspects = pathctx.list_path_aspects(subrvar.query, path_id, env=ctx.env)
+    aspects = pathctx.list_path_aspects(subrvar.query, path_id)
     include_rvar(result, subrvar, path_id=path_id, aspects=aspects, ctx=ctx)
 
     val: Optional[pgast.BaseExpr] = (
