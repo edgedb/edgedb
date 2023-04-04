@@ -963,6 +963,50 @@ Other changes
   (a regression in 2.10)
   (:eql:gh:`#5073`)
 
+2.13
+====
+* Implement a MIGRATION REWRITE system. This provides a mechanism for
+  safely rewriting the migration history of a database while ensuring
+  that the new history produces the same result as the old
+  history. CLI tooling to take advantage of this feature is coming
+  soon.
+  (:eql:gh:`#4585`)
+
+* Fix DigitalOcean support: allow its custom error in bootstrap
+  (:eql:gh:`#5139`)
+
+* Add a hint to the error message about link targets.
+  (:eql:gh:`#5131`)
+
+* Infer cardinality of ``required multi`` pointers as AT_LEAST_ONE
+  (:eql:gh:`#5180`)
+
+* Fix dump/restore of migrations with messages on them
+  (:eql:gh:`#5171`)
+
+* Fix interaction of link properties and ``assert_exists`` and similar
+  (:eql:gh:`#5182`)
+
+* Make ``assert_single`` and similar not lose track of values updated
+  in an ``UPDATE`` in their argument.
+  (:eql:gh:`#5088`)
+
+* Add a test for assert_exists+assert_single+UPDATE
+  (:eql:gh:`#5242`)
+
+* Add support for new JWT layout
+  (:eql:gh:`#5197`)
+
+* Fix uses of volatile expressions in update write access policies
+  (:eql:gh:`#5256`)
+
+* Allow globals to be used in defaults
+  (:eql:gh:`#5268`)
+
+* Fix errmessage interpolation to not produce an internal server error on
+  braces in a message. Allow ``{{`` and ``}}`` to be used to escape braces.
+  (:eql:gh:`#5295`)
+
 .. lint-off
 
 .. _group:
