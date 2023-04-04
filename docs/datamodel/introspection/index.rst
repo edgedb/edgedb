@@ -35,6 +35,7 @@ information about EdgeDB types in a variety of human-readable formats.
     colltypes
     functions
     triggers
+    mutation_rewrites
     indexes
     constraints
     operators

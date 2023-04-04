@@ -24,6 +24,7 @@ Schema
     access_policies
     functions
     triggers
+    mutation_rewrites
     inheritance
     extensions
     future
