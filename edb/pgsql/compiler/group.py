@@ -157,7 +157,7 @@ def _compile_grouping_binding(
     pathctx.put_path_var(
         ctx.rel, stmt.grouping_binding.path_id,
         _compile_grouping_value(stmt, used_args=used_args, ctx=ctx),
-        aspect='value', env=ctx.env)
+        aspect='value')
 
 
 def _compile_group(
@@ -239,7 +239,7 @@ def _compile_group(
                 pathctx.get_path_value_output(
                     rel=hoistctx.rel, path_id=group_use.path_id, env=ctx.env)
                 pathctx.put_path_value_var(
-                    grouprel, group_use.path_id, hoistctx.rel, env=ctx.env
+                    grouprel, group_use.path_id, hoistctx.rel
                 )
 
         packed = False
@@ -273,7 +273,7 @@ def _compile_group(
                 pathctx.put_path_var(
                     grouprel, stmt.group_binding.path_id, mat_qry,
                     aspect='value',
-                    flavor='packed', env=ctx.env
+                    flavor='packed'
                 )
 
         used_args = desugar_group.collect_grouping_atoms(stmt.by)
@@ -299,7 +299,7 @@ def _compile_group(
                 uvar = output.output_as_value(uvar, env=ctx.env)
                 pathctx.put_path_var(
                     grouprel, using_val.path_id, uvar,
-                    aspect='value', force=True, env=ctx.env)
+                    aspect='value', force=True)
 
             uout = pathctx.get_path_output(
                 grouprel, using_val.path_id, aspect='value', env=ctx.env)

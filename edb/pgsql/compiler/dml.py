@@ -2066,7 +2066,6 @@ def process_update_shape(
                 pathctx.put_path_var(
                     rel, element.path_id, aspect='value',
                     var=val,
-                    env=ctx.env,
                 )
                 pathctx._put_path_output_var(
                     rel, element.path_id, aspect='value',
@@ -3161,9 +3160,9 @@ def compile_trigger(
             new_ident = pathctx.get_path_identity_var(
                 ictx.rel, new_path, env=ctx.env)
             pathctx.put_path_identity_var(
-                ictx.rel, old_path, new_ident, env=ctx.env)
+                ictx.rel, old_path, new_ident)
             pathctx.put_path_value_var(
-                ictx.rel, old_path, new_ident, env=ctx.env)
+                ictx.rel, old_path, new_ident)
 
         contents_cte = pgast.CommonTableExpr(
             query=ictx.rel,

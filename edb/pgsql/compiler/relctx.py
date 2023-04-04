@@ -442,8 +442,8 @@ def new_free_object_rvar(
             name=('edgedbext', 'uuid_generate_v4',), args=[]
         )
 
-        pathctx.put_path_identity_var(qry, path_id, id_expr, env=ctx.env)
-        pathctx.put_path_value_var(qry, path_id, id_expr, env=ctx.env)
+        pathctx.put_path_identity_var(qry, path_id, id_expr)
+        pathctx.put_path_value_var(qry, path_id, id_expr)
         apply_volatility_ref(qry, ctx=subctx)
 
     return rvar_for_rel(qry, typeref=typeref, lateral=lateral, ctx=ctx)
@@ -467,8 +467,7 @@ def deep_copy_primitive_rvar_path_var(
             rref = pathctx.get_path_var(
                 component, orig_id, aspect='identity', env=env)
             pathctx.put_path_var(
-                component, new_id, rref, aspect='identity',
-                env=env)
+                component, new_id, rref, aspect='identity')
     else:
         rref = pathctx.get_path_output(
             rvar.query, orig_id, aspect='identity', env=env)
@@ -596,7 +595,7 @@ def _new_inline_pointer_rvar(
         src_rvar, far_pid, env=ctx.env)
 
     pathctx.put_rvar_path_bond(ptr_rvar, far_pid)
-    pathctx.put_path_identity_var(ptr_rel, far_pid, var=far_ref, env=ctx.env)
+    pathctx.put_path_identity_var(ptr_rel, far_pid, var=far_ref)
 
     return ptr_rvar
 
@@ -749,7 +748,7 @@ def ensure_transient_identity_for_path(
     )
 
     pathctx.put_path_identity_var(
-        stmt, path_id, id_expr, force=True, env=ctx.env)
+        stmt, path_id, id_expr, force=True)
     pathctx.put_path_bond(stmt, path_id)
 
     if isinstance(stmt, pgast.SelectStmt):
@@ -839,7 +838,7 @@ def set_to_array(
         val = output.serialize_expr(
             value_var, path_id=path_id, env=ctx.env)
         pathctx.put_path_serialized_var(
-            result, path_id, val, force=True, env=ctx.env)
+            result, path_id, val, force=True)
 
     if isinstance(val, pgast.TupleVarBase):
         val = output.serialize_expr(
@@ -1136,7 +1135,7 @@ def unpack_var(
 
         for aspect in ('value', 'serialized'):
             pathctx.put_path_var(
-                qry, el_id, cur_ref, aspect=aspect, env=ctx.env,
+                qry, el_id, cur_ref, aspect=aspect
             )
 
         if not el.packed:
@@ -1183,8 +1182,7 @@ def unpack_var(
                     continue
                 reqry = reserialize_object(el, tel, ctx=ctx)
                 pathctx.put_path_var(
-                    qry, tel.path_id, reqry, aspect='serialized',
-                    env=ctx.env, force=True
+                    qry, tel.path_id, reqry, aspect='serialized', force=True
                 )
 
         for aspect in rewrite_aspects:
@@ -1195,7 +1193,7 @@ def unpack_var(
                 output.serialize_expr(tv, path_id=path_id, env=ctx.env)
             )
             pathctx.put_path_var(
-                qry, view_path_id, sval, aspect=aspect, env=ctx.env, force=True
+                qry, view_path_id, sval, aspect=aspect, force=True
             )
             pathctx.put_path_rvar(
                 ctx.rel, view_path_id, rvar, aspect=aspect, env=ctx.env
@@ -1926,7 +1924,7 @@ def range_for_ptrref(
         if path_id:
             target_ref = qry.target_list[1].val
             pathctx.put_path_identity_var(
-                qry, path_id, var=target_ref, env=ctx.env)
+                qry, path_id, var=target_ref)
             pathctx.put_path_source_rvar(
                 qry, path_id, table, env=ctx.env)
 
@@ -1956,7 +1954,7 @@ def range_for_ptrref(
                     target_ref = pgast.ColumnRef(
                         name=[rvar.alias.aliasname, cols[1]])
                     pathctx.put_path_identity_var(
-                        qry, cte_path_id, var=target_ref, env=ctx.env)
+                        qry, cte_path_id, var=target_ref)
                     pathctx.put_path_source_rvar(
                         qry, cte_path_id, rvar, env=ctx.env)
                     pathctx.put_path_id_map(qry, path_id, cte_path_id)
