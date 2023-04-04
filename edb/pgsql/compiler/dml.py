@@ -78,7 +78,6 @@ def init_dml_stmt(
     ir_stmt: irast.MutatingStmt,
     *,
     ctx: context.CompilerContextLevel,
-    parent_ctx: context.CompilerContextLevel,
 ) -> DMLParts:
     """Prepare the common structure of the query representing a DML stmt.
 
@@ -394,7 +393,6 @@ def fini_dml_stmt(
     wrapper: pgast.Query,
     parts: DMLParts,
     *,
-    parent_ctx: context.CompilerContextLevel,
     ctx: context.CompilerContextLevel,
 ) -> pgast.Query:
 
@@ -443,7 +441,7 @@ def fini_dml_stmt(
                 dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
 
         process_update_conflicts(
-            ir_stmt=ir_stmt, update_cte=union_cte, dml_parts=parts, ctx=ctx)
+            ir_stmt=ir_stmt, dml_parts=parts, ctx=ctx)
     elif isinstance(ir_stmt, irast.DeleteStmt):
         base_typeref = ir_stmt.subject.typeref.real_material_type
 
@@ -649,7 +647,6 @@ def process_insert_body(
             ir_stmt.on_conflict,
             ctx.enclosing_cte_iterator,
             dml_parts.else_cte,
-            dml_parts,
             ctx=ctx,
         )
 
@@ -689,7 +686,7 @@ def process_insert_body(
         elements.append((shape_el, ptrref))
 
     external_inserts = process_insert_shape(
-        ir_stmt, select, ptr_map, elements, typeref, iterator, inner_iterator,
+        ir_stmt, select, ptr_map, elements, iterator, inner_iterator,
         ctx
     )
     single_external = [
@@ -861,7 +858,6 @@ def process_insert_body(
             extra_conflict,
             inner_iterator,
             None,
-            dml_parts,
             ctx=ctx,
         )
 
@@ -908,7 +904,7 @@ def process_insert_rewrites(
     rewrite_elements = list(rewrites.values())
     nptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
     process_insert_shape(
-        ir_stmt, rew_stmt, nptr_map, rewrite_elements, typeref, iterator,
+        ir_stmt, rew_stmt, nptr_map, rewrite_elements, iterator,
         inner_iterator, ctx,
         force_optional=True,
     )
@@ -976,7 +972,6 @@ def process_insert_shape(
     select: pgast.SelectStmt,
     ptr_map: Dict[sn.Name, pgast.BaseExpr],
     elements: List[Tuple[irast.Set, irast.BasePointerRef]],
-    typeref: irast.TypeRef,
     iterator: Optional[pgast.IteratorCTE],
     inner_iterator: Optional[pgast.IteratorCTE],
     ctx: context.CompilerContextLevel,
@@ -1368,7 +1363,6 @@ def compile_insert_else_body(
         enclosing_cte_iterator: Optional[pgast.IteratorCTE],
         else_cte_rvar: Optional[
             Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]],
-        dml_parts: DMLParts,
         *,
         ctx: context.CompilerContextLevel) -> Optional[pgast.IteratorCTE]:
 
@@ -2036,7 +2030,6 @@ def process_update_shape(
                         is_subquery=True,
                         ir_stmt=ir_stmt,
                         ir_set=updvalue.result,
-                        subject_typeref=typeref,
                         shape_ptrref=shape_ptrref,
                         actual_ptrref=actual_ptrref,
                         ctx=scopectx,
@@ -2092,7 +2085,6 @@ def process_update_shape(
 def process_update_conflicts(
     *,
     ir_stmt: irast.UpdateStmt,
-    update_cte: pgast.CommonTableExpr,
     dml_parts: DMLParts,
     ctx: context.CompilerContextLevel,
 ) -> None:
@@ -2118,7 +2110,6 @@ def process_update_conflicts(
             extra_conflict,
             conflict_iterator,
             None,
-            dml_parts,
             ctx=ctx,
         )
 
@@ -2130,7 +2121,6 @@ def check_update_type(
     is_subquery: bool,
     ir_stmt: irast.UpdateStmt,
     ir_set: irast.Set,
-    subject_typeref: irast.TypeRef,
     shape_ptrref: irast.BasePointerRef,
     actual_ptrref: irast.BasePointerRef,
     ctx: context.CompilerContextLevel,
@@ -2962,7 +2952,6 @@ def process_link_values(
             is_subquery=False,
             ir_stmt=ir_stmt,
             ir_set=ir_expr,
-            subject_typeref=source_typeref,
             shape_ptrref=ptrref,
             actual_ptrref=actual_ptrref,
             ctx=ctx,
@@ -3027,7 +3016,6 @@ def process_delete_body(
     *,
     ir_stmt: irast.DeleteStmt,
     delete_cte: pgast.CommonTableExpr,
-    dml_parts: DMLParts,
     typeref: irast.TypeRef,
     ctx: context.CompilerContextLevel,
 ) -> None:
