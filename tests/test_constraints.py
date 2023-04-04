@@ -973,6 +973,24 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 };
             """)
 
+        # testing interpolation
+        await self.con.execute(r"""
+            CREATE type ConstraintOnTest4_2 {
+                CREATE required property email -> str {
+                    CREATE constraint min_len_value(4) {
+                        SET errmessage := '{"json": "{nope} {{min}} {min}"}';
+                    };
+                };
+            };
+        """)
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            '{"json": "{nope} {min} 4"}',
+        ):
+            await self.con.execute("""
+                INSERT ConstraintOnTest4_2 { email := '' };
+            """)
+
     async def test_constraints_ddl_05(self):
         # Test that constraint expression returns a boolean.
 

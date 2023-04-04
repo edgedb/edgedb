@@ -139,6 +139,10 @@ The valid SDL sub-declarations are listed below:
       scalar type, property or link on which the constraint is
       defined.
 
+    If the content of curly braces does not match any variables,
+    the curly braces are emitted as-is. They can also be escaped by 
+    using double curly braces.
+
 :sdl:synopsis:`<annotation-declarations>`
     Set constraint :ref:`annotation <ref_eql_sdl_annotations>`
     to a given *value*.
