@@ -98,7 +98,7 @@ def _compile_set_impl(
         value = dispatch.compile(ir_set.expr, ctx=ctx)
         if is_toplevel:
             ctx.rel = ctx.toplevel_stmt = pgast.SelectStmt()
-        pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value, env=ctx.env)
+        pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value)
         if (output.in_serialization_ctx(ctx) and ir_set.shape
                 and not ctx.env.ignore_object_shapes):
             _compile_shape(ir_set, ir_set.shape, ctx=ctx)
@@ -711,7 +711,7 @@ def _compile_set(
         for element in shape_tuple.elements:
             pathctx.put_path_var_if_not_exists(
                 ctx.rel, element.path_id, element.val,
-                aspect='value', env=ctx.env)
+                aspect='value')
 
 
 def _compile_shape(
@@ -729,7 +729,7 @@ def _compile_shape(
         # it already: see the "unfortunate hack" in
         # process_set_as_tuple.)
         pathctx.put_path_serialized_var(
-            ctx.rel, element.path_id, element.val, force=True, env=ctx.env)
+            ctx.rel, element.path_id, element.val, force=True)
 
     # When we compile a shape during materialization, stash the
     # set away so we can consume it in unpack_rvar.
@@ -753,7 +753,7 @@ def _compile_shape(
     sval = output.serialize_expr(
         ser_result, path_id=ir_set.path_id, env=ctx.env)
     pathctx.put_path_serialized_var(
-        ctx.rel, ir_set.path_id, sval, force=True, env=ctx.env)
+        ctx.rel, ir_set.path_id, sval, force=True)
 
     return result
 

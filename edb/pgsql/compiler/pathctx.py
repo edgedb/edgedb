@@ -256,7 +256,7 @@ def get_path_var(
             rel_rvar = var
         elif var:
             put_path_var(
-                rel, path_id, var, aspect=aspect, flavor=flavor, env=env)
+                rel, path_id, var, aspect=aspect, flavor=flavor)
             return var
         else:
             rel_rvar = None
@@ -287,13 +287,13 @@ def get_path_var(
         source_rel, path_id, aspect=aspect, flavor=flavor, env=env)
 
     var = astutils.get_rvar_var(rel_rvar, outvar)
-    put_path_var(rel, path_id, var, aspect=aspect, flavor=flavor, env=env)
+    put_path_var(rel, path_id, var, aspect=aspect, flavor=flavor)
 
     if isinstance(var, pgast.TupleVar):
         for element in var.elements:
             put_path_var_if_not_exists(rel, element.path_id, element.val,
                                        flavor=flavor,
-                                       aspect=aspect, env=env)
+                                       aspect=aspect)
 
     return var
 
@@ -359,7 +359,7 @@ def _find_rel_rvar(
         var = rel.path_namespace.get((path_id, alt_aspect))
         if var is not None:
             put_path_var(
-                rel, path_id, var, aspect=aspect, flavor=flavor, env=env)
+                rel, path_id, var, aspect=aspect, flavor=flavor)
             return src_aspect, None, var
 
     return src_aspect, rel_rvar, None
@@ -394,7 +394,7 @@ def _get_path_var_in_setop(
                 new_path_id = map_path_id(path_id, subrel.view_path_id_map)
                 put_path_var(
                     subrel, new_path_id, new,
-                    force=True, env=env, aspect=aspect)
+                    force=True, aspect=aspect)
 
     # We disable the find_path_output optimization when doing
     # UNIONs to avoid situations where they have different numbers
@@ -460,7 +460,7 @@ def _get_path_var_in_setop(
     # This is necessary to correctly join heterogeneous UNIONs.
     var = astutils.strip_output_var(
         first, optional=optional, nullable=optional or nullable)
-    put_path_var(rel, path_id, var, aspect=aspect, flavor=flavor, env=env)
+    put_path_var(rel, path_id, var, aspect=aspect, flavor=flavor)
     return var
 
 
@@ -532,7 +532,7 @@ def _find_in_output_tuple(
         ):
             for name, src in reversed(steps):
                 var = astutils.tuple_getattr(var, src.target, name)
-            put_path_var(rel, path_id, var, aspect=aspect, env=env)
+            put_path_var(rel, path_id, var, aspect=aspect)
             return var
 
         ptrref = src_path_id.rptr()
@@ -615,8 +615,7 @@ def maybe_get_path_serialized_var(
 
 def put_path_var(
         rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
-        aspect: str, flavor: str='normal', force: bool=False,
-        env: context.Environment) -> None:
+        aspect: str, flavor: str='normal', force: bool=False) -> None:
     if flavor == 'packed':
         if rel.packed_path_namespace is None:
             rel.packed_path_namespace = {}
@@ -633,46 +632,46 @@ def put_path_var(
 def put_path_var_if_not_exists(
         rel: pgast.Query, path_id: irast.PathId, var: pgast.BaseExpr, *,
         flavor: str='normal',
-        aspect: str, env: context.Environment) -> None:
+        aspect: str) -> None:
     try:
-        put_path_var(rel, path_id, var, aspect=aspect, flavor=flavor, env=env)
+        put_path_var(rel, path_id, var, aspect=aspect, flavor=flavor)
     except KeyError:
         pass
 
 
 def put_path_identity_var(
         rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
-        force: bool=False, env: context.Environment) -> None:
-    put_path_var(rel, path_id, var, aspect='identity', force=force, env=env)
+        force: bool=False) -> None:
+    put_path_var(rel, path_id, var, aspect='identity', force=force)
 
 
 def put_path_value_var(
         rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
-        force: bool = False, env: context.Environment) -> None:
-    put_path_var(rel, path_id, var, aspect='value', force=force, env=env)
+        force: bool = False) -> None:
+    put_path_var(rel, path_id, var, aspect='value', force=force)
 
 
 def put_path_serialized_var(
         rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
-        force: bool = False, env: context.Environment) -> None:
-    put_path_var(rel, path_id, var, aspect='serialized', force=force, env=env)
+        force: bool = False) -> None:
+    put_path_var(rel, path_id, var, aspect='serialized', force=force)
 
 
 def put_path_value_var_if_not_exists(
         rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
-        force: bool = False, env: context.Environment) -> None:
+        force: bool = False) -> None:
     try:
-        put_path_var(rel, path_id, var, aspect='value', force=force, env=env)
+        put_path_var(rel, path_id, var, aspect='value', force=force)
     except KeyError:
         pass
 
 
 def put_path_serialized_var_if_not_exists(
         rel: pgast.BaseRelation, path_id: irast.PathId, var: pgast.BaseExpr, *,
-        force: bool = False, env: context.Environment) -> None:
+        force: bool = False) -> None:
     try:
         put_path_var(rel, path_id, var, aspect='serialized',
-                     force=force, env=env)
+                     force=force)
     except KeyError:
         pass
 
