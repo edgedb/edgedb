@@ -260,9 +260,9 @@ def gen_dml_cte(
     if isinstance(dml_stmt, pgast.DMLQuery):
         dml_stmt.relation = relation
     pathctx.put_path_value_rvar(
-        dml_stmt, target_path_id, relation, env=ctx.env)
+        dml_stmt, target_path_id, relation)
     pathctx.put_path_source_rvar(
-        dml_stmt, target_path_id, relation, env=ctx.env)
+        dml_stmt, target_path_id, relation)
     # Skip the path bond for inserts, since it doesn't help and
     # interferes when inserting in an UNLESS CONFLICT ELSE
     if not isinstance(ir_stmt, irast.InsertStmt):
@@ -299,9 +299,9 @@ def gen_dml_cte(
         if pol_expr := ir_stmt.read_policies.get(typeref.id):
             with ctx.newrel() as sctx:
                 pathctx.put_path_value_rvar(
-                    sctx.rel, target_path_id, relation, env=ctx.env)
+                    sctx.rel, target_path_id, relation)
                 pathctx.put_path_source_rvar(
-                    sctx.rel, target_path_id, relation, env=ctx.env)
+                    sctx.rel, target_path_id, relation)
 
                 val = clauses.compile_filter_clause(
                     pol_expr.expr, pol_expr.cardinality, ctx=sctx)
@@ -384,7 +384,7 @@ def merge_iterator(
         for other_path, aspect in iterator.other_paths:
             pathctx.put_path_rvar(
                 select, other_path, iterator_rvar,
-                aspect=aspect, env=ctx.env,
+                aspect=aspect
             )
 
 
@@ -664,9 +664,9 @@ def process_insert_body(
     fallback_rvar = pgast.DynamicRangeVar(
         dynamic_get_path=_mk_dynamic_get_path(ptr_map, typeref))
     pathctx.put_path_source_rvar(
-        select, ir_stmt.subject.path_id, fallback_rvar, env=ctx.env)
+        select, ir_stmt.subject.path_id, fallback_rvar)
     pathctx.put_path_value_rvar(
-        select, ir_stmt.subject.path_id, fallback_rvar, env=ctx.env)
+        select, ir_stmt.subject.path_id, fallback_rvar)
 
     # compile contents CTE
     elements: List[Tuple[irast.Set, irast.BasePointerRef]] = []
@@ -915,9 +915,9 @@ def process_insert_rewrites(
         dynamic_get_path=_mk_dynamic_get_path(
             nptr_map, typeref, iterator_rvar))
     pathctx.put_path_source_rvar(
-        rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
+        rew_stmt, object_path_id, fallback_rvar)
     pathctx.put_path_value_rvar(
-        rew_stmt, object_path_id, fallback_rvar, env=ctx.env)
+        rew_stmt, object_path_id, fallback_rvar)
 
     # If there are any single links that were compiled externally,
     # populate the field from the link overlays.
@@ -1644,13 +1644,11 @@ def process_update_body(
             contents_select,
             ir_stmt.subject.path_id,
             fallback_rvar,
-            env=ctx.env,
         )
         pathctx.put_path_value_rvar(
             contents_select,
             ir_stmt.subject.path_id,
             fallback_rvar,
-            env=ctx.env,
         )
 
     update_stmt = None
@@ -1768,10 +1766,10 @@ def process_update_body(
             target=update_stmt, source=contents_rvar, ctx=ctx
         )
         pathctx.put_path_value_rvar(
-            update_stmt, subject_path_id, table_relation, env=ctx.env
+            update_stmt, subject_path_id, table_relation
         )
         pathctx.put_path_source_rvar(
-            update_stmt, subject_path_id, table_relation, env=ctx.env
+            update_stmt, subject_path_id, table_relation
         )
 
         update_cte.query = update_stmt
@@ -1947,9 +1945,9 @@ def process_update_rewrites(
                 nptr_map, typeref, contents_rvar),
         )
         pathctx.put_path_source_rvar(
-            rctx.rel, object_path_id, fallback_rvar, env=ctx.env)
+            rctx.rel, object_path_id, fallback_rvar)
         pathctx.put_path_value_rvar(
-            rctx.rel, object_path_id, fallback_rvar, env=ctx.env)
+            rctx.rel, object_path_id, fallback_rvar)
 
         rewrites_cte = pgast.CommonTableExpr(
             query=rctx.rel, name=ctx.env.aliases.get("upd_rewrites")
@@ -2583,7 +2581,7 @@ def process_link_update(
             )
 
         pathctx.put_path_value_rvar(
-            delcte.query, path_id.ptr_path(), target_rvar, env=ctx.env)
+            delcte.query, path_id.ptr_path(), target_rvar)
 
         # Record the effect of this removal in the relation overlay
         # context to ensure that references to the link in the result
@@ -2759,7 +2757,7 @@ def process_link_update(
     )
 
     pathctx.put_path_value_rvar(
-        updcte.query, path_id.ptr_path(), target_rvar, env=ctx.env)
+        updcte.query, path_id.ptr_path(), target_rvar)
 
     def register_overlays(
         overlay_cte: pgast.CommonTableExpr, octx: context.CompilerContextLevel

@@ -448,7 +448,7 @@ def ensure_source_rvar(
                 relctx.include_rvar(
                     scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx)
             pathctx.put_path_rvar(
-                stmt, ir_set.path_id, rvar, aspect='source', env=ctx.env)
+                stmt, ir_set.path_id, rvar, aspect='source')
 
     return rvar
 
@@ -828,7 +828,7 @@ def process_set_as_link_property_ref(
                     assert isinstance(rvar, pgast.PathRangeVar)
                     if ptr_ids is None or rvar.schema_object_id in ptr_ids:
                         pathctx.put_path_source_rvar(
-                            subquery, orig_link_path_id, rvar, env=ctx.env
+                            subquery, orig_link_path_id, rvar
                         )
                         continue
                 # Spare get_path_var() from attempting to rebalance
@@ -937,7 +937,6 @@ def process_set_as_path_type_intersection(
                 ir_source.path_id,
                 source_rvar,
                 aspect=aspect,
-                env=ctx.env,
             )
 
             pathctx.put_path_rvar(
@@ -945,7 +944,6 @@ def process_set_as_path_type_intersection(
                 ir_set.path_id,
                 int_rvar,
                 aspect=aspect,
-                env=ctx.env,
             )
 
     return new_stmt_set_rvar(

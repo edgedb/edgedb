@@ -761,28 +761,24 @@ def get_rvar_output_var_as_col_list(
 def put_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
         flavor: str='normal',
-        aspect: str, env: context.Environment) -> None:
+        aspect: str) -> None:
     assert isinstance(path_id, irast.PathId)
     stmt.get_rvar_map(flavor)[path_id, aspect] = rvar
 
 
 def put_path_value_rvar(
         stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
-        flavor: str='normal',
-        env: context.Environment) -> None:
-    put_path_rvar(stmt, path_id, rvar, aspect='value', flavor=flavor, env=env)
+        flavor: str='normal') -> None:
+    put_path_rvar(stmt, path_id, rvar, aspect='value', flavor=flavor)
 
 
 def put_path_source_rvar(
         stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
-        flavor: str='normal',
-        env: context.Environment) -> None:
-    put_path_rvar(stmt, path_id, rvar, aspect='source', flavor=flavor, env=env)
+        flavor: str='normal') -> None:
+    put_path_rvar(stmt, path_id, rvar, aspect='source', flavor=flavor)
 
 
-def has_rvar(
-        stmt: pgast.Query, rvar: pgast.PathRangeVar, *,
-        env: context.Environment) -> bool:
+def has_rvar(stmt: pgast.Query, rvar: pgast.PathRangeVar) -> bool:
     return any(
         rvar in set(stmt.get_rvar_map(flavor).values())
         for flavor in ('normal', 'packed')
@@ -795,7 +791,7 @@ def put_path_rvar_if_not_exists(
         aspect: str, env: context.Environment) -> None:
     if (path_id, aspect) not in stmt.get_rvar_map(flavor):
         put_path_rvar(
-            stmt, path_id, rvar, aspect=aspect, flavor=flavor, env=env)
+            stmt, path_id, rvar, aspect=aspect, flavor=flavor)
 
 
 def get_path_rvar(
@@ -836,9 +832,8 @@ def _has_path_aspect(
 
 
 def has_path_aspect(
-        stmt: pgast.Query, path_id: irast.PathId, *,
-        aspect: str,
-        env: context.Environment) -> bool:
+    stmt: pgast.Query, path_id: irast.PathId, *, aspect: str
+) -> bool:
     path_id = map_path_id(path_id, stmt.view_path_id_map)
     return _has_path_aspect(stmt, path_id, aspect=aspect)
 

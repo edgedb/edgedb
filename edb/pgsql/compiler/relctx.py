@@ -114,8 +114,7 @@ def _pull_path_namespace(
                 target, path_id, aspect=aspect, flavor=flavor, env=ctx.env)
             if rvar is None or flavor == 'packed':
                 pathctx.put_path_rvar(
-                    target, path_id, source, aspect=aspect, flavor=flavor,
-                    env=ctx.env)
+                    target, path_id, source, aspect=aspect, flavor=flavor)
 
 
 def pull_path_namespace(
@@ -214,7 +213,8 @@ def include_rvar(
         if path_id.is_objtype_path():
             if isinstance(rvar, pgast.RangeSubselect):
                 if pathctx.has_path_aspect(
-                        rvar.query, path_id, aspect='source', env=ctx.env):
+                    rvar.query, path_id, aspect='source'
+                ):
                     aspects += ('source',)
             else:
                 aspects += ('source',)
@@ -270,7 +270,7 @@ def include_specific_rvar(
     for aspect in aspects:
         if overwrite_path_rvar:
             pathctx.put_path_rvar(
-                stmt, path_id, rvar, flavor=flavor, aspect=aspect, env=ctx.env)
+                stmt, path_id, rvar, flavor=flavor, aspect=aspect)
         else:
             pathctx.put_path_rvar_if_not_exists(
                 stmt, path_id, rvar, flavor=flavor, aspect=aspect, env=ctx.env)
@@ -299,7 +299,7 @@ def has_rvar(
         return True
 
     while curstmt is not None:
-        if pathctx.has_rvar(curstmt, rvar, env=ctx.env):
+        if pathctx.has_rvar(curstmt, rvar):
             return True
         curstmt = ctx.rel_hierarchy.get(curstmt)
 
@@ -334,8 +334,7 @@ def _maybe_get_path_rvar(
             if qry is not stmt:
                 # Cache the rvar reference.
                 pathctx.put_path_rvar(stmt, path_id, rvar,
-                                      flavor=flavor, aspect=aspect,
-                                      env=ctx.env)
+                                      flavor=flavor, aspect=aspect)
             return rvar, path_id
         qry = ctx.rel_hierarchy.get(qry)
 
@@ -1144,10 +1143,10 @@ def unpack_var(
 
         if not el.packed:
             pathctx.put_path_rvar(
-                stmt, el_id, rvar, aspect='value', env=ctx.env)
+                stmt, el_id, rvar, aspect='value')
 
             pathctx.put_path_rvar(
-                ctx.rel, el_id, rvar, aspect='value', env=ctx.env)
+                ctx.rel, el_id, rvar, aspect='value')
         else:
             cref = pathctx.get_path_output(
                 qry, el_id, aspect='value', env=ctx.env)
@@ -1156,7 +1155,7 @@ def unpack_var(
             pathctx.put_path_packed_output(qry, el_id, val=cref)
 
             pathctx.put_path_rvar(
-                stmt, el_id, rvar, flavor='packed', aspect='value', env=ctx.env
+                stmt, el_id, rvar, flavor='packed', aspect='value'
             )
 
     # When we're producing an exposed shape, we need to rewrite the
@@ -1200,7 +1199,7 @@ def unpack_var(
                 qry, view_path_id, sval, aspect=aspect, force=True
             )
             pathctx.put_path_rvar(
-                ctx.rel, view_path_id, rvar, aspect=aspect, env=ctx.env
+                ctx.rel, view_path_id, rvar, aspect=aspect
             )
 
     return rvar
@@ -1471,8 +1470,8 @@ def range_for_material_objtype(
             )
             qry = pgast.SelectStmt(from_clause=[rvar])
             sub_path_id = path_id
-            pathctx.put_path_value_rvar(qry, sub_path_id, rvar, env=env)
-            pathctx.put_path_source_rvar(qry, sub_path_id, rvar, env=env)
+            pathctx.put_path_value_rvar(qry, sub_path_id, rvar)
+            pathctx.put_path_source_rvar(qry, sub_path_id, rvar)
 
             ops.append(('union', qry))
 
@@ -1525,9 +1524,9 @@ def range_for_material_objtype(
 
         qry = pgast.SelectStmt()
         qry.from_clause.append(rvar)
-        pathctx.put_path_value_rvar(qry, path_id, rvar, env=env)
+        pathctx.put_path_value_rvar(qry, path_id, rvar)
         if path_id.is_objtype_path():
-            pathctx.put_path_source_rvar(qry, path_id, rvar, env=env)
+            pathctx.put_path_source_rvar(qry, path_id, rvar)
         pathctx.put_path_bond(qry, path_id)
 
         set_ops.append(('union', qry))
@@ -1539,9 +1538,9 @@ def range_for_material_objtype(
                 from_clause=[rvar],
             )
 
-            pathctx.put_path_value_rvar(qry, cte_path_id, rvar, env=env)
+            pathctx.put_path_value_rvar(qry, cte_path_id, rvar)
             if path_id.is_objtype_path():
-                pathctx.put_path_source_rvar(qry, cte_path_id, rvar, env=env)
+                pathctx.put_path_source_rvar(qry, cte_path_id, rvar)
             pathctx.put_path_bond(qry, cte_path_id)
             pathctx.put_path_id_map(qry, path_id, cte_path_id)
 
@@ -1555,9 +1554,9 @@ def range_for_material_objtype(
             qry2 = pgast.SelectStmt(
                 from_clause=[qry_rvar]
             )
-            pathctx.put_path_value_rvar(qry2, path_id, qry_rvar, env=env)
+            pathctx.put_path_value_rvar(qry2, path_id, qry_rvar)
             if path_id.is_objtype_path():
-                pathctx.put_path_source_rvar(qry2, path_id, qry_rvar, env=env)
+                pathctx.put_path_source_rvar(qry2, path_id, qry_rvar)
             pathctx.put_path_bond(qry2, path_id)
 
             if op == 'replace':
@@ -1619,9 +1618,9 @@ def range_for_typeref(
                 from_clause=[c_rvar],
             )
 
-            pathctx.put_path_value_rvar(qry, path_id, c_rvar, env=ctx.env)
+            pathctx.put_path_value_rvar(qry, path_id, c_rvar)
             if path_id.is_objtype_path():
-                pathctx.put_path_source_rvar(qry, path_id, c_rvar, env=ctx.env)
+                pathctx.put_path_source_rvar(qry, path_id, c_rvar)
 
             pathctx.put_path_bond(qry, path_id)
 
@@ -1654,7 +1653,7 @@ def range_for_typeref(
         int_rvar = pgast.IntersectionRangeVar(component_rvars=component_rvars)
         for aspect in ('source', 'value'):
             pathctx.put_path_rvar(
-                wrapper, path_id, int_rvar, aspect=aspect, env=ctx.env
+                wrapper, path_id, int_rvar, aspect=aspect
             )
 
         pathctx.put_path_bond(wrapper, path_id)
@@ -1930,7 +1929,7 @@ def range_for_ptrref(
             pathctx.put_path_identity_var(
                 qry, path_id, var=target_ref)
             pathctx.put_path_source_rvar(
-                qry, path_id, table, env=ctx.env)
+                qry, path_id, table)
 
         # Only fire off the overlays at the end of each expanded inhview.
         # This only matters when we are doing expand_inhviews, and prevents
@@ -1960,7 +1959,7 @@ def range_for_ptrref(
                     pathctx.put_path_identity_var(
                         qry, cte_path_id, var=target_ref)
                     pathctx.put_path_source_rvar(
-                        qry, cte_path_id, rvar, env=ctx.env)
+                        qry, cte_path_id, rvar)
                     pathctx.put_path_id_map(qry, path_id, cte_path_id)
 
                 set_ops.append((op, qry))

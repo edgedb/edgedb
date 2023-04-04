@@ -79,7 +79,6 @@ def compile_SelectStmt(
                         path_id=iterator_set.path_id,
                         rvar=iterator_rvar,
                         aspect=aspect,
-                        env=ctx.env,
                     )
                 last_iterator = iterator_set
 
