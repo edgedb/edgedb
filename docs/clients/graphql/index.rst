@@ -96,8 +96,7 @@ request can contain the following fields:
   required.
 - ``globals`` - a JSON object containing global variables. **Optional**. The
   keys must be the fully qualified names of the globals to set (e.g.,
-  ``default::current_user`` instead of ``current_user`` if the global is in the
-  ``default`` module).
+  ``default::current_user`` if the global is in the ``default`` module).
 - ``operationName`` - the name of the operation that must be
   executed. **Optional** unless the GraphQL query contains several named
   operations, in which case it is required.
