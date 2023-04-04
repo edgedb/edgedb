@@ -713,8 +713,8 @@ def get_rvar_path_var(
 
 def put_rvar_path_output(
         rvar: pgast.PathRangeVar, path_id: irast.PathId, aspect: str,
-        var: pgast.OutputVar, *, env: context.Environment) -> None:
-    _put_path_output_var(rvar.query, path_id, aspect, var, env=env)
+        var: pgast.OutputVar) -> None:
+    _put_path_output_var(rvar.query, path_id, aspect, var)
 
 
 def maybe_get_rvar_path_var(
@@ -846,9 +846,7 @@ def has_path_aspect(
 ASPECTS = ('value', 'identity', 'source', 'serialized')
 
 
-def list_path_aspects(
-        stmt: pgast.Query, path_id: irast.PathId, *,
-        env: context.Environment) -> Set[str]:
+def list_path_aspects(stmt: pgast.Query, path_id: irast.PathId) -> Set[str]:
 
     path_id = map_path_id(path_id, stmt.view_path_id_map)
     return {
@@ -881,8 +879,7 @@ def put_path_packed_output(
 
 def _put_path_output_var(
         rel: pgast.BaseRelation, path_id: irast.PathId, aspect: str,
-        var: pgast.OutputVar, *, flavor: str='normal',
-        env: context.Environment) -> None:
+        var: pgast.OutputVar, *, flavor: str='normal') -> None:
     if flavor == 'packed':
         put_path_packed_output(rel, path_id, var, aspect)
     else:
@@ -914,7 +911,7 @@ def _get_rel_object_id_output(
     else:
         result = pgast.ColumnRef(name=['id'], nullable=False)
 
-    _put_path_output_var(rel, path_id, aspect, result, env=env)
+    _put_path_output_var(rel, path_id, aspect, result)
 
     return result
 
@@ -1034,7 +1031,7 @@ def _get_rel_path_output(
                 name=[ptr_info.column_name],
                 nullable=not ptrref.required)
 
-    _put_path_output_var(rel, path_id, aspect, result, flavor=flavor, env=env)
+    _put_path_output_var(rel, path_id, aspect, result, flavor=flavor)
     return result
 
 
@@ -1047,8 +1044,8 @@ def has_type_rewrite(
 
 
 def find_path_output(
-        rel: pgast.BaseRelation, path_id: irast.PathId, ref: pgast.BaseExpr, *,
-        env: context.Environment) -> Optional[pgast.OutputVar]:
+    rel: pgast.BaseRelation, ref: pgast.BaseExpr
+) -> Optional[pgast.OutputVar]:
     if isinstance(ref, pgast.TupleVarBase):
         return None
 
@@ -1116,7 +1113,7 @@ def _get_path_output(
                                           allow_nullable=allow_nullable,
                                           env=env)
         if id_output is not None:
-            _put_path_output_var(rel, path_id, aspect, id_output, env=env)
+            _put_path_output_var(rel, path_id, aspect, id_output)
             return id_output
 
     if is_terminal_relation(rel):
@@ -1135,10 +1132,10 @@ def _get_path_output(
     # As an optimization, look to see if the same expression is being
     # output on a different aspect. This can save us needing to do the
     # work twice in the query.
-    other_output = find_path_output(rel, path_id, ref, env=env)
+    other_output = find_path_output(rel, ref)
     if other_output is not None and not disable_output_fusion:
         _put_path_output_var(
-            rel, path_id, aspect, other_output, flavor=flavor, env=env)
+            rel, path_id, aspect, other_output, flavor=flavor)
         return other_output
 
     if isinstance(ref, pgast.TupleVarBase):
@@ -1228,7 +1225,7 @@ def _get_path_output(
                 name=[alias], nullable=nullable, optional=optional,
                 is_packed_multi=is_packed_multi)
 
-    _put_path_output_var(rel, path_id, aspect, result, flavor=flavor, env=env)
+    _put_path_output_var(rel, path_id, aspect, result, flavor=flavor)
     if (path_id.is_objtype_path()
             and not isinstance(result, pgast.TupleVarBase)):
         equiv_aspect = None
@@ -1240,7 +1237,7 @@ def _get_path_output(
         if (equiv_aspect is not None
                 and (path_id, equiv_aspect) not in rel.path_outputs):
             _put_path_output_var(
-                rel, path_id, equiv_aspect, result, flavor=flavor, env=env)
+                rel, path_id, equiv_aspect, result, flavor=flavor)
 
     return result
 
@@ -1353,7 +1350,7 @@ def get_path_serialized_output(
     result = pgast.ColumnRef(
         name=[alias], nullable=refexpr.nullable, ser_safe=True)
 
-    _put_path_output_var(rel, path_id, aspect, result, env=env)
+    _put_path_output_var(rel, path_id, aspect, result)
 
     return result
 
@@ -1393,7 +1390,7 @@ def get_path_output_or_null(
                 rel.path_outputs[(path_id, alt_aspect)] = preexisting
 
         if ref is not None:
-            _put_path_output_var(rel, path_id, aspect, ref, env=env)
+            _put_path_output_var(rel, path_id, aspect, ref)
             return ref, False
 
     alias = env.aliases.get('null')
@@ -1404,7 +1401,7 @@ def get_path_output_or_null(
     rel.target_list.append(restarget)
 
     ref = pgast.ColumnRef(name=[alias], nullable=True)
-    _put_path_output_var(rel, path_id, aspect, ref, flavor=flavor, env=env)
+    _put_path_output_var(rel, path_id, aspect, ref, flavor=flavor)
 
     return ref, True
 

@@ -102,7 +102,7 @@ def new_stmt_set_rvar(
     if aspects is not None:
         aspects = tuple(aspects)
     else:
-        aspects = pathctx.list_path_aspects(stmt, ir_set.path_id, env=ctx.env)
+        aspects = pathctx.list_path_aspects(stmt, ir_set.path_id)
     return new_simple_set_rvar(ir_set, rvar, aspects=aspects)
 
 
@@ -769,7 +769,7 @@ def process_set_as_link_property_ref(
             src_rvar, ir_source.path_id, aspect='value', env=ctx.env)
 
         pathctx.put_rvar_path_output(
-            src_rvar, ir_set.path_id, aspect='value', var=val, env=ctx.env)
+            src_rvar, ir_set.path_id, aspect='value', var=val)
 
         return SetRVars(
             main=SetRVar(rvar=src_rvar, path_id=ir_set.path_id), new=[])
@@ -1195,7 +1195,7 @@ def _new_subquery_stmt_set_rvar(
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
     aspects = pathctx.list_path_aspects(
-        stmt, ir_set.path_id, env=ctx.env)
+        stmt, ir_set.path_id)
     if ir_set.path_id.is_tuple_path():
         # If we are wrapping a tuple expression, make sure not to
         # over-represent it in terms of the exposed aspects.
@@ -1540,8 +1540,8 @@ def process_set_as_setop(
             dispatch.visit(right, ctx=scopectx)
 
     aspects = (
-        pathctx.list_path_aspects(larg, left.path_id, env=ctx.env)
-        & pathctx.list_path_aspects(rarg, right.path_id, env=ctx.env)
+        pathctx.list_path_aspects(larg, left.path_id)
+        & pathctx.list_path_aspects(rarg, right.path_id)
     )
 
     with ctx.subrel() as subctx:
@@ -1688,8 +1688,8 @@ def process_set_as_ifelse(
             )
 
         aspects = (
-            pathctx.list_path_aspects(larg, if_expr.path_id, env=ctx.env)
-            & pathctx.list_path_aspects(rarg, else_expr.path_id, env=ctx.env)
+            pathctx.list_path_aspects(larg, if_expr.path_id)
+            & pathctx.list_path_aspects(rarg, else_expr.path_id)
         )
 
         with ctx.subrel() as subctx:
@@ -1890,9 +1890,8 @@ def process_set_as_coalesce(
                 )
 
             aspects = (
-                pathctx.list_path_aspects(larg, left_ir.path_id, env=ctx.env)
-                & pathctx.list_path_aspects(
-                    rarg, right_ir.path_id, env=ctx.env)
+                pathctx.list_path_aspects(larg, left_ir.path_id)
+                & pathctx.list_path_aspects(rarg, right_ir.path_id)
             )
 
             subrvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=newctx)
@@ -1951,7 +1950,7 @@ def process_set_as_tuple(
 
             el_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
             aspects = pathctx.list_path_aspects(
-                newctx.rel, element.val.path_id, env=ctx.env)
+                newctx.rel, element.val.path_id)
             # update_mask=False because we are doing this solely to remap
             # elements individually and don't want to affect the mask.
             relctx.include_rvar(
@@ -2312,7 +2311,7 @@ def process_set_as_singleton_assertion(
         pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg_set.path_id)
 
     aspects = pathctx.list_path_aspects(
-        newctx.rel, ir_arg_set.path_id, env=ctx.env)
+        newctx.rel, ir_arg_set.path_id)
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
                         aspects=aspects, ctx=ctx)
@@ -2455,7 +2454,7 @@ def process_set_as_multiplicity_assertion(
             sub_rvar = relctx.new_rel_rvar(ir_arg_set, subctx.rel, ctx=subctx)
 
             aspects = pathctx.list_path_aspects(
-                subctx.rel, ir_arg_set.path_id, env=ctx.env)
+                subctx.rel, ir_arg_set.path_id)
             relctx.include_rvar(
                 newctx.rel, sub_rvar, ir_arg_set.path_id,
                 aspects=aspects, ctx=subctx,
@@ -2624,7 +2623,7 @@ def process_set_as_simple_enumerate(
             newctx.rel, ir_set.path_id, set_expr, aspect='value')
 
     aspects = pathctx.list_path_aspects(
-        newctx.rel, ir_arg.path_id, env=ctx.env) | {'source'}
+        newctx.rel, ir_arg.path_id) | {'source'}
 
     pathctx.put_path_id_map(newctx.rel, expr.tuple_path_ids[1], ir_arg.path_id)
 

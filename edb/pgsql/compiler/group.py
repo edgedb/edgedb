@@ -187,8 +187,7 @@ def _compile_group(
 
         subj_rvar = relctx.rvar_for_rel(
             subjctx.rel, ctx=groupctx, lateral=True)
-        aspects = pathctx.list_path_aspects(
-            subjctx.rel, stmt.subject.path_id, env=ctx.env)
+        aspects = pathctx.list_path_aspects(subjctx.rel, stmt.subject.path_id)
 
         pathctx.put_path_id_map(
             subjctx.rel,
@@ -304,7 +303,7 @@ def _compile_group(
             uout = pathctx.get_path_output(
                 grouprel, using_val.path_id, aspect='value', env=ctx.env)
             pathctx._put_path_output_var(
-                grouprel, using_val.path_id, 'serialized', uout, env=ctx.env)
+                grouprel, using_val.path_id, 'serialized', uout)
 
         grouprel.group_clause = [
             compile_grouping_el(el, stmt, ctx=groupctx) for el in stmt.by
