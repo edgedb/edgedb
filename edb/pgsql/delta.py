@@ -3431,6 +3431,9 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
         singletons = [subject]
         path_prefix_anchor = ql_ast.Subject().name
 
+        orig_index = index.get_root(schema)
+        orig_subject = orig_index.get_subject(schema)
+
         options = qlcompiler.CompilerOptions(
             modaliases=context.modaliases,
             schema_object_context=cls.get_schema_metaclass(),
@@ -3438,6 +3441,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             path_prefix_anchor=path_prefix_anchor,
             singletons=singletons,
             apply_query_rewrites=False,
+            type_remaps={orig_subject: subject},
         )
 
         index_expr = index.get_expr(schema).ensure_compiled(

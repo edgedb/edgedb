@@ -244,16 +244,10 @@ class Index(
         self,
         schema: s_schema.Schema,
     ) -> Index:
-        if not self.get_abstract(schema):
-            name = sn.shortname_from_fullname(self.get_name(schema))
-            index = schema.get(name, type=Index)
+        if self.get_bases(schema):
+            return self.get_ancestors(schema).objects(schema)[-1]
         else:
-            index = self
-
-        if index.get_bases(schema):
-            return index.get_ancestors(schema).objects(schema)[-1]
-        else:
-            return index
+            return self
 
     def get_concrete_kwargs(
         self,
@@ -548,6 +542,12 @@ class IndexCommand(
             assert isinstance(parent_ctx.op, sd.ObjectCommand)
             subject = parent_ctx.op.get_object(schema, context)
 
+            if scls := getattr(self, 'scls', None):
+                orig_index = scls.get_root(schema)
+                orig_subject = orig_index.get_subject(schema)
+            else:
+                orig_subject = subject
+
             expr = value.compiled(
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
@@ -558,6 +558,7 @@ class IndexCommand(
                     singletons=frozenset([subject]),
                     apply_query_rewrites=False,
                     track_schema_ref_exprs=track_schema_ref_exprs,
+                    type_remaps={orig_subject: subject},
                 ),
             )
 

@@ -10092,8 +10092,6 @@ type default::Foo {
             """)
 
     async def test_edgeql_ddl_constraint_21(self):
-        # We plan on rejecting this, but for now do the thing closest
-        # to right.
         await self.con.execute(r"""
             create type A {
                 create property x -> str;
@@ -12308,6 +12306,12 @@ type default::Foo {
             ''',
             [{"indexes": [{"except_expr": ".exclude", "expr": ".name"}]}]
         )
+
+    async def test_edgeql_ddl_index_07(self):
+        await self.con.execute(r"""
+            create type A { create property x -> str; create index on (A.x); };
+            create type B extending A;
+        """)
 
     async def test_edgeql_ddl_errors_01(self):
         await self.con.execute('''
