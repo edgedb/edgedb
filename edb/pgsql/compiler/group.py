@@ -330,7 +330,7 @@ def _compile_group(
         if group_use:
             pathctx.put_path_rvar(
                 query, group_use.path_id,
-                group_rvar, aspect='value', env=ctx.env)
+                group_rvar, aspect='value')
 
     vol_ref = None
 
