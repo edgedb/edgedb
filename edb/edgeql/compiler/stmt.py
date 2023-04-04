@@ -812,7 +812,7 @@ def compile_DescribeStmt(
                     f'cannot describe full schema as {ql.language}')
 
             ct = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type(
+                ctx.env.get_schema_type_and_track(
                     s_name.QualName('std', 'str')),
                 env=ctx.env,
             )
@@ -1035,7 +1035,7 @@ def compile_DescribeStmt(
                 text += masked
 
             ct = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type(
+                ctx.env.get_schema_type_and_track(
                     s_name.QualName('std', 'str')),
                 env=ctx.env,
             )

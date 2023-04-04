@@ -54,7 +54,7 @@ def compile_where_clause(
         subctx.path_scope.unnest_fence = True
         subctx.disallow_dml = "in a FILTER clause"
         ir_expr = dispatch.compile(where, ctx=subctx)
-        bool_t = ctx.env.get_track_schema_type(sn.QualName('std', 'bool'))
+        bool_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'bool'))
         ir_set = setgen.scoped_set(ir_expr, typehint=bool_t, ctx=subctx)
 
     return ir_set
@@ -143,7 +143,7 @@ def compile_limit_offset_clause(
             subctx.partial_path_prefix = None
 
             ir_expr = dispatch.compile(expr, ctx=subctx)
-            int_t = ctx.env.get_track_schema_type(
+            int_t = ctx.env.get_schema_type_and_track(
                 sn.QualName('std', 'int64'))
             ir_set = setgen.scoped_set(
                 ir_expr, force_reassign=True, typehint=int_t, ctx=subctx)

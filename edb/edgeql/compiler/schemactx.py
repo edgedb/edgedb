@@ -80,7 +80,7 @@ def get_schema_object(
         return view
 
     try:
-        stype = ctx.env.get_track_schema_object(
+        stype = ctx.env.get_schema_object_and_track(
             name=name,
             expr=ref,
             modaliases=ctx.modaliases,

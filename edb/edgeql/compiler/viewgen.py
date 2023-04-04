@@ -1679,10 +1679,10 @@ def _normalize_view_ptr_expr(
             src_scls = view_scls
 
         if ptr_target.is_object_type():
-            base = ctx.env.get_track_schema_object(
+            base = ctx.env.get_schema_object_and_track(
                 sn.QualName('std', 'link'), expr=None)
         else:
-            base = ctx.env.get_track_schema_object(
+            base = ctx.env.get_schema_object_and_track(
                 sn.QualName('std', 'property'), expr=None)
 
         if base_ptrcls is not None:
@@ -1883,11 +1883,11 @@ def derive_ptrcls(
     if view_rptr.ptrcls is None:
         if view_rptr.base_ptrcls is None:
             if target_scls.is_object_type():
-                base = ctx.env.get_track_schema_object(
+                base = ctx.env.get_schema_object_and_track(
                     sn.QualName('std', 'link'), expr=None)
                 view_rptr.base_ptrcls = cast(s_links.Link, base)
             else:
-                base = ctx.env.get_track_schema_object(
+                base = ctx.env.get_schema_object_and_track(
                     sn.QualName('std', 'property'), expr=None)
                 view_rptr.base_ptrcls = cast(s_props.Property, base)
 

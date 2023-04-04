@@ -280,7 +280,7 @@ def try_bind_call_args(
             # being called with no arguments.
             bargs: List[BoundArg] = []
             if has_inlined_defaults:
-                bytes_t = ctx.env.get_track_schema_type(
+                bytes_t = ctx.env.get_schema_type_and_track(
                     sn.QualName('std', 'bytes'))
                 typeref = typegen.type_to_typeref(bytes_t, env=ctx.env)
                 argval = setgen.ensure_set(
@@ -515,7 +515,7 @@ def try_bind_call_args(
     if has_inlined_defaults:
         # If we are compiling an EdgeQL function, inject the defaults
         # bit-mask as a first argument.
-        bytes_t = ctx.env.get_track_schema_type(
+        bytes_t = ctx.env.get_schema_type_and_track(
             sn.QualName('std', 'bytes'))
         bm = defaults_mask.to_bytes(nparams // 8 + 1, 'little')
         typeref = typegen.type_to_typeref(bytes_t, env=ctx.env)

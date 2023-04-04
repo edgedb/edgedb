@@ -268,7 +268,7 @@ def compile_BaseConstant(
         raise RuntimeError(f'unexpected constant type: {type(expr)}')
 
     ct = typegen.type_to_typeref(
-        ctx.env.get_track_schema_type(std_type),
+        ctx.env.get_schema_type_and_track(std_type),
         env=ctx.env,
     )
     return setgen.ensure_set(node_cls(value=value, typeref=ct), ctx=ctx)
@@ -466,7 +466,7 @@ def compile_UnaryOp(
 @dispatch.compile.register(qlast.GlobalExpr)
 def compile_GlobalExpr(
         expr: qlast.GlobalExpr, *, ctx: context.ContextLevel) -> irast.Set:
-    glob = ctx.env.get_track_schema_object(
+    glob = ctx.env.get_schema_object_and_track(
         s_utils.ast_ref_to_name(expr.name), expr.name,
         modaliases=ctx.modaliases, type=s_globals.Global)
     assert isinstance(glob, s_globals.Global)
@@ -571,7 +571,7 @@ def compile_TypeCast(
                     context=expr.expr.context)
 
             typeref = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type(sn.QualName('std', 'json')),
+                ctx.env.get_schema_type_and_track(sn.QualName('std', 'json')),
                 env=ctx.env,
             )
 

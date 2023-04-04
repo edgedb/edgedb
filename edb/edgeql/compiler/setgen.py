@@ -1056,7 +1056,7 @@ def enum_indirection_set(
         ctx: context.ContextLevel) -> irast.Set:
 
     strref = typegen.type_to_typeref(
-        ctx.env.get_track_schema_type(s_name.QualName('std', 'str')),
+        ctx.env.get_schema_type_and_track(s_name.QualName('std', 'str')),
         env=ctx.env,
     )
 
