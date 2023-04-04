@@ -474,11 +474,6 @@ async def run_server(
         f"defaulting to the '{args.default_auth_method}' authentication method"
     )
 
-    if debug.flags.pydebug_listen:
-        import debugpy
-
-        debugpy.listen(38782)
-
     _init_parsers()
 
     pg_cluster_init_by_us = False
