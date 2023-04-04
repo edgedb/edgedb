@@ -10149,6 +10149,8 @@ type default::Foo {
                 create required property status -> Status;
             }
         """)
+
+        # enum casts in constraints
         await self.con.execute("""
             alter type Order {
                 create constraint exclusive on ((Status.open = .status));
@@ -10161,12 +10163,24 @@ type default::Foo {
         """)
         await self.con.execute("""
             alter type Order {
+                create constraint exclusive on (('open' = <str>.status));
+            };
+        """)
+
+        # enum casts in indexes
+        await self.con.execute("""
+            alter type Order {
                 create index on ((Status.open = .status));
             };
         """)
         await self.con.execute("""
             alter type Order {
                 create index on ((<Status>'open' = .status));
+            };
+        """)
+        await self.con.execute("""
+            alter type Order {
+                create index on (('open' = <str>.status));
             };
         """)
 
