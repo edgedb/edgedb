@@ -1571,18 +1571,27 @@ class RebaseConstraint(
 
 def interpolate_errmessage(message: str, args: Dict[str, str]) -> str:
     """
-    Converts "hello {world}! {nope}" and {"world":"Alice", "hell":"Eve"}
-    into "hello Alice! {nope}".
+    Converts message template "hello {world}! {nope}{{world}}" and
+    arguments {"world": "Alice", "hell": "Eve"}
+    into "hello Alice! {world}".
     """
+
+    regex = r"\{\{.*\}\}|\{([A-Za-z_0-9]+)\}"
+
     formatted = ""
     last_start = 0
-    for match in re.finditer(r"\{([A-Za-z_0-9]+)\}", message, flags=0):
+    for match in re.finditer(regex, message, flags=0):
         formatted += message[last_start : match.start()]
         last_start = match.end()
 
-        if match[1] in args:
+        if match[1] is None:
+            # escape double curly braces
+            formatted += match[0][1:-1]
+        elif match[1] in args:
+            # lookup an arg
             formatted += args[match[1]]
         else:
+            # arg not found
             formatted += match[0]
 
     formatted += message[last_start:]

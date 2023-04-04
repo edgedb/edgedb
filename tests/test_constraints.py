@@ -978,14 +978,14 @@ class TestConstraintsDDL(tb.DDLTestCase):
             CREATE type ConstraintOnTest4_2 {
                 CREATE required property email -> str {
                     CREATE constraint min_len_value(4) {
-                        SET errmessage := '{"json": "message {must} {min}."}';
+                        SET errmessage := '{"json": "{nope} {{min}} {min}"}';
                     };
                 };
             };
         """)
         async with self.assertRaisesRegexTx(
             edgedb.ConstraintViolationError,
-            '{"json": "message {must} 4."}',
+            '{"json": "{nope} {min} 4"}',
         ):
             await self.con.execute("""
                 INSERT ConstraintOnTest4_2 { email := '' };
