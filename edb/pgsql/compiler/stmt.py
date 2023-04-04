@@ -146,7 +146,7 @@ def compile_InsertStmt(
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
         # Common DML bootstrap.
-        parts = dml.init_dml_stmt(stmt, parent_ctx=parent_ctx, ctx=ctx)
+        parts = dml.init_dml_stmt(stmt, ctx=ctx)
 
         top_typeref = stmt.subject.typeref
         if top_typeref.material_type is not None:
@@ -163,7 +163,7 @@ def compile_InsertStmt(
 
         # Wrap up.
         return dml.fini_dml_stmt(
-            stmt, ctx.rel, parts, parent_ctx=parent_ctx, ctx=ctx)
+            stmt, ctx.rel, parts, ctx=ctx)
 
 
 @dispatch.compile.register(irast.UpdateStmt)
@@ -174,7 +174,7 @@ def compile_UpdateStmt(
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
         # Common DML bootstrap.
-        parts = dml.init_dml_stmt(stmt, parent_ctx=parent_ctx, ctx=ctx)
+        parts = dml.init_dml_stmt(stmt, ctx=ctx)
         range_cte = parts.range_cte
         assert range_cte is not None
 
@@ -192,7 +192,7 @@ def compile_UpdateStmt(
             )
 
         return dml.fini_dml_stmt(
-            stmt, ctx.rel, parts, parent_ctx=parent_ctx, ctx=ctx)
+            stmt, ctx.rel, parts, ctx=ctx)
 
 
 @dispatch.compile.register(irast.DeleteStmt)
@@ -203,7 +203,7 @@ def compile_DeleteStmt(
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
         # Common DML bootstrap
-        parts = dml.init_dml_stmt(stmt, parent_ctx=parent_ctx, ctx=ctx)
+        parts = dml.init_dml_stmt(stmt, ctx=ctx)
 
         range_cte = parts.range_cte
         assert range_cte is not None
@@ -213,11 +213,10 @@ def compile_DeleteStmt(
             dml.process_delete_body(
                 ir_stmt=stmt,
                 delete_cte=delete_cte,
-                dml_parts=parts,
                 typeref=typeref,
                 ctx=ctx,
             )
 
         # Wrap up.
         return dml.fini_dml_stmt(
-            stmt, ctx.rel, parts, parent_ctx=parent_ctx, ctx=ctx)
+            stmt, ctx.rel, parts, ctx=ctx)
