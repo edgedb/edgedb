@@ -94,6 +94,9 @@ request can contain the following fields:
 - ``variables`` - a JSON object containing a set of variables. **Optional**
   unless the GraphQL query string contains variables, in which case it is
   required.
+- ``globals`` - a JSON object containing global variables. **Optional**. The
+  keys must be the fully qualified names of the globals to set (e.g.,
+  ``default::current_user`` if the global is in the ``default`` module).
 - ``operationName`` - the name of the operation that must be
   executed. **Optional** unless the GraphQL query contains several named
   operations, in which case it is required.
@@ -118,7 +121,7 @@ submit the following JSON-encoded form with the necessary fields.
   $ curl \
       -H "Content-Type: application/json" \
       -X POST http://localhost:10787/db/edgedb/graphql \
-      -d '{ "query": "query getMovie($title: String!) { Movie(filter: {title:{eq: $title}}) { id title }}", "variables": { "title": "The Batman" }}'
+      -d '{ "query": "query getMovie($title: String!) { Movie(filter: {title:{eq: $title}}) { id title }}", "variables": { "title": "The Batman" }, "globals": {"default::current_user": "04e52807-6835-4eaa-999b-952804ab40a5"}}'
   {"data": {...}}
 
 .. lint-on
@@ -127,8 +130,9 @@ submit the following JSON-encoded form with the necessary fields.
 GET request
 ^^^^^^^^^^^
 
-When using ``GET`` requests, the values for ``query``, ``variables``, etc.
-should be passed as query paramters in the URL.
+When using ``GET`` requests, any values for ``query``, ``variables``,
+``globals``, or ``operationName`` should be passed as query parameters in the
+URL.
 
 .. lint-off
 
@@ -140,6 +144,7 @@ should be passed as query paramters in the URL.
       -G \
       --data-urlencode 'query=query getMovie($title: String!) { Movie(filter: {title:{eq: $title}}) { id title }}' \
       --data-urlencode 'variables={ "title": "The Batman" }'
+      --data-urlencode 'globals={ "default::current_user": "04e52807-6835-4eaa-999b-952804ab40a5" }'
   {"data": {...}}
 
 .. lint-on

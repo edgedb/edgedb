@@ -11,6 +11,8 @@ protocol. Both GET and POST methods use the following fields:
 - ``variables``- contains a JSON object where the keys are the parameter names
   from the query and the values are the arguments to be used in this execution
   of the query.
+- ``globals``- contains a JSON object where the keys are the fully qualified
+  global names and the values are the desired values for those globals.
 
 The protocol supports HTTP Keep-Alive.
 
@@ -29,7 +31,8 @@ submit the following JSON-encoded form with the necessary fields::
 
     {
       "query": "...",
-      "variables": { "varName": "varValue", ... }
+      "variables": { "varName": "varValue", ... },
+      "globals": {"default::global_name": "value"}
     }
 
 
