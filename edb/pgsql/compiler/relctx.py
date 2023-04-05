@@ -111,10 +111,12 @@ def _pull_path_namespace(
                 continue
 
             rvar = pathctx.maybe_get_path_rvar(
-                target, path_id, aspect=aspect, flavor=flavor)
+                target, path_id, aspect=aspect, flavor=flavor
+            )
             if rvar is None or flavor == 'packed':
                 pathctx.put_path_rvar(
-                    target, path_id, source, aspect=aspect, flavor=flavor)
+                    target, path_id, source, aspect=aspect, flavor=flavor
+                )
 
 
 def pull_path_namespace(
@@ -165,15 +167,16 @@ def find_rvar(
                                aspect='value', flavor=flavor, ctx=ctx)
     if rvar is not None:
         pathctx.put_path_rvar_if_not_exists(
-            stmt, path_id, rvar, aspect='value', flavor=flavor)
+            stmt, path_id, rvar, aspect='value', flavor=flavor
+        )
 
         src_rvar = maybe_get_path_rvar(source_stmt, path_id=path_id,
                                        aspect='source', flavor=flavor, ctx=ctx)
 
         if src_rvar is not None:
             pathctx.put_path_rvar_if_not_exists(
-                stmt, path_id, src_rvar,
-                aspect='source', flavor=flavor)
+                stmt, path_id, src_rvar, aspect='source', flavor=flavor
+            )
 
     return rvar
 
@@ -270,10 +273,12 @@ def include_specific_rvar(
     for aspect in aspects:
         if overwrite_path_rvar:
             pathctx.put_path_rvar(
-                stmt, path_id, rvar, flavor=flavor, aspect=aspect)
+                stmt, path_id, rvar, flavor=flavor, aspect=aspect
+            )
         else:
             pathctx.put_path_rvar_if_not_exists(
-                stmt, path_id, rvar, flavor=flavor, aspect=aspect)
+                stmt, path_id, rvar, flavor=flavor, aspect=aspect
+            )
 
     if update_mask:
         scopes = [ctx.scope_tree]
@@ -329,12 +334,14 @@ def _maybe_get_path_rvar(
     qry: Optional[pgast.Query] = stmt
     while qry is not None:
         rvar = pathctx.maybe_get_path_rvar(
-            qry, path_id, aspect=aspect, flavor=flavor)
+            qry, path_id, aspect=aspect, flavor=flavor
+        )
         if rvar is not None:
             if qry is not stmt:
                 # Cache the rvar reference.
-                pathctx.put_path_rvar(stmt, path_id, rvar,
-                                      flavor=flavor, aspect=aspect)
+                pathctx.put_path_rvar(
+                    stmt, path_id, rvar, flavor=flavor, aspect=aspect
+                )
             return rvar, path_id
         qry = ctx.rel_hierarchy.get(qry)
 
@@ -464,14 +471,14 @@ def deep_copy_primitive_rvar_path_var(
     if isinstance(rvar, pgast.RangeSubselect):
         for component in astutils.each_query_in_set(rvar.query):
             rref = pathctx.get_path_var(
-                component, orig_id, aspect='identity', env=env)
-            pathctx.put_path_var(
-                component, new_id, rref, aspect='identity')
+                component, orig_id, aspect='identity', env=env
+            )
+            pathctx.put_path_var(component, new_id, rref, aspect='identity')
     else:
         rref = pathctx.get_path_output(
-            rvar.query, orig_id, aspect='identity', env=env)
-        pathctx.put_rvar_path_output(
-            rvar, new_id, aspect='identity', var=rref)
+            rvar.query, orig_id, aspect='identity', env=env
+        )
+        pathctx.put_rvar_path_output(rvar, new_id, aspect='identity', var=rref)
 
 
 def new_primitive_rvar(
@@ -750,8 +757,7 @@ def ensure_transient_identity_for_path(
         args=[],
     )
 
-    pathctx.put_path_identity_var(
-        stmt, path_id, id_expr, force=True)
+    pathctx.put_path_identity_var(stmt, path_id, id_expr, force=True)
     pathctx.put_path_bond(stmt, path_id)
 
     if isinstance(stmt, pgast.SelectStmt):
@@ -836,12 +842,9 @@ def set_to_array(
     )
 
     if val is None:
-        value_var = pathctx.get_path_value_var(
-            result, path_id, env=ctx.env)
-        val = output.serialize_expr(
-            value_var, path_id=path_id, env=ctx.env)
-        pathctx.put_path_serialized_var(
-            result, path_id, val, force=True)
+        value_var = pathctx.get_path_value_var(result, path_id, env=ctx.env)
+        val = output.serialize_expr(value_var, path_id=path_id, env=ctx.env)
+        pathctx.put_path_serialized_var(result, path_id, val, force=True)
 
     if isinstance(val, pgast.TupleVarBase):
         val = output.serialize_expr(
@@ -1137,16 +1140,12 @@ def unpack_var(
         cur_ref = el.ref or pgast.ColumnRef(name=[el.colname])
 
         for aspect in ('value', 'serialized'):
-            pathctx.put_path_var(
-                qry, el_id, cur_ref, aspect=aspect
-            )
+            pathctx.put_path_var(qry, el_id, cur_ref, aspect=aspect)
 
         if not el.packed:
-            pathctx.put_path_rvar(
-                stmt, el_id, rvar, aspect='value')
+            pathctx.put_path_rvar(stmt, el_id, rvar, aspect='value')
 
-            pathctx.put_path_rvar(
-                ctx.rel, el_id, rvar, aspect='value')
+            pathctx.put_path_rvar(ctx.rel, el_id, rvar, aspect='value')
         else:
             cref = pathctx.get_path_output(
                 qry, el_id, aspect='value', env=ctx.env)
@@ -1198,9 +1197,7 @@ def unpack_var(
             pathctx.put_path_var(
                 qry, view_path_id, sval, aspect=aspect, force=True
             )
-            pathctx.put_path_rvar(
-                ctx.rel, view_path_id, rvar, aspect=aspect
-            )
+            pathctx.put_path_rvar(ctx.rel, view_path_id, rvar, aspect=aspect)
 
     return rvar
 
@@ -1652,9 +1649,7 @@ def range_for_typeref(
 
         int_rvar = pgast.IntersectionRangeVar(component_rvars=component_rvars)
         for aspect in ('source', 'value'):
-            pathctx.put_path_rvar(
-                wrapper, path_id, int_rvar, aspect=aspect
-            )
+            pathctx.put_path_rvar(wrapper, path_id, int_rvar, aspect=aspect)
 
         pathctx.put_path_bond(wrapper, path_id)
         rvar = rvar_for_rel(wrapper, lateral=lateral, typeref=typeref, ctx=ctx)
@@ -1926,10 +1921,8 @@ def range_for_ptrref(
         # the source rvar so that linkprops can be found here.
         if path_id:
             target_ref = qry.target_list[1].val
-            pathctx.put_path_identity_var(
-                qry, path_id, var=target_ref)
-            pathctx.put_path_source_rvar(
-                qry, path_id, table)
+            pathctx.put_path_identity_var(qry, path_id, var=target_ref)
+            pathctx.put_path_source_rvar(qry, path_id, table)
 
         # Only fire off the overlays at the end of each expanded inhview.
         # This only matters when we are doing expand_inhviews, and prevents
@@ -1957,9 +1950,9 @@ def range_for_ptrref(
                     target_ref = pgast.ColumnRef(
                         name=[rvar.alias.aliasname, cols[1]])
                     pathctx.put_path_identity_var(
-                        qry, cte_path_id, var=target_ref)
-                    pathctx.put_path_source_rvar(
-                        qry, cte_path_id, rvar)
+                        qry, cte_path_id, var=target_ref
+                    )
+                    pathctx.put_path_source_rvar(qry, cte_path_id, rvar)
                     pathctx.put_path_id_map(qry, path_id, cte_path_id)
 
                 set_ops.append((op, qry))

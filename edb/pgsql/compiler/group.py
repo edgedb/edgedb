@@ -157,7 +157,8 @@ def _compile_grouping_binding(
     pathctx.put_path_var(
         ctx.rel, stmt.grouping_binding.path_id,
         _compile_grouping_value(stmt, used_args=used_args, ctx=ctx),
-        aspect='value')
+        aspect='value',
+    )
 
 
 def _compile_group(
@@ -272,7 +273,7 @@ def _compile_group(
                 pathctx.put_path_var(
                     grouprel, stmt.group_binding.path_id, mat_qry,
                     aspect='value',
-                    flavor='packed'
+                    flavor='packed',
                 )
 
         used_args = desugar_group.collect_grouping_atoms(stmt.by)
@@ -297,13 +298,18 @@ def _compile_group(
             if isinstance(uvar, pgast.TupleVarBase):
                 uvar = output.output_as_value(uvar, env=ctx.env)
                 pathctx.put_path_var(
-                    grouprel, using_val.path_id, uvar,
-                    aspect='value', force=True)
+                    grouprel,
+                    using_val.path_id,
+                    uvar,
+                    aspect='value',
+                    force=True,
+                )
 
             uout = pathctx.get_path_output(
                 grouprel, using_val.path_id, aspect='value', env=ctx.env)
             pathctx._put_path_output_var(
-                grouprel, using_val.path_id, 'serialized', uout)
+                grouprel, using_val.path_id, 'serialized', uout
+            )
 
         grouprel.group_clause = [
             compile_grouping_el(el, stmt, ctx=groupctx) for el in stmt.by
@@ -329,8 +335,8 @@ def _compile_group(
     ]:
         if group_use:
             pathctx.put_path_rvar(
-                query, group_use.path_id,
-                group_rvar, aspect='value')
+                query, group_use.path_id, group_rvar, aspect='value'
+            )
 
     vol_ref = None
 

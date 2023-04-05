@@ -710,8 +710,8 @@ def _compile_set(
         shape_tuple = shapecomp.compile_shape(ir_set, ir_set.shape, ctx=ctx)
         for element in shape_tuple.elements:
             pathctx.put_path_var_if_not_exists(
-                ctx.rel, element.path_id, element.val,
-                aspect='value')
+                ctx.rel, element.path_id, element.val, aspect='value'
+            )
 
 
 def _compile_shape(
@@ -729,7 +729,8 @@ def _compile_shape(
         # it already: see the "unfortunate hack" in
         # process_set_as_tuple.)
         pathctx.put_path_serialized_var(
-            ctx.rel, element.path_id, element.val, force=True)
+            ctx.rel, element.path_id, element.val, force=True
+        )
 
     # When we compile a shape during materialization, stash the
     # set away so we can consume it in unpack_rvar.
@@ -751,9 +752,9 @@ def _compile_shape(
 
     ser_result = pgast.TupleVar(elements=ser_elements, named=True)
     sval = output.serialize_expr(
-        ser_result, path_id=ir_set.path_id, env=ctx.env)
-    pathctx.put_path_serialized_var(
-        ctx.rel, ir_set.path_id, sval, force=True)
+        ser_result, path_id=ir_set.path_id, env=ctx.env
+    )
+    pathctx.put_path_serialized_var(ctx.rel, ir_set.path_id, sval, force=True)
 
     return result
 

@@ -104,8 +104,7 @@ def compile_cast(
     ):
         return _find_object_by_id(ir_expr, new_stype, ctx=ctx)
 
-    json_t = ctx.env.get_schema_type_and_track(
-        sn.QualName('std', 'json'))
+    json_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'json'))
 
     if isinstance(ir_set.expr, irast.Array):
         return _cast_array_literal(
@@ -164,7 +163,9 @@ def compile_cast(
             # Casts from json to enums need some special handling
             # here, where we have access to the enum type. Just turn
             # it into json->str and str->enum.
-            str_typ = ctx.env.get_schema_type_and_track(sn.QualName('std', 'str'))
+            str_typ = ctx.env.get_schema_type_and_track(
+                sn.QualName('std', 'str')
+            )
             str_ir = compile_cast(ir_expr, str_typ, srcctx=srcctx, ctx=ctx)
             return compile_cast(
                 str_ir,

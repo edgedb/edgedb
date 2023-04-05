@@ -259,10 +259,8 @@ def gen_dml_cte(
         "spurious overlay on DML target")
     if isinstance(dml_stmt, pgast.DMLQuery):
         dml_stmt.relation = relation
-    pathctx.put_path_value_rvar(
-        dml_stmt, target_path_id, relation)
-    pathctx.put_path_source_rvar(
-        dml_stmt, target_path_id, relation)
+    pathctx.put_path_value_rvar(dml_stmt, target_path_id, relation)
+    pathctx.put_path_source_rvar(dml_stmt, target_path_id, relation)
     # Skip the path bond for inserts, since it doesn't help and
     # interferes when inserting in an UNLESS CONFLICT ELSE
     if not isinstance(ir_stmt, irast.InsertStmt):
@@ -298,10 +296,10 @@ def gen_dml_cte(
         # Do any read-side filtering
         if pol_expr := ir_stmt.read_policies.get(typeref.id):
             with ctx.newrel() as sctx:
-                pathctx.put_path_value_rvar(
-                    sctx.rel, target_path_id, relation)
+                pathctx.put_path_value_rvar(sctx.rel, target_path_id, relation)
                 pathctx.put_path_source_rvar(
-                    sctx.rel, target_path_id, relation)
+                    sctx.rel, target_path_id, relation
+                )
 
                 val = clauses.compile_filter_clause(
                     pol_expr.expr, pol_expr.cardinality, ctx=sctx)
@@ -383,8 +381,7 @@ def merge_iterator(
         # as a reference to __new__'s identity for updates/deletes
         for other_path, aspect in iterator.other_paths:
             pathctx.put_path_rvar(
-                select, other_path, iterator_rvar,
-                aspect=aspect
+                select, other_path, iterator_rvar, aspect=aspect
             )
 
 
@@ -440,8 +437,7 @@ def fini_dml_stmt(
                 stop_ref=stop_ref,
                 dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
 
-        process_update_conflicts(
-            ir_stmt=ir_stmt, dml_parts=parts, ctx=ctx)
+        process_update_conflicts(ir_stmt=ir_stmt, dml_parts=parts, ctx=ctx)
     elif isinstance(ir_stmt, irast.DeleteStmt):
         base_typeref = ir_stmt.subject.typeref.real_material_type
 
@@ -664,9 +660,9 @@ def process_insert_body(
     fallback_rvar = pgast.DynamicRangeVar(
         dynamic_get_path=_mk_dynamic_get_path(ptr_map, typeref))
     pathctx.put_path_source_rvar(
-        select, ir_stmt.subject.path_id, fallback_rvar)
-    pathctx.put_path_value_rvar(
-        select, ir_stmt.subject.path_id, fallback_rvar)
+        select, ir_stmt.subject.path_id, fallback_rvar
+    )
+    pathctx.put_path_value_rvar(select, ir_stmt.subject.path_id, fallback_rvar)
 
     # compile contents CTE
     elements: List[Tuple[irast.Set, irast.BasePointerRef]] = []
@@ -686,8 +682,7 @@ def process_insert_body(
         elements.append((shape_el, ptrref))
 
     external_inserts = process_insert_shape(
-        ir_stmt, select, ptr_map, elements, iterator, inner_iterator,
-        ctx
+        ir_stmt, select, ptr_map, elements, iterator, inner_iterator, ctx
     )
     single_external = [
         ir for ir in external_inserts
@@ -904,20 +899,24 @@ def process_insert_rewrites(
     rewrite_elements = list(rewrites.values())
     nptr_map: Dict[sn.Name, pgast.BaseExpr] = {}
     process_insert_shape(
-        ir_stmt, rew_stmt, nptr_map, rewrite_elements, iterator,
-        inner_iterator, ctx,
+        ir_stmt,
+        rew_stmt,
+        nptr_map,
+        rewrite_elements,
+        iterator,
+        inner_iterator,
+        ctx,
         force_optional=True,
     )
 
     iterator_rvar = pathctx.get_path_rvar(
-        rew_stmt, path_id=subject_path_id, aspect='value')
+        rew_stmt, path_id=subject_path_id, aspect='value'
+    )
     fallback_rvar = pgast.DynamicRangeVar(
-        dynamic_get_path=_mk_dynamic_get_path(
-            nptr_map, typeref, iterator_rvar))
-    pathctx.put_path_source_rvar(
-        rew_stmt, object_path_id, fallback_rvar)
-    pathctx.put_path_value_rvar(
-        rew_stmt, object_path_id, fallback_rvar)
+        dynamic_get_path=_mk_dynamic_get_path(nptr_map, typeref, iterator_rvar)
+    )
+    pathctx.put_path_source_rvar(rew_stmt, object_path_id, fallback_rvar)
+    pathctx.put_path_value_rvar(rew_stmt, object_path_id, fallback_rvar)
 
     # If there are any single links that were compiled externally,
     # populate the field from the link overlays.
@@ -1944,10 +1943,8 @@ def process_update_rewrites(
             dynamic_get_path=_mk_dynamic_get_path(
                 nptr_map, typeref, contents_rvar),
         )
-        pathctx.put_path_source_rvar(
-            rctx.rel, object_path_id, fallback_rvar)
-        pathctx.put_path_value_rvar(
-            rctx.rel, object_path_id, fallback_rvar)
+        pathctx.put_path_source_rvar(rctx.rel, object_path_id, fallback_rvar)
+        pathctx.put_path_value_rvar(rctx.rel, object_path_id, fallback_rvar)
 
         rewrites_cte = pgast.CommonTableExpr(
             query=rctx.rel, name=ctx.env.aliases.get("upd_rewrites")
@@ -2581,7 +2578,8 @@ def process_link_update(
             )
 
         pathctx.put_path_value_rvar(
-            delcte.query, path_id.ptr_path(), target_rvar)
+            delcte.query, path_id.ptr_path(), target_rvar
+        )
 
         # Record the effect of this removal in the relation overlay
         # context to ensure that references to the link in the result
@@ -2756,8 +2754,7 @@ def process_link_update(
         )
     )
 
-    pathctx.put_path_value_rvar(
-        updcte.query, path_id.ptr_path(), target_rvar)
+    pathctx.put_path_value_rvar(updcte.query, path_id.ptr_path(), target_rvar)
 
     def register_overlays(
         overlay_cte: pgast.CommonTableExpr, octx: context.CompilerContextLevel
@@ -3154,11 +3151,10 @@ def compile_trigger(
         # but *not* its source.
         if old_path:
             new_ident = pathctx.get_path_identity_var(
-                ictx.rel, new_path, env=ctx.env)
-            pathctx.put_path_identity_var(
-                ictx.rel, old_path, new_ident)
-            pathctx.put_path_value_var(
-                ictx.rel, old_path, new_ident)
+                ictx.rel, new_path, env=ctx.env
+            )
+            pathctx.put_path_identity_var(ictx.rel, old_path, new_ident)
+            pathctx.put_path_value_var(ictx.rel, old_path, new_ident)
 
         contents_cte = pgast.CommonTableExpr(
             query=ictx.rel,
