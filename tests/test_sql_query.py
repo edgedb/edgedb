@@ -704,7 +704,7 @@ class TestSQL(tb.SQLQueryTestCase):
         # HACK: Set search_path back to public
         await self.scon.execute('SET search_path TO public;')
 
-    async def test_sql_query_static_eval(self):
+    async def test_sql_query_static_eval_01(self):
         res = await self.squery_values('select current_schema;')
         self.assertEqual(res, [['public']])
 
@@ -721,6 +721,17 @@ class TestSQL(tb.SQLQueryTestCase):
 
         res = await self.squery_values('select current_schemas(true);')
         self.assertEqual(res, [[['pg_catalog', 'blah', 'foo']]])
+
+    async def test_sql_query_static_eval_02(self):
+        await self.scon.execute('''
+        SELECT nspname as table_schema,
+               relname as table_name
+        FROM   pg_class c
+        JOIN   pg_namespace n on c.relnamespace = n.oid
+        WHERE  has_table_privilege(c.oid, 'SELECT')
+        AND    has_schema_privilege(current_user, nspname, 'USAGE')
+        AND    relkind in ('r', 'm', 'v', 't', 'f', 'p')
+        ''')
 
     async def test_sql_query_be_state(self):
         con = await self.connect(database=self.con.dbname)

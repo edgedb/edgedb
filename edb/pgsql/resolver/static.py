@@ -26,6 +26,7 @@ from edb import errors
 from edb.pgsql import ast as pgast
 
 from . import context
+from . import dispatch
 
 Context = context.ResolverContextLevel
 
@@ -89,6 +90,24 @@ def eval_TypeCast(
     return None
 
 
+privilege_inquiry_functions_args = {
+    'has_any_column_privilege': 2,
+    'has_column_privilege': 3,
+    'has_database_privilege': 2,
+    'has_foreign_data_wrapper_privilege': 2,
+    'has_function_privilege': 2,
+    'has_language_privilege': 2,
+    'has_parameter_privilege': 2,
+    'has_schema_privilege': 2,
+    'has_sequence_privilege': 2,
+    'has_server_privilege': 2,
+    'has_table_privilege': 2,
+    'has_tablespace_privilege': 2,
+    'has_type_privilege': 2,
+    'pg_has_role': 2,
+}
+
+
 @eval.register
 def eval_FuncCall(
     expr: pgast.FuncCall,
@@ -116,6 +135,29 @@ def eval_FuncCall(
         return pgast.StringConstant(
             val="EdgeDB " + buildmeta.get_version_line()
         )
+
+    if fn_name in privilege_inquiry_functions_args:
+        # For privilege inquiry functions, we strip the leading user (role),
+        # so the inquiry refers to current user's privileges.
+        # This is needed because the exposed username is not necessarily the
+        # same as the user we use to connect to Postgres instance.
+        # We do not allow creating additional users, so this should not be a
+        # problem anyway.
+        # See: https://www.postgresql.org/docs/15/functions-info.html
+
+        # TODO: deny INSERT, UPDATE and all other unsupported functions
+        allowed_args = privilege_inquiry_functions_args[fn_name]
+        fn_args = expr.args[-allowed_args:]
+        fn_args = dispatch.resolve_list(fn_args, ctx=ctx)
+
+        # schema and table names need to be remapped. This is accomplished
+        # with wrapper functions defined in metaschema.py.
+        if fn_name == 'has_schema_privilege':
+            return pgast.FuncCall(name=('edgedbsql', fn_name), args=fn_args)
+        if fn_name == 'has_table_privilege':
+            return pgast.FuncCall(name=('edgedbsql', fn_name), args=fn_args)
+
+        return pgast.FuncCall(name=('pg_catalog', fn_name), args=fn_args)
 
     return None
 
