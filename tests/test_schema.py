@@ -3226,6 +3226,23 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_54(self):
+        schema = r'''
+            type Venue {
+                multi link meta_bookings := .<venue[is MetaBooking];
+            }
+            abstract type MetaBooking {
+                link venue -> Venue;
+            }
+
+            type Booking extending MetaBooking;
+            type ExternalBooking extending MetaBooking {
+                overloaded link venue -> Venue;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different

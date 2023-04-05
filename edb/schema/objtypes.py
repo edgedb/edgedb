@@ -192,7 +192,11 @@ class ObjectType(
             if (
                 lnk.get_shortname(schema).name == name
                 and not lnk.get_source_type(schema).is_view(schema)
-                and lnk.get_owned(schema)
+                # Only grab the "base" pointers
+                and all(
+                    b.generic(schema)
+                    for b in lnk.get_bases(schema).objects(schema)
+                )
                 and (not sources or lnk.get_source_type(schema) in sources)
             )
         }
@@ -204,7 +208,11 @@ class ObjectType(
                 if (
                     lnk.get_shortname(schema).name == name
                     and not lnk.get_source_type(schema).is_view(schema)
-                    and lnk.get_owned(schema)
+                    # Only grab the "base" pointers
+                    and all(
+                        b.generic(schema)
+                        for b in lnk.get_bases(schema).objects(schema)
+                    )
                     and (not sources or lnk.get_source_type(schema) in sources)
                 )
             )

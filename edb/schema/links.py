@@ -593,19 +593,7 @@ class AlterLinkOwned(
     referrer_context_class=LinkSourceCommandContext,
     field='owned',
 ):
-    def _alter_begin(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super()._alter_begin(schema, context)
-
-        # Ownership status can impact the details of how backlinks are compiled
-        if not context.canonical:
-            desc = self.get_friendly_description(schema=schema)
-            schema = self._propagate_if_expr_refs(schema, context, action=desc)
-
-        return schema
+    pass
 
 
 class SetTargetDeletePolicy(sd.Command):
