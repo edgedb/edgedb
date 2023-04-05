@@ -115,8 +115,15 @@ class SomeTp:
     index: int
 
 
+# implementation trick for synthesizing the empty type
+@dataclass
+class UnifiableTp:
+    id: int
+    resolution: Optional[Tp] = None
+
+
 Tp = (ObjectTp | PrimTp | VarTp | LinkPropTp | NamedTupleTp | UnnamedTupleTp
-      | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp)
+      | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp | UnifiableTp)
 
 
 @dataclass(frozen=True)
@@ -247,6 +254,7 @@ class CMMode:
                       self.multiplicity * other.multiplicity)
 
 
+CardZero = CMMode(Fin(0), Fin(0))
 CardOne = CMMode(Fin(1), Fin(1))
 CardAtMostOne = CMMode(Fin(0), Fin(1))
 CardAtLeastOne = CMMode(Fin(1), Inf())

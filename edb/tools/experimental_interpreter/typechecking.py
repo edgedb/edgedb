@@ -1,11 +1,12 @@
 
 from functools import reduce
 import operator
-from typing import Tuple, Dict, Sequence
+from typing import Tuple, Dict, Sequence, Optional
 
 from .data import data_ops as e
 from .data import expr_ops as eops
 from .data import type_ops as tops
+from edb.common import debug
 
 
 def enforce_singular(expr: e.Expr, card: e.CMMode) -> e.Expr:
@@ -187,14 +188,18 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
                                       t_lbl: l_comp_tp})
 
     return e.LinkPropTp(result_s_tp, result_l_tp), result_expr
-     
+
 
 def type_cast_tp(from_tp: e.ResultTp, to_tp: e.Tp) -> e.ResultTp:
-    match from_tp, to_tp:
-        case ((e.IntTp(), card), e.IntTp()):
+    match from_tp.tp, from_tp.mode, to_tp:
+        case e.IntTp(), card, e.IntTp():
             return e.ResultTp(e.IntTp(), card)
+        case e.UnifiableTp(id=_, resolution=None), card, _:
+            assert isinstance(from_tp.tp, e.UnifiableTp)  # for mypy
+            from_tp.tp.resolution = to_tp
+            return e.ResultTp(to_tp, card)
         case _:
-            raise ValueError("Not Implemented")
+            raise ValueError("Not Implemented", from_tp, to_tp)
 
 
 def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
@@ -215,12 +220,20 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_tp = synthesize_type_for_val(ctx.statics, expr)
             result_card = e.CardOne
         case e.FreeVarExpr(var=var):
+            print("static keys", ctx.statics.schema.val.keys())
             if var in ctx.varctx.keys():
+                print("OK1 static keys", ctx.statics.schema.val.keys())
                 result_tp, result_card = ctx.varctx[var]
             elif var in ctx.statics.schema.val.keys():
+                print("OK2 static keys", ctx.statics.schema.val.keys())
                 result_tp = ctx.statics.schema.val[var]
+                result_card = e.CardAny
             else:
-                raise ValueError("Unknown variable")
+                print("OK3 static keys", ctx.statics.schema.val.keys())
+                raise ValueError("Unknown variable", var,
+                                 "list of known vars",
+                                 list(ctx.varctx.keys())
+                                 + list(ctx.statics.schema.val.keys()))
         case e.TypeCastExpr(tp=tp, arg=arg):
             (arg_tp, arg_v) = synthesize_type(ctx, arg)
             (result_tp, result_card) = type_cast_tp(arg_tp, tp)
@@ -229,7 +242,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_tp, shape_ck = check_shape_transform(
                 ctx, shape, subject_tp.tp)
-            assert eops.is_effect_free(shape), "Shape should be effect free"
+            if not eops.is_effect_free(shape):
+                raise ValueError("Shape should be effect free", shape)
             result_card = subject_tp.mode
             result_expr = e.ShapedExprExpr(subject_ck, shape_ck)
         case e.UnionExpr(left=l, right=r):
@@ -247,25 +261,70 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 assert all(eops.is_effect_free(arg) for arg in args), (
                     "Expect effectful arguments to effect-free functions")
             
-            assert len(fun_tp.args_ret_types) == 1, "TODO: overloading"
-
             assert len(args) == len(fun_tp.args_mod), "argument count mismatch"
 
-            arg_cards, arg_cks = zip(*[check_type_no_card(
-                    ctx, arg, fun_tp.args_ret_types[0].args_tp[i])
-                    for i, arg in enumerate(args)])
+            # if len(fun_tp.args_ret_types) > 1:
+            #     raise ValueError("Overloading not implemented")
+            # assert len(fun_tp.args_ret_types) == 1, "TODO: overloading"
 
-            # take the product of argument cardinalities
-            arg_card_product = reduce(
-                operator.mul,
-                (tops.match_param_modifier(param_mod, arg_card)
-                 for param_mod, arg_card
-                 in zip(fun_tp.args_mod, arg_cards, strict=True)))
-            result_tp = fun_tp.args_ret_types[0].ret_tp.tp
-            result_card = (arg_card_product
-                           * fun_tp.args_ret_types[0].ret_tp.mode)
-            result_expr = e.FunAppExpr(fun=fname, args=arg_cks,
-                                       overloading_index=idx)
+
+            def try_args_ret_type(args_ret_type: e.FunArgRetType) -> Tuple[
+                    e.Tp, e.CMMode, e.Expr]:
+
+                some_tp_mapping: Dict[int, e.UnifiableTp] = {}
+
+                def instantiate_some_tp(tp: e.Tp) -> Optional[e.Tp]:
+                    nonlocal some_tp_mapping
+                    if isinstance(tp, e.SomeTp):
+                        if tp.index in some_tp_mapping.keys():
+                            return some_tp_mapping[tp.index]
+                        else:
+                            new_tp = e.UnifiableTp(id=e.next_id(),
+                                                   resolution=None)
+                            some_tp_mapping[tp.index] = new_tp
+                            return new_tp
+                    else:
+                        return None
+
+                args_ret_type = e.FunArgRetType(
+                    args_tp=[eops.map_tp(instantiate_some_tp, t)
+                            for t in args_ret_type.args_tp],
+                    ret_tp=e.ResultTp(eops.map_tp(instantiate_some_tp,
+                                                args_ret_type.ret_tp.tp),
+                                    args_ret_type.ret_tp.mode))
+
+                arg_cards, arg_cks = zip(*[check_type_no_card(
+                        ctx, arg, args_ret_type.args_tp[i])
+                        for i, arg in enumerate(args)])
+
+                # take the product of argument cardinalities
+                arg_card_product = reduce(
+                    operator.mul,
+                    (tops.match_param_modifier(param_mod, arg_card)
+                     for param_mod, arg_card
+                     in zip(fun_tp.args_mod, arg_cards, strict=True)))
+                result_tp = args_ret_type.ret_tp.tp
+                result_card = (arg_card_product
+                               * args_ret_type.ret_tp.mode)
+                result_expr = e.FunAppExpr(fun=fname, args=arg_cks,
+                                           overloading_index=idx)
+                return result_tp, result_card, result_expr
+
+            if idx is not None:
+                args_ret_type = fun_tp.args_ret_types[idx]
+                result_tp, result_card, result_expr = try_args_ret_type(
+                    args_ret_type)
+            else:
+                for i, args_ret_type in enumerate(fun_tp.args_ret_types):
+                    try:
+                        result_tp, result_card, result_expr = \
+                            try_args_ret_type(args_ret_type)
+                        break
+                    except ValueError:
+                        if i == len(fun_tp.args_ret_types) - 1:
+                            raise
+                        else:
+                            continue
         case e.ObjectExpr(val=dic):
             s_tp = e.ObjectTp({})
             link_tp = e.ObjectTp({})
@@ -280,7 +339,10 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     case e.LinkPropLabel(s_lbl):
                         link_tp = e.ObjectTp({**link_tp.val,
                                               s_lbl: v_tp})
-            result_tp = e.LinkPropTp(s_tp, link_tp)
+            if len(link_tp.val.keys()) > 0:
+                result_tp = e.LinkPropTp(s_tp, link_tp)
+            else:
+                result_tp = s_tp
             result_card = e.CardOne
             result_expr = e.ObjectExpr(dic_ck)
         case e.ObjectProjExpr(subject=subject, label=label):
@@ -366,11 +428,17 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             )
         case e.InsertExpr(name=tname, new=arg):
             tname_tp = ctx.statics.schema.val[tname]
-            arg_ck = check_type(ctx, arg, e.ResultTp(tname_tp, e.CardOne))
+            arg_tp, arg_ck = synthesize_type(ctx, arg)
+            assert arg_tp.mode == e.CardOne, (
+                    "Expecting single object in inserts"
+                )
             assert isinstance(arg, e.ObjectExpr), (
                 "Expecting object expr in inserts")
             assert all(isinstance(k, e.StrLabel) for k in arg.val.keys()), (
                         "Expecting object expr in inserts")
+            assert isinstance(arg_tp.tp, e.ObjectTp), (
+                "Expecting inserts to be of object tp")
+            tops.assert_insert_subtype(ctx, arg_tp.tp, tname_tp)
             result_expr = e.InsertExpr(tname, arg_ck)
             result_tp = tname_tp
             result_card = e.CardOne
@@ -382,8 +450,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 "Expecting subject expr to be effect-free")
             (after_tp, shape_ck) = check_shape_transform(
                 ctx, shape_expr, subject_tp.tp)
-            assert tops.is_real_subtype(after_tp, subject_tp.tp)
-
+            tops.assert_real_subtype(ctx, after_tp, subject_tp.tp)
             result_expr = e.UpdateExpr(subject_ck, shape_ck)
             result_tp, result_card = subject_tp
         case e.ForExpr(bound=bound, next=next):
@@ -436,19 +503,22 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                   for arr_elem in arr[1:]])
             result_expr = e.ArrExpr([first_ck] + list(rest_cks))
             result_tp = e.ArrTp(first_tp.tp)
-            rest_card = reduce(operator.mul, rest_card,
-                               first_tp.mode)  # type: ignore[arg-type]
+            result_card = reduce(operator.mul, rest_card,
+                                 first_tp.mode)  # type: ignore[arg-type]
         case e.MultiSetExpr(expr=arr):
-            assert len(arr) > 0, ("Empty multiset does not"
-                                  " support type synthesis")
+            if len(arr) == 0:
+                return (e.ResultTp(e.UnifiableTp(e.next_id()),
+                                   e.CardZero), expr)  # this is a hack
+            # assert len(arr) > 0, ("Empty multiset does not"
+            #                       " support type synthesis")
             (first_tp, first_ck) = synthesize_type(ctx, arr[0])
             (rest_card, rest_cks) = zip(
                 *[check_type_no_card(ctx, arr_elem, first_tp.tp)
                     for arr_elem in arr[1:]])
             result_expr = e.MultiSetExpr([first_ck] + list(rest_cks))
             result_tp = first_tp.tp
-            rest_card = reduce(operator.add, rest_card,
-                               first_tp.mode)  # type: ignore[arg-type]
+            result_card = reduce(operator.add, rest_card,
+                                 first_tp.mode)  # type: ignore[arg-type]
         case _:
             raise ValueError("Not Implemented", expr)
 
@@ -463,13 +533,18 @@ def check_type_no_card(ctx: e.TcCtx, expr: e.Expr,
     match expr:
         case _:
             expr_tp, expr_ck = synthesize_type(ctx, expr)
-            assert tops.is_real_subtype(expr_tp.tp, tp)
+            tops.assert_real_subtype(ctx, expr_tp.tp, tp)
             return (expr_tp.mode, expr_ck)
+            # if tops.is_real_subtype(expr_tp.tp, tp):
+            #     return (expr_tp.mode, expr_ck)
+            # else:
+            # raise ValueError("Type mismatch, ", expr_tp, "is not a sub"
+            #                  "type of ", tp, "when checking", expr)
 
 
 def check_type(ctx: e.TcCtx, expr: e.Expr, tp: e.ResultTp) -> e.Expr:
     synth_mode, expr_ck = check_type_no_card(ctx, expr, tp.tp)
-    assert tops.is_cardinal_subtype(synth_mode, tp.mode), (
-        "Expecting cardinality %s, got %s" % (tp.mode, synth_mode))
+    tops.assert_cardinal_subtype(synth_mode, tp.mode)
+    # ( "Expecting cardinality %s, got %s" % (tp.mode, synth_mode))
     return expr_ck
     

@@ -1,6 +1,7 @@
 
 from typing import *
 
+from ..data import data_ops as e
 from ..data.data_ops import (ArrTp, ArrVal, BoolTp, BoolVal, BuiltinFuncDef,
                              CardAny, CardOne, FunArgRetType, FunType,
                              IfElseOp, IndirectionIndexOp, IndirectionSliceOp,
@@ -15,14 +16,13 @@ indirection_index_tp = FunType(
         FunArgRetType(
             args_tp=[StrTp(),
                      IntTp()],
-            ret_tp=(StrTp(),
-                    CardOne)),
+            ret_tp=e.ResultTp(StrTp(), CardOne)),
         FunArgRetType(
             args_tp=[
                 ArrTp(
                     SomeTp(0)),
                 IntTp()],
-            ret_tp=(
+            ret_tp=e.ResultTp(
                 ArrTp(
                     SomeTp(0)),
                 CardOne))])
@@ -41,9 +41,9 @@ indirection_slice_tp = FunType(
     args_mod=[ParamSingleton(), ParamSingleton(), ParamSingleton()],
     args_ret_types=[
         FunArgRetType(args_tp=[StrTp(), IntTp(), IntInfTp()],
-                      ret_tp=(StrTp(), CardOne)),
+                      ret_tp=e.ResultTp(StrTp(), CardOne)),
         FunArgRetType(args_tp=[ArrTp(SomeTp(0)), IntTp(), IntInfTp()],
-                      ret_tp=(ArrTp(SomeTp(0)), CardOne))])
+                      ret_tp=e.ResultTp(ArrTp(SomeTp(0)), CardOne))])
 
 
 def indirection_slice_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -64,7 +64,7 @@ if_else_tp = FunType(
     args_ret_types=[
         FunArgRetType(
             args_tp=[SomeTp(0), BoolTp(), SomeTp(0)],
-            ret_tp=(SomeTp(0), CardAny))])
+            ret_tp=e.ResultTp(SomeTp(0), CardAny))])
 
 
 def if_else_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:

@@ -11,6 +11,7 @@
 \#*#
 /test*.py
 /test*.html
+/test*.sqlite
 /.local
 /perf.data*
 /build

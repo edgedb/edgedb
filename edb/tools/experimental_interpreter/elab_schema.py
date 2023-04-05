@@ -41,7 +41,7 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
                                         commands=commands,
                                         name=qlast.ObjectRef(name=name),
                                         abstract=_):
-                object_tp_content: Dict[str, Tuple[Tp, CMMode]] = {}
+                object_tp_content: Dict[str, ResultTp] = {}
                 for cmd in commands:
                     match cmd:
                         case qlast.CreateConcretePointer(
@@ -76,10 +76,11 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
                                             link_property_tps = {
                                                 **link_property_tps,
                                                 plname:
-                                                (elab_schema_target_tp(
-                                                    pltarget),
-                                                 elab_schema_cardinality(
-                                                    pl_is_required))}
+                                                ResultTp(
+                                                    elab_schema_target_tp(
+                                                        pltarget),
+                                                    elab_schema_cardinality(
+                                                        pl_is_required))}
                                         else:
                                             print(
                                                 "WARNING: "
@@ -98,9 +99,9 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
                             object_tp_content = {
                                 **object_tp_content,
                                 pname:
-                                (final_target_type,
-                                 elab_schema_cardinality(
-                                     is_required=p_is_required))}
+                                ResultTp(final_target_type,
+                                         elab_schema_cardinality(
+                                          is_required=p_is_required))}
                         case _:
                             print("WARNING: not implemented cmd", cmd)
                             # debug.dump(cmd)

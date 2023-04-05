@@ -1,6 +1,7 @@
 
 from typing import *
 
+from ..data import data_ops as e
 from ..data.data_ops import (
     AnyTp, ArrTp, ArrVal, BoolTp, BoolVal, BuiltinFuncDef, CardAny,
     CardOne, FunArgRetType, FunType, IntTp, IntVal, Val,
@@ -21,7 +22,7 @@ def val_is_true(v: Val) -> bool:
 
 std_all_tp = FunType(args_mod=[ParamSetOf()], args_ret_types=[
                      FunArgRetType(args_tp=[BoolTp()],
-                                   ret_tp=(BoolTp(), CardOne))])
+                                   ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
 
 def std_all_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -33,7 +34,7 @@ def std_all_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 std_any_tp = FunType(args_mod=[ParamSetOf()], args_ret_types=[
                      FunArgRetType(args_tp=[BoolTp()],
-                                   ret_tp=(BoolTp(), CardOne))])
+                                   ret_tp=e.ResultTp(BoolTp(), CardOne))])
 
 
 def std_any_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -49,8 +50,8 @@ std_array_agg_tp = FunType(
     args_ret_types=[
         FunArgRetType(
             args_tp=[SomeTp(0)],
-            ret_tp=(ArrTp(SomeTp(0)),
-                    CardOne))])
+            ret_tp=e.ResultTp(ArrTp(SomeTp(0)),
+                              CardOne))])
 
 
 def std_array_agg_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -65,8 +66,8 @@ std_array_unpack_tp = FunType(
     args_ret_types=[
         FunArgRetType(
             args_tp=[ArrTp(SomeTp(0))],
-            ret_tp=(SomeTp(0),
-                    CardAny))])
+            ret_tp=e.ResultTp(SomeTp(0),
+                              CardAny))])
 
 
 def std_array_unpack_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -78,7 +79,7 @@ def std_array_unpack_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 std_count_tp = FunType(args_mod=[ParamSetOf()], args_ret_types=[
                        FunArgRetType(args_tp=[AnyTp()],
-                                     ret_tp=(IntTp(), CardOne))])
+                                     ret_tp=e.ResultTp(IntTp(), CardOne))])
 
 
 def std_count_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
@@ -93,7 +94,7 @@ std_enumerate_tp = FunType(
     args_ret_types=[
         FunArgRetType(
             args_tp=[SomeTp(0)],
-            ret_tp=(UnnamedTupleTp(
+            ret_tp=e.ResultTp(UnnamedTupleTp(
                 val=[IntTp(),
                      SomeTp(0)]),
                     CardAny))])
@@ -109,8 +110,8 @@ def std_enumerate_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 
 std_len_tp = FunType(args_mod=[ParamSingleton()],
                      args_ret_types=[
-    FunArgRetType(args_tp=[StrTp()], ret_tp=(IntTp(), CardOne)),
-    FunArgRetType(args_tp=[ArrTp(AnyTp())], ret_tp=(IntTp(), CardOne)),
+    FunArgRetType(args_tp=[StrTp()], ret_tp=e.ResultTp(IntTp(), CardOne)),
+    FunArgRetType(args_tp=[ArrTp(AnyTp())], ret_tp=e.ResultTp(IntTp(), CardOne)),
 ])
 
 

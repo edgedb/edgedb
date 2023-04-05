@@ -1,6 +1,6 @@
 
 
-from typing import Callable, Dict, Optional, Sequence, Tuple
+from typing import Callable, Dict, Optional, Sequence, Tuple, cast
 
 from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoolVal,
                        BoundVarExpr, DetachedExpr, Expr, FilterOrderExpr,
@@ -15,6 +15,48 @@ from .data_ops import (ArrExpr, ArrVal, BackLinkExpr, BindingExpr, BoolVal,
                        UpdateExpr, Val, VarExpr, Visible, WithExpr, next_id,
                        next_name)
 from . import data_ops as e
+
+
+def map_tp(
+        f: Callable[[Tp],
+                    Optional[Tp]],
+        tp: Tp) -> Tp:
+    """ maps a function over free variables and bound variables,
+    and does not modify other nodes
+
+    f : called with current expression and the current level, which refers to
+        the first binder outside of the entire expression expr
+    level : this value refers to the first binder OUTSIDE of the expression
+            being mapped, it should be called with initially = 1.
+            Increases as we encounter abstractions
+    """
+
+    tentative = f(tp)
+    if tentative is not None:
+        return tentative
+    else:
+        def recur(expr):
+            return map_expr(f, expr)
+
+        match tp:
+            case (e.IntTp() | e.BoolTp() | e.StrTp() | e.IntInfTp() 
+                  | e.AnyTp()):
+                return tp
+            case e.ObjectTp(val=val):
+                return e.ObjectTp(val={k: e.ResultTp(recur(v), card)
+                                       for k, (v, card) in val.items()})
+            case e.NamedTupleTp(val=val):
+                return e.NamedTupleTp(val={k: recur(v)
+                                           for k, v in val.items()})
+            case e.UnnamedTupleTp(val=val):
+                return e.UnnamedTupleTp(val=[recur(v) for v in val])
+            case e.ArrTp(tp=arr_tp):
+                return e.ArrTp(tp=recur(arr_tp))
+            case e.LinkPropTp(subject=subject, linkprop=linkprop):
+                return e.LinkPropTp(subject=recur(subject),
+                                    linkprop=recur(linkprop))
+            case _:
+                raise ValueError("Not Implemented", tp)
 
 
 def map_expr(
@@ -34,8 +76,17 @@ def map_expr(
     if tentative is not None:
         return tentative
     else:
+        def recur_tp(expr):
+            def f_tp(tp: Tp) -> Optional[Tp]:
+                result = f(tp)
+                # if result is not None:
+                #     assert isinstance(result, Tp)
+                return cast(Optional[Tp], result)
+            return map_tp(f_tp, expr)
+
         def recur(expr):
             return map_expr(f, expr)
+
         match expr:
             case (FreeVarExpr(_) | BoundVarExpr(_) | StrVal(_) | BoolVal(_) |
                     IntVal(_) | RefVal(_) | LinkPropVal(_) | FreeVal(_)
@@ -53,7 +104,8 @@ def map_expr(
             case BackLinkExpr(subject=subject, label=label):
                 return BackLinkExpr(subject=recur(subject), label=label)
             case TpIntersectExpr(subject=subject, tp=tp_name):
-                return TpIntersectExpr(subject=recur(subject), tp=tp_name)
+                return TpIntersectExpr(subject=recur(subject),
+                                       tp=tp_name)
             case LinkPropProjExpr(subject=subject, linkprop=label):
                 return LinkPropProjExpr(
                     subject=recur(subject),
@@ -73,7 +125,7 @@ def map_expr(
                 return ShapeExpr(
                     shape={k: recur(e_1) for (k, e_1) in shape.items()})
             case TypeCastExpr(tp=tp, arg=arg):
-                return TypeCastExpr(tp=tp, arg=recur(arg))
+                return TypeCastExpr(tp=recur_tp(tp), arg=recur(arg))
             case UnionExpr(left=left, right=right):
                 return UnionExpr(left=recur(left), right=recur(right))
             case ArrExpr(elems=arr):
@@ -515,4 +567,4 @@ def is_effect_free(expr: Expr) -> bool:
             return True
         else:
             return False
-    return appears_in_expr_pred(pred, expr)
+    return not appears_in_expr_pred(pred, expr)

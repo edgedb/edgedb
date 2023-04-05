@@ -13,6 +13,7 @@ from .back_to_ql import reverse_elab
 from .basis.built_ins import all_builtin_funcs
 from .data import data_ops as e
 from .data import expr_ops as eops
+from .data.expr_to_str import show_expr, show_result_tp
 from .data.data_ops import DB, DBSchema, MultiSetVal, empty_db
 from .data.path_factor import select_hoist
 from .data.val_to_json import json_like, multi_set_val_to_json_like
@@ -39,7 +40,7 @@ def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema,
     elaborated = elab(stmt)
 
     if should_print:
-        debug.print(elaborated)
+        debug.print(show_expr(elaborated))
         # debug.dump(reverse_elab(elaborated))
         debug.dump_edgeql(reverse_elab(elaborated))
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Preprocessing")
@@ -47,7 +48,7 @@ def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema,
     factored = select_hoist(elaborated, dbschema)
 
     if should_print:
-        debug.print(factored)
+        debug.print(show_expr(factored))
         reverse_elabed = reverse_elab(factored)
         debug.dump_edgeql(reverse_elabed)
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Type Checking")
@@ -57,7 +58,7 @@ def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema,
     tp, type_checked = tc.synthesize_type(e.TcCtx(statics, {}), factored)
 
     if should_print:
-        debug.print(tp)
+        debug.print(show_result_tp(tp))
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Running")
 
     config = RTExpr(statics, type_checked)
