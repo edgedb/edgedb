@@ -1,3 +1,6 @@
+# The types here modeled closely after postgres explain output.
+# See postgres/src/backend/commands/explain.c
+#
 from __future__ import annotations
 from typing import *
 
