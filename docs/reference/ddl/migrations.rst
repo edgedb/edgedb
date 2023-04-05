@@ -83,6 +83,7 @@ syntax:
         };
     };
 
+.. _ref_eql_ddl_migrations_create:
 
 create migration
 ================
@@ -348,3 +349,97 @@ Reset the database schema to its initial state.
     This command will drop all entities and, as a consequence, all data. You
     won't want to use this statement on a production instance unless you want
     to lose all that instance's data.
+
+
+Migration Rewrites
+==================
+
+Migration rewrites allow you to change the migration history as long as your
+final schema matches the current database schema.
+
+
+Start migration rewrite
+-----------------------
+
+Start a migration rewrite.
+
+.. eql:synopsis::
+
+    start migration rewrite ;
+
+Once the migration rewrite is started, you can run any arbitrary DDL until you
+are ready to :ref:`commit <ref_eql_ddl_migrations_rewrites_commit>` your new
+migration history. The most useful DDL in this context will be :ref:`create
+migration <ref_eql_ddl_migrations_create>` statements, which will allow you to
+create a sequence of migrations that will become your new migration history.
+
+Declare savepoint
+-----------------
+
+Establish a new savepoint within the current migration rewrite.
+
+.. eql:synopsis::
+
+    declare savepoint <savepoint-name> ;
+
+Parameters
+^^^^^^^^^^
+
+:eql:synopsis:`<savepoint-name>`
+    The name which will be used to identify the new savepoint if you need to
+    later release it or roll back to it.
+
+Release savepoint
+-----------------
+
+Destroys a savepoint previously defined in the current migration rewrite.
+
+.. eql:synopsis::
+
+    release savepoint <savepoint-name> ;
+
+Parameters
+^^^^^^^^^^
+
+:eql:synopsis:`<savepoint-name>`
+    The name of the savepoint to be released.
+
+Rollback to savepoint
+---------------------
+
+Rollback to the named savepoint.
+
+.. eql:synopsis::
+
+    rollback to savepoint <savepoint-name> ;
+
+All changes made after the savepoint are discarded. The savepoint remains valid
+and can be rolled back to again later, if needed.
+
+Parameters
+^^^^^^^^^^
+
+:eql:synopsis:`<savepoint-name>`
+    The name of the savepoint to roll back to.
+
+Rollback
+--------
+
+Rollback the entire migration rewrite.
+
+.. eql:synopsis::
+
+    rollback ;
+
+All updates made within the transaction are discarded.
+
+.. _ref_eql_ddl_migrations_rewrites_commit:
+
+Commit migration rewrite
+------------------------
+
+Commit a migration rewrite.
+
+.. eql:synopsis::
+
+    commit migration rewrite ;
