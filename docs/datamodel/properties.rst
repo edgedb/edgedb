@@ -54,6 +54,8 @@ Properties can be either ``optional`` (the default) or ``required``.
 
 .. _ref_datamodel_props_cardinality:
 
+.. _ref_datamodel_props_cardinality:
+
 Property cardinality
 --------------------
 
