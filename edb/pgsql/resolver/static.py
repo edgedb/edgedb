@@ -19,11 +19,13 @@
 """Static evaluation for SQL."""
 
 import functools
+import platform
 from typing import *
 
 from edb import errors
 
 from edb.pgsql import ast as pgast
+from edb.server import defines
 
 from . import context
 
@@ -113,8 +115,21 @@ def eval_FuncCall(
 
     if fn_name == 'version':
         from edb import buildmeta
+
+        args = ["EdgeDB", buildmeta.get_version_string()]
+        ver_meta = buildmeta.get_version_metadata()
+        target = ver_meta.get("target")
+        if target is not None:
+            args.extend(["on", target])
+        edgedb_version = " ".join(args)
+
         return pgast.StringConstant(
-            val="EdgeDB " + buildmeta.get_version_line()
+            val=" ".join([
+                "PostgreSQL",
+                defines.PGEXT_POSTGRES_VERSION,
+                f"({edgedb_version}),",
+                platform.architecture()[0],
+            ]),
         )
 
     return None
