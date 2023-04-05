@@ -513,6 +513,8 @@ def _elide_derived_ancestors(
     expose any ephemeral derived objects, as these wouldn't be
     present in the schema outside of the compilation context.
     """
+    # if isinstance(obj, s_pointers.Pointer):
+    #     return
 
     pbase = obj.get_bases(ctx.env.schema).first(ctx.env.schema)
     if pbase.get_is_derived(ctx.env.schema):

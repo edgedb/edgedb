@@ -605,7 +605,15 @@ class Pointer(referencing.NamedReferencedInheritingObject,
         """
         ptrcls = self
         while (
-            ptrcls.get_is_derived(schema)
+            (
+                ptrcls.get_is_derived(schema)
+                # Link properties on computed links need to go up to
+                # the real place too, but aren't marked derived
+                or (
+                    isinstance((src := ptrcls.get_source(schema)), Pointer)
+                    and src.get_expr(schema)
+                )
+            )
             and not ptrcls.get_defined_here(schema)
             # schema defined computeds don't have the ephemeral defined_here
             # set, but they do have expr set, so we check that also.
@@ -1173,10 +1181,6 @@ class PointerCommandOrFragment(
         if base is not None:
             self.set_attribute_value(
                 'bases', so.ObjectList.create(schema, [base]),
-            )
-
-            self.set_attribute_value(
-                'is_derived', True
             )
 
             if context.declarative:

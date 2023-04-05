@@ -1082,6 +1082,9 @@ def _get_rel_path_output(
                 name=[ptr_info.column_name],
                 nullable=not ptrref.required)
 
+        # if '@s1' in str(path_id):
+        #     breakpoint()
+
     _put_path_output_var(rel, path_id, aspect, result, flavor=flavor)
     return result
 
