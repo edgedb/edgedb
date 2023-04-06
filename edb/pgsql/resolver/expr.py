@@ -71,6 +71,14 @@ def resolve_ResTarget(
     # base case
     val = dispatch.resolve(res_target.val, ctx=ctx)
 
+    # special case for statically-evaluated FuncCall
+    if (
+        not alias
+        and isinstance(val, pgast.StringConstant)
+        and isinstance(res_target.val, pgast.FuncCall)
+    ):
+        alias = static.name_in_pg_catalog(res_target.val.name)
+
     col = context.Column(name=alias, reference_as=alias)
     return (pgast.ResTarget(val=val, name=alias),), (col,)
 
