@@ -11412,6 +11412,21 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
         await self.migrate("")
 
+    async def test_edgeql_migration_backlink_overloaded(self):
+        await self.migrate(r'''
+            type Target {
+                multi link meta_sources := .<target[is MetaSource];
+            }
+            abstract type MetaSource {
+                link target -> Target;
+            }
+
+            type Source extending MetaSource;
+            type ExternalSource extending MetaSource {
+                overloaded link target -> Target;
+            }
+        ''')
+
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False
