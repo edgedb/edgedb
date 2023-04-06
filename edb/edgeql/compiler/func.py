@@ -155,9 +155,10 @@ def compile_FunctionCall(
         matched_call = matched[0]
 
     func = matched_call.func
+    assert isinstance(func, s_func.Function)
 
     # Record this node in the list of potential DML expressions.
-    if isinstance(func, s_func.Function) and func.get_has_dml(env.schema):
+    if func.get_has_dml(env.schema):
         ctx.env.dml_exprs.append(expr)
 
         # This is some kind of mutation, so we need to check if it is
@@ -186,7 +187,6 @@ def compile_FunctionCall(
                 context=expr.context,
             )
 
-    assert isinstance(func, s_func.Function)
     func_name = func.get_shortname(env.schema)
 
     matched_func_params = func.get_params(env.schema)
@@ -213,6 +213,18 @@ def compile_FunctionCall(
         is_polymorphic=is_polymorphic,
         ctx=ctx,
     )
+
+    if func_name.module != 'std':
+        for arg in final_args:
+            if arg.expr.typeref.is_scalar:
+                continue
+            if not irutils.contains_dml(arg.expr):
+                continue
+            raise errors.UnsupportedFeatureError(
+                'newly created or updated objects cannot be passed to '
+                'functions',
+                context=arg.expr.context
+            )
 
     if not in_abstract_constraint:
         # We cannot add strong references to functions from
