@@ -9,7 +9,7 @@ Triggers
 This section describes introspection of :ref:`triggers
 <ref_datamodel_triggers>`.
 
-Introspection of the ``schema::Triggers``:
+Introspection of ``schema::Trigger``:
 
 .. code-block:: edgeql-repl
 

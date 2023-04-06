@@ -42,11 +42,11 @@ Parameters
 ----------
 
 The options of this command are identical to the
-:ref:`SDL function declaration <ref_eql_sdl_triggers_syntax>`.
+:ref:`SDL trigger declaration <ref_eql_sdl_triggers_syntax>`.
 
 
-Examples
---------
+Example
+-------
 
 Declare a trigger that inserts a ``Log`` object for each new ``User`` object:
 
