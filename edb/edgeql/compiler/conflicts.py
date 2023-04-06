@@ -38,6 +38,7 @@ from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import utils as qlutils
+from edb.edgeql import qltypes
 
 from . import astutils
 from . import context
@@ -101,6 +102,25 @@ def _compile_conflict_select_for_obj_type(
     needed_ptrs, ptr_anchors = _get_needed_ptrs(
         subject_typ, obj_constrs, constrs.keys(), ctx=ctx
     )
+
+    # Check that no pointers in constraints are rewritten
+    for p in needed_ptrs:
+        ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(p))
+        rewrite_kind = (
+            qltypes.RewriteKind.Insert
+            if isinstance(stmt, irast.InsertStmt)
+            else qltypes.RewriteKind.Update
+            if isinstance(stmt, irast.UpdateStmt)
+            else None
+        )
+        if rewrite_kind:
+            rewrite = ptr.get_rewrite(ctx.env.schema, rewrite_kind)
+            if rewrite:
+                raise errors.UnsupportedFeatureError(
+                    "INSERT UNLESS CONFLICT cannot be used on rewritten "
+                    "properties or links",
+                    context=parser_context,
+                )
 
     ctx.anchors = ctx.anchors.copy()
 
@@ -781,7 +801,10 @@ def compile_inheritance_conflict_checks(
 
     conflicters = []
     for subject_stype, anc_type, ir in modified_ancestors:
-        conflicters.extend(_compile_inheritance_conflict_selects(
-            stmt, ir, anc_type, subject_stype, ctx=ctx))
+        conflicters.extend(
+            _compile_inheritance_conflict_selects(
+                stmt, ir, anc_type, subject_stype, ctx=ctx
+            )
+        )
 
     return conflicters or None
