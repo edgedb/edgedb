@@ -116,18 +116,13 @@ def eval_FuncCall(
     if fn_name == 'version':
         from edb import buildmeta
 
-        args = ["EdgeDB", buildmeta.get_version_string()]
-        ver_meta = buildmeta.get_version_metadata()
-        target = ver_meta.get("target")
-        if target is not None:
-            args.extend(["on", target])
-        edgedb_version = " ".join(args)
+        edgedb_version = buildmeta.get_version_line()
 
         return pgast.StringConstant(
             val=" ".join([
                 "PostgreSQL",
                 defines.PGEXT_POSTGRES_VERSION,
-                f"({edgedb_version}),",
+                f"(EdgeDB {edgedb_version}),",
                 platform.architecture()[0],
             ]),
         )
