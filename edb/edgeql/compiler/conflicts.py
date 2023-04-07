@@ -117,8 +117,8 @@ def _compile_conflict_select_for_obj_type(
             rewrite = ptr.get_rewrite(ctx.env.schema, rewrite_kind)
             if rewrite:
                 raise errors.UnsupportedFeatureError(
-                    "INSERT UNLESS CONFLICT cannot be used on rewritten "
-                    "properties or links",
+                    "INSERT UNLESS CONFLICT cannot be used on properties or "
+                    "links that have a rewrite rule specified",
                     context=parser_context,
                 )
 

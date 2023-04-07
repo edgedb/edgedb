@@ -819,7 +819,7 @@ class TestRewrites(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            r"INSERT UNLESS CONFLICT cannot be used on rewritten"
+            r"INSERT UNLESS CONFLICT cannot be used on .* have a rewrite rule"
         ):
             await self.con.execute('''
                 INSERT Conflicted
@@ -828,7 +828,7 @@ class TestRewrites(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            r"INSERT UNLESS CONFLICT cannot be used on rewritten"
+            r"INSERT UNLESS CONFLICT cannot be used on .* have a rewrite rule"
         ):
             await self.con.execute('''
                 INSERT Conflicted { a := 'hello' }
@@ -837,7 +837,7 @@ class TestRewrites(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
-            r"INSERT UNLESS CONFLICT cannot be used on rewritten"
+            r"INSERT UNLESS CONFLICT cannot be used on .* have a rewrite rule"
         ):
             await self.con.execute('''
                 INSERT Conflicted { a := 'hello' }
