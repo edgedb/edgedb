@@ -5936,7 +5936,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
 
         views.append(construct_pg_view(table_name, [c for c, _ in columns]))
 
-    privilege_functions = [
+    util_functions = [
         dbops.Function(
             name=('edgedbsql', 'has_schema_privilege'),
             args=(
@@ -5985,12 +5985,44 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 SELECT has_table_privilege(schema_oid, privilege)
             """
         ),
+        dbops.Function(
+            name=('edgedbsql', '_pg_truetypid'),
+            args=(
+                ('att', ('edgedbsql', 'pg_attribute')),
+                ('typ', ('edgedbsql', 'pg_type')),
+            ),
+            returns=('oid',),
+            volatility='IMMUTABLE',
+            strict=True,
+            text="""
+                SELECT CASE
+                    WHEN typ.typtype = 'd' THEN typ.typbasetype
+                    ELSE att.atttypid
+                END
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', '_pg_truetypmod'),
+            args=(
+                ('att', ('edgedbsql', 'pg_attribute')),
+                ('typ', ('edgedbsql', 'pg_type')),
+            ),
+            returns=('int4',),
+            volatility='IMMUTABLE',
+            strict=True,
+            text="""
+                SELECT CASE
+                    WHEN typ.typtype = 'd' THEN typ.typtypmod
+                    ELSE att.atttypmod
+                END
+            """
+        ),
     ]
 
     return (
         [cast(dbops.Command, dbops.CreateFunction(uuid_to_oid))]
         + [dbops.CreateView(view) for view in views]
-        + [dbops.CreateFunction(func) for func in privilege_functions]
+        + [dbops.CreateFunction(func) for func in util_functions]
     )
 
 
