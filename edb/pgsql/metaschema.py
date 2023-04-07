@@ -5457,13 +5457,26 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ),
         ),
         dbops.View(
+            name=("edgedbsql", "pg_index"),
+            query="""
+        SELECT pi.*, pi.tableoid, pi.xmin, pi.cmin, pi.xmax, pi.cmax, pi.ctid
+        FROM pg_index pi
+        LEFT JOIN pg_class pr ON pi.indrelid = pr.oid
+        LEFT JOIN edgedbsql.pg_namespace pn ON pr.relnamespace = pn.oid
+        """,
+        ),
+        dbops.View(
             name=("edgedbsql", "pg_class"),
             query="""
+        -- Postgres tables
         SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
         FROM pg_class pc
         JOIN pg_namespace pn ON pc.relnamespace = pn.oid
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
+
         UNION ALL
+
+        -- user-defined tables
         SELECT
             oid,
             vt.table_name as relname,
@@ -5506,6 +5519,13 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             pc.ctid
         FROM pg_class pc
         JOIN edgedbsql.virtual_tables vt ON vt.id::text = pc.relname
+
+        UNION
+
+        -- indexes
+        SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
+        FROM pg_class pc
+        JOIN edgedbsql.pg_index pi ON pc.oid = pi.indexrelid
         """,
         ),
         dbops.View(
@@ -5904,6 +5924,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_statistic_ext_data',
             'pg_rewrite',
             'pg_cast',
+            'pg_index',
         ]:
             continue
 
