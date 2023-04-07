@@ -80,6 +80,7 @@ class VersionChanged(d_rst.Directive):
         self.state.nested_parse(self.content, self.content_offset, node)
         return [node]
 
+
 class VersionedSection(d_rst.Directive):
 
     has_content = False
@@ -90,6 +91,7 @@ class VersionedSection(d_rst.Directive):
         node = d_nodes.container()
         node['versioned-section'] = True
         return [node]
+
 
 def setup(app):
     cli.setup_domain(app)
