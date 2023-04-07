@@ -5945,9 +5945,11 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ),
             returns=('bool',),
             text="""
+            SELECT COALESCE((
                 SELECT has_schema_privilege(oid, privilege)
                 FROM edgedbsql.pg_namespace
-                WHERE nspname = schema_name;
+                WHERE nspname = schema_name
+            ), TRUE);
             """
         ),
         dbops.Function(
@@ -5958,7 +5960,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ),
             returns=('bool',),
             text="""
-                SELECT has_schema_privilege(schema_oid, privilege)
+                SELECT COALESCE(
+                    has_schema_privilege(schema_oid, privilege), TRUE
+                )
             """
         ),
         dbops.Function(
@@ -5985,6 +5989,63 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 SELECT has_table_privilege(schema_oid, privilege)
             """
         ),
+
+        dbops.Function(
+            name=('edgedbsql', 'has_column_privilege'),
+            args=(
+                ('tbl', 'oid'),
+                ('col', 'smallint'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_column_privilege(tbl, col, privilege)
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', 'has_column_privilege'),
+            args=(
+                ('tbl', 'text'),
+                ('col', 'smallint'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_column_privilege(oid, col, privilege)
+                FROM edgedbsql.pg_class
+                WHERE relname = tbl;
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', 'has_column_privilege'),
+            args=(
+                ('tbl', 'oid'),
+                ('col', 'text'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_column_privilege(tbl, attnum, privilege)
+                FROM edgedbsql.pg_attribute pa
+                WHERE attrelid = tbl AND attname = col
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', 'has_column_privilege'),
+            args=(
+                ('tbl', 'text'),
+                ('col', 'text'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_column_privilege(pc.oid, attnum, privilege)
+                FROM edgedbsql.pg_class pc
+                JOIN edgedbsql.pg_attribute pa ON pa.attrelid = pc.oid
+                WHERE pc.relname = tbl AND pa.attname = col;
+            """
+        ),
+
         dbops.Function(
             name=('edgedbsql', '_pg_truetypid'),
             args=(

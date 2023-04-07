@@ -189,9 +189,12 @@ def eval_FuncCall(
 
         # schema and table names need to be remapped. This is accomplished
         # with wrapper functions defined in metaschema.py.
-        if fn_name == 'has_schema_privilege':
-            return pgast.FuncCall(name=('edgedbsql', fn_name), args=fn_args)
-        if fn_name == 'has_table_privilege':
+        has_wrapper = {
+            'has_schema_privilege',
+            'has_table_privilege',
+            'has_column_privilege',
+        }
+        if fn_name in has_wrapper:
             return pgast.FuncCall(name=('edgedbsql', fn_name), args=fn_args)
 
         return pgast.FuncCall(name=('pg_catalog', fn_name), args=fn_args)
