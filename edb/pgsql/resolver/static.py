@@ -138,12 +138,39 @@ def eval_FuncCall(
         edgedb_version = buildmeta.get_version_line()
 
         return pgast.StringConstant(
-            val=" ".join([
-                "PostgreSQL",
-                defines.PGEXT_POSTGRES_VERSION,
-                f"(EdgeDB {edgedb_version}),",
-                platform.architecture()[0],
-            ]),
+            val=" ".join(
+                [
+                    "PostgreSQL",
+                    defines.PGEXT_POSTGRES_VERSION,
+                    f"(EdgeDB {edgedb_version}),",
+                    platform.architecture()[0],
+                ]
+            ),
+        )
+
+    if fn_name == "set_config":
+        # HACK: allow set_config('search_path', '', false) to support pg_dump
+        if args := eval_list(expr.args, ctx=ctx):
+            name, value, is_local = args
+            if (
+                isinstance(name, pgast.StringConstant)
+                and isinstance(value, pgast.StringConstant)
+                and isinstance(is_local, pgast.BooleanConstant)
+            ):
+                if (
+                    name.val == "search_path"
+                    and value.val == ""
+                    and not is_local.val
+                ):
+                    return value
+        raise errors.QueryError(
+            "function set_config is not supported", context=expr.context
+        )
+
+    if fn_name == "current_setting":
+        raise errors.QueryError(
+            "function pg_catalog.current_setting is not supported",
+            context=expr.context,
         )
 
     if fn_name in privilege_inquiry_functions_args:
