@@ -81,6 +81,18 @@ class VersionChanged(d_rst.Directive):
         return [node]
 
 
+class VersionedSection(d_rst.Directive):
+
+    has_content = False
+    optional_arguments = 0
+    required_arguments = 0
+
+    def run(self):
+        node = d_nodes.container()
+        node['versioned-section'] = True
+        return [node]
+
+
 def setup(app):
     cli.setup_domain(app)
     eql.setup_domain(app)
@@ -91,5 +103,6 @@ def setup(app):
     app.add_directive('versionadded', VersionAdded, True)
     app.add_directive('versionchanged', VersionChanged, True)
     app.add_directive('code-block', shared.CodeBlock, True)
+    app.add_directive('versioned-section', VersionedSection)
 
     app.add_transform(ProhibitedNodeTransform)
