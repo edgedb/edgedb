@@ -682,11 +682,16 @@ def _build_sub_link(n: Node, c: Context) -> pgast.SubLink:
     )
 
 
-def _build_row_expr(n: Node, c: Context) -> pgast.ImplicitRowExpr:
-    return pgast.ImplicitRowExpr(
-        args=_list(n, c, "args", _build_base_expr),
-        context=_build_context(n, c),
+def _build_row_expr(n: Node, c: Context) -> pgast.BaseExpr:
+    args: List[pgast.BaseExpr] = (
+        _maybe_list(n, c, "args", _build_base_expr) or []
     )
+
+    format = n.get('row_format', None)
+    if format in {'COERCE_EXPLICIT_CALL', 'COERCE_EXPLICIT_CAST'}:
+        return pgast.RowExpr(args=args, context=_build_context(n, c))
+    else:
+        return pgast.ImplicitRowExpr(args=args, context=_build_context(n, c))
 
 
 def _build_boolean_test(n: Node, c: Context) -> pgast.BooleanTest:
