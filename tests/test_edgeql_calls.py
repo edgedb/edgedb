@@ -1706,6 +1706,17 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
                 r"SELECT boo((INSERT Ghost { name := 'Jack' }));",
             )
 
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r'newly created or updated objects cannot be passed to functions',
+        ):
+            await self.con.execute(
+                r"""
+                WITH friendly := (INSERT Ghost { name := 'Jack' })
+                SELECT boo(friendly);
+                """,
+            )
+
     async def test_edgeql_call_builtin_obj(self):
         await self.con.execute(
             r"""
