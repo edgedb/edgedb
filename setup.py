@@ -390,7 +390,7 @@ class build(setuptools_build.build):
             ("build_parsers", lambda self: True),
             ("build_postgres", lambda self: True),
             ("build_cli", lambda self: True),
-            ("build_ui", lambda self: True),
+            # ("build_ui", lambda self: True),
         ]
     )
 
