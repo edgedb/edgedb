@@ -189,6 +189,15 @@ def resolve_DMLQuery(
     )
 
 
+PG_TOAST_TABLE: List[
+    Tuple[sql_introspection.ColumnName, sql_introspection.ColumnType]
+] = [
+    ('chunk_id', None),
+    ('chunk_seq', None),
+    ('chunk_data', None),
+]
+
+
 @dispatch._resolve_relation.register
 def resolve_relation(
     relation: pgast.Relation, *, ctx: Context
@@ -201,22 +210,23 @@ def resolve_relation(
             context=relation.context,
         )
 
-    # try introspection tables
-
-    introspection_tables = None
+    # try information_schema, pg_catalog and pg_toast
+    preset_tables = None
     if relation.schemaname == 'information_schema':
-        introspection_tables = sql_introspection.INFORMATION_SCHEMA
+        preset_tables = (sql_introspection.INFORMATION_SCHEMA, 'edgedbsql')
     elif not relation.schemaname or relation.schemaname == 'pg_catalog':
-        introspection_tables = sql_introspection.PG_CATALOG
+        preset_tables = (sql_introspection.PG_CATALOG, 'edgedbsql')
+    elif relation.schemaname == 'pg_toast':
+        preset_tables = ({relation.name: PG_TOAST_TABLE}, 'pg_toast')
 
-    if introspection_tables and relation.name in introspection_tables:
+    if preset_tables and relation.name in preset_tables[0]:
         cols = [
             context.Column(name=n, reference_as=n)
-            for n, _type in introspection_tables[relation.name]
+            for n, _type in preset_tables[0][relation.name]
         ]
         cols.extend(_construct_system_columns())
         table = context.Table(name=relation.name, columns=cols)
-        rel = pgast.Relation(name=relation.name, schemaname='edgedbsql')
+        rel = pgast.Relation(name=relation.name, schemaname=preset_tables[1])
 
         return rel, table
 
