@@ -305,40 +305,14 @@ def resolve_FuncCall(
     *,
     ctx: Context,
 ) -> pgast.BaseExpr:
-    # TODO: which functions do we want to expose on the outside?
-    if expr.name in {
-        ("set_config",),
-        ("pg_catalog", "set_config"),
-    }:
-        # HACK: allow set_config('search_path', '', false) to support pg_dump
-        if args := static.eval_list(expr.args, ctx=ctx):
-            name, value, is_local = args
-            if (
-                isinstance(name, pgast.StringConstant)
-                and isinstance(value, pgast.StringConstant)
-                and isinstance(is_local, pgast.BooleanConstant)
-            ):
-                if (
-                    name.val == "search_path"
-                    and value.val == ""
-                    and not is_local.val
-                ):
-                    return value
-        raise errors.QueryError(
-            "function set_config is not supported", context=expr.context
-        )
-    if expr.name in {
-        ("current_setting",),
-        ("pg_catalog", "current_setting"),
-    }:
-        raise errors.QueryError(
-            "function pg_catalog.current_setting is not supported",
-            context=expr.context,
-        )
 
+    # special case: some function calls (mostly from pg_catalog) are
+    # intercepted and statically evaluated
     if res := static.eval_FuncCall(expr, ctx=ctx):
         return res
 
+    # base case: keep the call as-is
+    # Effectively, this exposes all functions to be called from outside.
     return pgast.FuncCall(
         name=expr.name,
         args=dispatch.resolve_list(expr.args, ctx=ctx),
