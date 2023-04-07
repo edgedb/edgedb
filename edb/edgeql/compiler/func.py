@@ -214,7 +214,10 @@ def compile_FunctionCall(
         ctx=ctx,
     )
 
-    if func_name.module != 'std':
+    # Forbid DML in non-scalar function args
+    if func.get_nativecode(env.schema):
+        # We are sure that there is no such functions implemented with SQL
+
         for arg in final_args:
             if arg.expr.typeref.is_scalar:
                 continue

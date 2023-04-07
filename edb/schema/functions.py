@@ -1199,6 +1199,7 @@ class Function(
     code = so.SchemaField(
         str, default=None, compcoef=0.4)
 
+    # Function body, when language is EdgeQL
     nativecode = so.SchemaField(
         s_expr.Expression, default=None, compcoef=0.9,
         reflection_name='body')
