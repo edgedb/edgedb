@@ -1159,7 +1159,7 @@ class SQLValueFunctionOP(enum.IntEnum):
 
 class SQLValueFunction(BaseExpr):
     op: SQLValueFunctionOP
-    arg: typing.Optional[BaseExpr]
+    arg: typing.Optional[BaseExpr] = None
 
 
 class CreateStmt(Statement):

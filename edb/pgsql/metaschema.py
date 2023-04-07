@@ -5746,9 +5746,61 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
 
         views.append(construct_pg_view(table_name, [c for c, _ in columns]))
 
+    privilege_functions = [
+        dbops.Function(
+            name=('edgedbsql', 'has_schema_privilege'),
+            args=(
+                ('schema_name', 'text'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_schema_privilege(oid, privilege)
+                FROM edgedbsql.pg_namespace
+                WHERE nspname = schema_name;
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', 'has_schema_privilege'),
+            args=(
+                ('schema_oid', 'oid'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_schema_privilege(schema_oid, privilege)
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', 'has_table_privilege'),
+            args=(
+                ('table_name', 'text'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_table_privilege(oid, privilege)
+                FROM edgedbsql.pg_class
+                WHERE relname = table_name;
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', 'has_table_privilege'),
+            args=(
+                ('schema_oid', 'oid'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_table_privilege(schema_oid, privilege)
+            """
+        ),
+    ]
+
     return (
-        [dbops.CreateFunction(uuid_to_oid)]
+        [cast(dbops.Command, dbops.CreateFunction(uuid_to_oid))]
         + [dbops.CreateView(view) for view in views]
+        + [dbops.CreateFunction(func) for func in privilege_functions]
     )
 
 
