@@ -397,14 +397,16 @@ class ExperimentalInterpreterTestSuite(unittest.TestSuite):
             assert len(setup) <= 1, "expecting optional single setup"
             if len(setup) == 1:
                 (init_sdl, init_ql) = setup[0][2]
-                db = model.db_with_initial_schema_and_queries(
-                    init_sdl, init_ql)
+                dbschema, db = (
+                    model.dbschema_and_db_with_initial_schema_and_queries(
+                                    init_sdl, init_ql))
             else:
                 db = model.empty_db()
+                dbschema = model.empty_dbschema()
 
             for test in self.sort_test_func({sk: suite}):
                 test.use_experimental_interpreter = True
-                test.experimental_interpreter_db = db
+                test.experimental_interpreter_dbschema_and_db = dbschema, db
                 test.run(result)
 
                 if self.stop_requested:

@@ -36,7 +36,7 @@ def map_tp(
         return tentative
     else:
         def recur(expr):
-            return map_expr(f, expr)
+            return map_tp(f, expr)
 
         match tp:
             case (e.IntTp() | e.BoolTp() | e.StrTp() | e.IntInfTp() 

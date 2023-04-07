@@ -14,7 +14,7 @@ from .basis.built_ins import all_builtin_funcs
 from .data import data_ops as e
 from .data import expr_ops as eops
 from .data.expr_to_str import show_expr, show_result_tp
-from .data.data_ops import DB, DBSchema, MultiSetVal, empty_db
+from .data.data_ops import DB, DBSchema, MultiSetVal
 from .data.path_factor import select_hoist
 from .data.val_to_json import json_like, multi_set_val_to_json_like
 from .elab_schema import schema_from_sdl_defs, schema_from_sdl_file
@@ -27,6 +27,14 @@ from . import typechecking as tc
 
 # CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
 # sys.setrecursionlimit(10000)
+
+
+def empty_db() -> DB:
+    return DB({})
+
+
+def empty_dbschema() -> DBSchema:
+    return DBSchema({}, all_builtin_funcs)
 
 
 def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema,
@@ -111,25 +119,27 @@ def run_str(
 
 
 def run_single_str(
-    db: DB,
+    dbschema_and_db: Tuple[DBSchema, DB],
     s: str,
     print_asts: bool = False
 ) -> Tuple[MultiSetVal, DB]:
     q = parse_ql(s)
     if len(q) != 1:
         raise ValueError("Not a single query")
+    dbschema, db = dbschema_and_db
     (res, next_db) = run_statement(
-        db, q[0], DBSchema({}, all_builtin_funcs), print_asts,
+        db, q[0], dbschema, print_asts,
         logs=None)
     return (res, next_db)
 
 
 def run_single_str_get_json(
-    db: DB,
+    dbschema_and_db: Tuple[DBSchema, DB],
     s: str,
     print_asts: bool = False
 ) -> Tuple[json_like, DB]:
-    (res, next_db) = run_single_str(db, s, print_asts=print_asts)
+    (res, next_db) = run_single_str(dbschema_and_db,
+                                    s, print_asts=print_asts)
     return (multi_set_val_to_json_like(res), next_db)
 
 
@@ -155,7 +165,7 @@ def repl(*, init_sdl_file=None,
         if init_sdl_file is not None:
             dbschema = schema_from_sdl_file(init_sdl_file_path=init_sdl_file)
         else:
-            dbschema = DBSchema({}, all_builtin_funcs)
+            dbschema = empty_dbschema()
 
     if init_ql_file is not None:
         initial_queries = open(init_ql_file).read()
@@ -181,17 +191,17 @@ def repl(*, init_sdl_file=None,
             traceback.print_exception(*sys.exc_info())
 
 
-def db_with_initial_schema_and_queries(
+def dbschema_and_db_with_initial_schema_and_queries(
         initial_schema_defs: str,
         initial_queries: str,
         debug_print=False,
-        logs: Optional[List[Any]] = None) -> DB:
+        logs: Optional[List[Any]] = None) -> Tuple[DBSchema, DB]:
     db = empty_db()
     dbschema = schema_from_sdl_defs(
         initial_schema_defs)
     (_, db) = run_str(db, dbschema, initial_queries,
                       print_asts=debug_print, logs=logs)
-    return db
+    return dbschema, db
 
 
 if __name__ == "__main__":

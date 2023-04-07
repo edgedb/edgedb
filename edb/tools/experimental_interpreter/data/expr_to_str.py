@@ -20,7 +20,8 @@ def show_cmmode(mode: e.CMMode) -> str:
 def show_tp(tp: e.Tp) -> str:
     match tp:
         case e.ObjectTp(val=tp_val):
-            return ('{' + ', '.join(f'{lbl}: {show_tp(md_tp.tp)}'
+            return ('{' + ', '.join(lbl + ": " + show_tp(md_tp.tp)
+                                    + show_cmmode(md_tp.mode)
                     for lbl, md_tp in tp_val.items()) + '}')
         case e.IntTp():
             return 'int'

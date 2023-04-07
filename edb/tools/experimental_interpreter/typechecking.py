@@ -1,7 +1,7 @@
 
 from functools import reduce
 import operator
-from typing import Tuple, Dict, Sequence, Optional
+from typing import Tuple, Dict, Sequence, Optional, List
 
 from .data import data_ops as e
 from .data import expr_ops as eops
@@ -117,11 +117,13 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
     # populate result skeleton
     match tp:
         case e.LinkPropTp(subject=subject_tp, linkprop=linkprop_tp):
+            l_tp = linkprop_tp
             if isinstance(subject_tp, e.ObjectTp):
                 s_tp = subject_tp
-                l_tp = linkprop_tp
+            elif isinstance(subject_tp, e.VarTp):
+                s_tp = tops.dereference_var_tp(ctx, subject_tp)
             else:
-                raise ValueError("NI")
+                raise ValueError("NI", subject_tp)
         case e.ObjectTp(_):
             s_tp = tp
             l_tp = e.ObjectTp({})
@@ -192,12 +194,17 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
 
 def type_cast_tp(from_tp: e.ResultTp, to_tp: e.Tp) -> e.ResultTp:
     match from_tp.tp, from_tp.mode, to_tp:
-        case e.IntTp(), card, e.IntTp():
-            return e.ResultTp(e.IntTp(), card)
         case e.UnifiableTp(id=_, resolution=None), card, _:
             assert isinstance(from_tp.tp, e.UnifiableTp)  # for mypy
             from_tp.tp.resolution = to_tp
             return e.ResultTp(to_tp, card)
+
+        case e.IntTp(), card, e.IntTp():
+            return e.ResultTp(e.IntTp(), card)
+        case e.UuidTp(), card, e.StrTp():
+            return e.ResultTp(e.StrTp(), card)
+        case e.IntTp(), card, e.StrTp():
+            return e.ResultTp(e.StrTp(), card)
         case _:
             raise ValueError("Not Implemented", from_tp, to_tp)
 
@@ -220,16 +227,12 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_tp = synthesize_type_for_val(ctx.statics, expr)
             result_card = e.CardOne
         case e.FreeVarExpr(var=var):
-            print("static keys", ctx.statics.schema.val.keys())
             if var in ctx.varctx.keys():
-                print("OK1 static keys", ctx.statics.schema.val.keys())
                 result_tp, result_card = ctx.varctx[var]
             elif var in ctx.statics.schema.val.keys():
-                print("OK2 static keys", ctx.statics.schema.val.keys())
                 result_tp = ctx.statics.schema.val[var]
                 result_card = e.CardAny
             else:
-                print("OK3 static keys", ctx.statics.schema.val.keys())
                 raise ValueError("Unknown variable", var,
                                  "list of known vars",
                                  list(ctx.varctx.keys())
@@ -249,8 +252,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.UnionExpr(left=l, right=r):
             (l_tp, l_ck) = synthesize_type(ctx, l)
             (r_tp, r_ck) = synthesize_type(ctx, r)
-            assert l_tp.tp == r_tp.tp, "Union types must match"
-            result_tp = l_tp.tp
+            # assert l_tp.tp == r_tp.tp, "Union types must match"
+            result_tp = tops.construct_tp_union(l_tp.tp, r_tp.tp)
             result_card = l_tp.mode + r_tp.mode
             result_expr = e.UnionExpr(l_ck, r_ck)
         case e.FunAppExpr(fun=fname, args=args, overloading_index=idx):
@@ -349,21 +352,56 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.ObjectProjExpr(subject_ck, label)
             result_tp, result_card = tops.tp_project(
-                subject_tp, e.StrLabel(label))
+                ctx, subject_tp, e.StrLabel(label))
         case e.LinkPropProjExpr(subject=subject, linkprop=lp):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.LinkPropProjExpr(subject_ck, lp)
             result_tp, result_card = tops.tp_project(
-                subject_tp, e.LinkPropLabel(lp))
+                ctx, subject_tp, e.LinkPropLabel(lp))
         case e.BackLinkExpr(subject=subject, label=label):
             (_, subject_ck) = synthesize_type(ctx, subject)
+            candidates: List[e.LinkPropTp] = []
+            for (name, name_def) in ctx.statics.schema.val.items():
+                for (name_label, comp_tp) in name_def.val.items():
+                    if name_label == label:
+                        match comp_tp.tp:
+                            case e.LinkPropTp(_):
+                                candidates = [
+                                    *candidates,
+                                    e.LinkPropTp(e.VarTp(name),
+                                                 comp_tp.tp.linkprop)
+                                ] 
+                            case _:
+                                candidates = [
+                                    *candidates,
+                                    e.LinkPropTp(e.VarTp(name),
+                                                 e.ObjectTp({}))
+                                ]
             result_expr = e.BackLinkExpr(subject_ck, label)
-            result_tp = e.AnyTp()
+            if len(candidates) == 0:
+                result_tp = e.AnyTp()
+            else:
+                result_tp = reduce(tops.construct_tp_union, candidates)
             result_card = e.CardAny
         case e.TpIntersectExpr(subject=subject, tp=intersect_tp):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             result_expr = e.TpIntersectExpr(subject_ck, intersect_tp)
-            result_tp = e.IntersectTp(subject_tp.tp, e.VarTp(intersect_tp))
+            if all(isinstance(t, e.LinkPropTp)
+                   for t in tops.collect_tp_union(subject_tp.tp)):
+                candidates = []
+                for t in tops.collect_tp_union(subject_tp.tp):
+                    assert isinstance(t, e.LinkPropTp)
+                    # TODO: use real subtp
+                    if t.subject == e.VarTp(intersect_tp):
+                        candidates = [*candidates, t]
+                if len(candidates) == 0:
+                    result_tp = tops.construct_tp_intersection(
+                        subject_tp.tp, e.VarTp(intersect_tp))
+                else:
+                    result_tp = reduce(tops.construct_tp_union, candidates)
+            else:
+                result_tp = tops.construct_tp_intersection(
+                    subject_tp.tp, e.VarTp(intersect_tp))
             result_card = e.CMMode(
                 e.Fin(0),
                 subject_tp.mode.upper, 
@@ -416,9 +454,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
         case e.OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
             offset_ck = check_type(ctx, offset,
-                                   e.ResultTp(e.IntTp(), e.CardOne))
+                                   e.ResultTp(e.IntTp(), e.CardAtMostOne))
             limit_ck = check_type(ctx, limit,
-                                  e.ResultTp(e.IntInfTp(), e.CardOne))
+                                  e.ResultTp(e.IntInfTp(), e.CardAtMostOne))
             result_expr = e.OffsetLimitExpr(subject_ck, offset_ck, limit_ck)
             result_tp = subject_tp.tp
             result_card = e.CMMode(
@@ -465,8 +503,14 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             result_card = next_tp.mode * bound_tp.mode
         case e.OptionalForExpr(bound=bound, next=next):
             (bound_tp, bound_ck) = synthesize_type(ctx, bound)
+            bound_card = e.CMMode(
+                e.max_cardinal(e.Fin(0), e.min_cardinal(e.Fin(1),
+                                                        bound_tp.mode.lower)),
+                e.Fin(1),
+                e.Fin(1)
+            )
             new_ctx, next_body, bound_var = eops.tcctx_add_binding(
-                ctx, next, e.ResultTp(bound_tp.tp, e.CardAtMostOne))
+                ctx, next, e.ResultTp(bound_tp.tp, bound_card))
             (next_tp, next_ck) = synthesize_type(new_ctx, next_body)
             result_expr = e.OptionalForExpr(
                 bound=bound_ck,
@@ -501,6 +545,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             (rest_card, rest_cks) = zip(
                 *[check_type_no_card(ctx, arr_elem, first_tp.tp)
                   for arr_elem in arr[1:]])
+            # TODO: change to use unions
             result_expr = e.ArrExpr([first_ck] + list(rest_cks))
             result_tp = e.ArrTp(first_tp.tp)
             result_card = reduce(operator.mul, rest_card,
@@ -512,13 +557,19 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             # assert len(arr) > 0, ("Empty multiset does not"
             #                       " support type synthesis")
             (first_tp, first_ck) = synthesize_type(ctx, arr[0])
-            (rest_card, rest_cks) = zip(
-                *[check_type_no_card(ctx, arr_elem, first_tp.tp)
-                    for arr_elem in arr[1:]])
-            result_expr = e.MultiSetExpr([first_ck] + list(rest_cks))
-            result_tp = first_tp.tp
-            result_card = reduce(operator.add, rest_card,
-                                 first_tp.mode)  # type: ignore[arg-type]
+            if len(arr[1:]) == 0:
+                result_expr = e.MultiSetExpr([first_ck])
+                result_tp = first_tp.tp
+                result_card = first_tp.mode
+            else:
+                (rest_res_tps, rest_cks) = zip(
+                    *[synthesize_type(ctx, arr_elem)
+                        for arr_elem in arr[1:]])
+                rest_tps, rest_cards = zip(*rest_res_tps)
+                result_expr = e.MultiSetExpr([first_ck] + list(rest_cks))
+                result_tp = reduce(tops.construct_tp_union, rest_tps, first_tp.tp)
+                result_card = reduce(operator.add, rest_cards,
+                                     first_tp.mode)  # type: ignore[arg-type]
         case _:
             raise ValueError("Not Implemented", expr)
 

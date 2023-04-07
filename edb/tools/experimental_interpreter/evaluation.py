@@ -471,9 +471,11 @@ def eval_config(rt: RTExpr) -> RTVal:
         case OffsetLimitExpr(subject=subject, offset=offset, limit=limit):
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
             (new_data2, offsetv_m) = eval_config(RTExpr(new_data, offset))
-            offsetv = offsetv_m.vals[0]
+            assert len(offsetv_m.vals) <= 1
+            offsetv = offsetv_m.vals[0] if len(offsetv_m.vals) == 1 else e.IntVal(0)
             (new_data3, limitv_m) = eval_config(RTExpr(new_data2, limit))
-            limitv = limitv_m.vals[0]
+            assert len(limitv_m.vals) <= 1
+            limitv = limitv_m.vals[0] if len(limitv_m.vals) == 1 else e.IntInfVal()
             result_list = list(limit_vals(
                              offset_vals(subjectv.vals, offsetv),
                              limitv))

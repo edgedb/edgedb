@@ -63,8 +63,12 @@ class DateTimeTp:
 class JsonTp:
     pass
 
+@dataclass(frozen=True)
+class UuidTp:
+    pass
 
-PrimTp = StrTp | IntTp | IntInfTp | BoolTp | DateTimeTp | JsonTp
+
+PrimTp = StrTp | IntTp | IntInfTp | BoolTp | DateTimeTp | JsonTp | UuidTp
 
 
 @dataclass(frozen=True)
@@ -641,8 +645,7 @@ class TcCtx:
     varctx: Dict[str, ResultTp]
 
 
-def empty_db():
-    return DB({})
+
 
 
 # def add_fun(x, y):

@@ -2,6 +2,34 @@
 from .data_ops import DBSchema
 from .expr_to_str import show_tp
 from . import data_ops as e
+from typing import List
+
+
+def construct_tp_intersection(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
+    # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
+    if tp1 == e.AnyTp():
+        return tp2
+    elif tp2 == e.AnyTp():
+        return tp1
+    else:
+        return e.IntersectTp(tp1, tp2)
+
+
+def construct_tp_union(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
+    # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
+    if tp1 == tp2:
+        return tp1
+    else:
+        return e.UnionTp(tp1, tp2)
+
+
+def collect_tp_union(tp1: e.Tp) -> List[e.Tp]:
+    # TODO: optimize so that if tp1 is a subtype of tp2, we return tp2
+    match tp1:
+        case e.UnionTp(left=tp1, right=tp2):
+            return collect_tp_union(tp1) + collect_tp_union(tp2)
+        case _:
+            return [tp1]
 
 
 def is_nominal_subtype_in_schema(
@@ -18,6 +46,13 @@ def object_tp_is_essentially_optional(tp: e.ObjectTp) -> bool:
     return all(mode_is_optional(md_tp.mode) for md_tp in tp.val.values())
 
 
+def dereference_var_tp(ctx: e.TcCtx, tp: e.VarTp) -> e.Tp:
+    if tp.name in ctx.statics.schema.val:
+        return ctx.statics.schema.val[tp.name]
+    else:
+        raise ValueError("Type not found")
+
+
 def assert_insert_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp) -> None:
     assert_real_subtype(ctx, tp1, tp2, is_insert_subtp=True)
 
@@ -26,7 +61,7 @@ def assert_real_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
                         is_insert_subtp: bool = False) -> None:
     if tp_is_primitive(tp1) and tp_is_primitive(tp2):
         match tp1, tp2:
-            case e.IntTp(), e.IntInfTp(): 
+            case e.IntTp(), e.IntInfTp():
                 pass
             case _:
                 if tp1 != tp2:
@@ -61,10 +96,13 @@ def assert_real_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
 
     else:
         match tp1, tp2:
+            case _, e.AnyTp():
+                pass
             case e.ObjectTp(val=tp1_val), e.ObjectTp(val=tp2_val):
                 for lbl, md_tp in tp1_val.items():
                     if lbl not in tp2_val.keys():
-                        raise ValueError("not subtype")
+                        # This is fine because of computed and inheritance
+                        continue
                     md_tp_2 = tp2_val[lbl]
                     assert_cardinal_subtype(md_tp.mode, md_tp_2.mode)
                     assert_real_subtype(ctx, md_tp.tp, md_tp_2.tp,
@@ -72,7 +110,8 @@ def assert_real_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
                 if is_insert_subtp:
                     pass
                 else:
-                    if len(tp1_val.keys()) != len(tp2_val.keys()):
+                    if any(tp2_key not in tp1_val.keys()
+                           for tp2_key in tp2_val.keys()):
                         raise ValueError("not subtype, tp_2 has more keys")
                     else:
                         pass
@@ -94,9 +133,16 @@ def assert_real_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
                     raise ValueError("not subtype, non optional linkprop",
                                      tp1, tp2)
 
+            # Union and intersections
+            case (e.UnionTp(left=tp1_left, right=tp1_right), _):
+                assert_real_subtype(ctx, tp1_left, tp2, is_insert_subtp)
+                assert_real_subtype(ctx, tp1_right, tp2, is_insert_subtp)
+
             # Other structural typing
             case (e.ArrTp(tp=tp1_val), e.ArrTp(tp=tp2_val)):
                 assert_real_subtype(ctx, tp1_val, tp2_val, is_insert_subtp)
+
+
 
             # For debugging Purposes
             case ((e.ArrTp(_), e.StrTp())
@@ -111,11 +157,12 @@ def assert_real_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
 
 
 def assert_cardinal_subtype(cm: e.CMMode, cm2: e.CMMode) -> None:
-    assert (
+    if not (
         cm2.lower <= cm.lower and
         cm.upper <= cm2.upper and
         cm.multiplicity <= cm2.multiplicity
-    )
+    ):
+        raise ValueError("not subtype", cm, cm2)
 
 
 def get_runtime_tp(tp: e.Tp) -> e.Tp:
@@ -129,6 +176,7 @@ def tp_is_primitive(tp: e.Tp) -> bool:
               | e.StrTp()
               | e.BoolTp()
               | e.IntInfTp()
+              | e.UuidTp()
               ):
             return True
         case (e.ObjectTp(_)
@@ -138,8 +186,14 @@ def tp_is_primitive(tp: e.Tp) -> bool:
               | e.VarTp(_)
               | e.UnnamedTupleTp(_)
               | e.ArrTp(_)
+              | e.AnyTp()
               ):
             return False
+        case (e.UnionTp(left=left_tp, right=right_tp)
+              | e.IntersectTp(left=left_tp, right=right_tp)
+              ):
+            # return tp_is_primitive(left_tp) and tp_is_primitive(right_tp)
+            return False  # this case is actually ambiguous
         case _:
             raise ValueError("Not implemented", tp)
 
@@ -163,7 +217,7 @@ def is_order_spec(tp: e.ResultTp) -> bool:
     return True
     
 
-def tp_project(tp: e.ResultTp, label: e.Label) -> e.ResultTp:
+def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
 
     def post_process_result_base_tp(result_base_tp: e.Tp, 
                                     result_mode: e.CMMode) -> e.ResultTp:
@@ -174,11 +228,16 @@ def tp_project(tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                 e.min_cardinal(e.Fin(1),
                                result_mode.multiplicity))
         return e.ResultTp(result_base_tp, result_mode)
+    if isinstance(tp.tp, e.VarTp):
+        target_tp = dereference_var_tp(ctx, tp.tp)
+        return tp_project(ctx, e.ResultTp(target_tp, tp.mode),
+                          label)
+
     match label:
         case e.LinkPropLabel(label=lbl):
             match tp.tp:
                 case e.LinkPropTp(subject=_, linkprop=tp_linkprop):
-                    return tp_project(e.ResultTp(tp_linkprop, tp.mode),
+                    return tp_project(ctx, e.ResultTp(tp_linkprop, tp.mode),
                                       e.StrLabel(lbl))
                 case _:
                     raise ValueError("Cannot tp_project a linkprop "
@@ -186,14 +245,18 @@ def tp_project(tp: e.ResultTp, label: e.Label) -> e.ResultTp:
         case e.StrLabel(label=lbl):
             match tp.tp:
                 case e.LinkPropTp(subject=tp_subject, linkprop=_):
-                    return tp_project(e.ResultTp(tp_subject, tp.mode),
+                    return tp_project(ctx, e.ResultTp(tp_subject, tp.mode),
                                       e.StrLabel(lbl))
                 case e.ObjectTp(val=tp_obj):
-                    if lbl in tp_obj:
+                    if lbl in tp_obj.keys():
                         result_base_tp = tp_obj[lbl].tp
                         result_mode = tp.mode * tp_obj[lbl].mode
                         return post_process_result_base_tp(
                             result_base_tp, result_mode)
+                    elif lbl == "id":
+                        return post_process_result_base_tp(
+                            e.UuidTp(), tp.mode
+                        )
                     else:
                         raise ValueError("Label not found")
                 case e.NamedTupleTp(val=tp_tuple):
@@ -219,4 +282,4 @@ def tp_project(tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                         raise ValueError("Label not found")
                 case _:
                     raise ValueError("Cannot tp_project a label "
-                                     "from a non object type")
+                                     "from a non object type", tp.tp)
