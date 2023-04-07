@@ -406,6 +406,17 @@ def resolve_ImplicitRowExpr(
 
 
 @dispatch._resolve.register
+def resolve_RowExpr(
+    expr: pgast.RowExpr,
+    *,
+    ctx: Context,
+) -> pgast.RowExpr:
+    return pgast.RowExpr(
+        args=dispatch.resolve_list(expr.args, ctx=ctx),
+    )
+
+
+@dispatch._resolve.register
 def resolve_ParamRef(
     expr: pgast.ParamRef,
     *,

@@ -557,6 +557,14 @@ class TestSQL(tb.SQLQueryTestCase):
         )
         self.assertEqual(res, [[(1, 2)]])
 
+    async def test_sql_query_37(self):
+        res = await self.squery_values(
+            """
+            SELECT (pg_column_size(ROW()))::text
+            """
+        )
+        self.assertEqual(res, [['24']])
+
     async def test_sql_query_introspection_00(self):
         res = await self.squery_values(
             '''
