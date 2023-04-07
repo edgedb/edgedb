@@ -804,3 +804,42 @@ class TestRewrites(tb.QueryTestCase):
                     create link rec -> Bar {
                         create rewrite insert using (insert Bar) } };
             ''')
+
+    async def test_edgeql_rewrites_21(self):
+        await self.con.execute('''
+            create type Conflicted;
+            alter type Conflicted {
+                create property a -> str {
+                    create rewrite insert using ('nope') };
+
+                create constraint exclusive on (.a);
+            };
+            create type SubConflicted extending Conflicted;
+        ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"INSERT UNLESS CONFLICT cannot be used on .* have a rewrite rule"
+        ):
+            await self.con.execute('''
+                INSERT Conflicted
+                UNLESS CONFLICT ON (.a)
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"INSERT UNLESS CONFLICT cannot be used on .* have a rewrite rule"
+        ):
+            await self.con.execute('''
+                INSERT Conflicted { a := 'hello' }
+                UNLESS CONFLICT ON (.a)
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"INSERT UNLESS CONFLICT cannot be used on .* have a rewrite rule"
+        ):
+            await self.con.execute('''
+                INSERT Conflicted { a := 'hello' }
+                UNLESS CONFLICT
+            ''')
