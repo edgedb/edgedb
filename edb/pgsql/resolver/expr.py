@@ -94,11 +94,13 @@ def resolve_ColumnRef(
     column_ref: pgast.ColumnRef, *, ctx: Context
 ) -> pgast.ColumnRef:
     res = _lookup_column(column_ref, ctx)
-    if len(res) != 1:
-        raise errors.QueryError(
-            f'bad use of `*` column name', context=column_ref.context
-        )
     table, column = res[0]
+
+    if len(res) != 1:
+        # Lookup can have multiple results only when using *.
+        assert table.reference_as
+        return pgast.ColumnRef(name=(table.reference_as, pgast.Star()))
+
     assert column.reference_as
 
     if table.name:
@@ -299,29 +301,37 @@ def resolve_SortBy(
     )
 
 
+func_calls_remapping: Dict[Tuple[str, ...], Tuple[str, ...]] = {
+    ('information_schema', '_pg_truetypid'): ('edgedbsql', '_pg_truetypid'),
+    ('information_schema', '_pg_truetypmod'): ('edgedbsql', '_pg_truetypmod'),
+}
+
+
 @dispatch._resolve.register
 def resolve_FuncCall(
-    expr: pgast.FuncCall,
+    call: pgast.FuncCall,
     *,
     ctx: Context,
 ) -> pgast.BaseExpr:
 
-    # special case: some function calls (mostly from pg_catalog) are
-    # intercepted and statically evaluated
-    if res := static.eval_FuncCall(expr, ctx=ctx):
+    # Special case: some function calls (mostly from pg_catalog) are
+    # intercepted and statically evaluated.
+    if res := static.eval_FuncCall(call, ctx=ctx):
         return res
 
-    # base case: keep the call as-is
-    # Effectively, this exposes all functions to be called from outside.
+    # Remap function name and default to the original name.
+    # Effectively, this exposes all non-remapped functions.
+    name = func_calls_remapping.get(call.name, call.name)
+
     return pgast.FuncCall(
-        name=expr.name,
-        args=dispatch.resolve_list(expr.args, ctx=ctx),
-        agg_order=dispatch.resolve_opt_list(expr.agg_order, ctx=ctx),
-        agg_filter=dispatch.resolve_opt(expr.agg_filter, ctx=ctx),
-        agg_star=expr.agg_star,
-        agg_distinct=expr.agg_distinct,
-        over=dispatch.resolve_opt(expr.over, ctx=ctx),
-        with_ordinality=expr.with_ordinality,
+        name=name,
+        args=dispatch.resolve_list(call.args, ctx=ctx),
+        agg_order=dispatch.resolve_opt_list(call.agg_order, ctx=ctx),
+        agg_filter=dispatch.resolve_opt(call.agg_filter, ctx=ctx),
+        agg_star=call.agg_star,
+        agg_distinct=call.agg_distinct,
+        over=dispatch.resolve_opt(call.over, ctx=ctx),
+        with_ordinality=call.with_ordinality,
     )
 
 

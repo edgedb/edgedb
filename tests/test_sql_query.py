@@ -542,10 +542,9 @@ class TestSQL(tb.SQLQueryTestCase):
             ORDER BY title
             """
         )
-        self.assertEqual(res, [
-            ['Forrest Gump', 1],
-            ['Saving Private Ryan', 1]
-        ])
+        self.assertEqual(
+            res, [['Forrest Gump', 1], ['Saving Private Ryan', 1]]
+        )
 
     async def test_sql_query_36(self):
         # ColumnRef to relation
@@ -743,29 +742,44 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assertEqual(res, [[['pg_catalog', 'blah', 'foo']]])
 
     async def test_sql_query_static_eval_02(self):
-        await self.scon.execute('''
-        SELECT nspname as table_schema,
-               relname as table_name
-        FROM   pg_class c
-        JOIN   pg_namespace n on c.relnamespace = n.oid
-        WHERE  has_table_privilege(c.oid, 'SELECT')
-        AND    has_schema_privilege(current_user, nspname, 'USAGE')
-        AND    relkind in ('r', 'm', 'v', 't', 'f', 'p')
-        ''')
+        await self.scon.execute(
+            '''
+            SELECT nspname as table_schema,
+                relname as table_name
+            FROM   pg_class c
+            JOIN   pg_namespace n on c.relnamespace = n.oid
+            WHERE  has_table_privilege(c.oid, 'SELECT')
+            AND    has_schema_privilege(current_user, nspname, 'USAGE')
+            AND    relkind in ('r', 'm', 'v', 't', 'f', 'p')
+            '''
+        )
+
+    async def test_sql_query_static_eval_03(self):
+        await self.scon.execute(
+            '''
+            SELECT information_schema._pg_truetypid(a.*, t.*)
+            FROM pg_attribute a
+            JOIN pg_type t ON t.oid = a.atttypid
+            '''
+        )
 
     async def test_sql_query_be_state(self):
         con = await self.connect(database=self.con.dbname)
         try:
-            await con.execute('''
+            await con.execute(
+                '''
                 CONFIGURE SESSION SET __internal_sess_testvalue := 1;
-            ''')
+                '''
+            )
             await self.squery_values(
                 "set default_transaction_isolation to 'read committed'"
             )
             self.assertEqual(
-                await con.query_single('''
+                await con.query_single(
+                    '''
                     SELECT assert_single(cfg::Config.__internal_sess_testvalue)
-                '''),
+                    '''
+                ),
                 1,
             )
             res = await self.squery_values(
