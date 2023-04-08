@@ -501,6 +501,17 @@ def eval_config(rt: RTExpr) -> RTVal:
                 instantiate_expr(v, next) for v in boundv.vals])
             result_list = [p for v in vv for p in v.vals]
             return RTVal(new_data2, MultiSetVal(result_list))
+        case e.IfElseExpr(then_branch=then_branch,
+                          condition=condition,
+                          else_branch=else_branch):
+            (new_data, conditionv) = eval_config(RTExpr(rt.data, condition))
+            (new_data2, vv) = eval_expr_list(new_data, [
+                then_branch if v == e.BoolVal(True) else
+                else_branch if v == e.BoolVal(False) else
+                eval_error(condition, "condition must be a boolean")
+                for v in conditionv.vals])
+            result_list = [p for v in vv for p in v.vals]
+            return RTVal(new_data2, MultiSetVal(result_list))
         case OptionalForExpr(bound=bound, next=next):
             (new_data, boundv) = eval_config(RTExpr(rt.data, bound))
             if boundv.vals:

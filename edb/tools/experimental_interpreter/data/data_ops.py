@@ -445,6 +445,11 @@ class OptionalForExpr:
     bound: Expr
     next: BindingExpr
 
+@dataclass(frozen=True)
+class IfElseExpr:
+    then_branch: Expr
+    condition: Expr
+    else_branch: Expr
 
 @dataclass(frozen=True)
 class FilterOrderExpr:
@@ -592,7 +597,8 @@ Expr = (
     TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr |
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
     ObjectExpr | BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr |
-    ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr | SingularExpr)
+    ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr | SingularExpr
+    | IfElseExpr)
 
 
 @dataclass(frozen=True)
@@ -683,4 +689,4 @@ OrderDescending = "descending"
 
 IndirectionIndexOp = "_[_]"
 IndirectionSliceOp = "_[_:_]"
-IfElseOp = "std::IF:_if_else_"
+# IfElseOp = "std::IF:_if_else_"

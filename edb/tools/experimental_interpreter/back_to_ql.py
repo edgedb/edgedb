@@ -266,6 +266,12 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
             return qlast.DetachedExpr(expr=reverse_elab(expr))
         case SubqueryExpr(expr=expr):
             return reverse_elab(expr)
-
+        case e.IfElseExpr(then_branch=then_branch,
+                          condition=condition,
+                          else_branch=else_branch):
+            return qlast.IfElse(
+                if_expr=reverse_elab(then_branch),
+                condition=reverse_elab(condition),
+                else_expr=reverse_elab(else_branch))
         case _:
             raise ValueError("Unimplemented", ir_expr)

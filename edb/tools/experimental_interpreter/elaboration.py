@@ -10,10 +10,11 @@ from edb.schema import pointers as s_pointers
 from edb.schema.pointers import PointerDirection
 
 from .basis.built_ins import all_builtin_funcs
+from .data import data_ops as e
 from .data.data_ops import (
     ArrExpr, ArrTp, BackLinkExpr, BindingExpr, BoolVal, BoundVarExpr,
     DateTimeTp, DetachedExpr, Expr, FilterOrderExpr, ForExpr, FreeVarExpr,
-    FunAppExpr, IfElseOp, IndirectionIndexOp, IndirectionSliceOp,
+    FunAppExpr,  IndirectionIndexOp, IndirectionSliceOp,
     InsertExpr, IntInfVal, IntTp, IntVal, JsonTp, Label, LinkPropLabel,
     LinkPropProjExpr, MultiSetExpr, NamedTupleExpr, ObjectExpr,
     ObjectProjExpr, OffsetLimitExpr, OptionalForExpr, OrderAscending,
@@ -544,9 +545,7 @@ def elab_Indirection(qle: qlast.Indirection) -> FunAppExpr:
 
 @elab.register
 def elab_IfElse(qle: qlast.IfElse) -> FunAppExpr:
-    return FunAppExpr(
-        fun=IfElseOp,
-        args=[elab(qle.if_expr),
-              elab(qle.condition),
-              elab(qle.else_expr)],
-        overloading_index=None)
+    return e.IfElseExpr(
+        then_branch=elab(qle.if_expr),
+        condition=elab(qle.condition),
+        else_branch=elab(qle.else_expr))

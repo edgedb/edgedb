@@ -3,6 +3,7 @@
 from enum import Enum
 from typing import Callable, Optional, Sequence
 
+from . import data_ops as e
 from .data_ops import (ArrExpr, BackLinkExpr, BindingExpr, BoolVal,
                        BoundVarExpr, DBSchema, DetachedExpr, Expr,
                        FilterOrderExpr, ForExpr, FreeVarExpr, FunAppExpr,
@@ -143,6 +144,14 @@ def map_query(f: Callable[[Expr, QueryLevel],
                 return OptionalForExpr(
                     bound=sub_recur(bound),
                     next=sub_recur(next))
+            case e.IfElseExpr(
+                    then_branch=then_branch,
+                    condition=condition,
+                    else_branch=else_branch):
+                return e.IfElseExpr(
+                    then_branch=sub_recur(then_branch),
+                    condition=recur(condition),
+                    else_branch=sub_recur(else_branch))
             case InsertExpr(name=name, new=new):
                 return InsertExpr(name=name, new=recur(new))
             case ObjectExpr(val=val):

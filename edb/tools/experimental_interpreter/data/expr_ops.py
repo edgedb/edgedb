@@ -159,7 +159,14 @@ def map_expr(
                 return OptionalForExpr(
                     bound=recur(bound),
                     next=recur(next))
-
+            case e.IfElseExpr(
+                    then_branch=then_branch,
+                    condition=condition,
+                    else_branch=else_branch):
+                return e.IfElseExpr(
+                    then_branch=recur(then_branch),
+                    condition=recur(condition),
+                    else_branch=recur(else_branch))
     raise ValueError("Not Implemented: map_expr ", expr)
 
 

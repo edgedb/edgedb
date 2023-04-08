@@ -4,7 +4,7 @@ from typing import *
 from ..data import data_ops as e
 from ..data.data_ops import (ArrTp, ArrVal, BoolTp, BoolVal, BuiltinFuncDef,
                              CardAny, CardOne, FunArgRetType, FunType,
-                             IfElseOp, IndirectionIndexOp, IndirectionSliceOp,
+                              IndirectionIndexOp, IndirectionSliceOp,
                              IntInfTp, IntInfVal, IntTp, IntVal, Val,
                              ParamSetOf, ParamSingleton, SomeTp, StrTp, StrVal)
 from .errors import FunCallErr
@@ -59,21 +59,21 @@ def indirection_slice_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     raise FunCallErr()
 
 
-if_else_tp = FunType(
-    args_mod=[ParamSetOf(), ParamSingleton(), ParamSetOf()],
-    args_ret_types=[
-        FunArgRetType(
-            args_tp=[SomeTp(0), BoolTp(), SomeTp(0)],
-            ret_tp=e.ResultTp(SomeTp(0), CardAny))])
+# if_else_tp = FunType(
+#     args_mod=[ParamSetOf(), ParamSingleton(), ParamSetOf()],
+#     args_ret_types=[
+#         FunArgRetType(
+#             args_tp=[SomeTp(0), BoolTp(), SomeTp(0)],
+#             ret_tp=e.ResultTp(SomeTp(0), CardAny))])
 
 
-def if_else_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
-    match arg:
-        case [l1, [BoolVal(val=True)], l2]:
-            return l1
-        case [l1, [BoolVal(val=False)], l2]:
-            return l2
-    raise FunCallErr()
+# def if_else_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+#     match arg:
+#         case [l1, [BoolVal(val=True)], l2]:
+#             return l1
+#         case [l1, [BoolVal(val=False)], l2]:
+#             return l2
+#     raise FunCallErr()
 
 
 all_reserved_ops: Dict[str, BuiltinFuncDef] = {
@@ -81,5 +81,5 @@ all_reserved_ops: Dict[str, BuiltinFuncDef] = {
                                        impl=indirection_index_impl),
     IndirectionSliceOp: BuiltinFuncDef(tp=indirection_slice_tp,
                                        impl=indirection_slice_impl),
-    IfElseOp: BuiltinFuncDef(tp=if_else_tp, impl=if_else_impl)
+    # IfElseOp: BuiltinFuncDef(tp=if_else_tp, impl=if_else_impl)
 }

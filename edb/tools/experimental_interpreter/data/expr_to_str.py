@@ -140,5 +140,11 @@ def show_expr(expr: e.Expr) -> str:
                                    for lbl, el in elems.items()) + ")"
         case e.ArrExpr(elems=arr):
             return "[" + ", ".join(show_expr(el) for el in arr) + "]"
+        case e.IfElseExpr(
+                then_branch=then_branch,
+                condition=condition,
+                else_branch=else_branch):
+            return (show_expr(then_branch) + " if " + show_expr(condition) +
+                    " else " + show_expr(else_branch))
         case _:
             raise ValueError('Unimplemented', expr)

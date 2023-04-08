@@ -491,6 +491,25 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             tops.assert_real_subtype(ctx, after_tp, subject_tp.tp)
             result_expr = e.UpdateExpr(subject_ck, shape_ck)
             result_tp, result_card = subject_tp
+        case e.IfElseExpr(then_branch=then_branch,
+                          condition=condition,
+                          else_branch=else_branch):
+            (_, condition_ck) = check_type_no_card(
+                ctx, condition, e.BoolTp())
+            then_tp, then_ck = synthesize_type(ctx, then_branch)
+            else_tp, else_ck = synthesize_type(ctx, else_branch)
+            # TODO: should we check if they are the same?
+            result_tp = tops.construct_tp_union(then_tp.tp, else_tp.tp)
+            result_card = e.CMMode(
+                e.min_cardinal(then_tp.mode.lower, else_tp.mode.lower),
+                e.max_cardinal(then_tp.mode.upper, else_tp.mode.upper),
+                e.max_cardinal(then_tp.mode.multiplicity,
+                               else_tp.mode.multiplicity)
+            )
+            result_expr = e.IfElseExpr(
+                    then_branch=then_ck,
+                    condition=condition_ck,
+                    else_branch=else_ck)
         case e.ForExpr(bound=bound, next=next):
             (bound_tp, bound_ck) = synthesize_type(ctx, bound)
             new_ctx, next_body, bound_var = eops.tcctx_add_binding(
