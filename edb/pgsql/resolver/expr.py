@@ -247,7 +247,9 @@ def resolve_TypeCast(
     expr: pgast.TypeCast,
     *,
     ctx: Context,
-) -> pgast.TypeCast:
+) -> pgast.BaseExpr:
+    if res := static.eval_TypeCast(expr, ctx=ctx):
+        return res
     return pgast.TypeCast(
         arg=dispatch.resolve(expr.arg, ctx=ctx),
         type_name=expr.type_name,

@@ -763,6 +763,17 @@ class TestSQL(tb.SQLQueryTestCase):
             '''
         )
 
+    async def test_sql_query_static_eval_04(self):
+        [[res1, res2]] = await self.squery_values(
+            '''
+            SELECT to_regclass('"Movie.actors"'),
+                '"public"."Movie.actors"'::regclass
+            '''
+        )
+        self.assertEqual(res1, res2)
+        assert isinstance(res1, int)
+        assert isinstance(res2, int)
+
     async def test_sql_query_be_state(self):
         con = await self.connect(database=self.con.dbname)
         try:
