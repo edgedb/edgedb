@@ -32,6 +32,7 @@ from edb.pgsql.compiler import astutils as pgastutils
 from . import dispatch
 from . import context
 from . import range_functions
+from . import expr
 
 Context = context.ResolverContextLevel
 
@@ -194,23 +195,25 @@ def resolve_CommonTableExpr(
     reference_as = None
 
     with ctx.child() as subctx:
-        if cte.recursive:
-            aliascolnames = cte.aliascolnames
-            if not aliascolnames:
-                # No explicit column names given, so we look into the actual
-                # select to see if we can extract the column names from that
-                # instead. This is a recursive query, so we expect both a larg
-                # and rarg to be present. We can just look into larg for
-                # column names, though.
-                if isinstance(cte.query.larg, pgast.SelectStmt):
-                    aliascolnames = [
-                        t.name or t.val.name[-1]
-                        for t in cte.query.larg.target_list
-                    ]
+        aliascolnames = cte.aliascolnames
 
-            reference_as = [
-                subctx.names.get('col') for _ in aliascolnames
-            ]
+        if isinstance(cte.query, pgast.SelectStmt):
+            # When no explicit column names were given, we look into the actual
+            # select to see if we can extract the column names from that
+            # instead. This is needed for some RECURSIVE CTEs.
+
+            if not aliascolnames:
+                if isinstance(cte.query.larg, pgast.SelectStmt):
+                    if res := _infer_col_aliases(cte.query.larg):
+                        aliascolnames = res
+
+            if not aliascolnames:
+                if isinstance(cte.query.rarg, pgast.SelectStmt):
+                    if res := _infer_col_aliases(cte.query.rarg):
+                        aliascolnames = res
+
+        if cte.recursive and aliascolnames:
+            reference_as = [subctx.names.get('col') for _ in aliascolnames]
             columns = [
                 context.Column(name=col, reference_as=ref_as)
                 for col, ref_as in zip(aliascolnames, reference_as)
@@ -245,6 +248,13 @@ def resolve_CommonTableExpr(
         materialized=cte.materialized,
     )
     return node, result
+
+
+def _infer_col_aliases(query: pgast.SelectStmt) -> Optional[List[str]]:
+    aliases = [expr.infer_alias(t) for t in query.target_list]
+    if not all(aliases):
+        return None
+    return cast(List[str], aliases)
 
 
 @_resolve_range_var.register
