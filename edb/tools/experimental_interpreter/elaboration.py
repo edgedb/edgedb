@@ -544,7 +544,7 @@ def elab_Indirection(qle: qlast.Indirection) -> FunAppExpr:
 
 
 @elab.register
-def elab_IfElse(qle: qlast.IfElse) -> FunAppExpr:
+def elab_IfElse(qle: qlast.IfElse) -> e.IfElseExpr:
     return e.IfElseExpr(
         then_branch=elab(qle.if_expr),
         condition=elab(qle.condition),

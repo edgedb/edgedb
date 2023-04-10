@@ -46,9 +46,9 @@ def object_tp_is_essentially_optional(tp: e.ObjectTp) -> bool:
     return all(mode_is_optional(md_tp.mode) for md_tp in tp.val.values())
 
 
-def dereference_var_tp(ctx: e.TcCtx, tp: e.VarTp) -> e.Tp:
-    if tp.name in ctx.statics.schema.val:
-        return ctx.statics.schema.val[tp.name]
+def dereference_var_tp(dbschema: e.DBSchema, tp: e.VarTp) -> e.ObjectTp:
+    if tp.name in dbschema.val:
+        return dbschema.val[tp.name]
     else:
         raise ValueError("Type not found")
 
@@ -229,7 +229,7 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                                result_mode.multiplicity))
         return e.ResultTp(result_base_tp, result_mode)
     if isinstance(tp.tp, e.VarTp):
-        target_tp = dereference_var_tp(ctx, tp.tp)
+        target_tp = dereference_var_tp(ctx.statics.schema, tp.tp)
         return tp_project(ctx, e.ResultTp(target_tp, tp.mode),
                           label)
 

@@ -121,7 +121,7 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
             if isinstance(subject_tp, e.ObjectTp):
                 s_tp = subject_tp
             elif isinstance(subject_tp, e.VarTp):
-                s_tp = tops.dereference_var_tp(ctx, subject_tp)
+                s_tp = tops.dereference_var_tp(ctx.statics.schema, subject_tp)
             else:
                 raise ValueError("NI", subject_tp)
         case e.ObjectTp(_):
@@ -381,7 +381,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             if len(candidates) == 0:
                 result_tp = e.AnyTp()
             else:
-                result_tp = reduce(tops.construct_tp_union, candidates)
+                result_tp = reduce(
+                    tops.construct_tp_union,  # type: ignore[arg-type]
+                    candidates)
             result_card = e.CardAny
         case e.TpIntersectExpr(subject=subject, tp=intersect_tp):
             (subject_tp, subject_ck) = synthesize_type(ctx, subject)
@@ -398,7 +400,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     result_tp = tops.construct_tp_intersection(
                         subject_tp.tp, e.VarTp(intersect_tp))
                 else:
-                    result_tp = reduce(tops.construct_tp_union, candidates)
+                    result_tp = reduce(
+                        tops.construct_tp_union,  # type: ignore[arg-type]
+                        candidates)
             else:
                 result_tp = tops.construct_tp_intersection(
                     subject_tp.tp, e.VarTp(intersect_tp))

@@ -1,29 +1,30 @@
 
 
+import json
 import sys
 import traceback
 from typing import *
 from typing import Tuple
 
-import json
 from edb.common import debug
 from edb.edgeql import ast as qlast
 
+from . import typechecking as tc
 from .back_to_ql import reverse_elab
 from .basis.built_ins import all_builtin_funcs
 from .data import data_ops as e
 from .data import expr_ops as eops
-from .data.expr_to_str import show_expr, show_result_tp
-from .data.data_ops import DB, DBSchema, MultiSetVal
+from .data.data_ops import DB, DBSchema, MultiSetVal, ResultTp
+from .data.expr_to_str import show_expr, show_result_tp, show_schema
 from .data.path_factor import select_hoist
-from .data.val_to_json import json_like, multi_set_val_to_json_like
+from .data.val_to_json import (json_like, multi_set_val_to_json_like,
+                               typed_multi_set_val_to_json_like)
 from .elab_schema import schema_from_sdl_defs, schema_from_sdl_file
 from .elaboration import elab
 from .evaluation import RTData, RTExpr, eval_config_toplevel
 from .helper_funcs import parse_ql
 from .logs import write_logs_to_file
 from .sqlite import sqlite_adapter
-from . import typechecking as tc
 
 # CODE REVIEW: !!! CHECK IF THIS WILL BE SET ON EVERY RUN!!!
 # sys.setrecursionlimit(10000)
@@ -39,10 +40,12 @@ def empty_dbschema() -> DBSchema:
 
 def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema,
                   should_print: bool,
-                  logs: Optional[List[Any]]) -> Tuple[MultiSetVal, DB]:
+                  logs: Optional[List[Any]]
+                  ) -> Tuple[MultiSetVal, e.ResultTp, DB]:
     if should_print:
         print("vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Starting")
         debug.dump_edgeql(stmt)
+        debug.print("Schema: " + show_schema(dbschema))
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Elaborating")
 
     elaborated = elab(stmt)
@@ -74,9 +77,10 @@ def run_statement(db: DB, stmt: qlast.Expr, dbschema: DBSchema,
     if should_print:
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Result")
         debug.print(result.val)
-        print(multi_set_val_to_json_like(eops.assume_link_target(result.val)))
+        print(typed_multi_set_val_to_json_like(
+            tp, eops.assume_link_target(result.val), dbschema))
         print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Done ")
-    return (result.val, result.data.cur_db)
+    return (result.val, tp, result.data.cur_db)
     # debug.dump(stmt)
 
 
@@ -88,7 +92,7 @@ def run_stmts(db: DB, stmts: Sequence[qlast.Expr],
         case []:
             return ([], db)
         case current, *rest:
-            (cur_val, next_db) = run_statement(
+            (cur_val, _, next_db) = run_statement(
                 db, current, dbschema, should_print=debug_print,
                 logs=logs)
             (rest_val, final_db) = run_stmts(
@@ -122,15 +126,15 @@ def run_single_str(
     dbschema_and_db: Tuple[DBSchema, DB],
     s: str,
     print_asts: bool = False
-) -> Tuple[MultiSetVal, DB]:
+) -> Tuple[MultiSetVal, ResultTp, DB]:
     q = parse_ql(s)
     if len(q) != 1:
         raise ValueError("Not a single query")
     dbschema, db = dbschema_and_db
-    (res, next_db) = run_statement(
+    (res, tp, next_db) = run_statement(
         db, q[0], dbschema, print_asts,
         logs=None)
-    return (res, next_db)
+    return (res, tp, next_db)
 
 
 def run_single_str_get_json(
@@ -138,9 +142,10 @@ def run_single_str_get_json(
     s: str,
     print_asts: bool = False
 ) -> Tuple[json_like, DB]:
-    (res, next_db) = run_single_str(dbschema_and_db,
-                                    s, print_asts=print_asts)
-    return (multi_set_val_to_json_like(res), next_db)
+    (res, tp, next_db) = run_single_str(dbschema_and_db,
+                                        s, print_asts=print_asts)
+    return (typed_multi_set_val_to_json_like(
+                tp, res, dbschema_and_db[0], top_level=True), next_db)
 
 
 def repl(*, init_sdl_file=None,

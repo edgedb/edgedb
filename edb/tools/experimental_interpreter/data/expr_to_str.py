@@ -148,3 +148,8 @@ def show_expr(expr: e.Expr) -> str:
                     " else " + show_expr(else_branch))
         case _:
             raise ValueError('Unimplemented', expr)
+
+
+def show_schema(dbschema: e.DBSchema) -> str:
+    return ("\n".join(name + " := " + show_tp(tp) for name, tp in
+                      dbschema.val.items()))
