@@ -186,26 +186,25 @@ def eval_FuncCall(
             "function set_config is not supported", context=expr.context
         )
 
-    unsupported = {"current_setting", "pg_filenode_relation"}
+    if fn_name == 'current_setting':
+        arg = require_a_string_literal(expr, fn_name, ctx)
 
-    if fn_name in unsupported:
+        val = None
+        if arg == 'search_path':
+            val = ', '.join(ctx.options.search_path)
+        if val:
+            return pgast.StringConstant(val=val)
+        return expr
+
+    if fn_name == "pg_filenode_relation":
         raise errors.QueryError(
             f"function pg_catalog.{fn_name} is not supported",
             context=expr.context,
         )
 
     if fn_name == "to_regclass":
-        args = eval_list(expr.args, ctx=ctx)
-        if not (
-            args
-            and len(args) == 1
-            and isinstance(args[0], pgast.StringConstant)
-        ):
-            raise errors.QueryError(
-                "function pg_catalog.to_regclass requires a string literal",
-                context=expr.context,
-            )
-        return to_regclass(args[0].val, ctx=ctx)
+        arg = require_a_string_literal(expr, fn_name, ctx)
+        return to_regclass(arg, ctx=ctx)
 
     cast_arg_to_regclass = {
         'pg_relation_filenode',
@@ -246,6 +245,21 @@ def eval_FuncCall(
         return pgast.FuncCall(name=('pg_catalog', fn_name), args=fn_args)
 
     return None
+
+
+def require_a_string_literal(
+    expr: pgast.FuncCall, fn_name: str, ctx: Context
+) -> str:
+    args = eval_list(expr.args, ctx=ctx)
+    if not (
+        args and len(args) == 1 and isinstance(args[0], pgast.StringConstant)
+    ):
+        raise errors.QueryError(
+            f"function pg_catalog.{fn_name} requires a string literal",
+            context=expr.context,
+        )
+
+    return args[0].val
 
 
 def cast_to_regclass(param: pgast.BaseExpr, ctx: Context) -> pgast.BaseExpr:
