@@ -3,6 +3,7 @@ from typing import Dict, NamedTuple, Sequence, Tuple, Optional, Callable
 
 from dataclasses import dataclass
 
+from enum import Enum
 
 # to use when we move to 3.11
 # and https://peps.python.org/pep-0681/ is implemented in mypy
@@ -651,19 +652,14 @@ class TcCtx:
     varctx: Dict[str, ResultTp]
 
 
+class SubtypingMode(Enum):
+    # Regular subtyping do not allow missing keys or additional keys
+    Regular = 1
+    # insert subtyping allow missing keys in subtypes of an object type
+    Insert = 2
+    # shape subtyping allow additional keys in subtypes of an object type
+    Shape = 3
 
-
-
-# def add_fun(x, y):
-#     match x, y:
-#         case [IntVal(a)], [IntVal(b)]:
-#             return [IntVal(a + b)]
-#     raise ValueError("cannot add ", x , y)
-
-
-# BuiltinFuncOp : Dict[str, Callable[..., Sequence[Expr]]] = {
-#     "+" : add_fun,
-# }
 
 starting_id = 0
 

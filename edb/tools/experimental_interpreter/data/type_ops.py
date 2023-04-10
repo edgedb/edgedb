@@ -54,11 +54,17 @@ def dereference_var_tp(dbschema: e.DBSchema, tp: e.VarTp) -> e.ObjectTp:
 
 
 def assert_insert_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp) -> None:
-    assert_real_subtype(ctx, tp1, tp2, is_insert_subtp=True)
+    assert_real_subtype(ctx, tp1, tp2, subtyping_mode=e.SubtypingMode.Insert)
 
 
-def assert_real_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
-                        is_insert_subtp: bool = False) -> None:
+def assert_shape_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp) -> None:
+    assert_real_subtype(ctx, tp1, tp2, subtyping_mode=e.SubtypingMode.Shape)
+
+
+def assert_real_subtype(
+        ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
+        subtyping_mode: e.SubtypingMode = e.SubtypingMode.Regular
+        ) -> None:
     if tp_is_primitive(tp1) and tp_is_primitive(tp2):
         match tp1, tp2:
             case e.IntTp(), e.IntInfTp():
@@ -74,12 +80,12 @@ def assert_real_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
         if tp1.resolution is None:
             tp1.resolution = tp2
         else:
-            assert_real_subtype(ctx, tp1.resolution, tp2, is_insert_subtp)
+            assert_real_subtype(ctx, tp1.resolution, tp2, subtyping_mode)
     elif isinstance(tp2, e.UnifiableTp):
         if tp2.resolution is None:
             tp2.resolution = tp1
         else:
-            assert_real_subtype(ctx, tp1, tp2.resolution, is_insert_subtp)
+            assert_real_subtype(ctx, tp1, tp2.resolution, subtyping_mode)
 
     # Variable expansion
     elif isinstance(tp1, e.VarTp) and isinstance(tp2, e.VarTp):
@@ -89,10 +95,10 @@ def assert_real_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
             pass
     elif isinstance(tp1, e.VarTp):
         tp1_tp = ctx.statics.schema.val[tp1.name]
-        assert_real_subtype(ctx, tp1_tp, tp2, is_insert_subtp)
+        assert_real_subtype(ctx, tp1_tp, tp2, subtyping_mode)
     elif isinstance(tp2, e.VarTp):
         tp2_tp = ctx.statics.schema.val[tp2.name]
-        assert_real_subtype(ctx, tp1, tp2_tp, is_insert_subtp)
+        assert_real_subtype(ctx, tp1, tp2_tp, subtyping_mode)
 
     else:
         match tp1, tp2:
@@ -101,13 +107,15 @@ def assert_real_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
             case e.ObjectTp(val=tp1_val), e.ObjectTp(val=tp2_val):
                 for lbl, md_tp in tp1_val.items():
                     if lbl not in tp2_val.keys():
-                        # This is fine because of computed and inheritance
-                        continue
+                        if subtyping_mode == e.SubtypingMode.Shape:
+                            continue
+                        else:
+                            raise ValueError("not subtype, tp_1 has more keys")
                     md_tp_2 = tp2_val[lbl]
                     assert_cardinal_subtype(md_tp.mode, md_tp_2.mode)
                     assert_real_subtype(ctx, md_tp.tp, md_tp_2.tp,
-                                        is_insert_subtp)
-                if is_insert_subtp:
+                                        subtyping_mode)
+                if subtyping_mode == e.SubtypingMode.Insert:
                     pass
                 else:
                     if any(tp2_key not in tp1_val.keys()
@@ -117,10 +125,10 @@ def assert_real_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
                         pass
             case (e.LinkPropTp(subject=s_1, linkprop=lp_1),
                     e.LinkPropTp(subject=s_2, linkprop=lp_2)):
-                assert_real_subtype(ctx, s_1, s_2, is_insert_subtp)
-                assert_real_subtype(ctx, lp_1, lp_2, is_insert_subtp)
+                assert_real_subtype(ctx, s_1, s_2, subtyping_mode)
+                assert_real_subtype(ctx, lp_1, lp_2, subtyping_mode)
             case (e.LinkPropTp(subject=s_1, linkprop=e.ObjectTp({})), _):
-                assert_real_subtype(ctx, s_1, tp2, is_insert_subtp)
+                assert_real_subtype(ctx, s_1, tp2, subtyping_mode)
             case (e.ObjectTp(_), e.LinkPropTp(subject=s_2, linkprop=lp_2)):
                 # The semantics here is a pending discussion
                 # (see item 3 of the google doc)
@@ -128,19 +136,19 @@ def assert_real_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
                 # Temporarily approach (A) is implemented, which
                 # will incur a runtime ISE if linkprop is projected
                 if object_tp_is_essentially_optional(lp_2):
-                    assert_real_subtype(ctx, tp1, s_2, is_insert_subtp)
+                    assert_real_subtype(ctx, tp1, s_2, subtyping_mode)
                 else:
                     raise ValueError("not subtype, non optional linkprop",
                                      tp1, tp2)
 
             # Union and intersections
             case (e.UnionTp(left=tp1_left, right=tp1_right), _):
-                assert_real_subtype(ctx, tp1_left, tp2, is_insert_subtp)
-                assert_real_subtype(ctx, tp1_right, tp2, is_insert_subtp)
+                assert_real_subtype(ctx, tp1_left, tp2, subtyping_mode)
+                assert_real_subtype(ctx, tp1_right, tp2, subtyping_mode)
 
             # Other structural typing
             case (e.ArrTp(tp=tp1_val), e.ArrTp(tp=tp2_val)):
-                assert_real_subtype(ctx, tp1_val, tp2_val, is_insert_subtp)
+                assert_real_subtype(ctx, tp1_val, tp2_val, subtyping_mode)
 
 
 
@@ -153,7 +161,7 @@ def assert_real_subtype(ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
                 print("Not Implemented Subtyping Check:",
                       show_tp(tp1), show_tp(tp2))
                 raise ValueError("Not implemented", tp1, tp2,
-                                 is_insert_subtp)
+                                 subtyping_mode)
 
 
 def assert_cardinal_subtype(cm: e.CMMode, cm2: e.CMMode) -> None:

@@ -141,12 +141,16 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
                     new_ctx, body, bnd_var = eops.tcctx_add_binding(
                         ctx, comp, e.ResultTp(tp, e.CardOne))
                     result_tp = s_tp.val[s_lbl]
-                    checked_body = check_type(new_ctx, body, result_tp)
+                    body_tp_synth, body_ck = synthesize_type(new_ctx, body)
+                    tops.assert_shape_subtype(
+                        ctx, body_tp_synth.tp, result_tp.tp)
+                    tops.assert_cardinal_subtype(
+                        body_tp_synth.mode, result_tp.mode)
                     result_s_tp = e.ObjectTp({**result_s_tp.val,
-                                              s_lbl: result_tp})
+                                              s_lbl: body_tp_synth})
                     result_expr = e.ShapeExpr(
                         {**result_expr.shape,
-                         lbl: eops.abstract_over_expr(checked_body, bnd_var)})
+                         lbl: eops.abstract_over_expr(body_ck, bnd_var)})
                 else:
                     new_ctx, body, bnd_var = eops.tcctx_add_binding(
                         ctx, comp, e.ResultTp(tp, e.CardOne))
@@ -162,12 +166,16 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
                     new_ctx, body, bnd_var = eops.tcctx_add_binding(
                         ctx, comp, e.ResultTp(tp, e.CardOne))
                     result_tp = l_tp.val[l_lbl]
-                    checked_body = check_type(new_ctx, body, result_tp)
+                    body_synth_tp, body_ck = synthesize_type(new_ctx, body)
+                    tops.assert_shape_subtype(
+                        ctx, body_synth_tp.tp, result_tp.tp)
+                    tops.assert_cardinal_subtype(
+                        body_synth_tp.mode, result_tp.mode)
                     result_l_tp = e.ObjectTp({**result_l_tp.val,
-                                              l_lbl: result_tp})
+                                              l_lbl: body_synth_tp})
                     result_expr = e.ShapeExpr(
                         {**result_expr.shape,
-                         lbl: eops.abstract_over_expr(checked_body, bnd_var)})
+                         lbl: eops.abstract_over_expr(body_ck, bnd_var)})
                 else:
                     new_ctx, body, bnd_var = eops.tcctx_add_binding(
                         ctx, comp, e.ResultTp(tp, e.CardOne))
@@ -492,7 +500,7 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 "Expecting subject expr to be effect-free")
             (after_tp, shape_ck) = check_shape_transform(
                 ctx, shape_expr, subject_tp.tp)
-            tops.assert_real_subtype(ctx, after_tp, subject_tp.tp)
+            tops.assert_insert_subtype(ctx, after_tp, subject_tp.tp)
             result_expr = e.UpdateExpr(subject_ck, shape_ck)
             result_tp, result_card = subject_tp
         case e.IfElseExpr(then_branch=then_branch,
