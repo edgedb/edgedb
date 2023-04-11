@@ -20,16 +20,17 @@
 from __future__ import annotations
 from typing import *
 
+import dataclasses
 import json
 import logging
 import pickle
-import dataclasses
 
+from edb import buildmeta
 from edb.common import debug
 from edb.edgeql import ast as qlast
 from edb.ir import ast as irast
-from edb.schema import schema as s_schema
 from edb.pgsql import ast as pgast
+from edb.schema import schema as s_schema
 
 from . import coarse_grained
 from . import fine_grained
@@ -119,6 +120,7 @@ def analyze_explain_output(
         'config_vals': config_vals,
         'globals_used': globals_used,
         'arguments': args,
+        'version': buildmeta.get_version_string(),
         'buffers': buffers,
         'debug_info': {
             'full_plan': debug_tree,
