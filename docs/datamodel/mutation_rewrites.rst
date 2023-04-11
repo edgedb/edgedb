@@ -106,17 +106,16 @@ while updates will set the ``modified`` property:
     Each property may have a single ``insert`` and a single ``update`` mutation
     rewrite rule, or they may have a single rule that covers both.
 
-Special values
-==============
+Available variables
+===================
 
 Inside the rewrite rule's expression, you have access to a few special values:
 
-* ``__subject__`` refers to the new value being set for the property
-* ``__specified__`` is a named tuple with a key for each pointer in the type
+* ``__subject__`` refers to the object type with the new property and link values,
+* ``__specified__`` is a named tuple with a key for each property or link in the type
   and a boolean value indicating whether this value was explicitly set in the
   mutation
-* ``__old__`` refers to the previous value in update-only mutation rewrite
-  expressions
+* ``__old__`` refers to the object type with the previous property and link values (available for update-only mutation rewrites)
 
 Here are some examples of the special values in use. Maybe your blog hosts
 articles about particularly controversial topics. You could use ``__subject__``
@@ -156,7 +155,7 @@ You can omit ``__subject__`` in many cases and achieve the same thing:
       }
 
 but only if the path prefix has not changed. In the following schema, for
-example, the ``__subject__`` in the rewrite rule is required since, in the
+example, the ``__subject__`` in the rewrite rule is required, because in the
 context of the nested ``select`` query, the leading dot resolves from the
 ``User`` path:
 
