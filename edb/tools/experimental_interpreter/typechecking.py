@@ -476,6 +476,12 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                 subject_tp.mode.upper,
                 subject_tp.mode.multiplicity
             )
+            if isinstance(limit_ck, e.IntVal):
+                lim_num = limit_ck.val
+                result_card = e.CMMode(
+                    e.Fin(0),
+                    e.min_cardinal(result_card.upper, e.Fin(lim_num)),
+                    e.min_cardinal(result_card.multiplicity, e.Fin(lim_num)))
         case e.InsertExpr(name=tname, new=arg):
             tname_tp = ctx.statics.schema.val[tname]
             arg_tp, arg_ck = synthesize_type(ctx, arg)

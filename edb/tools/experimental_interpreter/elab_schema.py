@@ -14,8 +14,13 @@ def elab_schema_error(obj: Any) -> Any:
     raise ValueError(obj)
 
 
-def elab_schema_cardinality(is_required: Optional[bool]) -> CMMode:
-    return CMMode(Fin(1) if is_required else Fin(0), Inf())
+def elab_schema_cardinality(
+        is_required: Optional[bool],
+        cardinality: Optional[qlast.qltypes.SchemaCardinality]) -> CMMode:
+    return CMMode(Fin(1) if is_required else Fin(0),
+                  Inf()
+                  if cardinality == qlast.qltypes.SchemaCardinality.Many
+                  else Fin(1))
 
 
 def elab_schema_target_tp(
@@ -49,6 +54,7 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
                                 name=qlast.ObjectRef(name=pname),
                                 target=ptarget,
                                 is_required=p_is_required,
+                                cardinality=p_cardinality,
                                 commands=pcommands):
                             if isinstance(ptarget, qlast.TypeExpr):
                                 base_target_type = elab_schema_target_tp(
@@ -65,6 +71,7 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
                                             name=qlast.ObjectRef(name=plname),
                                             target=pltarget,
                                             is_required=pl_is_required,
+                                            cardinality=pl_cardinality,
                                             commands=plcommands):
                                         if plcommands:
                                             print(
@@ -80,7 +87,9 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
                                                     elab_schema_target_tp(
                                                         pltarget),
                                                     elab_schema_cardinality(
-                                                        pl_is_required))}
+                                                        pl_is_required,
+                                                        pl_cardinality
+                                                        ))}
                                         else:
                                             print(
                                                 "WARNING: "
@@ -101,7 +110,8 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
                                 pname:
                                 ResultTp(final_target_type,
                                          elab_schema_cardinality(
-                                          is_required=p_is_required))}
+                                          is_required=p_is_required,
+                                          cardinality=p_cardinality))}
                         case _:
                             print("WARNING: not implemented cmd", cmd)
                             # debug.dump(cmd)
