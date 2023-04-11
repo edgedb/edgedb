@@ -122,7 +122,7 @@ def analyze_explain_output(
         'buffers': buffers,
         'debug_info': {
             'full_plan': debug_tree,
-            'alias_info': info,
+            'analysis_info': info,
         },
         'fine_grained': fg_tree,
         'coarse_grained': cg_tree,

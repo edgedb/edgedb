@@ -225,28 +225,16 @@ class TreeBuilder:
 
 
 def _filter_plans(node: pg_tree.Plan, args: explain.Arguments):
-    if args.execute:
-        min_time = (node.actual_total_time or 0) * 0.01
-        # TODO(tailhook) maybe we should scan inner plans to figure out that
-        # there are no inner contexts in the children
-        plans = [
-            p
-            for p in node.plans
-            if not isinstance(p, pg_tree.Result) or
-            (p.actual_total_time or 0) > min_time or (p.actual_rows or 0) > 1
-        ]
-        return plans
-    else:
-        min_cost = node.total_cost * 0.01
-        # TODO(tailhook) maybe we should scan inner plans to figure out that
-        # there are no inner contexts in the children
-        plans = [
-            p
-            for p in node.plans
-            if not isinstance(p, pg_tree.Result) or
-            p.total_cost > min_cost or p.plan_rows > 1
-        ]
-        return plans
+    min_cost = node.total_cost * 0.01
+    # TODO(tailhook) maybe we should scan inner plans to figure out that
+    # there are no inner contexts in the children
+    plans = [
+        p
+        for p in node.plans
+        if not isinstance(p, pg_tree.Result) or
+        p.total_cost > min_cost or p.plan_rows > 1
+    ]
+    return plans
 
 
 def build(

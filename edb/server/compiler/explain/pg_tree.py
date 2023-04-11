@@ -79,6 +79,11 @@ class FromJson(ast.AST, to_json.ToJson):
 
         return result
 
+    def to_json(self):
+        dic = super().to_json()
+        dic['node_type'] = self.__class__.__name__
+        return dic
+
 
 def _obj_to_name(
         sobj: so.Object, schema: s_schema.Schema, dotted: bool=False) -> str:
