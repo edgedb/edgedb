@@ -182,9 +182,29 @@ context of the nested ``select`` query, the leading dot resolves from the
     Learn more about how this works in our documentation on :ref:`path
     resolution <ref_eql_path_resolution>`.
 
-Using ``__specified__``, we can override ``modified`` with a specified value if
-the user provided one in the query while still using our default value
-(``datetime_of_statement()``) if they didn't:
+Using ``__specified__``, we can determine which fields were specified in the
+mutation. This would allow us to track when a single property was last modified
+as in the ``title_modified`` property in this schema:
+
+.. code-block:: sdl
+
+    type Post {
+      ...
+      title_modified: datetime {
+        rewrite update using (
+          datetime_of_statement()
+          if __specified__.title
+          else __old__.title_modified
+        )
+      }
+      ...
+    }
+
+``__specified__.title`` will be ``true`` if that value was set as part of the
+update, and this rewrite mutation rule will update ``title_modified`` to
+``datetime_of_statement()`` in that case.
+
+Another way you might use this is to set a default value but allow overriding:
 
 .. code-block:: sdl
 
@@ -193,16 +213,18 @@ the user provided one in the query while still using our default value
       modified: datetime {
         rewrite update using (
           datetime_of_statement()
-          if not __specified__.mtime
-          else .mtime
+          if not __specified__.modified
+          else .modified
         )
       }
       ...
     }
 
-``__specified__.mtime`` will be ``true`` if that value was set as part of the
-update, and this rewrite mutation rule will allow the specified value to come
-through in the update in that case.
+Here, we rewrite ``modified`` on updates to ``datetime_of_statment()`` unless
+``modified`` was set in the update. In that case, we allow the specified value
+to be set. This is different from a :ref:`default
+<ref_datamodel_props_default_values>` value because the rewrite happens on each
+update whereas a default value is applied only on insert of a new object.
 
 Lastly, if we want to add an ``author`` property that can be set for each write
 and keep a history of all the authors, we can do this with the help of
