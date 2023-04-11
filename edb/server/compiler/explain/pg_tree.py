@@ -1,3 +1,21 @@
+#
+# This source file is part of the EdgeDB open source project.
+#
+# Copyright 2023-present MagicStack Inc. and the EdgeDB authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 # The types here modeled closely after postgres explain output.
 # See postgres/src/backend/commands/explain.c
 #
@@ -44,7 +62,7 @@ class FromJson(ast.AST, to_json.ToJson):
             name = casefold.to_snake_case(name)
             if not (prop := annotations.get(name)):
                 # extra values are okay
-                result.__dict__[name] = value
+                setattr(result, name, value)
                 continue
 
             if get_origin(prop) is Annotated:
@@ -52,30 +70,33 @@ class FromJson(ast.AST, to_json.ToJson):
             if get_origin(prop) is Union:  # actually an option
                 prop = get_args(prop)[0]
                 if value is None:
-                    result.__dict__[name] = value
+                    setattr(result, name, value)
                     continue
 
             if prop is Index:
-                result.__dict__[name] = _translate_index(value, schema)
+                setattr(result, name, _translate_index(value, schema))
             elif prop is Relation:
-                result.__dict__[name] = _translate_relation(value, schema)
+                setattr(result, name, _translate_relation(value, schema))
             elif get_origin(prop) is list:
                 inner = get_args(prop)[0]
                 if type(inner) is type and issubclass(inner, FromJson):
-                    result.__dict__[name] = [inner.from_json(v, schema)
-                                             for v in value]
+                    setattr(result, name,
+                            [inner.from_json(v, schema) for v in value])
                 else:
-                    result.__dict__[name] = value
+                    setattr(result, name, value)
             elif type(prop) is type and issubclass(prop, FromJson):
-                result.__dict__[name] = prop.from_json(value, schema)
+                setattr(result, name, prop.from_json(value, schema))
             else:
-                result.__dict__[name] = value
+                setattr(result, name, value)
 
         # lists are always there for convenience
         for name, prop in annotations.items():
             name = casefold.to_snake_case(name)
-            if get_origin(prop) is list and name not in result.__dict__:
-                result.__dict__[name] = []
+            if (
+                get_origin(prop) is list and
+                getattr(result, name, None) is None
+            ):
+                setattr(result, name, [])
 
         return result
 
@@ -276,7 +297,7 @@ class Plan(FromJson, CostMixin):
 
     plans: list[Plan]
 
-    __subclasses: dict[str, Type[Plan]] = dict()
+    __subclasses: ClassVar[dict[str, Type[Plan]]] = dict()
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
