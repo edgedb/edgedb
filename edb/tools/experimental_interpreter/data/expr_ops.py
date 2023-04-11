@@ -501,10 +501,9 @@ def assume_link_target(val: MultiSetVal) -> MultiSetVal:
     targets = [get_link_target(v) if isinstance(
         v, LinkPropVal) else v for v in val.vals]
     if all(val_is_object(t) for t in targets):
-        return MultiSetVal(object_dedup(targets),
-                           singleton=val.singleton)
+        return MultiSetVal(object_dedup(targets))
     elif all(val_is_primitive(t) for t in targets):
-        return MultiSetVal(targets, singleton=val.singleton)
+        return MultiSetVal(targets)
     else:
         raise ValueError("link targets not uniform", val)
 
