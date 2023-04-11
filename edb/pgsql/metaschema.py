@@ -5611,8 +5611,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE pa.attname NOT IN ('__type__')
         """,
         ),
-        # # We want to expose our built-in ranges in addition to PG native
-        # # built-in ranges.
+        # # This is commented out, because we want to expose our ranges in
+        # # addition to PG native built-in ranges.
         # dbops.View(
         #     name=("edgedbsql", "pg_range"),
         #     query="""
@@ -5623,6 +5623,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         # WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
         #                   'edgedb')
         # """,
+        # ),
         dbops.View(
             name=("edgedbsql", "pg_database"),
             query="""
@@ -5646,6 +5647,10 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE datname LIKE '%_edgedb'
         """,
         ),
+
+        # HACK: there were problems with pg_dump when exposing this table, so
+        # I've added WHERE FALSE. The query could be simplified, but it may
+        # be needed in the future. Its EXPLAIN cost is 0..0 anyway.
         dbops.View(
             name=("edgedbsql", "pg_stats"),
             query="""
@@ -5792,6 +5797,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         JOIN edgedbsql.pg_class pn ON pr.ev_class = pn.oid
         """,
         ),
+
         # HACK: Automatically generated cast function for ranges/multiranges
         # was causing issues for pg_dump. So at the end of the day we opt for
         # not exposing any casts at all here since there is no real reason for
