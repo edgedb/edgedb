@@ -35,13 +35,13 @@ def resolve_CopyStmt(stmt: pgast.CopyStmt, *, ctx: Context) -> pgast.CopyStmt:
     # Query
     query = dispatch.resolve_opt(stmt.query, ctx=ctx)
     relation: Optional[pgast.Relation] = None
+    col_names: Optional[List[str]] = None
 
     if stmt.relation:
         # A table is going to be copied, which potentially is a view that
         # cannot be copied as a table, but needs to be wrapped into a
         # `SELECT * FROM view`.
         relation, table = dispatch.resolve_relation(stmt.relation, ctx=ctx)
-        col_names: Optional[List[str]] = None
         if stmt.colnames:
             col_map: Dict[str, str] = {
                 col.name: col.reference_as
