@@ -62,4 +62,5 @@ This declaration defines a new trigger with the following options:
   * - **See also**
   * - :ref:`Schema > Mutation rewrites <ref_datamodel_mutation_rewrites>`
   * - :ref:`DDL > Mutation rewrites <ref_eql_ddl_mutation_rewrites>`
-  * - :ref:`Introspection > Mutation rewrites <ref_datamodel_introspection_mutation_rewrites>`
+  * - :ref:`Introspection > Mutation rewrites
+      <ref_datamodel_introspection_mutation_rewrites>`

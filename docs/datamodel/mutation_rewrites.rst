@@ -21,7 +21,8 @@ type to reflect the time of the most recent modification:
 .. code-block:: sdl
 
     type Post {
-      ...
+      required title: str;
+      required body: str;
       modified: datetime {
         rewrite insert, update using (datetime_of_statement())
       }
@@ -62,7 +63,8 @@ Here, we will add an ``insert`` rewrite and an ``update`` rewrite:
 .. code-block:: sdl
 
     type Post {
-      ...
+      required title: str;
+      required body: str;
       created: datetime {
         rewrite insert using (datetime_of_statement())
       }
@@ -126,14 +128,14 @@ to enforce a "cooling off" period before publishing a blog post:
 .. code-block:: sdl
 
     type Post {
-      ...
+      required title: str;
+      required body: str;
       publish_time: datetime {
         rewrite insert, update using (
           __subject__.publish_time ?? datetime_of_statement() +
           cal::to_relative_duration(days := 10)
         )
       }
-      ...
     }
 
 Here we take the post's ``publish_time`` if set or the time the statement is
@@ -145,7 +147,8 @@ You can omit ``__subject__`` in many cases and achieve the same thing:
 .. code-block:: sdl-diff
 
       type Post {
-        ...
+        required title: str;
+        required body: str;
         publish_time: datetime {
           rewrite insert, update using (
     -       __subject__.publish_time ?? datetime_of_statement() +
@@ -153,7 +156,6 @@ You can omit ``__subject__`` in many cases and achieve the same thing:
             cal::to_relative_duration(days := 10)
           )
         }
-        ...
       }
 
 but only if the path prefix has not changed. In the following schema, for
@@ -164,7 +166,8 @@ context of the nested ``select`` query, the leading dot resolves from the
 .. code-block:: sdl
 
     type Post {
-      ...
+      required title: str;
+      required body: str;
       author_email: str;
       author_name: str {
         rewrite insert, update using (
@@ -189,7 +192,8 @@ as in the ``title_modified`` property in this schema:
 .. code-block:: sdl
 
     type Post {
-      ...
+      required title: str;
+      required body: str;
       title_modified: datetime {
         rewrite update using (
           datetime_of_statement()
@@ -197,7 +201,6 @@ as in the ``title_modified`` property in this schema:
           else __old__.title_modified
         )
       }
-      ...
     }
 
 ``__specified__.title`` will be ``true`` if that value was set as part of the
@@ -209,7 +212,8 @@ Another way you might use this is to set a default value but allow overriding:
 .. code-block:: sdl
 
     type Post {
-      ...
+      required title: str;
+      required body: str;
       modified: datetime {
         rewrite update using (
           datetime_of_statement()
@@ -217,7 +221,6 @@ Another way you might use this is to set a default value but allow overriding:
           else .modified
         )
       }
-      ...
     }
 
 Here, we rewrite ``modified`` on updates to ``datetime_of_statment()`` unless
@@ -233,7 +236,8 @@ and keep a history of all the authors, we can do this with the help of
 .. code-block:: sdl
 
     type Post {
-      ...
+      required title: str;
+      required body: str;
       author: str;
       all_authors: array<str> {
         default := <array<str>>[];
@@ -242,7 +246,6 @@ and keep a history of all the authors, we can do this with the help of
           ++ [__subject__.author]
         );
       }
-      ...
     }
 
 On insert, our ``all_authors`` property will get initialized to an empty array
@@ -259,7 +262,8 @@ demonstrated with the ``byline`` property in this schema:
 .. code-block:: sdl
 
     type Post {
-      ...
+      required title: str;
+      required body: str;
       author: str;
       created: datetime {
         rewrite insert using (datetime_of_statement())
@@ -272,7 +276,6 @@ demonstrated with the ``byline`` property in this schema:
           to_str(__subject__.created, 'Mon DD, YYYY')
         )
       }
-      ...
     }
 
 The ``byline`` property will be updated on each insert or update, but the value

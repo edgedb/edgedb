@@ -26,8 +26,8 @@ When creating a new property or link:
       create { property | link } <prop-or-link-name> -> <type> "{"
         create rewrite {insert | update} [, ...]
           using <expr>
-      "}"
-    "}"
+      "}" ;
+    "}" ;
 
 When altering an existing property or link:
 
@@ -37,8 +37,8 @@ When altering an existing property or link:
       alter { property | link } <prop-or-link-name> "{"
         create rewrite {insert | update} [, ...]
           using <expr>
-      "}"
-    "}"
+      "}" ;
+    "}" ;
 
 
 Description
@@ -76,10 +76,10 @@ property on each update:
     alter type User {
       create property created -> datetime {
         create rewrite insert using (datetime_of_statement());
-      }
+      };
       create property modified -> datetime {
         create rewrite update using (datetime_of_statement());
-      }
+      };
     };
 
 
@@ -96,8 +96,8 @@ Remove a mutation rewrite.
     alter type <type-name> "{"
       alter property <prop-or-link-name> "{"
         drop rewrite {insert | update} ;
-      "}"
-    "}"
+      "}" ;
+    "}" ;
 
 
 Description
@@ -133,7 +133,7 @@ Remove the ``insert`` rewrite of the ``created`` property on the ``User`` type:
     alter type User {
       alter property created {
         drop rewrite insert;
-      }
+      };
     };
 
 
