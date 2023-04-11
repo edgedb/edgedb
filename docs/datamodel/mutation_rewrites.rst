@@ -111,11 +111,13 @@ Available variables
 
 Inside the rewrite rule's expression, you have access to a few special values:
 
-* ``__subject__`` refers to the object type with the new property and link values,
-* ``__specified__`` is a named tuple with a key for each property or link in the type
-  and a boolean value indicating whether this value was explicitly set in the
-  mutation
-* ``__old__`` refers to the object type with the previous property and link values (available for update-only mutation rewrites)
+* ``__subject__`` refers to the object type with the new property and link
+  values
+* ``__specified__`` is a named tuple with a key for each property or link in
+  the type and a boolean value indicating whether this value was explicitly set
+  in the mutation
+* ``__old__`` refers to the object type with the previous property and link
+  values (available for update-only mutation rewrites)
 
 Here are some examples of the special values in use. Maybe your blog hosts
 articles about particularly controversial topics. You could use ``__subject__``
