@@ -1199,29 +1199,28 @@ class CopyFormat(enum.IntEnum):
 
 class CopyOptions(Base):
     # Options for the copy command
-    format: CopyFormat = CopyFormat.TEXT
-    freeze: bool = False
-    delimiter: bytes
-    null: str
-    header: bool = False
-    quote: bytes = b'"'
-    escape: bytes
+    format: typing.Optional[CopyFormat] = None
+    freeze: typing.Optional[bool] = None
+    delimiter: typing.Optional[str] = None
+    null: typing.Optional[str] = None
+    header: typing.Optional[bool] = None
+    quote: typing.Optional[str] = None
+    escape: typing.Optional[str] = None
     force_quote: typing.List[str] = []
     force_not_null: typing.List[str] = []
     force_null: typing.List[str] = []
-    encoding: typing.Optional[str]
+    encoding: typing.Optional[str] = None
 
 
 class CopyStmt(Statement):
-    relation: Relation
+    relation: typing.Optional[Relation]
     colnames: typing.Optional[typing.List[str]]
-    query: Query
+    query: typing.Optional[Query]
 
     is_from: bool = False
     is_program: bool = False
-    filename: typing.Optional[StringConstant]
+    filename: typing.Optional[str]
 
     options: CopyOptions
 
-    # The WHERE clause
     where_clause: typing.Optional[BaseExpr] = None
