@@ -5418,7 +5418,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         SELECT oid, nspname, nspowner, nspacl,
             tableoid, xmin, cmin, xmax, cmax, ctid
         FROM pg_namespace
-        WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
+        WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
+                          'edgedb')
         UNION ALL
         SELECT edgedbsql.uuid_to_oid(t.module_id), t.schema_name, 10, NULL,
             NULL, NULL, NULL, NULL, NULL, NULL
@@ -5456,13 +5457,26 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             ),
         ),
         dbops.View(
+            name=("edgedbsql", "pg_index"),
+            query="""
+        SELECT pi.*, pi.tableoid, pi.xmin, pi.cmin, pi.xmax, pi.cmax, pi.ctid
+        FROM pg_index pi
+        LEFT JOIN pg_class pr ON pi.indrelid = pr.oid
+        LEFT JOIN edgedbsql.pg_namespace pn ON pr.relnamespace = pn.oid
+        """,
+        ),
+        dbops.View(
             name=("edgedbsql", "pg_class"),
             query="""
+        -- Postgres tables
         SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
         FROM pg_class pc
         JOIN pg_namespace pn ON pc.relnamespace = pn.oid
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
+
         UNION ALL
+
+        -- user-defined tables
         SELECT
             oid,
             vt.table_name as relname,
@@ -5505,6 +5519,13 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             pc.ctid
         FROM pg_class pc
         JOIN edgedbsql.virtual_tables vt ON vt.id::text = pc.relname
+
+        UNION
+
+        -- indexes
+        SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
+        FROM pg_class pc
+        JOIN edgedbsql.pg_index pi ON pc.oid = pi.indexrelid
         """,
         ),
         dbops.View(
@@ -5520,8 +5541,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             attcacheoff,
             atttypmod,
             attbyval,
-            attstorage,
             attalign,
+            attstorage,
+            attcompression,
             attnotnull,
             atthasdef,
             atthasmissing,
@@ -5559,8 +5581,9 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             attcacheoff,
             atttypmod,
             attbyval,
-            attstorage,
             attalign,
+            attstorage,
+            attcompression,
             attnotnull,
             atthasdef,
             atthasmissing,
@@ -5588,16 +5611,19 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE pa.attname NOT IN ('__type__')
         """,
         ),
-        dbops.View(
-            name=("edgedbsql", "pg_range"),
-            query="""
-        SELECT pr.*, pr.tableoid, pr.xmin, pr.cmin, pr.xmax, pr.cmax, pr.ctid
-        FROM pg_range pr
-        JOIN pg_type pt ON pt.oid = pr.rngtypid
-        JOIN pg_namespace pn ON pt.typnamespace = pn.oid
-        WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
-        """,
-        ),
+        # # This is commented out, because we want to expose our ranges in
+        # # addition to PG native built-in ranges.
+        # dbops.View(
+        #     name=("edgedbsql", "pg_range"),
+        #     query="""
+        # SELECT pr.*, pr.tableoid, pr.xmin, pr.cmin, pr.xmax, pr.cmax, pr.ctid
+        # FROM pg_range pr
+        # JOIN pg_type pt ON pt.oid = pr.rngtypid
+        # JOIN pg_namespace pn ON pt.typnamespace = pn.oid
+        # WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
+        #                   'edgedb')
+        # """,
+        # ),
         dbops.View(
             name=("edgedbsql", "pg_database"),
             query="""
@@ -5619,6 +5645,170 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             tableoid, xmin, cmin, xmax, cmax, ctid
         FROM pg_database
         WHERE datname LIKE '%_edgedb'
+        """,
+        ),
+
+        # HACK: there were problems with pg_dump when exposing this table, so
+        # I've added WHERE FALSE. The query could be simplified, but it may
+        # be needed in the future. Its EXPLAIN cost is 0..0 anyway.
+        dbops.View(
+            name=("edgedbsql", "pg_stats"),
+            query="""
+        SELECT n.nspname AS schemaname,
+            c.relname AS tablename,
+            a.attname,
+            s.stainherit AS inherited,
+            s.stanullfrac AS null_frac,
+            s.stawidth AS avg_width,
+            s.stadistinct AS n_distinct,
+            NULL::real[] AS most_common_vals,
+            s.stanumbers1 AS most_common_freqs,
+            s.stanumbers1 AS histogram_bounds,
+            s.stanumbers1[1] AS correlation,
+            NULL::real[] AS most_common_elems,
+            s.stanumbers1 AS most_common_elem_freqs,
+            s.stanumbers1 AS elem_count_histogram
+        FROM pg_statistic s
+        JOIN pg_class c ON c.oid = s.starelid
+        JOIN pg_attribute a ON c.oid = a.attrelid and a.attnum = s.staattnum
+        LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE FALSE
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_statistic"),
+            query="""
+        SELECT
+            starelid,
+            staattnum,
+            stainherit,
+            stanullfrac,
+            stawidth,
+            stadistinct,
+            stakind1,
+            stakind2,
+            stakind3,
+            stakind4,
+            stakind5,
+            staop1,
+            staop2,
+            staop3,
+            staop4,
+            staop5,
+            stacoll1,
+            stacoll2,
+            stacoll3,
+            stacoll4,
+            stacoll5,
+            stanumbers1,
+            stanumbers2,
+            stanumbers3,
+            stanumbers4,
+            stanumbers5,
+            NULL::real[] AS stavalues1,
+            NULL::real[] AS stavalues2,
+            NULL::real[] AS stavalues3,
+            NULL::real[] AS stavalues4,
+            NULL::real[] AS stavalues5,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_statistic
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_statistic_ext"),
+            query="""
+        SELECT
+            oid,
+            stxrelid,
+            stxname,
+            stxnamespace,
+            stxowner,
+            stxstattarget,
+            stxkeys,
+            stxkind,
+            stxexprs,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_statistic_ext
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_statistic_ext_data"),
+            query="""
+        SELECT
+            stxoid,
+            stxdndistinct,
+            stxddependencies,
+            stxdmcv,
+            NULL::oid AS stxdexpr,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_statistic_ext_data
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_stats_ext_exprs"),
+            query="""
+        SELECT
+            schemaname,
+            tablename,
+            statistics_schemaname,
+            statistics_name,
+            statistics_owner,
+            expr,
+            null_frac,
+            avg_width,
+            n_distinct,
+            NULL::real[] AS most_common_vals,
+            most_common_freqs,
+            NULL::real[] AS histogram_bounds,
+            correlation,
+            NULL::real[] AS most_common_elems,
+            most_common_elem_freqs,
+            elem_count_histogram
+        FROM pg_stats_ext_exprs
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_proc"),
+            query="""
+        SELECT *, tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_proc
+        WHERE pronamespace IN (
+            SELECT edgedbsql.uuid_to_oid(module_id)
+            FROM edgedbsql.virtual_tables
+        )
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_operator"),
+            query="""
+        SELECT *, tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_operator
+        WHERE oprnamespace IN (
+            SELECT edgedbsql.uuid_to_oid(module_id)
+            FROM edgedbsql.virtual_tables
+        )
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_rewrite"),
+            query="""
+        SELECT pr.*, pr.tableoid, pr.xmin, pr.cmin, pr.xmax, pr.cmax, pr.ctid
+        FROM pg_rewrite pr
+        JOIN edgedbsql.pg_class pn ON pr.ev_class = pn.oid
+        """,
+        ),
+
+        # HACK: Automatically generated cast function for ranges/multiranges
+        # was causing issues for pg_dump. So at the end of the day we opt for
+        # not exposing any casts at all here since there is no real reason for
+        # this compatibility layer that is read-only to have elaborate casts
+        # present.
+        dbops.View(
+            name=("edgedbsql", "pg_cast"),
+            query="""
+        SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
+        FROM pg_cast pc
+        WHERE false
         """,
         ),
     ]
@@ -5661,7 +5851,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_opfamily',
             'pg_partitioned_table',
             'pg_policy',
-            'pg_proc',
             'pg_publication',
             'pg_publication_rel',
             'pg_range',
@@ -5729,18 +5918,19 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_type',
             'pg_attribute',
             'pg_namespace',
-            'pg_range',
             'pg_class',
             'pg_database',
-
-            # Some tables contain abstract columns (i.e. anyarray) so they
-            # cannot be created into a view. So let's just hide these tables.
+            'pg_proc',
+            'pg_operator',
             'pg_pltemplate',
             'pg_stats',
             'pg_stats_ext_exprs',
             'pg_statistic',
             'pg_statistic_ext',
             'pg_statistic_ext_data',
+            'pg_rewrite',
+            'pg_cast',
+            'pg_index',
         ]:
             continue
 
