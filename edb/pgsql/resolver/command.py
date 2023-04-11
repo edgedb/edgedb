@@ -21,51 +21,50 @@ in our internal Postgres instance."""
 
 from typing import *
 
-from edb import errors
-
 from edb.pgsql import ast as pgast
 
 from . import dispatch
 from . import context
-from . import static
 
 Context = context.ResolverContextLevel
 
 
 @dispatch._resolve.register
-def resolve_CopyStmt(
-    stmt: pgast.CopyStmt, *, ctx: Context
-) -> pgast.CopyStmt:
+def resolve_CopyStmt(stmt: pgast.CopyStmt, *, ctx: Context) -> pgast.CopyStmt:
 
     # Query
     query = dispatch.resolve_opt(stmt.query, ctx=ctx)
+    relation: Optional[pgast.Relation] = None
 
-    if query is None:
+    if stmt.relation:
         # A table is going to be copied, which potentially is a view that
-        # cannot be copied as a table, but needs to be converted to a `SELECT
-        # ...`
+        # cannot be copied as a table, but needs to be wrapped into a
+        # `SELECT * FROM view`.
         relation, table = dispatch.resolve_relation(stmt.relation, ctx=ctx)
-        colnames: List[str] = []
+        col_names: Optional[List[str]] = None
         if stmt.colnames:
-            colmap = {col.name: col.reference_as for col in table.columns}
-            colnames = [colmap[name] for name in stmt.colnames]
+            col_map: Dict[str, str] = {
+                col.name: col.reference_as
+                for col in table.columns
+                if col.name and col.reference_as
+            }
+            col_names = [col_map[name] for name in stmt.colnames]
 
         if relation.schemaname == 'edgedbpub':
-            # This is probably a view based on edgedb schema, so convert it to
+            # This is probably a view based on edgedb schema, so wrap it into
             # a select query.
-            target_list: List[pgast.ResTarget] = []
-            for colname in stmt.colnames:
-                target_list.append(
-                    pgast.ResTarget(
-                        val=pgast.ColumnRef(
-                            name=(colmap[colname],)
-                        ),
-                    )
-                )
-
+            if not col_names:
+                target_list: Sequence[str | pgast.Star] = [pgast.Star()]
+            else:
+                target_list = col_names
             query = pgast.SelectStmt(
                 from_clause=[pgast.RelRangeVar(relation=relation)],
-                target_list=target_list,
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.ColumnRef(name=(cn,)),
+                    )
+                    for cn in target_list
+                ],
             )
             relation = None
 
@@ -73,12 +72,13 @@ def resolve_CopyStmt(
     where = dispatch.resolve_opt(stmt.where_clause, ctx=ctx)
 
     return pgast.CopyStmt(
-        relation=relation,
-        colnames=colnames,
+        relation=None,
+        colnames=col_names,
         query=query,
         is_from=stmt.is_from,
         is_program=stmt.is_program,
         filename=stmt.filename,
-        # FIXME: options are currently not handled
+        # TODO: forbid some options?
+        options=stmt.options,
         where_clause=where,
     )

@@ -859,3 +859,8 @@ class TestSQL(tb.SQLQueryTestCase):
         await self.scon.execute("ROLLBACK")
         v2 = await self.scon.fetchval("SHOW transaction_isolation")
         self.assertNotEqual(v1, v2)
+
+    async def test_sql_query_copy_01(self):
+        await self.scon.fetch(
+            '''COPY "Movie" TO STDOUT (FORMAT CSV, DELIMITER '\t')'''
+        )
