@@ -139,6 +139,29 @@ class TreeBuilder:
         self.by_id = {}
 
     def build(self, plan: pg_tree.Plan, args: explain.Arguments) -> Plan:
+        # For fine-grained tree (this one will be displayed in \verbose mode or
+        # whatever we name it) we do three things:
+
+        # 1. Remove cheap scalar Result nodes. In my examples, they are:
+        #    variable in LIMIT clause, or scalar expressions, like string
+        #    concatenation. We ensure that eliminated nodes are less than 1
+        #    percent of parent node cost/time,
+
+        # 2. Squash nested nodes having one child into pipeline list. This
+        #    should allow less nested presentation of the tree.
+        #
+        # 3. For contexts:
+        #    a) Hoist them through the tree of one-child node
+        #    b) If contexts of all children are equal we move context to higher
+        #       level
+        #    c) If contexts of children are partly equal, we move equal
+        #       contexts to parent removing them from children
+        #    d) Eliminate overlapping contexts after that
+
+        # 3c, works for things like x := count(.a) + count(.b). There are two
+        # nodes, one starting from .a and one from .b and both of them have
+        # contexts up to the whole expression starting from x :=.
+
         pipeline = []
         aliases = set()
 

@@ -122,6 +122,14 @@ def _build_shape(
     contexts: Optional[list[ir_analyze.ContextDesc]],
     index: _Index,
 ) -> Node:
+    # Coarse-grained tree is built like this:
+    #
+    # 1. Scan IR we find all the shapes, and mark aliases that belong to
+    #    them or their pointers (done in ir_analyze module)
+    # 2. For each shape and property we try to find the node of fine-grained
+    #    tree that represents them (by using alias and walking up).
+    # 3. And we output tree containing only those nodes marked in step (2)
+
     _shape_mark(path, shape, index)
 
     pointers = {}
