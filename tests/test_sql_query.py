@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+import csv
+import io
 import os.path
 
 from edb.testbase import server as tb
@@ -29,7 +31,6 @@ except ImportError:
 
 
 class TestSQL(tb.SQLQueryTestCase):
-
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'movies.esdl')
     SCHEMA_INVENTORY = os.path.join(
         os.path.dirname(__file__), 'schemas', 'inventory.esdl'
@@ -861,6 +862,10 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assertNotEqual(v1, v2)
 
     async def test_sql_query_copy_01(self):
-        await self.scon.fetch(
-            '''COPY "Movie" TO STDOUT (FORMAT CSV, DELIMITER '\t')'''
+        out = io.BytesIO()
+        await self.scon.copy_from_table(
+            "Movie", output=out, format="csv", delimiter="\t"
         )
+        out = io.StringIO(out.getvalue().decode("utf-8"))
+        names = set(row[6] for row in csv.reader(out, delimiter="\t"))
+        self.assertEqual(names, {"Forrest Gump", "Saving Private Ryan"})
