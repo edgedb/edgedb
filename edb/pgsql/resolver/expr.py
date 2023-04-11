@@ -32,20 +32,26 @@ from . import static
 Context = context.ResolverContextLevel
 
 
+def infer_alias(res_target: pgast.ResTarget) -> Optional[str]:
+    if res_target.name:
+        return res_target.name
+
+    # if just name has been selected, use it as the alias
+    if isinstance(res_target.val, pgast.ColumnRef):
+        name = res_target.val.name
+        if isinstance(name[-1], str):
+            return name[-1]
+
+    return None
+
+
 # this function cannot go though dispatch,
 # because it may return multiple nodes, due to * notation
 def resolve_ResTarget(
     res_target: pgast.ResTarget, *, ctx: Context
 ) -> Tuple[Sequence[pgast.ResTarget], Sequence[context.Column]]:
 
-    alias = res_target.name
-
-    # if just name has been selected, use it as the alias
-    if not alias and isinstance(res_target.val, pgast.ColumnRef):
-        name = res_target.val.name
-        last_name_part = name[len(name) - 1]
-        if isinstance(last_name_part, str):
-            alias = last_name_part
+    alias = infer_alias(res_target)
 
     # special case for ColumnRef for handing wildcards
     if not alias and isinstance(res_target.val, pgast.ColumnRef):
@@ -401,6 +407,17 @@ def resolve_ImplicitRowExpr(
     ctx: Context,
 ) -> pgast.ImplicitRowExpr:
     return pgast.ImplicitRowExpr(
+        args=dispatch.resolve_list(expr.args, ctx=ctx),
+    )
+
+
+@dispatch._resolve.register
+def resolve_RowExpr(
+    expr: pgast.RowExpr,
+    *,
+    ctx: Context,
+) -> pgast.RowExpr:
+    return pgast.RowExpr(
         args=dispatch.resolve_list(expr.args, ctx=ctx),
     )
 
