@@ -15350,6 +15350,22 @@ DDLStatement);
             alter type X { create link bar := .foo };
         """)
 
+    async def test_edgeql_ddl_computed_intersection_lprop_01(self):
+        await self.con.execute(r"""
+            create type Pointer;
+            create type Property extending Pointer;
+            create type Link extending Pointer;
+            create type ObjectType {
+                create multi link pointers -> Pointer {
+                    create property owned -> bool;
+                };
+                create link links := .pointers[is Link];
+            };
+        """)
+        await self.con.query(r"""
+            select ObjectType {links: {@owned}};
+        """)
+
     async def test_edgeql_ddl_rebase_views_01(self):
         await self.con.execute(r"""
             CREATE TYPE default::Foo {
