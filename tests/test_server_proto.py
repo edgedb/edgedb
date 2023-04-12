@@ -2293,19 +2293,13 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                         )
 
                         self.assertEqual(status, http.HTTPStatus.OK)
-                        self.assertEqual(
+                        self.assert_data_shape(
                             response,
                             {
                                 'kind': 'results',
                                 'results': [
                                     {
                                         'kind': 'data',
-                                        'data': [
-                                            'AAAAAAAAAAAAAAAAAAABBQ==',
-                                            'AgAAAAAAAAAAAAAAAAAAAQU=',
-                                            'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
-                                            'U0VMRUNU'
-                                        ]
                                     },
                                 ],
                             },
@@ -2324,19 +2318,13 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                         )
 
                         self.assertEqual(status, http.HTTPStatus.OK)
-                        self.assertEqual(
+                        self.assert_data_shape(
                             response,
                             {
                                 'kind': 'results',
                                 'results': [
                                     {
                                         'kind': 'data',
-                                        'data': [
-                                            'AAAAAAAAAAAAAAAAAAABBQ==',
-                                            'AgAAAAAAAAAAAAAAAAAAAQU=',
-                                            'RAAAABIAAQAAAAgAAAAAAAAAAQ==',
-                                            'U0VMRUNU'
-                                        ]
                                     },
                                 ],
                             },

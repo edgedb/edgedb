@@ -867,6 +867,10 @@ class ConnectedTestCaseMixin:
     def _run_and_rollback(self):
         return RollbackChanges(self)
 
+    def assert_data_shape(self, data, shape, message=None):
+        assert_data_shape.assert_data_shape(
+            data, shape, self.fail, message=message)
+
     async def assert_query_result(self, query,
                                   exp_result_json,
                                   exp_result_binary=...,

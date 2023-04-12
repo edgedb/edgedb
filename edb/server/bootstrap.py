@@ -802,7 +802,11 @@ def prepare_patch(
         # Similarly, only do config system updates if requested.
         if '+config' in kind:
             config_spec = config.load_spec_from_schema(schema)
-            sysqueries, report_configs_typedesc = _compile_sys_queries(
+            (
+                sysqueries,
+                report_configs_typedesc_1_0,
+                report_configs_typedesc_2_0,
+            ) = _compile_sys_queries(
                 reflschema,
                 compiler,
                 config_spec,
@@ -810,7 +814,8 @@ def prepare_patch(
 
             updates.update(dict(
                 sysqueries=sysqueries.encode('utf-8'),
-                report_configs_typedesc=report_configs_typedesc,
+                report_configs_typedesc_1_0=report_configs_typedesc_1_0,
+                report_configs_typedesc_2_0=report_configs_typedesc_2_0,
                 configspec=config.spec_to_json(config_spec).encode('utf-8'),
             ))
 
@@ -1529,7 +1534,7 @@ def _compile_sys_queries(
     schema: s_schema.Schema,
     compiler: edbcompiler.Compiler,
     config_spec: config.Spec,
-) -> tuple[str, bytes]:
+) -> tuple[str, bytes, bytes]:
     queries = {}
 
     _, sql = compile_bootstrap_script(
@@ -1631,13 +1636,33 @@ def _compile_sys_queries(
             output_format=edbcompiler.OutputFormat.BINARY,
             bootstrap_mode=True,
         ),
-        source=edgeql.Source.from_string(report_configs_query)).units
+        source=edgeql.Source.from_string(report_configs_query),
+    ).units
     assert len(units) == 1 and len(units[0].sql) == 1
 
-    report_configs_typedesc = units[0].out_type_id + units[0].out_type_data
+    report_configs_typedesc_2_0 = units[0].out_type_id + units[0].out_type_data
     queries['report_configs'] = units[0].sql[0].decode()
 
-    return json.dumps(queries), report_configs_typedesc
+    units = edbcompiler.compile(
+        ctx=edbcompiler.new_compiler_context(
+            compiler_state=compiler.state,
+            user_schema=schema,
+            expected_cardinality_one=True,
+            json_parameters=False,
+            output_format=edbcompiler.OutputFormat.BINARY,
+            bootstrap_mode=True,
+            protocol_version=(1, 0),
+        ),
+        source=edgeql.Source.from_string(report_configs_query),
+    ).units
+    assert len(units) == 1 and len(units[0].sql) == 1
+    report_configs_typedesc_1_0 = units[0].out_type_id + units[0].out_type_data
+
+    return (
+        json.dumps(queries),
+        report_configs_typedesc_1_0,
+        report_configs_typedesc_2_0,
+    )
 
 
 async def _populate_misc_instance_data(
@@ -2069,7 +2094,11 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
                 edbdef.EDGEDB_TEMPLATE_DB: new_template_db_id,
             }
         )
-        sysqueries, report_configs_typedesc = _compile_sys_queries(
+        (
+            sysqueries,
+            report_configs_typedesc_1_0,
+            report_configs_typedesc_2_0,
+        ) = _compile_sys_queries(
             stdlib.reflschema,
             compiler,
             config_spec,
@@ -2083,8 +2112,14 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
 
         await _store_static_bin_cache(
             tpl_ctx,
-            f'report_configs_typedesc{version_key}',
-            report_configs_typedesc,
+            f'report_configs_typedesc_1_0{version_key}',
+            report_configs_typedesc_1_0,
+        )
+
+        await _store_static_bin_cache(
+            tpl_ctx,
+            f'report_configs_typedesc_2_0{version_key}',
+            report_configs_typedesc_2_0,
         )
 
         schema = s_schema.FlatSchema()
