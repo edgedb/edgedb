@@ -111,6 +111,18 @@ class LinkPropTp:
 
 
 @dataclass(frozen=True)
+class ComputableTp:
+    expr: BindingExpr
+    tp: Tp
+
+
+@dataclass(frozen=True)
+class DefaultTp:
+    expr: BindingExpr
+    tp: Tp
+
+
+@dataclass(frozen=True)
 class AnyTp:
     pass
 
@@ -128,7 +140,8 @@ class UnifiableTp:
 
 
 Tp = (ObjectTp | PrimTp | VarTp | LinkPropTp | NamedTupleTp | UnnamedTupleTp
-      | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp | UnifiableTp)
+      | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp | UnifiableTp
+      | ComputableTp | DefaultTp)
 
 
 @dataclass(frozen=True)
@@ -419,9 +432,9 @@ class SubqueryExpr:  # select e in formalism
     expr: Expr
 
 
-@dataclass(frozen=True)
-class SingularExpr:  # select e in formalism
-    expr: Expr
+# @dataclass(frozen=True)
+# class SingularExpr:  # select e in formalism
+#     expr: Expr
 
 
 @dataclass(frozen=True)
@@ -581,7 +594,7 @@ class LinkPropVal:
 @dataclass(frozen=True, order=True)
 class MultiSetVal:
     vals: Sequence[Val]
-    singleton: bool = False
+    # singleton: bool = False
 
 
 Val = (PrimVal | RefVal | FreeVal
@@ -598,7 +611,8 @@ Expr = (
     TpIntersectExpr | BackLinkExpr | FilterOrderExpr | OffsetLimitExpr |
     InsertExpr | UpdateExpr | MultiSetExpr | ShapedExprExpr | ShapeExpr |
     ObjectExpr | BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr |
-    ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr | SingularExpr
+    ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr
+    #   | SingularExpr
     | IfElseExpr)
 
 

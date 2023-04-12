@@ -483,10 +483,10 @@ def eval_config(rt: RTExpr) -> RTVal:
         case SubqueryExpr(expr=expr):
             (new_data, exprv) = eval_config(RTExpr(rt.data, expr))
             return RTVal(new_data, exprv)
-        case e.SingularExpr(expr=expr):
-            (new_data, exprv) = eval_config(RTExpr(rt.data, expr))
-            assert len(exprv.vals) <= 1
-            return RTVal(new_data, MultiSetVal(exprv.vals, singleton=True))
+        # case e.SingularExpr(expr=expr):
+        #     (new_data, exprv) = eval_config(RTExpr(rt.data, expr))
+        #     assert len(exprv.vals) <= 1
+        #     return RTVal(new_data, MultiSetVal(exprv.vals, singleton=True))
         case DetachedExpr(expr=expr):
             (new_data, exprv) = eval_config(RTExpr(rt.data, expr))
             return RTVal(new_data, exprv)

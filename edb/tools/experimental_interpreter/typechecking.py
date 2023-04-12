@@ -9,15 +9,15 @@ from .data import type_ops as tops
 from edb.common import debug
 
 
-def enforce_singular(expr: e.Expr, card: e.CMMode) -> e.Expr:
-    """ returns the singular expression of the upper bound
-    of the cardinality is one"""
-    if (isinstance(card.upper, e.FiniteCardinal)
-            and card.upper.value == 1
-            and not isinstance(expr, e.SingularExpr)):
-        return e.SingularExpr(expr=expr)
-    else:
-        return expr
+# def enforce_singular(expr: e.Expr, card: e.CMMode) -> e.Expr:
+#     """ returns the singular expression of the upper bound
+#     of the cardinality is one"""
+#     if (isinstance(card.upper, e.FiniteCardinal)
+#             and card.upper.value == 1
+#             and not isinstance(expr, e.SingularExpr)):
+#         return e.SingularExpr(expr=expr)
+#     else:
+#         return expr
 
 
 def synthesize_type_for_val_seq(ctx: e.RTData,
