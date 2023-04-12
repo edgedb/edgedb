@@ -77,10 +77,19 @@ async def handle_request(
     list args,
     object server,
 ):
-    if args == ['explore'] and request.method == b'GET':
-        response.body = explore.EXPLORE_HTML
-        response.content_type = b'text/html'
-        return
+    if request.method == b'GET':
+        if args == ['explore']:
+            response.body = explore.EXPLORE_HTML
+            response.content_type = b'text/html'
+            return
+        if args == ['graphiql.min.js']:
+            response.body = explore.EXPLORE_JS
+            response.content_type = b'application/javascript'
+            return
+        if args == ['graphiql.min.css']:
+            response.body = explore.EXPLORE_CSS
+            response.content_type = b'text/css'
+            return
 
     if args != []:
         response.body = b'Unknown path'

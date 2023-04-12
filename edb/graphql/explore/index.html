@@ -1,0 +1,92 @@
+<!--
+ *  Copyright (c) 2021 GraphQL Contributors
+ *  All rights reserved.
+ *
+ *  This source code is licensed under the license found in the
+ *  LICENSE file in the root directory of this source tree.
+-->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>GraphiQL</title>
+    <style>
+      body {
+        height: 100%;
+        margin: 0;
+        width: 100%;
+        overflow: hidden;
+      }
+
+      #graphiql {
+        height: 100vh;
+      }
+    </style>
+
+    <!--
+      This GraphiQL example depends on Promise and fetch, which are available in
+      modern browsers, but can be "polyfilled" for older browsers.
+      GraphiQL itself depends on React DOM.
+      If you do not want to rely on a CDN, you can host these files locally or
+      include them directly in your favored resource bundler.
+    -->
+    <script
+      src="https://unpkg.com/react@17/umd/react.production.min.js"
+      integrity="sha512-qlzIeUtTg7eBpmEaS12NZgxz52YYZVF5myj89mjJEesBd/oE9UPsYOX2QAXzvOAZYEvQohKdcY8zKE02ifXDmA=="
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"
+      integrity="sha512-9jGNr5Piwe8nzLLYTk8QrEMPfjGU0px80GYzKZUxi7lmCfrBjtyCc1V5kkS5vxVwwIB7Qpzc7UxLiQxfAN30dw=="
+      crossorigin="anonymous"
+    ></script>
+
+    <!--
+      These two files can be found in the npm module, however you may wish to
+      copy them directly into your environment, or perhaps include them in your
+      favored resource bundler.
+     -->
+    <link rel="stylesheet" href="./graphiql.min.css" />
+  </head>
+
+  <body>
+    <div id="graphiql">Loading...</div>
+    <script src="./graphiql.min.js" type="application/javascript"></script>
+    <script>
+      const rootEl = document.getElementById("graphiql");
+      ReactDOM.render(
+        React.createElement(
+          GraphiQL,
+          {
+            fetcher: GraphiQL.createFetcher({
+              url: window.location.toString().replace(/\/explore[\/]*$/, ""),
+            }),
+            defaultEditorToolsVisibility: false,
+          },
+          React.createElement(
+            GraphiQL.Logo,
+            null,
+            React.createElement(
+              "svg",
+              {
+                width: "72",
+                height: "32",
+                viewBox: "0 0 72 32",
+                fill: "none",
+                xmlns: "http://www.w3.org/2000/svg",
+                style: { height: "100%" },
+              },
+              React.createElement("path", {
+                fillRule: "evenodd",
+                clipRule: "evenodd",
+                d: "M60.984 16.2058C60.984 21.1745 58.9918 22.0652 56.7653 22.0652H52.0309V10.3464H56.7653C58.9918 10.3464 60.984 11.2371 60.984 16.2058ZM58.5703 16.2059C58.5703 12.7372 57.5156 12.5731 55.9922 12.5731H54.5156V19.8387H55.9922C57.5156 19.8387 58.5703 19.6747 58.5703 16.2059ZM33.492 22.0652V10.3464H40.9451V12.573H35.9764V14.9636H39.7264V17.1667H35.9764V19.8386H40.9451V22.0652H33.492ZM44.9999 32H47.4544V0H44.9999V32ZM65.9528 16.8622V19.8387H68.0152C69.3043 19.8387 69.6324 18.995 69.6324 18.3622C69.6324 17.87 69.398 16.8622 67.6402 16.8622H65.9528ZM65.9528 12.5731V14.7997H67.6402C68.6012 14.7997 69.1637 14.3778 69.1637 13.6747C69.1637 12.9716 68.6012 12.5731 67.6402 12.5731H65.9528ZM63.4688 10.3464H68.2501C70.7579 10.3464 71.5079 12.1042 71.5079 13.3699C71.5079 14.5417 70.7579 15.3855 70.2423 15.6199C71.7423 16.3464 72.0001 17.823 72.0001 18.573C72.0001 19.5573 71.5079 22.0652 68.2501 22.0652H63.4688V10.3464ZM19.2189 16.2058C19.2189 21.1745 17.2267 22.0652 15.0002 22.0652H10.2658V10.3464H15.0002C17.2267 10.3464 19.2189 11.2371 19.2189 16.2058ZM26.5313 19.9326C27.7969 19.9326 28.4532 19.5107 28.6876 19.2295V17.9404H26.6719V15.9248H30.6797V20.5888C30.3282 21.1279 28.4063 22.1826 26.6485 22.1826C23.7657 22.1826 21.3282 21.0576 21.3282 16.0889C21.3282 11.1201 23.7891 10.2295 26.0157 10.2295C29.5079 10.2295 30.3751 12.0576 30.6563 13.6748L28.5938 14.1435C28.4766 13.3935 27.8204 12.456 26.3204 12.456C24.7969 12.456 23.7423 12.6201 23.7423 16.0889C23.7423 19.5576 24.8438 19.9326 26.5313 19.9326ZM16.8046 16.2059C16.8046 12.7372 15.7499 12.5731 14.2265 12.5731H12.7499V19.8387H14.2265C15.7499 19.8387 16.8046 19.6747 16.8046 16.2059ZM0 22.0652V10.3464H7.4531V12.573H2.48437V14.9636H6.23436V17.1667H2.48437V19.8386H7.4531V22.0652H0Z",
+                fill: "#4D4D4D",
+              })
+            )
+          )
+        ),
+        rootEl
+      );
+    </script>
+  </body>
+</html>
