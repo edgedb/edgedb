@@ -605,13 +605,32 @@ def prepare_patch(
 
         # This part is wildly hinky
         # We need to delete all the support views and recreate them at the end
-        support_view_commands = metaschema.get_support_views(
-            reflschema, backend_params)
-        for cv in reversed(list(support_view_commands)):
-            dv = dbops.DropView(
-                cv.view.name,
-                conditions=[dbops.ViewExists(cv.view.name)],
+        support_view_commands = dbops.CommandGroup()
+        support_view_commands.add_commands([
+            dbops.CreateView(view)
+            for view in metaschema._generate_schema_alias_views(
+                reflschema, sn.UnqualName('schema')
             )
+        ])
+        support_view_commands.add_commands(
+            metaschema._generate_sql_information_schema())
+
+        for cv in reversed(list(support_view_commands)):
+            dv: Any
+            if isinstance(cv, dbops.CreateView):
+                dv = dbops.DropView(
+                    cv.view.name,
+                    conditions=[dbops.ViewExists(cv.view.name)],
+                )
+            elif isinstance(cv, dbops.CreateFunction):
+                dv = dbops.DropFunction(
+                    cv.function.name,
+                    args=cv.function.args or (),
+                    has_variadic=bool(cv.function.has_variadic),
+                    if_exists=True,
+                )
+            else:
+                raise AssertionError(f'unsupported support view command {cv}')
             dv.generate(preblock)
 
         support_view_commands.generate(subblock)
