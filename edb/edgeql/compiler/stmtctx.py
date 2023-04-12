@@ -507,6 +507,7 @@ def _get_nearest_non_source_derived_parent(
     obj: s_obj.DerivableInheritingObjectT,
     ctx: context.ContextLevel
 ) -> s_obj.DerivableInheritingObjectT:
+    """Find the nearest ancestor of obj whose "root source" is not derived"""
     schema = ctx.env.schema
     while (
         (src := s_pointers.get_root_source(obj, schema))
