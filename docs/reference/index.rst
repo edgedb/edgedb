@@ -12,6 +12,7 @@ Reference
 
 
     edgeql/index
+    edgeqlspec/index
     sdl/index
     ddl/index
     connection
