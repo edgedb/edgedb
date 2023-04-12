@@ -1188,3 +1188,45 @@ class TestEdgeQLSelect(tb.BaseDocTest):
 % OK %
         SET LOCAL transaction_read_only TO DEFAULT
         """
+
+    def test_sql_parse_copy_01(self):
+        """
+        COPY "Movie" TO STDOUT (
+            FORMAT CSV,
+            FREEZE,
+            DELIMITER '|',
+            NULL 'this is a null',
+            HEADER FALSE,
+            QUOTE '''',
+            ESCAPE 'e',
+            FORCE_QUOTE (title, year_release),
+            FORCE_NOT_NULL (title),
+            FORCE_NULL (year_release),
+            ENCODING 'UTF-8'
+        )
+        """
+
+    def test_sql_parse_copy_02(self):
+        """
+        COPY ((SELECT * FROM "Movie")) TO STDOUT
+        """
+
+    def test_sql_parse_copy_03(self):
+        """
+        COPY "Movie" (title, release_year) FROM STDIN WHERE (id > 100)
+        """
+
+    def test_sql_parse_copy_04(self):
+        """
+        COPY country TO STDOUT (DELIMITER '|')
+        """
+
+    def test_sql_parse_copy_05(self):
+        """
+        COPY country FROM '/usr1/proj/bray/sql/country_data'
+        """
+
+    def test_sql_parse_copy_06(self):
+        """
+        COPY country TO PROGRAM 'gzip > /usr1/proj/bray/sql/country_data.gz'
+        """

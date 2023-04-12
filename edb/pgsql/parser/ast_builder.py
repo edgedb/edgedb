@@ -187,6 +187,7 @@ def _build_stmt(node: Node, c: Context) -> pgast.Query | pgast.Statement:
             "CreateStmt": _build_create,
             "CreateTableAsStmt": _build_create_table_as,
             "LockStmt": _build_lock,
+            "CopyStmt": _build_copy,
         },
         [_build_query],
     )
@@ -1120,4 +1121,78 @@ def _build_string_or_star(node: Node, c: Context) -> pgast.Star | str:
         node,
         c,
         {"String": _build_str, "A_Star": _build_star},
+    )
+
+
+def _build_copy_format(n: Node, c: Context) -> pgast.CopyFormat:
+    val = _build_str(n, c)
+    if val == 'text':
+        return pgast.CopyFormat.TEXT
+    if val == 'csv':
+        return pgast.CopyFormat.CSV
+    if val == 'binary':
+        return pgast.CopyFormat.BINARY
+    raise PSqlUnsupportedError(val, f"{val} format")
+
+
+def _build_copy_options(nodes: List[Node], c: Context) -> pgast.CopyOptions:
+    opt = pgast.CopyOptions()
+    for n in nodes:
+        if 'DefElem' not in n or 'defname' not in n['DefElem']:
+            continue
+        n = n['DefElem']
+        def_name = n['defname']
+        arg = n['arg'] if 'arg' in n else None
+
+        if def_name == 'format' and arg:
+            opt.format = _build_copy_format(arg, c)
+
+        elif def_name == 'freeze':
+            opt.freeze = _build_str(arg, c) == 'true' if arg else True
+
+        elif def_name == 'delimiter' and arg:
+            opt.delimiter = _build_str(arg, c)
+
+        elif def_name == 'null' and arg:
+            opt.null = _build_str(arg, c)
+
+        elif def_name == 'header' and arg:
+            opt.header = _build_str(arg, c) == 'true' if arg else True
+
+        elif def_name == 'quote' and arg:
+            opt.quote = _build_str(arg, c)
+
+        elif def_name == 'escape' and arg:
+            opt.escape = _build_str(arg, c)
+
+        elif def_name == 'force_quote':
+            arg = _unwrap(arg, 'List')
+            opt.force_quote = _list(arg, c, 'items', _build_str)
+
+        elif def_name == 'force_not_null':
+            arg = _unwrap(arg, 'List')
+            opt.force_not_null = _list(arg, c, 'items', _build_str)
+
+        elif def_name == 'force_null':
+            arg = _unwrap(arg, 'List')
+            opt.force_null = _list(arg, c, 'items', _build_str)
+
+        elif def_name == 'encoding':
+            opt.encoding = _build_str(arg, c)
+    return opt
+
+
+def _build_copy(n: Node, c: Context) -> pgast.CopyStmt:
+    return pgast.CopyStmt(
+        relation=_maybe(n, c, 'relation', _build_relation),
+        colnames=_maybe_list(n, c, 'attlist', _build_str),
+        query=_maybe(n, c, 'query', _build_query),
+        is_from=_bool_or_false(n, 'is_from'),
+        is_program=_bool_or_false(n, 'is_program'),
+        filename=_maybe(n, c, 'filename', _build_str),
+        options=(
+            _maybe(n, c, 'options', _build_copy_options) or pgast.CopyOptions()
+        ),
+        where_clause=_maybe(n, c, "whereClause", _build_base_expr),
+        context=_build_context(n, c),
     )

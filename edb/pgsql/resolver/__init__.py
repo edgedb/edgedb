@@ -25,6 +25,7 @@ from . import dispatch
 from . import context
 from . import expr  # NOQA
 from . import relation  # NOQA
+from . import command  # NOQA
 
 Options = context.Options
 

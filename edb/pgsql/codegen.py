@@ -1087,5 +1087,88 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.no_wait:
             self.write(' NOWAIT')
 
+    def visit_CopyStmt(self, node: pgast.CopyStmt) -> None:
+        self.write('COPY ')
+        if node.query:
+            self.write('(')
+            self.indentation += 1
+            self.new_lines = 1
+            self.visit(node.query)
+            self.indentation -= 1
+            self.write(')')
+        elif node.relation:
+            self.visit_Relation(node.relation)
+            if node.colnames:
+                self.write(' (')
+                self.write(
+                    ', '.join(common.quote_ident(n) for n in node.colnames))
+                self.write(')')
+
+        if node.is_from:
+            self.write(' FROM ')
+        else:
+            self.write(' TO ')
+
+        if node.is_program:
+            self.write('PROGRAM ')
+        if node.filename:
+            self.write(common.quote_literal(node.filename))
+        else:
+            if node.is_from:
+                self.write('STDIN')
+            else:
+                self.write('STDOUT')
+
+        self.visit_CopyOptions(node.options)
+
+        if node.where_clause:
+            self.indentation += 1
+            self.new_lines = 1
+            self.write('WHERE')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.where_clause)
+            self.indentation -= 2
+
+    def visit_CopyOptions(self, node: pgast.CopyOptions) -> None:
+        ql = common.quote_literal
+        qi = common.quote_ident
+
+        opts = []
+
+        if node.format:
+            opts.append('FORMAT ' + node.format._name_)
+        if node.freeze is not None:
+            opts.append('FREEZE' + ('' if node.freeze else ' FALSE'))
+        if node.delimiter:
+            opts.append('DELIMITER ' + ql(node.delimiter))
+        if node.null:
+            opts.append('NULL ' + ql(node.null))
+        if node.header is not None:
+            opts.append('HEADER' + ('' if node.header else ' FALSE'))
+        if node.quote:
+            opts.append('QUOTE ' + ql(node.quote))
+        if node.escape:
+            opts.append('ESCAPE ' + ql(node.escape))
+        if node.force_quote:
+            opts.append(
+                'FORCE_QUOTE (' + ', '.join(map(qi, node.force_quote)) + ')'
+            )
+        if node.force_not_null:
+            opts.append(
+                'FORCE_NOT_NULL ('
+                + ', '.join(map(qi, node.force_not_null))
+                + ')'
+            )
+        if node.force_null:
+            opts.append(
+                'FORCE_NULL (' + ', '.join(map(qi, node.force_null)) + ')'
+            )
+        if node.encoding:
+            opts.append('ENCODING ' + ql(node.encoding))
+
+        if opts:
+            self.write(' (' + ', '.join(opts), ')')
+
 
 generate_source = SQLSourceGenerator.to_source
