@@ -354,6 +354,8 @@ Reset the database schema to its initial state.
 Migration Rewrites
 ==================
 
+.. versionadded:: 3.0
+
 Migration rewrites allow you to change the migration history as long as your
 final schema matches the current database schema.
 
