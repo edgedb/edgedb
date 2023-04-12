@@ -11427,6 +11427,58 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         ''')
 
+    async def test_edgeql_migration_alias_new_computed_01(self):
+        await self.migrate(r'''
+            global a_id -> str;
+            global current_user := (
+              select User filter .x_id = global a_id);
+
+            type User {
+                required property x_id -> str {
+                  constraint exclusive;
+              }
+            }
+        ''')
+
+        await self.migrate(r'''
+            global a_id -> str;
+            global current_user := (
+              select User filter .x_id = global a_id);
+
+            type User {
+                required property x_id -> str {
+                  constraint exclusive;
+              }
+              required property a_id := .x_id;
+            }
+        ''')
+
+    async def test_edgeql_migration_alias_new_computed_02(self):
+        await self.migrate(r'''
+            global a_id -> str;
+            alias current_user := (
+              select User filter .x_id = global a_id);
+
+            type User {
+                required property x_id -> str {
+                  constraint exclusive;
+              }
+            }
+        ''')
+
+        await self.migrate(r'''
+            global a_id -> str;
+            alias current_user := (
+              select User filter .x_id = global a_id);
+
+            type User {
+                required property x_id -> str {
+                  constraint exclusive;
+              }
+              required property a_id := .x_id;
+            }
+        ''')
+
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False

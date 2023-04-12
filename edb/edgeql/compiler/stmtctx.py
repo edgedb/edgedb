@@ -503,6 +503,21 @@ def _fixup_schema_view(
                 )
 
 
+def _get_nearest_non_source_derived_parent(
+    obj: s_obj.DerivableInheritingObjectT,
+    ctx: context.ContextLevel
+) -> s_obj.DerivableInheritingObjectT:
+    """Find the nearest ancestor of obj whose "root source" is not derived"""
+    schema = ctx.env.schema
+    while (
+        (src := s_pointers.get_root_source(obj, schema))
+        and isinstance(src, s_obj.DerivableInheritingObject)
+        and src.get_is_derived(schema)
+    ):
+        obj = obj.get_bases(schema).first(schema)
+    return obj
+
+
 def _elide_derived_ancestors(
     obj: Union[s_types.InheritingType, s_pointers.Pointer], *,
     ctx: context.ContextLevel
@@ -515,12 +530,12 @@ def _elide_derived_ancestors(
     """
 
     pbase = obj.get_bases(ctx.env.schema).first(ctx.env.schema)
-    if pbase.get_is_derived(ctx.env.schema):
-        pbase = pbase.get_nearest_non_derived_parent(ctx.env.schema)
+    new_pbase = _get_nearest_non_source_derived_parent(pbase, ctx)
+    if pbase != new_pbase:
         ctx.env.schema = obj.set_field_value(
             ctx.env.schema,
             'bases',
-            s_obj.ObjectList.create(ctx.env.schema, [pbase]),
+            s_obj.ObjectList.create(ctx.env.schema, [new_pbase]),
         )
 
         ctx.env.schema = obj.set_field_value(
