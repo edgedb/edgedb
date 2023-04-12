@@ -1432,6 +1432,8 @@ def _compile_ql_administer(
                 context=ql.expr.context,
             )
         sql = (b'ANALYZE',)
+    elif ql.expr.func == 'repair_schema':
+        return ddl.administer_repair_schema(ctx, ql)
     else:
         raise errors.QueryError(
             'Unknown ADMINISTER function',
