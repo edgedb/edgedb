@@ -31,6 +31,7 @@ from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import schema as s_schema
+from edb.schema import constraints as s_constraints
 
 from edb.pgsql import common
 from edb.pgsql import types
@@ -480,17 +481,24 @@ def _interpret_constraint_errors(
     # the static version
 
     if error_type == 'constraint' or error_type == 'idconstraint':
+        assert err_details.constraint_name
+
         # similarly, if we're here it's because we have a constraint_id
         if error_type == 'constraint':
-            constraint_id, _, _ = err_details.constraint_name.rpartition(';')
-            constraint_id = uuidgen.UUID(constraint_id)
-            constraint = schema.get_by_id(constraint_id)
+            constraint_id_s, _, _ = err_details.constraint_name.rpartition(';')
+            assert err_details.constraint_name
+            constraint_id = uuidgen.UUID(constraint_id_s)
+            constraint = schema.get_by_id(
+                constraint_id, type=s_constraints.Constraint
+            )
         else:
             # Primary key violations give us the table name, so
             # look through that for the constraint
             obj_id, _, _ = err_details.constraint_name.rpartition('_')
-            obj_ptr = schema.get_by_id(uuidgen.UUID(obj_id)).getptr(
-                schema, sn.UnqualName('id'))
+            obj_type = schema.get_by_id(
+                uuidgen.UUID(obj_id), type=s_objtypes.ObjectType
+            )
+            obj_ptr = obj_type.getptr(schema, sn.UnqualName('id'))
             constraint = obj_ptr.get_exclusive_constraints(schema)[0]
 
         msg = constraint.format_error(schema)
@@ -514,6 +522,7 @@ def _interpret_constraint_errors(
             f'Existing {source_name}.{pointer_name} '
             f'values violate the new constraint')
     elif error_type == 'scalar':
+        assert match
         domain_name = match.group(1)
         stype_name = types.base_type_name_map_r.get(domain_name)
         if stype_name:
