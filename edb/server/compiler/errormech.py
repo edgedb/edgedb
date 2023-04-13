@@ -30,6 +30,7 @@ from edb.common import uuidgen
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
+from edb.schema import schema as s_schema
 
 from edb.pgsql import common
 from edb.pgsql import types
@@ -423,7 +424,12 @@ def interpret_by_code(code, schema, err_details, hint):
 
 
 @interpret_by_code.register_for_all(constraint_errors)
-def _interpret_constraint_errors(code, schema, err_details, hint):
+def _interpret_constraint_errors(
+    code: str,
+    schema: s_schema.Schema,
+    err_details: ErrorDetails,
+    hint: Optional[str],
+):
     details = None
     if code == pgerrors.ERROR_NOT_NULL_VIOLATION:
         colname = err_details.column_name
@@ -432,8 +438,17 @@ def _interpret_constraint_errors(code, schema, err_details, hint):
                 ptr_id, *_ = colname[2:].partition('_')
             else:
                 ptr_id = colname
-            pointer = common.get_object_from_backend_name(
-                schema, s_pointers.Pointer, ptr_id)
+            if ptr_id == 'id':
+                assert err_details.table_name
+                obj_type: s_objtypes.ObjectType = schema.get_by_id(
+                    uuidgen.UUID(err_details.table_name),
+                    type=s_objtypes.ObjectType,
+                )
+                pointer = obj_type.getptr(schema, sn.UnqualName('id'))
+            else:
+                pointer = common.get_object_from_backend_name(
+                    schema, s_pointers.Pointer, ptr_id
+                )
             pname = pointer.get_verbosename(schema, with_parent=True)
         else:
             pname = None
