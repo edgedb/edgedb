@@ -530,8 +530,9 @@ class QualifiedType(so.QualifiedObject, Type):
 class InheritingType(so.DerivableInheritingObject, QualifiedType):
 
     def material_type(
-        self, schema: s_schema.Schema
-    ) -> typing.Tuple[s_schema.Schema, InheritingType]:
+        self: InheritingTypeT,
+        schema: s_schema.Schema_T,
+    ) -> typing.Tuple[s_schema.Schema_T, InheritingTypeT]:
         return schema, self.get_nearest_non_derived_parent(schema)
 
     def peel_view(self, schema: s_schema.Schema) -> Type:
