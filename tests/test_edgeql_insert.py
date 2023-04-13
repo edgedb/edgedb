@@ -5655,6 +5655,22 @@ class TestInsert(tb.QueryTestCase):
             []
         )
 
+    async def test_edgeql_insert_explicit_id_06(self):
+        await self.con.execute('''
+            configure session set allow_user_specified_id := true
+        ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            "missing value for required property"
+        ):
+            await self.con.execute(r'''
+                INSERT Person {
+                    id := <optional uuid>{},
+                    name := "test",
+                }
+            ''')
+
     async def test_edgeql_insert_except_constraint_01(self):
         # Test basic behavior of a constraint using except
         await self.con.execute('''
