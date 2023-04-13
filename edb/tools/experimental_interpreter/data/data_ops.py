@@ -32,6 +32,7 @@ Label = StrLabel | LinkPropLabel
 
 @dataclass(frozen=True)
 class ObjectTp:
+    """ Object Type encapsulating val: Dict[str, ResultTp] """
     val: Dict[str, ResultTp]
 
 

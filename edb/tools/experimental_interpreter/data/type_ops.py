@@ -2,7 +2,8 @@
 from .data_ops import DBSchema
 from .expr_to_str import show_tp
 from . import data_ops as e
-from typing import List
+from . import expr_ops as eops
+from typing import List, Dict
 
 
 def construct_tp_intersection(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
@@ -291,3 +292,64 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
                 case _:
                     raise ValueError("Cannot tp_project a label "
                                      "from a non object type", tp.tp)
+
+
+def object_tp_default_initial(tp: e.ObjectTp,
+                              ) -> e.ObjectVal:
+    result: Dict[e.Label, e.Expr] = {}
+    for lbl, tp_comp in tp.val.items():
+        match tp_comp.tp:
+            case e.ComputableTp(_):
+                continue
+            case _:
+                result[e.StrLabel(lbl)] = e.MultiSetVal([])
+    return e.ObjectVal(val=result)
+
+
+def object_tp_default_step(tp: e.ObjectTp) -> e.ShapeExpr:
+    result: Dict[e.Label, e.BindingExpr] = {}
+    for lbl, tp_comp in tp.val.items():
+        match tp_comp.tp:
+            case e.ComputableTp(_):
+                continue
+            case e.DefaultTp(tp=_,
+                             expr=binding_expr):
+                result[e.StrLabel(lbl)] = binding_expr
+            case _:
+                result[e.StrLabel(lbl)] = eops.abstract_over_expr(
+                    e.MultiSetExpr([]))
+    return e.ShapeExpr(result)
+
+
+def object_tp_default_post_step(tp: e.ObjectTp,
+                                shape: e.ShapeExpr) -> e.ShapeExpr:
+    result: Dict[e.Label, e.BindingExpr] = {}
+    for lbl, tp_comp in tp.val.items():
+        if e.StrLabel(lbl) in shape.shape.keys():
+            continue
+        match tp_comp.tp:
+            case e.DefaultTp(tp=_,
+                             expr=binding_expr):
+                result[e.StrLabel(lbl)] = binding_expr
+            case _:
+                continue
+    return e.ShapeExpr(result)
+
+
+def object_tp_default_initial_step_with_insert(
+        tp: e.ObjectExpr,
+        insert_shape: e.ShapeExpr,
+        refid: int
+        ) -> e.Expr:
+    initial = object_tp_default_initial(tp)
+    step = object_tp_default_step(tp)
+    result = e.RefVal(refid=refid, val=initial)
+    for _ in range(len(tp.val.keys())):
+        result = eops.ShapedExprExpr(expr=result, shape=step)
+    post_step = object_tp_default_post_step(tp)
+    result = e.ShapedExprExpr(expr=result, shape=insert_shape)
+    for _ in range(len(tp.val.keys())):
+        result = eops.ShapedExprExpr(expr=result, shape=post_step)
+    result = e.ShapedExprExpr(expr=result, shape=insert_shape)
+    return result
+
