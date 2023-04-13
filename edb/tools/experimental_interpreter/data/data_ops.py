@@ -483,7 +483,7 @@ class OffsetLimitExpr:
 @dataclass(frozen=True)
 class InsertExpr:
     name: str
-    new: Expr
+    new: ShapeExpr
 
 
 @dataclass(frozen=True)

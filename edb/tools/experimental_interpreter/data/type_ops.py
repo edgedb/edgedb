@@ -3,7 +3,7 @@ from .data_ops import DBSchema
 from .expr_to_str import show_tp
 from . import data_ops as e
 from . import expr_ops as eops
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 
 def construct_tp_intersection(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
@@ -296,13 +296,13 @@ def tp_project(ctx: e.TcCtx, tp: e.ResultTp, label: e.Label) -> e.ResultTp:
 
 def object_tp_default_initial(tp: e.ObjectTp,
                               ) -> e.ObjectVal:
-    result: Dict[e.Label, e.Expr] = {}
+    result: Dict[e.Label, Tuple[e.Marker, e.MultiSetVal]] = {}
     for lbl, tp_comp in tp.val.items():
         match tp_comp.tp:
             case e.ComputableTp(_):
                 continue
             case _:
-                result[e.StrLabel(lbl)] = e.MultiSetVal([])
+                result[e.StrLabel(lbl)] = (e.Visible(), e.MultiSetVal([]))
     return e.ObjectVal(val=result)
 
 
@@ -334,22 +334,4 @@ def object_tp_default_post_step(tp: e.ObjectTp,
             case _:
                 continue
     return e.ShapeExpr(result)
-
-
-def object_tp_default_initial_step_with_insert(
-        tp: e.ObjectExpr,
-        insert_shape: e.ShapeExpr,
-        refid: int
-        ) -> e.Expr:
-    initial = object_tp_default_initial(tp)
-    step = object_tp_default_step(tp)
-    result = e.RefVal(refid=refid, val=initial)
-    for _ in range(len(tp.val.keys())):
-        result = eops.ShapedExprExpr(expr=result, shape=step)
-    post_step = object_tp_default_post_step(tp)
-    result = e.ShapedExprExpr(expr=result, shape=insert_shape)
-    for _ in range(len(tp.val.keys())):
-        result = eops.ShapedExprExpr(expr=result, shape=post_step)
-    result = e.ShapedExprExpr(expr=result, shape=insert_shape)
-    return result
 

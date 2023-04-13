@@ -484,17 +484,17 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     e.min_cardinal(result_card.multiplicity, e.Fin(lim_num)))
         case e.InsertExpr(name=tname, new=arg):
             tname_tp = ctx.statics.schema.val[tname]
-            arg_tp, arg_ck = synthesize_type(ctx, arg)
-            assert arg_tp.mode == e.CardOne, (
-                    "Expecting single object in inserts"
-                )
-            assert isinstance(arg, e.ObjectExpr), (
-                "Expecting object expr in inserts")
-            assert all(isinstance(k, e.StrLabel) for k in arg.val.keys()), (
+            arg_shape_tp, arg_ck = check_shape_transform(ctx, arg, tname_tp)
+            # assert arg_tp.mode == e.CardOne, (
+            #         "Expecting single object in inserts"
+            #     )
+            # assert isinstance(arg, e.ObjectExpr), (
+            #     "Expecting object expr in inserts")
+            assert all(isinstance(k, e.StrLabel) for k in arg.shape.keys()), (
                         "Expecting object expr in inserts")
-            assert isinstance(arg_tp.tp, e.ObjectTp), (
-                "Expecting inserts to be of object tp")
-            tops.assert_insert_subtype(ctx, arg_tp.tp, tname_tp)
+            # assert isinstance(arg_shape_tp, e.ObjectTp), (
+            #     "Expecting inserts to be of object tp")
+            tops.assert_insert_subtype(ctx, arg_shape_tp, tname_tp)
             result_expr = e.InsertExpr(tname, arg_ck)
             result_tp = tname_tp
             result_card = e.CardOne

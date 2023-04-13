@@ -191,12 +191,12 @@ def elab_InsertQuery(expr: qlast.InsertQuery) -> InsertExpr:
     # debug.dump(expr)
     subject_type = expr.subject.name
     object_shape = elab_Shape(expr.shape)
-    object_expr = shape_to_expr(object_shape)
+    # object_expr = shape_to_expr(object_shape)
     return cast(
         InsertExpr,
         elab_aliases(
             expr.aliases,
-            InsertExpr(name=subject_type, new=object_expr)))
+            InsertExpr(name=subject_type, new=object_shape)))
 
 
 @elab.register(qlast.StringConstant)

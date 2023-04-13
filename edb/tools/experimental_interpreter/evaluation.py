@@ -17,6 +17,7 @@ from .data.data_ops import (
     WithExpr, next_id, RTData, RTExpr, RTVal)
 from .data import data_ops as e
 from .data import expr_ops as eops
+from .data import type_ops as tops
 from .data.expr_ops import (
     assume_link_target, coerce_to_storage, combine_object_val,
     get_object_val, instantiate_expr,
@@ -185,6 +186,24 @@ def limit_vals(val: Sequence[Val],
         case _:
             raise ValueError("offset must be an int")
 
+def object_tp_default_initial_step_with_insert(
+        tp: e.ObjectTp,
+        insert_shape: e.ShapeExpr,
+        refid: int
+        ) -> e.Expr:
+    initial = tops.object_tp_default_initial(tp)
+    step = tops.object_tp_default_step(tp)
+    result: e.Expr = e.RefVal(refid=refid, val=initial)
+    for _ in range(len(tp.val.keys())):
+        result = eops.ShapedExprExpr(expr=result, shape=step)
+    post_step = tops.object_tp_default_post_step(tp, insert_shape)
+    result = e.ShapedExprExpr(expr=result, shape=insert_shape)
+    for _ in range(len(tp.val.keys())):
+        result = eops.ShapedExprExpr(expr=result, shape=post_step)
+    result = e.ShapedExprExpr(expr=result, shape=insert_shape)
+    return result
+
+
 
 class EvaluationLogsWrapper:
     def __init__(self):
@@ -245,11 +264,28 @@ def eval_config(rt: RTExpr) -> RTVal:
                 eval_error(
                     rt.expr,
                     "Attempting to Insert in an Eval-Only evaluation")
-            (new_data, argmv) = eval_config(RTExpr(rt.data, arg))
-            [argv] = argmv.vals
             id = next_id()
+            enriched_db = DB(
+                dbdata={**rt.data.cur_db.dbdata,
+                        id: DBEntry(tp=VarTp(tname), data=ObjectVal({}))})
+            expr_with_default = object_tp_default_initial_step_with_insert(
+                rt.data.schema.val[tname], arg, id)
+            new_data, raw_object = eval_config(
+                RTExpr(RTData(enriched_db,
+                              rt.data.read_snapshots,
+                              rt.data.schema,
+                              rt.data.eval_only),
+                       expr_with_default))
+
+            assert len(raw_object.vals) == 1, (
+                "Insert shape should return one object"
+            )
+            assert raw_object.vals[0].refid == id, (
+                "Insert should not change id"
+            )
+
             new_object = coerce_to_storage(
-                get_object_val(argv), new_data.schema.val[tname])
+                get_object_val(raw_object.vals[0]), new_data.schema.val[tname])
             new_db = DB(dbdata={**new_data.cur_db.dbdata,
                         id: DBEntry(tp=VarTp(tname), data=new_object)})
             # inserts return empty dict
