@@ -40,6 +40,7 @@ from edb.schema import globals as s_globals
 from edb.schema import links as s_links
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
+from edb.schema import pointers as s_pointers
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
@@ -50,7 +51,6 @@ from . import enums
 
 if TYPE_CHECKING:
     import uuid
-    from edb.schema import pointers as s_pointers
 
 
 _int32_packer = cast(Callable[[int], bytes], struct.Struct('!l').pack)
@@ -121,6 +121,49 @@ def cardinality_from_ptr(
 InputShapeElement = tuple[str, s_types.Type, enums.Cardinality]
 InputShapeMap = Mapping[s_types.Type, Iterable[InputShapeElement]]
 
+ViewShapeMap = Mapping[s_obj.Object, list[s_pointers.Pointer]]
+ViewShapeMetadataMap = Mapping[s_types.Type, irast.ViewShapeMetadata]
+
+
+class Context:
+    def __init__(
+        self,
+        *,
+        schema: s_schema.Schema,
+        protocol_version: tuple[int, int],
+        view_shapes: ViewShapeMap = immutables.Map(),
+        view_shapes_metadata: ViewShapeMetadataMap = immutables.Map(),
+        follow_links: bool = True,
+        inline_typenames: bool = False,
+        name_filter: str = "",
+    ) -> None:
+        self.schema = schema
+        self.view_shapes = view_shapes
+        self.view_shapes_metadata = view_shapes_metadata
+        self.protocol_version = protocol_version
+        self.follow_links = follow_links
+        self.inline_typenames = inline_typenames
+        self.name_filter = name_filter
+
+        self.buffer: list[bytes] = []
+        self.anno_buffer: list[bytes] = []
+        self.uuid_to_pos: dict[uuid.UUID, int] = {}
+
+    def derive(self) -> Context:
+        ctx = type(self)(
+            schema=self.schema,
+            protocol_version=self.protocol_version,
+            view_shapes=self.view_shapes,
+            view_shapes_metadata=self.view_shapes_metadata,
+            follow_links=self.follow_links,
+            inline_typenames=self.inline_typenames,
+            name_filter=self.name_filter,
+        )
+        ctx.buffer = self.buffer.copy()
+        ctx.anno_buffer = self.anno_buffer.copy()
+        ctx.uuid_to_pos = self.uuid_to_pos.copy()
+        return ctx
+
 
 class TypeSerializer:
 
@@ -129,18 +172,6 @@ class TypeSerializer:
     EDGE_POINTER_IS_LINK = 1 << 2
 
     _JSON_DESC = None
-
-    def __init__(
-        self,
-        schema: s_schema.Schema,
-        *,
-        inline_typenames: bool = False,
-    ) -> None:
-        self.schema = schema
-        self.buffer: list[bytes] = []
-        self.anno_buffer: list[bytes] = []
-        self.uuid_to_pos: dict[uuid.UUID, int] = {}
-        self.inline_typenames = inline_typenames
 
     def _get_collection_type_id(
         self,
@@ -182,57 +213,51 @@ class TypeSerializer:
         return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE,
                              'set-of::' + str(basetype_id))
 
-    def _register_type_id(self, type_id: uuid.UUID) -> None:
-        if type_id not in self.uuid_to_pos:
-            self.uuid_to_pos[type_id] = len(self.uuid_to_pos)
+    def _register_type_id(
+        self,
+        type_id: uuid.UUID,
+        ctx: Context,
+    ) -> None:
+        if type_id not in ctx.uuid_to_pos:
+            ctx.uuid_to_pos[type_id] = len(ctx.uuid_to_pos)
 
     def _describe_set(
         self,
         t: s_types.Type,
-        view_shapes: dict[s_obj.Object, list[s_pointers.Pointer]],
-        view_shapes_metadata: dict[s_types.Type, irast.ViewShapeMetadata],
-        protocol_version: tuple[int, int],
+        *,
+        ctx: Context,
     ) -> uuid.UUID:
-        type_id = self._describe_type(t, view_shapes, view_shapes_metadata,
-                                      protocol_version)
+        type_id = self._describe_type(t, ctx=ctx)
         set_id = self._get_set_type_id(type_id)
-        if set_id in self.uuid_to_pos:
+        if set_id in ctx.uuid_to_pos:
             return set_id
 
-        self.buffer.append(CTYPE_SET)
-        self.buffer.append(set_id.bytes)
-        self.buffer.append(_uint16_packer(self.uuid_to_pos[type_id]))
+        ctx.buffer.append(CTYPE_SET)
+        ctx.buffer.append(set_id.bytes)
+        ctx.buffer.append(_uint16_packer(ctx.uuid_to_pos[type_id]))
 
-        self._register_type_id(set_id)
+        self._register_type_id(set_id, ctx=ctx)
         return set_id
 
-    def _describe_type(
-        self,
-        t: s_types.Type,
-        view_shapes: dict[s_obj.Object, list[s_pointers.Pointer]],
-        view_shapes_metadata: dict[s_types.Type, irast.ViewShapeMetadata],
-        protocol_version: tuple[int, int],
-        follow_links: bool = True,
-        name_filter: str = "",
-    ) -> uuid.UUID:
+    def _describe_type(self, t: s_types.Type, *, ctx: Context) -> uuid.UUID:
         # The encoding format is documented in edb/api/types.txt.
 
-        buf = self.buffer
+        buf = ctx.buffer
 
         if isinstance(t, s_types.Tuple):
-            subtypes = [self._describe_type(st, view_shapes,
-                                            view_shapes_metadata,
-                                            protocol_version)
-                        for st in t.get_subtypes(self.schema)]
+            subtypes = [
+                self._describe_type(st, ctx=ctx)
+                for st in t.get_subtypes(ctx.schema)
+            ]
 
-            if t.is_named(self.schema):
-                element_names = list(t.get_element_names(self.schema))
+            if t.is_named(ctx.schema):
+                element_names = list(t.get_element_names(ctx.schema))
                 assert len(element_names) == len(subtypes)
 
                 type_id = self._get_collection_type_id(
                     t.get_schema_name(), subtypes, element_names)
 
-                if type_id in self.uuid_to_pos:
+                if type_id in ctx.uuid_to_pos:
                     return type_id
 
                 buf.append(CTYPE_NAMEDTUPLE)
@@ -242,66 +267,66 @@ class TypeSerializer:
                     el_name_bytes = el_name.encode('utf-8')
                     buf.append(_uint32_packer(len(el_name_bytes)))
                     buf.append(el_name_bytes)
-                    buf.append(_uint16_packer(self.uuid_to_pos[el_type]))
+                    buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
 
             else:
                 type_id = self._get_collection_type_id(
                     t.get_schema_name(), subtypes)
 
-                if type_id in self.uuid_to_pos:
+                if type_id in ctx.uuid_to_pos:
                     return type_id
 
                 buf.append(CTYPE_TUPLE)
                 buf.append(type_id.bytes)
                 buf.append(_uint16_packer(len(subtypes)))
                 for el_type in subtypes:
-                    buf.append(_uint16_packer(self.uuid_to_pos[el_type]))
+                    buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
 
-            self._register_type_id(type_id)
+            self._register_type_id(type_id, ctx=ctx)
             return type_id
 
         elif isinstance(t, s_types.Array):
-            subtypes = [self._describe_type(st, view_shapes,
-                                            view_shapes_metadata,
-                                            protocol_version)
-                        for st in t.get_subtypes(self.schema)]
+            subtypes = [
+                self._describe_type(st, ctx=ctx)
+                for st in t.get_subtypes(ctx.schema)
+            ]
 
             assert len(subtypes) == 1
             type_id = self._get_collection_type_id(
                 t.get_schema_name(), subtypes)
 
-            if type_id in self.uuid_to_pos:
+            if type_id in ctx.uuid_to_pos:
                 return type_id
 
             buf.append(CTYPE_ARRAY)
             buf.append(type_id.bytes)
-            buf.append(_uint16_packer(self.uuid_to_pos[subtypes[0]]))
+            buf.append(_uint16_packer(ctx.uuid_to_pos[subtypes[0]]))
             # Number of dimensions (currently always 1)
             buf.append(_uint16_packer(1))
             # Dimension cardinality (currently always unbound)
             buf.append(_int32_packer(-1))
 
-            self._register_type_id(type_id)
+            self._register_type_id(type_id, ctx=ctx)
             return type_id
 
         elif isinstance(t, s_types.Range):
-            subtypes = [self._describe_type(st, view_shapes,
-                                            view_shapes_metadata,
-                                            protocol_version)
-                        for st in t.get_subtypes(self.schema)]
+            subtypes = [
+                self._describe_type(st, ctx=ctx)
+                for st in t.get_subtypes(ctx.schema)
+            ]
 
             assert len(subtypes) == 1
             type_id = self._get_collection_type_id(
                 t.get_schema_name(), subtypes)
 
-            if type_id in self.uuid_to_pos:
+            if type_id in ctx.uuid_to_pos:
                 return type_id
 
             buf.append(CTYPE_RANGE)
             buf.append(type_id.bytes)
-            buf.append(_uint16_packer(self.uuid_to_pos[subtypes[0]]))
+            buf.append(_uint16_packer(ctx.uuid_to_pos[subtypes[0]]))
 
-            self._register_type_id(type_id)
+            self._register_type_id(type_id, ctx=ctx)
             return type_id
 
         elif isinstance(t, s_types.Collection):
@@ -309,8 +334,8 @@ class TypeSerializer:
 
         elif isinstance(t, s_objtypes.ObjectType):
             # This is a view
-            self.schema, mt = t.material_type(self.schema)
-            base_type_name = str(mt.get_name(self.schema))
+            ctx.schema, mt = t.material_type(ctx.schema)
+            base_type_name = str(mt.get_name(ctx.schema))
 
             subtypes = []
             element_names = []
@@ -318,90 +343,68 @@ class TypeSerializer:
             links = []
             cardinalities: list[enums.Cardinality] = []
 
-            metadata = view_shapes_metadata.get(t)
+            metadata = ctx.view_shapes_metadata.get(t)
             implicit_id = metadata is not None and metadata.has_implicit_id
 
-            for ptr in view_shapes.get(t, ()):
-                name = ptr.get_shortname(self.schema).name
-                if not name.startswith(name_filter):
+            for ptr in ctx.view_shapes.get(t, ()):
+                name = ptr.get_shortname(ctx.schema).name
+                if not name.startswith(ctx.name_filter):
                     continue
-                name = name.removeprefix(name_filter)
-                if ptr.singular(self.schema):
-                    if isinstance(ptr, s_links.Link) and not follow_links:
-                        uuid_t = self.schema.get(
+                name = name.removeprefix(ctx.name_filter)
+                if ptr.singular(ctx.schema):
+                    if isinstance(ptr, s_links.Link) and not ctx.follow_links:
+                        uuid_t = ctx.schema.get(
                             'std::uuid',
                             type=s_scalars.ScalarType,
                         )
-                        subtype_id = self._describe_type(
-                            uuid_t,
-                            view_shapes,
-                            view_shapes_metadata,
-                            protocol_version,
-                        )
+                        subtype_id = self._describe_type(uuid_t, ctx=ctx)
                     else:
-                        tgt = ptr.get_target(self.schema)
+                        tgt = ptr.get_target(ctx.schema)
                         assert tgt is not None
-                        subtype_id = self._describe_type(
-                            tgt,
-                            view_shapes,
-                            view_shapes_metadata,
-                            protocol_version,
-                        )
+                        subtype_id = self._describe_type(tgt, ctx=ctx)
                 else:
-                    if isinstance(ptr, s_links.Link) and not follow_links:
+                    if isinstance(ptr, s_links.Link) and not ctx.follow_links:
                         raise errors.InternalServerError(
                             'cannot describe multi links when '
                             'follow_links=False'
                         )
                     else:
-                        tgt = ptr.get_target(self.schema)
+                        tgt = ptr.get_target(ctx.schema)
                         assert tgt is not None
-                        subtype_id = self._describe_set(
-                            tgt,
-                            view_shapes,
-                            view_shapes_metadata,
-                            protocol_version,
-                        )
+                        subtype_id = self._describe_set(tgt, ctx=ctx)
                 subtypes.append(subtype_id)
                 element_names.append(name)
                 link_props.append(False)
-                links.append(not ptr.is_property(self.schema))
-                cardinalities.append(cardinality_from_ptr(ptr, self.schema))
+                links.append(not ptr.is_property(ctx.schema))
+                cardinalities.append(cardinality_from_ptr(ptr, ctx.schema))
 
-            t_rptr = t.get_rptr(self.schema)
-            if t_rptr is not None and (rptr_ptrs := view_shapes.get(t_rptr)):
+            t_rptr = t.get_rptr(ctx.schema)
+            if (
+                t_rptr is not None
+                and (rptr_ptrs := ctx.view_shapes.get(t_rptr))
+            ):
                 # There are link properties in the mix
                 for ptr in rptr_ptrs:
-                    tgt = ptr.get_target(self.schema)
+                    tgt = ptr.get_target(ctx.schema)
                     assert tgt is not None
-                    if ptr.singular(self.schema):
-                        subtype_id = self._describe_type(
-                            tgt,
-                            view_shapes,
-                            view_shapes_metadata,
-                            protocol_version,
-                        )
+                    if ptr.singular(ctx.schema):
+                        subtype_id = self._describe_type(tgt, ctx=ctx)
                     else:
-                        subtype_id = self._describe_set(
-                            tgt,
-                            view_shapes,
-                            view_shapes_metadata,
-                            protocol_version,
-                        )
+                        subtype_id = self._describe_set(tgt, ctx=ctx)
                     subtypes.append(subtype_id)
                     element_names.append(
-                        ptr.get_shortname(self.schema).name)
+                        ptr.get_shortname(ctx.schema).name)
                     link_props.append(True)
                     links.append(False)
                     cardinalities.append(
-                        cardinality_from_ptr(ptr, self.schema))
+                        cardinality_from_ptr(ptr, ctx.schema))
 
             type_id = self._get_object_type_id(
                 base_type_name, subtypes, element_names, cardinalities,
                 links_props=link_props, links=links,
                 has_implicit_fields=implicit_id)
 
-            if type_id in self.uuid_to_pos:
+            if type_id in ctx.uuid_to_pos:
                 return type_id
 
             buf.append(CTYPE_SHAPE)
@@ -431,7 +434,7 @@ class TypeSerializer:
                 if el_l:
                     flags |= self.EDGE_POINTER_IS_LINK
 
-                if protocol_version >= (0, 11):
+                if ctx.protocol_version >= (0, 11):
                     buf.append(_uint32_packer(flags))
                     buf.append(_uint8_packer(el_c.value))
                 else:
@@ -440,22 +443,22 @@ class TypeSerializer:
                 el_name_bytes = el_name.encode('utf-8')
                 buf.append(_uint32_packer(len(el_name_bytes)))
                 buf.append(el_name_bytes)
-                buf.append(_uint16_packer(self.uuid_to_pos[el_type]))
+                buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
 
-            self._register_type_id(type_id)
+            self._register_type_id(type_id, ctx=ctx)
             return type_id
 
         elif isinstance(t, s_scalars.ScalarType):
             # This is a scalar type
 
-            self.schema, smt = t.material_type(self.schema)
+            ctx.schema, smt = t.material_type(ctx.schema)
             type_id = smt.id
-            if type_id in self.uuid_to_pos:
+            if type_id in ctx.uuid_to_pos:
                 # already described
                 return type_id
 
-            base_type = smt.get_topmost_concrete_base(self.schema)
-            enum_values = smt.get_enum_values(self.schema)
+            base_type = smt.get_topmost_concrete_base(ctx.schema)
+            enum_values = smt.get_enum_values(ctx.schema)
 
             if enum_values:
                 buf.append(CTYPE_ENUM)
@@ -466,39 +469,37 @@ class TypeSerializer:
                     buf.append(_uint32_packer(len(enum_val_bytes)))
                     buf.append(enum_val_bytes)
 
-                if self.inline_typenames:
-                    self._add_annotation(smt)
+                if ctx.inline_typenames:
+                    self._add_annotation(smt, ctx=ctx)
 
             elif smt == base_type:
                 buf.append(CTYPE_BASE_SCALAR)
                 buf.append(type_id.bytes)
 
             else:
-                bt_id = self._describe_type(
-                    base_type, view_shapes, view_shapes_metadata,
-                    protocol_version)
-
+                bt_id = self._describe_type(base_type, ctx=ctx)
                 buf.append(CTYPE_SCALAR)
                 buf.append(type_id.bytes)
-                buf.append(_uint16_packer(self.uuid_to_pos[bt_id]))
+                buf.append(_uint16_packer(ctx.uuid_to_pos[bt_id]))
 
-                if self.inline_typenames:
-                    self._add_annotation(smt)
+                if ctx.inline_typenames:
+                    self._add_annotation(smt, ctx=ctx)
 
-            self._register_type_id(type_id)
+            self._register_type_id(type_id, ctx=ctx)
             return type_id
 
         else:
             raise errors.InternalServerError(
-                f'cannot describe type {t.get_name(self.schema)}')
+                f'cannot describe type {t.get_name(ctx.schema)}')
 
     @overload
     def describe_input_shape(
         self,
         t: s_types.Type,
         input_shapes: InputShapeMap,
-        protocol_version: tuple[int, int],
+        *,
         prepare_state: Literal[False],
+        ctx: Context,
     ) -> uuid.UUID:
         ...
 
@@ -507,7 +508,8 @@ class TypeSerializer:
         self,
         t: s_types.Type,
         input_shapes: InputShapeMap,
-        protocol_version: tuple[int, int],
+        *,
+        ctx: Context,
     ) -> uuid.UUID:
         ...
 
@@ -516,8 +518,9 @@ class TypeSerializer:
         self,
         t: s_types.Type,
         input_shapes: InputShapeMap,
-        protocol_version: tuple[int, int],
+        *,
         prepare_state: Literal[True],
+        ctx: Context,
     ) -> None:
         ...
 
@@ -525,8 +528,9 @@ class TypeSerializer:
         self,
         t: s_types.Type,
         input_shapes: InputShapeMap,
-        protocol_version: tuple[int, int],
+        *,
         prepare_state: bool = False,
+        ctx: Context,
     ) -> Optional[uuid.UUID]:
         if t in input_shapes:
             element_names = []
@@ -537,13 +541,10 @@ class TypeSerializer:
                     cardinality == enums.Cardinality.MANY or
                     cardinality == enums.Cardinality.AT_LEAST_ONE
                 ):
-                    subtype_id = self._describe_set(
-                        subtype, {}, {}, protocol_version
-                    )
+                    subtype_id = self._describe_set(subtype, ctx=ctx)
                 else:
                     subtype_id = self.describe_input_shape(
-                        subtype, input_shapes, protocol_version
-                    )
+                        subtype, input_shapes, ctx=ctx)
                 element_names.append(name)
                 subtypes.append(subtype_id)
                 cardinalities.append(cardinality)
@@ -551,16 +552,16 @@ class TypeSerializer:
             if prepare_state:
                 return None
 
-            self.schema, mt = t.material_type(self.schema)
-            base_type_name = str(mt.get_name(self.schema))
+            ctx.schema, mt = t.material_type(ctx.schema)
+            base_type_name = str(mt.get_name(ctx.schema))
 
             type_id = self._get_object_type_id(
                 base_type_name, subtypes, element_names, cardinalities)
 
-            if type_id in self.uuid_to_pos:
+            if type_id in ctx.uuid_to_pos:
                 return type_id
 
-            buf = self.buffer
+            buf = ctx.buffer
             buf.append(CTYPE_INPUT_SHAPE)
             buf.append(type_id.bytes)
 
@@ -574,23 +575,23 @@ class TypeSerializer:
                 el_name_bytes = el_name.encode('utf-8')
                 buf.append(_uint32_packer(len(el_name_bytes)))
                 buf.append(el_name_bytes)
-                buf.append(_uint16_packer(self.uuid_to_pos[el_type]))
+                buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
 
-            self._register_type_id(type_id)
+            self._register_type_id(type_id, ctx=ctx)
             return type_id
         else:
-            return self._describe_type(t, {}, {}, protocol_version)
+            return self._describe_type(t, ctx=ctx)
 
-    def _add_annotation(self, t: s_types.Type) -> None:
-        self.anno_buffer.append(CTYPE_ANNO_TYPENAME)
+    def _add_annotation(self, t: s_types.Type, *, ctx: Context) -> None:
+        ctx.anno_buffer.append(CTYPE_ANNO_TYPENAME)
 
-        self.anno_buffer.append(t.id.bytes)
+        ctx.anno_buffer.append(t.id.bytes)
 
-        tn = t.get_displayname(self.schema)
+        tn = t.get_displayname(ctx.schema)
 
         tn_bytes = tn.encode('utf-8')
-        self.anno_buffer.append(_uint32_packer(len(tn_bytes)))
-        self.anno_buffer.append(tn_bytes)
+        ctx.anno_buffer.append(_uint32_packer(len(tn_bytes)))
+        ctx.anno_buffer.append(tn_bytes)
 
     @classmethod
     def describe_params(
@@ -605,17 +606,15 @@ class TypeSerializer:
         if not params:
             return NULL_TYPE_DESC, NULL_TYPE_ID
 
-        builder = cls(schema)
+        builder = cls()
+        ctx = Context(
+            schema=schema,
+            protocol_version=protocol_version,
+        )
         params_buf: list[bytes] = []
 
         for param_name, param_type, param_req in params:
-            param_type_id = builder._describe_type(
-                param_type,
-                {},
-                {},
-                protocol_version,
-            )
-
+            param_type_id = builder._describe_type(param_type, ctx=ctx)
             params_buf.append(_uint32_packer(0))  # flags
             params_buf.append(_uint8_packer(
                 p_enums.Cardinality.ONE.value if param_req else
@@ -625,11 +624,9 @@ class TypeSerializer:
             param_name_bytes = param_name.encode('utf-8')
             params_buf.append(_uint32_packer(len(param_name_bytes)))
             params_buf.append(param_name_bytes)
-            params_buf.append(_uint16_packer(
-                builder.uuid_to_pos[param_type_id]
-            ))
+            params_buf.append(_uint16_packer(ctx.uuid_to_pos[param_type_id]))
 
-        buffer_encoded = b''.join(builder.buffer)
+        buffer_encoded = b''.join(ctx.buffer)
 
         full_params = EMPTY_BYTEARRAY.join([
             buffer_encoded,
@@ -638,8 +635,7 @@ class TypeSerializer:
             NULL_TYPE_ID.bytes,  # will be replaced with `params_id` later
             _uint16_packer(len(params)),
             *params_buf,
-
-            *builder.anno_buffer,
+            *ctx.anno_buffer,
         ])
 
         params_id = uuidgen.uuid5_bytes(
@@ -665,19 +661,18 @@ class TypeSerializer:
         inline_typenames: bool = False,
         name_filter: str = "",
     ) -> typing.Tuple[bytes, uuid.UUID]:
-        builder = cls(
-            schema,
-            inline_typenames=inline_typenames,
-        )
-        type_id = builder._describe_type(
-            typ,
-            view_shapes,
-            view_shapes_metadata,
-            protocol_version,
+        ctx = Context(
+            schema=schema,
+            view_shapes=view_shapes,
+            view_shapes_metadata=view_shapes_metadata,
+            protocol_version=protocol_version,
             follow_links=follow_links,
+            inline_typenames=inline_typenames,
             name_filter=name_filter,
         )
-        out = b''.join(builder.buffer) + b''.join(builder.anno_buffer)
+        builder = cls()
+        type_id = builder._describe_type(typ, ctx=ctx)
+        out = b''.join(ctx.buffer) + b''.join(ctx.anno_buffer)
         return out, type_id
 
     @classmethod
@@ -839,13 +834,6 @@ class TypeSerializer:
             raise errors.InternalServerError('could not parse type descriptor')
         return codecs_list[-1]
 
-    def derive(self, schema: s_schema.Schema) -> TypeSerializer:
-        rv = type(self)(schema, inline_typenames=self.inline_typenames)
-        rv.buffer = self.buffer.copy()
-        rv.anno_buffer = self.anno_buffer.copy()
-        rv.uuid_to_pos = self.uuid_to_pos.copy()
-        return rv
-
 
 class StateSerializerFactory:
     def __init__(self, std_schema: s_schema.Schema):
@@ -876,6 +864,10 @@ class StateSerializerFactory:
         schema, aliases_array = s_types.Array.from_subtypes(
             schema, [alias_tuple])
 
+        schema, self.globals_type = simple_derive_type(
+            schema, 'std::FreeObject', 'state_globals'
+        )
+
         # config := cfg::Config { session_cfg1, session_cfg2, ... }
         schema, config_type = simple_derive_type(
             schema, 'cfg::Config', 'state_config'
@@ -904,7 +896,7 @@ class StateSerializerFactory:
             ))
         ])
         self._schema = schema
-        self._builders: dict[tuple[int, int], TypeSerializer] = {}
+        self._contexts: dict[tuple[int, int], Context] = {}
 
     def make(
         self,
@@ -912,47 +904,52 @@ class StateSerializerFactory:
         global_schema: s_schema.Schema,
         protocol_version: tuple[int, int],
     ) -> StateSerializer:
-        if protocol_version in self._builders:
-            builder = self._builders[protocol_version]
-        else:
-            builder = self._builders[protocol_version] = TypeSerializer(
-                self._schema
+        ctx = self._contexts.get(protocol_version)
+        if ctx is None:
+            ctx = Context(
+                schema=self._schema,
+                protocol_version=protocol_version,
             )
-            builder.describe_input_shape(
+            self._contexts[protocol_version] = ctx
+            TypeSerializer().describe_input_shape(
                 self._state_type,
                 self._input_shapes,
-                protocol_version,
                 prepare_state=True,
+                ctx=ctx,
             )
-        schema = builder.schema
-        schema, globals_type = simple_derive_type(
-            schema, 'std::FreeObject', 'state_globals'
-        )
-        schema = s_schema.ChainedSchema(schema, user_schema, global_schema)
+
+        ctx = ctx.derive()
+        ctx.schema = s_schema.ChainedSchema(
+            self._schema, user_schema, global_schema)
+
         globals_shape = []
         array_type_ids = {}
-        for g in schema.get_objects(type=s_globals.Global):
-            if g.is_computable(schema):
+        for g in ctx.schema.get_objects(type=s_globals.Global):
+            if g.is_computable(ctx.schema):
                 continue
-            name = str(g.get_name(schema))
-            s_type = g.get_target(schema)
+            name = str(g.get_name(ctx.schema))
+            s_type = g.get_target(ctx.schema)
             if isinstance(s_type, s_types.Array):
-                array_type_ids[name] = s_type.get_element_type(schema).id
-            cardinality = cardinality_from_ptr(g, schema)
+                array_type_ids[name] = s_type.get_element_type(ctx.schema).id
+            cardinality = cardinality_from_ptr(g, ctx.schema)
             globals_shape.append((name, s_type, cardinality))
 
-        builder = builder.derive(schema)
-        type_id = builder.describe_input_shape(
+        type_id = TypeSerializer().describe_input_shape(
             self._state_type,
             self._input_shapes.update({
-                globals_type: tuple(sorted(globals_shape)),
+                self.globals_type: tuple(sorted(globals_shape)),
                 self._state_type: self._input_shapes[self._state_type] + (
-                    ("globals", globals_type, enums.Cardinality.AT_MOST_ONE),
+                    (
+                        "globals",
+                        self.globals_type,
+                        enums.Cardinality.AT_MOST_ONE,
+                    ),
                 )
             }),
-            protocol_version,
+            ctx=ctx,
         )
-        type_data = b''.join(builder.buffer)
+
+        type_data = b''.join(ctx.buffer)
         codec = TypeSerializer.parse(type_data, protocol_version)
         assert isinstance(codec, InputShapeDesc)
         codec.fields['globals'][1].__dict__['data_raw'] = True
