@@ -977,9 +977,14 @@ class Server(ha_base.ClusterProtocol):
     async def _maybe_patch_db(self, dbname, patches):
         logger.info("applying patches to database '%s'", dbname)
 
-        if dbname != defines.EDGEDB_SYSTEM_DB:
+        try:
             async with self._direct_pgcon(dbname) as conn:
                 await self._maybe_apply_patches(dbname, conn, patches)
+        except Exception as e:
+            raise errors.InternalServerError(
+                f'Could not apply patches for minor version upgrade to '
+                f'database {dbname}'
+            ) from e
 
     async def _maybe_patch(self):
         """Apply patches to all the databases"""
