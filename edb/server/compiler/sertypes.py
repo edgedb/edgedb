@@ -64,7 +64,9 @@ EMPTY_TUPLE_ID = s_obj.get_known_type_id('empty-tuple')
 EMPTY_TUPLE_DESC = b'\x04' + EMPTY_TUPLE_ID.bytes + b'\x00\x00'
 
 UUID_TYPE_ID = s_obj.get_known_type_id('std::uuid')
+
 STR_TYPE_ID = s_obj.get_known_type_id('std::str')
+STR_TYPE_DESC = b'\x02' + STR_TYPE_ID.bytes
 
 NULL_TYPE_ID = uuidgen.UUID(b'\x00' * 16)
 NULL_TYPE_DESC = b''
@@ -165,674 +167,653 @@ class Context:
         return ctx
 
 
-class TypeSerializer:
+EDGE_POINTER_IS_IMPLICIT = 1 << 0
+EDGE_POINTER_IS_LINKPROP = 1 << 1
+EDGE_POINTER_IS_LINK = 1 << 2
 
-    EDGE_POINTER_IS_IMPLICIT = 1 << 0
-    EDGE_POINTER_IS_LINKPROP = 1 << 1
-    EDGE_POINTER_IS_LINK = 1 << 2
 
-    _JSON_DESC = None
+def _get_collection_type_id(
+    coll_type: str,
+    subtypes: list[uuid.UUID],
+    element_names: list[str] | None = None,
+) -> uuid.UUID:
+    if coll_type == 'tuple' and not subtypes:
+        return s_obj.get_known_type_id('empty-tuple')
 
-    def _get_collection_type_id(
-        self,
-        coll_type: str,
-        subtypes: list[uuid.UUID],
-        element_names: list[str] | None = None,
-    ) -> uuid.UUID:
-        if coll_type == 'tuple' and not subtypes:
-            return s_obj.get_known_type_id('empty-tuple')
+    string_id = f'{coll_type}\x00{":".join(map(str, subtypes))}'
+    if element_names:
+        string_id += f'\x00{":".join(element_names)}'
+    return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
 
-        string_id = f'{coll_type}\x00{":".join(map(str, subtypes))}'
-        if element_names:
-            string_id += f'\x00{":".join(element_names)}'
-        return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
 
-    def _get_object_type_id(
-        self,
-        coll_type: str,
-        subtypes: list[uuid.UUID],
-        element_names: Optional[list[str]] = None,
-        cardinalities: Optional[list[enums.Cardinality]] = None,
-        *,
-        links_props: Optional[list[bool]] = None,
-        links: Optional[list[bool]] = None,
-        has_implicit_fields: bool = False,
-    ) -> uuid.UUID:
-        parts = [coll_type]
-        parts.append(":".join(map(str, subtypes)))
-        if element_names:
-            parts.append(":".join(element_names))
-        if cardinalities:
-            parts.append(":".join(chr(c._value_) for c in cardinalities))
-        string_id = "\x00".join(parts)
-        string_id += f'{has_implicit_fields!r};{links_props!r};{links!r}'
-        return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
+def _get_object_type_id(
+    coll_type: str,
+    subtypes: list[uuid.UUID],
+    element_names: Optional[list[str]] = None,
+    cardinalities: Optional[list[enums.Cardinality]] = None,
+    *,
+    links_props: Optional[list[bool]] = None,
+    links: Optional[list[bool]] = None,
+    has_implicit_fields: bool = False,
+) -> uuid.UUID:
+    parts = [coll_type]
+    parts.append(":".join(map(str, subtypes)))
+    if element_names:
+        parts.append(":".join(element_names))
+    if cardinalities:
+        parts.append(":".join(chr(c._value_) for c in cardinalities))
+    string_id = "\x00".join(parts)
+    string_id += f'{has_implicit_fields!r};{links_props!r};{links!r}'
+    return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
 
-    @classmethod
-    def _get_set_type_id(cls, basetype_id: uuid.UUID) -> uuid.UUID:
-        return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE,
-                             'set-of::' + str(basetype_id))
 
-    def _register_type_id(
-        self,
-        type_id: uuid.UUID,
-        ctx: Context,
-    ) -> None:
-        if type_id not in ctx.uuid_to_pos:
-            ctx.uuid_to_pos[type_id] = len(ctx.uuid_to_pos)
+def _get_set_type_id(basetype_id: uuid.UUID) -> uuid.UUID:
+    return uuidgen.uuid5(
+        s_types.TYPE_ID_NAMESPACE, 'set-of::' + str(basetype_id))
 
-    def _describe_set(
-        self,
-        t: s_types.Type,
-        *,
-        ctx: Context,
-    ) -> uuid.UUID:
-        type_id = self._describe_type(t, ctx=ctx)
-        set_id = self._get_set_type_id(type_id)
-        if set_id in ctx.uuid_to_pos:
-            return set_id
 
-        ctx.buffer.append(CTYPE_SET)
-        ctx.buffer.append(set_id.bytes)
-        ctx.buffer.append(_uint16_packer(ctx.uuid_to_pos[type_id]))
+def _register_type_id(
+    type_id: uuid.UUID,
+    ctx: Context,
+) -> None:
+    if type_id not in ctx.uuid_to_pos:
+        ctx.uuid_to_pos[type_id] = len(ctx.uuid_to_pos)
 
-        self._register_type_id(set_id, ctx=ctx)
+
+def _describe_set(
+    t: s_types.Type,
+    *,
+    ctx: Context,
+) -> uuid.UUID:
+    type_id = _describe_type(t, ctx=ctx)
+    set_id = _get_set_type_id(type_id)
+    if set_id in ctx.uuid_to_pos:
         return set_id
 
-    def _describe_type(self, t: s_types.Type, *, ctx: Context) -> uuid.UUID:
-        # The encoding format is documented in edb/api/types.txt.
+    ctx.buffer.append(CTYPE_SET)
+    ctx.buffer.append(set_id.bytes)
+    ctx.buffer.append(_uint16_packer(ctx.uuid_to_pos[type_id]))
 
-        buf = ctx.buffer
+    _register_type_id(set_id, ctx=ctx)
+    return set_id
 
-        if isinstance(t, s_types.Tuple):
-            subtypes = [
-                self._describe_type(st, ctx=ctx)
-                for st in t.get_subtypes(ctx.schema)
-            ]
 
-            if t.is_named(ctx.schema):
-                element_names = list(t.get_element_names(ctx.schema))
-                assert len(element_names) == len(subtypes)
+def _describe_type(t: s_types.Type, *, ctx: Context) -> uuid.UUID:
+    # The encoding format is documented in edb/api/types.txt.
 
-                type_id = self._get_collection_type_id(
-                    t.get_schema_name(), subtypes, element_names)
+    buf = ctx.buffer
 
-                if type_id in ctx.uuid_to_pos:
-                    return type_id
+    if isinstance(t, s_types.Tuple):
+        subtypes = [
+            _describe_type(st, ctx=ctx)
+            for st in t.get_subtypes(ctx.schema)
+        ]
 
-                buf.append(CTYPE_NAMEDTUPLE)
-                buf.append(type_id.bytes)
-                buf.append(_uint16_packer(len(subtypes)))
-                for el_name, el_type in zip(element_names, subtypes):
-                    el_name_bytes = el_name.encode('utf-8')
-                    buf.append(_uint32_packer(len(el_name_bytes)))
-                    buf.append(el_name_bytes)
-                    buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
+        if t.is_named(ctx.schema):
+            element_names = list(t.get_element_names(ctx.schema))
+            assert len(element_names) == len(subtypes)
 
-            else:
-                type_id = self._get_collection_type_id(
-                    t.get_schema_name(), subtypes)
+            type_id = _get_collection_type_id(
+                t.get_schema_name(), subtypes, element_names)
 
-                if type_id in ctx.uuid_to_pos:
-                    return type_id
+            if type_id in ctx.uuid_to_pos:
+                return type_id
 
-                buf.append(CTYPE_TUPLE)
-                buf.append(type_id.bytes)
-                buf.append(_uint16_packer(len(subtypes)))
-                for el_type in subtypes:
-                    buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
+            buf.append(CTYPE_NAMEDTUPLE)
+            buf.append(type_id.bytes)
+            buf.append(_uint16_packer(len(subtypes)))
+            for el_name, el_type in zip(element_names, subtypes):
+                el_name_bytes = el_name.encode('utf-8')
+                buf.append(_uint32_packer(len(el_name_bytes)))
+                buf.append(el_name_bytes)
+                buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
 
-            self._register_type_id(type_id, ctx=ctx)
-            return type_id
-
-        elif isinstance(t, s_types.Array):
-            subtypes = [
-                self._describe_type(st, ctx=ctx)
-                for st in t.get_subtypes(ctx.schema)
-            ]
-
-            assert len(subtypes) == 1
-            type_id = self._get_collection_type_id(
+        else:
+            type_id = _get_collection_type_id(
                 t.get_schema_name(), subtypes)
 
             if type_id in ctx.uuid_to_pos:
                 return type_id
 
-            buf.append(CTYPE_ARRAY)
+            buf.append(CTYPE_TUPLE)
             buf.append(type_id.bytes)
-            buf.append(_uint16_packer(ctx.uuid_to_pos[subtypes[0]]))
-            # Number of dimensions (currently always 1)
-            buf.append(_uint16_packer(1))
-            # Dimension cardinality (currently always unbound)
-            buf.append(_int32_packer(-1))
+            buf.append(_uint16_packer(len(subtypes)))
+            for el_type in subtypes:
+                buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
 
-            self._register_type_id(type_id, ctx=ctx)
+        _register_type_id(type_id, ctx=ctx)
+        return type_id
+
+    elif isinstance(t, s_types.Array):
+        subtypes = [
+            _describe_type(st, ctx=ctx)
+            for st in t.get_subtypes(ctx.schema)
+        ]
+
+        assert len(subtypes) == 1
+        type_id = _get_collection_type_id(
+            t.get_schema_name(), subtypes)
+
+        if type_id in ctx.uuid_to_pos:
             return type_id
 
-        elif isinstance(t, s_types.Range):
-            subtypes = [
-                self._describe_type(st, ctx=ctx)
-                for st in t.get_subtypes(ctx.schema)
-            ]
+        buf.append(CTYPE_ARRAY)
+        buf.append(type_id.bytes)
+        buf.append(_uint16_packer(ctx.uuid_to_pos[subtypes[0]]))
+        # Number of dimensions (currently always 1)
+        buf.append(_uint16_packer(1))
+        # Dimension cardinality (currently always unbound)
+        buf.append(_int32_packer(-1))
 
-            assert len(subtypes) == 1
-            type_id = self._get_collection_type_id(
-                t.get_schema_name(), subtypes)
+        _register_type_id(type_id, ctx=ctx)
+        return type_id
 
-            if type_id in ctx.uuid_to_pos:
-                return type_id
+    elif isinstance(t, s_types.Range):
+        subtypes = [
+            _describe_type(st, ctx=ctx)
+            for st in t.get_subtypes(ctx.schema)
+        ]
 
-            buf.append(CTYPE_RANGE)
-            buf.append(type_id.bytes)
-            buf.append(_uint16_packer(ctx.uuid_to_pos[subtypes[0]]))
+        assert len(subtypes) == 1
+        type_id = _get_collection_type_id(
+            t.get_schema_name(), subtypes)
 
-            self._register_type_id(type_id, ctx=ctx)
+        if type_id in ctx.uuid_to_pos:
             return type_id
 
-        elif isinstance(t, s_types.Collection):
-            raise errors.SchemaError(f'unsupported collection type {t!r}')
+        buf.append(CTYPE_RANGE)
+        buf.append(type_id.bytes)
+        buf.append(_uint16_packer(ctx.uuid_to_pos[subtypes[0]]))
 
-        elif isinstance(t, s_objtypes.ObjectType):
-            # This is a view
-            ctx.schema, mt = t.material_type(ctx.schema)
-            base_type_name = str(mt.get_name(ctx.schema))
+        _register_type_id(type_id, ctx=ctx)
+        return type_id
 
-            subtypes = []
-            element_names = []
-            link_props = []
-            links = []
-            cardinalities: list[enums.Cardinality] = []
+    elif isinstance(t, s_types.Collection):
+        raise errors.SchemaError(f'unsupported collection type {t!r}')
 
-            metadata = ctx.view_shapes_metadata.get(t)
-            implicit_id = metadata is not None and metadata.has_implicit_id
+    elif isinstance(t, s_objtypes.ObjectType):
+        # This is a view
+        ctx.schema, mt = t.material_type(ctx.schema)
+        base_type_name = str(mt.get_name(ctx.schema))
 
-            for ptr in ctx.view_shapes.get(t, ()):
-                name = ptr.get_shortname(ctx.schema).name
-                if not name.startswith(ctx.name_filter):
-                    continue
-                name = name.removeprefix(ctx.name_filter)
-                if ptr.singular(ctx.schema):
-                    if isinstance(ptr, s_links.Link) and not ctx.follow_links:
-                        uuid_t = ctx.schema.get(
-                            'std::uuid',
-                            type=s_scalars.ScalarType,
-                        )
-                        subtype_id = self._describe_type(uuid_t, ctx=ctx)
-                    else:
-                        tgt = ptr.get_target(ctx.schema)
-                        assert tgt is not None
-                        subtype_id = self._describe_type(tgt, ctx=ctx)
+        subtypes = []
+        element_names = []
+        link_props = []
+        links = []
+        cardinalities: list[enums.Cardinality] = []
+
+        metadata = ctx.view_shapes_metadata.get(t)
+        implicit_id = metadata is not None and metadata.has_implicit_id
+
+        for ptr in ctx.view_shapes.get(t, ()):
+            name = ptr.get_shortname(ctx.schema).name
+            if not name.startswith(ctx.name_filter):
+                continue
+            name = name.removeprefix(ctx.name_filter)
+            if ptr.singular(ctx.schema):
+                if isinstance(ptr, s_links.Link) and not ctx.follow_links:
+                    uuid_t = ctx.schema.get(
+                        'std::uuid',
+                        type=s_scalars.ScalarType,
+                    )
+                    subtype_id = _describe_type(uuid_t, ctx=ctx)
                 else:
-                    if isinstance(ptr, s_links.Link) and not ctx.follow_links:
-                        raise errors.InternalServerError(
-                            'cannot describe multi links when '
-                            'follow_links=False'
-                        )
-                    else:
-                        tgt = ptr.get_target(ctx.schema)
-                        assert tgt is not None
-                        subtype_id = self._describe_set(tgt, ctx=ctx)
-                subtypes.append(subtype_id)
-                element_names.append(name)
-                link_props.append(False)
-                links.append(not ptr.is_property(ctx.schema))
-                cardinalities.append(cardinality_from_ptr(ptr, ctx.schema))
-
-            t_rptr = t.get_rptr(ctx.schema)
-            if (
-                t_rptr is not None
-                and (rptr_ptrs := ctx.view_shapes.get(t_rptr))
-            ):
-                # There are link properties in the mix
-                for ptr in rptr_ptrs:
                     tgt = ptr.get_target(ctx.schema)
                     assert tgt is not None
-                    if ptr.singular(ctx.schema):
-                        subtype_id = self._describe_type(tgt, ctx=ctx)
-                    else:
-                        subtype_id = self._describe_set(tgt, ctx=ctx)
-                    subtypes.append(subtype_id)
-                    element_names.append(
-                        ptr.get_shortname(ctx.schema).name)
-                    link_props.append(True)
-                    links.append(False)
-                    cardinalities.append(
-                        cardinality_from_ptr(ptr, ctx.schema))
-
-            type_id = self._get_object_type_id(
-                base_type_name, subtypes, element_names, cardinalities,
-                links_props=link_props, links=links,
-                has_implicit_fields=implicit_id)
-
-            if type_id in ctx.uuid_to_pos:
-                return type_id
-
-            buf.append(CTYPE_SHAPE)
-            buf.append(type_id.bytes)
-
-            assert len(subtypes) == len(element_names)
-            buf.append(_uint16_packer(len(subtypes)))
-
-            zipped_parts = list(zip(element_names, subtypes, link_props, links,
-                                    cardinalities))
-            for el_name, el_type, el_lp, el_l, el_c in zipped_parts:
-                flags = 0
-                if el_lp:
-                    flags |= self.EDGE_POINTER_IS_LINKPROP
-                if (implicit_id and el_name == 'id') or el_name == '__tid__':
-                    if el_type != UUID_TYPE_ID:
-                        raise errors.InternalServerError(
-                            f"{el_name!r} is expected to be a 'std::uuid' "
-                            f"singleton")
-                    flags |= self.EDGE_POINTER_IS_IMPLICIT
-                elif el_name == '__tname__':
-                    if el_type != STR_TYPE_ID:
-                        raise errors.InternalServerError(
-                            f"{el_name!r} is expected to be a 'std::str' "
-                            f"singleton")
-                    flags |= self.EDGE_POINTER_IS_IMPLICIT
-                if el_l:
-                    flags |= self.EDGE_POINTER_IS_LINK
-
-                if ctx.protocol_version >= (0, 11):
-                    buf.append(_uint32_packer(flags))
-                    buf.append(_uint8_packer(el_c.value))
-                else:
-                    buf.append(_uint8_packer(flags))
-
-                el_name_bytes = el_name.encode('utf-8')
-                buf.append(_uint32_packer(len(el_name_bytes)))
-                buf.append(el_name_bytes)
-                buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
-
-            self._register_type_id(type_id, ctx=ctx)
-            return type_id
-
-        elif isinstance(t, s_scalars.ScalarType):
-            # This is a scalar type
-
-            ctx.schema, smt = t.material_type(ctx.schema)
-            type_id = smt.id
-            if type_id in ctx.uuid_to_pos:
-                # already described
-                return type_id
-
-            base_type = smt.get_topmost_concrete_base(ctx.schema)
-            enum_values = smt.get_enum_values(ctx.schema)
-
-            if enum_values:
-                buf.append(CTYPE_ENUM)
-                buf.append(type_id.bytes)
-                buf.append(_uint16_packer(len(enum_values)))
-                for enum_val in enum_values:
-                    enum_val_bytes = enum_val.encode('utf-8')
-                    buf.append(_uint32_packer(len(enum_val_bytes)))
-                    buf.append(enum_val_bytes)
-
-                if ctx.inline_typenames:
-                    self._add_annotation(smt, ctx=ctx)
-
-            elif smt == base_type:
-                buf.append(CTYPE_BASE_SCALAR)
-                buf.append(type_id.bytes)
-
+                    subtype_id = _describe_type(tgt, ctx=ctx)
             else:
-                bt_id = self._describe_type(base_type, ctx=ctx)
-                buf.append(CTYPE_SCALAR)
-                buf.append(type_id.bytes)
-                buf.append(_uint16_packer(ctx.uuid_to_pos[bt_id]))
+                if isinstance(ptr, s_links.Link) and not ctx.follow_links:
+                    raise errors.InternalServerError(
+                        'cannot describe multi links when '
+                        'follow_links=False'
+                    )
+                else:
+                    tgt = ptr.get_target(ctx.schema)
+                    assert tgt is not None
+                    subtype_id = _describe_set(tgt, ctx=ctx)
+            subtypes.append(subtype_id)
+            element_names.append(name)
+            link_props.append(False)
+            links.append(not ptr.is_property(ctx.schema))
+            cardinalities.append(cardinality_from_ptr(ptr, ctx.schema))
 
-                if ctx.inline_typenames:
-                    self._add_annotation(smt, ctx=ctx)
+        t_rptr = t.get_rptr(ctx.schema)
+        if (
+            t_rptr is not None
+            and (rptr_ptrs := ctx.view_shapes.get(t_rptr))
+        ):
+            # There are link properties in the mix
+            for ptr in rptr_ptrs:
+                tgt = ptr.get_target(ctx.schema)
+                assert tgt is not None
+                if ptr.singular(ctx.schema):
+                    subtype_id = _describe_type(tgt, ctx=ctx)
+                else:
+                    subtype_id = _describe_set(tgt, ctx=ctx)
+                subtypes.append(subtype_id)
+                element_names.append(
+                    ptr.get_shortname(ctx.schema).name)
+                link_props.append(True)
+                links.append(False)
+                cardinalities.append(
+                    cardinality_from_ptr(ptr, ctx.schema))
 
-            self._register_type_id(type_id, ctx=ctx)
+        type_id = _get_object_type_id(
+            base_type_name, subtypes, element_names, cardinalities,
+            links_props=link_props, links=links,
+            has_implicit_fields=implicit_id)
+
+        if type_id in ctx.uuid_to_pos:
             return type_id
 
-        else:
-            raise errors.InternalServerError(
-                f'cannot describe type {t.get_name(ctx.schema)}')
+        buf.append(CTYPE_SHAPE)
+        buf.append(type_id.bytes)
 
-    @overload
-    def describe_input_shape(
-        self,
-        t: s_types.Type,
-        input_shapes: InputShapeMap,
-        *,
-        prepare_state: Literal[False],
-        ctx: Context,
-    ) -> uuid.UUID:
-        ...
+        assert len(subtypes) == len(element_names)
+        buf.append(_uint16_packer(len(subtypes)))
 
-    @overload
-    def describe_input_shape(  # noqa: F811
-        self,
-        t: s_types.Type,
-        input_shapes: InputShapeMap,
-        *,
-        ctx: Context,
-    ) -> uuid.UUID:
-        ...
+        zipped_parts = list(zip(element_names, subtypes, link_props, links,
+                                cardinalities))
+        for el_name, el_type, el_lp, el_l, el_c in zipped_parts:
+            flags = 0
+            if el_lp:
+                flags |= EDGE_POINTER_IS_LINKPROP
+            if (implicit_id and el_name == 'id') or el_name == '__tid__':
+                if el_type != UUID_TYPE_ID:
+                    raise errors.InternalServerError(
+                        f"{el_name!r} is expected to be a 'std::uuid' "
+                        f"singleton")
+                flags |= EDGE_POINTER_IS_IMPLICIT
+            elif el_name == '__tname__':
+                if el_type != STR_TYPE_ID:
+                    raise errors.InternalServerError(
+                        f"{el_name!r} is expected to be a 'std::str' "
+                        f"singleton")
+                flags |= EDGE_POINTER_IS_IMPLICIT
+            if el_l:
+                flags |= EDGE_POINTER_IS_LINK
 
-    @overload
-    def describe_input_shape(  # noqa: F811
-        self,
-        t: s_types.Type,
-        input_shapes: InputShapeMap,
-        *,
-        prepare_state: Literal[True],
-        ctx: Context,
-    ) -> None:
-        ...
+            if ctx.protocol_version >= (0, 11):
+                buf.append(_uint32_packer(flags))
+                buf.append(_uint8_packer(el_c.value))
+            else:
+                buf.append(_uint8_packer(flags))
 
-    def describe_input_shape(  # noqa: F811
-        self,
-        t: s_types.Type,
-        input_shapes: InputShapeMap,
-        *,
-        prepare_state: bool = False,
-        ctx: Context,
-    ) -> Optional[uuid.UUID]:
-        if t in input_shapes:
-            element_names = []
-            subtypes = []
-            cardinalities = []
-            for name, subtype, cardinality in input_shapes[t]:
-                if (
-                    cardinality == enums.Cardinality.MANY or
-                    cardinality == enums.Cardinality.AT_LEAST_ONE
-                ):
-                    subtype_id = self._describe_set(subtype, ctx=ctx)
-                else:
-                    subtype_id = self.describe_input_shape(
-                        subtype, input_shapes, ctx=ctx)
-                element_names.append(name)
-                subtypes.append(subtype_id)
-                cardinalities.append(cardinality)
+            el_name_bytes = el_name.encode('utf-8')
+            buf.append(_uint32_packer(len(el_name_bytes)))
+            buf.append(el_name_bytes)
+            buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
 
-            if prepare_state:
-                return None
+        _register_type_id(type_id, ctx=ctx)
+        return type_id
 
-            ctx.schema, mt = t.material_type(ctx.schema)
-            base_type_name = str(mt.get_name(ctx.schema))
+    elif isinstance(t, s_scalars.ScalarType):
+        # This is a scalar type
 
-            type_id = self._get_object_type_id(
-                base_type_name, subtypes, element_names, cardinalities)
+        ctx.schema, smt = t.material_type(ctx.schema)
+        type_id = smt.id
+        if type_id in ctx.uuid_to_pos:
+            # already described
+            return type_id
 
-            if type_id in ctx.uuid_to_pos:
-                return type_id
+        base_type = smt.get_topmost_concrete_base(ctx.schema)
+        enum_values = smt.get_enum_values(ctx.schema)
 
-            buf = ctx.buffer
-            buf.append(CTYPE_INPUT_SHAPE)
+        if enum_values:
+            buf.append(CTYPE_ENUM)
+            buf.append(type_id.bytes)
+            buf.append(_uint16_packer(len(enum_values)))
+            for enum_val in enum_values:
+                enum_val_bytes = enum_val.encode('utf-8')
+                buf.append(_uint32_packer(len(enum_val_bytes)))
+                buf.append(enum_val_bytes)
+
+            if ctx.inline_typenames:
+                _add_annotation(smt, ctx=ctx)
+
+        elif smt == base_type:
+            buf.append(CTYPE_BASE_SCALAR)
             buf.append(type_id.bytes)
 
-            assert len(subtypes) == len(element_names)
-            buf.append(_uint16_packer(len(subtypes)))
-
-            zipped_parts = zip(element_names, subtypes, cardinalities)
-            for el_name, el_type, el_c in zipped_parts:
-                buf.append(_uint32_packer(0))  # flags
-                buf.append(_uint8_packer(el_c.value))
-                el_name_bytes = el_name.encode('utf-8')
-                buf.append(_uint32_packer(len(el_name_bytes)))
-                buf.append(el_name_bytes)
-                buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
-
-            self._register_type_id(type_id, ctx=ctx)
-            return type_id
         else:
-            return self._describe_type(t, ctx=ctx)
+            bt_id = _describe_type(base_type, ctx=ctx)
+            buf.append(CTYPE_SCALAR)
+            buf.append(type_id.bytes)
+            buf.append(_uint16_packer(ctx.uuid_to_pos[bt_id]))
 
-    def _add_annotation(self, t: s_types.Type, *, ctx: Context) -> None:
-        ctx.anno_buffer.append(CTYPE_ANNO_TYPENAME)
+            if ctx.inline_typenames:
+                _add_annotation(smt, ctx=ctx)
 
-        ctx.anno_buffer.append(t.id.bytes)
+        _register_type_id(type_id, ctx=ctx)
+        return type_id
 
-        tn = t.get_displayname(ctx.schema)
+    else:
+        raise errors.InternalServerError(
+            f'cannot describe type {t.get_name(ctx.schema)}')
 
-        tn_bytes = tn.encode('utf-8')
-        ctx.anno_buffer.append(_uint32_packer(len(tn_bytes)))
-        ctx.anno_buffer.append(tn_bytes)
 
-    @classmethod
-    def describe_params(
-        cls,
-        *,
-        schema: s_schema.Schema,
-        params: list[tuple[str, s_types.Type, bool]],
-        protocol_version: tuple[int, int],
-    ) -> tuple[bytes, uuid.UUID]:
-        assert protocol_version >= (0, 12)
+@overload
+def describe_input_shape(
+    t: s_types.Type,
+    input_shapes: InputShapeMap,
+    *,
+    prepare_state: Literal[False],
+    ctx: Context,
+) -> uuid.UUID:
+    ...
 
-        if not params:
-            return NULL_TYPE_DESC, NULL_TYPE_ID
 
-        builder = cls()
-        ctx = Context(
-            schema=schema,
-            protocol_version=protocol_version,
-        )
-        params_buf: list[bytes] = []
+@overload
+def describe_input_shape(  # noqa: F811
+    t: s_types.Type,
+    input_shapes: InputShapeMap,
+    *,
+    ctx: Context,
+) -> uuid.UUID:
+    ...
 
-        for param_name, param_type, param_req in params:
-            param_type_id = builder._describe_type(param_type, ctx=ctx)
-            params_buf.append(_uint32_packer(0))  # flags
-            params_buf.append(_uint8_packer(
-                p_enums.Cardinality.ONE.value if param_req else
-                p_enums.Cardinality.AT_MOST_ONE.value
-            ))
 
-            param_name_bytes = param_name.encode('utf-8')
-            params_buf.append(_uint32_packer(len(param_name_bytes)))
-            params_buf.append(param_name_bytes)
-            params_buf.append(_uint16_packer(ctx.uuid_to_pos[param_type_id]))
+@overload
+def describe_input_shape(  # noqa: F811
+    t: s_types.Type,
+    input_shapes: InputShapeMap,
+    *,
+    prepare_state: Literal[True],
+    ctx: Context,
+) -> None:
+    ...
 
-        buffer_encoded = b''.join(ctx.buffer)
 
-        full_params = EMPTY_BYTEARRAY.join([
-            buffer_encoded,
+def describe_input_shape(  # noqa: F811
+    t: s_types.Type,
+    input_shapes: InputShapeMap,
+    *,
+    prepare_state: bool = False,
+    ctx: Context,
+) -> Optional[uuid.UUID]:
+    if t in input_shapes:
+        element_names = []
+        subtypes = []
+        cardinalities = []
+        for name, subtype, cardinality in input_shapes[t]:
+            if (
+                cardinality == enums.Cardinality.MANY or
+                cardinality == enums.Cardinality.AT_LEAST_ONE
+            ):
+                subtype_id = _describe_set(subtype, ctx=ctx)
+            else:
+                subtype_id = describe_input_shape(
+                    subtype, input_shapes, ctx=ctx)
+            element_names.append(name)
+            subtypes.append(subtype_id)
+            cardinalities.append(cardinality)
 
-            CTYPE_SHAPE,
-            NULL_TYPE_ID.bytes,  # will be replaced with `params_id` later
-            _uint16_packer(len(params)),
-            *params_buf,
-            *ctx.anno_buffer,
-        ])
-
-        params_id = uuidgen.uuid5_bytes(
-            s_types.TYPE_ID_NAMESPACE,
-            full_params
-        )
-
-        id_pos = len(buffer_encoded) + 1
-        full_params[id_pos : id_pos + 16] = params_id.bytes
-
-        return bytes(full_params), params_id
-
-    @classmethod
-    def describe(
-        cls,
-        schema: s_schema.Schema,
-        typ: s_types.Type,
-        view_shapes: dict[s_obj.Object, list[s_pointers.Pointer]],
-        view_shapes_metadata: dict[s_types.Type, irast.ViewShapeMetadata],
-        *,
-        protocol_version: tuple[int, int],
-        follow_links: bool = True,
-        inline_typenames: bool = False,
-        name_filter: str = "",
-    ) -> typing.Tuple[bytes, uuid.UUID]:
-        ctx = Context(
-            schema=schema,
-            view_shapes=view_shapes,
-            view_shapes_metadata=view_shapes_metadata,
-            protocol_version=protocol_version,
-            follow_links=follow_links,
-            inline_typenames=inline_typenames,
-            name_filter=name_filter,
-        )
-        builder = cls()
-        type_id = builder._describe_type(typ, ctx=ctx)
-        out = b''.join(ctx.buffer) + b''.join(ctx.anno_buffer)
-        return out, type_id
-
-    @classmethod
-    def describe_json(cls) -> tuple[bytes, uuid.UUID]:
-        if cls._JSON_DESC is None:
-            cls._JSON_DESC = cls._describe_json()
-
-        return cls._JSON_DESC
-
-    @classmethod
-    def _describe_json(cls) -> typing.Tuple[bytes, uuid.UUID]:
-        json_id = s_obj.get_known_type_id('std::str')
-
-        buf = []
-        buf.append(b'\x02')
-        buf.append(json_id.bytes)
-
-        return b''.join(buf), json_id
-
-    @classmethod
-    def _parse(
-        cls,
-        desc: binwrapper.BinWrapper,
-        codecs_list: typing.List[TypeDesc],
-        protocol_version: tuple[int, int],
-    ) -> typing.Optional[TypeDesc]:
-        t = desc.read_bytes(1)
-        tid = uuidgen.from_bytes(desc.read_bytes(16))
-
-        if t == CTYPE_SET:
-            pos = desc.read_ui16()
-            return SetDesc(tid=tid, subtype=codecs_list[pos])
-
-        elif t == CTYPE_SHAPE:
-            els = desc.read_ui16()
-            fields = {}
-            flags = {}
-            cardinalities = {}
-            for _ in range(els):
-                if protocol_version >= (0, 11):
-                    flag = desc.read_ui32()
-                    cardinality = enums.Cardinality(desc.read_bytes(1)[0])
-                else:
-                    flag = desc.read_bytes(1)[0]
-                    cardinality = None
-                name = desc.read_len32_prefixed_bytes().decode()
-                pos = desc.read_ui16()
-                codec = codecs_list[pos]
-                fields[name] = codec
-                flags[name] = flag
-                if cardinality:
-                    cardinalities[name] = cardinality
-
-            return ShapeDesc(
-                tid=tid,
-                flags=flags,
-                fields=fields,
-                cardinalities=cardinalities,
-            )
-
-        elif t == CTYPE_INPUT_SHAPE:
-            els = desc.read_ui16()
-            input_fields = {}
-            flags = {}
-            cardinalities = {}
-            fields_list = []
-            for idx in range(els):
-                if protocol_version >= (0, 11):
-                    flag = desc.read_ui32()
-                    cardinality = enums.Cardinality(desc.read_bytes(1)[0])
-                else:
-                    flag = desc.read_bytes(1)[0]
-                    cardinality = None
-                name = desc.read_len32_prefixed_bytes().decode()
-                pos = desc.read_ui16()
-                codec = codecs_list[pos]
-                fields_list.append((name, codec))
-                input_fields[name] = idx, codec
-                flags[name] = flag
-                if cardinality:
-                    cardinalities[name] = cardinality
-            return InputShapeDesc(
-                fields_list=fields_list,
-                tid=tid,
-                flags=flags,
-                fields=input_fields,
-                cardinalities=cardinalities,
-            )
-
-        elif t == CTYPE_BASE_SCALAR:
-            return BaseScalarDesc(tid=tid)
-
-        elif t == CTYPE_SCALAR:
-            pos = desc.read_ui16()
-            return ScalarDesc(tid=tid, subtype=codecs_list[pos])
-
-        elif t == CTYPE_TUPLE:
-            els = desc.read_ui16()
-            tuple_fields = []
-            for _ in range(els):
-                pos = desc.read_ui16()
-                tuple_fields.append(codecs_list[pos])
-            return TupleDesc(tid=tid, fields=tuple_fields)
-
-        elif t == CTYPE_NAMEDTUPLE:
-            els = desc.read_ui16()
-            fields = {}
-            for _ in range(els):
-                name = desc.read_len32_prefixed_bytes().decode()
-                pos = desc.read_ui16()
-                fields[name] = codecs_list[pos]
-            return NamedTupleDesc(tid=tid, fields=fields)
-
-        elif t == CTYPE_ENUM:
-            els = desc.read_ui16()
-            names = []
-            for _ in range(els):
-                name = desc.read_len32_prefixed_bytes().decode()
-                names.append(name)
-            return EnumDesc(tid=tid, names=names)
-
-        elif t == CTYPE_ARRAY:
-            pos = desc.read_ui16()
-            els = desc.read_ui16()
-            if els != 1:
-                raise NotImplementedError(
-                    'cannot handle arrays with more than one dimension')
-            dim_len = desc.read_i32()
-            return ArrayDesc(
-                tid=tid, dim_len=dim_len, subtype=codecs_list[pos])
-
-        elif t == CTYPE_RANGE:
-            pos = desc.read_ui16()
-            return RangeDesc(tid=tid, inner=codecs_list[pos])
-
-        elif (t[0] >= 0x80 and t[0] <= 0xff):
-            # Ignore all type annotations.
-            desc.read_len32_prefixed_bytes()
+        if prepare_state:
             return None
 
-        else:
-            raise NotImplementedError(
-                f'no codec implementation for EdgeDB data class {hex(t[0])}')
+        ctx.schema, mt = t.material_type(ctx.schema)
+        base_type_name = str(mt.get_name(ctx.schema))
 
-    @classmethod
-    def parse(
-        cls,
-        typedesc: bytes,
-        protocol_version: tuple[int, int],
-    ) -> TypeDesc:
-        buf = io.BytesIO(typedesc)
-        wrapped = binwrapper.BinWrapper(buf)
-        codecs_list: list[TypeDesc] = []
-        while buf.tell() < len(typedesc):
-            desc = cls._parse(wrapped, codecs_list, protocol_version)
-            if desc is not None:
-                codecs_list.append(desc)
-        if not codecs_list:
-            raise errors.InternalServerError('could not parse type descriptor')
-        return codecs_list[-1]
+        type_id = _get_object_type_id(
+            base_type_name, subtypes, element_names, cardinalities)
+
+        if type_id in ctx.uuid_to_pos:
+            return type_id
+
+        buf = ctx.buffer
+        buf.append(CTYPE_INPUT_SHAPE)
+        buf.append(type_id.bytes)
+
+        assert len(subtypes) == len(element_names)
+        buf.append(_uint16_packer(len(subtypes)))
+
+        zipped_parts = zip(element_names, subtypes, cardinalities)
+        for el_name, el_type, el_c in zipped_parts:
+            buf.append(_uint32_packer(0))  # flags
+            buf.append(_uint8_packer(el_c.value))
+            el_name_bytes = el_name.encode('utf-8')
+            buf.append(_uint32_packer(len(el_name_bytes)))
+            buf.append(el_name_bytes)
+            buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
+
+        _register_type_id(type_id, ctx=ctx)
+        return type_id
+    else:
+        return _describe_type(t, ctx=ctx)
+
+
+def _add_annotation(t: s_types.Type, *, ctx: Context) -> None:
+    ctx.anno_buffer.append(CTYPE_ANNO_TYPENAME)
+
+    ctx.anno_buffer.append(t.id.bytes)
+
+    tn = t.get_displayname(ctx.schema)
+
+    tn_bytes = tn.encode('utf-8')
+    ctx.anno_buffer.append(_uint32_packer(len(tn_bytes)))
+    ctx.anno_buffer.append(tn_bytes)
+
+
+def describe_params(
+    *,
+    schema: s_schema.Schema,
+    params: list[tuple[str, s_types.Type, bool]],
+    protocol_version: tuple[int, int],
+) -> tuple[bytes, uuid.UUID]:
+    assert protocol_version >= (0, 12)
+
+    if not params:
+        return NULL_TYPE_DESC, NULL_TYPE_ID
+
+    ctx = Context(
+        schema=schema,
+        protocol_version=protocol_version,
+    )
+    params_buf: list[bytes] = []
+
+    for param_name, param_type, param_req in params:
+        param_type_id = _describe_type(param_type, ctx=ctx)
+        params_buf.append(_uint32_packer(0))  # flags
+        params_buf.append(_uint8_packer(
+            p_enums.Cardinality.ONE.value if param_req else
+            p_enums.Cardinality.AT_MOST_ONE.value
+        ))
+
+        param_name_bytes = param_name.encode('utf-8')
+        params_buf.append(_uint32_packer(len(param_name_bytes)))
+        params_buf.append(param_name_bytes)
+        params_buf.append(_uint16_packer(ctx.uuid_to_pos[param_type_id]))
+
+    buffer_encoded = b''.join(ctx.buffer)
+
+    full_params = EMPTY_BYTEARRAY.join([
+        buffer_encoded,
+
+        CTYPE_SHAPE,
+        NULL_TYPE_ID.bytes,  # will be replaced with `params_id` later
+        _uint16_packer(len(params)),
+        *params_buf,
+        *ctx.anno_buffer,
+    ])
+
+    params_id = uuidgen.uuid5_bytes(
+        s_types.TYPE_ID_NAMESPACE,
+        full_params
+    )
+
+    id_pos = len(buffer_encoded) + 1
+    full_params[id_pos : id_pos + 16] = params_id.bytes
+
+    return bytes(full_params), params_id
+
+
+def describe(
+    schema: s_schema.Schema,
+    typ: s_types.Type,
+    view_shapes: ViewShapeMap = immutables.Map(),
+    view_shapes_metadata: ViewShapeMetadataMap = immutables.Map(),
+    *,
+    protocol_version: tuple[int, int],
+    follow_links: bool = True,
+    inline_typenames: bool = False,
+    name_filter: str = "",
+) -> typing.Tuple[bytes, uuid.UUID]:
+    ctx = Context(
+        schema=schema,
+        view_shapes=view_shapes,
+        view_shapes_metadata=view_shapes_metadata,
+        protocol_version=protocol_version,
+        follow_links=follow_links,
+        inline_typenames=inline_typenames,
+        name_filter=name_filter,
+    )
+    type_id = _describe_type(typ, ctx=ctx)
+    out = b''.join(ctx.buffer) + b''.join(ctx.anno_buffer)
+    return out, type_id
+
+
+def describe_str() -> tuple[bytes, uuid.UUID]:
+    return STR_TYPE_DESC, STR_TYPE_ID
+
+
+def _parse(
+    desc: binwrapper.BinWrapper,
+    codecs_list: typing.List[TypeDesc],
+    protocol_version: tuple[int, int],
+) -> typing.Optional[TypeDesc]:
+    t = desc.read_bytes(1)
+    tid = uuidgen.from_bytes(desc.read_bytes(16))
+
+    if t == CTYPE_SET:
+        pos = desc.read_ui16()
+        return SetDesc(tid=tid, subtype=codecs_list[pos])
+
+    elif t == CTYPE_SHAPE:
+        els = desc.read_ui16()
+        fields = {}
+        flags = {}
+        cardinalities = {}
+        for _ in range(els):
+            if protocol_version >= (0, 11):
+                flag = desc.read_ui32()
+                cardinality = enums.Cardinality(desc.read_bytes(1)[0])
+            else:
+                flag = desc.read_bytes(1)[0]
+                cardinality = None
+            name = desc.read_len32_prefixed_bytes().decode()
+            pos = desc.read_ui16()
+            codec = codecs_list[pos]
+            fields[name] = codec
+            flags[name] = flag
+            if cardinality:
+                cardinalities[name] = cardinality
+
+        return ShapeDesc(
+            tid=tid,
+            flags=flags,
+            fields=fields,
+            cardinalities=cardinalities,
+        )
+
+    elif t == CTYPE_INPUT_SHAPE:
+        els = desc.read_ui16()
+        input_fields = {}
+        flags = {}
+        cardinalities = {}
+        fields_list = []
+        for idx in range(els):
+            if protocol_version >= (0, 11):
+                flag = desc.read_ui32()
+                cardinality = enums.Cardinality(desc.read_bytes(1)[0])
+            else:
+                flag = desc.read_bytes(1)[0]
+                cardinality = None
+            name = desc.read_len32_prefixed_bytes().decode()
+            pos = desc.read_ui16()
+            codec = codecs_list[pos]
+            fields_list.append((name, codec))
+            input_fields[name] = idx, codec
+            flags[name] = flag
+            if cardinality:
+                cardinalities[name] = cardinality
+        return InputShapeDesc(
+            fields_list=fields_list,
+            tid=tid,
+            flags=flags,
+            fields=input_fields,
+            cardinalities=cardinalities,
+        )
+
+    elif t == CTYPE_BASE_SCALAR:
+        return BaseScalarDesc(tid=tid)
+
+    elif t == CTYPE_SCALAR:
+        pos = desc.read_ui16()
+        return ScalarDesc(tid=tid, subtype=codecs_list[pos])
+
+    elif t == CTYPE_TUPLE:
+        els = desc.read_ui16()
+        tuple_fields = []
+        for _ in range(els):
+            pos = desc.read_ui16()
+            tuple_fields.append(codecs_list[pos])
+        return TupleDesc(tid=tid, fields=tuple_fields)
+
+    elif t == CTYPE_NAMEDTUPLE:
+        els = desc.read_ui16()
+        fields = {}
+        for _ in range(els):
+            name = desc.read_len32_prefixed_bytes().decode()
+            pos = desc.read_ui16()
+            fields[name] = codecs_list[pos]
+        return NamedTupleDesc(tid=tid, fields=fields)
+
+    elif t == CTYPE_ENUM:
+        els = desc.read_ui16()
+        names = []
+        for _ in range(els):
+            name = desc.read_len32_prefixed_bytes().decode()
+            names.append(name)
+        return EnumDesc(tid=tid, names=names)
+
+    elif t == CTYPE_ARRAY:
+        pos = desc.read_ui16()
+        els = desc.read_ui16()
+        if els != 1:
+            raise NotImplementedError(
+                'cannot handle arrays with more than one dimension')
+        dim_len = desc.read_i32()
+        return ArrayDesc(
+            tid=tid, dim_len=dim_len, subtype=codecs_list[pos])
+
+    elif t == CTYPE_RANGE:
+        pos = desc.read_ui16()
+        return RangeDesc(tid=tid, inner=codecs_list[pos])
+
+    elif (t[0] >= 0x80 and t[0] <= 0xff):
+        # Ignore all type annotations.
+        desc.read_len32_prefixed_bytes()
+        return None
+
+    else:
+        raise NotImplementedError(
+            f'no codec implementation for EdgeDB data class {hex(t[0])}')
+
+
+def parse(
+    typedesc: bytes,
+    protocol_version: tuple[int, int],
+) -> TypeDesc:
+    buf = io.BytesIO(typedesc)
+    wrapped = binwrapper.BinWrapper(buf)
+    codecs_list: list[TypeDesc] = []
+    while buf.tell() < len(typedesc):
+        desc = _parse(wrapped, codecs_list, protocol_version)
+        if desc is not None:
+            codecs_list.append(desc)
+    if not codecs_list:
+        raise errors.InternalServerError('could not parse type descriptor')
+    return codecs_list[-1]
 
 
 class StateSerializerFactory:
@@ -911,7 +892,7 @@ class StateSerializerFactory:
                 protocol_version=protocol_version,
             )
             self._contexts[protocol_version] = ctx
-            TypeSerializer().describe_input_shape(
+            describe_input_shape(
                 self._state_type,
                 self._input_shapes,
                 prepare_state=True,
@@ -934,7 +915,7 @@ class StateSerializerFactory:
             cardinality = cardinality_from_ptr(g, ctx.schema)
             globals_shape.append((name, s_type, cardinality))
 
-        type_id = TypeSerializer().describe_input_shape(
+        type_id = describe_input_shape(
             self._state_type,
             self._input_shapes.update({
                 self.globals_type: tuple(sorted(globals_shape)),
@@ -950,7 +931,7 @@ class StateSerializerFactory:
         )
 
         type_data = b''.join(ctx.buffer)
-        codec = TypeSerializer.parse(type_data, protocol_version)
+        codec = parse(type_data, protocol_version)
         assert isinstance(codec, InputShapeDesc)
         codec.fields['globals'][1].__dict__['data_raw'] = True
 

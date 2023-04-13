@@ -985,7 +985,7 @@ class Compiler:
         for schema_object_id, typedesc in blocks:
             schema_object_id = uuidgen.from_bytes(schema_object_id)
             obj = schema.get_by_id(schema_object_id)
-            desc = sertypes.TypeSerializer.parse(typedesc, protocol_version)
+            desc = sertypes.parse(typedesc, protocol_version)
             elided_col_set = set()
             mending_desc = []
 
@@ -1392,8 +1392,7 @@ def _compile_ql_explain(
         explain_data=explain_data, cacheable=False)
     assert len(query.sql) == 1
 
-    out_type_data, out_type_id = \
-        sertypes.TypeSerializer.describe_json()
+    out_type_data, out_type_id = sertypes.describe_str()
 
     sql_bytes = exp_command.encode('utf-8') + query.sql[0]
     sql_hash = _hash_sql(
@@ -1514,22 +1513,20 @@ def _compile_ql_query(
         out_type_data = sertypes.NULL_TYPE_DESC
         result_cardinality = enums.Cardinality.NO_RESULT
     elif ctx.output_format is enums.OutputFormat.BINARY:
-        out_type_data, out_type_id = sertypes.TypeSerializer.describe(
+        out_type_data, out_type_id = sertypes.describe(
             ir.schema, ir.stype,
             ir.view_shapes, ir.view_shapes_metadata,
             inline_typenames=ctx.inline_typenames,
             protocol_version=ctx.protocol_version)
     else:
-        out_type_data, out_type_id = \
-            sertypes.TypeSerializer.describe_json()
+        out_type_data, out_type_id = sertypes.describe_str()
 
     if ctx.protocol_version >= (0, 12):
-        in_type_data, in_type_id = \
-            sertypes.TypeSerializer.describe_params(
-                schema=ir.schema,
-                params=params,
-                protocol_version=ctx.protocol_version,
-            )
+        in_type_data, in_type_id = sertypes.describe_params(
+            schema=ir.schema,
+            params=params,
+            protocol_version=ctx.protocol_version,
+        )
     else:
         # Legacy protocol support - for restoring pre-0.12 dumps
         if params:
@@ -1546,9 +1543,11 @@ def _compile_ql_query(
                 element_types={},
                 named=has_named_params)
 
-        in_type_data, in_type_id = sertypes.TypeSerializer.describe(
-            pschema, params_type, {}, {},
-            protocol_version=ctx.protocol_version)
+        in_type_data, in_type_id = sertypes.describe(
+            pschema,
+            params_type,
+            protocol_version=ctx.protocol_version,
+        )
 
     sql_hash = _hash_sql(
         sql_bytes,
@@ -2194,12 +2193,11 @@ def _try_compile(
             ctx=ctx)
 
         if ctx.protocol_version >= (0, 12):
-            in_type_data, in_type_id = \
-                sertypes.TypeSerializer.describe_params(
-                    schema=script_info.schema,
-                    params=params,
-                    protocol_version=ctx.protocol_version,
-                )
+            in_type_data, in_type_id = sertypes.describe_params(
+                schema=script_info.schema,
+                params=params,
+                protocol_version=ctx.protocol_version,
+            )
             rv.in_type_id = in_type_id.bytes
             rv.in_type_args = in_type_args
             rv.in_type_data = in_type_data
@@ -2360,11 +2358,9 @@ def _describe_object(
             {'named': True},
         )
 
-        type_data, type_id = sertypes.TypeSerializer.describe(
+        type_data, type_id = sertypes.describe(
             schema,
             prop_tuple,
-            view_shapes={},
-            view_shapes_metadata={},
             follow_links=False,
             protocol_version=protocol_version,
         )
@@ -2398,11 +2394,9 @@ def _describe_object(
             {'named': True},
         )
 
-        type_data, type_id = sertypes.TypeSerializer.describe(
+        type_data, type_id = sertypes.describe(
             schema,
             link_tuple,
-            view_shapes={},
-            view_shapes_metadata={},
             follow_links=False,
             protocol_version=protocol_version,
         )
@@ -2433,11 +2427,10 @@ def _describe_object(
                 ptrdesc.extend(_describe_object(schema, ptr,
                                                 protocol_version))
 
-        type_data, type_id = sertypes.TypeSerializer.describe(
+        type_data, type_id = sertypes.describe(
             schema,
             source,
             view_shapes={source: shape},
-            view_shapes_metadata={},
             follow_links=False,
             protocol_version=protocol_version,
         )
