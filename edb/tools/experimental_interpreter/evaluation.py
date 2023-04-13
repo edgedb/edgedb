@@ -133,7 +133,19 @@ def singular_proj(data: RTData, subject: Val, label: Label) -> Sequence[Val]:
             elif label in entry_obj.val.keys():
                 return entry_obj.val[label][1].vals
             else:
-                raise ValueError("Label not found", label)
+                t_name = data.read_snapshots[0].dbdata[id].tp
+                t_def = data.schema.val[t_name.name]
+                if label in t_def.val.keys():
+                    target_tp = t_def.val[label].tp
+                    match target_tp:
+                        case e.ComputableTp(expr=comp_expr, tp=_):
+                            (_, val) = eval_config(
+                                RTExpr(make_eval_only(data), comp_expr))
+                            return val
+                        case _:
+                            raise ValueError("Label found, but not computable", label)
+                else:
+                    raise ValueError("Label not found", label)
         case NamedTupleVal(val=dic):
             match label:
                 case StrLabel(l):
