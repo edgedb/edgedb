@@ -961,15 +961,26 @@ class Server(ha_base.ClusterProtocol):
                     user_schema = await self.introspect_user_schema(
                         conn, global_schema)
                     config = await self.introspect_db_config(conn)
-                    sql += bootstrap.prepare_repair_patch(
-                        self._std_schema,
-                        self._refl_schema,
-                        user_schema,
-                        global_schema,
-                        self._schema_class_layout,
-                        self.get_backend_runtime_params(),
-                        config,
-                    )
+                    try:
+                        sql += bootstrap.prepare_repair_patch(
+                            self._std_schema,
+                            self._refl_schema,
+                            user_schema,
+                            global_schema,
+                            self._schema_class_layout,
+                            self.get_backend_runtime_params(),
+                            config,
+                        )
+                    except errors.EdgeDBError as e:
+                        if isinstance(e, errors.InternalServerError):
+                            raise
+                        raise errors.SchemaError(
+                            f'Could not repair schema inconsistencies in '
+                            f'database "{dbname}". Probably the schema is '
+                            f'no longer valid due to a bug fix.\n'
+                            f'Downgrade to the last working version, fix '
+                            f'the schema issue, and try again.'
+                        ) from e
 
                 if sql:
                     await conn.sql_fetch(sql)
@@ -981,6 +992,11 @@ class Server(ha_base.ClusterProtocol):
             async with self._direct_pgcon(dbname) as conn:
                 await self._maybe_apply_patches(dbname, conn, patches)
         except Exception as e:
+            if (
+                isinstance(e, errors.EdgeDBError)
+                and not isinstance(e, errors.InternalServerError)
+            ):
+                raise
             raise errors.InternalServerError(
                 f'Could not apply patches for minor version upgrade to '
                 f'database {dbname}'
