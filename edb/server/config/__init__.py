@@ -89,8 +89,11 @@ def lookup(
 
 def get_compilation_config(
     config: Mapping[str, SettingValue],
+    *,
+    spec: Optional[Spec] = None,
 ) -> immutables.Map[str, SettingValue]:
-    spec = get_settings()
+    if spec is None:
+        spec = get_settings()
     return immutables.Map((
         (k, v)
         for k, v in config.items()

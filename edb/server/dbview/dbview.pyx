@@ -1204,13 +1204,15 @@ cdef class DatabaseIndex:
         await conn.sql_execute(block.to_string().encode())
 
     async def apply_system_config_op(self, conn, op):
-        op_value = op.get_setting(config.get_settings())
+        spec = config.get_settings()
+        op_value = op.get_setting(spec)
         if op.opcode is not None:
             allow_missing = (
                 op.opcode is config.OpCode.CONFIG_REM
                 or op.opcode is config.OpCode.CONFIG_RESET
             )
-            op_value = op.coerce_value(op_value, allow_missing=allow_missing)
+            op_value = op.coerce_value(
+                spec, op_value, allow_missing=allow_missing)
 
         # _save_system_overrides *must* happen before
         # the callbacks below, because certain config changes
