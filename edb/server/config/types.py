@@ -28,18 +28,16 @@ from edb.common import typing_inspect
 from edb.schema import objects as s_obj
 from edb.schema import name as s_name
 
-from .. import config
-
 
 class ConfigType:
 
     @classmethod
-    def from_pyvalue(cls, v, *, allow_missing=False):
+    def from_pyvalue(cls, v, *, spec, allow_missing=False):
         """Subclasses override this to allow creation from Python scalars."""
         raise NotImplementedError
 
     @classmethod
-    def from_json_value(cls, v):
+    def from_json_value(cls, v, *, spec):
         raise NotImplementedError
 
     def to_json_value(self):
@@ -53,11 +51,9 @@ class ConfigType:
 class CompositeConfigType(ConfigType):
 
     @classmethod
-    def from_pyvalue(cls, data, *, allow_missing=False):
+    def from_pyvalue(cls, data, *, spec, allow_missing=False):
         if not isinstance(data, dict):
             raise cls._err(f'expected a dict value, got {type(data)!r}')
-
-        spec = config.get_settings()
 
         data = dict(data)
         tname = data.pop('_tname', None)
@@ -121,7 +117,7 @@ class CompositeConfigType(ConfigType):
                     actual_f_type = f_type
                     value['_tname'] = f_type.__name__
 
-                value = actual_f_type.from_pyvalue(value)
+                value = actual_f_type.from_pyvalue(value, spec=spec)
 
             elif not isinstance(value, f_type):
                 raise cls._err(
@@ -152,8 +148,8 @@ class CompositeConfigType(ConfigType):
         return s_obj.get_known_type_id('std::json')
 
     @classmethod
-    def from_json_value(cls, s):
-        return cls.from_pyvalue(s)
+    def from_json_value(cls, s, *, spec):
+        return cls.from_pyvalue(s, spec=spec)
 
     def to_json_value(self):
         dct = {}

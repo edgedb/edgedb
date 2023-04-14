@@ -86,7 +86,7 @@ testspec1 = spec.Spec(
     spec.Setting(
         'port',
         type=Port,
-        default=Port.from_pyvalue(make_port_value())),
+        default=Port(**make_port_value())),
 
     spec.Setting(
         'ints',
@@ -109,14 +109,6 @@ testspec1 = spec.Spec(
 
 
 class TestServerConfigUtils(unittest.TestCase):
-
-    def setUp(self):
-        self._cfgspec = config.get_settings()
-        config.set_settings(testspec1)
-
-    def tearDown(self):
-        config.set_settings(self._cfgspec)
-        self._cfgspec = None  # some settings cannot be pickled by runner.py
 
     def test_server_config_01(self):
         conf = immutables.Map({
@@ -207,8 +199,10 @@ class TestServerConfigUtils(unittest.TestCase):
         self.assertEqual(
             config.lookup('ports', storage2, spec=testspec1),
             {
-                Port.from_pyvalue(make_port_value(database='f1')),
-                Port.from_pyvalue(make_port_value(database='f2')),
+                Port.from_pyvalue(
+                    make_port_value(database='f1'), spec=testspec1),
+                Port.from_pyvalue(
+                    make_port_value(database='f2'), spec=testspec1),
             })
 
         j = ops.to_json(testspec1, storage2)
@@ -226,7 +220,8 @@ class TestServerConfigUtils(unittest.TestCase):
         self.assertEqual(
             config.lookup('ports', storage3, spec=testspec1),
             {
-                Port.from_pyvalue(make_port_value(database='f2')),
+                Port.from_pyvalue(
+                    make_port_value(database='f2'), spec=testspec1),
             })
 
         op = ops.Operation(
@@ -290,16 +285,22 @@ class TestServerConfigUtils(unittest.TestCase):
         op.apply(testspec1, storage)
 
         self.assertEqual(
-            Port.from_pyvalue(make_port_value(address='aaa')),
-            Port.from_pyvalue(make_port_value(address=['aaa'])))
+            Port.from_pyvalue(
+                make_port_value(address='aaa'), spec=testspec1),
+            Port.from_pyvalue(
+                make_port_value(address=['aaa']), spec=testspec1))
 
         self.assertEqual(
-            Port.from_pyvalue(make_port_value(address=['aaa', 'bbb'])),
-            Port.from_pyvalue(make_port_value(address=['bbb', 'aaa'])))
+            Port.from_pyvalue(
+                make_port_value(address=['aaa', 'bbb']), spec=testspec1),
+            Port.from_pyvalue(
+                make_port_value(address=['bbb', 'aaa']), spec=testspec1))
 
         self.assertNotEqual(
-            Port.from_pyvalue(make_port_value(address=['aaa', 'bbb'])),
-            Port.from_pyvalue(make_port_value(address=['bbb', 'aa1'])))
+            Port.from_pyvalue(
+                make_port_value(address=['aaa', 'bbb']), spec=testspec1),
+            Port.from_pyvalue(
+                make_port_value(address=['bbb', 'aa1']), spec=testspec1))
 
     def test_server_config_04(self):
         storage = immutables.Map()
