@@ -39,14 +39,25 @@ Object type aliases can include a *shape* that declare additional computed
 properties or links.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Post {
-    required property title -> str;
-  }
+    type Post {
+      required property title -> str;
+    }
 
-  alias PostAlias := Post {
-    trimmed_title := str_trim(.title)
-  }
+    alias PostAlias := Post {
+      trimmed_title := str_trim(.title)
+    }
+
+.. code-block:: sdl
+
+    type Post {
+      required title: str;
+    }
+
+    alias PostAlias := Post {
+      trimmed_title := str_trim(.title)
+    }
 
 In effect, this creates a *virtual subtype* of the base type, which can be
 referenced in queries just like any other type.
@@ -57,16 +68,29 @@ Aliases can correspond to an arbitrary EdgeQL expression, including entire
 queries.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type BlogPost {
-    required property title -> str;
-    required property is_published -> bool;
-  }
+    type BlogPost {
+      required property title -> str;
+      required property is_published -> bool;
+    }
 
-  alias PublishedPosts := (
-    select BlogPost
-    filter .is_published = true
-  );
+    alias PublishedPosts := (
+      select BlogPost
+      filter .is_published = true
+    );
+
+.. code-block:: sdl
+
+    type BlogPost {
+      required title: str;
+      required is_published: bool;
+    }
+
+    alias PublishedPosts := (
+      select BlogPost
+      filter .is_published = true
+    );
 
 .. note::
 

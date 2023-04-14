@@ -13,16 +13,27 @@ This is known as *object-level security*.
 Let's start with a simple schema.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type User {
-    required property email -> str { constraint exclusive; };
-  }
+    type User {
+      required property email -> str { constraint exclusive; };
+    }
 
-  type BlogPost {
-    required property title -> str;
-    required link author -> User;
-  }
+    type BlogPost {
+      required property title -> str;
+      required link author -> User;
+    }
 
+.. code-block:: sdl
+
+    type User {
+      required email: str { constraint exclusive; };
+    }
+
+    type BlogPost {
+      required title: str;
+      required author: User;
+    }
 
 When no access policies are defined, object-level security is not activated.
 Any properly authenticated client can select or modify any object in the
@@ -40,17 +51,31 @@ To start, we'll add a *global variable* to our schema. We'll use this global
 to represent the identity of the user executing the query.
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
-  +   global current_user -> uuid;
+    +   global current_user -> uuid;
 
-      type User {
-        required property email -> str { constraint exclusive; };
-      }
+        type User {
+          required property email -> str { constraint exclusive; };
+        }
 
-      type BlogPost {
-        required property title -> str;
-        required link author -> User;
-      }
+        type BlogPost {
+          required property title -> str;
+          required link author -> User;
+        }
+
+.. code-block:: sdl-diff
+
+    +   global current_user: uuid;
+
+        type User {
+          required email: str { constraint exclusive; };
+        }
+
+        type BlogPost {
+          required title: str;
+          required author: User;
+        }
 
 Global variables are a generic mechanism for providing *context* to a query.
 Most commonly, they are used in the context of access policies.
@@ -125,21 +150,39 @@ Defining a policy
 Let's add a policy to our sample schema.
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
-      global current_user -> uuid;
+        global current_user -> uuid;
 
-      type User {
-        required property email -> str { constraint exclusive; };
-      }
+        type User {
+          required property email -> str { constraint exclusive; };
+        }
 
-      type BlogPost {
-        required property title -> str;
-        required link author -> User;
+        type BlogPost {
+          required property title -> str;
+          required link author -> User;
 
-  +     access policy author_has_full_access
-  +       allow all
-  +       using (global current_user ?= .author.id);
-      }
+    +     access policy author_has_full_access
+    +       allow all
+    +       using (global current_user ?= .author.id);
+        }
+
+.. code-block:: sdl-diff
+
+        global current_user: uuid;
+
+        type User {
+          required email: str { constraint exclusive; };
+        }
+
+        type BlogPost {
+          required title: str;
+          required author: User;
+
+    +     access policy author_has_full_access
+    +       allow all
+    +       using (global current_user ?= .author.id);
+        }
 
 
 Let's break down the access policy syntax piece-by-piece. This policy grants
@@ -267,6 +310,7 @@ of this great care needs to be taken when creating access policies based on
 objects other than the ones they are defined on. For example:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     global current_user_id -> uuid;
     global current_user := (
@@ -285,6 +329,31 @@ objects other than the ones they are defined on. For example:
     type BlogPost {
       required property title -> str;
       link author -> User;
+
+      access policy author_has_full_access
+        allow all
+        using (global current_user ?= .author.id);
+    }
+
+.. code-block:: sdl
+
+    global current_user_id: uuid;
+    global current_user := (
+      select User filter .id = global current_user_id
+    );
+
+    type User {
+      required email: str { constraint exclusive; };
+      required is_admin: bool { default := false };
+
+      access policy admin_only
+        allow all
+        using (global current_user.is_admin ?? false);
+    }
+
+    type BlogPost {
+      required title: str;
+      author: User;
 
       access policy author_has_full_access
         allow all
@@ -340,96 +409,184 @@ Blog posts are publicly visible if ``published`` but only writable by the
 author.
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
-    global current_user -> uuid;
+      global current_user -> uuid;
 
-    type User {
-      required property email -> str { constraint exclusive; };
-    }
+      type User {
+        required property email -> str { constraint exclusive; };
+      }
 
-    type BlogPost {
-      required property title -> str;
-      required link author -> User;
-  +   required property published -> bool { default := false }
+      type BlogPost {
+        required property title -> str;
+        required link author -> User;
+    +   required property published -> bool { default := false }
 
-      access policy author_has_full_access
-        allow all
-        using (global current_user ?= .author.id);
-  +   access policy visible_if_published
-  +     allow select
-  +     using (.published);
-    }
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy visible_if_published
+    +     allow select
+    +     using (.published);
+      }
+
+.. code-block:: sdl-diff
+
+      global current_user: uuid;
+
+      type User {
+        required email: str { constraint exclusive; };
+      }
+
+      type BlogPost {
+        required title: str;
+        required author: User;
+    +   required published: bool { default := false }
+
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy visible_if_published
+    +     allow select
+    +     using (.published);
+      }
 
 Blog posts are visible to friends but only modifiable by the author.
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
-    global current_user -> uuid;
+      global current_user -> uuid;
 
-    type User {
-      required property email -> str { constraint exclusive; };
-  +   multi link friends -> User;
-    }
+      type User {
+        required property email -> str { constraint exclusive; };
+    +   multi link friends -> User;
+      }
 
-    type BlogPost {
-      required property title -> str;
-      required link author -> User;
+      type BlogPost {
+        required property title -> str;
+        required link author -> User;
 
-      access policy author_has_full_access
-        allow all
-        using (global current_user ?= .author.id);
-  +   access policy friends_can_read
-  +     allow select
-  +     using ((global current_user in .author.friends.id) ?? false);
-    }
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy friends_can_read
+    +     allow select
+    +     using ((global current_user in .author.friends.id) ?? false);
+      }
+
+.. code-block:: sdl-diff
+
+      global current_user: uuid;
+
+      type User {
+        required email: str { constraint exclusive; };
+    +   multi friends: User;
+      }
+
+      type BlogPost {
+        required title: str;
+        required author: User;
+
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy friends_can_read
+    +     allow select
+    +     using ((global current_user in .author.friends.id) ?? false);
+      }
 
 Blog posts are publicly visible except to users that have been ``blocked`` by
 the author.
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
-    type User {
-      required property email -> str { constraint exclusive; };
-  +   multi link blocked -> User;
-    }
+      type User {
+        required property email -> str { constraint exclusive; };
+    +   multi link blocked -> User;
+      }
 
-    type BlogPost {
-      required property title -> str;
-      required link author -> User;
+      type BlogPost {
+        required property title -> str;
+        required link author -> User;
 
-      access policy author_has_full_access
-        allow all
-        using (global current_user ?= .author.id);
-  +   access policy anyone_can_read
-  +     allow select;
-  +   access policy exclude_blocked
-  +     deny select
-  +     using ((global current_user in .author.blocked.id) ?? false);
-    }
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy anyone_can_read
+    +     allow select;
+    +   access policy exclude_blocked
+    +     deny select
+    +     using ((global current_user in .author.blocked.id) ?? false);
+      }
+
+.. code-block:: sdl-diff
+
+      type User {
+        required email: str { constraint exclusive; };
+    +   multi blocked: User;
+      }
+
+      type BlogPost {
+        required title: str;
+        required author: User;
+
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy anyone_can_read
+    +     allow select;
+    +   access policy exclude_blocked
+    +     deny select
+    +     using ((global current_user in .author.blocked.id) ?? false);
+      }
 
 
 "Disappearing" posts that become invisible after 24 hours.
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
-    type User {
-      required property email -> str { constraint exclusive; };
-    }
+      type User {
+        required property email -> str { constraint exclusive; };
+      }
 
-    type BlogPost {
-      required property title -> str;
-      required link author -> User;
-  +   required property created_at -> datetime {
-  +     default := datetime_of_statement() # non-volatile
-  +   }
+      type BlogPost {
+        required property title -> str;
+        required link author -> User;
+    +   required property created_at -> datetime {
+    +     default := datetime_of_statement() # non-volatile
+    +   }
 
-      access policy author_has_full_access
-        allow all
-        using (global current_user ?= .author.id);
-  +   access policy hide_after_24hrs
-  +     allow select
-  +     using (datetime_of_statement() - .created_at < <duration>'24 hours');
-    }
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy hide_after_24hrs
+    +     allow select
+    +     using (datetime_of_statement() - .created_at < <duration>'24 hours');
+      }
+
+.. code-block:: sdl-diff
+
+      type User {
+        required email: str { constraint exclusive; };
+      }
+
+      type BlogPost {
+        required title: str;
+        required author: User;
+    +   required created_at: datetime {
+    +     default := datetime_of_statement() # non-volatile
+    +   }
+
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy hide_after_24hrs
+    +     allow select
+    +     using (datetime_of_statement() - .created_at < <duration>'24 hours');
+      }
 
 Super constraints
 *****************
@@ -448,23 +605,43 @@ will be rolled back.
 Here's a policy that limits the number of blog posts a ``User`` can post.
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
-    type User {
-      required property email -> str { constraint exclusive; };
-  +   multi link posts := .<author[is BlogPost]
-    }
+      type User {
+        required property email -> str { constraint exclusive; };
+    +   multi link posts := .<author[is BlogPost]
+      }
 
-    type BlogPost {
-      required property title -> str;
-      required link author -> User;
+      type BlogPost {
+        required property title -> str;
+        required link author -> User;
 
-      access policy author_has_full_access
-        allow all
-        using (global current_user ?= .author.id);
-  +   access policy max_posts_limit
-  +     deny insert
-  +     using (count(.author.posts) > 500);
-    }
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy max_posts_limit
+    +     deny insert
+    +     using (count(.author.posts) > 500);
+      }
+
+.. code-block:: sdl-diff
+
+      type User {
+        required email: str { constraint exclusive; };
+    +   multi link posts := .<author[is BlogPost]
+      }
+
+      type BlogPost {
+        required title: str;
+        required author: User;
+
+        access policy author_has_full_access
+          allow all
+          using (global current_user ?= .author.id);
+    +   access policy max_posts_limit
+    +     deny insert
+    +     using (count(.author.posts) > 500);
+      }
 
 .. list-table::
   :class: seealso

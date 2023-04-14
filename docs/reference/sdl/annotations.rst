@@ -20,10 +20,20 @@ Declare a new annotation:
 Specify the value of an annotation for a type:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type Status {
         annotation admin_note := 'system-critical';
         required property name -> str {
+            constraint exclusive
+        }
+    }
+
+.. code-block:: sdl
+
+    type Status {
+        annotation admin_note := 'system-critical';
+        required name: str {
             constraint exclusive
         }
     }

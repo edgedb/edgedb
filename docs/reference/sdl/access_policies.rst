@@ -17,6 +17,7 @@ Examples
 Declare a schema where users can only see their own profiles:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     # Declare some global variables to store "current user"
     # information.
@@ -31,6 +32,29 @@ Declare a schema where users can only see their own profiles:
 
     type Profile {
         link owner -> User;
+
+        # Only allow reading to the owner, but also
+        # ensure that a user cannot set the "owner" link
+        # to anything but themselves.
+        access policy owner_only
+            allow all using (.owner = global current_user);
+    }
+
+.. code-block:: sdl
+
+    # Declare some global variables to store "current user"
+    # information.
+    global current_user_id: uuid;
+    global current_user := (
+        select User filter .id = global current_user_id
+    );
+
+    type User {
+        required name: str;
+    }
+
+    type Profile {
+        owner: User;
 
         # Only allow reading to the owner, but also
         # ensure that a user cannot set the "owner" link

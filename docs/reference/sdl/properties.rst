@@ -23,6 +23,7 @@ Declare an *abstract* property "address_base" with a helpful title:
 Declare *concrete* properties "name" and "address" within a "User" type:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type User {
         # define concrete properties
@@ -34,12 +35,27 @@ Declare *concrete* properties "name" and "address" within a "User" type:
         index on (__subject__.name);
     }
 
+.. code-block:: sdl
+
+    type User {
+        # define concrete properties
+        required name: str;
+        property address: str {
+            extending address_base;
+        };
+
+        multi friends: User;
+
+        index on (__subject__.name);
+    }
+
 Any time that the SDL declaration refers to an inherited property that
 is being overloaded (by adding more constraints, for example), the
 ``overloaded`` keyword must be used. This is to prevent unintentional
 overloading due to name clashes:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     abstract type Named {
         property name -> str;
@@ -48,6 +64,18 @@ overloading due to name clashes:
     type User extending Named {
         # define concrete properties
         overloaded required property name -> str;
+        # ... other links and properties
+    }
+
+.. code-block:: sdl
+
+    abstract type Named {
+        name: str;
+    }
+
+    type User extending Named {
+        # define concrete properties
+        overloaded required name: str;
         # ... other links and properties
     }
 
@@ -60,6 +88,7 @@ Define a new property corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_props>`.
 
 .. sdl:synopsis::
+    :version-lt: 3.0
 
     # Concrete property form used inside type declaration:
     [ overloaded ] [{required | optional}] [{single | multi}]
@@ -95,6 +124,45 @@ commands <ref_eql_ddl_props>`.
         [ <annotation-declarations> ]
         ...
       "}" ]
+
+.. sdl:synopsis::
+
+    # Concrete property form used inside type declaration:
+    [ overloaded ] [{required | optional}] [{single | multi}]
+      [ property ] <name> : <type>
+      [ "{"
+          [ extending <base> [, ...] ; ]
+          [ default := <expression> ; ]
+          [ readonly := {true | false} ; ]
+          [ <annotation-declarations> ]
+          [ <constraint-declarations> ]
+          ...
+        "}" ]
+
+    # Computed property form used inside type declaration:
+    [{required | optional}] [{single | multi}]
+      property <name> := <expression>;
+
+    # Computed property form used inside type declaration (extended):
+    [ overloaded ] [{required | optional}] [{single | multi}]
+      property <name> [: <type>]
+      [ "{"
+          using (<expression>) ;
+          [ extending <base> [, ...] ; ]
+          [ <annotation-declarations> ]
+          [ <constraint-declarations> ]
+          ...
+        "}" ]
+
+    # Abstract property form:
+    abstract property [<module>::]<name>
+    [ "{"
+        [extending <base> [, ...] ; ]
+        [ readonly := {true | false} ; ]
+        [ <annotation-declarations> ]
+        ...
+      "}" ]
+
 
 Description
 -----------
@@ -146,6 +214,12 @@ The following options are available:
     Use of ``extending`` creates a persistent schema relationship
     between the new property and its parents.  Schema modifications
     to the parent(s) propagate to the child.
+
+    .. versionadded:: 3.0
+
+        As of EdgeDB 3.0, the ``extended`` clause is now a sub-declaration of
+        the property and included inside the curly braces rather than an option
+        as in earlier versions.
 
 :eql:synopsis:`<type>`
     The type must be a valid :ref:`type expression <ref_eql_types>`

@@ -116,6 +116,7 @@ Examples
 Consider the following schema:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     abstract type Named {
         required property name -> str {
@@ -125,6 +126,20 @@ Consider the following schema:
 
     type User extending Named {
         required property email -> str {
+            annotation title := 'Contact email';
+        }
+    }
+
+.. code-block:: sdl
+
+    abstract type Named {
+        required name: str {
+            delegated constraint exclusive;
+        }
+    }
+
+    type User extending Named {
+        required email: str {
             annotation title := 'Contact email';
         }
     }

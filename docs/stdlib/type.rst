@@ -83,6 +83,7 @@ Types
     object must satisfy ``object is (A | B | C)``.
 
     .. code-block:: sdl
+        :version-lt: 3.0
 
         abstract type Named {
             required property name -> str;
@@ -98,6 +99,24 @@ Types
 
         type User extending Named {
             multi link stuff -> Named | Text;
+        }
+
+    .. code-block:: sdl
+
+        abstract type Named {
+            required name: str;
+        }
+
+        abstract type Text {
+            required body: str;
+        }
+
+        type Item extending Named;
+
+        type Note extending Text;
+
+        type User extending Named {
+            multi stuff: Named | Text;
         }
 
     With the above schema, the following would be valid:
@@ -259,10 +278,20 @@ Types
     that don't indicate their respective target types:
 
     .. code-block:: sdl
+        :version-lt: 3.0
 
         type Foo {
             property bar -> int16;
             link baz -> Bar;
+        }
+
+        type Bar extending Foo;
+
+    .. code-block:: sdl
+
+        type Foo {
+            bar: int16;
+            baz: Bar;
         }
 
         type Bar extending Foo;
@@ -327,10 +356,20 @@ Types
     that don't indicate their respective target types:
 
     .. code-block:: sdl
+        :version-lt: 3.0
 
         type Foo {
             property bar -> int16;
             link baz -> Bar;
+        }
+
+        type Bar extending Foo;
+
+    .. code-block:: sdl
+
+        type Foo {
+            bar: int16;
+            baz: Bar;
         }
 
         type Bar extending Foo;

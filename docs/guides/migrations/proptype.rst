@@ -10,10 +10,18 @@ character in an adventure game as the type of data we will evolve.
 Let's start with this schema:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type Character {
       required property name -> str;
       required property description -> str;
+    }
+
+.. code-block:: sdl
+
+    type Character {
+      required name: str;
+      required description: str;
     }
 
 We edit the schema file and perform our first migration:
@@ -47,10 +55,18 @@ is less of a "description" and more of a "character class", so at
 first we just rename the property to reflect that:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type Character {
       required property name -> str;
       required property class -> str;
+    }
+
+.. code-block:: sdl
+
+    type Character {
+      required name: str;
+      required class: str;
     }
 
 The migration gives us this:
@@ -136,12 +152,22 @@ be a :eql:type:`str` anymore, instead we can use an :eql:type:`enum`
 to make sure that we don't accidentally use some invalid value for it.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     scalar type CharacterClass extending enum<warrior, scholar, rogue>;
 
     type Character {
       required property name -> str;
       required property class -> CharacterClass;
+    }
+
+.. code-block:: sdl
+
+    scalar type CharacterClass extending enum<warrior, scholar, rogue>;
+
+    type Character {
+      required name: str;
+      required class: CharacterClass;
     }
 
 Fortunately, we've already updated the ``class`` strings to match the

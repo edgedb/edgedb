@@ -10,12 +10,22 @@ character in an adventure game as the type of data we will evolve.
 Let's start with this schema:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     scalar type CharacterClass extending enum<warrior, scholar, rogue>;
 
     type Character {
       required property name -> str;
       required property class -> CharacterClass;
+    }
+
+.. code-block:: sdl
+
+    scalar type CharacterClass extending enum<warrior, scholar, rogue>;
+
+    type Character {
+      required name: str;
+      required class: CharacterClass;
     }
 
 We edit the schema file and perform our first migration:
@@ -53,6 +63,7 @@ between the two explicitly. This means that we will need to have both
 the old and the new "class" information to begin with:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     scalar type CharacterClass extending enum<warrior, scholar, rogue>;
 
@@ -65,6 +76,21 @@ the old and the new "class" information to begin with:
       required property name -> str;
       required property class -> CharacterClass;
       link new_class -> NewClass;
+    }
+
+.. code-block:: sdl
+
+    scalar type CharacterClass extending enum<warrior, scholar, rogue>;
+
+    type NewClass {
+      required name: str;
+      multi skills: str;
+    }
+
+    type Character {
+      required name: str;
+      required class: CharacterClass;
+      new_class: NewClass;
     }
 
 We update the schema file and migrate to the new state:
@@ -181,6 +207,7 @@ Everything seems to be in order. It is time to clean up the old
 property and ``CharacterClass`` :eql:type:`enum`:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type NewClass {
       required property name -> str;
@@ -190,6 +217,18 @@ property and ``CharacterClass`` :eql:type:`enum`:
     type Character {
       required property name -> str;
       link new_class -> NewClass;
+    }
+
+.. code-block:: sdl
+
+    type NewClass {
+      required name: str;
+      multi skills: str;
+    }
+
+    type Character {
+      required name: str;
+      new_class: NewClass;
     }
 
 The migration tools should have no trouble detecting the things we
@@ -214,6 +253,7 @@ the "new" components, so that they become ``class`` link and
 ``CharacterClass`` type, respectively:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type CharacterClass {
       required property name -> str;
@@ -223,6 +263,18 @@ the "new" components, so that they become ``class`` link and
     type Character {
       required property name -> str;
       link class -> CharacterClass;
+    }
+
+.. code-block:: sdl
+
+    type CharacterClass {
+      required name: str;
+      multi skills: str;
+    }
+
+    type Character {
+      required name: str;
+      class: CharacterClass;
     }
 
 The migration tools pick up the changes without any issues again. It

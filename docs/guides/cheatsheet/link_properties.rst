@@ -27,30 +27,55 @@ Let's a create a ``Person.friends`` link with a ``strength`` property
 corresponding to the strength of the friendship.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    required property name -> str { constraint exclusive };
+    type Person {
+      required property name -> str { constraint exclusive };
 
-    multi link friends -> Person {
-      property strength -> float64;
+      multi link friends -> Person {
+        property strength -> float64;
+      }
     }
-  }
+
+.. code-block:: sdl
+
+    type Person {
+      required name: str { constraint exclusive };
+
+      multi friends: Person {
+        strength: float64;
+      }
+    }
 
 Constraints
 -----------
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    required property name -> str { constraint exclusive };
+    type Person {
+      required property name -> str { constraint exclusive };
 
-    multi link friends -> Person {
-      property strength -> float64;
-      constraint expression on (
-        __subject__@strength >= 0
-      );
+      multi link friends -> Person {
+        property strength -> float64;
+        constraint expression on (
+          __subject__@strength >= 0
+        );
+      }
     }
-  }
+
+.. code-block:: sdl
+
+    type Person {
+      required name: str { constraint exclusive };
+
+      multi friends: Person {
+        strength: float64;
+        constraint expression on (
+          __subject__@strength >= 0
+        );
+      }
+    }
 
 Indexes
 -------
@@ -58,16 +83,31 @@ Indexes
 To index on a link property, you must declare an abstract link and extend it.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  abstract link friendship {
-    property strength -> float64;
-    index on (__subject__@strength);
-  }
+    abstract link friendship {
+      property strength -> float64;
+      index on (__subject__@strength);
+    }
 
-  type Person {
-    required property name -> str { constraint exclusive };
-    multi link friends extending friendship -> Person;
-  }
+    type Person {
+      required property name -> str { constraint exclusive };
+      multi link friends extending friendship -> Person;
+    }
+
+.. code-block:: sdl
+
+    abstract link friendship {
+      strength: float64;
+      index on (__subject__@strength);
+    }
+
+    type Person {
+      required name: str { constraint exclusive };
+      multi friends: Person {
+        extending friendship;
+      };
+    }
 
 
 Inserting

@@ -27,14 +27,26 @@ Object types can *extend* other object types. The extending type (AKA the
 *supertypes*.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  abstract type Animal {
-    property species -> str;
-  }
+    abstract type Animal {
+      property species -> str;
+    }
 
-  type Dog extending Animal {
-    property breed -> str;
-  }
+    type Dog extending Animal {
+      property breed -> str;
+    }
+
+.. code-block:: sdl
+
+    abstract type Animal {
+      species: str;
+    }
+
+    type Dog extending Animal {
+      breed: str;
+    }
+
 
 For details on querying polymorphic data, see :ref:`EdgeQL > Select >
 Polymorphic queries <ref_eql_select_polymorphic>`.
@@ -50,19 +62,35 @@ than one type <ref_eql_sdl_object_types_inheritance>` — that's called
 types out of combinations of more basic types.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  abstract type HasName {
-    property first_name -> str;
-    property last_name -> str;
-  }
+    abstract type HasName {
+      property first_name -> str;
+      property last_name -> str;
+    }
 
-  abstract type HasEmail {
-    property email -> str;
-  }
+    abstract type HasEmail {
+      property email -> str;
+    }
 
-  type Person extending HasName, HasEmail {
-    property profession -> str;
-  }
+    type Person extending HasName, HasEmail {
+      property profession -> str;
+    }
+
+.. code-block:: sdl
+
+    abstract type HasName {
+      first_name: str;
+      last_name: str;
+    }
+
+    abstract type HasEmail {
+      email: str;
+    }
+
+    type Person extending HasName, HasEmail {
+      profession: str;
+    }
 
 
 .. _ref_datamodel_overloading:
@@ -75,18 +103,34 @@ declarations must be prefixed with the ``overloaded`` prefix to avoid
 unintentional overloads.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  abstract type Person {
-    property name -> str;
-    multi link friends -> Person;
-  }
-
-  type Student extending Person {
-    overloaded property name -> str {
-      constraint exclusive;
+    abstract type Person {
+      property name -> str;
+      multi link friends -> Person;
     }
-    overloaded multi link friends -> Student;
-  }
+
+    type Student extending Person {
+      overloaded property name -> str {
+        constraint exclusive;
+      }
+      overloaded multi link friends -> Student;
+    }
+
+.. code-block:: sdl
+
+    abstract type Person {
+      name: str;
+      multi friends: Person;
+    }
+
+    type Student extending Person {
+      overloaded name: str {
+        constraint exclusive;
+      }
+      overloaded multi friends: Student;
+    }
+
 
 Overloaded fields cannot *generalize* the associated type; it can only make it
 *more specific* by setting the type to a subtype of the original or adding
@@ -118,16 +162,29 @@ It's possible to define ``abstract`` links that aren't tied to a particular
 annotations, property declarations, constraints, and indexes.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  abstract link link_with_strength {
-    property strength -> float64;
-    index on (__subject__@strength);
-  }
+    abstract link link_with_strength {
+      property strength -> float64;
+      index on (__subject__@strength);
+    }
 
-  type Person {
-    multi link friends extending link_with_strength -> Person;
-  }
+    type Person {
+      multi link friends extending link_with_strength -> Person;
+    }
 
+.. code-block:: sdl
+
+    abstract link link_with_strength {
+      strength: float64;
+      index on (__subject__@strength);
+    }
+
+    type Person {
+      multi friends: Person {
+        extending link_with_strength;
+      };
+    }
 
 .. _ref_datamodel_inheritance_constraints:
 
@@ -138,19 +195,33 @@ Constraints
 Use ``abstract`` to declare reusable, user-defined constraint types.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  abstract constraint in_range(min: anyreal, max: anyreal) {
-    errmessage :=
-      'Value must be in range [{min}, {max}].';
-    using (max > __subject__ and __subject__ >= min);
-  }
-
-  type Player {
-    property points -> int64 {
-      constraint in_range(0, 100);
+    abstract constraint in_range(min: anyreal, max: anyreal) {
+      errmessage :=
+        'Value must be in range [{min}, {max}].';
+      using (max > __subject__ and __subject__ >= min);
     }
-  }
 
+    type Player {
+      property points -> int64 {
+        constraint in_range(0, 100);
+      }
+    }
+
+.. code-block:: sdl
+
+    abstract constraint in_range(min: anyreal, max: anyreal) {
+      errmessage :=
+        'Value must be in range [{min}, {max}].';
+      using (max > __subject__ and __subject__ >= min);
+    }
+
+    type Player {
+      points: int64 {
+        constraint in_range(0, 100);
+      }
+    }
 
 .. _ref_datamodel_inheritance_annotations:
 

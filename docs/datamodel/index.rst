@@ -35,26 +35,39 @@ Language).
 SDL
 ---
 
-Your schema is defined inside ``.esdl`` files. Its common to define your
-entire schema in a single file called ``default.esdl``, but you can split it
-across multiple files if you wish.
+Your schema is defined inside ``.esdl`` files. Its common to define your entire
+schema in a single file called ``default.esdl``, but you can split it across
+multiple files if you wish.
 
-By convention, your schema
-files should live in a directory called ``dbschema`` in the root of your
-project.
+By convention, your schema files should live in a directory called ``dbschema``
+in the root of your project.
+
+.. code-block:: sdl
+    :version-lt: 3.0
+
+    # dbschema/default.esdl
+
+    type Movie {
+      required property title -> str;
+      required link director -> Person;
+    }
+
+    type Person {
+      required property name -> str;
+    }
 
 .. code-block:: sdl
 
-  # dbschema/default.esdl
+    # dbschema/default.esdl
 
-  type Movie {
-    required property title -> str;
-    required link director -> Person;
-  }
+    type Movie {
+      required title: str;
+      required director: Person;
+    }
 
-  type Person {
-    required property name -> str;
-  }
+    type Person {
+      required name: str;
+    }
 
 .. important::
 

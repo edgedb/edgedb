@@ -57,15 +57,27 @@ To avoid this behavior, we could update the ``Movie.characters`` link to use
 the ``allow`` deletion policy.
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
-    type Movie {
-      required property title -> str { constraint exclusive };
-      required property release_year -> int64;
-  -   multi link characters -> Person;
-  +   multi link characters -> Person {
-  +     on target delete allow;
-  +   };
-    }
+      type Movie {
+        required property title -> str { constraint exclusive };
+        required property release_year -> int64;
+    -   multi link characters -> Person;
+    +   multi link characters -> Person {
+    +     on target delete allow;
+    +   };
+      }
+
+.. code-block:: sdl-diff
+
+      type Movie {
+        required title: str { constraint exclusive };
+        required release_year: int64;
+    -   multi characters: Person;
+    +   multi characters: Person {
+    +     on target delete allow;
+    +   };
+      }
 
 
 Cascading deletes
