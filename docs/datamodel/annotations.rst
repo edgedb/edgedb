@@ -12,7 +12,7 @@ are designed to hold arbitrary schema-level metadata represented as a
 Standard annotations
 --------------------
 
-There is a number of annotations defined in the standard library.
+There are a number of annotations defined in the standard library.
 The following are the annotations which can be set on any schema item:
 
 - ``title``
