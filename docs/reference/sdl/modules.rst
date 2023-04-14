@@ -50,6 +50,20 @@ commands <ref_eql_ddl_modules>`.
       ...
     "}"
 
+.. versionadded:: 3.0
+
+    Define a nested module.
+
+    .. sdl:synopsis::
+
+        module <ParentModuleName> "{"
+          [ <schema-declarations> ]
+          module <ModuleName> "{"
+            [ <schema-declarations> ]
+          "}"
+          ...
+        "}"
+
 
 Description
 -----------
@@ -142,3 +156,10 @@ examples, but it declares module ``my_module`` implicitly:
     }
 
     type my_module::User extending my_module::Named;
+
+.. versionadded:: 3.0
+
+   A module block can be nested inside another module block to create a nested
+   module. If you want reference an entity in a nested module by its
+   fully-qualified name, you will need to reference all of the containing
+   modules' names: ``<ParentModuleName>::<ModuleName>::<EntityName>``
