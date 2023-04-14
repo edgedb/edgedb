@@ -118,3 +118,6 @@ class BinWrapper:
             return None
         else:
             return self.read_bytes(size)
+
+    def tell(self) -> int:
+        return self.buf.tell()
