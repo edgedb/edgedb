@@ -1952,6 +1952,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
+    async def test_edgeql_ddl_default_12(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            'is part of a default rule cycle'
+        ):
+            await self.con.execute(r"""
+                CREATE TYPE Test3 {
+                    CREATE LINK d7 : Test3 {
+                        SET default := (INSERT Test3 {})
+                    }
+                }
+            """)
+
     async def test_edgeql_ddl_default_circular(self):
         await self.con.execute(r"""
             CREATE TYPE TestDefaultCircular {
