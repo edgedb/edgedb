@@ -141,6 +141,34 @@ called ``default``.
     # declare types here
   }
 
+.. versionadded:: 3.0
+
+    You may define nested modules using the following syntax:
+
+    .. code-block:: sdl
+
+        module dracula {
+            type Person {
+              required property name -> str;
+              multi link places_visited -> City;
+              property strength -> int16;
+            }
+
+            module combat {
+                function fight(one: Person, two: Person) -> str
+                  using (
+                    (one.name ?? 'Fighter 1') ++ ' wins!'
+                    IF (one.strength ?? 0) > (two.strength ?? 0)
+                    ELSE (two.name ?? 'Fighter 2') ++ ' wins!'
+                  );
+            }
+        }
+
+    Here we have a ``dracula`` module containing a ``Person`` type. Nested in
+    the ``dracula`` module we have a ``combat`` module which will be used for
+    all the combat functionality for our game based on Bram Stoker's Dracula we
+    built in the `Easy EdgeDB textbook </easy-edgedb>`_.
+
 .. _ref_name_resolution:
 
 .. note:: Name resolution
@@ -161,3 +189,10 @@ types, utility functions, and operators.
 * ``sys``: system-wide entities, such as user roles and
   :ref:`databases <ref_datamodel_databases>`
 * ``cfg``: configuration and settings
+
+.. versionadded:: 3.0
+
+    You can chain together module names in a fully-qualified name to traverse a
+    tree of nested modules. For example, to call the ``fight`` function in the
+    nested module example above, you would use
+    ``dracula::combat::fight(<arguments>)``.
