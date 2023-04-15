@@ -1955,7 +1955,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_default_12(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
-            'is part of a default rule cycle'
+            'is part of a default cycle'
         ):
             await self.con.execute(r"""
                 CREATE TYPE Test3 {

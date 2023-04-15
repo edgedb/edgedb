@@ -712,7 +712,7 @@ def _gen_pointers_from_defaults(
     if stype in ctx.active_defaults:
         vn = stype.get_verbosename(ctx.env.schema)
         raise errors.QueryError(
-            f"default rule on {vn} is part of a default rule cycle",
+            f"default on property of {vn} is part of a default cycle",
         )
 
     scls_pointers = stype.get_pointers(ctx.env.schema)

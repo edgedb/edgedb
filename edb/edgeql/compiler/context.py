@@ -546,7 +546,7 @@ class ContextLevel(compiler.ContextLevel):
     """For detecting cycles in rewrite rules"""
 
     active_defaults: FrozenSet[s_objtypes.ObjectType]
-    """For detecting cycles in default rules"""
+    """For detecting cycles in defaults"""
 
     def __init__(
         self,
