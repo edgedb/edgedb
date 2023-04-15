@@ -117,6 +117,12 @@ class ComputableTp:
     tp: Tp
 
 
+# Computable Tp Pending Type Inference
+@dataclass(frozen=True)
+class UncheckedComputableTp:
+    expr: BindingExpr
+
+
 @dataclass(frozen=True)
 class DefaultTp:
     expr: BindingExpr
@@ -142,7 +148,7 @@ class UnifiableTp:
 
 Tp = (ObjectTp | PrimTp | VarTp | LinkPropTp | NamedTupleTp | UnnamedTupleTp
       | ArrTp | AnyTp | SomeTp | UnionTp | IntersectTp | UnifiableTp
-      | ComputableTp | DefaultTp)
+      | ComputableTp | DefaultTp | UncheckedComputableTp)
 
 
 @dataclass(frozen=True)

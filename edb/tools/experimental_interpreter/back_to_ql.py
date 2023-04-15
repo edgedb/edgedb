@@ -131,8 +131,7 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
                                    object_to_shape(ir_expr)))
         case InsertExpr(name=tname, new=arg):
             return qlast.InsertQuery(subject=qlast.ObjectRef(name=tname),
-                                     shape=reverse_elab_shape(
-                                     object_to_shape(cast(ObjectExpr, arg)))
+                                     shape=reverse_elab_shape(arg)
                                      )
         case FilterOrderExpr(subject=subject, filter=filter, order=order):
             result_name = filter.var

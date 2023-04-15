@@ -203,6 +203,8 @@ def tp_is_primitive(tp: e.Tp) -> bool:
               ):
             # return tp_is_primitive(left_tp) and tp_is_primitive(right_tp)
             return False  # this case is actually ambiguous
+        case e.ComputableTp(tp=under_tp, expr=_):
+            return tp_is_primitive(under_tp)
         case _:
             raise ValueError("Not implemented", tp)
 

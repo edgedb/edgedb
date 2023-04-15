@@ -6,9 +6,10 @@ from edb.edgeql import ast as qlast
 from .basis.built_ins import all_builtin_funcs
 from .data.data_ops import (CMMode, DBSchema, Fin, Inf, LinkPropTp, ObjectTp,
                             ResultTp, Tp)
-from .elaboration import elab_single_type_expr
+from .elaboration import elab_single_type_expr, elab_expr_with_default_head
 from .helper_funcs import parse_sdl
-
+from .data import data_ops as e
+from . import typechecking  as tck
 
 def elab_schema_error(obj: Any) -> Any:
     raise ValueError(obj)
@@ -59,6 +60,10 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
                             if isinstance(ptarget, qlast.TypeExpr):
                                 base_target_type = elab_schema_target_tp(
                                     ptarget)
+                            elif isinstance(ptarget, qlast.Expr):
+                                base_target_type = e.UncheckedComputableTp(
+                                    elab_expr_with_default_head(ptarget)
+                                )
                             else:
                                 print(
                                     "WARNING: not implemented ptarget",
@@ -126,7 +131,10 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
 
 def schema_from_sdl_defs(schema_defs: str,
                          ) -> DBSchema:
-    return elab_schema(parse_sdl(schema_defs))
+    raw_schema = elab_schema(parse_sdl(schema_defs))
+    checked_schema = tck.check_schmea_validity(raw_schema)
+    return checked_schema
+
 
 
 def schema_from_sdl_file(init_sdl_file_path: str,

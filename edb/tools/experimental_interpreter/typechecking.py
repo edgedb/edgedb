@@ -636,3 +636,89 @@ def check_type(ctx: e.TcCtx, expr: e.Expr, tp: e.ResultTp) -> e.Expr:
     # ( "Expecting cardinality %s, got %s" % (tp.mode, synth_mode))
     return expr_ck
     
+
+def check_object_tp_comp_validity(
+        dbschema: e.DBSchema,
+        subject_tp: e.Tp,
+        tp_comp: e.Tp,
+        tp_comp_card: e.CMMode) -> e.Tp:
+    match tp_comp:
+        case e.LinkPropTp(subject=l_sub, linkprop=l_prop):
+            return e.LinkPropTp(
+                    subject=l_sub,
+                    linkprop=check_object_tp_validity(
+                        dbschema, tp_comp, l_prop))
+        case e.UncheckedComputableTp(expr=c_expr):
+            if not isinstance(c_expr, e.BindingExpr):  # type: ignore
+                raise ValueError(
+                    "Computable type must be a binding expression")
+            new_ctx, c_body, bnd_var = eops.tcctx_add_binding(
+                eops.emtpy_tcctx_from_dbschema(dbschema),
+                c_expr,  # type: ignore
+                e.ResultTp(subject_tp, e.CardOne)
+            )
+            synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
+            tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
+            return e.ComputableTp(
+                expr=eops.abstract_over_expr(c_body_ck, bnd_var),
+                tp=synth_tp.tp)
+        case e.ComputableTp(expr=c_expr, tp=c_tp):
+            if not isinstance(c_expr, e.BindingExpr):  # type: ignore
+                raise ValueError(
+                    "Computable type must be a binding expression")
+            new_ctx, c_body, bnd_var = eops.tcctx_add_binding(
+                eops.emtpy_tcctx_from_dbschema(dbschema),
+                c_expr,  # type: ignore
+                e.ResultTp(subject_tp, e.CardOne)
+            )
+            synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
+            tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
+            tops.assert_real_subtype(new_ctx, synth_tp.tp, c_tp)
+            return e.ComputableTp(
+                expr=eops.abstract_over_expr(c_body_ck, bnd_var),
+                tp=c_tp)
+        # This code is mostly copied from the above
+        # TODO: Can we not copy?
+        case e.DefaultTp(expr=c_expr, tp=c_tp):
+            if not isinstance(c_expr, e.BindingExpr):  # type: ignore
+                raise ValueError(
+                    "Computable type must be a binding expression")
+            new_ctx, c_body, bnd_var = eops.tcctx_add_binding(
+                eops.emtpy_tcctx_from_dbschema(dbschema),
+                c_expr,  # type: ignore
+                e.ResultTp(subject_tp, e.CardOne)
+            )
+            synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
+            tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
+            tops.assert_real_subtype(new_ctx, synth_tp.tp, c_tp)
+            return e.DefaultTp(
+                expr=eops.abstract_over_expr(c_body_ck, bnd_var),
+                tp=c_tp)
+        case _:
+            return tp_comp
+
+
+def check_object_tp_validity(dbschema: e.DBSchema,
+                             subject_tp: e.Tp,
+                             obj_tp: e.ObjectTp) -> e.ObjectTp:
+    result_vals: Dict[str, e.ResultTp] = {}
+    for lbl, (t_comp_tp, t_comp_card) in obj_tp.val.items():
+        result_vals[lbl] = e.ResultTp(
+            check_object_tp_comp_validity(
+                dbschema=dbschema,
+                subject_tp=subject_tp,
+                tp_comp=t_comp_tp,
+                tp_comp_card=t_comp_card), t_comp_card)
+    return e.ObjectTp(result_vals)
+
+
+def check_schmea_validity(dbschema: e.DBSchema) -> e.DBSchema:
+    result_vals: Dict[str, e.ObjectTp] = {}
+    for t_name, obj_tp in dbschema.val.items():
+        result_vals = {**result_vals, t_name:
+                       check_object_tp_validity(
+                            dbschema, e.VarTp(t_name),
+                            obj_tp)}
+    return e.DBSchema(val=result_vals, fun_defs=dbschema.fun_defs)
+
+

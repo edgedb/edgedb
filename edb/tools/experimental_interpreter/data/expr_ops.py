@@ -567,6 +567,16 @@ def tcctx_add_binding(ctx: e.TcCtx,
     return new_ctx, after_e, bnd_e.var
 
 
+def emtpy_tcctx_from_dbschema(dbschema: e.DBSchema) -> e.TcCtx:
+    return e.TcCtx(
+        statics=e.RTData(
+            cur_db=e.DB({}),
+            read_snapshots=[],
+            schema=dbschema,
+            eval_only=False
+        ), varctx={})
+
+
 def is_effect_free(expr: Expr) -> bool:
     def pred(expr: Expr) -> bool:
         if isinstance(expr, e.InsertExpr) or isinstance(expr, e.UpdateExpr):

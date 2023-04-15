@@ -31,6 +31,10 @@ DEFAULT_HEAD_NAME = "__no_clash_head_subject__"
 # will always disappear when elaboration finishes
 
 
+def elab_expr_with_default_head(node: qlast.Expr) -> BindingExpr:
+    return abstract_over_expr(elab(node), DEFAULT_HEAD_NAME)
+
+
 def elab_error(msg: str, ctx: Optional[parsing.ParserContext]) -> Any:
     raise errors.QueryError(msg, context=ctx)
 
@@ -55,6 +59,7 @@ def elab_Shape(elements: Sequence[qlast.ShapeElement]) -> ShapeExpr:
 @singledispatch
 def elab(node: qlast.Base) -> Expr:
     return elab_not_implemented(node)
+
 
 
 @elab.register(qlast.Path)
