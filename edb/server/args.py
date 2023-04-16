@@ -549,6 +549,7 @@ _server_options = [
         '--tenant-id',
         type=str,
         callback=_validate_tenant_id,
+        envvar="EDGEDB_SERVER_TENANT_ID",
         help='Specifies the tenant ID of this server when hosting'
              ' multiple EdgeDB instances on one Postgres cluster.'
              ' Must be an alphanumeric ASCII string, maximum'
