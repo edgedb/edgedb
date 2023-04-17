@@ -23,12 +23,26 @@ Declare an *abstract* link "friends_base" with a helpful title:
 Declare a *concrete* link "friends" within a "User" type:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type User {
         required property name -> str;
         property address -> str;
         # define a concrete link "friends"
-        multi link friends extending friends_base-> User;
+        multi link friends extending friends_base -> User;
+
+        index on (__subject__.name);
+    }
+
+.. code-block:: sdl
+
+    type User {
+        required name: str;
+        address: str;
+        # define a concrete link "friends"
+        multi link friends: User {
+            extending friends_base;
+        };
 
         index on (__subject__.name);
     }
@@ -44,15 +58,29 @@ type, for example), the ``overloaded`` keyword must be used. This is
 to prevent unintentional overloading due to name clashes:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     abstract type Friendly {
         # this type can have "friends"
-        link friends -> Friendly;
+        multi link friends -> Friendly;
     }
 
     type User extending Friendly {
         # overload the link target to be User, specifically
         overloaded multi link friends -> User;
+        # ... other links and properties
+    }
+
+.. code-block:: sdl
+
+    abstract type Friendly {
+        # this type can have "friends"
+        multi friends: Friendly;
+    }
+
+    type User extending Friendly {
+        # overload the link target to be User, specifically
+        overloaded multi friends: User;
         # ... other links and properties
     }
 
@@ -65,6 +93,7 @@ Define a new link corresponding to the :ref:`more explicit DDL
 commands <ref_eql_ddl_links>`.
 
 .. sdl:synopsis::
+    :version-lt: 3.0
 
     # Concrete link form used inside type declaration:
     [ overloaded ] [{required | optional}] [{single | multi}]
@@ -96,7 +125,7 @@ commands <ref_eql_ddl_links>`.
           ...
         "}" ]
 
-   # Abstract link form:
+    # Abstract link form:
     abstract link <name> [extending <base> [, ...]]
     [ "{"
         [ readonly := {true | false} ; ]
@@ -107,17 +136,61 @@ commands <ref_eql_ddl_links>`.
         ...
       "}" ]
 
+.. sdl:synopsis::
+
+    # Concrete link form used inside type declaration:
+    [ overloaded ] [{required | optional}] [{single | multi}]
+      [ link ] <name> : <type>
+      [ "{"
+          [ extending <base> [, ...] ; ]
+          [ default := <expression> ; ]
+          [ readonly := {true | false} ; ]
+          [ on target delete <action> ; ]
+          [ <annotation-declarations> ]
+          [ <property-declarations> ]
+          [ <constraint-declarations> ]
+          ...
+        "}" ]
+
+
+    # Computed link form used inside type declaration:
+    [{required | optional}] [{single | multi}]
+      link <name> := <expression>;
+
+    # Computed link form used inside type declaration (extended):
+    [ overloaded ] [{required | optional}] [{single | multi}]
+      link <name> [: <type>]
+      [ "{"
+          using (<expression>) ;
+          [ extending <base> [, ...] ; ]
+          [ <annotation-declarations> ]
+          [ <constraint-declarations> ]
+          ...
+        "}" ]
+
+    # Abstract link form:
+    abstract link <name>
+    [ "{"
+        [extending <base> [, ...] ; ]
+        [ readonly := {true | false} ; ]
+        [ <annotation-declarations> ]
+        [ <property-declarations> ]
+        [ <constraint-declarations> ]
+        [ <index-declarations> ]
+        ...
+      "}" ]
+
+
 Description
 -----------
 
-There are several forms of ``link`` declaration, as shown in the
-syntax synopsis above.  The first form is the canonical definition
-form, the second and third forms are used for defining a
-:ref:`computed link <ref_datamodel_computed>`, and the last one
-is a form to define an ``abstract link``.  The abstract form
-allows declaring the link directly inside a :ref:`module
-<ref_eql_sdl_modules>`.  Concrete link forms are always used as
-sub-declarations for an :ref:`object type <ref_eql_sdl_object_types>`.
+There are several forms of link declaration, as shown in the syntax synopsis
+above. The first form is the canonical definition form, the second form is used
+for defining a :ref:`computed link <ref_datamodel_computed>`, and the last form
+is used to define an abstract link. The abstract form allows declaring the link
+directly inside a :ref:`module <ref_eql_sdl_modules>`. Concrete link forms are
+always used as sub-declarations of an :ref:`object type
+<ref_eql_sdl_object_types>`.
 
 The following options are available:
 
@@ -162,6 +235,12 @@ The following options are available:
     then the data types of the property targets must be *compatible*.
     If there is no conflict, the link properties are merged to form a
     single property in the new link item.
+
+    .. versionadded:: 3.0
+
+        As of EdgeDB 3.0, the ``extended`` clause is now a sub-declaration of
+        the link and included inside the curly braces rather than an option as
+        in earlier versions.
 
 :eql:synopsis:`<type>`
     The type must be a valid :ref:`type expression <ref_eql_types>`

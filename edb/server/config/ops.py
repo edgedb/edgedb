@@ -76,12 +76,12 @@ class Operation(NamedTuple):
             raise errors.ConfigurationError(
                 f'unknown setting {self.setting_name!r}') from None
 
-    def coerce_value(self, setting: spec.Setting, *,
+    def coerce_value(self, spec: spec.Spec, setting: spec.Setting, *,
                      allow_missing: bool = False):
         if issubclass(setting.type, types.ConfigType):
             try:
                 return setting.type.from_pyvalue(
-                    self.value, allow_missing=allow_missing)
+                    self.value, spec=spec, allow_missing=allow_missing)
             except (ValueError, TypeError):
                 raise errors.ConfigurationError(
                     f'invalid value type for the {setting.name!r} setting')
@@ -135,7 +135,8 @@ class Operation(NamedTuple):
 
         if self.scope != qltypes.ConfigScope.GLOBAL:
             setting = self.get_setting(spec)
-            value = self.coerce_value(setting, allow_missing=allow_missing)
+            value = self.coerce_value(
+                spec, setting, allow_missing=allow_missing)
         else:
             setting = None
             value = self.coerce_global_value(allow_missing=allow_missing)
@@ -303,15 +304,16 @@ def value_to_json_value(setting: spec.Setting, value: Any):
             return value
 
 
-def value_from_json_value(setting: spec.Setting, value: Any):
+def value_from_json_value(spec: spec.Spec, setting: spec.Setting, value: Any):
     if setting.set_of:
         if issubclass(setting.type, types.ConfigType):
-            return frozenset(setting.type.from_json_value(v) for v in value)
+            return frozenset(
+                setting.type.from_json_value(v, spec=spec) for v in value)
         else:
             return frozenset(value)
     else:
         if issubclass(setting.type, types.ConfigType):
-            return setting.type.from_json_value(value)
+            return setting.type.from_json_value(value, spec=spec)
         elif issubclass(setting.type, statypes.Duration):
             return statypes.Duration.from_iso8601(value)
         elif issubclass(setting.type, statypes.ConfigMemory):
@@ -320,8 +322,8 @@ def value_from_json_value(setting: spec.Setting, value: Any):
             return value
 
 
-def value_from_json(setting, value: str):
-    return value_from_json_value(setting, json.loads(value))
+def value_from_json(spec, setting, value: str):
+    return value_from_json_value(spec, setting, json.loads(value))
 
 
 def value_to_edgeql_const(setting: spec.Setting, value: Any) -> str:
@@ -375,7 +377,7 @@ def from_json(spec: spec.Spec, js: str) -> SettingsMap:
 
             mm[key] = SettingValue(
                 name=key,
-                value=value_from_json_value(setting, value['value']),
+                value=value_from_json_value(spec, setting, value['value']),
                 source=value['source'],
                 scope=qltypes.ConfigScope(value['scope']),
             )

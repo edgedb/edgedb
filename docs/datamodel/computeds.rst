@@ -16,11 +16,19 @@ and links are not persisted in the database. Instead, they are evaluated *on
 the fly* whenever that field is queried.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    property name -> str;
-    property all_caps_name := str_upper(__subject__.name);
-  }
+    type Person {
+      property name -> str;
+      property all_caps_name := str_upper(__subject__.name);
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      name: str;
+      property all_caps_name := str_upper(__subject__.name);
+    }
 
 Computed fields are associated with an EdgeQL expression. This expression
 can be an *arbitrary* EdgeQL query. This expression is evaluated whenever the
@@ -55,12 +63,21 @@ an object type declaration, you can omit it entirely and use the ``.<name>``
 shorthand.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    property first_name -> str;
-    property last_name -> str;
-    property full_name := .first_name ++ ' ' ++ .last_name;
-  }
+    type Person {
+      property first_name -> str;
+      property last_name -> str;
+      property full_name := .first_name ++ ' ' ++ .last_name;
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      first_name: str;
+      last_name: str;
+      property full_name := .first_name ++ ' ' ++ .last_name;
+    }
 
 Type and cardinality inference
 ------------------------------
@@ -73,13 +90,23 @@ EdgeQL expression disagrees with the modifiers, an error will be thrown the
 next time you try to :ref:`create a migration <ref_intro_migrations>`.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    property first_name -> str;
+    type Person {
+      property first_name -> str;
 
-    # this is invalid, because first_name is not a required property
-    required property first_name_upper := str_upper(.first_name);
-  }
+      # this is invalid, because first_name is not a required property
+      required property first_name_upper := str_upper(.first_name);
+    }
+
+.. code-block:: sdl
+
+    type Person {
+      first_name: str;
+
+      # this is invalid, because first_name is not a required property
+      required property first_name_upper := str_upper(.first_name);
+    }
 
 Common use cases
 ----------------
@@ -91,18 +118,33 @@ If you find yourself writing the same ``filter`` expression repeatedly in
 queries, consider defining a computed field that encapsulates the filter.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Club {
-    multi link members -> Person;
-    multi link active_members := (
-      select .members filter .is_active = true
-    )
-  }
+    type Club {
+      multi link members -> Person;
+      multi link active_members := (
+        select .members filter .is_active = true
+      )
+    }
 
-  type Person {
-    property name -> str;
-    property is_active -> bool;
-  }
+    type Person {
+      property name -> str;
+      property is_active -> bool;
+    }
+
+.. code-block:: sdl
+
+    type Club {
+      multi members: Person;
+      multi link active_members := (
+        select .members filter .is_active = true
+      )
+    }
+
+    type Person {
+      name: str;
+      is_active: bool;
+    }
 
 .. _ref_datamodel_links_backlinks:
 
@@ -114,16 +156,29 @@ links are *directional*; they have a source and a target. Often it's convenient
 to traverse a link in the *reverse* direction.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type BlogPost {
-    property title -> str;
-    link author -> User;
-  }
+    type BlogPost {
+      property title -> str;
+      link author -> User;
+    }
 
-  type User {
-    property name -> str;
-    multi link blog_posts := .<author[is BlogPost]
-  }
+    type User {
+      property name -> str;
+      multi link blog_posts := .<author[is BlogPost]
+    }
+
+.. code-block:: sdl
+
+    type BlogPost {
+      title: str;
+      author: User;
+    }
+
+    type User {
+      name: str;
+      multi link blog_posts := .<author[is BlogPost]
+    }
 
 The ``User.blog_posts`` expression above uses the *backlink operator* ``.<`` in
 conjunction with a *type filter* ``[is BlogPost]`` to fetch all the
@@ -137,15 +192,27 @@ Using a computed property, you can timestamp when an object was created in your
 database.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type BlogPost {
-    property title -> str;
-    link author -> User;
-    required property created_at -> datetime {
-      readonly := true;
-      default := datetime_of_statement();
+    type BlogPost {
+      property title -> str;
+      link author -> User;
+      required property created_at -> datetime {
+        readonly := true;
+        default := datetime_of_statement();
+      }
     }
-  }
+
+.. code-block:: sdl
+
+    type BlogPost {
+      title: str;
+      author: User;
+      required created_at: datetime {
+        readonly := true;
+        default := datetime_of_statement();
+      }
+    }
 
 When a ``BlogPost`` is created, :eql:func:`datetime_of_statement` will be
 called to supply it with a timestamp as the ``created_at`` property. You might

@@ -52,27 +52,51 @@ However most queries are selecting *objects* that live in the database. For
 demonstration purposes, the queries below assume the following schema.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  module default {
-    abstract type Person {
-      required property name -> str { constraint exclusive };
+    module default {
+      abstract type Person {
+        required property name -> str { constraint exclusive };
+      }
+
+      type Hero extending Person {
+        property secret_identity -> str;
+        multi link villains := .<nemesis[is Villain];
+      }
+
+      type Villain extending Person {
+        link nemesis -> Hero;
+      }
+
+      type Movie {
+        required property title -> str { constraint exclusive };
+        required property release_year -> int64;
+        multi link characters -> Person;
+      }
     }
 
-    type Hero extending Person {
-      property secret_identity -> str;
-      multi link villains := .<nemesis[is Villain];
-    }
+.. code-block:: sdl
 
-    type Villain extending Person {
-      link nemesis -> Hero;
-    }
+    module default {
+      abstract type Person {
+        required name: str { constraint exclusive };
+      }
 
-    type Movie {
-      required property title -> str { constraint exclusive };
-      required property release_year -> int64;
-      multi link characters -> Person;
+      type Hero extending Person {
+        secret_identity: str;
+        multi link villains := .<nemesis[is Villain];
+      }
+
+      type Villain extending Person {
+        nemesis: Hero;
+      }
+
+      type Movie {
+        required title: str { constraint exclusive };
+        required release_year: int64;
+        multi characters: Person;
+      }
     }
-  }
 
 Let's start by selecting all ``Villain`` objects in the database. In this
 example, there are only three. Remember, ``Villain`` is a :ref:`reference
@@ -188,18 +212,18 @@ If you have this schema:
       }
 
       type Hero extending Person {
-        property secret_identity: str;
+        secret_identity: str;
         multi link villains := .<nemesis[is Villain];
       }
 
       type Villain extending Person {
-        link nemesis: Hero;
+        nemesis: Hero;
       }
 
       type Movie {
-        required property title: str { constraint exclusive };
-        required property release_year: int64;
-        multi link characters: Person;
+        required title: str { constraint exclusive };
+        required release_year: int64;
+        multi characters: Person;
       }
     }
 
@@ -706,17 +730,27 @@ Instead of re-declaring backlinks inside every query where they're needed, it's
 common to add them directly into your schema as computed links.
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
-    abstract type Person {
-      required property name -> str {
-        constraint exclusive;
-      };
-  +   multi link movies := .<characters[is Movie]
-    }
+      abstract type Person {
+        required property name -> str {
+          constraint exclusive;
+        };
+    +   multi link movies := .<characters[is Movie]
+      }
+
+.. code-block:: sdl-diff
+
+      abstract type Person {
+        required name: str {
+          constraint exclusive;
+        };
+    +   multi link movies := .<characters[is Movie]
+      }
 
 .. note::
 
-  In the example above, the ``Person.movies`` is a ``multi link``. Including
+  In the example above, the ``Person.movies`` is a ``multi`` link. Including
   these keywords is optional, since EdgeDB can infer this from the assigned
   expression ``.<characters[is Movie]``. However, it's a good practice to
   include the explicit keywords to make the schema more readable and "sanity

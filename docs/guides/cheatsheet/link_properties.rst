@@ -27,30 +27,55 @@ Let's a create a ``Person.friends`` link with a ``strength`` property
 corresponding to the strength of the friendship.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    required property name -> str { constraint exclusive };
+    type Person {
+      required property name -> str { constraint exclusive };
 
-    multi link friends -> Person {
-      property strength -> float64;
+      multi link friends -> Person {
+        property strength -> float64;
+      }
     }
-  }
+
+.. code-block:: sdl
+
+    type Person {
+      required name: str { constraint exclusive };
+
+      multi friends: Person {
+        strength: float64;
+      }
+    }
 
 Constraints
 -----------
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  type Person {
-    required property name -> str { constraint exclusive };
+    type Person {
+      required property name -> str { constraint exclusive };
 
-    multi link friends -> Person {
-      property strength -> float64;
-      constraint expression on (
-        __subject__@strength >= 0
-      );
+      multi link friends -> Person {
+        property strength -> float64;
+        constraint expression on (
+          __subject__@strength >= 0
+        );
+      }
     }
-  }
+
+.. code-block:: sdl
+
+    type Person {
+      required name: str { constraint exclusive };
+
+      multi friends: Person {
+        strength: float64;
+        constraint expression on (
+          __subject__@strength >= 0
+        );
+      }
+    }
 
 Indexes
 -------
@@ -58,16 +83,31 @@ Indexes
 To index on a link property, you must declare an abstract link and extend it.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  abstract link friendship {
-    property strength -> float64;
-    index on (__subject__@strength);
-  }
+    abstract link friendship {
+      property strength -> float64;
+      index on (__subject__@strength);
+    }
 
-  type Person {
-    required property name -> str { constraint exclusive };
-    multi link friends extending friendship -> Person;
-  }
+    type Person {
+      required property name -> str { constraint exclusive };
+      multi link friends extending friendship -> Person;
+    }
+
+.. code-block:: sdl
+
+    abstract link friendship {
+      strength: float64;
+      index on (__subject__@strength);
+    }
+
+    type Person {
+      required name: str { constraint exclusive };
+      multi friends: Person {
+        extending friendship;
+      };
+    }
 
 
 Inserting
@@ -157,6 +197,53 @@ Querying
       }
     },
   }
+
+.. note::
+
+    Specifying link properties of a computed backlink in your shape is
+    supported as of EdgeDB 3.0.
+
+    If you have this schema:
+
+    .. code-block:: sdl
+
+        type Person {
+          required name: str;
+          multi follows: Person {
+            followed: datetime {
+              default := datetime_of_statement();
+            };
+          };
+          multi link followers := .<follows[is Person];
+        }
+
+    this query will work as of EdgeDB 3.0:
+
+    .. code-block:: edgeql
+
+        select Person {
+          name,
+          followers: {
+            name,
+            @followed
+          }
+        };
+
+    even though ``@followed`` is a link property of ``follows`` and we are
+    accessing is through the computed backlink ``followers`` instead.
+
+    If you need link properties on backlinks in earlier versions of EdgeDB, you
+    can use this workaround:
+
+    .. code-block:: edgeql
+
+        select Person {
+          name,
+          followers := .<follows[is Person] {
+            name,
+            followed := @followed
+          }
+        };
 
 .. list-table::
   :class: seealso

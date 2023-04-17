@@ -53,20 +53,27 @@ class InlineCodeRole:
         return [node], []
 
 
-class CodeBlock(s_code.CodeBlock):
+def make_CodeBlock(parent):
+    class CodeBlock(parent):
 
-    option_spec = s_code.CodeBlock.option_spec.copy()
-    option_spec.update({
-        'version-lt': d_directives.unchanged_required
-    })
+        option_spec = s_code.CodeBlock.option_spec.copy()
+        option_spec.update({
+            'version-lt': d_directives.unchanged_required
+        })
 
-    def run(self):
-        literal = super().run()
-        if 'version-lt' in self.options:
-            if len(self.options) > 1:
-                raise EdgeSphinxExtensionError(
-                    'other options not allowed if :version-lt: option is '
-                    'provided, put other options on latest version code block'
-                )
-            literal[0]['version_lt'] = self.options['version-lt']
-        return literal
+        def run(self):
+            literal = super().run()
+            if 'version-lt' in self.options:
+                if len(self.options) > 1:
+                    raise EdgeSphinxExtensionError(
+                        'other options not allowed if :version-lt: option '
+                        'is provided, put other options on latest version '
+                        'code block'
+                    )
+                literal[0]['version_lt'] = self.options['version-lt']
+            return literal
+
+    return CodeBlock
+
+
+CodeBlock = make_CodeBlock(s_code.CodeBlock)

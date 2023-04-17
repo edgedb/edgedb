@@ -96,6 +96,7 @@ assignments using ``:=``:
 For usage of ``+=`` and ``-=`` consider the following ``Post`` type:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     # ... Assume some User type is already defined
     type Post {
@@ -104,6 +105,17 @@ For usage of ``+=`` and ``-=`` consider the following ``Post`` type:
         # A "tags" property containing a set of strings
         multi property tags -> str;
         link author -> User;
+    }
+
+.. code-block:: sdl
+
+    # ... Assume some User type is already defined
+    type Post {
+        required title: str;
+        required body: str;
+        # A "tags" property containing a set of strings
+        multi tags: str;
+        author: User;
     }
 
 The following queries add or remove tags from some user's posts:

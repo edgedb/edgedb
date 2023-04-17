@@ -11,10 +11,20 @@ events.
 We'll start with this schema:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type Event {
       required property name -> str;
       link prev -> Event;
+
+      # ... more properties and links
+    }
+
+.. code-block:: sdl
+
+    type Event {
+      required name: str;
+      prev: Event;
 
       # ... more properties and links
     }
@@ -56,11 +66,21 @@ define it as a computed link by using :ref:`backlink
 <ref_datamodel_links>` notation:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type Event {
       required property name -> str;
 
       link prev -> Event;
+      link next := .<prev[is Event];
+    }
+
+.. code-block:: sdl
+
+    type Event {
+      required name: str;
+
+      prev: Event;
       link next := .<prev[is Event];
     }
 
@@ -112,11 +132,23 @@ Let's fix that by making the link ``prev`` a one-to-one, after all
 we're interested in building event chains, not trees.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type Event {
       required property name -> str;
 
       link prev -> Event {
+        constraint exclusive;
+      };
+      link next := .<prev[is Event];
+    }
+
+.. code-block:: sdl
+
+    type Event {
+      required name: str;
+
+      prev: Event {
         constraint exclusive;
       };
       link next := .<prev[is Event];

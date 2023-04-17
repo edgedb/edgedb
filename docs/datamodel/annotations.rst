@@ -22,12 +22,24 @@ The following are the annotations which can be set on any schema item:
 For example, consider the following declaration:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type Status {
         annotation title := 'Activity status';
         annotation description := 'All possible user activities';
 
         required property name -> str {
+            constraint exclusive
+        }
+    }
+
+.. code-block:: sdl
+
+    type Status {
+        annotation title := 'Activity status';
+        annotation description := 'All possible user activities';
+
+        required name: str {
             constraint exclusive
         }
     }

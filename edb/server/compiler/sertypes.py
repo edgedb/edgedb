@@ -38,6 +38,7 @@ from edb.protocol import enums as p_enums
 from edb.server import config
 
 from edb.edgeql import qltypes
+
 from edb.schema import globals as s_globals
 from edb.schema import links as s_links
 from edb.schema import objects as s_obj
@@ -46,6 +47,7 @@ from edb.schema import pointers as s_pointers
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
+
 from edb.ir import ast as irast
 from edb.ir import statypes
 
@@ -111,6 +113,11 @@ def _encode_int64(data: int) -> bytes:
 
 def _decode_int64(data: bytes) -> int:
     return _int64_struct.unpack(data)[0]  # type: ignore [no-any-return]
+
+
+def _string_packer(s: str) -> bytes:
+    s_bytes = s.encode('utf-8')
+    return _uint32_packer(len(s_bytes)) + s_bytes
 
 
 def cardinality_from_ptr(
@@ -184,7 +191,7 @@ def _get_collection_type_id(
     return uuidgen.uuid5(s_types.TYPE_ID_NAMESPACE, string_id)
 
 
-def _get_object_type_id(
+def _get_object_shape_id(
     coll_type: str,
     subtypes: list[uuid.UUID],
     element_names: Optional[list[str]] = None,
@@ -229,9 +236,14 @@ def _describe_set(
     if set_id in ctx.uuid_to_pos:
         return set_id
 
-    ctx.buffer.append(CTYPE_SET)
-    ctx.buffer.append(set_id.bytes)
-    ctx.buffer.append(_uint16_packer(ctx.uuid_to_pos[type_id]))
+    buf = ctx.buffer
+
+    # .tag
+    buf.append(CTYPE_SET)
+    # .id
+    buf.append(set_id.bytes)
+    # .type
+    buf.append(_type_ref_id_packer(type_id, ctx=ctx))
 
     return _register_type_id(set_id, ctx=ctx)
 
@@ -243,54 +255,67 @@ def _describe_type(t: s_types.Type, *, ctx: Context) -> uuid.UUID:
         f'cannot describe type {t.get_name(ctx.schema)}')
 
 
+def _type_ref_packer(t: s_types.Type, *, ctx: Context) -> bytes:
+    """Return typedesc representation of a type reference."""
+    return _type_ref_id_packer(_describe_type(t, ctx=ctx), ctx=ctx)
+
+
+def _type_ref_id_packer(type_id: uuid.UUID, *, ctx: Context) -> bytes:
+    """Return typedesc representation of a type reference by type id."""
+    return _uint16_packer(ctx.uuid_to_pos[type_id])
+
+
+# Tuple -> TupleTypeDescriptor
 @_describe_type.register
 def _describe_tuple(t: s_types.Tuple, *, ctx: Context) -> uuid.UUID:
-    buf = ctx.buffer
-
     subtypes = [
         _describe_type(st, ctx=ctx)
         for st in t.get_subtypes(ctx.schema)
     ]
 
-    if t.is_named(ctx.schema):
+    is_named = t.is_named(ctx.schema)
+    if is_named:
         element_names = list(t.get_element_names(ctx.schema))
         assert len(element_names) == len(subtypes)
-
-        type_id = _get_collection_type_id(
-            t.get_schema_name(), subtypes, element_names)
-
-        if type_id in ctx.uuid_to_pos:
-            return type_id
-
-        buf.append(CTYPE_NAMEDTUPLE)
-        buf.append(type_id.bytes)
-        buf.append(_uint16_packer(len(subtypes)))
-        for el_name, el_type in zip(element_names, subtypes):
-            el_name_bytes = el_name.encode('utf-8')
-            buf.append(_uint32_packer(len(el_name_bytes)))
-            buf.append(el_name_bytes)
-            buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
-
+        tag = CTYPE_NAMEDTUPLE
     else:
-        type_id = _get_collection_type_id(
-            t.get_schema_name(), subtypes)
+        element_names = None
+        tag = CTYPE_TUPLE
 
-        if type_id in ctx.uuid_to_pos:
-            return type_id
+    type_id = _get_collection_type_id(
+        t.get_schema_name(), subtypes, element_names)
 
-        buf.append(CTYPE_TUPLE)
-        buf.append(type_id.bytes)
-        buf.append(_uint16_packer(len(subtypes)))
-        for el_type in subtypes:
-            buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
+    if type_id in ctx.uuid_to_pos:
+        return type_id
+
+    buf = []
+
+    # .tag
+    buf.append(tag)
+    # .id
+    buf.append(type_id.bytes)
+    # .element_count
+    buf.append(_uint16_packer(len(subtypes)))
+    if element_names is not None:
+        # .elements
+        for el_name, el_type_id in zip(element_names, subtypes):
+            # TupleElement.name
+            buf.append(_string_packer(el_name))
+            # TupleElement.type
+            buf.append(_type_ref_id_packer(el_type_id, ctx=ctx))
+    else:
+        # .element_types
+        for el_type_id in subtypes:
+            buf.append(_type_ref_id_packer(el_type_id, ctx=ctx))
+
+    ctx.buffer.extend(buf)
 
     return _register_type_id(type_id, ctx=ctx)
 
 
+# Array -> ArrayTypeDescriptor
 @_describe_type.register
 def _describe_array(t: s_types.Array, *, ctx: Context) -> uuid.UUID:
-    buf = ctx.buffer
-
     subtypes = [
         _describe_type(st, ctx=ctx)
         for st in t.get_subtypes(ctx.schema)
@@ -302,21 +327,27 @@ def _describe_array(t: s_types.Array, *, ctx: Context) -> uuid.UUID:
     if type_id in ctx.uuid_to_pos:
         return type_id
 
+    buf = []
+
+    # .tag
     buf.append(CTYPE_ARRAY)
+    # .id
     buf.append(type_id.bytes)
-    buf.append(_uint16_packer(ctx.uuid_to_pos[subtypes[0]]))
-    # Number of dimensions (currently always 1)
+    # .type
+    buf.append(_type_ref_id_packer(subtypes[0], ctx=ctx))
+    # .dimension_count (currently always 1)
     buf.append(_uint16_packer(1))
-    # Dimension cardinality (currently always unbound)
+    # .dimensions (currently always unbounded)
     buf.append(_int32_packer(-1))
 
+    ctx.buffer.extend(buf)
+
     return _register_type_id(type_id, ctx=ctx)
 
 
+# Range -> RangeTypeDescriptor
 @_describe_type.register
 def _describe_range(t: s_types.Range, *, ctx: Context) -> uuid.UUID:
-    buf = ctx.buffer
-
     subtypes = [
         _describe_type(st, ctx=ctx)
         for st in t.get_subtypes(ctx.schema)
@@ -328,21 +359,27 @@ def _describe_range(t: s_types.Range, *, ctx: Context) -> uuid.UUID:
     if type_id in ctx.uuid_to_pos:
         return type_id
 
+    buf = []
+
+    # .tag
     buf.append(CTYPE_RANGE)
+    # .id
     buf.append(type_id.bytes)
-    buf.append(_uint16_packer(ctx.uuid_to_pos[subtypes[0]]))
+    # .type
+    buf.append(_type_ref_id_packer(subtypes[0], ctx=ctx))
+
+    ctx.buffer.extend(buf)
 
     return _register_type_id(type_id, ctx=ctx)
 
 
+# ObjectType (representing a shape) -> ObjectShapeDescriptor
 @_describe_type.register
-def _describe_object_type(
+def _describe_object_shape(
     t: s_objtypes.ObjectType,
     *,
     ctx: Context,
 ) -> uuid.UUID:
-    buf = ctx.buffer
-
     ctx.schema, mt = t.material_type(ctx.schema)
     base_type_name = str(mt.get_name(ctx.schema))
 
@@ -399,7 +436,8 @@ def _describe_object_type(
             links.append(False)
             cardinalities.append(cardinality_from_ptr(ptr, ctx.schema))
 
-    type_id = _get_object_type_id(
+    assert len(subtypes) == len(element_names)
+    type_id = _get_object_shape_id(
         base_type_name,
         subtypes,
         element_names,
@@ -412,25 +450,28 @@ def _describe_object_type(
     if type_id in ctx.uuid_to_pos:
         return type_id
 
+    buf = []
+
+    # .tag
     buf.append(CTYPE_SHAPE)
+    # .id
     buf.append(type_id.bytes)
-
-    assert len(subtypes) == len(element_names)
+    # .element_count
     buf.append(_uint16_packer(len(subtypes)))
-
-    zipped_parts = zip(
-        element_names, subtypes, link_props, links, cardinalities)
-    for el_name, el_type, el_lp, el_l, el_c in zipped_parts:
+    # .elements
+    for el_name, el_type_id, el_lp, el_l, el_c in (
+        zip(element_names, subtypes, link_props, links, cardinalities)
+    ):
         flags = 0
         if el_lp:
             flags |= SHAPE_POINTER_IS_LINKPROP
         if (implicit_id and el_name == 'id') or el_name == '__tid__':
-            if el_type != UUID_TYPE_ID:
+            if el_type_id != UUID_TYPE_ID:
                 raise errors.InternalServerError(
                     f"{el_name!r} is expected to be a 'std::uuid' singleton")
             flags |= SHAPE_POINTER_IS_IMPLICIT
         elif el_name == '__tname__':
-            if el_type != STR_TYPE_ID:
+            if el_type_id != STR_TYPE_ID:
                 raise errors.InternalServerError(
                     f"{el_name!r} is expected to be a 'std::str' singleton")
             flags |= SHAPE_POINTER_IS_IMPLICIT
@@ -438,15 +479,20 @@ def _describe_object_type(
             flags |= SHAPE_POINTER_IS_LINK
 
         if ctx.protocol_version >= (0, 11):
+            # ShapeElement.flags
             buf.append(_uint32_packer(flags))
+            # ShapeElement.cardinality
             buf.append(_uint8_packer(el_c.value))
         else:
+            # ShapeElement.flags
             buf.append(_uint8_packer(flags))
 
-        el_name_bytes = el_name.encode('utf-8')
-        buf.append(_uint32_packer(len(el_name_bytes)))
-        buf.append(el_name_bytes)
-        buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
+        # ShapeElement.name
+        buf.append(_string_packer(el_name))
+        # ShapeElement.type
+        buf.append(_type_ref_id_packer(el_type_id, ctx=ctx))
+
+    ctx.buffer.extend(buf)
 
     return _register_type_id(type_id, ctx=ctx)
 
@@ -457,43 +503,76 @@ def _describe_scalar_type(
     *,
     ctx: Context,
 ) -> uuid.UUID:
-    buf = ctx.buffer
-
     ctx.schema, smt = t.material_type(ctx.schema)
     type_id = smt.id
     if type_id in ctx.uuid_to_pos:
         # already described
         return type_id
 
-    base_type = smt.get_topmost_concrete_base(ctx.schema)
-    enum_values = smt.get_enum_values(ctx.schema)
-
-    if enum_values:
-        buf.append(CTYPE_ENUM)
-        buf.append(type_id.bytes)
-        buf.append(_uint16_packer(len(enum_values)))
-        for enum_val in enum_values:
-            enum_val_bytes = enum_val.encode('utf-8')
-            buf.append(_uint32_packer(len(enum_val_bytes)))
-            buf.append(enum_val_bytes)
-
-        if ctx.inline_typenames:
-            _add_annotation(smt, ctx=ctx)
-
-    elif smt == base_type:
-        buf.append(CTYPE_BASE_SCALAR)
-        buf.append(type_id.bytes)
-
+    if smt.is_enum(ctx.schema):
+        return _describe_enum(smt, ctx=ctx)
     else:
-        bt_id = _describe_type(base_type, ctx=ctx)
-        buf.append(CTYPE_SCALAR)
+        return _describe_regular_scalar(smt, ctx=ctx)
+
+
+# ScalarType (regular) -> [Base]ScalarTypeDescriptor
+def _describe_regular_scalar(
+    t: s_scalars.ScalarType,
+    *,
+    ctx: Context,
+) -> uuid.UUID:
+    buf = []
+    fundamental_type = t.get_topmost_concrete_base(ctx.schema)
+    type_id = t.id
+    type_is_fundamental = t == fundamental_type
+
+    if type_is_fundamental:
+        # .tag
+        buf.append(CTYPE_BASE_SCALAR)
+        # .id
         buf.append(type_id.bytes)
-        buf.append(_uint16_packer(ctx.uuid_to_pos[bt_id]))
+    else:
+        # .tag
+        buf.append(CTYPE_SCALAR)
+        # .id
+        buf.append(type_id.bytes)
+        # .base_type_pos
+        buf.append(_type_ref_packer(fundamental_type, ctx=ctx))
 
         if ctx.inline_typenames:
-            _add_annotation(smt, ctx=ctx)
+            _add_annotation(t, ctx=ctx)
+
+    ctx.buffer.extend(buf)
 
     return _register_type_id(type_id, ctx=ctx)
+
+
+# ScalarType (enum) -> EnumTypeDescriptor
+def _describe_enum(
+    enum: s_scalars.ScalarType,
+    *,
+    ctx: Context,
+) -> uuid.UUID:
+    buf = []
+    enum_values = enum.get_enum_values(ctx.schema)
+    assert enum_values is not None
+
+    # .tag
+    buf.append(CTYPE_ENUM)
+    # .id
+    buf.append(enum.id.bytes)
+    # .member_count
+    buf.append(_uint16_packer(len(enum_values)))
+    # .members
+    for enum_val in enum_values:
+        buf.append(_string_packer(enum_val))
+
+    if ctx.inline_typenames:
+        _add_annotation(enum, ctx=ctx)
+
+    ctx.buffer.extend(buf)
+
+    return _register_type_id(enum.id, ctx=ctx)
 
 
 @overload
@@ -552,33 +631,41 @@ def describe_input_shape(  # noqa: F811
             subtypes.append(subtype_id)
             cardinalities.append(cardinality)
 
+        assert len(subtypes) == len(element_names)
+
         if prepare_state:
             return None
 
         ctx.schema, mt = t.material_type(ctx.schema)
         base_type_name = str(mt.get_name(ctx.schema))
 
-        type_id = _get_object_type_id(
+        type_id = _get_object_shape_id(
             base_type_name, subtypes, element_names, cardinalities)
 
         if type_id in ctx.uuid_to_pos:
             return type_id
 
-        buf = ctx.buffer
+        buf = []
+        # .tag
         buf.append(CTYPE_INPUT_SHAPE)
+        # .id
         buf.append(type_id.bytes)
-
-        assert len(subtypes) == len(element_names)
+        # .element_count
         buf.append(_uint16_packer(len(subtypes)))
-
-        zipped_parts = zip(element_names, subtypes, cardinalities)
-        for el_name, el_type, el_c in zipped_parts:
-            buf.append(_uint32_packer(0))  # flags
+        # .elements
+        for el_name, el_type_id, el_c in (
+            zip(element_names, subtypes, cardinalities)
+        ):
+            # ShapeElement.flags
+            buf.append(_uint32_packer(0))
+            # ShapeElement.cardinality
             buf.append(_uint8_packer(el_c.value))
-            el_name_bytes = el_name.encode('utf-8')
-            buf.append(_uint32_packer(len(el_name_bytes)))
-            buf.append(el_name_bytes)
-            buf.append(_uint16_packer(ctx.uuid_to_pos[el_type]))
+            # ShapeElement.name
+            buf.append(_string_packer(el_name))
+            # ShapeElement.type
+            buf.append(_type_ref_id_packer(el_type_id, ctx=ctx))
+
+        ctx.buffer.extend(buf)
 
         return _register_type_id(type_id, ctx=ctx)
     else:
@@ -586,15 +673,13 @@ def describe_input_shape(  # noqa: F811
 
 
 def _add_annotation(t: s_types.Type, *, ctx: Context) -> None:
-    ctx.anno_buffer.append(CTYPE_ANNO_TYPENAME)
-
-    ctx.anno_buffer.append(t.id.bytes)
-
-    tn = t.get_displayname(ctx.schema)
-
-    tn_bytes = tn.encode('utf-8')
-    ctx.anno_buffer.append(_uint32_packer(len(tn_bytes)))
-    ctx.anno_buffer.append(tn_bytes)
+    buf = ctx.anno_buffer
+    # .tag
+    buf.append(CTYPE_ANNO_TYPENAME)
+    # .id
+    buf.append(t.id.bytes)
+    # .annotation
+    buf.append(_string_packer(t.get_displayname(ctx.schema)))
 
 
 def describe_params(
@@ -612,26 +697,26 @@ def describe_params(
         schema=schema,
         protocol_version=protocol_version,
     )
-    params_buf: list[bytes] = []
+    params_buf = []
 
     for param_name, param_type, param_req in params:
         param_type_id = _describe_type(param_type, ctx=ctx)
-        params_buf.append(_uint32_packer(0))  # flags
+        # ShapeElement.flags
+        params_buf.append(_uint32_packer(0))
+        # ShapeElement.cardinality
         params_buf.append(_uint8_packer(
             p_enums.Cardinality.ONE.value if param_req else
             p_enums.Cardinality.AT_MOST_ONE.value
         ))
-
-        param_name_bytes = param_name.encode('utf-8')
-        params_buf.append(_uint32_packer(len(param_name_bytes)))
-        params_buf.append(param_name_bytes)
-        params_buf.append(_uint16_packer(ctx.uuid_to_pos[param_type_id]))
+        # ShapeElement.name
+        params_buf.append(_string_packer(param_name))
+        # ShapeElement.type
+        params_buf.append(_type_ref_id_packer(param_type_id, ctx=ctx))
 
     buffer_encoded = b''.join(ctx.buffer)
 
     full_params = EMPTY_BYTEARRAY.join([
         buffer_encoded,
-
         CTYPE_SHAPE,
         NULL_TYPE_ID.bytes,  # will be replaced with `params_id` later
         _uint16_packer(len(params)),
@@ -639,11 +724,7 @@ def describe_params(
         *ctx.anno_buffer,
     ])
 
-    params_id = uuidgen.uuid5_bytes(
-        s_types.TYPE_ID_NAMESPACE,
-        full_params
-    )
-
+    params_id = uuidgen.uuid5_bytes(s_types.TYPE_ID_NAMESPACE, full_params)
     id_pos = len(buffer_encoded) + 1
     full_params[id_pos : id_pos + 16] = params_id.bytes
 
@@ -838,9 +919,8 @@ class StateSerializerFactory:
         """
         schema = std_schema
         str_type = schema.get('std::str', type=s_scalars.ScalarType)
-        schema, self._state_type = simple_derive_type(
-            schema, 'std::FreeObject', 'state_type'
-        )
+        free_obj = schema.get('std::FreeObject', type=s_objtypes.ObjectType)
+        schema, self._state_type = derive_alias(schema, free_obj, 'state_type')
 
         # aliases := { ('alias1', 'mod::type'), ... }
         schema, alias_tuple = s_types.Tuple.from_subtypes(
@@ -848,21 +928,22 @@ class StateSerializerFactory:
         schema, aliases_array = s_types.Array.from_subtypes(
             schema, [alias_tuple])
 
-        schema, self.globals_type = simple_derive_type(
-            schema, 'std::FreeObject', 'state_globals'
-        )
+        schema, self.globals_type = derive_alias(
+            schema, free_obj, 'state_globals')
 
         # config := cfg::Config { session_cfg1, session_cfg2, ... }
-        schema, config_type = simple_derive_type(
-            schema, 'cfg::Config', 'state_config'
+        schema, config_type = derive_alias(
+            schema, free_obj, 'state_config'
         )
         config_shape: list[tuple[str, s_types.Type, enums.Cardinality]] = []
         for setting in config.get_settings().values():
             if not setting.system:
+                setting_type_name = setting.schema_type_name
+                setting_type = schema.get(setting_type_name, type=s_types.Type)
                 config_shape.append(
                     (
                         setting.name,
-                        setting.s_type,
+                        setting_type,
                         enums.Cardinality.MANY if setting.set_of else
                         enums.Cardinality.AT_MOST_ONE,
                     )
@@ -974,23 +1055,22 @@ class StateSerializer:
         return self._globals_array_type_ids.get(global_name)
 
 
-def simple_derive_type(
+def derive_alias(
     schema: s_schema.Schema,
-    parent: str,
+    parent: s_objtypes.ObjectType,
     qualifier: str,
 ) -> tuple[s_schema.Schema, s_types.InheritingType]:
-    s_type = schema.get(parent, type=s_types.InheritingType)
-    return s_type.derive_subtype(
+    return parent.derive_subtype(
         schema,
         name=s_obj.derive_name(
             schema,
             qualifier,
             module='__derived__',
-            parent=s_type,
+            parent=parent,
         ),
         mark_derived=True,
-        transient=True,
         inheritance_refdicts={'pointers'},
+        attrs={'expr_type': s_types.ExprType.Select},
     )
 
 
