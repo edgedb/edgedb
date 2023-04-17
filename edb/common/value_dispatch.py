@@ -16,11 +16,37 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+from typing import *
 
 import functools
+import inspect
+import types
 
 
-def value_dispatch(func):
+_T = TypeVar("_T")
+
+
+class _ValueDispatchCallable(Generic[_T], Protocol):
+    registry: types.MappingProxyType[Any, Callable[..., _T]]
+
+    def register(
+        self,
+        val: Any,
+    ) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
+        ...
+
+    def register_for_all(
+        self,
+        val: Iterable[Any],
+    ) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
+        ...
+
+    def __call__(__self, *args: Any, **kwargs: Any) -> _T:
+        ...
+
+
+def value_dispatch(func: Callable[..., _T]) -> _ValueDispatchCallable[_T]:
     """Like singledispatch() but dispatches by value of the first arg.
 
     Example:
@@ -46,10 +72,10 @@ def value_dispatch(func):
           return f"I didn't know {fruit} is a fruit!"
     """
 
-    registry = {}
+    registry: dict[Any, Callable[..., _T]] = {}
 
     @functools.wraps(func)
-    def wrapper(arg0, *args, **kwargs):
+    def wrapper(arg0: Any, *args: Any, **kwargs: Any) -> _T:
         try:
             delegate = registry[arg0]
         except KeyError:
@@ -59,8 +85,14 @@ def value_dispatch(func):
 
         return func(arg0, *args, **kwargs)
 
-    def register(value):
-        def wrap(func):
+    def register(
+        value: Any,
+    ) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
+        if inspect.isfunction(value):
+            raise TypeError(
+                "value_dispatch.register() decorator requires a value")
+
+        def wrap(func: Callable[..., _T]) -> Callable[..., _T]:
             if value in registry:
                 raise ValueError(
                     f'@value_dispatch: there is already a handler '
@@ -70,8 +102,10 @@ def value_dispatch(func):
             return func
         return wrap
 
-    def register_for_all(values):
-        def wrap(func):
+    def register_for_all(
+        values: Iterable[Any],
+    ) -> Callable[[Callable[..., _T]], Callable[..., _T]]:
+        def wrap(func: Callable[..., _T]) -> Callable[..., _T]:
             for value in values:
                 if value in registry:
                     raise ValueError(
@@ -82,6 +116,6 @@ def value_dispatch(func):
             return func
         return wrap
 
-    wrapper.register = register
-    wrapper.register_for_all = register_for_all
-    return wrapper
+    wrapper.register = register  # type: ignore [attr-defined]
+    wrapper.register_for_all = register_for_all  # type: ignore [attr-defined]
+    return wrapper  # type: ignore [return-value]
