@@ -207,6 +207,10 @@ def sub_select_hoist(e: Expr, dbschema: DBSchema) -> Expr:
 
 
 def select_hoist(e: Expr, dbschema: DBSchema) -> Expr:
+    # Optimization: do not factor single path, this helps to
+    # keep select_hoist as an idempotent operation
+    if is_path(e):
+        return e
     top_paths = toppath_for_factoring(e, dbschema)
     fresh_names: List[str] = [next_name() for p in top_paths]
     # print("Paths and Names:", top_paths, fresh_names)

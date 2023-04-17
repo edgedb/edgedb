@@ -7,7 +7,7 @@ from .data import data_ops as e
 from .data import expr_ops as eops
 from .data import type_ops as tops
 from edb.common import debug
-
+from .data import path_factor as path_factor
 
 # def enforce_singular(expr: e.Expr, card: e.CMMode) -> e.Expr:
 #     """ returns the singular expression of the upper bound
@@ -657,6 +657,7 @@ def check_object_tp_comp_validity(
                 c_expr,  # type: ignore
                 e.ResultTp(subject_tp, e.CardOne)
             )
+            c_body = path_factor.select_hoist(c_body, dbschema)
             synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
             tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
             return e.ComputableTp(
@@ -671,6 +672,7 @@ def check_object_tp_comp_validity(
                 c_expr,  # type: ignore
                 e.ResultTp(subject_tp, e.CardOne)
             )
+            c_body = path_factor.select_hoist(c_body, dbschema)
             synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
             tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
             tops.assert_real_subtype(new_ctx, synth_tp.tp, c_tp)
@@ -688,6 +690,7 @@ def check_object_tp_comp_validity(
                 c_expr,  # type: ignore
                 e.ResultTp(subject_tp, e.CardOne)
             )
+            c_body = path_factor.select_hoist(c_body, dbschema)
             synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
             tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
             tops.assert_real_subtype(new_ctx, synth_tp.tp, c_tp)
