@@ -662,13 +662,13 @@ class Server(ha_base.ClusterProtocol):
         self._dbindex.update_global_schema(new_global_schema)
         self._fetch_roles()
 
-    async def introspect_user_schema(self, conn):
+    async def introspect_user_schema(self, conn, global_schema=None):
         json_data = await conn.sql_fetch_val(self._local_intro_query)
 
         base_schema = s_schema.ChainedSchema(
             self._std_schema,
             s_schema.FlatSchema(),
-            self.get_global_schema(),
+            global_schema or self.get_global_schema(),
         )
 
         return s_refl.parse_into(
@@ -903,7 +903,7 @@ class Server(ha_base.ClusterProtocol):
                     conn, f'patch_log_{idx}', pickle.dumps(entry))
 
             patches[num] = entry
-            _, _, updates = entry
+            _, _, updates, _ = entry
             if 'stdschema' in updates:
                 self._std_schema = updates['stdschema']
             if 'reflschema' in updates:
@@ -920,20 +920,68 @@ class Server(ha_base.ClusterProtocol):
     async def _maybe_apply_patches(self, dbname, conn, patches, sys=False):
         """Apply any un-applied patches to the database."""
         num_patches = await self.get_patch_count(conn)
-        for num, (sql, syssql, _) in patches.items():
+        for num, (sql, syssql, _, repair) in patches.items():
             if num_patches <= num:
                 if sys:
                     sql += syssql
                 logger.info("applying patch %d to database '%s'", num, dbname)
                 sql = tuple(x.encode('utf-8') for x in sql)
-                await conn.sql_fetch(sql)
+
+                # Only do repairs when they are the *last* pending
+                # repair in the patch queue. We make sure that every
+                # patch that changes the user schema is followed by a
+                # repair, so this allows us to only ever have to do
+                # repairs on up-to-date std schemas.
+                last_repair = repair and not any(
+                    patches[i][3] for i in range(num + 1, len(patches))
+                )
+                if last_repair:
+                    from . import bootstrap
+
+                    global_schema = await self.introspect_global_schema(conn)
+                    user_schema = await self.introspect_user_schema(
+                        conn, global_schema)
+                    config = await self.introspect_db_config(conn)
+                    try:
+                        sql += bootstrap.prepare_repair_patch(
+                            self._std_schema,
+                            self._refl_schema,
+                            user_schema,
+                            global_schema,
+                            self._schema_class_layout,
+                            self.get_backend_runtime_params(),
+                            config,
+                        )
+                    except errors.EdgeDBError as e:
+                        if isinstance(e, errors.InternalServerError):
+                            raise
+                        raise errors.SchemaError(
+                            f'Could not repair schema inconsistencies in '
+                            f'database "{dbname}". Probably the schema is '
+                            f'no longer valid due to a bug fix.\n'
+                            f'Downgrade to the last working version, fix '
+                            f'the schema issue, and try again.'
+                        ) from e
+
+                if sql:
+                    await conn.sql_fetch(sql)
 
     async def _maybe_patch_db(self, dbname, patches):
         logger.info("applying patches to database '%s'", dbname)
 
-        if dbname != defines.EDGEDB_SYSTEM_DB:
+        try:
             async with self._direct_pgcon(dbname) as conn:
                 await self._maybe_apply_patches(dbname, conn, patches)
+        except Exception as e:
+            if (
+                isinstance(e, errors.EdgeDBError)
+                and not isinstance(e, errors.InternalServerError)
+            ):
+                raise
+            raise errors.InternalServerError(
+                f'Could not apply patches for minor version upgrade to '
+                f'database {dbname}'
+            ) from e
 
     async def _maybe_patch(self):
         """Apply patches to all the databases"""

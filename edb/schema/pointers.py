@@ -2111,7 +2111,9 @@ class SetPointerType(
         return 'alter the type of'
 
     def is_data_safe(self) -> bool:
-        return False
+        # A computed target means this must be an inferred computed
+        # property, so it is data safe.
+        return self.is_attribute_computed('target')
 
     def record_diff_annotations(
         self,
@@ -2424,6 +2426,11 @@ class AlterPointerUpperCardinality(
         )
 
     def is_data_safe(self) -> bool:
+        # A computed target means this must be an inferred computed
+        # property, so it is data safe.
+        if self.is_attribute_computed('cardinality'):
+            return True
+
         old_val = self.get_orig_attribute_value('cardinality')
         new_val = self.get_attribute_value('cardinality')
         if (
