@@ -716,19 +716,18 @@ class TestNewInterpreterModelSmokeTests(tb.QueryTestCase):
         )
 
 # TODO : DEFER COMPUTED
-    # async def test_model_computed_01(self):
-    #     await self.assert_query_result(
-    #         r"""
-    #         SELECT User { name, deck_cost } ORDER BY .name;
-    #         """,
-    #         [
-    #             {"name": "Alice", "deck_cost": 11},
-    #             {"name": "Bob", "deck_cost": 9},
-    #             {"name": "Carol", "deck_cost": 16},
-    #             {"name": "Dave", "deck_cost": 20},
-    #         ],
-    #         singleton_cheating=True,
-    #     )
+    async def test_model_computed_01(self):
+        await self.assert_query_result(
+            r"""
+            SELECT User { name, deck_cost } ORDER BY .name;
+            """,
+            [
+                {"name": "Alice", "deck_cost": 11},
+                {"name": "Bob", "deck_cost": 9},
+                {"name": "Carol", "deck_cost": 16},
+                {"name": "Dave", "deck_cost": 20},
+            ]
+        )
 
     # async def test_model_computed_02(self):
     #     await self.assert_query_result(

@@ -133,7 +133,7 @@ std_sum_tp = FunType(args_mod=[ParamSetOf()],
 def std_sum_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
     match arg:
         case [l]:
-            if all(isinstance(elem, e.IntTp) for elem in l):
+            if all(isinstance(elem, e.IntVal) for elem in l):
                 return [IntVal(sum(elem.val
                                    for elem in l
                                    if isinstance(elem, e.IntVal)))]

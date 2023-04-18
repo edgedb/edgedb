@@ -479,7 +479,9 @@ def coerce_to_storage(val: ObjectVal, fmt: ObjectTp) -> ObjectVal:
                          for v in val.val[StrLabel(k)][1].vals])
                        if StrLabel(k) in val.val.keys()
                        else MultiSetVal([]))
-                      ) for (k, tp) in fmt.val.items()
+                      )
+        for (k, tp) in fmt.val.items()
+        if not isinstance(tp.tp, e.ComputableTp)
     })
 
 

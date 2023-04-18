@@ -141,8 +141,10 @@ def singular_proj(data: RTData, subject: Val, label: Label) -> Sequence[Val]:
                     match target_tp:
                         case e.ComputableTp(expr=comp_expr, tp=_):
                             (_, val) = eval_config(
-                                RTExpr(make_eval_only(data), comp_expr))
-                            return val
+                                RTExpr(make_eval_only(data),
+                                       instantiate_expr(subject, comp_expr)
+                                       ))
+                            return val.vals
                         case _:
                             raise ValueError("Label found, but not computable",
                                              label)
