@@ -121,7 +121,9 @@ def assert_real_subtype(
                 else:
                     if any(tp2_key not in tp1_val.keys()
                            for tp2_key in tp2_val.keys()):
-                        raise ValueError("not subtype, tp_2 has more keys")
+                        raise ValueError("not subtype, tp_2 has more keys",
+                                         [tp2_key for tp2_key in tp2_val.keys()
+                                          if tp2_key not in tp1_val.keys()])
                     else:
                         pass
             case (e.LinkPropTp(subject=s_1, linkprop=lp_1),

@@ -157,3 +157,9 @@ def show_expr(expr: e.Expr) -> str:
 def show_schema(dbschema: e.DBSchema) -> str:
     return ("\n".join(name + " := " + show_tp(tp) for name, tp in
                       dbschema.val.items()))
+
+
+def show_tcctx(tcctx: e.TcCtx) -> str:
+    return (show_schema(tcctx.statics.schema) + "\n" +
+            ("\n".join(name + " := " + show_result_tp(r_tp)
+                       for name, r_tp in tcctx.varctx.items())))

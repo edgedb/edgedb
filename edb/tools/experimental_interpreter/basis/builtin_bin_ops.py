@@ -35,6 +35,18 @@ def subtract_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
             return [IntVal(v1 - v2)]
     raise FunCallErr()
 
+multiply_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
+                      args_ret_types=[FunArgRetType(args_tp=[IntTp(), IntTp()],
+                                                    ret_tp=e.ResultTp(IntTp(), CardOne))]
+                      )
+
+
+def multiply_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
+    match arg:
+        case [[IntVal(v1)], [IntVal(v2)]]:
+            return [IntVal(v1 * v2)]
+    raise FunCallErr()
+
 
 mod_tp = FunType(args_mod=[ParamSingleton(), ParamSingleton()],
                  args_ret_types=[FunArgRetType(
@@ -215,6 +227,7 @@ def or_impl(arg: Sequence[Sequence[Val]]) -> Sequence[Val]:
 all_builtin_ops: Dict[str, BuiltinFuncDef] = {
     "+": BuiltinFuncDef(tp=add_tp, impl=add_impl),
     "-": BuiltinFuncDef(tp=subtract_tp, impl=subtract_impl),
+    "*": BuiltinFuncDef(tp=multiply_tp, impl=multiply_impl),
     "%": BuiltinFuncDef(tp=mod_tp, impl=mod_impl),
     "=": BuiltinFuncDef(tp=eq_tp, impl=eq_impl),
     "!=": BuiltinFuncDef(tp=not_eq_tp, impl=not_eq_impl),

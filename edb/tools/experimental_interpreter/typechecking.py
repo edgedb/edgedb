@@ -110,7 +110,9 @@ def synthesize_type_for_val(ctx: e.RTData,
 
 
 def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
-                          tp: e.Tp) -> Tuple[e.Tp, e.ShapeExpr]:
+                          tp: e.Tp,
+                          is_insert_shape: bool = False
+                          ) -> Tuple[e.Tp, e.ShapeExpr]:
     s_tp: e.ObjectTp
     l_tp: e.ObjectTp
 
@@ -142,8 +144,12 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
                         ctx, comp, e.ResultTp(tp, e.CardOne))
                     result_tp = s_tp.val[s_lbl]
                     body_tp_synth, body_ck = synthesize_type(new_ctx, body)
-                    tops.assert_shape_subtype(
-                        ctx, body_tp_synth.tp, result_tp.tp)
+                    if is_insert_shape:
+                        tops.assert_insert_subtype(
+                            ctx, body_tp_synth.tp, result_tp.tp)
+                    else:
+                        tops.assert_shape_subtype(
+                            ctx, body_tp_synth.tp, result_tp.tp)
                     tops.assert_cardinal_subtype(
                         body_tp_synth.mode, result_tp.mode)
                     result_s_tp = e.ObjectTp({**result_s_tp.val,
@@ -167,8 +173,12 @@ def check_shape_transform(ctx: e.TcCtx, s: e.ShapeExpr,
                         ctx, comp, e.ResultTp(tp, e.CardOne))
                     result_tp = l_tp.val[l_lbl]
                     body_synth_tp, body_ck = synthesize_type(new_ctx, body)
-                    tops.assert_shape_subtype(
-                        ctx, body_synth_tp.tp, result_tp.tp)
+                    if is_insert_shape:
+                        tops.assert_insert_subtype(
+                            ctx, body_synth_tp.tp, result_tp.tp)
+                    else:
+                        tops.assert_shape_subtype(
+                            ctx, body_synth_tp.tp, result_tp.tp)
                     tops.assert_cardinal_subtype(
                         body_synth_tp.mode, result_tp.mode)
                     result_l_tp = e.ObjectTp({**result_l_tp.val,
@@ -299,24 +309,38 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
 
                 args_ret_type = e.FunArgRetType(
                     args_tp=[eops.map_tp(instantiate_some_tp, t)
-                            for t in args_ret_type.args_tp],
+                             for t in args_ret_type.args_tp],
                     ret_tp=e.ResultTp(eops.map_tp(instantiate_some_tp,
-                                                args_ret_type.ret_tp.tp),
-                                    args_ret_type.ret_tp.mode))
+                                                  args_ret_type.ret_tp.tp),
+                                      args_ret_type.ret_tp.mode))
 
                 arg_cards, arg_cks = zip(*[check_type_no_card(
                         ctx, arg, args_ret_type.args_tp[i])
                         for i, arg in enumerate(args)])
 
-                # take the product of argument cardinalities
-                arg_card_product = reduce(
-                    operator.mul,
-                    (tops.match_param_modifier(param_mod, arg_card)
-                     for param_mod, arg_card
-                     in zip(fun_tp.args_mod, arg_cards, strict=True)))
+                # special processing of cardinality inference for certain functions
+                match fname:
+                    case "??":
+                        assert len(arg_cards) == 2
+                        result_card = e.CMMode(
+                            e.min_cardinal(arg_cards[0].lower,
+                                           arg_cards[1].lower),
+                            e.max_cardinal(arg_cards[0].upper,
+                                           arg_cards[1].upper),
+                            e.max_cardinal(arg_cards[0].multiplicity,
+                                           arg_cards[1].multiplicity)
+                        )
+                    case _:
+                        # take the product of argument cardinalities
+                        arg_card_product = reduce(
+                            operator.mul,
+                            (tops.match_param_modifier(param_mod, arg_card)
+                             for param_mod, arg_card
+                             in zip(fun_tp.args_mod, arg_cards, strict=True)))
+                        result_card = (arg_card_product
+                                       * args_ret_type.ret_tp.mode)
+                
                 result_tp = args_ret_type.ret_tp.tp
-                result_card = (arg_card_product
-                               * args_ret_type.ret_tp.mode)
                 result_expr = e.FunAppExpr(fun=fname, args=arg_cks,
                                            overloading_index=idx)
                 return result_tp, result_card, result_expr
@@ -484,7 +508,8 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     e.min_cardinal(result_card.multiplicity, e.Fin(lim_num)))
         case e.InsertExpr(name=tname, new=arg):
             tname_tp = ctx.statics.schema.val[tname]
-            arg_shape_tp, arg_ck = check_shape_transform(ctx, arg, tname_tp)
+            arg_shape_tp, arg_ck = check_shape_transform(ctx, arg, tname_tp,
+                                                         is_insert_shape=True)
             # assert arg_tp.mode == e.CardOne, (
             #         "Expecting single object in inserts"
             #     )

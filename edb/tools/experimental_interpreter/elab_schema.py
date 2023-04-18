@@ -85,21 +85,31 @@ def elab_schema(sdef: qlast.Schema) -> DBSchema:
                                                 plcommands)
                                         if isinstance(
                                                 pltarget, qlast.TypeExpr):
-                                            link_property_tps = {
-                                                **link_property_tps,
-                                                plname:
-                                                ResultTp(
-                                                    elab_schema_target_tp(
-                                                        pltarget),
-                                                    elab_schema_cardinality(
-                                                        pl_is_required,
-                                                        pl_cardinality
-                                                        ))}
+                                            lp_base_tp = elab_schema_target_tp(
+                                                    pltarget)
+                                        elif isinstance(pltarget, qlast.Expr):
+                                            lp_base_tp = (
+                                             e.UncheckedComputableTp(
+                                              elab_expr_with_default_head(
+                                                    pltarget))
+                                            )
                                         else:
                                             print(
                                                 "WARNING: "
                                                 "not implemented pltarget",
                                                 pltarget)
+                                        link_property_tps = {
+                                            **link_property_tps,
+                                            plname:
+                                            ResultTp(
+                                                lp_base_tp,
+                                                elab_schema_cardinality(
+                                                        pl_is_required,
+                                                        pl_cardinality
+                                                        ))}
+                                    case qlast.CreateConcreteConstraint():
+                                        print("WARNING: not implemented pcmd"
+                                              " (constraint)", pcmd)
                                     case _:
                                         print(
                                             "WARNING: not "
