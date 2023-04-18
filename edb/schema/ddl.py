@@ -475,19 +475,6 @@ def apply_sdl(
     return target_schema
 
 
-def apply_ddl(
-    ddl_stmt: qlast.DDLCommand,
-    *,
-    schema: s_schema.Schema,
-    modaliases: Mapping[Optional[str], str],
-    stdmode: bool=False,
-    testmode: bool=False,
-) -> s_schema.Schema:
-    schema, _ = _delta_from_ddl(ddl_stmt, schema=schema, modaliases=modaliases,
-                                stdmode=stdmode, testmode=testmode)
-    return schema
-
-
 def apply_ddl_script(
     ddl_text: str,
     *,
@@ -516,6 +503,11 @@ def apply_ddl_script_ex(
     stdmode: bool = False,
     internal_schema_mode: bool = False,
     testmode: bool = False,
+    allow_dml_in_functions: bool=False,
+    schema_object_ids: Optional[
+        Mapping[Tuple[sn.Name, Optional[str]], uuid.UUID]
+    ]=None,
+    compat_ver: Optional[verutils.Version] = None,
 ) -> Tuple[s_schema.Schema, sd.DeltaRoot]:
 
     delta = sd.DeltaRoot()
@@ -533,6 +525,9 @@ def apply_ddl_script_ex(
             stdmode=stdmode,
             internal_schema_mode=internal_schema_mode,
             testmode=testmode,
+            allow_dml_in_functions=allow_dml_in_functions,
+            schema_object_ids=schema_object_ids,
+            compat_ver=compat_ver,
         )
 
         delta.add(cmd)

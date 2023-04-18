@@ -513,6 +513,34 @@ def _get_schema_object_ids(delta: sd.Command) -> Mapping[
     return schema_object_ids
 
 
+def prepare_repair_patch(
+    stdschema: s_schema.Schema,
+    reflschema: s_schema.Schema,
+    userschema: s_schema.Schema,
+    globalschema: s_schema.Schema,
+    schema_class_layout: s_refl.SchemaClassLayout,
+    backend_params: params.BackendRuntimeParams,
+    config: Any,
+) -> tuple[bytes, ...]:
+    compiler = edbcompiler.new_compiler(
+        std_schema=stdschema,
+        reflection_schema=reflschema,
+        schema_class_layout=schema_class_layout
+    )
+
+    compilerctx = edbcompiler.new_compiler_context(
+        compiler_state=compiler.state,
+        global_schema=globalschema,
+        user_schema=userschema,
+    )
+    res = edbcompiler.repair_schema(compilerctx)
+    if not res:
+        return ()
+    sql, _, _ = res
+
+    return sql
+
+
 def prepare_patch(
     num: int,
     kind: str,
@@ -520,8 +548,8 @@ def prepare_patch(
     schema: s_schema.Schema,
     reflschema: s_schema.Schema,
     schema_class_layout: s_refl.SchemaClassLayout,
-    backend_params: params.BackendRuntimeParams
-) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, Any]]:
+    backend_params: params.BackendRuntimeParams,
+) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, Any], bool]:
     val = f'{pg_common.quote_literal(json.dumps(num + 1))}::jsonb'
     # TODO: This is an INSERT because 2.0 shipped without num_patches.
     # We can just make this an UPDATE for 3.0
@@ -534,7 +562,11 @@ def prepare_patch(
 
     # Pure SQL patches are simple
     if kind == 'sql':
-        return (patch, update), (), {}
+        return (patch, update), (), {}, False
+
+    if kind == 'repair':
+        assert not patch
+        return (), (), {}, True
 
     # EdgeQL and reflection schema patches need to be compiled.
     current_block = dbops.PLTopBlock()
@@ -690,7 +722,7 @@ def prepare_patch(
                 DO UPDATE SET text = {val};
             ''',)
 
-    return (patch, update), sys_updates, updates
+    return (patch, update), sys_updates, updates, False
 
 
 class StdlibBits(NamedTuple):

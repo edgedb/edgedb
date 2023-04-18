@@ -29,6 +29,7 @@ from .dbstate import QueryUnit, QueryUnitGroup
 from .enums import Capability, Cardinality
 from .enums import InputFormat, OutputFormat
 from .explain import analyze_explain_output
+from .ddl import repair_schema
 
 __all__ = (
     'Cardinality',
@@ -48,4 +49,5 @@ __all__ = (
     'new_compiler_context',
     'compile',
     'compile_schema_storage_in_delta',
+    'repair_schema',
 )
