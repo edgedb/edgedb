@@ -39,8 +39,8 @@ def map_tp(
             return map_tp(f, expr)
 
         match tp:
-            case (e.IntTp() | e.BoolTp() | e.StrTp() | e.IntInfTp() 
-                  | e.AnyTp()):
+            case (e.IntTp() | e.BoolTp() | e.StrTp() | e.IntInfTp()
+                  | e.AnyTp() | e.VarTp(_)):
                 return tp
             case e.ObjectTp(val=val):
                 return e.ObjectTp(val={k: e.ResultTp(recur(v), card)
@@ -55,6 +55,12 @@ def map_tp(
             case e.LinkPropTp(subject=subject, linkprop=linkprop):
                 return e.LinkPropTp(subject=recur(subject),
                                     linkprop=recur(linkprop))
+            case e.UncheckedComputableTp(_):
+                return tp
+            case e.ComputableTp(expr=expr, tp=tp):
+                return e.ComputableTp(expr=expr, tp=recur(tp))
+            case e.DefaultTp(expr=expr, tp=tp):
+                return e.DefaultTp(expr=expr, tp=recur(tp))
             case _:
                 raise ValueError("Not Implemented", tp)
 
@@ -452,6 +458,8 @@ def make_storage_atomic(val: Val, tp: Tp) -> Val:
             return do_coerce_value_to_linkprop_tp(tp_linkprop=ObjectTp({}))
         case (e.IntTp() | e.StrTp()):
             return val
+        case e.DefaultTp(expr=_, tp=d_tp):
+            return make_storage_atomic(val, d_tp)
         case _:
             raise ValueError("Coercion Not Implemented for", tp)
 

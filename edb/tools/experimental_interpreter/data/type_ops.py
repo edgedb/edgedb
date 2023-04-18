@@ -3,7 +3,7 @@ from .data_ops import DBSchema
 from .expr_to_str import show_tp
 from . import data_ops as e
 from . import expr_ops as eops
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 
 def construct_tp_intersection(tp1: e.Tp, tp2: e.Tp) -> e.Tp:
@@ -49,7 +49,7 @@ def object_tp_is_essentially_optional(tp: e.ObjectTp) -> bool:
 
 def dereference_var_tp(dbschema: e.DBSchema, tp: e.VarTp) -> e.ObjectTp:
     if tp.name in dbschema.val:
-        return dbschema.val[tp.name]
+        return get_runtime_tp(dbschema.val[tp.name])
     else:
         raise ValueError("Type not found")
 
@@ -66,6 +66,10 @@ def assert_real_subtype(
         ctx: e.TcCtx, tp1: e.Tp, tp2: e.Tp,
         subtyping_mode: e.SubtypingMode = e.SubtypingMode.Regular
         ) -> None:
+    # if isinstance(tp1, e.DefaultTp):
+    #     tp1 = tp1.tp
+    # if isinstance(tp2, e.DefaultTp):
+    #     tp2 = tp2.tp
     if tp_is_primitive(tp1) and tp_is_primitive(tp2):
         match tp1, tp2:
             case e.IntTp(), e.IntInfTp():
@@ -153,8 +157,6 @@ def assert_real_subtype(
             case (e.ArrTp(tp=tp1_val), e.ArrTp(tp=tp2_val)):
                 assert_real_subtype(ctx, tp1_val, tp2_val, subtyping_mode)
 
-
-
             # For debugging Purposes
             case ((e.ArrTp(_), e.StrTp())
                   | (e.ArrTp(_), e.IntTp())
@@ -178,7 +180,15 @@ def assert_cardinal_subtype(cm: e.CMMode, cm2: e.CMMode) -> None:
 
 def get_runtime_tp(tp: e.Tp) -> e.Tp:
     """Drops defaults and computed"""
-    return tp
+    def map_func(candidate: e.Tp) -> Optional[e.Tp]:
+        match candidate:
+            case e.ComputableTp(expr=_, tp=c_tp):
+                return get_runtime_tp(c_tp)
+            case e.DefaultTp(expr=_, tp=c_tp):
+                return get_runtime_tp(c_tp)
+            case _:
+                return None
+    return eops.map_tp(map_func, tp)
 
 
 def tp_is_primitive(tp: e.Tp) -> bool:
@@ -206,6 +216,8 @@ def tp_is_primitive(tp: e.Tp) -> bool:
             # return tp_is_primitive(left_tp) and tp_is_primitive(right_tp)
             return False  # this case is actually ambiguous
         case e.ComputableTp(tp=under_tp, expr=_):
+            return tp_is_primitive(under_tp)
+        case e.DefaultTp(tp=under_tp, expr=_):
             return tp_is_primitive(under_tp)
         case _:
             raise ValueError("Not implemented", tp)

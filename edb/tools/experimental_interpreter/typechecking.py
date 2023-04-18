@@ -507,9 +507,9 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
                     e.min_cardinal(result_card.upper, e.Fin(lim_num)),
                     e.min_cardinal(result_card.multiplicity, e.Fin(lim_num)))
         case e.InsertExpr(name=tname, new=arg):
-            tname_tp = ctx.statics.schema.val[tname]
-            arg_shape_tp, arg_ck = check_shape_transform(ctx, arg, tname_tp,
-                                                         is_insert_shape=True)
+            tname_tp = tops.get_runtime_tp(ctx.statics.schema.val[tname])
+            arg_shape_tp, arg_ck = check_shape_transform(
+                ctx, arg, tname_tp, is_insert_shape=True)
             # assert arg_tp.mode == e.CardOne, (
             #         "Expecting single object in inserts"
             #     )
@@ -672,7 +672,9 @@ def check_object_tp_comp_validity(
             return e.LinkPropTp(
                     subject=l_sub,
                     linkprop=check_object_tp_validity(
-                        dbschema, tp_comp, l_prop))
+                        dbschema=dbschema,
+                        subject_tp=tops.get_runtime_tp(tp_comp),
+                        obj_tp=l_prop))
         case e.UncheckedComputableTp(expr=c_expr):
             if not isinstance(c_expr, e.BindingExpr):  # type: ignore
                 raise ValueError(
@@ -718,7 +720,12 @@ def check_object_tp_comp_validity(
             c_body = path_factor.select_hoist(c_body, dbschema)
             synth_tp, c_body_ck = synthesize_type(new_ctx, c_body)
             tops.assert_cardinal_subtype(synth_tp.mode, tp_comp_card)
-            tops.assert_real_subtype(new_ctx, synth_tp.tp, c_tp)
+            match c_tp:
+                case e.LinkPropTp(subject=c_tp_subject, linkprop=_):
+                    tops.assert_real_subtype(new_ctx, synth_tp.tp,
+                                             c_tp_subject)
+                case _:
+                    tops.assert_real_subtype(new_ctx, synth_tp.tp, c_tp)
             return e.DefaultTp(
                 expr=eops.abstract_over_expr(c_body_ck, bnd_var),
                 tp=c_tp)

@@ -1,6 +1,8 @@
 type Test4 { 
-    name10 : str | int {
-        name11 : str | int ;
-        property name12 := @name11 * @name11
+    name10 : str  {
+        default := "name10";
+        property name12 : str {
+            default := "name12"
+        }
     }
 };

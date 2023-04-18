@@ -57,9 +57,11 @@ def show_tp(tp: e.Tp) -> str:
         case e.IntersectTp(left=left, right=right):
             return f'{show_tp(left)} & {show_tp(right)}'
         case e.UncheckedComputableTp(expr=expr):
-            return 'comp_unck' + show_expr(expr)
+            return 'comp_unck(' + show_expr(expr) + ')'
         case e.ComputableTp(expr=expr, tp=tp):
             return 'comp(' + show_tp(tp) + "," + show_expr(expr) + ")"
+        case e.DefaultTp(expr=expr, tp=tp):
+            return 'default(' + show_tp(tp) + "," + show_expr(expr) + ")"
         case _:
             raise ValueError('Unimplemented', tp)
 

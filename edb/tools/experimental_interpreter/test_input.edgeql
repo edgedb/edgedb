@@ -1,4 +1,4 @@
-for X in {1,2,3} union X;
+# for X in {1,2,3} union X;
 # select Person.friends@source;
 # with
 #         X :=  
