@@ -42,6 +42,7 @@ from edb.schema import migrations as s_migrations
 from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
 from edb.schema import utils as s_utils
+from edb.schema import version as s_ver
 
 from edb.pgsql import common as pg_common
 from edb.pgsql import delta as pg_delta
@@ -288,12 +289,12 @@ def compile_and_apply_ddl_stmt(
     )
 
 
-def _new_delta_context(ctx: compiler.CompileContext):
+def _new_delta_context(ctx: compiler.CompileContext, args: Any=None):
     return s_delta.CommandContext(
         backend_runtime_params=ctx.compiler_state.backend_runtime_params,
         stdmode=ctx.bootstrap_mode,
         internal_schema_mode=ctx.internal_schema_mode,
-        **_get_delta_context_args(ctx),
+        **(_get_delta_context_args(ctx) if args is None else args),
     )
 
 
@@ -695,7 +696,7 @@ def _describe_current_migration(
         if proposed_desc is None:
             diff = s_ddl.delta_schemas(schema, mstate.target_schema)
             complete = not bool(diff.get_subcommands())
-            if debug.flags.delta_plan:
+            if debug.flags.delta_plan and not complete:
                 debug.header('DESCRIBE CURRENT MIGRATION AS JSON mismatch')
                 debug.dump(diff)
 
@@ -1159,4 +1160,100 @@ def _reset_schema(
         single_unit=True,
         user_schema=current_tx.get_user_schema(),
         cached_reflection=(current_tx.get_cached_reflection_if_updated()),
+    )
+
+
+def repair_schema(
+    ctx: compiler.CompileContext,
+) -> Optional[tuple[tuple[bytes, ...], s_schema.Schema, Any]]:
+    """Repair inconsistencies in the schema caused by bug fixes
+
+    Works by comparing the actual current schema to the schema we get
+    from reloading the DDL description of the schema and then directly
+    applying the diff.
+    """
+    current_tx = ctx.state.current_tx()
+    schema = current_tx.get_schema(ctx.compiler_state.std_schema)
+
+    empty_schema = s_schema.ChainedSchema(
+        ctx.compiler_state.std_schema,
+        s_schema.FlatSchema(),
+        current_tx.get_global_schema(),
+    )
+
+    context_args = _get_delta_context_args(ctx)
+    context_args.update(dict(
+        testmode=True,
+        allow_dml_in_functions=True,
+    ))
+
+    text = s_ddl.ddl_text_from_schema(schema)
+    reloaded_schema, _ = s_ddl.apply_ddl_script_ex(
+        text,
+        schema=empty_schema,
+        **context_args,
+    )
+
+    delta = s_ddl.delta_schemas(
+        schema,
+        reloaded_schema,
+    )
+    mismatch = bool(delta.get_subcommands())
+    if not mismatch:
+        return None
+
+    if debug.flags.delta_plan:
+        debug.header('Repair Delta')
+        debug.dump(delta)
+
+    if not delta.is_data_safe():
+        raise AssertionError(
+            'Repair script for version upgrade is not data safe'
+        )
+
+    # Update the schema version also
+    context = _new_delta_context(ctx, context_args)
+    ver = schema.get_global(
+        s_ver.SchemaVersion, '__schema_version__')
+    reloaded_schema = ver.set_field_value(
+        reloaded_schema, 'version', ver.get_version(schema))
+    ver_cmd = ver.init_delta_command(schema, s_delta.AlterObject)
+    ver_cmd.set_attribute_value('version', uuidgen.uuid1mc())
+    reloaded_schema = ver_cmd.apply(reloaded_schema, context)
+    delta.add(ver_cmd)
+
+    # Apply and adapt delta, build native delta plan, which
+    # will also update the schema.
+    block, new_types, config_ops = _process_delta(ctx, delta)
+    is_transactional = block.is_transactional()
+    assert not new_types
+    assert is_transactional
+    sql = (block.to_string().encode('utf-8'),)
+
+    if debug.flags.delta_execute:
+        debug.header('Repair Delta Script')
+        debug.dump_code(b'\n'.join(sql), lexer='sql')
+
+    return sql, reloaded_schema, config_ops
+
+
+def administer_repair_schema(
+    ctx: compiler.CompileContext,
+    ql: qlast.AdministerStmt,
+) -> dbstate.BaseQuery:
+    current_tx = ctx.state.current_tx()
+
+    res = repair_schema(ctx)
+    if not res:
+        return dbstate.MaintenanceQuery(sql=(b'',))
+    sql, new_schema, config_ops = res
+
+    current_tx.update_schema(new_schema)
+
+    return dbstate.DDLQuery(
+        sql=sql,
+        single_unit=False,
+        user_schema=current_tx.get_user_schema_if_updated(),  # type: ignore
+        global_schema=current_tx.get_global_schema_if_updated(),
+        config_ops=config_ops,
     )
