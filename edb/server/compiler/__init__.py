@@ -28,7 +28,6 @@ from .dbstate import QueryUnit, QueryUnitGroup
 from .enums import Capability, Cardinality
 from .enums import InputFormat, OutputFormat
 
-
 __all__ = (
     'Cardinality',
     'Compiler',

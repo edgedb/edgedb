@@ -1541,6 +1541,12 @@ class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
 
         return schema
 
+    def is_data_safe(self) -> bool:
+        return all(
+            subcmd.is_data_safe()
+            for subcmd in self.get_subcommands()
+        )
+
 
 class Query(Command):
     """A special delta command representing a non-DDL query.

@@ -43,7 +43,34 @@ def get_version_key(num_patches: int):
         return f'_v{num_major}'
 
 
-PATCHES: list[tuple[str, str]] = [
+def _setup_patches(patches: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Do postprocessing on the patches list
+
+    For technical reasons, we can't run a user schema repair if there
+    is a pending standard schema change, so when applying repairs we
+    always defer them to the *last* repair patch, and we ensure that
+    edgeql+schema is followed by a repair if necessary.
+    """
+    seen_repair = False
+    npatches = []
+    for kind, patch in patches:
+        npatches.append((kind, patch))
+        if kind == 'edgeql+schema' and seen_repair:
+            npatches.append(('repair', ''))
+        seen_repair |= kind == 'repair'
+    return npatches
+
+
+"""
+The actual list of patches. The patches are (kind, script) pairs.
+
+There are currently 4 kinds:
+ * sql - simply runs a SQL script
+ * edgeql - runs an edgeql DDL command
+ * edgeql+schema - runs an edgeql DDL command and updates the std schemas
+ * repair - fix up inconsistencies in *user* schemas
+"""
+PATCHES: list[tuple[str, str]] = _setup_patches([
     ('sql', '''
 CREATE OR REPLACE FUNCTION
  edgedbstd."std|cast@std|json@array<std||json>_f"(val jsonb)
@@ -418,4 +445,4 @@ ALTER FUNCTION edgedb._index(jsonb, bigint, text) IMMUTABLE;
     ('sql', '''
 ALTER FUNCTION edgedb._slice(jsonb, int, int) IMMUTABLE;
 '''),
-]
+])
