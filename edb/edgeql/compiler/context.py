@@ -543,6 +543,10 @@ class ContextLevel(compiler.ContextLevel):
         if not None, then it is of the form `in a FILTER clause`  """
 
     active_rewrites: FrozenSet[s_objtypes.ObjectType]
+    """For detecting cycles in rewrite rules"""
+
+    active_defaults: FrozenSet[s_objtypes.ObjectType]
+    """For detecting cycles in defaults"""
 
     def __init__(
         self,
@@ -598,6 +602,7 @@ class ContextLevel(compiler.ContextLevel):
             self.active_computeds = ordered.OrderedSet()
             self.recompiling_schema_alias = False
             self.active_rewrites = frozenset()
+            self.active_defaults = frozenset()
 
             self.disallow_dml = None
 
@@ -639,6 +644,7 @@ class ContextLevel(compiler.ContextLevel):
             self.active_computeds = prevlevel.active_computeds
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
             self.active_rewrites = prevlevel.active_rewrites
+            self.active_defaults = prevlevel.active_defaults
 
             self.disallow_dml = prevlevel.disallow_dml
 
