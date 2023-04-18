@@ -83,13 +83,6 @@ def analyze_explain_output(
     assert len(plan) == 1
     plan = debug_tree = plan[0]['Plan']
 
-    if debug.flags.edgeql_explain:
-        import importlib
-        importlib.reload(pg_tree)
-        importlib.reload(ir_analyze)
-        importlib.reload(fine_grained)
-        importlib.reload(coarse_grained)
-
     info = None
     fg_tree = None
     cg_tree = None
