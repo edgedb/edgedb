@@ -371,24 +371,23 @@ making the current user able to see their own ``User`` record.
 .. _ref_datamodel_access_policies_nonrecursive:
 .. _nonrecursive:
 
-.. versionchanged:: 3.0
+.. note::
 
-  Starting with the upcoming EdgeDB 3.0, access policy restrictions will
-  **not**
-  apply to any access policy expression. This means that when reasoning about
-  access policies it is no longer necessary to take other policies into
-  account. Instead, all data is visible for the purpose of *defining* an access
-  policy.
+    Starting with EdgeDB 3.0, access policy restrictions will **not** apply to
+    any access policy expression. This means that when reasoning about access
+    policies it is no longer necessary to take other policies into account.
+    Instead, all data is visible for the purpose of *defining* an access
+    policy.
 
-  This change is being made to simplify reasoning about access
-  policies and to allow certain patterns to be express
-  efficiently. Since those who have access to modifying the schema can
-  remove unwanted access policies, no additional security is provided
-  by applying access policies to each other's expressions.
+    This change is being made to simplify reasoning about access policies and
+    to allow certain patterns to be express efficiently. Since those who have
+    access to modifying the schema can remove unwanted access policies, no
+    additional security is provided by applying access policies to each other's
+    expressions.
 
-  It is possible (and recommended) to enable this :ref:`future
-  <ref_eql_sdl_future>` behavior in EdgeDB 2.6 and later by adding the
-  following to the schema: ``using future nonrecursive_access_policies;``
+    It is possible (and recommended) to enable this :ref:`future
+    <ref_eql_sdl_future>` behavior in EdgeDB 2.6 and later by adding the
+    following to the schema: ``using future nonrecursive_access_policies;``
 
 Custom error messages
 ^^^^^^^^^^^^^^^^^^^^^
