@@ -24,6 +24,7 @@ import decimal
 import math
 import pprint
 import uuid
+import unittest
 
 from datetime import timedelta
 
@@ -59,7 +60,15 @@ def sort_results(results, sort):
             results.sort(key=sort)
 
 
-def assert_data_shape(data, shape, fail, message=None):
+def assert_data_shape(data, shape, fail, message=None, from_sql=False):
+    try:
+        import asyncpg
+        from asyncpg import types as pgtypes
+    except ImportError:
+        if from_sql:
+            raise unittest.SkipTest(
+                'SQL tests skipped: asyncpg not installed')
+
     _void = object()
 
     def _format_path(path):
@@ -220,40 +229,141 @@ def assert_data_shape(data, shape, fail, message=None):
                     f'{_format_path(path)}: {el_shape!r}')
 
     def _assert_generic_shape(path, data, shape):
-        if isinstance(shape, bag):
-            return _assert_bag_shape(path, data, shape)
-        elif isinstance(shape, (list, tuple)):
-            return _assert_list_shape(path, data, shape)
-        elif isinstance(shape, set):
-            return _assert_set_shape(path, data, shape)
-        elif isinstance(shape, dict):
-            return _assert_dict_shape(path, data, shape)
-        elif isinstance(shape, type):
-            return _assert_type_shape(path, data, shape)
-        elif isinstance(shape, float):
-            if not math.isclose(data, shape, rel_tol=1e-04, abs_tol=1e-15):
-                fail(
-                    f'{message}: not isclose({data}, {shape}) '
-                    f'{_format_path(path)}')
-        elif isinstance(shape, uuid.UUID):
-            # since the data comes from JSON, it will only have a str
-            if data != str(shape):
-                fail(
-                    f'{message}: {data!r} != {shape!r} '
-                    f'{_format_path(path)}')
-        elif isinstance(shape, (str, int, bytes, timedelta,
-                                decimal.Decimal, edgedb.RelativeDuration)):
-            if data != shape:
-                fail(
-                    f'{message}: {data!r} != {shape!r} '
-                    f'{_format_path(path)}')
-        elif shape is None:
-            if data is not None:
-                fail(
-                    f'{message}: {data!r} is expected to be None '
-                    f'{_format_path(path)}')
+        if from_sql:
+            if isinstance(shape, bag):
+                return _assert_bag_shape(path, data, shape)
+            elif isinstance(shape, list):
+                # NULL is acceptable substitute for the empty set, so we'll
+                # assume that in our tests None satisfies the [] expected
+                # result.
+                if data is not None or len(shape) > 0:
+                    return _assert_list_shape(path, data, shape)
+            elif isinstance(shape, tuple):
+                assert isinstance(data, asyncpg.Record)
+                return _assert_list_shape(
+                    path, [d for d in data.values()], shape)
+            elif isinstance(shape, set):
+                return _assert_set_shape(path, data, shape)
+            elif isinstance(shape, dict):
+                assert isinstance(data, asyncpg.Record)
+
+                # If the record has "target" pop the "id" from the expected
+                # results as we expect it to be a "target" duplicate.
+                rec = {k: v for k, v in data.items()}
+                if 'target' in rec:
+                    if 'id' in shape and shape['id'] == shape.get('target'):
+                        shape.pop('id')
+
+                return _assert_dict_shape(path, rec, shape)
+            elif isinstance(shape, type):
+                return _assert_type_shape(path, data, shape)
+            elif isinstance(shape, float):
+                if not math.isclose(data, shape,
+                                    rel_tol=1e-04, abs_tol=1e-15):
+                    fail(
+                        f'{message}: not isclose({data}, {shape}) '
+                        f'{_format_path(path)}')
+            elif isinstance(shape, uuid.UUID):
+                # If data comde from SQL, we expect UUID.
+                if data != shape:
+                    fail(
+                        f'{message}: {data!r} != {shape!r} '
+                        f'{_format_path(path)}')
+            elif isinstance(shape, (str, int, bytes, timedelta,
+                                    decimal.Decimal)):
+                if data != shape:
+                    fail(
+                        f'{message}: {data!r} != {shape!r} '
+                        f'{_format_path(path)}')
+            elif isinstance(shape, edgedb.RelativeDuration):
+                if data != timedelta(
+                    days=shape.months * 30 + shape.days,
+                    microseconds=shape.microseconds,
+                ):
+                    fail(
+                        f'{message}: {data!r} != {shape!r} '
+                        f'{_format_path(path)}')
+            elif isinstance(shape, edgedb.DateDuration):
+                if data != timedelta(
+                    days=shape.months * 30 + shape.days,
+                ):
+                    fail(
+                        f'{message}: {data!r} != {shape!r} '
+                        f'{_format_path(path)}')
+            elif isinstance(shape, edgedb.Range):
+                if data != pgtypes.Range(
+                    lower=shape.lower,
+                    upper=shape.upper,
+                    lower_inc=shape.inc_lower,
+                    upper_inc=shape.inc_upper,
+                    empty=shape.is_empty(),
+                ):
+                    fail(
+                        f'{message}: {data!r} != {shape!r} '
+                        f'{_format_path(path)}')
+            elif isinstance(shape, edgedb.EnumValue):
+                if data != str(shape):
+                    fail(
+                        f'{message}: {data!r} != {shape!r} '
+                        f'{_format_path(path)}')
+            elif shape is None:
+                if data is not None:
+                    fail(
+                        f'{message}: {data!r} is expected to be None '
+                        f'{_format_path(path)}')
+            else:
+                if data != shape:
+                    fail(
+                        f'{message}: ({type(data)}) {data!r} != '
+                        f'({type(shape)}) {shape!r} '
+                        f'{_format_path(path)}')
+
         else:
-            raise ValueError(f'unsupported shape type {shape}')
+            if isinstance(shape, bag):
+                return _assert_bag_shape(path, data, shape)
+            elif isinstance(shape, (list, tuple)):
+                return _assert_list_shape(path, data, shape)
+            elif isinstance(shape, set):
+                return _assert_set_shape(path, data, shape)
+            elif isinstance(shape, dict):
+                return _assert_dict_shape(path, data, shape)
+            elif isinstance(shape, type):
+                return _assert_type_shape(path, data, shape)
+            elif isinstance(shape, float):
+                if not math.isclose(data, shape,
+                                    rel_tol=1e-04, abs_tol=1e-15):
+                    fail(
+                        f'{message}: not isclose({data}, {shape}) '
+                        f'{_format_path(path)}')
+            elif isinstance(shape, uuid.UUID):
+                # We expect a str from JSON.
+                if data != str(shape):
+                    fail(
+                        f'{message}: {data!r} != {shape!r} '
+                        f'{_format_path(path)}')
+            elif isinstance(shape, (str, int, bytes, timedelta,
+                                    decimal.Decimal)):
+                if data != shape:
+                    fail(
+                        f'{message}: {data!r} != {shape!r} '
+                        f'{_format_path(path)}')
+            elif isinstance(shape, edgedb.RelativeDuration):
+                if data != shape:
+                    fail(
+                        f'{message}: {data!r} != {shape!r} '
+                        f'{_format_path(path)}')
+            elif isinstance(shape, edgedb.DateDuration):
+                if data != shape:
+                    fail(
+                        f'{message}: {data!r} != {shape!r} '
+                        f'{_format_path(path)}')
+            elif shape is None:
+                if data is not None:
+                    fail(
+                        f'{message}: {data!r} is expected to be None '
+                        f'{_format_path(path)}')
+            else:
+                raise ValueError(f'unsupported shape type {shape}')
 
     message = message or 'data shape differs'
     return _assert_generic_shape((), data, shape)

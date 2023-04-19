@@ -5922,10 +5922,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.interact([
             "did you create object type 'test::HasContent'?",
             "did you alter object type 'test::Post'?",
-            "did you alter constraint 'std::max_len_value' of property "
-            "'content'?",
+            "did you alter object type 'test::Post'?",
             "did you create object type 'test::Reply'?",
-            "did you alter property 'content' of object type 'test::Post'?",
         ])
 
     async def test_edgeql_migration_rebase_03(self):

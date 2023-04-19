@@ -775,6 +775,14 @@ class TestSQL(tb.SQLQueryTestCase):
         assert isinstance(res1, int)
         assert isinstance(res2, int)
 
+        res = await self.squery_values(
+            r'''
+            SELECT tbloid
+            FROM unnest('{11}'::pg_catalog.oid[]) as src(tbloid)
+            '''
+        )
+        self.assertEqual(res, [[11]])
+
     async def test_sql_query_be_state(self):
         con = await self.connect(database=self.con.dbname)
         try:

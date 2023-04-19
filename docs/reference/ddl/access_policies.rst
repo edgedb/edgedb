@@ -1,12 +1,10 @@
+.. versionadded:: 2.0
+
 .. _ref_eql_ddl_access_policies:
 
 ===============
 Access Policies
 ===============
-
-.. note::
-
-  ⚠️ Only available in EdgeDB 2.0 or later.
 
 This section describes the DDL commands pertaining to access policies.
 
@@ -18,16 +16,16 @@ Create access policy
 :ref:`Declare <ref_eql_sdl_access_policies>` a new object access policy.
 
 .. eql:synopsis::
+    :version-lt: 3.0
 
     [ with <with-item> [, ...] ]
     { create | alter } type <TypeName> "{"
       [ ... ]
-      create access policy <name> "{"
+      create access policy <name>
         [ when (<condition>) ; ]
         { allow | deny } <action> [, <action> ... ; ]
         [ using (<expr>) ; ]
         [ create annotation <annotation-name> := <value> ; ]
-      "}"
     "}"
 
     # where <action> is one of
@@ -36,6 +34,29 @@ Create access policy
     insert
     delete
     update [{ read | write }]
+
+.. eql:synopsis::
+
+    [ with with-item [, ...] ]
+    { create | alter } type TypeName "{"
+      [ ... ]
+      create access policy name
+        [ when (condition) ; ]
+        { allow | deny } action [, action ... ; ]
+        [ using (expr) ; ]
+        [ create annotation annotation-name := value ; ]
+        [ "{"
+           [ set errmessage := value ; ]
+          "}" ; ]
+    "}"
+
+    # where <action> is one of
+    all
+    select
+    insert
+    delete
+    update [{ read | write }]
+
 
 Description
 -----------
@@ -120,6 +141,12 @@ Most sub-commands and options of this command are identical to the
 
 The following subcommands are allowed in the ``create access policy`` block:
 
+.. versionadded:: 3.0
+
+    :eql:synopsis:`set errmessage := <value>`
+        Set a custom error message of :eql:synopsis:`<value>` that is displayed
+        when this access policy prevents a write action.
+
 :eql:synopsis:`create annotation <annotation-name> := <value>`
     Set access policy annotation :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
@@ -134,6 +161,7 @@ Alter access policy
 :ref:`Declare <ref_eql_sdl_access_policies>` a new object access policy.
 
 .. eql:synopsis::
+    :version-lt: 3.0
 
     [ with <with-item> [, ...] ]
     alter type <TypeName> "{"
@@ -143,6 +171,31 @@ Alter access policy
         [ reset when ; ]
         { allow | deny } <action> [, <action> ... ; ]
         [ using (<expr>) ; ]
+        [ reset expression ; ]
+        [ create annotation <annotation-name> := <value> ; ]
+        [ alter annotation <annotation-name> := <value> ; ]
+        [ drop annotation <annotation-name>; ]
+      "}"
+    "}"
+
+    # where <action> is one of
+    all
+    select
+    insert
+    delete
+    update [{ read | write }]
+
+.. eql:synopsis::
+
+    [ with <with-item> [, ...] ]
+    alter type <TypeName> "{"
+      [ ... ]
+      alter access policy <name> "{"
+        [ when (<condition>) ; ]
+        [ reset when ; ]
+        { allow | deny } <action> [, <action> ... ; ]
+        [ using (<expr>) ; ]
+        [ set errmessage := value ; ]
         [ reset expression ; ]
         [ create annotation <annotation-name> := <value> ; ]
         [ alter annotation <annotation-name> := <value> ; ]

@@ -82,6 +82,9 @@ def eval_BaseConstant(
 def eval_TypeCast(
     expr: pgast.TypeCast, *, ctx: Context
 ) -> Optional[pgast.BaseExpr]:
+    if expr.type_name.array_bounds:
+        return None
+
     pg_catalog_name = name_in_pg_catalog(expr.type_name.name)
     if pg_catalog_name == 'regclass':
         return cast_to_regclass(expr.arg, ctx)
@@ -106,7 +109,6 @@ def eval_TypeCast(
             if 'false'.startswith(string) or 'no'.startswith(string):
                 return pgast.BooleanConstant(val=False)
             raise errors.QueryError('invalid cast', context=expr.arg)
-        return arg
 
     return None
 

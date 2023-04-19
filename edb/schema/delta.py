@@ -50,8 +50,8 @@ from . import utils
 
 
 def delta_objects(
-    old: Iterable[so.Object_T],
-    new: Iterable[so.Object_T],
+    old_in: Iterable[so.Object_T],
+    new_in: Iterable[so.Object_T],
     sclass: Type[so.Object_T],
     *,
     parent_confidence: Optional[float] = None,
@@ -62,27 +62,35 @@ def delta_objects(
 
     delta = DeltaRoot()
 
-    oldkeys = {o: o.hash_criteria(old_schema) for o in old}
-    newkeys = {o: o.hash_criteria(new_schema) for o in new}
+    # TODO: Previously, we attempted to do an optimization based on
+    # computing a hash_criteria of each object, in order to discard
+    # unchanged objects. Because hash_criteria returns values that
+    # include schema objects, the optimization didn't work; it wasn't
+    # cheap, so I removed it. But the general idea is sound and should
+    # be revisited.
+    old = {o.get_name(old_schema): o for o in old_in}
+    new = {o.get_name(new_schema): o for o in new_in}
 
-    unchanged = set(oldkeys.values()) & set(newkeys.values())
+    # If an object exists with the same name in both the old and the
+    # new schemas, we don't compare those objects to anything but
+    # each other. This makes our runtime linear in most common cases,
+    # though the worst case remains quadratic.
+    #
+    # This unfortunately means that we have trouble understanding
+    # "chain renames" (Foo -> Bar, Bar -> Baz), which may be worth
+    # addressing in the future, but we fail to understand that for
+    # other reasons also.
 
-    old = ordered.OrderedSet[so.Object_T](
-        o for o, checksum in oldkeys.items()
-        if checksum not in unchanged
-    )
-    new = ordered.OrderedSet[so.Object_T](
-        o for o, checksum in newkeys.items()
-        if checksum not in unchanged
-    )
-
-    oldnames = {o.get_name(old_schema) for o in old}
-    newnames = {o.get_name(new_schema) for o in new}
-    common_names = oldnames & newnames
-
-    pairs = sorted(
-        itertools.product(new, old),
-        key=lambda pair: pair[0].get_name(new_schema) not in common_names,
+    # Collect all the pairs of objects with the same name in both schemas.
+    pairs = [
+        (new[k], o) for k, o in old.items() if k in new
+    ]
+    # Then collect the cross product of all the other objects.
+    pairs.extend(
+        itertools.product(
+            [o for k, o in new.items() if k not in old],
+            [o for k, o in old.items() if k not in new],
+        )
     )
 
     full_matrix: List[Tuple[so.Object_T, so.Object_T, float]] = []
@@ -90,7 +98,7 @@ def delta_objects(
     # If there are any renames that are already decided on, honor those first
     renames_x: Set[sn.Name] = set()
     renames_y: Set[sn.Name] = set()
-    for y in old:
+    for y in old.values():
         rename = context.renames.get((type(y), y.get_name(old_schema)))
         if rename:
             renames_x.add(rename.new_name)
@@ -246,7 +254,7 @@ def delta_objects(
             elif confidence == 1.0:
                 alter_pairs.append((x, y))
 
-    created = new - {x for x, _ in alter_pairs}
+    created = ordered.OrderedSet(new.values()) - {x for x, _ in alter_pairs}
 
     for x in created:
         x_name = x.get_name(new_schema)
@@ -262,7 +270,7 @@ def delta_objects(
     delta.update(alters)
 
     deleted_order: Iterable[so.Object_T]
-    deleted = old - {y for _, y in alter_pairs}
+    deleted = ordered.OrderedSet(old.values()) - {y for _, y in alter_pairs}
 
     if issubclass(sclass, so.InheritingObject):
         deleted_order = sort_by_inheritance(  # type: ignore[assignment]
@@ -1576,6 +1584,12 @@ class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
             schema = cop.apply(schema, context)
 
         return schema
+
+    def is_data_safe(self) -> bool:
+        return all(
+            subcmd.is_data_safe()
+            for subcmd in self.get_subcommands()
+        )
 
 
 class Query(Command):

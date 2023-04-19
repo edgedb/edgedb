@@ -709,6 +709,12 @@ def _gen_pointers_from_defaults(
     path_id = ir_set.path_id
     result: List[EarlyShapePtr] = []
 
+    if stype in ctx.active_defaults:
+        vn = stype.get_verbosename(ctx.env.schema)
+        raise errors.QueryError(
+            f"default on property of {vn} is part of a default cycle",
+        )
+
     scls_pointers = stype.get_pointers(ctx.env.schema)
     for pn, ptrcls in scls_pointers.items(ctx.env.schema):
         if pn in specified_ptrs or ptrcls.is_pure_computable(ctx.env.schema):
@@ -741,6 +747,7 @@ def _gen_pointers_from_defaults(
         )
 
         with ctx.new() as scopectx:
+            scopectx.active_defaults |= {stype}
 
             pointer, ptr_set = _normalize_view_ptr_expr(
                 ir_set,

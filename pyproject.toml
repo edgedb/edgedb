@@ -160,6 +160,7 @@ module = [
     "edb.common.struct",
     "edb.common.topological",
     "edb.common.uuidgen",
+    "edb.common.value_dispatch",
 ]
 # Equivalent of --strict on the command line:
 disallow_subclassing_any = true

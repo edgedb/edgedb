@@ -22,6 +22,7 @@ from typing import *
 
 import collections.abc
 import dataclasses
+import enum
 import functools
 import io
 import struct
@@ -32,6 +33,7 @@ import immutables
 
 from edb import errors
 from edb.common import binwrapper
+from edb.common import value_dispatch
 from edb.common import uuidgen
 
 from edb.protocol import enums as p_enums
@@ -49,6 +51,7 @@ from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
 from edb.ir import ast as irast
+
 from edb.ir import statypes
 
 from . import enums
@@ -72,21 +75,27 @@ STR_TYPE_DESC = b'\x02' + STR_TYPE_ID.bytes
 NULL_TYPE_ID = uuidgen.UUID(b'\x00' * 16)
 NULL_TYPE_DESC = b''
 
-CTYPE_SET = b'\x00'
-CTYPE_SHAPE = b'\x01'
-CTYPE_BASE_SCALAR = b'\x02'
-CTYPE_SCALAR = b'\x03'
-CTYPE_TUPLE = b'\x04'
-CTYPE_NAMEDTUPLE = b'\x05'
-CTYPE_ARRAY = b'\x06'
-CTYPE_ENUM = b'\x07'
-CTYPE_INPUT_SHAPE = b'\x08'
-CTYPE_RANGE = b'\x09'
-CTYPE_ANNO_TYPENAME = b'\xff'
 
-SHAPE_POINTER_IS_IMPLICIT = 1 << 0
-SHAPE_POINTER_IS_LINKPROP = 1 << 1
-SHAPE_POINTER_IS_LINK = 1 << 2
+class DescriptorTag(bytes, enum.Enum):
+    SET = b'\x00'
+    SHAPE = b'\x01'
+    BASE_SCALAR = b'\x02'
+    SCALAR = b'\x03'
+    TUPLE = b'\x04'
+    NAMEDTUPLE = b'\x05'
+    ARRAY = b'\x06'
+    ENUM = b'\x07'
+    INPUT_SHAPE = b'\x08'
+    RANGE = b'\x09'
+
+    ANNO_TYPENAME = b'\xff'
+
+
+class ShapePointerFlags(enum.IntFlag):
+    IS_IMPLICIT = enum.auto()
+    IS_LINKPROP = enum.auto()
+    IS_LINK = enum.auto()
+
 
 EMPTY_BYTEARRAY = bytearray()
 
@@ -239,7 +248,7 @@ def _describe_set(
     buf = ctx.buffer
 
     # .tag
-    buf.append(CTYPE_SET)
+    buf.append(DescriptorTag.SET)
     # .id
     buf.append(set_id.bytes)
     # .type
@@ -277,10 +286,10 @@ def _describe_tuple(t: s_types.Tuple, *, ctx: Context) -> uuid.UUID:
     if is_named:
         element_names = list(t.get_element_names(ctx.schema))
         assert len(element_names) == len(subtypes)
-        tag = CTYPE_NAMEDTUPLE
+        tag = DescriptorTag.NAMEDTUPLE
     else:
         element_names = None
-        tag = CTYPE_TUPLE
+        tag = DescriptorTag.TUPLE
 
     type_id = _get_collection_type_id(
         t.get_schema_name(), subtypes, element_names)
@@ -291,7 +300,7 @@ def _describe_tuple(t: s_types.Tuple, *, ctx: Context) -> uuid.UUID:
     buf = []
 
     # .tag
-    buf.append(tag)
+    buf.append(tag._value_)
     # .id
     buf.append(type_id.bytes)
     # .element_count
@@ -330,7 +339,7 @@ def _describe_array(t: s_types.Array, *, ctx: Context) -> uuid.UUID:
     buf = []
 
     # .tag
-    buf.append(CTYPE_ARRAY)
+    buf.append(DescriptorTag.ARRAY._value_)
     # .id
     buf.append(type_id.bytes)
     # .type
@@ -362,7 +371,7 @@ def _describe_range(t: s_types.Range, *, ctx: Context) -> uuid.UUID:
     buf = []
 
     # .tag
-    buf.append(CTYPE_RANGE)
+    buf.append(DescriptorTag.RANGE._value_)
     # .id
     buf.append(type_id.bytes)
     # .type
@@ -453,7 +462,7 @@ def _describe_object_shape(
     buf = []
 
     # .tag
-    buf.append(CTYPE_SHAPE)
+    buf.append(DescriptorTag.SHAPE._value_)
     # .id
     buf.append(type_id.bytes)
     # .element_count
@@ -464,19 +473,19 @@ def _describe_object_shape(
     ):
         flags = 0
         if el_lp:
-            flags |= SHAPE_POINTER_IS_LINKPROP
+            flags |= ShapePointerFlags.IS_LINKPROP
         if (implicit_id and el_name == 'id') or el_name == '__tid__':
             if el_type_id != UUID_TYPE_ID:
                 raise errors.InternalServerError(
                     f"{el_name!r} is expected to be a 'std::uuid' singleton")
-            flags |= SHAPE_POINTER_IS_IMPLICIT
+            flags |= ShapePointerFlags.IS_IMPLICIT
         elif el_name == '__tname__':
             if el_type_id != STR_TYPE_ID:
                 raise errors.InternalServerError(
                     f"{el_name!r} is expected to be a 'std::str' singleton")
-            flags |= SHAPE_POINTER_IS_IMPLICIT
+            flags |= ShapePointerFlags.IS_IMPLICIT
         if el_l:
-            flags |= SHAPE_POINTER_IS_LINK
+            flags |= ShapePointerFlags.IS_LINK
 
         if ctx.protocol_version >= (0, 11):
             # ShapeElement.flags
@@ -528,12 +537,12 @@ def _describe_regular_scalar(
 
     if type_is_fundamental:
         # .tag
-        buf.append(CTYPE_BASE_SCALAR)
+        buf.append(DescriptorTag.BASE_SCALAR._value_)
         # .id
         buf.append(type_id.bytes)
     else:
         # .tag
-        buf.append(CTYPE_SCALAR)
+        buf.append(DescriptorTag.SCALAR._value_)
         # .id
         buf.append(type_id.bytes)
         # .base_type_pos
@@ -558,7 +567,7 @@ def _describe_enum(
     assert enum_values is not None
 
     # .tag
-    buf.append(CTYPE_ENUM)
+    buf.append(DescriptorTag.ENUM._value_)
     # .id
     buf.append(enum.id.bytes)
     # .member_count
@@ -647,7 +656,7 @@ def describe_input_shape(  # noqa: F811
 
         buf = []
         # .tag
-        buf.append(CTYPE_INPUT_SHAPE)
+        buf.append(DescriptorTag.INPUT_SHAPE._value_)
         # .id
         buf.append(type_id.bytes)
         # .element_count
@@ -675,7 +684,7 @@ def describe_input_shape(  # noqa: F811
 def _add_annotation(t: s_types.Type, *, ctx: Context) -> None:
     buf = ctx.anno_buffer
     # .tag
-    buf.append(CTYPE_ANNO_TYPENAME)
+    buf.append(DescriptorTag.ANNO_TYPENAME._value_)
     # .id
     buf.append(t.id.bytes)
     # .annotation
@@ -717,7 +726,7 @@ def describe_params(
 
     full_params = EMPTY_BYTEARRAY.join([
         buffer_encoded,
-        CTYPE_SHAPE,
+        DescriptorTag.SHAPE._value_,
         NULL_TYPE_ID.bytes,  # will be replaced with `params_id` later
         _uint16_packer(len(params)),
         *params_buf,
@@ -760,144 +769,325 @@ def describe_str() -> tuple[bytes, uuid.UUID]:
     return STR_TYPE_DESC, STR_TYPE_ID
 
 
-def _parse(
-    desc: binwrapper.BinWrapper,
-    codecs_list: typing.List[TypeDesc],
-    protocol_version: tuple[int, int],
-) -> typing.Optional[TypeDesc]:
-    t = desc.read_bytes(1)
-    tid = uuidgen.from_bytes(desc.read_bytes(16))
+#
+# Type descriptor parsing
+#
 
-    if t == CTYPE_SET:
-        pos = desc.read_ui16()
-        return SetDesc(tid=tid, subtype=codecs_list[pos])
-
-    elif t == CTYPE_SHAPE:
-        els = desc.read_ui16()
-        fields = {}
-        flags = {}
-        cardinalities = {}
-        for _ in range(els):
-            if protocol_version >= (0, 11):
-                flag = desc.read_ui32()
-                cardinality = enums.Cardinality(desc.read_bytes(1)[0])
-            else:
-                flag = desc.read_bytes(1)[0]
-                cardinality = None
-            name = desc.read_len32_prefixed_bytes().decode()
-            pos = desc.read_ui16()
-            codec = codecs_list[pos]
-            fields[name] = codec
-            flags[name] = flag
-            if cardinality:
-                cardinalities[name] = cardinality
-
-        return ShapeDesc(
-            tid=tid,
-            flags=flags,
-            fields=fields,
-            cardinalities=cardinalities,
-        )
-
-    elif t == CTYPE_INPUT_SHAPE:
-        els = desc.read_ui16()
-        input_fields = {}
-        flags = {}
-        cardinalities = {}
-        fields_list = []
-        for idx in range(els):
-            if protocol_version >= (0, 11):
-                flag = desc.read_ui32()
-                cardinality = enums.Cardinality(desc.read_bytes(1)[0])
-            else:
-                flag = desc.read_bytes(1)[0]
-                cardinality = None
-            name = desc.read_len32_prefixed_bytes().decode()
-            pos = desc.read_ui16()
-            codec = codecs_list[pos]
-            fields_list.append((name, codec))
-            input_fields[name] = idx, codec
-            flags[name] = flag
-            if cardinality:
-                cardinalities[name] = cardinality
-        return InputShapeDesc(
-            fields_list=fields_list,
-            tid=tid,
-            flags=flags,
-            fields=input_fields,
-            cardinalities=cardinalities,
-        )
-
-    elif t == CTYPE_BASE_SCALAR:
-        return BaseScalarDesc(tid=tid)
-
-    elif t == CTYPE_SCALAR:
-        pos = desc.read_ui16()
-        return ScalarDesc(tid=tid, subtype=codecs_list[pos])
-
-    elif t == CTYPE_TUPLE:
-        els = desc.read_ui16()
-        tuple_fields = []
-        for _ in range(els):
-            pos = desc.read_ui16()
-            tuple_fields.append(codecs_list[pos])
-        return TupleDesc(tid=tid, fields=tuple_fields)
-
-    elif t == CTYPE_NAMEDTUPLE:
-        els = desc.read_ui16()
-        fields = {}
-        for _ in range(els):
-            name = desc.read_len32_prefixed_bytes().decode()
-            pos = desc.read_ui16()
-            fields[name] = codecs_list[pos]
-        return NamedTupleDesc(tid=tid, fields=fields)
-
-    elif t == CTYPE_ENUM:
-        els = desc.read_ui16()
-        names = []
-        for _ in range(els):
-            name = desc.read_len32_prefixed_bytes().decode()
-            names.append(name)
-        return EnumDesc(tid=tid, names=names)
-
-    elif t == CTYPE_ARRAY:
-        pos = desc.read_ui16()
-        els = desc.read_ui16()
-        if els != 1:
-            raise NotImplementedError(
-                'cannot handle arrays with more than one dimension')
-        dim_len = desc.read_i32()
-        return ArrayDesc(
-            tid=tid, dim_len=dim_len, subtype=codecs_list[pos])
-
-    elif t == CTYPE_RANGE:
-        pos = desc.read_ui16()
-        return RangeDesc(tid=tid, inner=codecs_list[pos])
-
-    elif (t[0] >= 0x80 and t[0] <= 0xff):
-        # Ignore all type annotations.
-        desc.read_len32_prefixed_bytes()
-        return None
-
-    else:
-        raise NotImplementedError(
-            f'no codec implementation for EdgeDB data class {hex(t[0])}')
+class ParseContext:
+    def __init__(
+        self,
+        protocol_version: tuple[int, int],
+    ) -> None:
+        self.protocol_version = protocol_version
+        self.codecs_list: list[TypeDesc] = []
 
 
 def parse(
     typedesc: bytes,
     protocol_version: tuple[int, int],
 ) -> TypeDesc:
+    """Unmarshal a byte stream with one or more type descriptors."""
+    ctx = ParseContext(protocol_version)
     buf = io.BytesIO(typedesc)
     wrapped = binwrapper.BinWrapper(buf)
-    codecs_list: list[TypeDesc] = []
     while buf.tell() < len(typedesc):
-        desc = _parse(wrapped, codecs_list, protocol_version)
-        if desc is not None:
-            codecs_list.append(desc)
-    if not codecs_list:
+        _parse(wrapped, ctx=ctx)
+    if not ctx.codecs_list:
         raise errors.InternalServerError('could not parse type descriptor')
-    return codecs_list[-1]
+    return ctx.codecs_list[-1]
+
+
+def _parse(desc: binwrapper.BinWrapper, ctx: ParseContext) -> None:
+    """Unmarshal the next type descriptor from the byte stream."""
+    t = desc.read_bytes(1)
+
+    try:
+        tag = DescriptorTag(t)
+    except ValueError:
+        if (t[0] >= 0x80 and t[0] <= 0xff):
+            # Ignore all type annotations.
+            _parse_string(desc)
+            return
+        else:
+            raise NotImplementedError(
+                f'no codec implementation for EdgeDB data class {hex(t[0])}')
+    else:
+        ctx.codecs_list.append(_parse_descriptor(tag, desc, ctx=ctx))
+
+
+#
+# Parsing helpers
+#
+
+def _parse_type_id(desc: binwrapper.BinWrapper) -> uuid.UUID:
+    return uuidgen.from_bytes(desc.read_bytes(16))
+
+
+def _parse_string(desc: binwrapper.BinWrapper) -> str:
+    b = desc.read_len32_prefixed_bytes()
+    try:
+        return b.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise errors.InternalServerError(
+            f"malformed type descriptor: invalid UTF-8 string "
+            f"at stream position {desc.tell()}") from e
+
+
+def _parse_strings(desc: binwrapper.BinWrapper) -> list[str]:
+    num = desc.read_ui16()
+    return [_parse_string(desc) for _ in range(num)]
+
+
+def _parse_type_ref(
+    desc: binwrapper.BinWrapper,
+    *,
+    ctx: ParseContext,
+) -> TypeDesc:
+    offset = desc.read_ui16()
+    try:
+        return ctx.codecs_list[offset]
+    except KeyError:
+        raise errors.InternalServerError(
+            f"malformed type descriptor: dangling type reference: {offset} "
+            f"at stream position {desc.tell()}") from None
+
+
+def _parse_type_refs(
+    desc: binwrapper.BinWrapper,
+    *,
+    ctx: ParseContext,
+) -> list[TypeDesc]:
+    els = desc.read_ui16()
+    return [_parse_type_ref(desc, ctx=ctx) for _ in range(els)]
+
+
+#
+# Parsing dispatch.
+#
+
+@value_dispatch.value_dispatch
+def _parse_descriptor(
+    tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> TypeDesc:
+    raise AssertionError(
+        f'no codec implementation for EdgeDB data class {tag}')
+
+
+@_parse_descriptor.register(DescriptorTag.SET)
+def _parse_set_descriptor(
+    _tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> SetDesc:
+    # .id
+    tid = _parse_type_id(desc)
+    # .type
+    subtype = _parse_type_ref(desc, ctx=ctx)
+
+    return SetDesc(tid=tid, subtype=subtype)
+
+
+@_parse_descriptor.register(DescriptorTag.SHAPE)
+def _parse_shape_descriptor(
+    _tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> ShapeDesc:
+    # .id
+    tid = _parse_type_id(desc)
+    # .element_count
+    els = desc.read_ui16()
+    # .elements
+    fields = {}
+    flags = {}
+    cardinalities = {}
+    for _ in range(els):
+        if ctx.protocol_version >= (0, 11):
+            # ShapeElement.flags
+            flag = desc.read_ui32()
+            # ShapeElement.cardinality
+            cardinality = enums.Cardinality(desc.read_bytes(1)[0])
+        else:
+            # ShapeElement.flags
+            flag = desc.read_bytes(1)[0]
+            cardinality = None
+        # ShapeElement.name
+        name = _parse_string(desc)
+        # ShapeElement.type
+        subtype = _parse_type_ref(desc, ctx=ctx)
+
+        fields[name] = subtype
+        flags[name] = flag
+        if cardinality:
+            cardinalities[name] = cardinality
+
+    return ShapeDesc(
+        tid=tid,
+        flags=flags,
+        fields=fields,
+        cardinalities=cardinalities,
+    )
+
+
+@_parse_descriptor.register(DescriptorTag.INPUT_SHAPE)
+def _parse_input_shape_descriptor(
+    _tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> InputShapeDesc:
+    # .id
+    tid = _parse_type_id(desc)
+    # .element_count
+    els = desc.read_ui16()
+    # .elements
+    input_fields = {}
+    flags = {}
+    cardinalities = {}
+    fields_list = []
+    for idx in range(els):
+        if ctx.protocol_version >= (0, 11):
+            # ShapeElement.flags
+            flag = desc.read_ui32()
+            # ShapeElement.cardinality
+            cardinality = enums.Cardinality(desc.read_bytes(1)[0])
+        else:
+            # ShapeElement.flags
+            flag = desc.read_bytes(1)[0]
+            cardinality = None
+        # ShapeElement.name
+        name = _parse_string(desc)
+        # ShapeElement.type
+        subtype = _parse_type_ref(desc, ctx=ctx)
+
+        fields_list.append((name, subtype))
+        input_fields[name] = idx, subtype
+        flags[name] = flag
+        if cardinality:
+            cardinalities[name] = cardinality
+
+    return InputShapeDesc(
+        fields_list=fields_list,
+        tid=tid,
+        flags=flags,
+        fields=input_fields,
+        cardinalities=cardinalities,
+    )
+
+
+@_parse_descriptor.register(DescriptorTag.BASE_SCALAR)
+def _parse_base_scalar_descriptor(
+    _tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> BaseScalarDesc:
+    # .id
+    tid = _parse_type_id(desc)
+
+    return BaseScalarDesc(tid=tid)
+
+
+@_parse_descriptor.register(DescriptorTag.SCALAR)
+def _parse_scalar_descriptor(
+    _tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> ScalarDesc:
+    # .id
+    tid = _parse_type_id(desc)
+    # .type
+    subtype = _parse_type_ref(desc, ctx=ctx)
+
+    return ScalarDesc(tid=tid, subtype=subtype)
+
+
+@_parse_descriptor.register(DescriptorTag.TUPLE)
+def _parse_tuple_descriptor(
+    _tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> TupleDesc:
+    # .id
+    tid = _parse_type_id(desc)
+    # .element_count
+    # .elements
+    tuple_fields = _parse_type_refs(desc, ctx=ctx)
+
+    return TupleDesc(tid=tid, fields=tuple_fields)
+
+
+@_parse_descriptor.register(DescriptorTag.NAMEDTUPLE)
+def _parse_namedtuple_descriptor(
+    _tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> NamedTupleDesc:
+    # .id
+    tid = _parse_type_id(desc)
+    # .element_count
+    els = desc.read_ui16()
+    fields = {}
+    for _ in range(els):
+        # TupleElement.name
+        name = _parse_string(desc)
+        # TupleElement.type
+        fields[name] = _parse_type_ref(desc, ctx=ctx)
+
+    return NamedTupleDesc(tid=tid, fields=fields)
+
+
+@_parse_descriptor.register(DescriptorTag.ENUM)
+def _parse_enum_descriptor(
+    _tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> EnumDesc:
+    # .id
+    tid = _parse_type_id(desc)
+    # .member_count
+    # .members
+    names = _parse_strings(desc)
+
+    return EnumDesc(tid=tid, names=names)
+
+
+@_parse_descriptor.register(DescriptorTag.ARRAY)
+def _parse_array_descriptor(
+    _tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> ArrayDesc:
+    # .id
+    tid = _parse_type_id(desc)
+    # .type
+    subtype = _parse_type_ref(desc, ctx=ctx)
+    # .dimension_count
+    els = desc.read_ui16()
+    if els != 1:
+        raise NotImplementedError(
+            'cannot handle arrays with more than one dimension')
+    # .dimensions
+    dim_len = desc.read_i32()
+    if dim_len != -1:
+        raise NotImplementedError(
+            'cannot handle arrays with non-infinite dimensions')
+
+    return ArrayDesc(tid=tid, dim_len=dim_len, subtype=subtype)
+
+
+@_parse_descriptor.register(DescriptorTag.RANGE)
+def _parse_range_descriptor(
+    _tag: DescriptorTag,
+    desc: binwrapper.BinWrapper,
+    ctx: ParseContext,
+) -> RangeDesc:
+    # .id
+    tid = _parse_type_id(desc)
+    # .type
+    subtype = _parse_type_ref(desc, ctx=ctx)
+
+    return RangeDesc(tid=tid, inner=subtype)
 
 
 class StateSerializerFactory:
@@ -1074,7 +1264,7 @@ def derive_alias(
     )
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class TypeDesc:
     tid: uuid.UUID
 
@@ -1085,10 +1275,10 @@ class TypeDesc:
         raise NotImplementedError
 
 
-@dataclasses.dataclass(frozen=True)
-class SetDesc(TypeDesc):
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class SequenceDesc(TypeDesc):
     subtype: TypeDesc
-    impl: typing.ClassVar[Type[s_obj.CollectionFactory[Any]]] = frozenset
+    impl: typing.ClassVar[Type[s_obj.CollectionFactory[Any]]]
 
     def encode(self, data: collections.abc.Collection[Any]) -> bytes:
         if not data:
@@ -1130,20 +1320,25 @@ class SetDesc(TypeDesc):
         )
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class SetDesc(SequenceDesc):
+    impl = frozenset
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class ShapeDesc(TypeDesc):
     fields: typing.Dict[str, TypeDesc]
     flags: typing.Dict[str, int]
     cardinalities: typing.Dict[str, enums.Cardinality]
 
 
-@dataclasses.dataclass(frozen=True)
-class ScalarDesc(TypeDesc):
-    subtype: TypeDesc
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class SchemaTypeDesc(TypeDesc):
+    pass
 
 
-@dataclasses.dataclass(frozen=True)
-class BaseScalarDesc(TypeDesc):
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class BaseScalarDesc(SchemaTypeDesc):
     codecs: ClassVar[Dict[
         uuid.UUID,
         tuple[Callable[[Any], bytes], Callable[[bytes], Any]]
@@ -1177,13 +1372,18 @@ class BaseScalarDesc(TypeDesc):
         raise NotImplementedError
 
 
-@dataclasses.dataclass(frozen=True)
-class NamedTupleDesc(TypeDesc):
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class ScalarDesc(BaseScalarDesc):
+    subtype: TypeDesc
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class NamedTupleDesc(SchemaTypeDesc):
     fields: typing.Dict[str, TypeDesc]
 
 
-@dataclasses.dataclass(frozen=True)
-class TupleDesc(TypeDesc):
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class TupleDesc(SchemaTypeDesc):
     fields: typing.List[TypeDesc]
 
     def encode(self, data: collections.abc.Sequence[Any]) -> bytes:
@@ -1206,8 +1406,8 @@ class TupleDesc(TypeDesc):
         return tuple(rv)
 
 
-@dataclasses.dataclass(frozen=True)
-class EnumDesc(TypeDesc):
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class EnumDesc(SchemaTypeDesc):
     names: typing.List[str]
 
     def encode(self, data: str) -> bytes:
@@ -1217,18 +1417,18 @@ class EnumDesc(TypeDesc):
         return _decode_str(data)
 
 
-@dataclasses.dataclass(frozen=True)
-class ArrayDesc(SetDesc):
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class ArrayDesc(SequenceDesc, SchemaTypeDesc):
     dim_len: int
-    impl: typing.ClassVar[type] = list
+    impl = list
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class RangeDesc(TypeDesc):
     inner: TypeDesc
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class InputShapeDesc(TypeDesc):
     fields: typing.Dict[str, typing.Tuple[int, TypeDesc]]
     fields_list: typing.List[typing.Tuple[str, TypeDesc]]
