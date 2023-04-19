@@ -49,7 +49,9 @@ def object_tp_is_essentially_optional(tp: e.ObjectTp) -> bool:
 
 def dereference_var_tp(dbschema: e.DBSchema, tp: e.VarTp) -> e.ObjectTp:
     if tp.name in dbschema.val:
-        return get_runtime_tp(dbschema.val[tp.name])
+        res = get_runtime_tp(dbschema.val[tp.name])
+        assert isinstance(res, e.ObjectTp)
+        return res
     else:
         raise ValueError("Type not found")
 
