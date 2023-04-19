@@ -54,8 +54,8 @@ field is referenced in a query.
 Leading dot notation
 --------------------
 
-The example above used the special keyword ``__subject__`` to refer to
-the current object; it's analogous to ``this`` in many object-oriented
+The example above used the special keyword ``__subject__`` to refer to the
+current object; it's analogous to ``this`` or ``self``  in many object-oriented
 languages.
 
 However, explicitly using ``__subject__`` is optional here; inside the scope of

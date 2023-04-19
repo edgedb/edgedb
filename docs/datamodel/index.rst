@@ -35,9 +35,9 @@ Language).
 SDL
 ---
 
-Your schema is defined inside ``.esdl`` files. Its common to define your entire
-schema in a single file called ``default.esdl``, but you can split it across
-multiple files if you wish.
+Your schema is defined inside ``.esdl`` files. It's common to define your
+entire schema in a single file called ``default.esdl``, but you can split it
+across multiple files if you wish.
 
 By convention, your schema files should live in a directory called ``dbschema``
 in the root of your project.
