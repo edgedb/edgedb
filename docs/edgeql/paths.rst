@@ -50,7 +50,7 @@ friend of another User*.
 
   select User.friends;
 
-Paths can traverse arbitrarily many links.
+Paths can traverse to an arbitrary depth in a series of nested links.
 
 .. code-block:: edgeql
 

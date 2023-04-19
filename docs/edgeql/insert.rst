@@ -99,7 +99,7 @@ Inserting links
 ---------------
 
 EdgeQL's composable syntax makes link insertion painless. Below, we insert
-"Avengers: Endgame" and include all known heroes and villains as
+"Spider-Man: No Way Home" and include all known heroes and villains as
 ``characters`` (which is basically true).
 
 .. code-block:: edgeql-repl
@@ -213,7 +213,8 @@ With block
 
 In the previous query, we selected Black Widow twice: once in the
 ``characters`` set and again as the ``nemesis`` of Dreykov. In circumstances
-like this, you should pull that subquery into a ``with`` block.
+like this, pulling a subquery into a ``with`` block lets you avoid
+duplication.
 
 .. code-block:: edgeql-repl
 

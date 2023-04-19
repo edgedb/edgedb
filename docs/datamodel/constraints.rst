@@ -46,8 +46,8 @@ documentation.
 Constraints on properties
 -------------------------
 
-The constraint below uses the built-in :eql:func:`len` function, which returns
-the length of a string.
+The ``max_len_value`` constraint below uses the built-in :eql:func:`len`
+function, which returns the length of a string.
 
 .. code-block:: sdl
     :version-lt: 3.0

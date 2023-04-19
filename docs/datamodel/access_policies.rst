@@ -10,7 +10,7 @@ Object types can contain security policies that restrict the set of objects
 that can be selected, inserted, updated, or deleted by a particular query.
 This is known as *object-level security*.
 
-Let's start with a simple schema.
+Let's start with a simple schema without any access policies.
 
 .. code-block:: sdl
     :version-lt: 3.0
@@ -41,8 +41,8 @@ database.
 
 .. warning::
 
-    Once a policy is added to a particular object type, **all operations**
-    (``select``, ``insert``, ``delete``, and ``update`` etc.) on any object of
+    ⚠️ Once a policy is added to a particular object type, **all operations**
+    (``select``, ``insert``, ``delete``, ``update``, etc.) on any object of
     that type are now *disallowed by default* unless specifically allowed by an
     access policy!
 
@@ -308,7 +308,7 @@ algorithm for resolving these policies.
 Currently, by default the access policies affect the values visible
 in expressions of *other* access
 policies. This means that they can affect each other in various ways. Because
-of this great care needs to be taken when creating access policies based on
+of this, great care needs to be taken when creating access policies based on
 objects other than the ones they are defined on. For example:
 
 .. code-block:: sdl

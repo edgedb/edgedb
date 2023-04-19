@@ -38,7 +38,7 @@ notation shorthand <ref_dot_notation>`: ``.name``.
     }
 
 By indexing on ``User.name``, queries that filter by the ``name`` property will
-be faster, as the database can lookup a name in the index instead of scanning
+be faster, as the database can look up a name in the index instead of scanning
 through all Users sequentially.
 
 Index on an expression
