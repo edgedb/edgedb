@@ -39,10 +39,12 @@ When no access policies are defined, object-level security is not activated.
 Any properly authenticated client can select or modify any object in the
 database.
 
-⚠️ Once a policy is added to a particular object type, **all operations**
-(``select``, ``insert``, ``delete``, and ``update`` etc.) on any object of
-that type are now *disallowed by default* unless specifically allowed by an
-access policy!
+.. warning::
+
+    Once a policy is added to a particular object type, **all operations**
+    (``select``, ``insert``, ``delete``, and ``update`` etc.) on any object of
+    that type are now *disallowed by default* unless specifically allowed by an
+    access policy!
 
 Defining a global
 ^^^^^^^^^^^^^^^^^
@@ -388,6 +390,64 @@ making the current user able to see their own ``User`` record.
   <ref_eql_sdl_future>` behavior in EdgeDB 2.6 and later by adding the
   following to the schema: ``using future nonrecursive_access_policies;``
 
+Custom error messages
+^^^^^^^^^^^^^^^^^^^^^
+
+.. versionadded:: 3.0
+
+When you run a query that attempts a write and is restricted by an access
+policy, you will get a generic error message.
+
+.. code-block::
+
+    edgedb error: AccessPolicyError: access policy violation on insert of
+    <type>
+
+.. note::
+
+    When attempting a ``select`` queries, you simply won't get the data that is
+    being restricted by the access policy.
+
+If you have multiple access policies, it can be useful to know which policy is
+restricting your query and provide a friendly error message. You can do this by
+adding a custom error message to your policy.
+
+.. code-block:: sdl-diff
+
+    global current_user_id -> uuid;
+    global current_user := (
+      select User filter .id = global current_user_id
+    );
+
+    type User {
+      required property email -> str { constraint exclusive; };
+      required property is_admin -> bool { default := false };
+
+      access policy admin_only
+        allow all
+  +     using (global current_user.is_admin ?? false) {
+  +       errmessage := 'Only admins may query Users'
+  +     };
+    }
+
+    type BlogPost {
+      required property title -> str;
+      link author -> User;
+
+      access policy author_has_full_access
+        allow all
+  +     using (global current_user ?= .author.id) {
+  +       errmessage := 'BlogPosts may only be queried by their authors'
+  +     };
+    }
+
+Now if you attempt, for example, a ``User`` insert as a non-admin user, you
+will receive this error:
+
+.. code-block::
+
+    edgedb error: AccessPolicyError: access policy violation on insert of
+    default::User (Only admins may query Users)
 
 Disabling policies
 ^^^^^^^^^^^^^^^^^^
