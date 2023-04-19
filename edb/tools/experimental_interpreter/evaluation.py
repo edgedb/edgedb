@@ -482,12 +482,37 @@ def eval_config(rt: RTExpr) -> RTVal:
                           *map_expand_multiset_val(
                               map_assume_link_target(elemsv)))]
             return RTVal(new_data, MultiSetVal(arr_result))
+        case e.DeleteExpr(subject=subject):
+            if rt.data.eval_only:
+                eval_error(
+                    rt.expr,
+                    "Attempting to Delete in an Eval-Only evaluation")
+            (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            subjectv = assume_link_target(subjectv)
+            if all([val_is_ref_val(v) for v in subjectv.vals]):
+                old_dbdata = rt.data.cur_db.dbdata
+                delete_ref_ids = [v.refid for v in subjectv.vals]
+                deleted: Sequence[Val] = [
+                    v for v in subjectv.vals
+                    if v.refid in old_dbdata.keys()]  # type: ignore[misc]
+                new_dbdata = {
+                    k: v for k, v in old_dbdata.items()
+                    if k not in delete_ref_ids}
+                return RTVal(
+                    RTData(
+                        DB(new_dbdata),
+                        rt.data.read_snapshots, rt.data.schema,
+                        rt.data.eval_only),
+                    MultiSetVal(deleted))
+            else:
+                return eval_error(rt.expr, "expecting all references")
         case UpdateExpr(subject=subject, shape=shape):
             if rt.data.eval_only:
                 eval_error(
                     rt.expr,
                     "Attempting to Update in an Eval-Only evaluation")
             (new_data, subjectv) = eval_config(RTExpr(rt.data, subject))
+            subjectv = assume_link_target(subjectv)
             if all([val_is_ref_val(v) for v in subjectv.vals]):
                 updated: Sequence[Val] = [apply_shape(
                     new_data, shape, v)

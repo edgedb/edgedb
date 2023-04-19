@@ -132,6 +132,8 @@ def show_expr(expr: e.Expr) -> str:
             return ("insert " + name + " " + show_expr(new))
         case e.UpdateExpr(subject=subject, shape=shape):
             return ("update " + show_expr(subject) + " " + show_expr(shape))
+        case e.DeleteExpr(subject=subject):
+            return ("delete " + show_expr(subject))
         case e.ForExpr(bound=bound, next=next):
             return ("for " + show_expr(bound) + " union " + show_expr(next))
         case e.OptionalForExpr(bound=bound, next=next):

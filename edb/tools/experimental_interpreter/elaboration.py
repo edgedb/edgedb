@@ -446,6 +446,18 @@ def elab_UpdateQuery(qle: qlast.UpdateQuery):
     return elab_aliases(
         qle.aliases, UpdateExpr(subject=subject, shape=shape))
 
+@elab.register(qlast.DeleteQuery)
+def elab_DeleteQuery(qle: qlast.DeleteQuery):
+    subject = FilterOrderExpr(
+        subject=elab(qle.subject),
+        filter=abstract_over_expr(elab(qle.where),
+                                  DEFAULT_HEAD_NAME)
+        if qle.where else abstract_over_expr(BoolVal(True)),
+        order=abstract_over_expr(ObjectExpr({})),)
+    return elab_aliases(
+        qle.aliases, e.DeleteExpr(subject=subject))
+
+
 
 @elab.register(qlast.Set)
 def elab_Set(qle: qlast.Set):

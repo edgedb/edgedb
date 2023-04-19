@@ -534,6 +534,12 @@ def synthesize_type(ctx: e.TcCtx, expr: e.Expr) -> Tuple[e.ResultTp, e.Expr]:
             tops.assert_insert_subtype(ctx, after_tp, subject_tp.tp)
             result_expr = e.UpdateExpr(subject_ck, shape_ck)
             result_tp, result_card = subject_tp
+        case e.DeleteExpr(subject=subject):
+            (subject_tp, subject_ck) = synthesize_type(ctx, subject)
+            assert eops.is_effect_free(subject), (
+                "Expecting subject expr to be effect-free")
+            result_expr = e.DeleteExpr(subject_ck)
+            result_tp, result_card = subject_tp
         case e.IfElseExpr(then_branch=then_branch,
                           condition=condition,
                           else_branch=else_branch):

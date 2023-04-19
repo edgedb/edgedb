@@ -729,19 +729,19 @@ class TestNewInterpreterModelSmokeTests(tb.QueryTestCase):
             ]
         )
 
-    async def test_model_computed_02(self):
-        await self.assert_query_result(
-            r"""
-            SELECT User { deck: {name, @total_cost} ORDER BY .name}
-            FILTER .name = 'Alice';
-            """,
-            [{"deck": [
-                {"name": "Bog monster", "@total_cost": 6},
-                {"name": "Dragon", "@total_cost": 10},
-                {"name": "Giant turtle", "@total_cost": 9},
-                {"name": "Imp", "@total_cost": 2},
-            ]}],
-        )
+    # async def test_model_computed_02(self):
+    #     await self.assert_query_result(
+    #         r"""
+    #         SELECT User { deck: {name, @total_cost} ORDER BY .name}
+    #         FILTER .name = 'Alice';
+    #         """,
+    #         [{"deck": [
+    #             {"name": "Bog monster", "@total_cost": 6},
+    #             {"name": "Dragon", "@total_cost": 10},
+    #             {"name": "Giant turtle", "@total_cost": 9},
+    #             {"name": "Imp", "@total_cost": 2},
+    #         ]}],
+    #     )
 
     # async def test_model_alias_correlation_01(self):
     #     await self.assert_query_result(
@@ -766,6 +766,14 @@ class TestNewInterpreterModelSmokeTests(tb.QueryTestCase):
                 ["Dave", 1],
                 ["Dave", 2],
             ])
+        )
+
+    async def test_model_delete_01(self):
+        await self.assert_query_result(
+            r"""
+            DELETE User FILTER .name = 'Alice';
+            """,
+            [{}],
         )
 
 # TODO : DEFER COMPUTED

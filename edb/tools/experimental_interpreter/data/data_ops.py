@@ -497,6 +497,11 @@ class UpdateExpr:
     subject: Expr
     shape: ShapeExpr
 
+
+@dataclass(frozen=True)
+class DeleteExpr:
+    subject: Expr
+
 # @dataclass(frozen=True)
 # class RefIdExpr:
 #     refid : int
@@ -620,7 +625,7 @@ Expr = (
     ObjectExpr | BindingExpr | Val | UnnamedTupleExpr | NamedTupleExpr |
     ArrExpr | Tp | UnionExpr | DetachedExpr | SubqueryExpr
     #   | SingularExpr
-    | IfElseExpr)
+    | IfElseExpr | DeleteExpr)
 
 
 @dataclass(frozen=True)

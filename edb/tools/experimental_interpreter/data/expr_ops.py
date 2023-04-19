@@ -159,6 +159,8 @@ def map_expr(
                 return UpdateExpr(
                     subject=recur(subject),
                     shape=recur(shape))
+            case e.DeleteExpr(subject=subject):
+                return e.DeleteExpr(subject=recur(subject))
             case ForExpr(bound=bound, next=next):
                 return ForExpr(bound=recur(bound), next=recur(next))
             case OptionalForExpr(bound=bound, next=next):
@@ -589,7 +591,9 @@ def emtpy_tcctx_from_dbschema(dbschema: e.DBSchema) -> e.TcCtx:
 
 def is_effect_free(expr: Expr) -> bool:
     def pred(expr: Expr) -> bool:
-        if isinstance(expr, e.InsertExpr) or isinstance(expr, e.UpdateExpr):
+        if (isinstance(expr, e.InsertExpr) or
+                isinstance(expr, e.UpdateExpr) or
+                isinstance(expr, e.DeleteExpr)):
             return True
         else:
             return False

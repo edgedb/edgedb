@@ -221,6 +221,8 @@ def reverse_elab(ir_expr: Expr) -> qlast.Expr:
             return qlast.UpdateQuery(
                 subject=reverse_elab(subject),
                 shape=reverse_elab_shape(shape))
+        case e.DeleteExpr(subject=subject):
+            return qlast.DeleteQuery(subject=reverse_elab(subject))
         case MultiSetExpr(expr=elems):
             return qlast.Set(elements=[reverse_elab(e) for e in elems])
         case WithExpr(bound=bound, next=next):
