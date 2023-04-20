@@ -2286,7 +2286,7 @@ class Range(
         stype = subtypes[0]
         anypoint = schema.get('std::anypoint', type=Type)
 
-        if not stype.issubclass(schema, anypoint) or True:
+        if not stype.issubclass(schema, anypoint):
             raise errors.UnsupportedFeatureError(
                 f'unsupported range subtype: {stype.get_displayname(schema)}'
             )
