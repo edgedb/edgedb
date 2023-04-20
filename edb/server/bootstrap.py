@@ -567,7 +567,7 @@ def prepare_patch(
 
     if kind == 'repair':
         assert not patch
-        return (), (), {}, True
+        return (update,), (), {}, True
 
     # EdgeQL and reflection schema patches need to be compiled.
     current_block = dbops.PLTopBlock()
