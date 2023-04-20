@@ -135,6 +135,18 @@ Now, whenever we run a query, we get a log entry as well:
       },
     }
 
+.. note::
+
+    In some cases, a trigger can cause another trigger to fire. When this
+    happens, EdgeDB completes all the triggers fired by the initial query
+    before kicking off a new "stage" of triggers. In the second stage, any
+    triggers fired by the initial stage of triggers will fire. EdgeDB will
+    continue adding trigger stages until all triggers are complete.
+
+    The exception to this is when triggers would cause a loop or would cause
+    the same trigger to be run in two different stages. These triggers are
+    suppressed.
+
 You might find that one log entry per row is too granular or too noisy for your
 use case. In that case, a ``for all`` trigger may be a better fit. Here's a
 schema that changes the ``Log`` type so that each object can log multiple
