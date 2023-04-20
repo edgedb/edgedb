@@ -962,6 +962,7 @@ class Server(ha_base.ClusterProtocol):
                         conn, global_schema)
                     config = await self.introspect_db_config(conn)
                     try:
+                        logger.info("repairing database '%s'", dbname)
                         sql += bootstrap.prepare_repair_patch(
                             self._std_schema,
                             self._refl_schema,
