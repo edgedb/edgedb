@@ -2698,7 +2698,7 @@ class CreateCollectionType(
 
     def validate_object(
         self, schema: s_schema.Schema, context: sd.CommandContext
-    ):
+    ) -> None:
         super().validate_object(schema, context)
 
         if isinstance(self.scls, Range):
