@@ -445,4 +445,5 @@ ALTER FUNCTION edgedb._index(jsonb, bigint, text) IMMUTABLE;
     ('sql', '''
 ALTER FUNCTION edgedb._slice(jsonb, int, int) IMMUTABLE;
 '''),
+    ('repair', ''),
 ])
