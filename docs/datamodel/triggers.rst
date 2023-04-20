@@ -65,6 +65,19 @@ on the ``Person`` type:
       );
     }
 
+In a trigger's expression, we have access to the ``__old__`` and/or ``__new__``
+variables which capture the object before and after the query. Triggers on
+``update`` can use both variables. Triggers on ``delete`` can use ``__old__``.
+Triggers on ``insert`` can use ``__new__``.
+
+.. note::
+
+    If you access an object in the trigger expression _without_ using
+    ``__old__`` or ``__new__`` (for example, via a ``select`` query for that
+    object), you will get the object state _after_ the triggering query. This
+    is the same data you will get if the object is part of the query and you
+    access it via ``__new__``.
+
 Now, whenever we run a query, we get a log entry as well:
 
 .. code-block:: edgeql-repl
