@@ -1,13 +1,10 @@
+.. versionadded:: 2.0
+
 .. _ref_eql_sdl_globals:
 
 =======
 Globals
 =======
-
-.. note::
-
-  ⚠️ Only available in EdgeDB 2.0 or later.
-
 
 This section describes the SDL commands pertaining to global variables.
 
