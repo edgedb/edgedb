@@ -63,7 +63,7 @@ This declaration defines a new trigger with the following options:
     commas to invoke the same trigger for multiple types of queries.
 
 :eql:synopsis:`each`
-    The expression will be evaluted once per modified object. ``__new__`` and
+    The expression will be evaluated once per modified object. ``__new__`` and
     ``__old__`` in this context within the expression will refer to a single
     object.
 
