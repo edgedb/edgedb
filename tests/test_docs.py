@@ -24,6 +24,12 @@ try:
     import docutils.utils
     import docutils.frontend
     import docutils.parsers.rst.directives.body
+    from edb.tools.docs.shared import make_CodeBlock
+
+    docutils.parsers.rst.directives.register_directive(
+        'code-block',
+        make_CodeBlock(docutils.parsers.rst.directives.body.CodeBlock)
+    )
 except ImportError:
     docutils = None  # type: ignore
 
@@ -35,13 +41,6 @@ except ImportError:
 from graphql.language import parser as graphql_parser
 
 from edb.edgeql import parser as ql_parser
-
-from edb.tools.docs.shared import make_CodeBlock
-
-docutils.parsers.rst.directives.register_directive(
-    'code-block',
-    make_CodeBlock(docutils.parsers.rst.directives.body.CodeBlock)
-)
 
 
 def find_edgedb_root():
