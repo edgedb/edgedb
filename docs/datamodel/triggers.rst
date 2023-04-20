@@ -8,8 +8,8 @@ Triggers
 
 Triggers allow you to define an expression to be executed whenever a given
 query type is run on an object type. The original query will *trigger* your
-pre-defined expression to run along with the original query. These can be
-defined in your schema.
+pre-defined expression to run in a transaction along with the original query.
+These can be defined in your schema.
 
 .. note::
 
@@ -144,8 +144,8 @@ Now, whenever we run a query, we get a log entry as well:
     continue adding trigger stages until all triggers are complete.
 
     The exception to this is when triggers would cause a loop or would cause
-    the same trigger to be run in two different stages. These triggers are
-    suppressed.
+    the same trigger to be run in two different stages. These triggers will
+    generate an error.
 
 You might find that one log entry per row is too granular or too noisy for your
 use case. In that case, a ``for all`` trigger may be a better fit. Here's a
