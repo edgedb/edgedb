@@ -193,9 +193,8 @@ def pg_type_range(tp: Tuple[str, ...]) -> Tuple[str, ...]:
 
 
 def pg_type_from_object(
-        schema: s_schema.Schema,
-        obj: s_obj.Object,
-        persistent_tuples: bool=False) -> Tuple[str, ...]:
+    schema: s_schema.Schema, obj: s_obj.Object, persistent_tuples: bool = False
+) -> Tuple[str, ...]:
 
     if isinstance(obj, s_scalars.ScalarType):
         return pg_type_from_scalar(schema, obj)
@@ -341,8 +340,8 @@ class _PointerStorageInfo:
                                                       catenate=False)
             else:
                 column_type = pg_type_from_object(
-                    schema, pointer.get_target(schema),
-                    persistent_tuples=True)
+                    schema, pointer_target, persistent_tuples=True
+                )
         else:
             # The target may not be known in circular object-to-object
             # linking scenarios.

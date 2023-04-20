@@ -5974,6 +5974,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
+    async def test_edgeql_ddl_scalar_14(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.UnsupportedFeatureError,
+                r'unsupported range subtype'):
+            await self.con.execute('''
+                create scalar type Age extending int16;
+                create type User {
+                    create property age -> range<Age>;
+                };
+            ''')
+
     async def test_edgeql_ddl_cast_01(self):
         await self.con.execute('''
             CREATE SCALAR TYPE type_a EXTENDING std::str;
