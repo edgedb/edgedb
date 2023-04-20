@@ -5966,24 +5966,29 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
 
         async with self.assertRaisesRegexTx(
-                edgedb.SchemaError,
-                r'scalar type may not have a collection base type'):
-            await self.con.execute('''
+            edgedb.SchemaError,
+            r'scalar type may not have a collection base type',
+        ):
+            await self.con.execute(
+                '''
                 alter scalar type Foo {
                     drop extending str; extending array<str> last;
                 };
-            ''')
+            '''
+            )
 
     async def test_edgeql_ddl_scalar_14(self):
         async with self.assertRaisesRegexTx(
-                edgedb.UnsupportedFeatureError,
-                r'unsupported range subtype'):
-            await self.con.execute('''
+            edgedb.UnsupportedFeatureError, r'unsupported range subtype'
+        ):
+            await self.con.execute(
+                '''
                 create scalar type Age extending int16;
                 create type User {
                     create property age -> range<Age>;
                 };
-            ''')
+            '''
+            )
 
     async def test_edgeql_ddl_cast_01(self):
         await self.con.execute('''
