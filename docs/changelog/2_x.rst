@@ -1007,6 +1007,47 @@ Other changes
   braces in a message. Allow ``{{`` and ``}}`` to be used to escape braces.
   (:eql:gh:`#5295`)
 
+2.14
+====
+
+Schema repair on upgades
+------------------------
+
+Previously, certain bug fixes and changes (such as the fix to
+cardinality inferenced of ``required multi`` pointers released in 2.13
+(:eql:gh:`#5180`)), could cause schemas to enter an inconsistent state
+from which many migrations were not possible.
+
+The cause of this problem is that an incorrectly inferred value (such
+as the cardinality of a computed property) may have been computed and
+stored in a previous version. When a newer version is used, there will
+be a mismatch between the correctly inferred value on the new version,
+and the incorrectly stored value in the database's schema.
+
+The most straightforward way to fix such problems was to perform a dump
+and then a restore.
+
+To fix this, we have introduced a schema repair mechanism that will
+run when upgrading a database to 2.14. This repair mechanism will fix
+any incorrectly inferred fields that are stored in the schema.
+
+One particular hazard in this, however, is that the repair is not
+easily reversible if you need to downgrade to an earlier version.
+**We recommend performing a dump before upgrading to 2.14.**
+
+These changes were made in (:eql:gh:`#5337`); more discussion of the issue
+can be found in (:eql:gh:`#5321`).
+
+Other changes
+-------------
+
+* Correctly display constraint errors on ``id``
+  (:eql:gh:`#5344`)
+
+* Fix adding certain computed links to a type with an alias
+  (:eql:gh:`#5329`)
+
+
 .. lint-off
 
 .. _group:
