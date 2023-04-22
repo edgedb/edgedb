@@ -2081,6 +2081,11 @@ class DerivableObject(QualifiedObject):
 
 
 class Shell:
+    """
+    Shells mimic objects, but are not part of the schema.
+    They are construced from AST and are used to hold object data
+    before it is commited to the schema.
+    """
 
     def resolve(self, schema: s_schema.Schema) -> Any:
         raise NotImplementedError

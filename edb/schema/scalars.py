@@ -72,6 +72,14 @@ class ScalarType(
             for base in self.get_bases(schema).objects(schema)
         )
 
+    def is_base_type(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        """Returns true of the type has only abstract bases"""
+        bases: Sequence[s_types.Type] = self.get_bases(schema).objects(schema)
+        return all(b.get_abstract(schema) for b in bases)
+
     def is_enum(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_enum_values(schema))
 
