@@ -2288,7 +2288,8 @@ class Range(
 
         if not stype.issubclass(schema, anypoint):
             raise errors.UnsupportedFeatureError(
-                f'unsupported range subtype: {stype.get_displayname(schema)}')
+                f'unsupported range subtype: {stype.get_displayname(schema)}'
+            )
 
         return cls.create(
             schema,
@@ -2694,6 +2695,23 @@ class CreateCollectionType(
         # might use it later.
         self.set_attribute_value('internal', False)
         return super().canonicalize_attributes(schema, context)
+
+    def validate_object(
+        self, schema: s_schema.Schema, context: sd.CommandContext
+    ) -> None:
+        super().validate_object(schema, context)
+
+        if isinstance(self.scls, Range):
+            from . import scalars as s_scalars
+
+            st = self.scls.get_subtypes(schema)[0]
+
+            if isinstance(st, s_scalars.ScalarType) and not st.is_base_type(
+                schema
+            ):
+                raise errors.UnsupportedFeatureError(
+                    f'unsupported range subtype: {st.get_displayname(schema)}'
+                )
 
 
 class AlterCollectionType(

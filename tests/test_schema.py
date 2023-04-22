@@ -2121,6 +2121,18 @@ class TestSchema(tb.BaseSchemaLoadTest):
             alias val_i := {'alice', 'billie'} intersect User.name;
         """
 
+    @tb.must_fail(
+        errors.UnsupportedFeatureError,
+        "unsupported range subtype: test::Age",
+    )
+    def test_schema_range_01(self):
+        """
+        scalar type Age extending int64;
+        type Y {
+            property age_requirement -> range<Age>
+        }
+        """
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.
