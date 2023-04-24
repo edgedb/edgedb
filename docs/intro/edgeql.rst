@@ -457,7 +457,7 @@ like any good programming language.
 
   .. code-tab:: typescript
 
-    const newMovie = e.insert({
+    const newMovie = e.insert(e.Movie, {
       title: "The Marvels"
     });
     const query = e.select(newMovie, () => ({
