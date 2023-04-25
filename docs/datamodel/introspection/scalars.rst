@@ -1,4 +1,4 @@
-.. _ref_eql_introspection_scalar_types:
+.. _ref_datamodel_introspection_scalar_types:
 
 ============
 Scalar types

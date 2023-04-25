@@ -252,4 +252,5 @@ The valid SDL sub-declarations are listed below:
   * - **See also**
   * - :ref:`Schema > Properties <ref_datamodel_props>`
   * - :ref:`DDL > Properties <ref_eql_ddl_props>`
-  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`
+  * - :ref:`Introspection > Object types
+      <ref_datamodel_introspection_object_types>`

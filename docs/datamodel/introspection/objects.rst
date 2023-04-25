@@ -1,4 +1,4 @@
-.. _ref_eql_introspection_object_types:
+.. _ref_datamodel_introspection_object_types:
 
 ============
 Object types

@@ -275,4 +275,5 @@ Drop the ``title`` annotation from the ``User`` object type:
   * - :ref:`Schema > Annotations <ref_datamodel_annotations>`
   * - :ref:`SDL > Annotations <ref_eql_sdl_annotations>`
   * - :ref:`Cheatsheets > Annotations <ref_cheatsheet_annotations>`
-  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`
+  * - :ref:`Introspection > Object types
+      <ref_datamodel_introspection_object_types>`

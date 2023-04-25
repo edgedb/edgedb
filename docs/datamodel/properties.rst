@@ -311,4 +311,5 @@ Properties can also be defined on **links**. For a full guide, refer to
   * - **See also**
   * - :ref:`SDL > Properties <ref_eql_sdl_props>`
   * - :ref:`DDL > Properties <ref_eql_ddl_props>`
-  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`.
+  * - :ref:`Introspection > Object types
+      <ref_datamodel_introspection_object_types>`

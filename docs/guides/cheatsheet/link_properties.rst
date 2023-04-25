@@ -253,4 +253,5 @@ Querying
       <ref_datamodel_link_properties>`
   * - :ref:`SDL > Properties <ref_eql_sdl_props>`
   * - :ref:`DDL > Properties <ref_eql_ddl_props>`
-  * - :ref:`Introspection > Object Types <ref_eql_introspection_object_types>`
+  * - :ref:`Introspection > Object Types
+      <ref_datamodel_introspection_object_types>`

@@ -171,4 +171,4 @@ Drop the ``name`` index from the ``User`` object type:
   * - **See also**
   * - :ref:`Schema > Indexes <ref_datamodel_indexes>`
   * - :ref:`SDL > Indexes <ref_eql_sdl_indexes>`
-  * - :ref:`Introspection > Indexes <ref_eql_introspection_indexes>`
+  * - :ref:`Introspection > Indexes <ref_datamodel_introspection_indexes>`

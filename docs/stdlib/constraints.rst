@@ -249,6 +249,7 @@ Constraints
   * - :ref:`Schema > Constraints <ref_datamodel_constraints>`
   * - :ref:`SDL > Constraints <ref_eql_sdl_constraints>`
   * - :ref:`DDL > Constraints <ref_eql_ddl_constraints>`
-  * - :ref:`Introspection > Constraints <ref_eql_introspection_constraints>`
+  * - :ref:`Introspection > Constraints
+      <ref_datamodel_introspection_constraints>`
   * - `Tutorial > Advanced EdgeQL > Constraints
       </tutorial/advanced-edgeql/constraints>`_

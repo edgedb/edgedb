@@ -1,4 +1,4 @@
-.. _ref_eql_introspection_operators:
+.. _ref_datamodel_introspection_operators:
 
 =========
 Operators

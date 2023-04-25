@@ -84,4 +84,4 @@ The valid SDL sub-declarations are listed below:
   * - **See also**
   * - :ref:`Schema > Indexes <ref_datamodel_indexes>`
   * - :ref:`DDL > Indexes <ref_eql_ddl_indexes>`
-  * - :ref:`Introspection > Indexes <ref_eql_introspection_indexes>`
+  * - :ref:`Introspection > Indexes <ref_datamodel_introspection_indexes>`

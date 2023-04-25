@@ -163,4 +163,4 @@ Indexes can be augmented with annotations.
   * - **See also**
   * - :ref:`SDL > Indexes <ref_eql_sdl_indexes>`
   * - :ref:`DDL > Indexes <ref_eql_ddl_indexes>`
-  * - :ref:`Introspection > Indexes <ref_eql_introspection_indexes>`
+  * - :ref:`Introspection > Indexes <ref_datamodel_introspection_indexes>`
