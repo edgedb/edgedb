@@ -797,7 +797,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self.maybe_release_pgcon(conn)
 
         query_unit = compiled.query_unit_group[0]
-        if query_unit.system_config:
+        if query_unit.config_requires_restart:
             self.write_log(
                 EdgeSeverity.EDGE_SEVERITY_NOTICE,
                 errors.LogMessage.get_code(),

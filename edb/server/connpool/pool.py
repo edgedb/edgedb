@@ -1214,6 +1214,11 @@ class Pool(BasePool[C]):
         # We don't have to worry about pending_conns here -
         # Server._pg_connect() will honor the failover and raise an error.
 
+    def iterate_connections(self) -> typing.Iterator[C]:
+        for block in self._blocks.values():
+            for conn in block.conns:
+                yield conn
+
 
 class _NaivePool(BasePool[C]):
     """Implements a rather naive and flawed balancing algorithm.
