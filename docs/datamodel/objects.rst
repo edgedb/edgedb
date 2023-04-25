@@ -165,5 +165,6 @@ of the same type and cardinality.
   * - **See also**
   * - :ref:`SDL > Object types <ref_eql_sdl_object_types>`
   * - :ref:`DDL > Object types <ref_eql_ddl_object_types>`
-  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`
+  * - :ref:`Introspection > Object types
+      <ref_datamodel_introspection_object_types>`
   * - :ref:`Cheatsheets > Object types <ref_cheatsheet_object_types>`

@@ -23,10 +23,12 @@ Schema
     globals
     access_policies
     functions
+    triggers
     inheritance
     extensions
     future
     comparison
+    introspection/index
 
 
 EdgeDB schemas are declared using **SDL** (EdgeDB's Schema Definition
@@ -184,8 +186,8 @@ types, utility functions, and operators.
 * ``math``: algebraic and statistical :ref:`functions <ref_std_math>`
 * ``cal``: local (non-timezone-aware) and relative date/time :ref:`types and
   functions <ref_std_datetime>`
-* ``schema``: types describing the :ref:`introspection <ref_eql_introspection>`
-  schema
+* ``schema``: types describing the :ref:`introspection
+  <ref_datamodel_introspection>` schema
 * ``sys``: system-wide entities, such as user roles and
   :ref:`databases <ref_datamodel_databases>`
 * ``cfg``: configuration and settings

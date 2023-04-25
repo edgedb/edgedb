@@ -1,4 +1,4 @@
-.. _ref_eql_introspection_functions:
+.. _ref_datamodel_introspection_functions:
 
 =========
 Functions

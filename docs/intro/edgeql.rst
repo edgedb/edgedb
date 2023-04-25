@@ -15,8 +15,8 @@ execute them directly from the browser.
 .. note::
 
   The examples below also demonstrate how to express the query with the
-  :ref:`TypeScript query builder <edgedb-js-qb>`, which lets you express
-  arbitrary EdgeQL queries in a code-first, typesafe way.
+  :ref:`TypeScript client's <edgedb-js-intro>` query builder, which lets you
+  express arbitrary EdgeQL queries in a code-first, typesafe way.
 
 
 Scalar literals

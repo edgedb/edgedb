@@ -178,7 +178,7 @@ are called *overloaded functions*.
   * - :ref:`Schema > Functions <ref_datamodel_functions>`
   * - :ref:`DDL > Functions <ref_eql_ddl_functions>`
   * - :ref:`Reference > Function calls <ref_reference_function_call>`
-  * - :ref:`Introspection > Functions <ref_eql_introspection_functions>`
+  * - :ref:`Introspection > Functions <ref_datamodel_introspection_functions>`
   * - :ref:`Cheatsheets > Functions <ref_cheatsheet_functions>`
   * - `Tutorial > Advanced EdgeQL > User-Defined Functions
       </tutorial/advanced-edgeql/user-def-functions>`_

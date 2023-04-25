@@ -283,4 +283,5 @@ object type using it as a property:
   * - :ref:`Schema > Object types <ref_datamodel_object_types>`
   * - :ref:`SDL > Object types <ref_eql_sdl_object_types>`
   * - :ref:`DDL > Object types <ref_eql_ddl_object_types>`
-  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`
+  * - :ref:`Introspection > Object types
+      <ref_datamodel_introspection_object_types>`

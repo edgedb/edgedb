@@ -19,6 +19,7 @@ DDL
     globals
     access_policies
     functions
+    triggers
     extensions
     future
     migrations

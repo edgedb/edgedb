@@ -1,4 +1,4 @@
-.. _ref_eql_introspection:
+.. _ref_datamodel_introspection:
 
 Introspection
 =============
@@ -9,7 +9,7 @@ All of the schema information in EdgeDB is stored in the ``schema``
 
 All the introspection types are themselves extending
 :eql:type:`BaseObject`, so they are also subject to introspection :ref:`as
-object types <ref_eql_introspection_object_types>`. The following
+object types <ref_datamodel_introspection_object_types>`. The following
 query will give a list of all the types used in introspection:
 
 .. code-block:: edgeql
@@ -34,6 +34,7 @@ information about EdgeDB types in a variety of human-readable formats.
     scalars
     colltypes
     functions
+    triggers
     indexes
     constraints
     operators

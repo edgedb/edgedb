@@ -1,4 +1,4 @@
-.. _ref_eql_introspection_casts:
+.. _ref_datamodel_introspection_casts:
 
 =====
 Casts

@@ -661,4 +661,4 @@ to eliminate repetitive SDL.
   * - :ref:`SDL > Links <ref_eql_sdl_links>`
   * - :ref:`DDL > Links <ref_eql_ddl_links>`
   * - :ref:`Introspection > Object types
-      <ref_eql_introspection_object_types>`
+      <ref_datamodel_introspection_object_types>`
