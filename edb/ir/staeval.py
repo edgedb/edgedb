@@ -139,6 +139,10 @@ def evaluate_BaseConstant(
 op_table = {
     # Concatenation
     ('Infix', 'std::++'): lambda a, b: a + b,
+    ('Infix', 'std::>='): lambda a, b: a >= b,
+    ('Infix', 'std::>'): lambda a, b: a > b,
+    ('Infix', 'std::<='): lambda a, b: a <= b,
+    ('Infix', 'std::<'): lambda a, b: a < b,
 }
 
 
@@ -173,9 +177,15 @@ def evaluate_OperatorCall(
         args.append(arg_val)
 
     value = eval_func(*args)
-    # Since we only perform string concatenations here, the constant
-    # in question is always a StringConstant.
-    qlconst = qlast.StringConstant.from_python(value)
+    qlconst: qlast.BaseConstant
+    if isinstance(value, str):
+        qlconst = qlast.StringConstant.from_python(value)
+    elif isinstance(value, bool):
+        qlconst = qlast.BooleanConstant.from_python(value)
+    else:
+        raise UnsupportedExpressionError(
+            f"unsupported result type: {type(value)}", context=opcall.context
+        )
 
     result = qlcompiler.compile_constant_tree_to_ir(
         qlconst, styperef=opcall.typeref, schema=schema)

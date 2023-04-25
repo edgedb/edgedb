@@ -950,6 +950,33 @@ class TestServerConfig(tb.QueryTestCase):
                 CONFIGURE INSTANCE RESET multiprop;
             ''')
 
+    async def test_server_proto_configure_08(self):
+        with self.assertRaisesRegex(
+            edgedb.ConfigurationError, 'invalid setting value'
+        ):
+            await self.con.execute('''
+                CONFIGURE INSTANCE SET _pg_prepared_statement_cache_size := -5;
+            ''')
+        with self.assertRaisesRegex(
+            edgedb.ConfigurationError, 'invalid setting value'
+        ):
+            await self.con.execute('''
+                CONFIGURE INSTANCE SET _pg_prepared_statement_cache_size := 0;
+            ''')
+
+        try:
+            await self.con.execute('''
+                CONFIGURE INSTANCE SET _pg_prepared_statement_cache_size := 42;
+            ''')
+            conf = await self.con.query_single('''
+                SELECT cfg::Config._pg_prepared_statement_cache_size LIMIT 1
+            ''')
+            self.assertEqual(conf, 42)
+        finally:
+            await self.con.execute('''
+                CONFIGURE INSTANCE RESET _pg_prepared_statement_cache_size;
+            ''')
+
     async def test_server_proto_configure_describe_system_config(self):
         try:
             conf1 = "CONFIGURE INSTANCE SET singleprop := '1337';"

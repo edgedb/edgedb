@@ -49,6 +49,8 @@ from . import context
 from . import dispatch
 from . import inference
 from . import setgen
+from . import compile_ast_to_ir
+from . import options
 
 
 class SettingInfo(NamedTuple):
@@ -388,6 +390,28 @@ def _validate_op(
             json.loads(compilation_attr.get_value(ctx.env.schema)))
     else:
         affects_compilation = False
+
+    if isinstance(expr, qlast.ConfigSet):
+        constraints = ptr.get_constraints(ctx.env.schema)
+        for constraint in constraints.objects(ctx.env.schema):
+            subject = expr.expr
+            opts = options.CompilerOptions(
+                anchors={qlast.Subject().name: subject},
+                path_prefix_anchor=qlast.Subject().name,
+                apply_query_rewrites=False,
+                schema_object_context=type(constraint),
+            )
+            final_expr = constraint.get_finalexpr(ctx.env.schema)
+            assert final_expr is not None and final_expr.qlast is not None
+            ir = compile_ast_to_ir(
+                final_expr.qlast, ctx.env.schema, options=opts
+            )
+            result = ireval.evaluate(ir.expr, schema=ctx.env.schema)
+            assert isinstance(result, irast.BooleanConstant)
+            if result.value != 'true':
+                raise errors.ConfigurationError(
+                    f'invalid setting value for {name!r}'
+                )
 
     if system and expr.scope is not qltypes.ConfigScope.INSTANCE:
         raise errors.ConfigurationError(

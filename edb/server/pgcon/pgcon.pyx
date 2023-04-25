@@ -533,6 +533,9 @@ cdef class PGConnection:
 
         self.last_state = dbview.DEFAULT_STATE
 
+    cpdef set_stmt_cache_size(self, int maxsize):
+        self.prep_stmts.resize(maxsize)
+
     @property
     def is_ssl(self):
         return self._is_ssl
