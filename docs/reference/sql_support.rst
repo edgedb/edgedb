@@ -13,7 +13,8 @@ username, and password you already use for your database.
 
 .. warning::
 
-    Make sure to require SSL encryption when using SQL support
+    Make sure to require SSL encryption in your SQL tool or client when using
+    EdgeDB's SQL support
 
 Object types in your EdgeDB schema are exposed as regular SQL tables containing
 all the data you store in your EdgeDB database.
