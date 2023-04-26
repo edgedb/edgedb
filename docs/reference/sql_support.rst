@@ -15,8 +15,8 @@ username, and password you already use for your database.
 
     Make sure to require SSL encryption when using SQL support
 
-Object types in your EdgeDB schema are exposed as regular SQL tables containing all the data you
-store in your EdgeDB database. 
+Object types in your EdgeDB schema are exposed as regular SQL tables containing
+all the data you store in your EdgeDB database.
 
 If you have a database with the following schema: 
 
