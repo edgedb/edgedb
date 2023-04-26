@@ -25,24 +25,24 @@ If you have a database with the following schema:
 
     module default {
         type Person {
-            name: str,
+            name: str;
         };
 
         type Movie extending common::Content {
-            release_year: int32,
-            director: Person,
+            release_year: int32;
+            director: Person;
             star: Person {
-                role: str,
-            },
+                role: str;
+            };
             multi actors: Person {
-                role: str,
-            },
-            multi labels: str,
+                role: str;
+            };
+            multi labels: str;
         };
     }
     module common {
         type Content {
-            title: str,
+            title: str;
         };
     }
 
