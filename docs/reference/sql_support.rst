@@ -116,16 +116,25 @@ Tested SQL tools
 - `Cluvio <https://www.cluvio.com/>`_
 - `Tableau <https://www.tableau.com/>`_
 - `DataGrip <https://www.jetbrains.com/datagrip/>`_
-- `Airbyte <https://airbyte.com/>`_
-- `Fivetran <https://www.fivetran.com/>`_
-- `Hevo <https://hevodata.com/>`_
-- `Stitch <https://www.stitchdata.com/>`_
-- `dbt <https://www.getdbt.com/>`_ [#]_
+- `Airbyte <https://airbyte.com/>`_ [1]_
+- `Fivetran <https://www.fivetran.com/>`_ [1]_
+- `Hevo <https://hevodata.com/>`_ [1]_
+- `Stitch <https://www.stitchdata.com/>`_ [1]_
+- `dbt <https://www.getdbt.com/>`_ [2]_
 
 
-.. [#] dbt models are built and stored in the database as either tables or
+.. [1] At the moment, EdgeDB does not support "Log replication" (i.e., using
+   the `Postgres replication mechanism`_). Supported replication methods
+   include `XMIN Replication`_, incremental updates using "a user-defined
+   monotonically increasing id," and full table updates.
+.. [2] dbt models are built and stored in the database as either tables or
    views. Because the EdgeDB SQL connector does not allow writing or even
    creating schemas, view, or tables, any attempt to materialize dbt models
    will result in errors. If you want to build the models, we suggest first
    transferring your data to a true Postgres instance via pg_dump or Airbyte.
    Tests and previews can still be run directy against the EdgeDB instance.
+
+.. _Postgres replication mechanism:
+   https://www.postgresql.org/docs/current/runtime-config-replication.html
+.. _XMIN Replication:
+   https://www.postgresql.org/docs/15/ddl-system-columns.html
