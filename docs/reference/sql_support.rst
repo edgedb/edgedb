@@ -19,7 +19,7 @@ username, and password you already use for your database.
 Object types in your EdgeDB schema are exposed as regular SQL tables containing
 all the data you store in your EdgeDB database.
 
-If you have a database with the following schema: 
+If you have a database with the following schema:
 
 .. code-block:: sdl
 
@@ -78,7 +78,7 @@ you can access your data after connecting using the following SQL queries:
     SELECT id, title FROM ONLY common."Content";
 
 The SQL connector supports read-only statements and will throw errors if the
-client attemps ``INSERT``, ``UPDATE``, ``DELETE``, or any DDL command. It
+client attempts ``INSERT``, ``UPDATE``, ``DELETE``, or any DDL command. It
 supports all SQL expressions supported by Postgres.
 
 .. code-block:: sql
