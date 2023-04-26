@@ -69,7 +69,7 @@ pub enum Kind {
     Ident,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct Token<'a> {
     pub kind: Kind,
     pub value: &'a str,

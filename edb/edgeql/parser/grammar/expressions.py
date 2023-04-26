@@ -166,14 +166,14 @@ class SimpleSelect(Nonterm):
         r"%reduce SELECT OptionallyAliasedExpr \
                   OptFilterClause OptSortClause OptSelectLimit"
 
-        offset, limit = kids[4].val
+        _, expr, filter, sort, (offset, limit) = kids
 
         if offset is not None or limit is not None:
             subj = qlast.SelectQuery(
-                result=kids[1].val.expr,
-                result_alias=kids[1].val.alias,
-                where=kids[2].val,
-                orderby=kids[3].val,
+                result=expr.val.expr,
+                result_alias=expr.val.alias,
+                where=filter.val,
+                orderby=sort.val,
                 implicit=True,
             )
 
@@ -184,10 +184,10 @@ class SimpleSelect(Nonterm):
             )
         else:
             self.val = qlast.SelectQuery(
-                result=kids[1].val.expr,
-                result_alias=kids[1].val.alias,
-                where=kids[2].val,
-                orderby=kids[3].val,
+                result=expr.val.expr,
+                result_alias=expr.val.alias,
+                where=filter.val,
+                orderby=sort.val,
             )
 
 

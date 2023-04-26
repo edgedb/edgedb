@@ -59,7 +59,7 @@ fn matching_bracket(tok: Kind) -> Kind {
 /// that overall structure of the statement is not ruined. Mostly checks for
 /// matching brackets and quotes closed.
 ///
-/// More specificaly current implementation checks that expression is not
+/// More specifically current implementation checks that expression is not
 /// empty, checks for valid tokens, matching braces and disallows comma `,`and
 /// semicolon `;` outside of brackets.
 ///

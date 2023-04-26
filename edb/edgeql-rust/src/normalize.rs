@@ -24,6 +24,7 @@ pub struct Variable {
     pub value: Value,
 }
 
+#[derive(Debug)]
 pub struct Entry<'a> {
     pub processed_source: String,
     pub hash: [u8; 64],
@@ -104,6 +105,8 @@ pub fn normalize(text: &str) -> Result<Entry, Error> {
         }
     }
     let end_pos = token_stream.current_pos();
+    let tokens = tokens;
+
     let (named_args, var_idx) = match scan_vars(&tokens) {
         Some(pair) => pair,
         None => {
