@@ -486,12 +486,6 @@ class SubjectMixin(Base):
     subject: Expr
 
 
-class ReturningMixin(Base):
-    __abstract_node__ = True
-    result_alias: typing.Optional[str] = None
-    result: Expr
-
-
 class SelectClauseMixin(OrderByMixin, FilterMixin):
     __abstract_node__ = True
     implicit: bool = False
@@ -548,7 +542,11 @@ class Query(Statement):
     __abstract_node__ = True
 
 
-class SelectQuery(Query, ReturningMixin, SelectClauseMixin):
+class SelectQuery(Query, SelectClauseMixin):
+
+    result_alias: typing.Optional[str] = None
+    result: Expr
+
     pass
 
 
@@ -583,10 +581,13 @@ class GroupQuery(Query, SubjectMixin):
 
 
 class InternalGroupQuery(
-        GroupQuery, ReturningMixin, FilterMixin, OrderByMixin):
+        GroupQuery, FilterMixin, OrderByMixin):
     group_alias: str
     grouping_alias: typing.Optional[str]
     from_desugaring: bool = False
+
+    result_alias: typing.Optional[str] = None
+    result: Expr
 
 
 class InsertQuery(Query):
@@ -604,9 +605,15 @@ class DeleteQuery(Query, SubjectMixin, SelectClauseMixin):
     pass
 
 
-class ForQuery(Query, ReturningMixin):
+class ForQuery(Query):
     iterator: Expr
     iterator_alias: str
+
+    result_alias: typing.Optional[str] = None
+    result: Expr
+
+
+ReturningMixin = SelectQuery | ForQuery | InternalGroupQuery
 
 
 # Transactions

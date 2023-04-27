@@ -450,7 +450,7 @@ def update_path(
                 steps=[qlast.ObjectRef(name=query.subject_alias)])
         else:
             query = query.subject
-    elif isinstance(query, qlast.ReturningMixin):
+    elif isinstance(query, (qlast.SelectQuery, qlast.ForQuery, qlast.InternalGroupQuery)):
         if query.result_alias is not None:
             return qlast.Path(steps=[
                 qlast.ObjectRef(name=query.result_alias)
