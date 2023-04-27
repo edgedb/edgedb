@@ -1499,7 +1499,7 @@ def _normalize_view_ptr_expr(
 
         if ((ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
                 and ctx.implicit_limit
-                and isinstance(qlexpr, (qlast.SelectClauseMixin, qlast.ShapeElement))
+                and isinstance(qlexpr, (qlast.PipelinedQuery, qlast.ShapeElement))
                 and not qlexpr.limit):
             qlexpr = qlast.SelectQuery(result=qlexpr, implicit=True)
             qlexpr.limit = qlast.IntegerConstant(value=str(ctx.implicit_limit))

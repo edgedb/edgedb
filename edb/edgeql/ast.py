@@ -472,23 +472,6 @@ class Statement(Command, Expr):
     __abstract_node__ = True
 
 
-class SelectClauseMixin(Base):
-    __abstract_node__ = True
-    implicit: bool = False
-
-    where: typing.Optional[Expr] = None
-
-    orderby: typing.Optional[typing.List[SortExpr]] = None
-
-    offset: typing.Optional[Expr] = None
-    limit: typing.Optional[Expr] = None
-
-    # This is a hack, indicating that rptr should be forwarded through
-    # this select. Used when we generate implicit selects that need to
-    # not interfere with linkprops.
-    rptr_passthrough: bool = False
-
-
 class ShapeOp(s_enum.StrEnum):
     APPEND = 'APPEND'
     SUBTRACT = 'SUBTRACT'
@@ -525,8 +508,6 @@ class ShapeElement(Expr):
     limit: typing.Optional[Expr] = None
 
 
-OffsetLimitMixin = SelectClauseMixin | ShapeElement
-
 class Shape(Expr):
     expr: typing.Optional[Expr]
     elements: typing.List[ShapeElement]
@@ -536,7 +517,24 @@ class Query(Statement):
     __abstract_node__ = True
 
 
-class SelectQuery(Query, SelectClauseMixin):
+class PipelinedQuery(Query):
+    __abstract_node__ = True
+    implicit: bool = False
+
+    where: typing.Optional[Expr] = None
+
+    orderby: typing.Optional[typing.List[SortExpr]] = None
+
+    offset: typing.Optional[Expr] = None
+    limit: typing.Optional[Expr] = None
+
+    # This is a hack, indicating that rptr should be forwarded through
+    # this select. Used when we generate implicit selects that need to
+    # not interfere with linkprops.
+    rptr_passthrough: bool = False
+
+
+class SelectQuery(PipelinedQuery):
 
     result_alias: typing.Optional[str] = None
     result: Expr
@@ -604,12 +602,8 @@ class UpdateQuery(Query):
     where: typing.Optional[Expr] = None
 
 
-class DeleteQuery(Query, SelectClauseMixin):
+class DeleteQuery(PipelinedQuery):
     subject: Expr
-
-
-SubjectMixin = DeleteQuery | UpdateQuery | GroupQuery
-
 
 class ForQuery(Query):
     iterator: Expr
@@ -617,9 +611,6 @@ class ForQuery(Query):
 
     result_alias: typing.Optional[str] = None
     result: Expr
-
-
-ReturningMixin = SelectQuery | ForQuery | InternalGroupQuery
 
 
 # Transactions
@@ -1487,10 +1478,6 @@ class ConfigReset(ConfigOp):
     where: typing.Optional[Expr] = None
 
 
-FilterMixin = (
-    SelectClauseMixin | ShapeElement | UpdateQuery | ConfigReset
-)
-
 #
 # Describe
 #
@@ -1593,3 +1580,17 @@ def has_ddl_subcommand(
     cmdtype: typing.Type[DDLOperation],
 ) -> bool:
     return bool(get_ddl_subcommand(ddlcmd, cmdtype))
+
+
+ReturningMixin = SelectQuery | ForQuery | InternalGroupQuery
+
+
+FilterMixin = (
+    PipelinedQuery | ShapeElement | UpdateQuery | ConfigReset
+)
+
+
+SubjectMixin = DeleteQuery | UpdateQuery | GroupQuery
+
+
+OffsetLimitMixin = PipelinedQuery | ShapeElement
