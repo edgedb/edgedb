@@ -155,12 +155,8 @@ class SortExpr(Base):
     nones_order: typing.Optional[NonesOrder] = None
 
 
-class BaseAlias(Base):
-    __abstract_node__ = True
+class OptionallyAliasedExpr(Base):
     alias: typing.Optional[str]
-
-
-class OptionallyAliasedExpr(BaseAlias):
     expr: Expr
 
 
@@ -169,8 +165,10 @@ class AliasedExpr(OptionallyAliasedExpr):
     alias: str
 
 
-class ModuleAliasDecl(BaseAlias):
+class ModuleAliasDecl(Base):
     module: str
+    alias: typing.Optional[str]
+
 
 
 class BaseSessionCommand(Base):
@@ -194,7 +192,7 @@ class BaseSessionReset(BaseSessionCommand):
     __abstract_node__ = True
 
 
-class SessionResetAliasDecl(BaseAlias, BaseSessionReset):
+class SessionResetAliasDecl(BaseSessionReset):
     alias: str
 
 
