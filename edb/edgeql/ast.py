@@ -100,11 +100,6 @@ class OrderByMixin(Base):
     orderby: typing.Optional[typing.List[SortExpr]] = None
 
 
-class FilterMixin(Base):
-    __abstract_node__ = True
-    where: typing.Optional[Expr] = None
-
-
 class OptionValue(Base):
     """An option value resulting from a syntax."""
 
@@ -486,12 +481,14 @@ class SubjectMixin(Base):
     subject: Expr
 
 
-class SelectClauseMixin(OrderByMixin, FilterMixin):
+class SelectClauseMixin(OrderByMixin):
     __abstract_node__ = True
     implicit: bool = False
 
     offset: typing.Optional[Expr] = None
     limit: typing.Optional[Expr] = None
+
+    where: typing.Optional[Expr] = None
 
     # This is a hack, indicating that rptr should be forwarded through
     # this select. Used when we generate implicit selects that need to
@@ -518,7 +515,7 @@ class ShapeOrigin(s_enum.StrEnum):
     MATERIALIZATION = 'MATERIALIZATION'
 
 
-class ShapeElement(OrderByMixin, FilterMixin, Expr):
+class ShapeElement(OrderByMixin, Expr):
     expr: Path
     elements: typing.Optional[typing.List[ShapeElement]] = None
     compexpr: typing.Optional[Expr] = None
@@ -529,6 +526,8 @@ class ShapeElement(OrderByMixin, FilterMixin, Expr):
 
     offset: typing.Optional[Expr] = None
     limit: typing.Optional[Expr] = None
+
+    where: typing.Optional[Expr] = None
 
 
 OffsetLimitMixin = SelectClauseMixin | ShapeElement
@@ -580,14 +579,15 @@ class GroupQuery(Query, SubjectMixin):
     by: typing.List[GroupingElement]
 
 
-class InternalGroupQuery(
-        GroupQuery, FilterMixin, OrderByMixin):
+class InternalGroupQuery(GroupQuery, OrderByMixin):
     group_alias: str
     grouping_alias: typing.Optional[str]
     from_desugaring: bool = False
 
     result_alias: typing.Optional[str] = None
     result: Expr
+
+    where: typing.Optional[Expr] = None
 
 
 class InsertQuery(Query):
@@ -597,8 +597,10 @@ class InsertQuery(Query):
         typing.Tuple[typing.Optional[Expr], typing.Optional[Expr]]] = None
 
 
-class UpdateQuery(Query, SubjectMixin, FilterMixin):
+class UpdateQuery(Query, SubjectMixin):
     shape: typing.List[ShapeElement]
+
+    where: typing.Optional[Expr] = None
 
 
 class DeleteQuery(Query, SubjectMixin, SelectClauseMixin):
@@ -1477,9 +1479,13 @@ class ConfigInsert(ConfigOp):
     shape: typing.List[ShapeElement]
 
 
-class ConfigReset(ConfigOp, FilterMixin):
-    pass
+class ConfigReset(ConfigOp):
+    where: typing.Optional[Expr] = None
 
+
+FilterMixin = (
+    SelectClauseMixin | ShapeElement | UpdateQuery | ConfigReset
+)
 
 #
 # Describe
