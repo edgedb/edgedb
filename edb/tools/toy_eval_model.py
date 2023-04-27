@@ -441,7 +441,7 @@ def update_path(
 ) -> Optional[qlast.Path]:
     if query is None:
         return None
-    elif subject and isinstance(query, qlast.SubjectMixin):
+    elif subject and isinstance(query, (qlast.DeleteQuery, qlast.UpdateQuery, qlast.GroupQuery)):
         if (
             isinstance(query, qlast.GroupQuery)
             and query.subject_alias is not None

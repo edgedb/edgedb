@@ -472,12 +472,7 @@ class Statement(Command, Expr):
     __abstract_node__ = True
 
 
-class SubjectMixin(Base):
-    __abstract_node__ = True
-    subject: Expr
-
-
-class SelectClauseMixin:
+class SelectClauseMixin(Base):
     __abstract_node__ = True
     implicit: bool = False
 
@@ -573,10 +568,12 @@ class GroupingOperation(GroupingElement):
     elements: typing.List[GroupingAtom]
 
 
-class GroupQuery(Query, SubjectMixin):
+class GroupQuery(Query):
     subject_alias: typing.Optional[str] = None
     using: typing.Optional[typing.List[AliasedExpr]]
     by: typing.List[GroupingElement]
+
+    subject: Expr
 
 
 class InternalGroupQuery(GroupQuery):
@@ -599,14 +596,19 @@ class InsertQuery(Query):
         typing.Tuple[typing.Optional[Expr], typing.Optional[Expr]]] = None
 
 
-class UpdateQuery(Query, SubjectMixin):
+class UpdateQuery(Query):
     shape: typing.List[ShapeElement]
+
+    subject: Expr
 
     where: typing.Optional[Expr] = None
 
 
-class DeleteQuery(Query, SubjectMixin, SelectClauseMixin):
-    pass
+class DeleteQuery(Query, SelectClauseMixin):
+    subject: Expr
+
+
+SubjectMixin = DeleteQuery | UpdateQuery | GroupQuery
 
 
 class ForQuery(Query):
