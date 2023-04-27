@@ -5994,7 +5994,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             stxstattarget,
             stxkeys,
             stxkind,
-            stxexprs,
+            NULL::pg_node_tree as stxexprs,
             tableoid, xmin, cmin, xmax, cmax, ctid
         FROM pg_statistic_ext
         """,
