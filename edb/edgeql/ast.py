@@ -170,7 +170,6 @@ class ModuleAliasDecl(Base):
     alias: typing.Optional[str]
 
 
-
 class BaseSessionCommand(Base):
     __abstract_node__ = True
 
@@ -184,8 +183,8 @@ class BaseSessionConfigSet(BaseSessionSet):
     system: bool = False
 
 
-class SessionSetAliasDecl(ModuleAliasDecl, BaseSessionSet):
-    pass
+class SessionSetAliasDecl(BaseSessionSet):
+    decl: ModuleAliasDecl
 
 
 class BaseSessionReset(BaseSessionCommand):

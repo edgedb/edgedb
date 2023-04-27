@@ -2353,15 +2353,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self,
         node: qlast.SessionSetAliasDecl
     ) -> None:
-        self._write_keywords('SET')
-        if node.alias:
-            self._write_keywords(' ALIAS ')
-            self.write(ident_to_str(node.alias))
-            self._write_keywords(' AS MODULE ')
-            self.write(ident_to_str(node.module))
-        else:
-            self._write_keywords(' MODULE ')
-            self.write(ident_to_str(node.module))
+        self._write_keywords('SET ')
+        if node.decl.alias:
+            self._write_keywords('ALIAS ')
+        self.visit_ModuleAliasDecl(node.decl)
 
     def visit_SessionResetAllAliases(
         self,
