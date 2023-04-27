@@ -164,7 +164,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.where)
             self._block_ws(-1, newlines)
 
-    def _visit_order(self, node: qlast.OrderByMixin,
+    def _visit_order(self, node: qlast.SelectQuery | qlast.DeleteQuery,
                      newlines: bool = True) -> None:
         if node.orderby:
             self._write_keywords('ORDER BY')

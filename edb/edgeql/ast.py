@@ -95,10 +95,6 @@ class Base(ast.AST):
         from edb.common.debug import dump_edgeql
         dump_edgeql(self)
 
-class OrderByMixin(Base):
-    __abstract_node__ = True
-    orderby: typing.Optional[typing.List[SortExpr]] = None
-
 
 class OptionValue(Base):
     """An option value resulting from a syntax."""
@@ -481,14 +477,16 @@ class SubjectMixin(Base):
     subject: Expr
 
 
-class SelectClauseMixin(OrderByMixin):
+class SelectClauseMixin:
     __abstract_node__ = True
     implicit: bool = False
 
+    where: typing.Optional[Expr] = None
+
+    orderby: typing.Optional[typing.List[SortExpr]] = None
+
     offset: typing.Optional[Expr] = None
     limit: typing.Optional[Expr] = None
-
-    where: typing.Optional[Expr] = None
 
     # This is a hack, indicating that rptr should be forwarded through
     # this select. Used when we generate implicit selects that need to
@@ -515,7 +513,7 @@ class ShapeOrigin(s_enum.StrEnum):
     MATERIALIZATION = 'MATERIALIZATION'
 
 
-class ShapeElement(OrderByMixin, Expr):
+class ShapeElement(Expr):
     expr: Path
     elements: typing.Optional[typing.List[ShapeElement]] = None
     compexpr: typing.Optional[Expr] = None
@@ -524,10 +522,12 @@ class ShapeElement(OrderByMixin, Expr):
     operation: ShapeOperation = ShapeOperation(op=ShapeOp.ASSIGN)
     origin: ShapeOrigin = ShapeOrigin.EXPLICIT
 
+    where: typing.Optional[Expr] = None
+
+    orderby: typing.Optional[typing.List[SortExpr]] = None
+
     offset: typing.Optional[Expr] = None
     limit: typing.Optional[Expr] = None
-
-    where: typing.Optional[Expr] = None
 
 
 OffsetLimitMixin = SelectClauseMixin | ShapeElement
@@ -579,7 +579,7 @@ class GroupQuery(Query, SubjectMixin):
     by: typing.List[GroupingElement]
 
 
-class InternalGroupQuery(GroupQuery, OrderByMixin):
+class InternalGroupQuery(GroupQuery):
     group_alias: str
     grouping_alias: typing.Optional[str]
     from_desugaring: bool = False
@@ -588,6 +588,8 @@ class InternalGroupQuery(GroupQuery, OrderByMixin):
     result: Expr
 
     where: typing.Optional[Expr] = None
+
+    orderby: typing.Optional[typing.List[SortExpr]] = None
 
 
 class InsertQuery(Query):
