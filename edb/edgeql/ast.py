@@ -157,18 +157,14 @@ class SubExpr(Base):
     anchors: typing.Dict[str, typing.Any]
 
 
-class Clause(Base):
-    """Abstract parent for all query clauses."""
-    __abstract_node__ = True
 
-
-class SortExpr(Clause):
+class SortExpr(Base):
     path: Expr
     direction: typing.Optional[SortOrder] = None
     nones_order: typing.Optional[NonesOrder] = None
 
 
-class BaseAlias(Clause):
+class BaseAlias(Base):
     __abstract_node__ = True
     alias: typing.Optional[str]
 
@@ -292,7 +288,7 @@ class SetConstructorOp(BinOp):
     op: str = 'UNION'
 
 
-class WindowSpec(Clause, OrderByMixin):
+class WindowSpec(Base):
     orderby: typing.List[SortExpr]
     partition: typing.List[Expr]
 
@@ -1213,7 +1209,7 @@ class IndexCommand(ObjectDDL):
         qltypes.SchemaObjectClass.INDEX)
 
 
-class IndexCode(Clause):
+class IndexCode(Base):
     language: Language
     code: str
 
@@ -1353,7 +1349,7 @@ class Language(s_enum.StrEnum):
     EdgeQL = 'EDGEQL'
 
 
-class FunctionCode(Clause):
+class FunctionCode(Base):
     language: Language = Language.EdgeQL
     code: typing.Optional[str] = None
     nativecode: typing.Optional[Expr] = None
@@ -1387,7 +1383,7 @@ class DropFunction(DropObject, FunctionCommand):
     pass
 
 
-class OperatorCode(Clause):
+class OperatorCode(Base):
     language: Language
     from_operator: typing.Optional[typing.Tuple[str, ...]]
     from_function: typing.Optional[typing.Tuple[str, ...]]
@@ -1418,7 +1414,7 @@ class DropOperator(DropObject, OperatorCommand):
     pass
 
 
-class CastCode(Clause):
+class CastCode(Base):
     language: Language
     from_function: str
     from_expr: bool
