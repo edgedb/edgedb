@@ -95,13 +95,6 @@ class Base(ast.AST):
         from edb.common.debug import dump_edgeql
         dump_edgeql(self)
 
-
-class OffsetLimitMixin(Base):
-    __abstract_node__ = True
-    offset: typing.Optional[Expr] = None
-    limit: typing.Optional[Expr] = None
-
-
 class OrderByMixin(Base):
     __abstract_node__ = True
     orderby: typing.Optional[typing.List[SortExpr]] = None
@@ -503,9 +496,13 @@ class ReturningMixin(Base):
     result: Expr
 
 
-class SelectClauseMixin(OrderByMixin, OffsetLimitMixin, FilterMixin):
+class SelectClauseMixin(OrderByMixin, FilterMixin):
     __abstract_node__ = True
     implicit: bool = False
+
+    offset: typing.Optional[Expr] = None
+    limit: typing.Optional[Expr] = None
+
     # This is a hack, indicating that rptr should be forwarded through
     # this select. Used when we generate implicit selects that need to
     # not interfere with linkprops.
@@ -531,7 +528,7 @@ class ShapeOrigin(s_enum.StrEnum):
     MATERIALIZATION = 'MATERIALIZATION'
 
 
-class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
+class ShapeElement(OrderByMixin, FilterMixin, Expr):
     expr: Path
     elements: typing.Optional[typing.List[ShapeElement]] = None
     compexpr: typing.Optional[Expr] = None
@@ -540,6 +537,11 @@ class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
     operation: ShapeOperation = ShapeOperation(op=ShapeOp.ASSIGN)
     origin: ShapeOrigin = ShapeOrigin.EXPLICIT
 
+    offset: typing.Optional[Expr] = None
+    limit: typing.Optional[Expr] = None
+
+
+OffsetLimitMixin = SelectClauseMixin | ShapeElement
 
 class Shape(Expr):
     expr: typing.Optional[Expr]
