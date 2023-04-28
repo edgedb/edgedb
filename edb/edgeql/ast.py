@@ -536,8 +536,6 @@ class SelectQuery(PipelinedQuery):
     result_alias: typing.Optional[str] = None
     result: Expr
 
-    pass
-
 
 class GroupingIdentList(Base):
     elements: typing.Tuple[GroupingAtom, ...]
