@@ -48,6 +48,20 @@ link.
       multi friends: Person;
     }
 
+On the other hand, backlinks work in reverse to find objects that link to the
+object, and thus assume  ``multi`` as a default. Use the ``single`` keyword 
+to declare a "to-one" backlink.
+
+.. code-block:: sdl
+
+    type Author {
+      link posts := .<authors[is Article];
+    }
+
+    type CompanyEmployee {
+      single link company := .<employees[is Company];
+    }
+
 Required links
 --------------
 
