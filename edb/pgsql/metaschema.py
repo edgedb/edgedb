@@ -6013,29 +6013,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         """,
         ),
         dbops.View(
-            name=("edgedbsql", "pg_stats_ext_exprs"),
-            query="""
-        SELECT
-            schemaname,
-            tablename,
-            statistics_schemaname,
-            statistics_name,
-            statistics_owner,
-            expr,
-            null_frac,
-            avg_width,
-            n_distinct,
-            NULL::real[] AS most_common_vals,
-            most_common_freqs,
-            NULL::real[] AS histogram_bounds,
-            correlation,
-            NULL::real[] AS most_common_elems,
-            most_common_elem_freqs,
-            elem_count_histogram
-        FROM pg_stats_ext_exprs
-        """,
-        ),
-        dbops.View(
             name=("edgedbsql", "pg_rewrite"),
             query="""
         SELECT pr.*, pr.tableoid, pr.xmin, pr.cmin, pr.xmax, pr.cmax, pr.ctid
