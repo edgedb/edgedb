@@ -1321,31 +1321,34 @@ def parse_args(**kwargs: Any):
 
     cfg_args = list(kwargs['cfg_args'])
 
-    if '--cfg-listen-addresses' in cfg_args:
+    if '--config-cfg::Config.listen_addresses' in cfg_args:
         abort(
-            "--cfg-listen-addresses is disallowed; "
+            "--cfg-cfg::Config.listen_addresses is disallowed; "
             "use -I or --bind-address instead"
         )
-    if '--cfg-listen-port' in cfg_args:
-        abort("--cfg-listen-port is disallowed; use -P or --port instead")
-    if 'EDGEDB_SERVER_CFG_LISTEN_ADDRESSES' in os.environ:
+    if '--config-cfg::Config.listen_port' in cfg_args:
         abort(
-            "EDGEDB_SERVER_CFG_LISTEN_ADDRESSES is disallowed; "
+            "--config-cfg::Config.listen_port is disallowed; "
+            "use -P or --port instead"
+        )
+    if 'EDGEDB_SERVER_CONFIG_cfg::Config.listen_addresses' in os.environ:
+        abort(
+            "EDGEDB_SERVER_CONFIG_cfg::Config.listen_addresses is disallowed; "
             "use EDGEDB_SERVER_BIND_ADDRESS instead"
         )
-    if 'EDGEDB_SERVER_CFG_LISTEN_PORT' in os.environ:
+    if 'EDGEDB_SERVER_CONFIG_cfg::Config.listen_port' in os.environ:
         abort(
-            "EDGEDB_SERVER_CFG_LISTEN_PORT is disallowed; "
+            "EDGEDB_SERVER_CONFIG_cfg::Config.listen_port is disallowed; "
             "use EDGEDB_SERVER_PORT instead"
         )
 
     for addr in kwargs['bind_addresses']:
-        cfg_args.append("--cfg-listen-addresses")
+        cfg_args.append("--config-cfg::Config.listen_addresses")
         cfg_args.append(addr)
 
     port = kwargs['port']
     if port is not None:
-        cfg_args.append("--cfg-listen-port")
+        cfg_args.append("--config-cfg::Config.listen_port")
         cfg_args.append(str(port))
 
     kwargs['cfg_args'] = cfg_args

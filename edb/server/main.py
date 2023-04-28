@@ -813,10 +813,9 @@ def initialize_static_cfg(
     env_value: Any
     setting: config.Setting
     for env_name, env_value in os.environ.items():
-        cfg_name = env_name.removeprefix("EDGEDB_SERVER_CFG_")
+        cfg_name = env_name.removeprefix("EDGEDB_SERVER_CONFIG_cfg::Config.")
         if cfg_name == env_name:
             continue
-        cfg_name = cfg_name.lower()
         try:
             setting = spec[cfg_name]
         except KeyError:
@@ -848,11 +847,11 @@ def initialize_static_cfg(
     params: List[click.Parameter] = []
     for cfg_name, setting in spec.items():
         type_: Any = None
-        decl = cfg_name.replace("_", "-")
+        decl = "cfg::Config." + cfg_name
         if setting.type == bool:
-            decl = f"--cfg-{decl}/--cfg-no-{decl}"
+            decl = f"--config-{decl}/--config-no-{decl}"
         else:
-            decl = f"--cfg-{decl}"
+            decl = f"--config-{decl}"
             if setting.enum_values is not None:
                 type_ = click.Choice(setting.enum_values)
             elif not issubclass(setting.type, statypes.ScalarType):
