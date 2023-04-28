@@ -53,17 +53,6 @@ object, and thus assume  ``multi`` as a default. Use the ``single`` keyword
 to declare a "to-one" backlink.
 
 .. code-block:: sdl
-    :version-lt: 3.0
-
-    type Author {
-      link posts := .<authors[is Article];
-    }
-
-    type CompanyEmployee {
-      single link company := .<employees[is Company];
-    }
-
-.. code-block:: sdl
 
     type Author {
       link posts := .<authors[is Article];
