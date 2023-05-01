@@ -9,7 +9,7 @@ community for reporting issues and contributing fixes. You are awesome! ❤️
 
 To play with the new features, install the CLI using
 <https://www.edgedb.com/install>`_, upgrade to the testing channel using
-``edgedb cli upgrade --to-testing``, and initialize a new project. 
+``edgedb cli upgrade --to-testing``, and initialize a new project.
 
 .. code-block:: bash
 
@@ -90,6 +90,12 @@ commands to use our testing channel and the beta release.
    instance.
 
 This process will involve some downtime, specifically during steps 2 and 3.
+
+**Pre-1.0 Instances**
+
+If you're still running pre-1.0 EdgeDB instances like 1.0-beta3, and would like
+to upgrade to 3.0, you would need a dump-restore towards version 2.x first,
+followed by another dump-restore to 3.0.
 
 
 Client libraries
@@ -515,3 +521,20 @@ Bug fixes
 * Bugfix: update last_state after rollback (:eql:gh:`#4953`)
 
 * Resolver GROUP BY alised column (:eql:gh:`#4946`)
+
+
+Deprecations
+------------
+
+The support of version pre-1.0 binary protocol is deprecated in EdgeDB 3.0, and
+will be completely dropped in EdgeDB 4.0. If you're still using a deprecated
+version of the binary protocol, or any client libraries that *only* support the
+pre-1.0 binary protocol as listed below, please consider upgrading to a newer
+version.
+
+* edgedb-js / edgedb-deno v0.20 or lower
+* edgedb-python v0.23 or lower
+* edgedb-go v0.10 or lower
+* edgedb-tokio (Rust) v0.2 or lower
+* EdgeDB.NET v0.2 or lower
+* edgedb-elixir v0.3 or lower
