@@ -12,4 +12,5 @@ Changes introduced in all of the releases of EdgeDB so far:
 
     1_x
     2_x
+    3_x
     deprecation

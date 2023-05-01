@@ -1,0 +1,517 @@
+====
+v3.0
+====
+
+:edb-alt-title: EdgeDB v3
+
+The EdgeDB 3.0 beta was released on May 2nd, 2023. We would like to thank our
+community for reporting issues and contributing fixes. You are awesome! ❤️
+
+To play with the new features, install the CLI using
+<https://www.edgedb.com/install>`_, upgrade to the testing channel using
+``edgedb cli upgrade --to-testing``, and initialize a new project. 
+
+.. code-block:: bash
+
+  $ edgedb project init --server-version=testing
+
+
+Upgrading
+=========
+
+**Local instances**
+
+To upgrade a local project, first upgrade your CLI using ``edgedb cli upgrade
+--to-testing``. Then run the following command inside the project directory.
+
+.. code-block:: bash
+
+  $ edgedb project upgrade --to-testing
+
+Alternatively, specify an instance name if you aren't using a project.
+
+.. code-block:: bash
+
+  $ edgedb project upgrade --to-testing -I my_instance
+
+**Hosted instances**
+
+To upgrade a remote (hosted) instance, we recommend the following
+dump-and-restore process.
+
+1. Spin up an empty 3.0 instance. You can use one of our :ref:`deployment
+guides <ref_guide_deployment>`, but you will need to modify some of the
+commands to use our testing channel and the beta release.
+
+    Under Debian/Ubuntu, when adding the EdgeDB package repository, use this
+    command instead:
+
+    .. code-block:: bash
+
+        echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg] \
+          https://packages.edgedb.com/apt \
+          $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) testing \
+          | sudo tee /etc/apt/sources.list.d/edgedb.list
+
+    Use this command for installation under Debian/Ubuntu:
+
+    .. code-block:: bash
+
+        sudo apt-get update && sudo apt-get install edgedb-3
+
+    Under CentOS/RHEL, use this installation command:
+
+    .. code-block:: bash
+
+        sudo yum install edgedb-3
+
+    In any required ``systemctl`` commands, replace ``edgedb-server-2`` with
+    ``edgedb-server-3``.
+
+    Under any Docker setups, supply the ``3.0-beta.1`` tag.
+
+2. Take your application offline, then dump your v2.x database with the CLI
+
+   .. code-block:: bash
+
+     $ edgedb dump --dsn <old dsn> --all my_database.dump/
+
+   This will dump the schema and contents of your current database to a file
+   on your local disk called ``my_database.dump``. The file name isn't
+   important.
+
+3. Restore the empty v3.x instance from the dump
+
+   .. code-block:: bash
+
+     $ edgedb restore --all my_database.dump/ --dsn <new dsn>
+
+   Once the restore is complete, update your application to connect to the new
+   instance.
+
+This process will involve some downtime, specifically during steps 2 and 3.
+
+
+Client libraries
+----------------
+
+We've released new versions of our JavaScript and Python client libraries that
+support all 3.0 features and implement the updated protocol. These versions
+are backwards compatible with v1.x and v2.x instances, so we encourage all users to
+upgrade.
+
+.. list-table::
+
+  * - :ref:`TypeScript/JS <edgedb-js-intro>`
+    - ``edgedb@0.21.0``
+  * - :ref:`Python <edgedb-python-intro>`
+    - ``edgedb@0.24.0``
+  * - `Golang <https://www.edgedb.com/docs/clients/go/index>`_
+    - ``edgedb@0.12.0``
+  * - `Rust <https://github.com/edgedb/edgedb-rust>`_
+    - ``edgedb-tokio@0.3.0``
+  * - `.NET <https://github.com/quinchs/EdgeDB.Net>`_ (community-maintained)
+    - ``EdgeDB.Net.Driver@0.3.0``
+  * - `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
+      (community-maintained)
+    - ``edgedb@0.4.0``
+
+New features
+============
+
+Simplified SDL syntax
+---------------------
+
+As part of our commitment to delivering the best developer experience in
+databases, we've made our schema definition language (or SDL) easier to use.
+You're no longer required to use the ``property`` or ``link`` keywords for
+non-computed properties and links. Also, we've replaced arrows with colons for
+a cleaner look that's easier to type.
+
+That means that this type definition:
+
+.. code-block:: sdl
+
+    type User {
+      required property email -> str;
+      multi link friends -> User;
+    }
+
+could be replaced with this equivalent one in EdgeDB 3+:
+
+.. code-block:: sdl
+
+    type User {
+      required email: str;
+      multi friends: User;
+    }
+
+As you're reading through our docs, you'll notice that changing the version
+selector in the sidebar will also switch all SDL examples to the appropriate
+SDL syntax.
+
+.. note::
+
+    SDL syntax in documentation does not change for non-versioned content like
+    guides.
+
+
+Triggers
+--------
+
+Triggers is one of the most anticipated 3.0 features! They allow you to define
+an expression to be executed whenever a given query type is run on an object
+type. The original query will *trigger* your pre-defined expression to run in a
+transaction along with the original query. These can be defined in your schema.
+
+.. code-block:: sdl
+
+    type Person {
+      required name: str;
+
+      trigger log_insert after insert for each do (
+        insert Log {
+          action := 'insert',
+          target_name := __new__.name
+        }
+      );
+    }
+
+The trigger above inserts a ``Log`` object any time a ``Person`` object is
+inserted.
+
+
+Mutation rewrites
+-----------------
+
+The mutation rewrites feature is the sibling, or at least the first cousin, of
+triggers. Both are automatically invoked when a write operation occurs on the
+type they're on, but triggers are not able to make changes to the object that
+invoked them. Mutation rewrites are built to do just that!
+
+.. code-block:: sdl
+
+    type Post {
+      required title: str;
+      required body: str;
+      modified: datetime {
+        rewrite insert, update using (datetime_of_statement())
+      }
+    }
+
+This shows one reason mutation rewrites is one of our most wanted features:
+modified timestamps! When a user inserts or updates a ``Post``, the rewrite
+will set the value of the ``modified`` property to that value of
+``datetime_of_statement()``. There are tons of other uses too. Give them a try!
+
+
+Splats
+------
+
+This is one of the most fun features in 3.0, both to say _and_ to use! With
+splats, you can easily select all properties in your queries without typing all
+of them out.
+
+.. code-block:: edgeql-repl
+
+    db> select Movie {*};
+    {
+      default::Movie {
+        id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
+        release_year: 2021,
+        title: 'Spiderman: No Way Home',
+      },
+      default::Movie {
+        id: 76998656-b776-11ed-8bef-237907a987fa,
+        release_year: 2008,
+        title: 'Iron Man'
+      },
+    }
+
+You can even use a double-splat to select a single level of nested objects.
+
+.. code-block:: edgeql-repl
+
+    db> select Movie {**};
+    {
+      default::Movie {
+        id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
+        release_year: 2021,
+        title: 'Spiderman: No Way Home',
+        characters: {
+          default::Hero {
+            id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+            name: 'Spiderman'
+          },
+          default::Villain {
+            id: efa2c4bc-b777-11ed-99eb-43f835d79384,
+            name: 'Electro'
+          },
+          default::Villain {
+            id: f2c99a96-b775-11ed-8f7e-0b4a4a8e433e,
+            name: 'Green Goblin'
+          },
+          default::Villain {
+            id: f8ca354a-b775-11ed-8bef-273145019e1d,
+            name: 'Doc Ock'
+          },
+        },
+      },
+      default::Movie {
+        id: 76998656-b776-11ed-8bef-237907a987fa,
+        release_year: 2008,
+        title: 'Iron Man',
+        characters: {
+          default::Hero {
+            id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+            name: 'Iron Man'
+          },
+          default::Villain {
+            id: 335f4104-b777-11ed-81eb-ab4de34e9c36,
+            name: 'Obadiah Stane'
+          },
+        },
+      },
+    }
+
+It's a super-handy way to quickly explore your data.
+
+
+Nested modules
+--------------
+
+"Yo, dawg. We heard you like modules…" (Sorry. We've been working so hard on
+3.0, `we got way way behind on our memes
+<https://knowyourmeme.com/memes/xzibit-yo-dawg>`_.)
+
+You can now put a module inside another module to let you organize your schema
+in any way that makes sense to you.
+
+.. code-block:: sdl
+
+    module MommaModule {
+      module BabyModule {
+        <schema-declarations>
+      }
+    }
+
+
+``intersect`` and ``except`` operators
+--------------------------------------
+
+Slice and dice your sets in new ways with the ``intersect`` and ``except``
+operators. Use ``intersect`` to find common members between sets.
+
+.. code-block:: edgeql-repl
+
+    db> select {1, 2, 3, 4, 5} intersect {3, 4, 5, 6, 7};
+    {3, 5, 4}
+
+Use ``except`` to find members of the first set that are not in the second.
+
+.. code-block:: edgeql-repl
+
+    db> select {1, 2, 3, 4, 5} except {3, 4, 5, 6, 7};
+    {1, 2}
+
+
+
+Query plan
+----------
+
+Among other improvements, the UI now includes a visual query planner to help
+you tweak performance on your EdgeQL queries. Just drop the ``analyze`` keyword
+in front of your query in the UI's "Query Editor" tab to see the query planner
+in action.
+
+.. image:: images/v3_ui.jpg
+    :width: 100%
+
+Query planning is available in the CLI REPL, also by prepending your query with
+``analyze``.
+
+
+Additional changes
+==================
+
+EdgeQL
+------
+
+* Add :eql:func:`assert` function (:eql:gh:`#5040`)
+
+* Support custom user-defined error messages for access policies
+  (:eql:gh:`#4529`)
+
+  .. code-block:: sdl
+
+      access policy admin_only
+        allow all
+        using (global current_user.is_admin ?? false) {
+          errmessage := 'Only admins may query Users'
+        };
+
+* Support casting a UUID to a type (:eql:gh:`#4469`). This is a handy way to
+  select an object, assuming the type you cast into has an object with the UUID
+  being cast.
+
+  .. code-block:: edgeql-repl
+
+      db> select <Hero><uuid>'01d9cc22-b776-11ed-8bef-73f84c7e91e7';
+      {default::Hero {id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7}}
+
+* Add the :eql:func:`json_object_pack` function to construct JSON from an array
+  of key/value tuples. (:eql:gh:`#4474`)
+
+  .. code-block:: edgeql-repl
+
+      db> select json_object_pack({("hello", <json>"world")});
+      {Json("{\"hello\": \"world\"}")}
+
+* Support tuples as query arguments (:eql:gh:`#4489`)
+
+  .. code-block:: edgeql
+
+      select <tuple<str, bool>>$var;
+      select <optional tuple<str, bool>>$var;
+      select <tuple<name: str, flag: bool>>$var;
+      select <optional tuple<name: str, flag: bool>>$var;
+
+* Implement migration rewrites (:eql:gh:`#4585`)
+
+* Implement schema reset (:eql:gh:`#4714`)
+
+* Support link properties on computed backlinks (:eql:gh`#5227`)
+
+
+CLI
+---
+
+* Add the ``edgedb migration edit`` command (:ref:`docs
+  <ref_cli_edgedb_migration_edit>`)
+
+
+Server
+------
+
+* Improvements to top-level server error reporting (:eql:gh:`#5349`)
+
+  * For MultiErrors reported from task groups, don't lose
+    chained exceptions
+  * When an InternalServerError kills the server, produce
+    the "please file a bug" message
+
+
+
+Bug fixes
+---------
+
+* Some fixes to database repairs (:eql:gh:`#5374`)
+
+* Fix: eql compiler not using context correctly (:eql:gh:`#5371`)
+
+* Fix test_docs to cope with missing test deps again (:eql:gh:`#5370`)
+
+* Type descriptor parsing cleanups (:eql:gh:`#5361`)
+
+* More cleanups in sertypes (:eql:gh:`#5359`)
+
+* Config: Remove mandatory reliance on global config spec (:eql:gh:`#5357`)
+
+* Fix insert default cycle (:eql:gh:`#5355`)
+
+* Improvements to top-level server error reporting (:eql:gh:`#5349`)
+
+* Forbid ranges of user-defined scalars (:eql:gh:`#5345`)
+
+* Fix SQL pg_catalog views Postgres 13 (:eql:gh:`#5343`)
+
+* Fix the edgeql+schema patch kind (:eql:gh:`#5336`)
+
+* Forbid DML in non-scalar function args (:eql:gh:`#5310`)
+
+* Forbid ON CONFLICT on rewritten pointers (:eql:gh:`#5309`)
+
+* Don't let "owned" affect how we calculate backlinks (:eql:gh:`#5306`)
+
+* pg-ext: fix version() to include PostgreSQL (:eql:gh:`#5305`)
+
+* Make DML rewrites work in sdl/migrations (:eql:gh:`#5297`)
+
+* Require inheritance order to be consistent with the specified base order
+  (:eql:gh:`#5276`)
+
+* Properly handle overlays in DML inside of triggers (:eql:gh:`#5272`)
+
+* Support using non-strict functions in simple expressions (:eql:gh:`#5271`)
+
+* Don't duplicate the computation of single links with link properties
+  (:eql:gh:`#5264`)
+
+* Drop an unnecessary SELECT from BaseObject.id's default (:eql:gh:`#5261`)
+
+* Make downcast consistent with cast in arg order (:eql:gh:`#5260`)
+
+* Properly rebase computed links when changing their definition
+  (:eql:gh:`#5222`)
+
+* Fix regression from field normalisation + fix ``suggested_display_ctx_idx``
+  when suggested ctx cannot be found (:eql:gh:`#5213`)
+
+* Fix 3-way unions of certain types with policies (:eql:gh:`#5205`)
+
+* Fix simultaneous deletion of objects related by multi links (:eql:gh:`#5201`)
+
+* Respect enforce_access_policies := false inside functions (:eql:gh:`#5199`)
+
+* Fix inferred link/property kind when extending abstract link
+  (:eql:gh:`#5196`)
+
+* Forbid ``on target delete deferred restrict`` on required links.
+  (:eql:gh:`#5189`)
+
+* Make uuidgen properly set versions in uuid4/uuid5 (:eql:gh:`#5188`)
+
+* pg-ext: Fix attribute error and simple query sync count (:eql:gh:`#5145`)
+
+* Disallow variadic arguments with optional types in user code.
+  (:eql:gh:`#5110`)
+
+* Support casting between scalars with a common concrete base (:eql:gh:`#5108`)
+
+* Make ``fail_notes`` propagate from failed tests even when parallelized
+  (:eql:gh:`#5106`)
+
+* Fill in some missing parts of index DDL/SDL (:eql:gh:`#5091`)
+
+* Fix GROUP regression with some query-builder queries (:eql:gh:`#5071`)
+
+* Add a few more retries on serialization errors (:eql:gh:`#5042`)
+
+* Add the pointer name to the required_user_input data (:eql:gh:`#5037`)
+
+* Fix a ISE when using assert_exists and linkprops using query builder
+  (:eql:gh:`#5036`)
+
+* Update EDGEDB_CATALOG_VERSION to the right year (:eql:gh:`#5034`)
+
+* Fix bug that dropping non-existing db leaves with unaccessible state
+  (:eql:gh:`#5032`)
+
+* Fix non-transactional errors in Postgres 14.7 (:eql:gh:`#5028`)
+
+* Fix quote_string function to quote backslash (:eql:gh:`#5000`)
+
+* More stmtctx.fini_expression fixes (:eql:gh:`#4997`)
+
+* Properly cast to containers of enums when loading from the schema
+  (:eql:gh:`#4988`)
+
+* Implement manual error override configuration (:eql:gh:`#4974`)
+
+* Bugfix: update last_state after rollback (:eql:gh:`#4970`)
+
+* pg-ext: bug fixes (:eql:gh:`#4957`)
+
+* Bugfix: update last_state after rollback (:eql:gh:`#4953`)
+
+* Resolver GROUP BY alised column (:eql:gh:`#4946`)
