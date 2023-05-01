@@ -441,7 +441,9 @@ def update_path(
 ) -> Optional[qlast.Path]:
     if query is None:
         return None
-    elif subject and isinstance(query, (qlast.DeleteQuery, qlast.UpdateQuery, qlast.GroupQuery)):
+    elif subject and isinstance(
+        query, (qlast.DeleteQuery, qlast.UpdateQuery, qlast.GroupQuery)
+    ):
         if (
             isinstance(query, qlast.GroupQuery)
             and query.subject_alias is not None
@@ -450,7 +452,9 @@ def update_path(
                 steps=[qlast.ObjectRef(name=query.subject_alias)])
         else:
             query = query.subject
-    elif isinstance(query, (qlast.SelectQuery, qlast.ForQuery, qlast.InternalGroupQuery)):
+    elif isinstance(
+        query, (qlast.SelectQuery, qlast.ForQuery, qlast.InternalGroupQuery)
+    ):
         if query.result_alias is not None:
             return qlast.Path(steps=[
                 qlast.ObjectRef(name=query.result_alias)

@@ -148,7 +148,6 @@ class SubExpr(Base):
     anchors: typing.Dict[str, typing.Any]
 
 
-
 class SortExpr(Base):
     path: Expr
     direction: typing.Optional[SortOrder] = None
@@ -607,6 +606,7 @@ class UpdateQuery(Query):
 
 class DeleteQuery(PipelinedQuery):
     subject: Expr
+
 
 class ForQuery(Query):
     iterator: Expr
@@ -1485,6 +1485,7 @@ class ConfigReset(ConfigOp):
 # Describe
 #
 
+
 class DescribeStmt(Command):
 
     language: qltypes.DescribeLanguage
@@ -1495,6 +1496,7 @@ class DescribeStmt(Command):
 #
 # Explain
 #
+
 
 class ExplainStmt(Command):
 

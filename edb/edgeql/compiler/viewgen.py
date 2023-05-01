@@ -1497,10 +1497,12 @@ def _normalize_view_ptr_expr(
         if irutils.is_trivial_free_object(ir_source):
             qlexpr = astutils.ensure_ql_select(qlexpr)
 
-        if ((ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
-                and ctx.implicit_limit
-                and isinstance(qlexpr, (qlast.PipelinedQuery, qlast.ShapeElement))
-                and not qlexpr.limit):
+        if (
+            (ctx.expr_exposed or ctx.stmt is ctx.toplevel_stmt)
+            and ctx.implicit_limit
+            and isinstance(qlexpr, (qlast.PipelinedQuery, qlast.ShapeElement))
+            and not qlexpr.limit
+        ):
             qlexpr = qlast.SelectQuery(result=qlexpr, implicit=True)
             qlexpr.limit = qlast.IntegerConstant(value=str(ctx.implicit_limit))
 
@@ -1583,20 +1585,27 @@ def _normalize_view_ptr_expr(
                         base_target, ptr_target, schema=ctx.env.schema
                     )
                 ):
-                    qlexpr = astutils.ensure_ql_query(qlast.TypeCast(
-                        type=typegen.type_to_ql_typeref(base_target, ctx=ctx),
-                        expr=compexpr,
-                    ))
+                    qlexpr = astutils.ensure_ql_query(
+                        qlast.TypeCast(
+                            type=typegen.type_to_ql_typeref(
+                                base_target, ctx=ctx
+                            ),
+                            expr=compexpr,
+                        )
+                    )
                     ptr_target = base_target
                     # We also need to compile the cast to IR.
                     with ctx.new() as subctx:
                         subctx.anchors = subctx.anchors.copy()
                         source_path = subctx.create_anchor(irexpr, 'a')
-                        cast_qlexpr = astutils.ensure_ql_query(qlast.TypeCast(
-                            type=typegen.type_to_ql_typeref(
-                                base_target, ctx=ctx),
-                            expr=source_path,
-                        ))
+                        cast_qlexpr = astutils.ensure_ql_query(
+                            qlast.TypeCast(
+                                type=typegen.type_to_ql_typeref(
+                                    base_target, ctx=ctx
+                                ),
+                                expr=source_path,
+                            )
+                        )
 
                         old_rptr = irexpr.rptr
                         irexpr.rptr = None

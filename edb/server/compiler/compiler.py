@@ -1707,7 +1707,8 @@ def _compile_ql_sess_state(ctx: CompileContext,
             schema.get_global(s_mod.Module, ql.decl.module)
         except errors.InvalidReferenceError:
             raise errors.UnknownModuleError(
-                f'module {ql.decl.module!r} does not exist') from None
+                f'module {ql.decl.module!r} does not exist'
+            ) from None
 
         aliases = aliases.set(ql.decl.alias, ql.decl.module)
 

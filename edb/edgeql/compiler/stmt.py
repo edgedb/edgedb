@@ -1154,10 +1154,11 @@ def init_stmt(
 
 
 def fini_stmt(
-        irstmt: Union[irast.Stmt, irast.Set],
-        *,
-        ctx: context.ContextLevel,
-        parent_ctx: context.ContextLevel) -> irast.Set:
+    irstmt: Union[irast.Stmt, irast.Set],
+    *,
+    ctx: context.ContextLevel,
+    parent_ctx: context.ContextLevel,
+) -> irast.Set:
 
     view_name = parent_ctx.toplevel_result_view_name
     t = inference.infer_type(irstmt, ctx.env)
