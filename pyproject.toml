@@ -93,7 +93,7 @@ zip-safe = false
 #          BLACK
 # ========================
 [tool.black]
-line-length = 79
+line-length = 80
 target-version = ["py310"]
 skip-string-normalization = true
 
