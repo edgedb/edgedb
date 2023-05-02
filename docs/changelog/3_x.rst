@@ -289,8 +289,8 @@ in any way that makes sense to you.
 
 .. code-block:: sdl
 
-    module MommaModule {
-      module BabyModule {
+    module momma_module {
+      module baby_module {
         <schema-declarations>
       }
     }
