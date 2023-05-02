@@ -1,15 +1,5 @@
 targets:
     linux:
-        - name: debian-stretch-x86_64
-          platform: debian
-          platform_version: stretch
-          family: debian
-          runs_on: [self-hosted, linux, x64]
-        - name: debian-stretch-aarch64
-          platform: debian
-          platform_version: stretch
-          family: debian
-          runs_on: [self-hosted, linux, arm64]
         - name: debian-buster-x86_64
           platform: debian
           platform_version: buster
@@ -30,16 +20,6 @@ targets:
         - name: debian-bullseye-aarch64
           platform: debian
           platform_version: bullseye
-          family: debian
-          runs_on: [self-hosted, linux, arm64]
-        - name: ubuntu-xenial-x86_64
-          platform: ubuntu
-          platform_version: xenial
-          family: debian
-          runs_on: [self-hosted, linux, x64]
-        - name: ubuntu-xenial-aarch64
-          platform: ubuntu
-          platform_version: xenial
           family: debian
           runs_on: [self-hosted, linux, arm64]
         - name: ubuntu-bionic-x86_64
