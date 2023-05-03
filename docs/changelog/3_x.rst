@@ -40,41 +40,41 @@ To upgrade a remote (hosted) instance, we recommend the following
 dump-and-restore process.
 
 1. Spin up an empty 3.0 instance. You can use one of our :ref:`deployment
-guides <ref_guide_deployment>`, but you will need to modify some of the
-commands to use our testing channel and the beta release.
+   guides <ref_guide_deployment>`, but you will need to modify some of the
+   commands to use our testing channel and the beta release.
 
-    Under Debian/Ubuntu, when adding the EdgeDB package repository, use this
-    command instead:
+   Under Debian/Ubuntu, when adding the EdgeDB package repository, use this
+   command instead:
 
-    .. code-block:: bash
+   .. code-block:: bash
 
-        echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg] \
-          https://packages.edgedb.com/apt \
-          $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) testing \
-          | sudo tee /etc/apt/sources.list.d/edgedb.list
+       $ echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg] \
+           https://packages.edgedb.com/apt \
+           $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) testing \
+           | sudo tee /etc/apt/sources.list.d/edgedb.list
 
-    Use this command for installation under Debian/Ubuntu:
+   Use this command for installation under Debian/Ubuntu:
 
-    .. code-block:: bash
+   .. code-block:: bash
 
-        sudo apt-get update && sudo apt-get install edgedb-3
+       $ sudo apt-get update && sudo apt-get install edgedb-3
 
-    Under CentOS/RHEL, use this installation command:
+   Under CentOS/RHEL, use this installation command:
 
-    .. code-block:: bash
+   .. code-block:: bash
 
-        sudo yum install edgedb-3
+       $ sudo yum install edgedb-3
 
-    In any required ``systemctl`` commands, replace ``edgedb-server-2`` with
-    ``edgedb-server-3``.
+   In any required ``systemctl`` commands, replace ``edgedb-server-2`` with
+   ``edgedb-server-3``.
 
-    Under any Docker setups, supply the ``3.0-beta.1`` tag.
+   Under any Docker setups, supply the ``3.0-beta.1`` tag.
 
 2. Take your application offline, then dump your v2.x database with the CLI
 
    .. code-block:: bash
 
-     $ edgedb dump --dsn <old dsn> --all my_database.dump/
+       $ edgedb dump --dsn <old dsn> --all my_database.dump/
 
    This will dump the schema and contents of your current database to a file
    on your local disk called ``my_database.dump``. The file name isn't
@@ -84,12 +84,12 @@ commands to use our testing channel and the beta release.
 
    .. code-block:: bash
 
-     $ edgedb restore --all my_database.dump/ --dsn <new dsn>
+       $ edgedb restore --all my_database.dump/ --dsn <new dsn>
 
    Once the restore is complete, update your application to connect to the new
    instance.
 
-This process will involve some downtime, specifically during steps 2 and 3.
+   This process will involve some downtime, specifically during steps 2 and 3.
 
 
 Client libraries
