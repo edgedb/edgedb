@@ -753,6 +753,12 @@ fn string_prohibited_chars() {
         "character U+202A is not allowed");
     assert_eq!(tok_err("$hello$ \u{202A} $hello$"),
         "character U+202A is not allowed");
+    assert_eq!(tok_err("'xxx \0'"),
+        "character U+0000 is not allowed");
+    assert_eq!(tok_err("xxx \0"),
+        "Unexpected unexpected character '\\0'");
+    assert_eq!(tok_err("xxx $x$\0$x$"),
+        "character U+0000 is not allowed");
 }
 
 #[test]
