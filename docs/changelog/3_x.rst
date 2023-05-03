@@ -9,7 +9,7 @@ community for reporting issues and contributing fixes. You are awesome! ❤️
 
 To play with the new features, install the CLI using
 <https://www.edgedb.com/install>`_, upgrade to the testing channel using
-``edgedb cli upgrade --to-testing``, and initialize a new project. 
+``edgedb cli upgrade --to-testing``, and initialize a new project.
 
 .. code-block:: bash
 
@@ -95,26 +95,10 @@ This process will involve some downtime, specifically during steps 2 and 3.
 Client libraries
 ----------------
 
-We've released new versions of our JavaScript and Python client libraries that
-support all 3.0 features and implement the updated protocol. These versions
-are backwards compatible with v1.x and v2.x instances, so we encourage all users to
-upgrade.
+Many of the client libraries have gained code generation capabilities since our
+2.0 release. Look for new releases of all of our client libraries soon which
+will support all 3.0 features.
 
-.. list-table::
-
-  * - :ref:`TypeScript/JS <edgedb-js-intro>`
-    - ``edgedb@0.21.0``
-  * - :ref:`Python <edgedb-python-intro>`
-    - ``edgedb@0.24.0``
-  * - `Golang <https://www.edgedb.com/docs/clients/go/index>`_
-    - ``edgedb@0.12.0``
-  * - `Rust <https://github.com/edgedb/edgedb-rust>`_
-    - ``edgedb-tokio@0.3.0``
-  * - `.NET <https://github.com/quinchs/EdgeDB.Net>`_ (community-maintained)
-    - ``EdgeDB.Net.Driver@0.3.0``
-  * - `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
-      (community-maintained)
-    - ``edgedb@0.4.0``
 
 New features
 ============
@@ -127,6 +111,10 @@ databases, we've made our schema definition language (or SDL) easier to use.
 You're no longer required to use the ``property`` or ``link`` keywords for
 non-computed properties and links. Also, we've replaced arrows with colons for
 a cleaner look that's easier to type.
+
+This change paves the way for a future syntax for declaring ad-hoc types in
+queries and functions. (Read more about it in `the free types RFC
+<https://github.com/edgedb/rfcs/blob/master/text/1022-freetypes.rst>`_.)
 
 That means that this type definition:
 
@@ -180,6 +168,9 @@ transaction along with the original query. These can be defined in your schema.
 The trigger above inserts a ``Log`` object any time a ``Person`` object is
 inserted.
 
+You can read more about our triggers implementation in `the triggers RFC
+<https://github.com/edgedb/rfcs/blob/master/text/1020-triggers.rst>`_.
+
 
 Mutation rewrites
 -----------------
@@ -203,6 +194,9 @@ This shows one reason mutation rewrites is one of our most wanted features:
 modified timestamps! When a user inserts or updates a ``Post``, the rewrite
 will set the value of the ``modified`` property to that value of
 ``datetime_of_statement()``. There are tons of other uses too. Give them a try!
+
+Learn about our mutation rewrites implementation in `the mutation rewrites RFC
+<https://github.com/edgedb/rfcs/blob/master/text/1021-rewrites.rst>`_.
 
 
 Splats
@@ -277,6 +271,10 @@ You can even use a double-splat to select a single level of nested objects.
 It's a super-handy way to quickly explore your data.
 
 
+Read more about splats in `our splats RFC
+<https://github.com/edgedb/rfcs/blob/master/text/1023-splats.rst>`_.
+
+
 Nested modules
 --------------
 
@@ -294,6 +292,9 @@ in any way that makes sense to you.
         <schema-declarations>
       }
     }
+
+Aside from giving you additional flexibility, it will also allow us to expand
+our list of standard modules in a backwards-compatible way.
 
 
 ``intersect`` and ``except`` operators
