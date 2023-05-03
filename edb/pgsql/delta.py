@@ -1340,7 +1340,9 @@ class FunctionCommand(MetaCommand):
                 explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
                     schema, func.get_return_type(schema)),
                 output_format=compiler.OutputFormat.NATIVE,
-                use_named_params=True)
+                use_named_params=True,
+                backend_runtime_params=context.backend_runtime_params,
+            )
 
         return self.make_function(func, body, schema), replace
 

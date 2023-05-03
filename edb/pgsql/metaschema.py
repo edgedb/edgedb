@@ -4539,12 +4539,18 @@ async def bootstrap(
     await _execute_block(conn, block)
 
 
-async def create_pg_extensions(conn: pgcon.PGConnection) -> None:
+async def create_pg_extensions(
+    conn: pgcon.PGConnection,
+    backend_params: params.BackendRuntimeParams,
+) -> None:
+    ext_schema = backend_params.instance_params.ext_schema
     commands = dbops.CommandGroup()
     commands.add_commands([
-        dbops.CreateSchema(name='edgedbext'),
+        dbops.CreateSchema(name=ext_schema, conditional=True),
         dbops.CreateExtension(
-            dbops.Extension(name='uuid-ossp', schema='edgedbext'),
+            dbops.Extension(
+                name='uuid-ossp', schema=ext_schema,
+            ),
         ),
     ])
     block = dbops.PLTopBlock()
@@ -6319,7 +6325,7 @@ def get_support_views(
 
     conf = schema.get('cfg::Config', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
-        schema, conf, scope=None, path=[], rptr=None)
+        schema, conf, backend_params, scope=None, path=[], rptr=None)
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -6327,7 +6333,13 @@ def get_support_views(
 
     conf = schema.get('cfg::InstanceConfig', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
-        schema, conf, scope=qltypes.ConfigScope.INSTANCE, path=[], rptr=None)
+        schema,
+        conf,
+        backend_params,
+        scope=qltypes.ConfigScope.INSTANCE,
+        path=[],
+        rptr=None,
+    )
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -6335,7 +6347,13 @@ def get_support_views(
 
     conf = schema.get('cfg::DatabaseConfig', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
-        schema, conf, scope=qltypes.ConfigScope.DATABASE, path=[], rptr=None)
+        schema,
+        conf,
+        backend_params,
+        scope=qltypes.ConfigScope.DATABASE,
+        path=[],
+        rptr=None,
+    )
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -6797,13 +6815,17 @@ def _build_key_source(
     return keysource
 
 
-def _build_key_expr(key_components: List[str]) -> str:
+def _build_key_expr(
+    key_components: List[str],
+    backend_params: params.BackendRuntimeParams,
+) -> str:
     key_expr = ' || '.join(key_components)
+    ext_schema = backend_params.instance_params.ext_schema
     final_keysource = textwrap.dedent(f'''\
         (SELECT
             (CASE WHEN array_position(q.v, NULL) IS NULL
              THEN
-                 edgedbext.uuid_generate_v5(
+                 "{ext_schema}".uuid_generate_v5(
                      '{DATABASE_ID_NAMESPACE}'::uuid,
                      array_to_string(q.v, ';')
                  )
@@ -6852,6 +6874,7 @@ def _build_data_source(
 def _generate_config_type_view(
     schema: s_schema.Schema,
     stype: s_objtypes.ObjectType,
+    backend_params: params.BackendRuntimeParams,
     *,
     scope: Optional[qltypes.ConfigScope],
     path: List[Tuple[s_pointers.Pointer, List[s_pointers.Pointer]]],
@@ -7007,7 +7030,8 @@ def _generate_config_type_view(
             _build_key_source(schema, exclusive_props, rptr, str(self_idx)))
 
         key_components = [f'k{i}.key' for i in range(key_start, self_idx + 1)]
-        final_keysource = f'{_build_key_expr(key_components)} AS k'
+        keysource_expr = _build_key_expr(key_components, backend_params)
+        final_keysource = f'{keysource_expr} AS k'
         sources.append(final_keysource)
 
         key_expr = 'k.key'
@@ -7037,6 +7061,7 @@ def _generate_config_type_view(
         target_views, target_exc_props = _generate_config_type_view(
             schema,
             link_type,
+            backend_params,
             scope=scope,
             path=target_path,
             rptr=link,
@@ -7048,6 +7073,7 @@ def _generate_config_type_view(
                 desc_views, _ = _generate_config_type_view(
                     schema,
                     descendant,
+                    backend_params,
                     scope=scope,
                     path=target_path,
                     rptr=link,
@@ -7068,7 +7094,7 @@ def _generate_config_type_view(
         else:
             target_key_components = key_components + [f'k{link_name}.key']
 
-        target_key = _build_key_expr(target_key_components)
+        target_key = _build_key_expr(target_key_components, backend_params)
         target_cols[link] = f'({target_key}) AS {qi(link_col)}'
 
         views.extend(target_views)
@@ -7109,6 +7135,7 @@ def _generate_config_type_view(
         target_views, target_exc_props = _generate_config_type_view(
             schema,
             link_type,
+            backend_params,
             scope=scope,
             path=target_path,
             rptr=link,
@@ -7121,6 +7148,7 @@ def _generate_config_type_view(
                 desc_views, _ = _generate_config_type_view(
                     schema,
                     descendant,
+                    backend_params,
                     scope=scope,
                     path=target_path,
                     rptr=link,
@@ -7137,7 +7165,7 @@ def _generate_config_type_view(
         target_sources.append(target_key_source)
 
         target_key_components = key_components + [f'k{link_name}.key']
-        target_key = _build_key_expr(target_key_components)
+        target_key = _build_key_expr(target_key_components, backend_params)
 
         target_fromlist = ',\n'.join(f'LATERAL {s}' for s in target_sources)
 

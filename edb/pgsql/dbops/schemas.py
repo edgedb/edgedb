@@ -44,13 +44,17 @@ class SchemaExists(base.Condition):
 
 
 class CreateSchema(ddl.DDLOperation):
-    def __init__(self, name, *, conditions=None, neg_conditions=None):
+    def __init__(
+        self, name, *, conditions=None, neg_conditions=None, conditional=False
+    ):
         super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.name = name
         self.opid = name
+        self.conditional = conditional
 
     def code(self, block: base.PLBlock) -> str:
-        return f'CREATE SCHEMA {qi(self.name)}'
+        condition = "IF NOT EXISTS " if self.conditional else ''
+        return f'CREATE SCHEMA {condition}{qi(self.name)}'
 
     def __repr__(self):
         return '<edb.sync.%s %s>' % (self.__class__.__name__, self.name)

@@ -1068,6 +1068,15 @@ async def get_remote_pg_cluster(
             raise ClusterError(
                 "remote server did not report its version "
                 "in ParameterStatus")
+
+        ext_schema = await conn.sql_fetch_val(
+            b'''
+            SELECT COALESCE(
+                (SELECT schema_name FROM information_schema.schemata
+                WHERE schema_name = 'heroku_ext'),
+                'edgedbext')
+            ''',
+        )
         instance_params = pgparams.BackendInstanceParams(
             capabilities=capabilities,
             version=buildmeta.parse_pg_version(pg_ver_string),
@@ -1075,6 +1084,7 @@ async def get_remote_pg_cluster(
             max_connections=int(max_connections),
             reserved_connections=await _get_reserved_connections(conn),
             tenant_id=t_id,
+            ext_schema=ext_schema.decode("utf-8"),
         )
     finally:
         conn.terminate()

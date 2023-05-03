@@ -445,7 +445,11 @@ def new_free_object_rvar(
         qry = subctx.rel
 
         id_expr = pgast.FuncCall(
-            name=('edgedbext', 'uuid_generate_v4',), args=[]
+            name=(
+                ctx.env.backend_runtime_params.instance_params.ext_schema,
+                'uuid_generate_v4',
+            ),
+            args=[],
         )
 
         pathctx.put_path_identity_var(qry, path_id, id_expr)
@@ -753,7 +757,10 @@ def ensure_transient_identity_for_path(
 ) -> None:
 
     id_expr = pgast.FuncCall(
-        name=('edgedbext', 'uuid_generate_v4',),
+        name=(
+            ctx.env.backend_runtime_params.instance_params.ext_schema,
+            'uuid_generate_v4',
+        ),
         args=[],
     )
 

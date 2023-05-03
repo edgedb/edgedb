@@ -829,11 +829,13 @@ async def _make_stdlib(
         schema_class_layout=reflection.class_layout,  # type: ignore
     )
 
+    backend_runtime_params = ctx.cluster.get_runtime_params()
     compilerctx = edbcompiler.new_compiler_context(
         compiler_state=compiler.state,
         user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
+        backend_runtime_params=backend_runtime_params,
     )
 
     for std_plan in std_plans:
@@ -849,6 +851,7 @@ async def _make_stdlib(
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
         internal_schema_mode=True,
+        backend_runtime_params=backend_runtime_params,
     )
     edbcompiler.compile_schema_storage_in_delta(
         ctx=compilerctx,
@@ -1009,7 +1012,7 @@ async def _init_stdlib(
         stdlib = await _make_stdlib(ctx, in_dev_mode or testmode, global_ids)
 
     logger.info('Creating the necessary PostgreSQL extensions...')
-    await metaschema.create_pg_extensions(conn)
+    await metaschema.create_pg_extensions(conn, cluster.get_runtime_params())
 
     config_spec = config.load_spec_from_schema(stdlib.stdschema)
     config.set_settings(config_spec)
