@@ -11425,6 +11425,30 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         ''')
 
+    async def test_edgeql_migration_to_computed_drop_exclusive(self):
+        await self.migrate(r'''
+            type User {
+              multi posts: Post {
+                constraint exclusive;
+              }
+              multi foo: int64 {
+                constraint exclusive;
+              }
+            }
+            type Post;
+        ''')
+
+        await self.migrate(r'''
+            type User {
+              multi link posts := .<user[is Post];
+              multi property foo := Post.num;
+            }
+            type Post {
+              user: User;
+              num: int64;
+            }
+        ''')
+
     async def test_edgeql_migration_alias_new_computed_01(self):
         await self.migrate(r'''
             global a_id -> str;
