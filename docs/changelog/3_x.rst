@@ -372,13 +372,55 @@ Use ``except`` to find members of the first set that are not in the second.
     {1, 2}
 
 
+``assert`` function
+-------------------
+
+The new ``assert`` function lets you do handy things like create powerful
+constraints when paired with triggers:
+
+.. code-block:: sdl
+
+      type Person {
+        required name: str;
+        multi friends: User;
+        multi enemies: User;
+
+        trigger prohibit_frenemies after insert, update for each do (
+          assert(
+            not exists (__new__.friends intersect __new__.enemies),
+            message := "Invalid frenemies",
+          )
+        )
+      }
+
+.. code-block:: edgeql-repl
+
+    db> insert Person {name := 'Quincey Morris'};
+    {default::Person {id: e4a55480-d2de-11ed-93bd-9f4224fc73af}}
+    db> insert Person {name := 'Dracula'};
+    {default::Person {id: e7f2cff0-d2de-11ed-93bd-279780478afb}}
+    db> update User
+    ... filter .name = 'Quincey Morris'
+    ... set {
+    ...   enemies := (select Person filter .name = 'Dracula')
+    ... };
+    {default::Person {id: e4a55480-d2de-11ed-93bd-9f4224fc73af}}
+    db> update User
+    ... filter .name = 'Quincey Morris'
+    ... set {
+    ...   friends := (select Person filter .name = 'Dracula')
+    ... };
+    edgedb error: EdgeDBError: Invalid frenemies
+
+You can use it in other contexts too — any time you want to throw an error when
+things don't go as planned.
+
+
 Additional changes
 ==================
 
 EdgeQL
 ------
-
-* Add :eql:func:`assert` function (:eql:gh:`#5040`)
 
 * Support custom user-defined error messages for access policies
   (:eql:gh:`#4529`)
