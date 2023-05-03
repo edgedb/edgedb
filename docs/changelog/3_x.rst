@@ -57,13 +57,13 @@ dump-and-restore process.
 
    .. code-block:: bash
 
-       $ sudo apt-get update && sudo apt-get install edgedb-3
+       $ sudo apt-get update && sudo apt-get install edgedb-3-beta1
 
    Under CentOS/RHEL, use this installation command:
 
    .. code-block:: bash
 
-       $ sudo yum install edgedb-3
+       $ sudo yum install edgedb-3-beta1
 
    In any required ``systemctl`` commands, replace ``edgedb-server-2`` with
    ``edgedb-server-3``.
