@@ -473,18 +473,6 @@ CLI
   <ref_cli_edgedb_migration_edit>`)
 
 
-Server
-------
-
-* Improvements to top-level server error reporting (:eql:gh:`#5349`)
-
-  * For MultiErrors reported from task groups, don't lose
-    chained exceptions
-  * When an InternalServerError kills the server, produce
-    the "please file a bug" message
-
-
-
 Bug fixes
 ---------
 
