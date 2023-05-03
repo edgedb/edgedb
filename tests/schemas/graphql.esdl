@@ -173,3 +173,10 @@ function id_func(s: str) -> str using (s);
 alias FuncTest := {
     fstr := id_func('test'),
 };
+
+type Combo {
+    required property name -> str;
+    # Test type union, Setting and Profile share some inherited fields as well
+    # as non-inherited ones.
+    link data -> Setting | Profile;
+};
