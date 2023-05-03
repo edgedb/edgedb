@@ -63,6 +63,12 @@ alias SettingAliasAugmented := Setting {
 
 type Person extending User;
 
+type Combo {
+    # Test type union, Setting and Profile share some inherited fields as well
+    # as non-inherited ones.
+    link data -> Setting | Profile;
+}
+
 scalar type positive_int_t extending int64 {
     constraint min_value(0);
 }

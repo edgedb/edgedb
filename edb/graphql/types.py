@@ -341,6 +341,7 @@ class GQLCoreSchema:
         } - HIDDEN_MODULES))
 
         self._gql_interfaces = {}
+        self._gql_uniontypes: Set[s_name.QualName] = set()
         self._gql_objtypes_from_alias = {}
         self._gql_objtypes = {}
         self._gql_inobjtypes = {}
@@ -396,16 +397,26 @@ class GQLCoreSchema:
 
     def get_gql_name(self, name: s_name.QualName) -> str:
         module, shortname = name.module, name.name
+
+        # Adjust the shortname.
+        if shortname.startswith('__'):
+            # Use '_edb' prefix to mark derived and otherwise
+            # internal types. We opt out of '__edb' because we
+            # still rely on the first occurrence of '__' in
+            # GraphQL names to separate the module from the rest
+            # of the name in some code.
+            shortname = f'_edb{shortname}'
+        elif shortname.startswith('('):
+            # Looks like a union type, so we'll need to process individual
+            # parts of the name.
+            names = []
+            for part in shortname[1:-1].split(' | '):
+                names.append(
+                    self.get_gql_name(s_name.QualName(*part.split(':', 1))))
+            shortname = '_OR_'.join(names)
+
         if module in {'default', 'std'}:
-            if shortname.startswith('__'):
-                # Use '_edb' prefix to mark derived and otherwise
-                # internal types. We opt out of '__edb' because we
-                # still rely on the first occurrence of '__' in
-                # GraphQL names to separate the module from the rest
-                # of the name in some code.
-                return '_edb' + shortname
-            else:
-                return shortname
+            return shortname
         else:
             assert module != '', f'get_gl_name {name=}'
             return f'{module}__{shortname}'
@@ -608,6 +619,9 @@ class GQLCoreSchema:
                 # (e.g. nested aliased type), which should not be
                 # exposed as a top-level query option.
                 if name in TOP_LEVEL_TYPES or gqliface.name.startswith('_edb'):
+                    continue
+                # Check that the underlying type is not a union type.
+                if name in self._gql_uniontypes:
                     continue
                 fields[gqliface.name] = GraphQLField(
                     GraphQLList(GraphQLNonNull(gqliface)),
@@ -1232,6 +1246,7 @@ class GQLCoreSchema:
     def _define_types(self) -> None:
         interface_types = []
         obj_types = []
+        from_union = {}
 
         self.define_enums()
         self.define_generic_filter_types()
@@ -1278,6 +1293,29 @@ class GQLCoreSchema:
                     description=self._get_description(t),
                 )
 
+            if t.is_union_type(self.edb_schema):
+                # NOTE: EdgeDB union types and GraphQL union types are
+                # different in some important ways. In EdgeDB a union object
+                # type will have all the common links and properties that are
+                # shared among the members of the union. In GraphQL a union
+                # type has *no fields* at all and must be accessed via typed
+                # fragments. Effectively, EdgeDB union types behave exactly
+                # like GraphQL interfaces, though, which is why they will be
+                # reflected more naturally as interfaces.
+                #
+                # We still need to internally keep track of which interfaces
+                # are actually union types so that we don't create any
+                # top-level Query or Mutation entires for union types, but
+                # stick to only use them in the nested structures they
+                # actually appear in.
+
+                self._gql_uniontypes.add(t_name)
+                for member in t.get_union_of(self.edb_schema) \
+                               .names(self.edb_schema):
+                    # Union types must be interfaces for each of
+                    # the individual components so we need to record that.
+                    from_union[member] = t_name
+
             # input object types corresponding to this interface
             gqlfiltertype = GraphQLInputObjectType(
                 name=self.get_input_name('Filter', gql_name),
@@ -1292,9 +1330,11 @@ class GQLCoreSchema:
             )
             self._gql_ordertypes[str(t_name)] = gqlordertype
 
-            # update object types corresponding to this object (all
-            # non-views can appear as update types)
-            if not t.is_view(self.edb_schema):
+            # update object types corresponding to this object (all types
+            # except views and union types can appear as update types)
+            if not (t.is_view(self.edb_schema)
+                    or t.is_union_type(self.edb_schema)):
+
                 # only objects that have at least one non-readonly
                 # link/property are eligible
                 pointers = t.get_pointers(self.edb_schema)
@@ -1321,8 +1361,14 @@ class GQLCoreSchema:
                     self._gql_objtypes_from_alias[t_name]
                 continue
 
+            if t.is_union_type(self.edb_schema):
+                continue
+
             if t_name in self._gql_interfaces:
                 interfaces.append(self._gql_interfaces[t_name])
+
+            if t_name in from_union:
+                interfaces.append(self._gql_interfaces[from_union[t_name]])
 
             ancestors = t.get_ancestors(self.edb_schema)
             for st in ancestors.objects(self.edb_schema):
