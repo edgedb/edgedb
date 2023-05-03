@@ -3183,6 +3183,130 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             "User": [orig_data]
         })
 
+    def test_graphql_mutation_update_link_06(self):
+        # updating a single link targeting a type union
+        orig_data = {
+            'name': 'combo 0',
+            'data': None,
+        }
+        data1 = {
+            'name': 'combo 0',
+            'data': {
+                "__typename": "Setting_Type",
+                "name": "perks",
+            },
+        }
+        data2 = {
+            'name': 'combo 0',
+            'data': {
+                "__typename": "Profile_Type",
+                "name": "Bob profile",
+            },
+        }
+
+        validation_query = r"""
+            query {
+                Combo(
+                    filter: {name: {eq: "combo 0"}}
+                ) {
+                    name
+                    data {
+                        __typename
+                        name
+                    }
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(validation_query, {
+            "Combo": [orig_data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_Combo {
+                update_Combo(
+                    data: {
+                        data: {
+                            set: {
+                                filter: {name: {eq: "perks"}}
+                            }
+                        }
+                    },
+                    filter: {
+                        name: {eq: "combo 0"}
+                    }
+                ) {
+                    name
+                    data {
+                        __typename
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_Combo": [data1]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "Combo": [data1]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_Combo {
+                update_Combo(
+                    data: {
+                        data: {
+                            set: {
+                                filter: {name: {eq: "Bob profile"}}
+                            }
+                        }
+                    },
+                    filter: {
+                        name: {eq: "combo 0"}
+                    }
+                ) {
+                    name
+                    data {
+                        __typename
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_Combo": [data2]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "Combo": [data2]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_Combo {
+                update_Combo(
+                    data: {
+                        data: {
+                            clear: true
+                        }
+                    },
+                    filter: {
+                        name: {eq: "combo 0"}
+                    }
+                ) {
+                    name
+                    data {
+                        __typename
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_Combo": [orig_data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "Combo": [orig_data]
+        })
+
     def test_graphql_mutation_update_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
