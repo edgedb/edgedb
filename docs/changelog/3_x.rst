@@ -341,10 +341,9 @@ in any way that makes sense to you.
 
     module momma_module {
       module baby_module {
-        <schema-declarations>
+        # <schema-declarations>
       }
     }
-
 
 In EdgeQL, you can reference entities inside nested modules like this:
 ``momma_module::baby_module::<entity-name>``
@@ -427,11 +426,15 @@ EdgeQL
 
   .. code-block:: sdl
 
+    type User {
+      required property email -> str { constraint exclusive; };
+      required property is_admin -> bool { default := false };
       access policy admin_only
         allow all
         using (global current_user.is_admin ?? false) {
           errmessage := 'Only admins may query Users'
         };
+    }
 
 * Support casting a UUID to a type (:eql:gh:`#4469`). This is a handy way to
   select an object, assuming the type you cast into has an object with the UUID
