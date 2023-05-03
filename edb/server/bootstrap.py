@@ -1012,7 +1012,8 @@ async def _init_stdlib(
         stdlib = await _make_stdlib(ctx, in_dev_mode or testmode, global_ids)
 
     logger.info('Creating the necessary PostgreSQL extensions...')
-    await metaschema.create_pg_extensions(conn, cluster.get_runtime_params())
+    backend_params = cluster.get_runtime_params()
+    await metaschema.create_pg_extensions(conn)
 
     config_spec = config.load_spec_from_schema(stdlib.stdschema)
     config.set_settings(config_spec)
@@ -1030,7 +1031,11 @@ async def _init_stdlib(
                 f"edgedb.get_database_backend_name({ql(tpl_db_name)})")
             tpldbdump = await cluster.dump_database(
                 tpl_pg_db_name,
-                exclude_schemas=['edgedbinstdata', 'edgedbext'],
+                exclude_schemas=[
+                    'edgedbinstdata',
+                    'edgedbext',
+                    backend_params.instance_params.ext_schema,
+                ],
                 dump_object_owners=False,
             )
 
@@ -1149,6 +1154,12 @@ async def _init_stdlib(
         t = schema.get_by_id(uuidgen.UUID(entry['id']))
         schema = t.set_field_value(
             schema, 'backend_id', entry['backend_id'])
+
+    if backend_params.instance_params.ext_schema != "edgedbext":
+        # Patch functions referring to extensions, because
+        # some backends require extensions to be hosted in
+        # hardcoded schemas (e.g. Heroku)
+        await metaschema.patch_pg_extensions(conn, backend_params)
 
     stdlib = stdlib._replace(stdschema=schema)
     version_key = patches.get_version_key(len(patches.PATCHES))

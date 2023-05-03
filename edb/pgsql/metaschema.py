@@ -4410,68 +4410,53 @@ class FormatTypeFunction(dbops.Function):
 
 
 class UuidGenerateV1mcFunction(dbops.Function):
-    text = f'''
-    DECLARE
-        ext_schema text;
-        value uuid;
-    BEGIN
-        SELECT
-            json ->> 'ext_schema'
-        FROM
-            edgedbinstdata.instdata
-        WHERE
-            key = 'backend_instance_params'
-        INTO
-            ext_schema;
-        EXECUTE 'SELECT ' || ext_schema || '.uuid_generate_v1mc()' INTO value;
-        RETURN value;
-    END;
-    '''
-
-    def __init__(self) -> None:
+    def __init__(self, ext_schema: str) -> None:
         super().__init__(
             name=('edgedb', 'uuid_generate_v1mc'),
             args=[],
             returns=('uuid',),
-            volatility='stable',
-            language='plpgsql',
-            text=self.text,
+            volatility='volatile',
+            language='sql',
+            strict=True,
+            parallel_safe=True,
+            text=f'SELECT "{ext_schema}".uuid_generate_v1mc();'
         )
 
 
-class UuidGenerateV4(dbops.Function):
-    text = f'''
-    DECLARE
-        ext_schema text;
-        value uuid;
-    BEGIN
-        SELECT
-            json ->> 'ext_schema'
-        FROM
-            edgedbinstdata.instdata
-        WHERE
-            key = 'backend_instance_params'
-        INTO
-            ext_schema;
-        EXECUTE 'SELECT ' || ext_schema || '.uuid_generate_v4()' INTO value;
-        RETURN value;
-    END;
-    '''
-
-    def __init__(self) -> None:
+class UuidGenerateV4Function(dbops.Function):
+    def __init__(self, ext_schema: str) -> None:
         super().__init__(
             name=('edgedb', 'uuid_generate_v4'),
             args=[],
             returns=('uuid',),
-            volatility='stable',
-            language='plpgsql',
-            text=self.text,
+            volatility='volatile',
+            language='sql',
+            strict=True,
+            parallel_safe=True,
+            text=f'SELECT "{ext_schema}".uuid_generate_v4();'
+        )
+
+
+class UuidGenerateV5Function(dbops.Function):
+    def __init__(self, ext_schema: str) -> None:
+        super().__init__(
+            name=('edgedb', 'uuid_generate_v5'),
+            args=[
+                ('namespace', ('uuid',)),
+                ('name', ('text',)),
+            ],
+            returns=('uuid',),
+            volatility='immutable',
+            language='sql',
+            strict=True,
+            parallel_safe=True,
+            text=f'SELECT "{ext_schema}".uuid_generate_v5(namespace, name);'
         )
 
 
 async def bootstrap(
     conn: pgcon.PGConnection,
-    config_spec: edbconfig.Spec
+    config_spec: edbconfig.Spec,
 ) -> None:
     cmds = [
         dbops.CreateSchema(name='edgedb'),
@@ -4483,8 +4468,9 @@ async def bootstrap(
         dbops.CreateTable(DBConfigTable()),
         dbops.CreateTable(DMLDummyTable()),
         dbops.Query(DMLDummyTable.SETUP_QUERY),
-        dbops.CreateFunction(UuidGenerateV1mcFunction()),
-        dbops.CreateFunction(UuidGenerateV4()),
+        dbops.CreateFunction(UuidGenerateV1mcFunction('edgedbext')),
+        dbops.CreateFunction(UuidGenerateV4Function('edgedbext')),
+        dbops.CreateFunction(UuidGenerateV5Function('edgedbext')),
         dbops.CreateFunction(IntervalToMillisecondsFunction()),
         dbops.CreateFunction(SafeIntervalCastFunction()),
         dbops.CreateFunction(QuoteIdentFunction()),
@@ -4601,7 +4587,20 @@ async def bootstrap(
     await _execute_block(conn, block)
 
 
-async def create_pg_extensions(
+async def create_pg_extensions(conn: pgcon.PGConnection) -> None:
+    commands = dbops.CommandGroup()
+    commands.add_commands([
+        dbops.CreateSchema(name='edgedbext'),
+        dbops.CreateExtension(
+            dbops.Extension(name='uuid-ossp', schema='edgedbext'),
+        ),
+    ])
+    block = dbops.PLTopBlock()
+    commands.generate(block)
+    await _execute_block(conn, block)
+
+
+async def patch_pg_extensions(
     conn: pgcon.PGConnection,
     backend_params: params.BackendRuntimeParams,
 ) -> None:
@@ -4609,11 +4608,12 @@ async def create_pg_extensions(
     commands = dbops.CommandGroup()
     commands.add_commands([
         dbops.CreateSchema(name=ext_schema, conditional=True),
-        dbops.CreateExtension(
-            dbops.Extension(
-                name='uuid-ossp', schema=ext_schema,
-            ),
-        ),
+        dbops.CreateFunction(
+            UuidGenerateV1mcFunction(ext_schema), or_replace=True),
+        dbops.CreateFunction(
+            UuidGenerateV4Function(ext_schema), or_replace=True),
+        dbops.CreateFunction(
+            UuidGenerateV5Function(ext_schema), or_replace=True),
     ])
     block = dbops.PLTopBlock()
     commands.generate(block)
@@ -6387,7 +6387,12 @@ def get_support_views(
 
     conf = schema.get('cfg::Config', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
-        schema, conf, backend_params, scope=None, path=[], rptr=None)
+        schema,
+        conf,
+        scope=None,
+        path=[],
+        rptr=None,
+    )
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -6397,7 +6402,6 @@ def get_support_views(
     cfg_views, _ = _generate_config_type_view(
         schema,
         conf,
-        backend_params,
         scope=qltypes.ConfigScope.INSTANCE,
         path=[],
         rptr=None,
@@ -6411,7 +6415,6 @@ def get_support_views(
     cfg_views, _ = _generate_config_type_view(
         schema,
         conf,
-        backend_params,
         scope=qltypes.ConfigScope.DATABASE,
         path=[],
         rptr=None,
@@ -6877,17 +6880,13 @@ def _build_key_source(
     return keysource
 
 
-def _build_key_expr(
-    key_components: List[str],
-    backend_params: params.BackendRuntimeParams,
-) -> str:
+def _build_key_expr(key_components: List[str]) -> str:
     key_expr = ' || '.join(key_components)
-    ext_schema = backend_params.instance_params.ext_schema
     final_keysource = textwrap.dedent(f'''\
         (SELECT
             (CASE WHEN array_position(q.v, NULL) IS NULL
              THEN
-                 "{ext_schema}".uuid_generate_v5(
+                 edgedb.uuid_generate_v5(
                      '{DATABASE_ID_NAMESPACE}'::uuid,
                      array_to_string(q.v, ';')
                  )
@@ -6936,7 +6935,6 @@ def _build_data_source(
 def _generate_config_type_view(
     schema: s_schema.Schema,
     stype: s_objtypes.ObjectType,
-    backend_params: params.BackendRuntimeParams,
     *,
     scope: Optional[qltypes.ConfigScope],
     path: List[Tuple[s_pointers.Pointer, List[s_pointers.Pointer]]],
@@ -7092,8 +7090,7 @@ def _generate_config_type_view(
             _build_key_source(schema, exclusive_props, rptr, str(self_idx)))
 
         key_components = [f'k{i}.key' for i in range(key_start, self_idx + 1)]
-        keysource_expr = _build_key_expr(key_components, backend_params)
-        final_keysource = f'{keysource_expr} AS k'
+        final_keysource = f'{_build_key_expr(key_components)} AS k'
         sources.append(final_keysource)
 
         key_expr = 'k.key'
@@ -7123,7 +7120,6 @@ def _generate_config_type_view(
         target_views, target_exc_props = _generate_config_type_view(
             schema,
             link_type,
-            backend_params,
             scope=scope,
             path=target_path,
             rptr=link,
@@ -7135,7 +7131,6 @@ def _generate_config_type_view(
                 desc_views, _ = _generate_config_type_view(
                     schema,
                     descendant,
-                    backend_params,
                     scope=scope,
                     path=target_path,
                     rptr=link,
@@ -7156,7 +7151,7 @@ def _generate_config_type_view(
         else:
             target_key_components = key_components + [f'k{link_name}.key']
 
-        target_key = _build_key_expr(target_key_components, backend_params)
+        target_key = _build_key_expr(target_key_components)
         target_cols[link] = f'({target_key}) AS {qi(link_col)}'
 
         views.extend(target_views)
@@ -7197,7 +7192,6 @@ def _generate_config_type_view(
         target_views, target_exc_props = _generate_config_type_view(
             schema,
             link_type,
-            backend_params,
             scope=scope,
             path=target_path,
             rptr=link,
@@ -7210,7 +7204,6 @@ def _generate_config_type_view(
                 desc_views, _ = _generate_config_type_view(
                     schema,
                     descendant,
-                    backend_params,
                     scope=scope,
                     path=target_path,
                     rptr=link,
@@ -7227,7 +7220,7 @@ def _generate_config_type_view(
         target_sources.append(target_key_source)
 
         target_key_components = key_components + [f'k{link_name}.key']
-        target_key = _build_key_expr(target_key_components, backend_params)
+        target_key = _build_key_expr(target_key_components)
 
         target_fromlist = ',\n'.join(f'LATERAL {s}' for s in target_sources)
 

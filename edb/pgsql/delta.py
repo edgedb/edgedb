@@ -6620,7 +6620,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 name=proc_name, text=proc_text, volatility='volatile',
                 returns='trigger', language='plpgsql')
 
-            self.pgops.add(dbops.CreateOrReplaceFunction(trig_func))
+            self.pgops.add(dbops.CreateFunction(trig_func, or_replace=True))
 
             self.pgops.add(dbops.CreateTrigger(
                 trigger, neg_conditions=[dbops.TriggerExists(

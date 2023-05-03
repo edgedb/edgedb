@@ -1039,13 +1039,20 @@ async def get_remote_pg_cluster(
             b"""
             SELECT json_build_object(
                 'user', current_user,
-                'dbname', current_database()
+                'dbname', current_database(),
+                'connlimit', (
+                    select rolconnlimit
+                    from pg_roles
+                    where rolname = current_user
+                )
             )""",
         ))
         user = data["user"]
         dbname = data["dbname"]
         cluster_type, superuser_name = await _get_cluster_type(conn)
-        max_connections = await _get_pg_settings(conn, 'max_connections')
+        max_connections = data["connlimit"]
+        if max_connections == -1:
+            max_connections = await _get_pg_settings(conn, 'max_connections')
         capabilities = await _detect_capabilities(conn)
         if t_id != buildmeta.get_default_tenant_id():
             # GOTCHA: This tenant_id check cannot protect us from running
