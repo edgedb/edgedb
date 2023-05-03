@@ -144,6 +144,59 @@ SDL syntax.
     guides.
 
 
+Query plan
+----------
+
+Among other improvements, the UI now includes a visual query planner to help
+you tweak performance on your EdgeQL queries. Just drop the ``analyze`` keyword
+in front of your query in the UI's "Query Editor" tab to see the query planner
+in action.
+
+.. image:: images/v3_ui_query_planner.jpg
+    :width: 100%
+
+Query planning is available in the CLI REPL, also by prepending your query with
+``analyze``.
+
+
+UI improvements
+---------------
+
+The EdgeDB UI got a lot of love in this release. In addition to the visual
+query planning shown above, you'll see a number of improvements.
+
+New UI for setting globals and configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+We've made it easier to set your globals and change configuration.
+
+.. image:: images/v3_ui_query_config.png
+    :width: 100%
+
+New UI REPL
+^^^^^^^^^^^
+
+The UI's redesigned REPL makes it easy to drill into values and copy parts of
+your query results to the clipboard.
+
+.. image:: images/v3_ui_repl.png
+    :width: 100%
+
+Query editor and visual builder
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The query editor has a great new on-demand UI for setting parameters.
+
+.. image:: images/v3_ui_query_editor.png
+    :width: 100%
+
+It also comes with a visual query builder which makes it easy to write queries,
+even when you're just learning EdgeQL.
+
+.. image:: images/v3_ui_query_builder.png
+    :width: 100%
+
+
 Triggers
 --------
 
@@ -270,7 +323,6 @@ You can even use a double-splat to select a single level of nested objects.
 
 It's a super-handy way to quickly explore your data.
 
-
 Read more about splats in `our splats RFC
 <https://github.com/edgedb/rfcs/blob/master/text/1023-splats.rst>`_.
 
@@ -318,22 +370,6 @@ Use ``except`` to find members of the first set that are not in the second.
 
     db> select {1, 2, 3, 4, 5} except {3, 4, 5, 6, 7};
     {1, 2}
-
-
-
-Query plan
-----------
-
-Among other improvements, the UI now includes a visual query planner to help
-you tweak performance on your EdgeQL queries. Just drop the ``analyze`` keyword
-in front of your query in the UI's "Query Editor" tab to see the query planner
-in action.
-
-.. image:: images/v3_ui.jpg
-    :width: 100%
-
-Query planning is available in the CLI REPL, also by prepending your query with
-``analyze``.
 
 
 Additional changes
