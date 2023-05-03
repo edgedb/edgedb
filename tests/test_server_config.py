@@ -46,6 +46,7 @@ from edb.server import config
 from edb.server.config import ops
 from edb.server.config import spec
 from edb.server.config import types
+from edb.tools import test
 
 
 def make_port_value(*, protocol='graphql+http',
@@ -1706,6 +1707,7 @@ class TestSeparateCluster(tb.TestCase):
 
 
 class TestStaticServerConfig(tb.TestCase):
+    @test.xerror("static config args not supported")
     async def test_server_config_args_01(self):
         async with tb.start_edgedb_server(
             extra_args=[
@@ -1737,6 +1739,7 @@ class TestStaticServerConfig(tb.TestCase):
             finally:
                 await conn.aclose()
 
+    @test.xfail("static config args not supported")
     async def test_server_config_args_02(self):
         with self.assertRaises(cluster.ClusterError):
             async with tb.start_edgedb_server(
@@ -1747,6 +1750,7 @@ class TestStaticServerConfig(tb.TestCase):
             ):
                 pass
 
+    @test.xfail("static config args not supported")
     async def test_server_config_args_03(self):
         with self.assertRaises(cluster.ClusterError):
             async with tb.start_edgedb_server(

@@ -558,7 +558,7 @@ async def run_server(
             new_instance = await _init_cluster(cluster, args)
 
             cfg, backend_settings = initialize_static_cfg(
-                args.cfg_args, is_remote_cluster=not is_local_cluster
+                args, is_remote_cluster=not is_local_cluster
             )
             if cfg:
                 from . import pgcon
@@ -706,40 +706,10 @@ def server_main(**kwargs):
             asyncio.run(run_server(server_args))
 
 
-class CfgArgsGroup(click.Group):
-    # The default click.Group cannot simply take remaining arguments because
-    # it won't pass the subcommand check; on the other hand, an argument with
-    # `nargs=-1` would cripple subcommands. So we patch click.Group here to
-    # support both, with a drawback that extra arguments must all come together
-    # in the end.
-    def invoke(self, ctx):
-        if not ctx.protected_args:
-            ctx.params["cfg_args"] = ()
-            return super().invoke(ctx)
-        args = ctx.protected_args + ctx.args
-        resilient_parsing = ctx.resilient_parsing
-        ctx.resilient_parsing = True
-        try:
-            cmd = self.resolve_command(ctx, args)[1]
-        finally:
-            ctx.resilient_parsing = resilient_parsing
-        if cmd is None:
-            ctx.args = []
-            ctx.protected_args = []
-            ctx.params["cfg_args"] = args
-            return click.Command.invoke(self, ctx)
-        else:
-            return super().invoke(ctx)
-
-
 @click.group(
     'EdgeDB Server',
     invoke_without_command=True,
-    cls=CfgArgsGroup,
-    context_settings=dict(
-        ignore_unknown_options=True,
-        help_option_names=['-h', '--help'],
-    )
+    context_settings=dict(help_option_names=['-h', '--help'])
 )
 @srvargs.server_options
 @click.pass_context
@@ -779,7 +749,8 @@ def _coerce_cfg_value(setting: config.Setting, value):
 
 
 def initialize_static_cfg(
-    cfg_args: List[str], is_remote_cluster: bool
+    args: srvargs.ServerConfig,
+    is_remote_cluster: bool,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
     result = []
     backend_settings = {}
@@ -810,12 +781,22 @@ def initialize_static_cfg(
                 value = value.to_backend_str()
             backend_settings[setting.backend_setting] = str(value)
 
+    def iter_environ():
+        translate_env = {
+            "EDGEDB_SERVER_BIND_ADDRESS": "listen_addresses",
+            "EDGEDB_SERVER_PORT": "listen_port"
+        }
+        for name, value in os.environ.items():
+            if cfg := translate_env.get(name):
+                yield name, value, cfg
+            else:
+                cfg = name.removeprefix("EDGEDB_SERVER_CONFIG_cfg::Config.")
+                if cfg != name:
+                    yield name, value, cfg
+
     env_value: Any
     setting: config.Setting
-    for env_name, env_value in os.environ.items():
-        cfg_name = env_name.removeprefix("EDGEDB_SERVER_CONFIG_cfg::Config.")
-        if cfg_name == env_name:
-            continue
+    for env_name, env_value, cfg_name in iter_environ():
         try:
             setting = spec[cfg_name]
         except KeyError:
@@ -835,44 +816,12 @@ def initialize_static_cfg(
             env_value = setting.type(env_value)  # type: ignore
         add_config(cfg_name, env_value, environment_variable)
 
-    if not cfg_args:
-        return result, backend_settings
-
-    default = object()
-
-    class RealOptionalOption(click.Option):
-        def get_default(self, ctx):
-            return default
-
-    params: List[click.Parameter] = []
-    for cfg_name, setting in spec.items():
-        type_: Any = None
-        decl = "cfg::Config." + cfg_name
-        if setting.type == bool:
-            decl = f"--config-{decl}/--config-no-{decl}"
-        else:
-            decl = f"--config-{decl}"
-            if setting.enum_values is not None:
-                type_ = click.Choice(setting.enum_values)
-            elif not issubclass(setting.type, statypes.ScalarType):
-                type_ = setting.type
-        params.append(RealOptionalOption(
-            (decl, cfg_name),
-            multiple=setting.set_of,
-            type=type_,
-        ))
-
-    cmd = click.Command("", params=params, callback=lambda **kwargs: kwargs)
-    try:
-        args = cmd.main(cfg_args, standalone_mode=False)
-    except click.UsageError as e:
-        e.ctx = click.get_current_context()
-        raise
-
-    for cfg_name, arg_value in args.items():
-        if arg_value is default:
-            continue
-        add_config(cfg_name, arg_value, command_line_argument)
+    if args.bind_addresses:
+        add_config(
+            "listen_addresses", args.bind_addresses, command_line_argument
+        )
+    if args.port:
+        add_config("listen_port", args.port, command_line_argument)
 
     return result, backend_settings
 

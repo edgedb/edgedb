@@ -213,7 +213,6 @@ class ServerConfig(NamedTuple):
     backend_capability_sets: BackendCapabilitySets
 
     admin_ui: bool
-    cfg_args: List[str]
 
 
 class PathPath(click.Path):
@@ -1319,18 +1318,6 @@ def parse_args(**kwargs: Any):
         else:
             kwargs['instance_name'] = '_unknown'
 
-    cfg_args = list(kwargs['cfg_args'])
-
-    if '--config-cfg::Config.listen_addresses' in cfg_args:
-        abort(
-            "--cfg-cfg::Config.listen_addresses is disallowed; "
-            "use -I or --bind-address instead"
-        )
-    if '--config-cfg::Config.listen_port' in cfg_args:
-        abort(
-            "--config-cfg::Config.listen_port is disallowed; "
-            "use -P or --port instead"
-        )
     if 'EDGEDB_SERVER_CONFIG_cfg::Config.listen_addresses' in os.environ:
         abort(
             "EDGEDB_SERVER_CONFIG_cfg::Config.listen_addresses is disallowed; "
@@ -1341,17 +1328,6 @@ def parse_args(**kwargs: Any):
             "EDGEDB_SERVER_CONFIG_cfg::Config.listen_port is disallowed; "
             "use EDGEDB_SERVER_PORT instead"
         )
-
-    for addr in kwargs['bind_addresses']:
-        cfg_args.append("--config-cfg::Config.listen_addresses")
-        cfg_args.append(addr)
-
-    port = kwargs['port']
-    if port is not None:
-        cfg_args.append("--config-cfg::Config.listen_port")
-        cfg_args.append(str(port))
-
-    kwargs['cfg_args'] = cfg_args
 
     return ServerConfig(
         startup_script=startup_script,

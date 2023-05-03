@@ -43,9 +43,8 @@ def edbcommands(ctx, devmode: bool):
         dm.enable_dev_mode()
 
 
-@edbcommands.command(context_settings=dict(ignore_unknown_options=True))
+@edbcommands.command()
 @srv_args.server_options
-@click.argument("cfg_args", nargs=-1)
 def server(version=False, **kwargs):
     if version:
         print(f"edb, version {buildmeta.get_version()}")
