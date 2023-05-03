@@ -1056,3 +1056,66 @@ class TestTriggers(tb.QueryTestCase):
                 {'name': 'y', 'note': "1", 'subject': None},
             ]
         )
+
+    async def test_edgeql_triggers_old_link_01(self):
+        await self.con.execute('''
+            alter type InsertTest {
+              create trigger log_upd after update for each do (
+                insert Note { name := "upd", note := __old__.__type__.name }
+              );
+              create trigger log_del after delete for each do (
+                insert Note { name := "del", note := __old__.__type__.name }
+              );
+            };
+        ''')
+
+        await self.con.execute('''
+            insert InsertTest {
+                name := "test",
+            };
+            update InsertTest set {};
+            delete InsertTest;
+        ''')
+
+        await self.assert_query_result(
+            '''
+            select Note { name, note } order by .name
+            ''',
+            [
+                {'name': 'del', 'note': "default::InsertTest"},
+                {'name': 'upd', 'note': "default::InsertTest"},
+            ]
+        )
+
+    async def test_edgeql_triggers_old_link_02(self):
+        await self.con.execute('''
+            alter type InsertTest {
+              create trigger log_upd after update for each do (
+                insert Note {
+                    name := "upd", note := <str>count(__old__.subordinates) }
+              );
+              create trigger log_del after delete for each do (
+                insert Note {
+                    name := "del", note := <str>count(__old__.subordinates) }
+              );
+            };
+        ''')
+
+        await self.con.execute('''
+            insert InsertTest {
+                name := "test",
+                subordinates := (insert Subordinate { name := "foo" }),
+            };
+            update InsertTest set {};
+            delete InsertTest;
+        ''')
+
+        await self.assert_query_result(
+            '''
+            select Note { name, note } order by .name
+            ''',
+            [
+                {'name': 'del', 'note': "1"},
+                {'name': 'upd', 'note': "1"},
+            ]
+        )

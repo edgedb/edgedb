@@ -1126,6 +1126,14 @@ def process_set_as_path(
             # If this is a link that is stored inline, make sure
             # the source aspect is actually accessible (not just value).
             src_rvar = ensure_source_rvar(ir_source, stmt, ctx=ctx)
+            # In case the source is visible (so the codepath below
+            # that uses the current statement doesn't trigger) but the
+            # source aspect wasn't available, make sure we include it
+            # in our return. This can come up with __old__ in triggers.
+            if source_is_visible:
+                rvars.append(SetRVar(
+                    src_rvar, path_id=ir_source.path_id, aspects=['source']
+                ))
         else:
             aspects = ['value', 'source']
             src_rvar = get_set_rvar(ir_source, ctx=ctx)
