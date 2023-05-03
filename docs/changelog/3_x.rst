@@ -259,67 +259,41 @@ This is one of the most fun features in 3.0, both to say _and_ to use! With
 splats, you can easily select all properties in your queries without typing all
 of them out.
 
-.. code-block:: edgeql-repl
+Before splats, you would have needed this query to select ``Movie`` objects
+along with all their properties:
 
-    db> select Movie {*};
-    {
-      default::Movie {
-        id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
-        release_year: 2021,
-        title: 'Spiderman: No Way Home',
-      },
-      default::Movie {
-        id: 76998656-b776-11ed-8bef-237907a987fa,
-        release_year: 2008,
-        title: 'Iron Man'
-      },
-    }
+.. code-block:: edgeql
 
-You can even use a double-splat to select a single level of nested objects.
+    select Movie {id, release_year, title, region, director, studio};
+
+Now, you can simplify down to this query instead using a splat:
+
+.. code-block:: edgeql
+
+    select Movie {*};
+
+If you wanted to select the movie and its characters before splats, you would
+have needed this:
+
+.. code-block:: edgeql
+
+    select Movie {
+      id,
+      release_year,
+      title,
+      region,
+      director: {id, name, birth_year},
+      actors: {id, name, birth_year},
+      characters: { id, name }
+    };
+
+Now, you can get it done with just a double-splat to select all the object's
+properties and the properties of any linked objects nested a single layer
+within it.
 
 .. code-block:: edgeql-repl
 
     db> select Movie {**};
-    {
-      default::Movie {
-        id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
-        release_year: 2021,
-        title: 'Spiderman: No Way Home',
-        characters: {
-          default::Hero {
-            id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
-            name: 'Spiderman'
-          },
-          default::Villain {
-            id: efa2c4bc-b777-11ed-99eb-43f835d79384,
-            name: 'Electro'
-          },
-          default::Villain {
-            id: f2c99a96-b775-11ed-8f7e-0b4a4a8e433e,
-            name: 'Green Goblin'
-          },
-          default::Villain {
-            id: f8ca354a-b775-11ed-8bef-273145019e1d,
-            name: 'Doc Ock'
-          },
-        },
-      },
-      default::Movie {
-        id: 76998656-b776-11ed-8bef-237907a987fa,
-        release_year: 2008,
-        title: 'Iron Man',
-        characters: {
-          default::Hero {
-            id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
-            name: 'Iron Man'
-          },
-          default::Villain {
-            id: 335f4104-b777-11ed-81eb-ab4de34e9c36,
-            name: 'Obadiah Stane'
-          },
-        },
-      },
-    }
 
 It's a super-handy way to quickly explore your data.
 
