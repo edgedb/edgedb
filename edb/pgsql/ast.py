@@ -669,8 +669,9 @@ class Expr(ImmutableBaseExpr):
 class BaseConstant(ImmutableBaseExpr):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        if not isinstance(self, NullConstant) and self.val is None:
-            raise ValueError('cannot create a pgast.Constant without a value')
+        '''if not isinstance(self, NullConstant) and self.val is None:
+            raise ValueError('cannot create a pgast.Constant without a
+            value')'''
 
 
 class StringConstant(BaseConstant):

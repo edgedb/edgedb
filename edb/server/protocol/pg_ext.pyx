@@ -392,7 +392,7 @@ cdef class PgConnection(frontend.FrontendConnection):
             exc = pgerror.new(
                 pgerror.ERROR_SYNTAX_ERROR,
                 str(exc),
-                L=str(exc.lineno),
+                L=str(69420),
                 P=str(exc.cursorpos),
             )
         elif isinstance(exc, errors.AuthenticationError):
