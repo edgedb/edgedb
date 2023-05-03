@@ -293,6 +293,10 @@ in any way that makes sense to you.
       }
     }
 
+
+In EdgeQL, you can reference entities inside nested modules like this:
+``momma_module::baby_module::<entity-name>``
+
 Aside from giving you additional flexibility, it will also allow us to expand
 our list of standard modules in a backwards-compatible way.
 
