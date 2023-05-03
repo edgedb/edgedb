@@ -4409,6 +4409,66 @@ class FormatTypeFunction(dbops.Function):
         )
 
 
+class UuidGenerateV1mcFunction(dbops.Function):
+    text = f'''
+    DECLARE
+        ext_schema text;
+        value uuid;
+    BEGIN
+        SELECT
+            json ->> 'ext_schema'
+        FROM
+            edgedbinstdata.instdata
+        WHERE
+            key = 'backend_instance_params'
+        INTO
+            ext_schema;
+        EXECUTE 'SELECT ' || ext_schema || '.uuid_generate_v1mc()' INTO value;
+        RETURN value;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'uuid_generate_v1mc'),
+            args=[],
+            returns=('uuid',),
+            volatility='stable',
+            language='plpgsql',
+            text=self.text,
+        )
+
+
+class UuidGenerateV4(dbops.Function):
+    text = f'''
+    DECLARE
+        ext_schema text;
+        value uuid;
+    BEGIN
+        SELECT
+            json ->> 'ext_schema'
+        FROM
+            edgedbinstdata.instdata
+        WHERE
+            key = 'backend_instance_params'
+        INTO
+            ext_schema;
+        EXECUTE 'SELECT ' || ext_schema || '.uuid_generate_v4()' INTO value;
+        RETURN value;
+    END;
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'uuid_generate_v4'),
+            args=[],
+            returns=('uuid',),
+            volatility='stable',
+            language='plpgsql',
+            text=self.text,
+        )
+
+
 async def bootstrap(
     conn: pgcon.PGConnection,
     config_spec: edbconfig.Spec
@@ -4423,6 +4483,8 @@ async def bootstrap(
         dbops.CreateTable(DBConfigTable()),
         dbops.CreateTable(DMLDummyTable()),
         dbops.Query(DMLDummyTable.SETUP_QUERY),
+        dbops.CreateFunction(UuidGenerateV1mcFunction()),
+        dbops.CreateFunction(UuidGenerateV4()),
         dbops.CreateFunction(IntervalToMillisecondsFunction()),
         dbops.CreateFunction(SafeIntervalCastFunction()),
         dbops.CreateFunction(QuoteIdentFunction()),
