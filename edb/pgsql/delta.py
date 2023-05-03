@@ -4799,10 +4799,11 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
 
         if not is_abs and (was_comp and not is_comp):
             self._create_link(link, schema, orig_schema, context)
-        elif not is_abs and (not was_comp and is_comp):
-            self._delete_link(link, schema, orig_schema, context)
 
         schema = super()._alter_innards(schema, context)
+
+        if not is_abs and (not was_comp and is_comp):
+            self._delete_link(link, schema, orig_schema, context)
 
         # We check whether otd has changed, rather than whether
         # it is an attribute on this alter, because it might
@@ -5256,11 +5257,12 @@ class AlterProperty(PropertyMetaCommand, adapts=s_props.AlterProperty):
 
         if src and (was_comp and not is_comp):
             self._create_property(prop, src, schema, orig_schema, context)
-        elif src and (not was_comp and is_comp):
-            self._delete_property(
-                prop, src.scls, src.op, schema, orig_schema, context)
 
         schema = super()._alter_innards(schema, context)
+
+        if src and (not was_comp and is_comp):
+            self._delete_property(
+                prop, src.scls, src.op, schema, orig_schema, context)
 
         if self.metadata_only:
             return schema
