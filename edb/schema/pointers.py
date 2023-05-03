@@ -2072,6 +2072,14 @@ class AlterPointer(
             computed=pointer.field_is_computed(schema, 'target'),
         )
 
+    def is_data_safe(self) -> bool:
+        # HACK: expr ought to be managed by AlterSpecialObjectField
+        # the way that target/required/cardinality are.
+        return super().is_data_safe() and not (
+            self.get_attribute_value('expr') is not None
+            and self.get_orig_attribute_value('expr') is None
+        )
+
 
 class DeletePointer(
     referencing.DeleteReferencedInheritingObject[Pointer_T],

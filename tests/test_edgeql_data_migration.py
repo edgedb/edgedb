@@ -9796,6 +9796,38 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             ]
         )
 
+        # And changing a property to computed is NOT!
+        await self.start_migration('''
+            type Obj11 {
+                single property name := "test";
+            }
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'proposed': {
+                'data_safe': False,
+            },
+        })
+
+        await self.fast_forward_describe_migration()
+
+        # But just changing a computed is
+        await self.start_migration('''
+            type Obj11 {
+                single property name := "fffff";
+            }
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'proposed': {
+                'data_safe': True,
+            },
+        })
+
+        await self.fast_forward_describe_migration()
+
     async def test_edgeql_migration_prompt_id_01(self):
         await self.start_migration('''
             type Bar { link spam -> Spam };
