@@ -2,9 +2,9 @@
 
 .. _ref_sql_support:
 
-=====================
-SQL support in EdgeDB  
-=====================
+===========
+SQL support
+===========
 
 EdgeDB supports running SQL queries via the Postgres protocol. Any
 Postgres-compatible client can connect to your EdgeDB database by using the
