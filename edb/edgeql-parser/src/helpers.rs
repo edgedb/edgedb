@@ -101,11 +101,11 @@ fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
                                 hex.unwrap_or_else(|| chars.as_str())
                                 .escape_debug())
                         })?;
-                        if code > 0x7f {
+                        if code > 0x7f || code == 0 {
                             return Err(format!(
                                 "invalid string literal: \
                                  invalid escape sequence '\\x{:x}' \
-                                 (only ascii allowed)", code));
+                                 (only non-null ascii allowed)", code));
                         }
                         res.push(code as char);
                         chars.nth(1);
@@ -116,6 +116,9 @@ fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
                                 u32::from_str_radix(s, 16).ok()
                             })
                             .and_then(|code| char::from_u32(code))
+                            .and_then(|c| {
+                                if c == '\0' { None } else { Some(c) }
+                            })
                             .ok_or_else(|| {
                                 format!("invalid string literal: \
                                     invalid escape sequence '\\u{}'",
@@ -131,6 +134,9 @@ fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
                                 u32::from_str_radix(s, 16).ok()
                             })
                             .and_then(|code| char::from_u32(code))
+                            .and_then(|c| {
+                                if c == '\0' { None } else { Some(c) }
+                            })
                             .ok_or_else(|| {
                                 format!("invalid string literal: \
                                     invalid escape sequence '\\U{}'",
@@ -169,6 +175,17 @@ fn unquote_unicode_string() {
     assert_eq!(_unquote_string(r#"\u000D"#).unwrap(), "\u{000D}");
     assert_eq!(_unquote_string(r#"\u0020"#).unwrap(), "\u{0020}");
     assert_eq!(_unquote_string(r#"\uFFFF"#).unwrap(), "\u{FFFF}");
+}
+
+#[test]
+fn unquote_string_error() {
+    assert_eq!(_unquote_string(r#"\x00"#).unwrap_err(),
+            "invalid string literal: \
+             invalid escape sequence '\\x0' (only non-null ascii allowed)");
+    assert_eq!(_unquote_string(r#"\u0000"#).unwrap_err(),
+            "invalid string literal: invalid escape sequence '\\u0000'");
+    assert_eq!(_unquote_string(r#"\U00000000"#).unwrap_err(),
+            "invalid string literal: invalid escape sequence '\\U00000000'");
 }
 
 #[test]

@@ -859,6 +859,12 @@ fn check_prohibited(c: char, escape: bool)
     -> Result<(), Error<Token<'static>, Token<'static>>>
 {
     match c {
+        '\0' if escape => {
+            Err(Error::message_static_message(
+                "character U+0000 is not allowed"
+            ))
+        }
+        '\0' |
         '\u{202A}' | '\u{202B}' | '\u{202C}' | '\u{202D}' |
         '\u{202E}' | '\u{2066}' | '\u{2067}' | '\u{2068}' |
         '\u{2069}' => {
