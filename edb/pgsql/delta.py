@@ -1342,7 +1342,9 @@ class FunctionCommand(MetaCommand):
                 explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
                     schema, func.get_return_type(schema)),
                 output_format=compiler.OutputFormat.NATIVE,
-                use_named_params=True)
+                use_named_params=True,
+                backend_runtime_params=context.backend_runtime_params,
+            )
 
         return self.make_function(func, body, schema), replace
 
@@ -6620,7 +6622,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 name=proc_name, text=proc_text, volatility='volatile',
                 returns='trigger', language='plpgsql')
 
-            self.pgops.add(dbops.CreateOrReplaceFunction(trig_func))
+            self.pgops.add(dbops.CreateFunction(trig_func, or_replace=True))
 
             self.pgops.add(dbops.CreateTrigger(
                 trigger, neg_conditions=[dbops.TriggerExists(

@@ -4409,9 +4409,54 @@ class FormatTypeFunction(dbops.Function):
         )
 
 
+class UuidGenerateV1mcFunction(dbops.Function):
+    def __init__(self, ext_schema: str) -> None:
+        super().__init__(
+            name=('edgedb', 'uuid_generate_v1mc'),
+            args=[],
+            returns=('uuid',),
+            volatility='volatile',
+            language='sql',
+            strict=True,
+            parallel_safe=True,
+            text=f'SELECT "{ext_schema}".uuid_generate_v1mc();'
+        )
+
+
+class UuidGenerateV4Function(dbops.Function):
+    def __init__(self, ext_schema: str) -> None:
+        super().__init__(
+            name=('edgedb', 'uuid_generate_v4'),
+            args=[],
+            returns=('uuid',),
+            volatility='volatile',
+            language='sql',
+            strict=True,
+            parallel_safe=True,
+            text=f'SELECT "{ext_schema}".uuid_generate_v4();'
+        )
+
+
+class UuidGenerateV5Function(dbops.Function):
+    def __init__(self, ext_schema: str) -> None:
+        super().__init__(
+            name=('edgedb', 'uuid_generate_v5'),
+            args=[
+                ('namespace', ('uuid',)),
+                ('name', ('text',)),
+            ],
+            returns=('uuid',),
+            volatility='immutable',
+            language='sql',
+            strict=True,
+            parallel_safe=True,
+            text=f'SELECT "{ext_schema}".uuid_generate_v5(namespace, name);'
+        )
+
+
 async def bootstrap(
     conn: pgcon.PGConnection,
-    config_spec: edbconfig.Spec
+    config_spec: edbconfig.Spec,
 ) -> None:
     cmds = [
         dbops.CreateSchema(name='edgedb'),
@@ -4423,6 +4468,9 @@ async def bootstrap(
         dbops.CreateTable(DBConfigTable()),
         dbops.CreateTable(DMLDummyTable()),
         dbops.Query(DMLDummyTable.SETUP_QUERY),
+        dbops.CreateFunction(UuidGenerateV1mcFunction('edgedbext')),
+        dbops.CreateFunction(UuidGenerateV4Function('edgedbext')),
+        dbops.CreateFunction(UuidGenerateV5Function('edgedbext')),
         dbops.CreateFunction(IntervalToMillisecondsFunction()),
         dbops.CreateFunction(SafeIntervalCastFunction()),
         dbops.CreateFunction(QuoteIdentFunction()),
@@ -4546,6 +4594,26 @@ async def create_pg_extensions(conn: pgcon.PGConnection) -> None:
         dbops.CreateExtension(
             dbops.Extension(name='uuid-ossp', schema='edgedbext'),
         ),
+    ])
+    block = dbops.PLTopBlock()
+    commands.generate(block)
+    await _execute_block(conn, block)
+
+
+async def patch_pg_extensions(
+    conn: pgcon.PGConnection,
+    backend_params: params.BackendRuntimeParams,
+) -> None:
+    ext_schema = backend_params.instance_params.ext_schema
+    commands = dbops.CommandGroup()
+    commands.add_commands([
+        dbops.CreateSchema(name=ext_schema, conditional=True),
+        dbops.CreateFunction(
+            UuidGenerateV1mcFunction(ext_schema), or_replace=True),
+        dbops.CreateFunction(
+            UuidGenerateV4Function(ext_schema), or_replace=True),
+        dbops.CreateFunction(
+            UuidGenerateV5Function(ext_schema), or_replace=True),
     ])
     block = dbops.PLTopBlock()
     commands.generate(block)
@@ -6319,7 +6387,12 @@ def get_support_views(
 
     conf = schema.get('cfg::Config', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
-        schema, conf, scope=None, path=[], rptr=None)
+        schema,
+        conf,
+        scope=None,
+        path=[],
+        rptr=None,
+    )
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -6327,7 +6400,12 @@ def get_support_views(
 
     conf = schema.get('cfg::InstanceConfig', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
-        schema, conf, scope=qltypes.ConfigScope.INSTANCE, path=[], rptr=None)
+        schema,
+        conf,
+        scope=qltypes.ConfigScope.INSTANCE,
+        path=[],
+        rptr=None,
+    )
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -6335,7 +6413,12 @@ def get_support_views(
 
     conf = schema.get('cfg::DatabaseConfig', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
-        schema, conf, scope=qltypes.ConfigScope.DATABASE, path=[], rptr=None)
+        schema,
+        conf,
+        scope=qltypes.ConfigScope.DATABASE,
+        path=[],
+        rptr=None,
+    )
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -6803,7 +6886,7 @@ def _build_key_expr(key_components: List[str]) -> str:
         (SELECT
             (CASE WHEN array_position(q.v, NULL) IS NULL
              THEN
-                 edgedbext.uuid_generate_v5(
+                 edgedb.uuid_generate_v5(
                      '{DATABASE_ID_NAMESPACE}'::uuid,
                      array_to_string(q.v, ';')
                  )

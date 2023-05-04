@@ -829,11 +829,13 @@ async def _make_stdlib(
         schema_class_layout=reflection.class_layout,  # type: ignore
     )
 
+    backend_runtime_params = ctx.cluster.get_runtime_params()
     compilerctx = edbcompiler.new_compiler_context(
         compiler_state=compiler.state,
         user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
+        backend_runtime_params=backend_runtime_params,
     )
 
     for std_plan in std_plans:
@@ -849,6 +851,7 @@ async def _make_stdlib(
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
         internal_schema_mode=True,
+        backend_runtime_params=backend_runtime_params,
     )
     edbcompiler.compile_schema_storage_in_delta(
         ctx=compilerctx,
@@ -1009,6 +1012,7 @@ async def _init_stdlib(
         stdlib = await _make_stdlib(ctx, in_dev_mode or testmode, global_ids)
 
     logger.info('Creating the necessary PostgreSQL extensions...')
+    backend_params = cluster.get_runtime_params()
     await metaschema.create_pg_extensions(conn)
 
     config_spec = config.load_spec_from_schema(stdlib.stdschema)
@@ -1027,7 +1031,11 @@ async def _init_stdlib(
                 f"edgedb.get_database_backend_name({ql(tpl_db_name)})")
             tpldbdump = await cluster.dump_database(
                 tpl_pg_db_name,
-                exclude_schemas=['edgedbinstdata', 'edgedbext'],
+                exclude_schemas=[
+                    'edgedbinstdata',
+                    'edgedbext',
+                    backend_params.instance_params.ext_schema,
+                ],
                 dump_object_owners=False,
             )
 
@@ -1146,6 +1154,12 @@ async def _init_stdlib(
         t = schema.get_by_id(uuidgen.UUID(entry['id']))
         schema = t.set_field_value(
             schema, 'backend_id', entry['backend_id'])
+
+    if backend_params.instance_params.ext_schema != "edgedbext":
+        # Patch functions referring to extensions, because
+        # some backends require extensions to be hosted in
+        # hardcoded schemas (e.g. Heroku)
+        await metaschema.patch_pg_extensions(conn, backend_params)
 
     stdlib = stdlib._replace(stdschema=schema)
     version_key = patches.get_version_key(len(patches.PATCHES))

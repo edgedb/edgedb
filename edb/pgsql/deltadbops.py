@@ -467,7 +467,7 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
             language='plpgsql',
         )
 
-        return [dbops.CreateOrReplaceFunction(func)]
+        return [dbops.CreateFunction(func, or_replace=True)]
 
     def drop_constr_trigger_function(self, proc_name: Tuple[str, ...]):
         return [dbops.DropFunction(name=proc_name, args=())]
