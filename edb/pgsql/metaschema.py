@@ -5638,7 +5638,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         SELECT
             edgedbsql.uuid_to_oid(t.module_id),
             t.schema_name,
-            (SELECT oid FROM pg_authid WHERE rolname = CURRENT_USER LIMIT 1),
+            (SELECT oid FROM pg_roles WHERE rolname = CURRENT_USER LIMIT 1),
             NULL,
             NULL, NULL, NULL, NULL, NULL, NULL
         FROM (
