@@ -1241,6 +1241,12 @@ def administer_repair_schema(
     ctx: compiler.CompileContext,
     ql: qlast.AdministerStmt,
 ) -> dbstate.BaseQuery:
+    if ql.expr.args or ql.expr.kwargs:
+        raise errors.QueryError(
+            'repair_schema() does not take arguments',
+            context=ql.expr.context,
+        )
+
     current_tx = ctx.state.current_tx()
 
     res = repair_schema(ctx)
