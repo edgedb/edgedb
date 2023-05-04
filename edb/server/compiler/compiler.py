@@ -1424,18 +1424,19 @@ def _compile_ql_administer(
     *,
     script_info: Optional[irast.ScriptInfo] = None,
 ) -> dbstate.BaseQuery:
-    if not _is_dev_instance(ctx):
-        raise errors.QueryError(
-            'ADMINISTER can only be executed in test mode',
-            context=ql.context)
-
     if ql.expr.func == 'statistics_update':
+        if not _is_dev_instance(ctx):
+            raise errors.QueryError(
+                'statistics_update() can only be executed in test mode',
+                context=ql.context)
+
         if ql.expr.args or ql.expr.kwargs:
             raise errors.QueryError(
                 'statistics_update() does not take arguments',
                 context=ql.expr.context,
             )
-        sql = (b'ANALYZE',)
+
+        return dbstate.MaintenanceQuery(sql=(b'ANALYZE',))
     elif ql.expr.func == 'repair_schema':
         return ddl.administer_repair_schema(ctx, ql)
     else:
@@ -1443,10 +1444,6 @@ def _compile_ql_administer(
             'Unknown ADMINISTER function',
             context=ql.expr.context,
         )
-
-    return dbstate.MaintenanceQuery(
-        sql=sql,
-    )
 
 
 def _compile_ql_query(
