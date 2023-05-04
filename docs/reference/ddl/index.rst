@@ -20,6 +20,7 @@ DDL
     access_policies
     functions
     triggers
+    mutation_rewrites
     extensions
     future
     migrations
