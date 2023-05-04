@@ -1009,8 +1009,7 @@ def _compile_rewrites_for_stype(
         # subject this pointer will not be on stype, but on one of its
         # ancestors. Mitigation is to pick the correct pointer from the stype.
         rewrite_pointer = downcast(
-            s_pointers.Pointer,
-            stype.get_pointers(schema).get(schema, pn)
+            s_pointers.Pointer, stype.get_pointers(schema).get(schema, pn)
         )
 
         # get_rewrite searches in ancestors for rewrites, but if the rewrite
