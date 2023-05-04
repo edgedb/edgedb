@@ -197,6 +197,57 @@ even when you're just learning EdgeQL.
     :width: 100%
 
 
+``edgedb watch`` and a new development workflow
+-----------------------------------------------
+
+The new ``edgedb watch`` CLI command starts a long-running process that watches
+for changes in schema files in your project's ``dbschema`` directory and
+applies those changes to your database in real time. This command opens up an
+entirely new workflow for prototyping schema that will result in less migration
+clutter in your repositories.
+
+1. Start the ``watch`` command
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+    $ edgedb watch
+    Initialized. Monitoring "/projects/my-edgedb-project".
+
+
+2. Write an initial schema
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Just start writing your schema in your ``default.esdl`` file in your project's
+``dbschema`` directory. Once you save your initial schema, assuming it is
+valid, the ``watch`` command will pick it up and apply it to your database.
+
+
+3. Edit your schema files
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+As your application evolves, directly edit your schema files to reflect your
+desired data model. When you save your changes, ``watch`` will immediately
+begin applying your new schema to the database.
+
+Once you have the schema the way you want it, and you're ready to lock it in
+and commit it to version control, it's time to generate a migration.
+
+
+4. Generate a migration
+^^^^^^^^^^^^^^^^^^^^^^^
+
+To generate a migration that reflects all your changes, run ``edgedb migration
+create``.
+
+.. code-block:: bash
+
+  $ edgedb migration create
+
+This "locks in" the changes you prototyped using the ``watch`` command. Now,
+these are ready to commit and push to your remote to share with your team.
+
+
 Triggers
 --------
 
