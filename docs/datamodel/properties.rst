@@ -100,6 +100,8 @@ particular order. If order is important, use an :ref:`array
 more involved discussion, see :ref:`EdgeQL > Sets
 <ref_eql_set_array_conversion>`.
 
+.. _ref_datamodel_props_default_values:
+
 Default values
 --------------
 
