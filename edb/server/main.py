@@ -790,7 +790,7 @@ def initialize_static_cfg(
             if cfg := translate_env.get(name):
                 yield name, value, cfg
             else:
-                cfg = name.removeprefix("EDGEDB_SERVER_CONFIG_cfg::Config.")
+                cfg = name.removeprefix("EDGEDB_SERVER_CONFIG_cfg::")
                 if cfg != name:
                     yield name, value, cfg
 

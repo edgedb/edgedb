@@ -1318,14 +1318,14 @@ def parse_args(**kwargs: Any):
         else:
             kwargs['instance_name'] = '_unknown'
 
-    if 'EDGEDB_SERVER_CONFIG_cfg::Config.listen_addresses' in os.environ:
+    if 'EDGEDB_SERVER_CONFIG_cfg::listen_addresses' in os.environ:
         abort(
-            "EDGEDB_SERVER_CONFIG_cfg::Config.listen_addresses is disallowed; "
+            "EDGEDB_SERVER_CONFIG_cfg::listen_addresses is disallowed; "
             "use EDGEDB_SERVER_BIND_ADDRESS instead"
         )
-    if 'EDGEDB_SERVER_CONFIG_cfg::Config.listen_port' in os.environ:
+    if 'EDGEDB_SERVER_CONFIG_cfg::listen_port' in os.environ:
         abort(
-            "EDGEDB_SERVER_CONFIG_cfg::Config.listen_port is disallowed; "
+            "EDGEDB_SERVER_CONFIG_cfg::listen_port is disallowed; "
             "use EDGEDB_SERVER_PORT instead"
         )
 

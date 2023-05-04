@@ -1711,9 +1711,9 @@ class TestStaticServerConfig(tb.TestCase):
     async def test_server_config_args_01(self):
         async with tb.start_edgedb_server(
             extra_args=[
-                "--config-cfg::Config.session_idle_timeout", "2m18s",
-                "--config-cfg::Config.query_execution_timeout", "609",
-                "--config-no-cfg::Config.apply_access_policies",
+                "--config-cfg::session_idle_timeout", "2m18s",
+                "--config-cfg::query_execution_timeout", "609",
+                "--config-no-cfg::apply_access_policies",
             ]
         ) as sd:
             conn = await sd.connect()
@@ -1744,7 +1744,7 @@ class TestStaticServerConfig(tb.TestCase):
         with self.assertRaises(cluster.ClusterError):
             async with tb.start_edgedb_server(
                 extra_args=[
-                    "--config-cfg::Config.session_idle_timeout",
+                    "--config-cfg::session_idle_timeout",
                     "illegal input",
                 ]
             ):
@@ -1754,15 +1754,15 @@ class TestStaticServerConfig(tb.TestCase):
     async def test_server_config_args_03(self):
         with self.assertRaises(cluster.ClusterError):
             async with tb.start_edgedb_server(
-                extra_args=["--config-cfg::Config.non_exist"]
+                extra_args=["--config-cfg::non_exist"]
             ):
                 pass
 
     async def test_server_config_env_01(self):
         env = {
-            "EDGEDB_SERVER_CONFIG_cfg::Config.session_idle_timeout": "1m22s",
-            "EDGEDB_SERVER_CONFIG_cfg::Config.query_execution_timeout": "403",
-            "EDGEDB_SERVER_CONFIG_cfg::Config.apply_access_policies": "false",
+            "EDGEDB_SERVER_CONFIG_cfg::session_idle_timeout": "1m22s",
+            "EDGEDB_SERVER_CONFIG_cfg::query_execution_timeout": "403",
+            "EDGEDB_SERVER_CONFIG_cfg::apply_access_policies": "false",
         }
         async with tb.start_edgedb_server(env=env) as sd:
             conn = await sd.connect()
@@ -1790,14 +1790,14 @@ class TestStaticServerConfig(tb.TestCase):
 
     async def test_server_config_env_02(self):
         env = {
-            "EDGEDB_SERVER_CONFIG_cfg::Config.allow_bare_ddl": "illegal_input"
+            "EDGEDB_SERVER_CONFIG_cfg::allow_bare_ddl": "illegal_input"
         }
         with self.assertRaises(cluster.ClusterError):
             async with tb.start_edgedb_server(env=env):
                 pass
 
     async def test_server_config_env_03(self):
-        env = {"EDGEDB_SERVER_CONFIG_cfg::Config.apply_access_policies": "on"}
+        env = {"EDGEDB_SERVER_CONFIG_cfg::apply_access_policies": "on"}
         with self.assertRaises(cluster.ClusterError):
             async with tb.start_edgedb_server(env=env):
                 pass
