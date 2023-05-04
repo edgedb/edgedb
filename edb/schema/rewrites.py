@@ -38,7 +38,7 @@ from . import types as s_types
 
 
 class Rewrite(
-    referencing.ReferencedInheritingObject,
+    referencing.NamedReferencedInheritingObject,
     so.InheritingObject,  # Help reflection figure out the right db MRO
     s_anno.AnnotationSubject,
     qlkind=qltypes.SchemaObjectClass.REWRITE,
@@ -89,7 +89,7 @@ class RewriteSubjectCommand(
 
 
 class RewriteCommand(
-    referencing.ReferencedInheritingObjectCommand[Rewrite],
+    referencing.NamedReferencedInheritingObjectCommand[Rewrite],
     s_anno.AnnotationSubjectCommand[Rewrite],
     context_class=RewriteCommandContext,
     referrer_context_class=RewriteSubjectCommandContext,

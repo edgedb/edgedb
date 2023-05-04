@@ -68,10 +68,10 @@ Introspection of a trigger named ``log_insert`` on the ``User`` type:
     ...   subject: {
     ...     name
     ...   }
-    ... } filter .name = '__::log_insert';
+    ... } filter .name = 'log_insert';
     {
       schema::Trigger {
-        name: '__::log_insert',
+        name: 'log_insert',
         kinds: {Insert},
         timing: After,
         scope: Each,
@@ -90,4 +90,3 @@ Introspection of a trigger named ``log_insert`` on the ``User`` type:
   * - :ref:`Schema > Triggers <ref_datamodel_triggers>`
   * - :ref:`SDL > Triggers <ref_eql_sdl_triggers>`
   * - :ref:`DDL > Triggers <ref_eql_ddl_triggers>`
-
