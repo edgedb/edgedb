@@ -523,7 +523,7 @@ CLI
 ---
 
 * Add the ``edgedb migration edit`` command (:ref:`docs
-  <ref_cli_edgedb_migration_edit>`)
+  <ref_cli_edgedb_migration_edit>`; released in 2.1)
 
 
 Bug fixes
