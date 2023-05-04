@@ -31,6 +31,9 @@ if TYPE_CHECKING:
     Error_T = TypeVar('Error_T')
 
 
+TypeTag = ir.TypeTag
+
+
 class Capability(enum.IntFlag):
 
     MODIFICATIONS     = 1 << 0    # noqa
