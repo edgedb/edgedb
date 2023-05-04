@@ -103,17 +103,27 @@ cdef dict POSTGRES_SHUTDOWN_ERR_CODES = {
 }
 
 cdef bytes INIT_CON_SCRIPT = None
+cdef str INIT_CON_SCRIPT_DATA = ''
 cdef object EMPTY_SQL_STATE = b"{}"
 
 cdef object logger = logging.getLogger('edb.server')
 
-
+# The '_edgecon_state table' is used to store information about
+# the current session. The `type` column is one character, with one
+# of the following values:
+#
+# * 'C': a session-level config setting
+#
+# * 'B': a session-level config setting that's implemented by setting
+#   a corresponding Postgres config setting.
+# * 'A': an instance-level config setting from command-line arguments
+# * 'E': an instance-level config setting from environment variable
 SETUP_TEMP_TABLE_SCRIPT = '''
         CREATE TEMPORARY TABLE _edgecon_state (
             name text NOT NULL,
             value jsonb NOT NULL,
             type text NOT NULL CHECK(
-                type = 'C' OR type = 'B'),
+                type = 'C' OR type = 'B' OR type = 'A' OR type = 'E'),
             UNIQUE(name, type)
         );
 '''
@@ -132,21 +142,15 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     else:
         pg_is_in_recovery = ''
 
-    # The '_edgecon_state table' is used to store information about
-    # the current session. The `type` column is one character, with one
-    # of the following values:
-    #
-    # * 'C': a session-level config setting
-    #
-    # * 'B': a session-level config setting that's implemented by setting
-    #   a corresponding Postgres config setting.
     return textwrap.dedent(f'''
         {pg_is_in_recovery}
 
         {SETUP_TEMP_TABLE_SCRIPT}
 
+        {INIT_CON_SCRIPT_DATA}
+
         PREPARE _clear_state AS
-            DELETE FROM _edgecon_state;
+            DELETE FROM _edgecon_state WHERE type = 'C' OR type = 'B';
 
         PREPARE _apply_state(jsonb) AS
             INSERT INTO
@@ -355,22 +359,29 @@ async def connect(
                 M="cannot use a hot standby",
                 C=pgerror.ERROR_READ_ONLY_SQL_TRANSACTION,
             ))
-        if INIT_CON_SCRIPT is None:
-            INIT_CON_SCRIPT = _build_init_con_script(
-                check_pg_is_in_recovery=False
-            )
-    else:
-        # On lower versions of Postgres we use pg_is_in_recovery() to check if
-        # it is a hot standby, and error out if it is.
-        if INIT_CON_SCRIPT is None:
-            INIT_CON_SCRIPT = _build_init_con_script(
-                check_pg_is_in_recovery=True
-            )
 
     if apply_init_script:
+        if INIT_CON_SCRIPT is None:
+            INIT_CON_SCRIPT = _build_init_con_script(
+                # On lower versions of Postgres we use pg_is_in_recovery() to
+                # check if it is a hot standby, and error out if it is.
+                check_pg_is_in_recovery=(
+                    'in_hot_standby' not in pgcon.parameter_status
+                ),
+            )
         await pgcon.sql_execute(INIT_CON_SCRIPT)
 
     return pgcon
+
+
+def set_init_con_script_data(cfg):
+    global INIT_CON_SCRIPT, INIT_CON_SCRIPT_DATA
+    INIT_CON_SCRIPT = None
+    INIT_CON_SCRIPT_DATA = (f'''
+        INSERT INTO _edgecon_state
+        SELECT * FROM jsonb_to_recordset({pg_ql(json.dumps(cfg))}::jsonb)
+        AS cfg(name text, value jsonb, type text);
+    ''').strip()
 
 
 class TLSUpgradeProto(asyncio.Protocol):

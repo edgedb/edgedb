@@ -49,6 +49,7 @@ class Setting:
     backend_setting: Optional[str] = None
     report: bool = False
     affects_compilation: bool = False
+    enum_values: Optional[List[str]] = None
 
     def __post_init__(self):
         if (self.type not in SETTING_TYPES and
@@ -181,6 +182,9 @@ def load_spec_from_schema(schema):
             affects_compilation=attributes.get(
                 sn.QualName('cfg', 'affects_compilation'), False),
             default=deflt,
+            enum_values=(
+                ptype.get_enum_values(schema) if ptype.is_enum(schema)
+                else None),
         )
 
         settings.append(setting)

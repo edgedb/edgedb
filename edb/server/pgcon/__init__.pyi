@@ -60,6 +60,10 @@ async def connect(
     ...
 
 
+def set_init_con_script_data(cfg: list[dict[str, Any]]):
+    ...
+
+
 class PGConnection:
 
     async def sql_execute(
