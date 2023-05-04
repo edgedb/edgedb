@@ -35,13 +35,18 @@ class SessionStmt(Nonterm):
 
 class SetStmt(Nonterm):
     def reduce_SET_ALIAS_Identifier_AS_MODULE_ModuleName(self, *kids):
+        _, _, alias, _, _, module = kids
         self.val = qlast.SessionSetAliasDecl(
-            module='::'.join(kids[5].val),
-            alias=kids[2].val)
+            decl=qlast.ModuleAliasDecl(
+                module='::'.join(module.val), alias=alias.val
+            )
+        )
 
     def reduce_SET_MODULE_ModuleName(self, *kids):
+        _, _, module = kids
         self.val = qlast.SessionSetAliasDecl(
-            module='::'.join(kids[2].val))
+            decl=qlast.ModuleAliasDecl(module='::'.join(module.val))
+        )
 
 
 class ResetStmt(Nonterm):

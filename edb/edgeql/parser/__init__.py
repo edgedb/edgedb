@@ -61,12 +61,12 @@ def parse_fragment(
 def parse_single(
     source: Union[qltokenizer.Source, str],
     filename: Optional[str]=None,
-) -> qlast.Expr:
+) -> qlast.Statement:
     if isinstance(source, str):
         source = qltokenizer.Source.from_string(source)
     parser = qlparser.EdgeQLSingleParser()
     res = parser.parse(source, filename=filename)
-    assert isinstance(res, qlast.Expr)
+    assert isinstance(res, (qlast.Query | qlast.Command))
     return res
 
 
@@ -93,10 +93,11 @@ def parse_query(
 def parse_command(
     source: Union[qltokenizer.Source, str],
     module_aliases: Optional[Mapping[Optional[str], str]] = None,
-) -> qlast.Expr:
+) -> qlast.Command:
     """Parse some EdgeQL command potentially adding some module aliases."""
 
     tree = parse_single(source)
+    assert isinstance(tree, qlast.Command)
 
     if module_aliases:
         append_module_aliases(tree, module_aliases)
