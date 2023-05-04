@@ -1004,12 +1004,14 @@ def _compile_rewrites_for_stype(
             continue
         rewrite_pointer = downcast(
             s_pointers.Pointer, rewrite.get_subject(schema))
-        rewrite_source = stype
-        if rewrite_source.get_abstract(schema):
-            rewrite_pointer = downcast(
-                s_pointers.Pointer,
-                stype.get_pointers(schema).get(schema, pn)
-            )
+
+        # Because rewrites are not duplicated on inherited properties, the
+        # subject this pointer will not be on stype, but on one of its
+        # ancestors. Mitigation is to pick the correct pointer from the stype.
+        rewrite_pointer = downcast(
+            s_pointers.Pointer,
+            stype.get_pointers(schema).get(schema, pn)
+        )
 
         # get_rewrite searches in ancestors for rewrites, but if the rewrite
         # for that ancestor has already been compiled, skip it to avoid
@@ -1025,12 +1027,12 @@ def _compile_rewrites_for_stype(
         subject_set, specified_set, old_set = anchors
 
         rewrite_view = view_scls
-        if rewrite_source != view_scls.get_nearest_non_derived_parent(schema):
+        if stype != view_scls.get_nearest_non_derived_parent(schema):
             # FIXME: Caching?
             rewrite_view = downcast(
                 s_objtypes.ObjectType,
                 schemactx.derive_view(
-                    rewrite_source,
+                    stype,
                     exprtype=s_ctx.exprtype,
                     ctx=ctx,
                 )
