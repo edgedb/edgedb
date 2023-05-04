@@ -53,28 +53,40 @@ you can access your data after connecting using the following SQL queries:
     SELECT id, name FROM "Person";
     SELECT id, title, release_year, director_id, star_id FROM "Movie";
 
-    -- Because the link `star` has link properties, it has its own table.
-    -- `source` is the id of the Movie.
-    -- `target` is the id of the Person.
+Because the link ``star`` has link properties, it has its own table.
+``source`` is the ``id`` of the ``Movie``. ``target`` is the ``id`` of the
+``Person``.
+
+.. code-block:: sql
+
     SELECT source, target, role FROM "Movie.star";
 
-    -- Links are in separate tables.
+Links are in separate tables.
+
+.. code-block:: sql
+
     SELECT source, target, role FROM "Movie.actors";
 
-    -- Multi properties are in separate tables.
-    -- `source` is the id of the Movie.
-    -- `target` is the value of the property.
+Multi properties are in separate tables. ``source`` is the ``id`` of the Movie.
+``target`` is the value of the property.
+
+.. code-block:: sql
+
     SELECT source, target FROM "Movie.labels";
 
-    -- When types are extended, parent object types' tables will by default
-    -- contain all objects of both the type and any types extended by it.
-    -- The query below will return all `common::Content` objects as well as all
-    -- `Movie` objects.
+When types are extended, parent object types' tables will by default contain
+all objects of both the type and any types extended by it. The query below will
+return all ``common::Content`` objects as well as all ``Movie`` objects.
+
+.. code-block:: sql
+
     SELECT id, title FROM common."Content";
 
-    -- To omit objects of extended types, use `ONLY`.
-    -- This query will return `common::Content` objects but not `Movie`
-    -- objects.
+To omit objects of extended types, use ``ONLY``. This query will return
+``common::Content`` objects but not ``Movie`` objects.
+
+.. code-block:: sql
+
     SELECT id, title FROM ONLY common."Content";
 
 The SQL connector supports read-only statements and will throw errors if the
