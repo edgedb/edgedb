@@ -1709,7 +1709,6 @@ PG_CATALOG: Dict[str, List[Tuple[ColumnName, ColumnType]]] = {
         ("version", "text"),
         ("cipher", "text"),
         ("bits", "integer"),
-        ("compression", "boolean"),
         ("client_dn", "text"),
         ("client_serial", "numeric"),
         ("issuer_dn", "text"),
