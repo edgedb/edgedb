@@ -155,8 +155,9 @@ in action.
 .. image:: images/v3_ui_query_planner.jpg
     :width: 100%
 
-Query planning is available in the CLI REPL, also by prepending your query with
-``analyze``.
+Query planning is available in the CLI REPL by prepending your query with
+``analyze`` or using the ``\analyze`` backslash command, and in the CLI
+directly using the ``edgedb analyze <query>`` command.
 
 
 UI improvements
