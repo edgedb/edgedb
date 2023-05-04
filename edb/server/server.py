@@ -160,6 +160,7 @@ class Server(ha_base.ClusterProtocol):
             srvargs.DEFAULT_AUTH_METHODS),
         admin_ui: bool = False,
         instance_name: str,
+        disable_dangerous_config: bool = False,
     ):
         self.__loop = asyncio.get_running_loop()
         self._config_settings = config.get_settings()
@@ -285,6 +286,8 @@ class Server(ha_base.ClusterProtocol):
 
         self._file_watch_handles = []
         self._tls_certs_reload_retry_handle = None
+
+        self._disable_dangerous_config = disable_dangerous_config
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -1323,15 +1326,16 @@ class Server(ha_base.ClusterProtocol):
 
     async def _on_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;
-        pass
+        self._check_dangerous_config(setting_name)
 
     async def _on_system_config_rem(self, setting_name, value):
         # CONFIGURE INSTANCE RESET ConfigObject;
-        pass
+        self._check_dangerous_config(setting_name)
 
     async def _on_system_config_set(self, setting_name, value):
         # CONFIGURE INSTANCE SET setting_name := value;
         try:
+            self._check_dangerous_config(setting_name)
             if setting_name == 'listen_addresses':
                 await self._restart_servers_new_addr(value, self._listen_port)
 
@@ -1352,6 +1356,7 @@ class Server(ha_base.ClusterProtocol):
     async def _on_system_config_reset(self, setting_name):
         # CONFIGURE INSTANCE RESET setting_name;
         try:
+            self._check_dangerous_config(setting_name)
             if setting_name == 'listen_addresses':
                 cfg = self._dbindex.get_sys_config()
                 await self._restart_servers_new_addr(
@@ -1376,6 +1381,14 @@ class Server(ha_base.ClusterProtocol):
         except Exception:
             metrics.background_errors.inc(1.0, 'on_system_config_reset')
             raise
+
+    def _check_dangerous_config(self, setting_name):
+        if self._disable_dangerous_config:
+            if self._config_settings.get(setting_name).dangerous:
+                raise errors.ConfigurationError(
+                    f"Changing the value of config {setting_name!r} "
+                    f"is disabled"
+                )
 
     async def _after_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;
