@@ -1103,11 +1103,20 @@ cdef class DatabaseConnectionView:
 
 cdef class DatabaseIndex:
 
-    def __init__(self, server, *, std_schema, global_schema, sys_config):
+    def __init__(
+        self,
+        server,
+        *,
+        std_schema,
+        global_schema,
+        sys_config,
+        default_sysconfig,  # system config without system override
+    ):
         self._dbs = {}
         self._server = server
         self._std_schema = std_schema
         self._global_schema = global_schema
+        self._default_sysconfig = default_sysconfig
         self.update_sys_config(sys_config)
         self._factory = sertypes.StateSerializerFactory(std_schema)
 
@@ -1126,6 +1135,9 @@ cdef class DatabaseIndex:
         return self._comp_sys_config
 
     def update_sys_config(self, sys_config):
+        with self._default_sysconfig.mutate() as mm:
+            mm.update(sys_config)
+            sys_config = mm.finish()
         self._sys_config = sys_config
         self._comp_sys_config = config.get_compilation_config(sys_config)
 

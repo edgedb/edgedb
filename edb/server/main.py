@@ -43,11 +43,13 @@ from . import logsetup
 logsetup.early_setup()
 
 from edb import buildmeta
+from edb.ir import statypes
 from edb.common import exceptions
 from edb.common import devmode
 from edb.common import signalctl
 from edb.common import debug
 
+from . import config
 from . import args as srvargs
 from . import daemon
 from . import defines
@@ -140,11 +142,11 @@ def _internal_state_dir(runstate_dir):
 async def _init_cluster(cluster, args: srvargs.ServerConfig) -> bool:
     from edb.server import bootstrap
 
-    need_restart = await bootstrap.ensure_bootstrapped(cluster, args)
+    new_instance = await bootstrap.ensure_bootstrapped(cluster, args)
     global _server_initialized
     _server_initialized = True
 
-    return need_restart
+    return new_instance
 
 
 def _init_parsers():
@@ -531,6 +533,7 @@ async def run_server(
             cluster_status = await cluster.get_status()
 
             if isinstance(cluster, pgcluster.Cluster):
+                is_local_cluster = True
                 if cluster_status == 'running':
                     # Refuse to start local instance on an occupied datadir,
                     # as it's very likely that Postgres was orphaned by an
@@ -548,15 +551,24 @@ async def run_server(
                           args.data_dir)
             else:
                 # We expect the remote cluster to be running
+                is_local_cluster = False
                 if cluster_status != "running":
                     abort('specified PostgreSQL instance is not running')
 
-            need_cluster_restart = await _init_cluster(cluster, args)
+            new_instance = await _init_cluster(cluster, args)
 
-            if need_cluster_restart:
+            cfg, backend_settings = initialize_static_cfg(
+                args, is_remote_cluster=not is_local_cluster
+            )
+            if cfg:
+                from . import pgcon
+                pgcon.set_init_con_script_data(cfg)
+
+            if is_local_cluster and (new_instance or backend_settings):
                 logger.info('Restarting server to reload configuration...')
                 await cluster.stop()
-                await cluster.start()
+                await cluster.start(server_settings=backend_settings)
+                backend_settings = {}
 
             if (
                 not args.bootstrap_only
@@ -577,6 +589,7 @@ async def run_server(
                     conn_params,
                     server_settings={
                         **conn_params.server_settings,
+                        **backend_settings,
                         'application_name': f'edgedb_instance_{instance_name}',
                         'edgedb.instance_name': instance_name,
                         'edgedb.server_version': buildmeta.get_version_json(),
@@ -622,7 +635,7 @@ async def run_server(
                         runstate_dir,
                         int_runstate_dir,
                         do_setproctitle=do_setproctitle,
-                        new_instance=need_cluster_restart,
+                        new_instance=new_instance,
                     )
 
         except server.StartupError as e:
@@ -696,7 +709,8 @@ def server_main(**kwargs):
 @click.group(
     'EdgeDB Server',
     invoke_without_command=True,
-    context_settings=dict(help_option_names=['-h', '--help']))
+    context_settings=dict(help_option_names=['-h', '--help'])
+)
 @srvargs.server_options
 @click.pass_context
 def main(ctx, version=False, **kwargs):
@@ -723,6 +737,93 @@ def compiler(**kwargs):
 def main_dev():
     devmode.enable_dev_mode()
     main()
+
+
+def _coerce_cfg_value(setting: config.Setting, value):
+    if setting.set_of:
+        return frozenset(
+            config.coerce_single_value(setting, v) for v in value
+        )
+    else:
+        return config.coerce_single_value(setting, value)
+
+
+def initialize_static_cfg(
+    args: srvargs.ServerConfig,
+    is_remote_cluster: bool,
+) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
+    result = []
+    backend_settings = {}
+    command_line_argument = "A"
+    environment_variable = "E"
+    spec = config.get_settings()
+
+    def add_config(name, value, type_):
+        setting = spec[name]
+        if is_remote_cluster:
+            if setting.backend_setting and setting.requires_restart:
+                if type_ == command_line_argument:
+                    where = "on command line"
+                else:
+                    where = "as an environment variable"
+                raise server.StartupError(
+                    f"Can't set config {name:r} {where} when using "
+                    f"a remote Postgres cluster"
+                )
+        value = _coerce_cfg_value(setting, value)
+        result.append({
+            "name": name,
+            "value": config.value_to_json_value(setting, value),
+            "type": type_,
+        })
+        if setting.backend_setting:
+            if isinstance(value, statypes.ScalarType):
+                value = value.to_backend_str()
+            backend_settings[setting.backend_setting] = str(value)
+
+    def iter_environ():
+        translate_env = {
+            "EDGEDB_SERVER_BIND_ADDRESS": "listen_addresses",
+            "EDGEDB_SERVER_PORT": "listen_port"
+        }
+        for name, value in os.environ.items():
+            if cfg := translate_env.get(name):
+                yield name, value, cfg
+            else:
+                cfg = name.removeprefix("EDGEDB_SERVER_CONFIG_cfg::")
+                if cfg != name:
+                    yield name, value, cfg
+
+    env_value: Any
+    setting: config.Setting
+    for env_name, env_value, cfg_name in iter_environ():
+        try:
+            setting = spec[cfg_name]
+        except KeyError:
+            continue
+        choices = setting.enum_values
+        if setting.type == bool:
+            choices = ['true', 'false']
+        env_value = env_value.lower()
+        if choices is not None and env_value not in choices:
+            raise server.StartupError(
+                f"Environment variable {env_name:r} can only be one of: " +
+                ", ".join(choices)
+            )
+        if setting.type == bool:
+            env_value = env_value == 'true'
+        elif not issubclass(setting.type, statypes.ScalarType):
+            env_value = setting.type(env_value)  # type: ignore
+        add_config(cfg_name, env_value, environment_variable)
+
+    if args.bind_addresses:
+        add_config(
+            "listen_addresses", args.bind_addresses, command_line_argument
+        )
+    if args.port:
+        add_config("listen_port", args.port, command_line_argument)
+
+    return result, backend_settings
 
 
 if __name__ == '__main__':

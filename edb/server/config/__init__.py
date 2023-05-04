@@ -27,7 +27,7 @@ from edb.edgeql.qltypes import ConfigScope
 
 from .ops import OpCode, Operation, SettingValue
 from .ops import spec_to_json, to_json, from_json, set_value, to_edgeql
-from .ops import value_from_json, value_to_json_value
+from .ops import value_from_json, value_to_json_value, coerce_single_value
 from .spec import Spec, Setting, load_spec_from_schema
 from .types import ConfigType
 
@@ -42,6 +42,7 @@ __all__ = (
     'ConfigType',
     'load_spec_from_schema',
     'get_compilation_config',
+    'coerce_single_value',
 )
 
 

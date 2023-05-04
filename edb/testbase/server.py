@@ -1885,6 +1885,7 @@ class _EdgeDBServer:
         jwt_sub_allowlist_file: Optional[os.PathLike] = None,
         jwt_revocation_list_file: Optional[os.PathLike] = None,
         env: Optional[Dict[str, str]] = None,
+        extra_args: Optional[List[str]] = None,
     ) -> None:
         self.bind_addrs = bind_addrs
         self.auto_shutdown_after = auto_shutdown_after
@@ -1915,6 +1916,7 @@ class _EdgeDBServer:
         self.jwt_sub_allowlist_file = jwt_sub_allowlist_file
         self.jwt_revocation_list_file = jwt_revocation_list_file
         self.env = env
+        self.extra_args = extra_args
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
@@ -2074,6 +2076,9 @@ class _EdgeDBServer:
             cmd += ['--jwt-revocation-list-file',
                     self.jwt_revocation_list_file]
 
+        if self.extra_args:
+            cmd.extend(self.extra_args)
+
         if self.debug:
             print(
                 f'Starting EdgeDB cluster with the following params:\n'
@@ -2198,6 +2203,7 @@ def start_edgedb_server(
     jwt_sub_allowlist_file: Optional[os.PathLike] = None,
     jwt_revocation_list_file: Optional[os.PathLike] = None,
     env: Optional[Dict[str, str]] = None,
+    extra_args: Optional[List[str]] = None,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
         if backend_dsn or adjacent_to:
@@ -2247,6 +2253,7 @@ def start_edgedb_server(
         jwt_sub_allowlist_file=jwt_sub_allowlist_file,
         jwt_revocation_list_file=jwt_revocation_list_file,
         env=env,
+        extra_args=extra_args,
     )
 
 
@@ -2389,7 +2396,20 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
     return cases
 
 
-def find_available_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("localhost", 0))
-        return sock.getsockname()[1]
+def find_available_port(max_value=None) -> int:
+    if max_value is None:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("localhost", 0))
+            return sock.getsockname()[1]
+    elif max_value > 1024:
+        port = max_value
+        while port > 1024:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.bind(("localhost", port))
+                    return port
+            except IOError:
+                port -= 1
+        raise RuntimeError("cannot find an available port")
+    else:
+        raise ValueError("max_value must be greater than 1024")

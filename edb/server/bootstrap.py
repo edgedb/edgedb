@@ -1378,6 +1378,15 @@ async def _compile_sys_queries(
     _, sql = compile_bootstrap_script(
         compiler,
         schema,
+        "SELECT cfg::get_config_json(max_source := 'postgres client')",
+        expected_cardinality_one=True,
+    )
+
+    queries['sysconfig_default'] = sql
+
+    _, sql = compile_bootstrap_script(
+        compiler,
+        schema,
         f"""SELECT (
             SELECT sys::Database
             FILTER .name != "{edbdef.EDGEDB_TEMPLATE_DB}"
