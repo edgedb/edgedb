@@ -29,7 +29,8 @@ class TestRewrites(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas', 'movies.esdl')
     # Setting up some rewrites makes the tests run a bit faster
     # because we don't need to recompile the delta scripts for it.
-    SETUP = ["""
+    SETUP = [
+        """
         create type Asdf {
           create property title -> str {
             create rewrite update using ('updated');
@@ -40,7 +41,16 @@ class TestRewrites(tb.QueryTestCase):
             create rewrite insert using ('inserted');
           };
         };
-    """]
+
+        create abstract type Resource {
+          create required property name: str {
+            create rewrite insert, update using (str_trim(.name));
+          };
+        };
+
+        create type Project extending Resource;
+    """
+    ]
 
     # TO TEST:
     # * Trigger interactions
@@ -843,3 +853,76 @@ class TestRewrites(tb.QueryTestCase):
                 INSERT Conflicted { a := 'hello' }
                 UNLESS CONFLICT
             ''')
+
+    async def test_edgeql_rewrites_22(self):
+        await self.con.execute(
+            '''
+            insert Project { name := ' hello ' };
+            '''
+        )
+        await self.assert_query_result(
+            '''
+                select Project { name }
+            ''',
+            [
+                {'name': 'hello'},
+            ],
+        )
+
+        await self.con.execute(
+            '''
+            update Project set { name := ' world ' };
+            '''
+        )
+        await self.assert_query_result(
+            '''
+                select Project { name }
+            ''',
+            [
+                {'name': 'world'},
+            ],
+        )
+
+        await self.con.execute(
+            '''
+            alter type Project {
+                alter property name {
+                    create rewrite insert, update using ('hidden');
+                };
+            };
+            '''
+        )
+
+        await self.con.execute(
+            '''
+            insert Project { name := ' hey ' };
+            '''
+        )
+        await self.assert_query_result(
+            '''
+                select Project { name }
+            ''',
+            tb.bag(
+                [
+                    {'name': 'world'},
+                    {'name': 'hidden'},
+                ]
+            ),
+        )
+
+        await self.con.execute(
+            '''
+            update Project set { name := ' hoy ' };
+            '''
+        )
+        await self.assert_query_result(
+            '''
+                select Project { name }
+            ''',
+            tb.bag(
+                [
+                    {'name': 'hidden'},
+                    {'name': 'hidden'},
+                ]
+            ),
+        )
