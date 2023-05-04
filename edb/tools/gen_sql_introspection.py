@@ -18,7 +18,6 @@
 
 from __future__ import annotations
 
-import os
 import asyncio
 import json
 import textwrap
@@ -29,6 +28,7 @@ from edb.tools.edb import edbcommands
 async def run():
     import asyncpg
 
+    # import os
     # localdev = os.path.expanduser('~/.local/share/edgedb/_localdev')
     # c = await asyncpg.connect(
     #     host=localdev, database='postgres', user='postgres'
