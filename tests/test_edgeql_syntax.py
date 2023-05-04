@@ -460,9 +460,9 @@ aa';
 
     def test_edgeql_syntax_constants_39(self):
         r"""
-        SELECT '\x1F\x01\x00\x6e';
+        SELECT '\x1F\x01\x6e';
 % OK %
-        SELECT '\x1f\x01\x00n';
+        SELECT '\x1f\x01n';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
