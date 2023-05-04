@@ -1585,15 +1585,13 @@ def has_ddl_subcommand(
     return bool(get_ddl_subcommand(ddlcmd, cmdtype))
 
 
-ReturningMixin = SelectQuery | ForQuery | InternalGroupQuery
+ReturningQuery = SelectQuery | ForQuery | InternalGroupQuery
 
 
-FilterMixin = (
-    PipelinedQuery | ShapeElement | UpdateQuery | ConfigReset
-)
+FilteringQuery = PipelinedQuery | ShapeElement | UpdateQuery | ConfigReset
 
 
-SubjectMixin = DeleteQuery | UpdateQuery | GroupQuery
+SubjectQuery = DeleteQuery | UpdateQuery | GroupQuery
 
 
-OffsetLimitMixin = PipelinedQuery | ShapeElement
+OffsetLimitQuery = PipelinedQuery | ShapeElement

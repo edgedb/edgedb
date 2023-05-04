@@ -156,7 +156,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit_list(node.aliases)
             self._block_ws(-1)
 
-    def _visit_filter(self, node: qlast.FilterMixin,
+    def _visit_filter(self, node: qlast.FilteringQuery,
                       newlines: bool = True) -> None:
         if node.where:
             self._write_keywords('FILTER')
@@ -175,7 +175,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             )
             self._block_ws(-1, newlines)
 
-    def _visit_offset_limit(self, node: qlast.OffsetLimitMixin,
+    def _visit_offset_limit(self, node: qlast.OffsetLimitQuery,
                             newlines: bool = True) -> None:
         if node.offset is not None:
             self._write_keywords('OFFSET')

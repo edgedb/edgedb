@@ -190,7 +190,7 @@ def _normalize_with_block(
 
 
 def _normalize_aliased_field(
-    node: Union[qlast.SubjectMixin, qlast.ReturningMixin],
+    node: Union[qlast.SubjectQuery, qlast.ReturningQuery],
     fname: str,
     *,
     schema: s_schema.Schema,
