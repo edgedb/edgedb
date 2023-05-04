@@ -80,6 +80,17 @@ class Trigger(
         compcoef=None,
         inheritable=False)
 
+    # We don't support SET/DROP OWNED owned on triggers so we set its
+    # compcoef to 0.0
+    owned = so.SchemaField(
+        bool,
+        default=False,
+        inheritable=False,
+        compcoef=0.0,
+        reflection_method=so.ReflectionMethod.AS_LINK,
+        special_ddl_syntax=True,
+    )
+
     def get_subject(self, schema: s_schema.Schema) -> s_objtypes.ObjectType:
         subj: s_objtypes.ObjectType = self.get_field_value(schema, 'subject')
         return subj
