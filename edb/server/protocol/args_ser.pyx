@@ -23,6 +23,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 
 from edb import errors
 from edb.server.compiler import sertypes
+from edb.server.compiler import enums
 from edb.server.dbview cimport dbview
 
 from edb.server.pgproto cimport hton
@@ -35,6 +36,10 @@ from edb.server.pgproto.pgproto cimport (
     frb_get_len,
     frb_slice_from,
 )
+
+cdef uint32_t SCALAR_TAG = int(enums.TypeTag.SCALAR)
+cdef uint32_t TUPLE_TAG = int(enums.TypeTag.TUPLE)
+cdef uint32_t ARRAY_TAG = int(enums.TypeTag.ARRAY)
 
 
 cdef recode_bind_args_for_script(
@@ -246,10 +251,10 @@ cdef _recode_global(
     if glob_descriptor is None:
         data = frb_read(in_buf, in_len)
         out_buf.write_cstr(data, in_len)
-    elif glob_descriptor[0] == 1:  # tuple
+    elif glob_descriptor[0] == TUPLE_TAG:
         _, el_tids, el_infos = glob_descriptor
         recode_global_tuple(dbv, in_buf, out_buf, in_len, el_tids, el_infos)
-    elif glob_descriptor[0] == 2:  # array
+    elif glob_descriptor[0] == ARRAY_TAG:
         _, el_tid, tuple_info = glob_descriptor
         btid = dbv.resolve_backend_type_id(el_tid)
         recode_array(dbv, in_buf, out_buf, in_len, btid, tuple_info)
@@ -389,14 +394,14 @@ cdef _decode_tuple_args_core(
 
     frb_slice_from(&sub_buf, in_buf, in_len)
 
-    if tag == 0:  # scalar
+    if tag == SCALAR_TAG:
         buf.write_int32(in_len)
         data = frb_read(&sub_buf, in_len)
         buf.write_cstr(data, in_len)
         if in_array:
             counts[idx] += 1
 
-    elif tag == 1:  # tuple
+    elif tag == TUPLE_TAG:
         cnt = <uint32_t>hton.unpack_int32(frb_read(&sub_buf, 4))
         num = len(trans_typ) - 2
         if cnt != num:
@@ -408,7 +413,7 @@ cdef _decode_tuple_args_core(
             _decode_tuple_args_core(
                 &sub_buf, out_bufs, counts, acounts, typ, in_array)
 
-    elif tag == 2:  # array
+    elif tag == ARRAY_TAG:
         val = hton.unpack_int32(frb_read(&sub_buf, 4)) # ndims
         if val != 1 and val != 0:
             raise errors.InputDataError("unsupported array dimensions")

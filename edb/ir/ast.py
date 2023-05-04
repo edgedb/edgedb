@@ -603,7 +603,7 @@ class ParamTransType:
 @dataclasses.dataclass(eq=False)
 class ParamScalar(ParamTransType):
     def flatten(self) -> tuple[typing.Any, ...]:
-        return (0, self.idx)
+        return (int(qltypes.TypeTag.SCALAR), self.idx)
 
 
 @dataclasses.dataclass(eq=False)
@@ -611,7 +611,10 @@ class ParamTuple(ParamTransType):
     typs: tuple[ParamTransType, ...]
 
     def flatten(self) -> tuple[typing.Any, ...]:
-        return (1, self.idx) + tuple(x.flatten() for x in self.typs)
+        return (
+            (int(qltypes.TypeTag.TUPLE), self.idx)
+            + tuple(x.flatten() for x in self.typs)
+        )
 
 
 @dataclasses.dataclass(eq=False)
@@ -619,7 +622,7 @@ class ParamArray(ParamTransType):
     typ: ParamTransType
 
     def flatten(self) -> tuple[typing.Any, ...]:
-        return (2, self.idx, self.typ.flatten())
+        return (int(qltypes.TypeTag.ARRAY), self.idx, self.typ.flatten())
 
 
 @dataclasses.dataclass(frozen=True)

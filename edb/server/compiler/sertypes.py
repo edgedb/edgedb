@@ -1094,13 +1094,14 @@ def _make_global_rep(typ: s_types.Type, ctx: Context) -> object:
     if isinstance(typ, s_types.Tuple):
         subtyps = typ.get_subtypes(ctx.schema)
         return (
-            1,
+            int(enums.TypeTag.TUPLE),
             tuple(subtyp.id for subtyp in subtyps),
             tuple(_make_global_rep(subtyp, ctx) for subtyp in subtyps),
         )
     elif isinstance(typ, s_types.Array):
         subtyp = typ.get_element_type(ctx.schema)
-        return (2, subtyp.id, _make_global_rep(subtyp, ctx))
+        return (
+            int(enums.TypeTag.ARRAY), subtyp.id, _make_global_rep(subtyp, ctx))
     else:
         return None
 
