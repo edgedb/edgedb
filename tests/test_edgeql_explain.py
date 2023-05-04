@@ -131,6 +131,14 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             "apply_access_policies": True
         })
 
+    async def test_edgeql_explain_introspection_01(self):
+        res = await self.explain('select sys::Database')
+        self.assertIn(
+            ('relation_name', 'pg_database'),
+            ((p['title'], p['value'])
+             for p in res['fine_grained']['pipeline'][0]['properties']),
+        )
+
     async def test_edgeql_explain_with_bound_01(self):
         res = await self.explain('''
             with U := User,
