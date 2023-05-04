@@ -1090,6 +1090,22 @@ def _parse_range_descriptor(
     return RangeDesc(tid=tid, inner=subtype)
 
 
+def _make_global_rep(typ: s_types.Type, ctx: Context) -> object:
+    if isinstance(typ, s_types.Tuple):
+        subtyps = typ.get_subtypes(ctx.schema)
+        return (
+            int(enums.TypeTag.TUPLE),
+            tuple(subtyp.id for subtyp in subtyps),
+            tuple(_make_global_rep(subtyp, ctx) for subtyp in subtyps),
+        )
+    elif isinstance(typ, s_types.Array):
+        subtyp = typ.get_element_type(ctx.schema)
+        return (
+            int(enums.TypeTag.ARRAY), subtyp.id, _make_global_rep(subtyp, ctx))
+    else:
+        return None
+
+
 class StateSerializerFactory:
     def __init__(self, std_schema: s_schema.Schema):
         """
@@ -1178,14 +1194,14 @@ class StateSerializerFactory:
             self._schema, user_schema, global_schema)
 
         globals_shape = []
-        array_type_ids = {}
+        global_reps = {}
         for g in ctx.schema.get_objects(type=s_globals.Global):
             if g.is_computable(ctx.schema):
                 continue
             name = str(g.get_name(ctx.schema))
             s_type = g.get_target(ctx.schema)
-            if isinstance(s_type, s_types.Array):
-                array_type_ids[name] = s_type.get_element_type(ctx.schema).id
+            if isinstance(s_type, (s_types.Array, s_types.Tuple)):
+                global_reps[name] = _make_global_rep(s_type, ctx)
             cardinality = cardinality_from_ptr(g, ctx.schema)
             globals_shape.append((name, s_type, cardinality))
 
@@ -1209,7 +1225,7 @@ class StateSerializerFactory:
         assert isinstance(codec, InputShapeDesc)
         codec.fields['globals'][1].__dict__['data_raw'] = True
 
-        return StateSerializer(type_id, type_data, codec, array_type_ids)
+        return StateSerializer(type_id, type_data, codec, global_reps)
 
 
 class StateSerializer:
@@ -1218,12 +1234,12 @@ class StateSerializer:
         type_id: uuid.UUID,
         type_data: bytes,
         codec: TypeDesc,
-        globals_array_type_ids: typing.Dict[str, uuid.UUID],
+        global_reps: typing.Dict[str, object],
     ) -> None:
         self._type_id = type_id
         self._type_data = type_data
         self._codec = codec
-        self._globals_array_type_ids = globals_array_type_ids
+        self._global_reps = global_reps
 
     @property
     def type_id(self) -> uuid.UUID:
@@ -1238,11 +1254,11 @@ class StateSerializer:
     def decode(self, state: bytes) -> Any:
         return self._codec.decode(state)
 
-    def get_global_array_type_id(
+    def get_global_type_rep(
         self,
         global_name: str,
-    ) -> Optional[uuid.UUID]:
-        return self._globals_array_type_ids.get(global_name)
+    ) -> Optional[object]:
+        return self._global_reps.get(global_name)
 
 
 def derive_alias(

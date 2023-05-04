@@ -44,6 +44,10 @@ from edb.pgsql import dbops
 
 cimport cython
 
+from edb.server.protocol.args_ser cimport (
+    recode_global,
+)
+
 __all__ = ('DatabaseIndex', 'DatabaseConnectionView', 'SideEffects')
 
 cdef DEFAULT_MODALIASES = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
@@ -675,7 +679,7 @@ cdef class DatabaseConnectionView:
         globals_ = immutables.Map({
             k: config.SettingValue(
                 name=k,
-                value=self.recode_global(serializer, k, v),
+                value=recode_global(self, v, serializer.get_global_type_rep(k)),
                 source='global',
                 scope=qltypes.ConfigScope.GLOBAL,
             ) for k, v in state.get('globals', {}).items()
@@ -686,17 +690,6 @@ cdef class DatabaseConnectionView:
         self._session_state_cache = (
             aliases, session_config, globals_, type_id, data
         )
-
-    cdef inline recode_global(self, serializer, k, v):
-        if v and v[:4] == b'\x00\x00\x00\x01':
-            array_type_id = serializer.get_global_array_type_id(k)
-            if array_type_id:
-                va = bytearray(v)
-                va[8:12] = INT32_PACKER(
-                    self.resolve_backend_type_id(array_type_id)
-                )
-                v = bytes(va)
-        return v
 
     property txid:
         def __get__(self):
