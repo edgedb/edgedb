@@ -66,7 +66,7 @@ Once you save your initial schema, assuming it is valid, the ``watch`` command
 will pick it up and apply it to your database.
 
 
-2. Edit your schema files
+3. Edit your schema files
 -------------------------
 
 As your application evolves, directly edit your schema files to reflect your
@@ -105,7 +105,7 @@ Once you have the schema the way you want it, and you're ready to lock it in
 and commit it to version control, it's time to generate a migration.
 
 
-3. Generate a migration
+4. Generate a migration
 -----------------------
 
 To generate a migration that reflects all your changes, run ``edgedb migration
