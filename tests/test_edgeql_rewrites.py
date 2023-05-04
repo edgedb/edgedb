@@ -40,6 +40,14 @@ class TestRewrites(tb.QueryTestCase):
             create rewrite insert using ('inserted');
           };
         };
+
+        create abstract type Resource {
+          create required property name: str {
+            create rewrite insert, update using (str_trim(.name));
+          };
+        };
+
+        create type Project extending Resource;
     """]
 
     # TO TEST:
@@ -843,3 +851,62 @@ class TestRewrites(tb.QueryTestCase):
                 INSERT Conflicted { a := 'hello' }
                 UNLESS CONFLICT
             ''')
+
+    async def test_edgeql_rewrites_22(self):
+        await self.con.execute('''
+            insert Project { name := ' hello ' };
+        ''')
+        await self.assert_query_result(
+            '''
+                select Project { name }
+            ''',
+            [
+                {'name': 'hello'},
+            ],
+        )
+
+        await self.con.execute('''
+            update Project set { name := ' world ' };
+        ''')
+        await self.assert_query_result(
+            '''
+                select Project { name }
+            ''',
+            [
+                {'name': 'world'},
+            ],
+        )
+
+        await self.con.execute('''
+            alter type Project {
+                alter property name {
+                    create rewrite insert, update using ('hidden');
+                };
+            };
+        ''')
+
+        await self.con.execute('''
+            insert Project { name := ' hey ' };
+        ''')
+        await self.assert_query_result(
+            '''
+                select Project { name }
+            ''',
+            tb.bag([
+                {'name': 'world'},
+                {'name': 'hidden'},
+            ]),
+        )
+
+        await self.con.execute('''
+            update Project set { name := ' hoy ' };
+        ''')
+        await self.assert_query_result(
+            '''
+                select Project { name }
+            ''',
+            tb.bag([
+                {'name': 'hidden'},
+                {'name': 'hidden'},
+            ]),
+        )

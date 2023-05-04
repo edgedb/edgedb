@@ -1004,8 +1004,12 @@ def _compile_rewrites_for_stype(
             continue
         rewrite_pointer = downcast(
             s_pointers.Pointer, rewrite.get_subject(schema))
-        rewrite_source = downcast(
-            s_objtypes.ObjectType, rewrite_pointer.get_source(schema))
+        rewrite_source = stype
+        if rewrite_source.get_abstract(schema):
+            rewrite_pointer = downcast(
+                s_pointers.Pointer,
+                stype.get_pointers(schema).get(schema, pn)
+            )
 
         # get_rewrite searches in ancestors for rewrites, but if the rewrite
         # for that ancestor has already been compiled, skip it to avoid
