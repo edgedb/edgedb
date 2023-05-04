@@ -4593,12 +4593,16 @@ async def bootstrap(
     await _execute_block(conn, block)
 
 
-async def create_pg_extensions(conn: pgcon.PGConnection) -> None:
+async def create_pg_extensions(
+    conn: pgcon.PGConnection,
+    backend_params: params.BackendRuntimeParams,
+) -> None:
+    ext_schema = backend_params.instance_params.ext_schema
     commands = dbops.CommandGroup()
     commands.add_commands([
-        dbops.CreateSchema(name='edgedbext'),
+        dbops.CreateSchema(name=ext_schema, conditional=True),
         dbops.CreateExtension(
-            dbops.Extension(name='uuid-ossp', schema='edgedbext'),
+            dbops.Extension(name='uuid-ossp', schema=ext_schema),
         ),
     ])
     block = dbops.PLTopBlock()
