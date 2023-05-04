@@ -563,6 +563,12 @@ class TestProtocol(ProtocolTestCase):
     async def test_proto_global_bad_array(self):
         await self.con.connect()
 
+        # Use a transaction to avoid interfering with tests that care about
+        # the details of the state
+        await self._execute('START TRANSACTION')
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+
         # Create a global
         await self._execute('CREATE GLOBAL array_glob -> array<str>')
         sdd1 = await self.con.recv_match(protocol.StateDataDescription)
