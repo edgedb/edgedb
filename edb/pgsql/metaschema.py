@@ -5635,7 +5635,11 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
                           'edgedb', 'edgedbstd')
         UNION ALL
-        SELECT edgedbsql.uuid_to_oid(t.module_id), t.schema_name, 10, NULL,
+        SELECT
+            edgedbsql.uuid_to_oid(t.module_id),
+            t.schema_name,
+            (SELECT oid FROM pg_authid WHERE rolname = CURRENT_USER LIMIT 1),
+            NULL,
             NULL, NULL, NULL, NULL, NULL, NULL
         FROM (
             SELECT DISTINCT schema_name, module_id
