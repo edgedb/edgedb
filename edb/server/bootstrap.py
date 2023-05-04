@@ -1013,7 +1013,7 @@ async def _init_stdlib(
 
     logger.info('Creating the necessary PostgreSQL extensions...')
     backend_params = cluster.get_runtime_params()
-    await metaschema.create_pg_extensions(conn)
+    await metaschema.create_pg_extensions(conn, backend_params)
 
     config_spec = config.load_spec_from_schema(stdlib.stdschema)
     config.set_settings(config_spec)
