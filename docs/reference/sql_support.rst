@@ -13,8 +13,11 @@ username, and password you already use for your database.
 
 .. warning::
 
-    Make sure to require SSL encryption in your SQL tool or client when using
-    EdgeDB's SQL support
+    EdgeDB server requires TLS by default, and this is also true for our SQL
+    support. Make sure to require SSL encryption in your SQL tool or client when using
+    EdgeDB's SQL support. Alternatively, you can disable the TLS requirement by
+    setting the ``EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY`` environment
+    variable to ``optional``.
 
 Object types in your EdgeDB schema are exposed as regular SQL tables containing
 all the data you store in your EdgeDB database.
