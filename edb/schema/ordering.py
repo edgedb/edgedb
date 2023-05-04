@@ -712,6 +712,21 @@ def _trace_op(
                         anc_item.deps.add(('delete', ref_name_str))
 
         if isinstance(obj, referencing.ReferencedObject):
+            if tag == 'delete':
+                # If the object is being deleted and then recreated
+                # via inheritance, that deletion needs to come before
+                # an ancestor gets created (since that will cause our
+                # recreation.)
+                try:
+                    new_obj = get_object(new_schema, op)
+                except errors.InvalidReferenceError:
+                    new_obj = None
+                if isinstance(new_obj, referencing.ReferencedInheritingObject):
+                    for ancestor in new_obj.get_implicit_ancestors(new_schema):
+                        rep_item = get_deps(
+                            ('create', str(ancestor.get_name(new_schema))))
+                        rep_item.deps.add((tag, str(op.classname)))
+
             referrer = obj.get_referrer(old_schema)
             if referrer is not None:
                 assert isinstance(referrer, so.QualifiedObject)

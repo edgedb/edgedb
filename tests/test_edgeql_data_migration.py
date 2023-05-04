@@ -11533,6 +11533,52 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         ''')
 
+    async def test_edgeql_migration_trigger_shift_01(self):
+        await self.migrate(r'''
+            type Log {
+                body: str;
+                timestamp: datetime {
+                    default := datetime_current();
+                }
+            }
+
+
+            abstract type Named {
+                required name: str;
+            }
+
+            type Person extending Named {
+                trigger log_insert after insert for each do (
+                    insert Log {
+                        body := __new__.__type__.name ++ ' ' ++ __new__.name,
+                    }
+                );
+            }
+        ''')
+
+        await self.migrate(r'''
+            type Log {
+                body: str;
+                timestamp: datetime {
+                    default := datetime_current();
+                }
+            }
+
+
+            abstract type Named {
+                required name: str;
+
+                trigger log_insert after insert for each do (
+                    insert Log {
+                        body := __new__.__type__.name ++ ' ' ++ __new__.name,
+                    }
+                );
+            }
+
+            type Person extending Named {
+            }
+        ''')
+
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False
