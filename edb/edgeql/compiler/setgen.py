@@ -499,7 +499,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             # We need to fence this if the head is a mutating
             # statement, to make sure that the factoring allowlist
             # works right.
-            is_subquery = isinstance(step, qlast.Statement)
+            is_subquery = isinstance(step, qlast.Query)
             with ctx.newscope(fenced=is_subquery) as subctx:
                 subctx.view_rptr = None
                 path_tip = dispatch.compile(step, ctx=subctx)
@@ -1455,7 +1455,7 @@ def computable_ptr_set(
                     target_scls, ctx=ctx),
                 expr=schema_qlexpr,
             )
-        qlexpr = astutils.ensure_qlstmt(schema_qlexpr)
+        qlexpr = astutils.ensure_ql_query(schema_qlexpr)
         qlctx = None
         path_id_ns = None
 

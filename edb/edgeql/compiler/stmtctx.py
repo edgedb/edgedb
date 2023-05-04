@@ -715,7 +715,7 @@ def declare_view(
 
         subctx.toplevel_result_view_name = view_name
 
-        view_set = dispatch.compile(astutils.ensure_qlstmt(expr), ctx=subctx)
+        view_set = dispatch.compile(astutils.ensure_ql_query(expr), ctx=subctx)
         assert isinstance(view_set, irast.Set)
 
         ctx.env.path_scope_map[view_set] = context.ScopeInfo(

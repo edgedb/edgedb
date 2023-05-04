@@ -1179,7 +1179,7 @@ class FunctionCommand(MetaCommand):
                                           schema=nativecode.schema)
         ):
             # Add a cast and recompile it
-            qlexpr = qlcompiler.astutils.ensure_qlstmt(ql_ast.TypeCast(
+            qlexpr = qlcompiler.astutils.ensure_ql_query(ql_ast.TypeCast(
                 type=s_utils.typeref_to_ast(schema, return_type),
                 expr=nativecode.qlast,
             ))

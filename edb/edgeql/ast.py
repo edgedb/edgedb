@@ -460,13 +460,13 @@ class Set(Expr):
 #
 
 class Command(Base):
+    """
+    A top-level node that is evaluated by our server and
+    cannot be a part of a sub expression.
+    """
     __abstract_node__ = True
     aliases: typing.Optional[
         typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]] = None
-
-
-class Statement(Command, Expr):
-    __abstract_node__ = True
 
 
 class ShapeOp(s_enum.StrEnum):
@@ -510,8 +510,16 @@ class Shape(Expr):
     elements: typing.List[ShapeElement]
 
 
-class Query(Statement):
+class Query(Expr):
     __abstract_node__ = True
+
+    aliases: typing.Optional[
+        typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
+    ] = None
+
+
+"""A node that can have a WITH block"""
+Statement = Query | Command
 
 
 class PipelinedQuery(Query):
@@ -1477,7 +1485,7 @@ class ConfigReset(ConfigOp):
 # Describe
 #
 
-class DescribeStmt(Statement):
+class DescribeStmt(Command):
 
     language: qltypes.DescribeLanguage
     object: typing.Union[ObjectRef, DescribeGlobal]
@@ -1488,7 +1496,7 @@ class DescribeStmt(Statement):
 # Explain
 #
 
-class ExplainStmt(Statement):
+class ExplainStmt(Command):
 
     args: typing.Optional[NamedTuple]
     query: Query
@@ -1498,7 +1506,7 @@ class ExplainStmt(Statement):
 # Administer
 #
 
-class AdministerStmt(Statement):
+class AdministerStmt(Command):
 
     expr: FunctionCall
 

@@ -577,7 +577,7 @@ def ptr_default_to_col_default(schema, ptr, expr):
         # type, validation of the expression type is not the concern
         # of this function.
         eql = ql_parser.parse_query(expr.text)
-        eql = ql_astutils.ensure_qlstmt(
+        eql = ql_astutils.ensure_ql_query(
             qlast.TypeCast(
                 type=s_utils.typeref_to_ast(
                     schema, ptr.get_target(schema)),

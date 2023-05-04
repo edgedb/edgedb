@@ -52,8 +52,12 @@ def extend_binop(
     return result
 
 
-def ensure_qlstmt(expr: qlast.Expr) -> qlast.Statement:
-    if not isinstance(expr, qlast.Statement):
+def ensure_ql_query(expr: qlast.Expr) -> qlast.Query:
+
+    # a sanity check added after refactoring AST
+    assert isinstance(expr, qlast.Expr)
+
+    if not isinstance(expr, qlast.Query):
         expr = qlast.SelectQuery(
             result=expr,
             implicit=True,
@@ -125,6 +129,12 @@ class FindParams(ast.NodeVisitor):
         self.modaliases = modaliases
 
     def visit_Command(self, n: qlast.Command) -> None:
+        self._visit_with_stmt(n)
+
+    def visit_Query(self, n: qlast.Query) -> None:
+        self._visit_with_stmt(n)
+
+    def _visit_with_stmt(self, n: qlast.Statement) -> None:
         old = self.modaliases
         for with_entry in (n.aliases or ()):
             if isinstance(with_entry, qlast.ModuleAliasDecl):

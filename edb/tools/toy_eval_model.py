@@ -475,8 +475,8 @@ def ptr_name(ptr: qlast.Ptr) -> str:
     return name
 
 
-def ensure_qlstmt(expr: qlast.Expr) -> qlast.Statement:
-    if not isinstance(expr, qlast.Statement):
+def ensure_ql_query(expr: qlast.Expr) -> qlast.Query:
+    if not isinstance(expr, qlast.Query):
         expr = qlast.SelectQuery(
             result=expr,
             implicit=True,

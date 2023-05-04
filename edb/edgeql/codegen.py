@@ -148,7 +148,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write(' ')
 
-    def _visit_aliases(self, node: qlast.Command) -> None:
+    def _visit_aliases(self, node: qlast.Statement) -> None:
         if node.aliases:
             self._write_keywords('WITH')
             self._block_ws(1)
