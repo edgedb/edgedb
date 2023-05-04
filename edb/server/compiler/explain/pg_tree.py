@@ -159,7 +159,12 @@ def _translate_index(name: str, schema: s_schema.Schema) -> Index:
 
 
 def _translate_relation(name: str, schema: s_schema.Schema) -> Relation:
-    return Relation(str(schema.get_by_id(uuid.UUID(name)).get_name(schema)))
+    try:
+        id = uuid.UUID(name)
+    except ValueError:
+        # For introspection queries there are tables are named pg_*
+        return Relation(name)
+    return Relation(str(schema.get_by_id(id).get_name(schema)))
 
 
 # Legend:
