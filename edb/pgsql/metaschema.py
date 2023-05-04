@@ -5639,7 +5639,11 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
                           'edgedb', 'edgedbstd')
         UNION ALL
-        SELECT edgedbsql.uuid_to_oid(t.module_id), t.schema_name, 10, NULL,
+        SELECT
+            edgedbsql.uuid_to_oid(t.module_id),
+            t.schema_name,
+            (SELECT oid FROM pg_roles WHERE rolname = CURRENT_USER LIMIT 1),
+            NULL,
             NULL, NULL, NULL, NULL, NULL, NULL
         FROM (
             SELECT DISTINCT schema_name, module_id
@@ -5998,7 +6002,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             stxstattarget,
             stxkeys,
             stxkind,
-            stxexprs,
+            NULL::pg_node_tree as stxexprs,
             tableoid, xmin, cmin, xmax, cmax, ctid
         FROM pg_statistic_ext
         """,
@@ -6014,29 +6018,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             NULL::oid AS stxdexpr,
             tableoid, xmin, cmin, xmax, cmax, ctid
         FROM pg_statistic_ext_data
-        """,
-        ),
-        dbops.View(
-            name=("edgedbsql", "pg_stats_ext_exprs"),
-            query="""
-        SELECT
-            schemaname,
-            tablename,
-            statistics_schemaname,
-            statistics_name,
-            statistics_owner,
-            expr,
-            null_frac,
-            avg_width,
-            n_distinct,
-            NULL::real[] AS most_common_vals,
-            most_common_freqs,
-            NULL::real[] AS histogram_bounds,
-            correlation,
-            NULL::real[] AS most_common_elems,
-            most_common_elem_freqs,
-            elem_count_histogram
-        FROM pg_stats_ext_exprs
         """,
         ),
         dbops.View(
@@ -6085,6 +6066,30 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             query="""
         SELECT *, tableoid, xmin, cmin, xmax, cmax, ctid
         FROM pg_trigger
+        WHERE FALSE
+        """,
+        ),
+        # Omit all subscriptions for now.
+        # This table is queried by pg_dump with COUNT(*) when user does not
+        # have permissions to access it. This should be allowed, but the
+        # view expands the query to all columns, which is not allowed.
+        # So we have to construct an empty view with correct signature that
+        # does not reference pg_subscription.
+        dbops.View(
+            name=("edgedbsql", "pg_subscription"),
+            query="""
+        SELECT
+            NULL::oid AS oid,
+            NULL::oid AS subdbid,
+            NULL::name AS subname,
+            NULL::oid AS subowner,
+            NULL::boolean AS subenabled,
+            NULL::text AS subconninfo,
+            NULL::name AS subslotname,
+            NULL::text AS subsynccommit,
+            NULL::oid AS subpublications,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_namespace
         WHERE FALSE
         """,
         ),
@@ -6141,7 +6146,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_statistic',
             'pg_statistic_ext',
             'pg_statistic_ext_data',
-            'pg_subscription',
             'pg_subscription_rel',
             'pg_tablespace',
             'pg_transform',
@@ -6208,6 +6212,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_index',
             'pg_constraint',
             'pg_trigger',
+            'pg_subscription',
         ]:
             continue
 

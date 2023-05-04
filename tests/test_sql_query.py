@@ -676,16 +676,19 @@ class TestSQL(tb.SQLQueryTestCase):
                 raise Exception(f'introspecting {table_name}')
 
     async def test_sql_query_introspection_03(self):
-        [[toast_table]] = await self.squery_values(
+        res = await self.squery_values(
             '''
             SELECT relname FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE n.nspname = 'pg_toast'
+                AND has_schema_privilege(n.oid, 'USAGE')
             ORDER BY relname LIMIT 1
             '''
         )
-        # Result will probably be empty, so we cannot validate column names
-        await self.squery_values(f'SELECT * FROM pg_toast.{toast_table}')
+        # res may be empty
+        for [toast_table] in res:
+            # Result will probably be empty, so we cannot validate column names
+            await self.squery_values(f'SELECT * FROM pg_toast.{toast_table}')
 
     async def test_sql_query_schemas(self):
         await self.scon.fetch('SELECT id FROM "inventory"."Item";')
