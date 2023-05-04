@@ -593,3 +593,28 @@ Bug fixes
 * Bugfix: update last_state after rollback (:eql:gh:`#4953`)
 
 * Resolver GROUP BY alised column (:eql:gh:`#4946`)
+
+
+New release schedule
+====================
+
+Unfortunately, the 3.0 release will not include full-text search. We have many
+requirements for this new API (see `the FTS RFC
+<https://github.com/edgedb/rfcs/blob/master/text/1015-full-text-search.rst>`_
+for details), and, while we’ve made significant progress, we have unfortunately
+run out of time to be 100% sure that it is ready for prime time.
+
+We don’t want this delay to hold back the release of EdgeDB 3.0, which includes
+many other exciting features that are ready for you to start using right now.
+That’s why we’ve decided to delay only the FTS feature rather than delaying the
+entire 3.0 release.
+
+That said we’re working hard to get FTS ready as soon as possible. After the
+release of 3.0, we'll be moving to a much more frequent release cycle so that
+features like FTS can be in your hands as soon as they're ready.
+
+Going forward, expect EdgeDB releases every four months. These releases will
+naturally incorporate fewer features than our past releases, but we think the
+more predictable cadence will be worth it. Every third release starting with
+3.0 will be a long-term support (LTS) release. These releases will continue to
+recieve support for a year and a half after their initial release.
