@@ -143,7 +143,7 @@ def compile_SelectQuery(
         stmt.limit = clauses.compile_limit_offset_clause(
             expr.limit, ctx=sctx)
 
-        result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
 
     return result
 
@@ -222,7 +222,7 @@ def compile_ForQuery(
                 compile_result_clause(
                     # Make sure it is a stmt, so that shapes inside the body
                     # get resolved there.
-                    astutils.ensure_qlstmt(qlstmt.result),
+                    astutils.ensure_ql_query(qlstmt.result),
                     view_scls=ctx.view_scls,
                     view_rptr=ctx.view_rptr,
                     view_name=ctx.toplevel_result_view_name,
@@ -240,7 +240,7 @@ def compile_ForQuery(
                 ctx=sctx,
             )
 
-        result = fini_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
 
     return result
 
@@ -385,7 +385,7 @@ def compile_InternalGroupQuery(
                 )
 
             stmt.result = compile_result_clause(
-                astutils.ensure_qlstmt(expr.result),
+                astutils.ensure_ql_query(expr.result),
                 result_alias=expr.result_alias,
                 ctx=bctx)
 
@@ -394,7 +394,7 @@ def compile_InternalGroupQuery(
             stmt.orderby = clauses.compile_orderby_clause(
                 expr.orderby, ctx=bctx)
 
-        result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
 
     return result
 
@@ -517,7 +517,7 @@ def compile_InsertQuery(
         ):
             stmt.write_policies[mat_stype.id] = pol_condition
 
-        result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
         # If we have an ELSE clause, and this is a toplevel statement,
         # we need to compile_query_subject *again* on the outer query,
@@ -647,7 +647,7 @@ def compile_UpdateQuery(
         stmt.conflict_checks = conflicts.compile_inheritance_conflict_checks(
             stmt, mat_stype, ctx=ictx)
 
-        result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
     return result
 
@@ -784,7 +784,7 @@ def compile_DeleteQuery(
 
             stmt.links_to_delete[dtype.id] = tuple(ptrs)
 
-        result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
     return result
 
@@ -1045,7 +1045,7 @@ def compile_DescribeStmt(
                 ctx=ictx,
             )
 
-        result = fini_stmt(stmt, ql, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
     return result
 
@@ -1055,7 +1055,7 @@ def compile_Shape(
         shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Set:
     shape_expr = shape.expr or qlutils.FREE_SHAPE_EXPR
     with ctx.new() as subctx:
-        subctx.qlstmt = astutils.ensure_qlstmt(shape)
+        subctx.qlstmt = astutils.ensure_ql_query(shape)
         subctx.stmt = stmt = irast.SelectStmt()
         ctx.env.compiled_stmts[subctx.qlstmt] = stmt
         subctx.class_view_overrides = subctx.class_view_overrides.copy()
@@ -1154,10 +1154,11 @@ def init_stmt(
 
 
 def fini_stmt(
-        irstmt: Union[irast.Stmt, irast.Set],
-        qlstmt: qlast.Statement, *,
-        ctx: context.ContextLevel,
-        parent_ctx: context.ContextLevel) -> irast.Set:
+    irstmt: Union[irast.Stmt, irast.Set],
+    *,
+    ctx: context.ContextLevel,
+    parent_ctx: context.ContextLevel,
+) -> irast.Set:
 
     view_name = parent_ctx.toplevel_result_view_name
     t = inference.infer_type(irstmt, ctx.env)

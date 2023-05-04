@@ -96,22 +96,6 @@ class Base(ast.AST):
         dump_edgeql(self)
 
 
-class OffsetLimitMixin(Base):
-    __abstract_node__ = True
-    offset: typing.Optional[Expr] = None
-    limit: typing.Optional[Expr] = None
-
-
-class OrderByMixin(Base):
-    __abstract_node__ = True
-    orderby: typing.Optional[typing.List[SortExpr]] = None
-
-
-class FilterMixin(Base):
-    __abstract_node__ = True
-    where: typing.Optional[Expr] = None
-
-
 class OptionValue(Base):
     """An option value resulting from a syntax."""
 
@@ -164,23 +148,14 @@ class SubExpr(Base):
     anchors: typing.Dict[str, typing.Any]
 
 
-class Clause(Base):
-    """Abstract parent for all query clauses."""
-    __abstract_node__ = True
-
-
-class SortExpr(Clause):
+class SortExpr(Base):
     path: Expr
     direction: typing.Optional[SortOrder] = None
     nones_order: typing.Optional[NonesOrder] = None
 
 
-class BaseAlias(Clause):
-    __abstract_node__ = True
+class OptionallyAliasedExpr(Base):
     alias: typing.Optional[str]
-
-
-class OptionallyAliasedExpr(BaseAlias):
     expr: Expr
 
 
@@ -189,8 +164,9 @@ class AliasedExpr(OptionallyAliasedExpr):
     alias: str
 
 
-class ModuleAliasDecl(BaseAlias):
+class ModuleAliasDecl(Base):
     module: str
+    alias: typing.Optional[str]
 
 
 class BaseSessionCommand(Base):
@@ -206,15 +182,15 @@ class BaseSessionConfigSet(BaseSessionSet):
     system: bool = False
 
 
-class SessionSetAliasDecl(ModuleAliasDecl, BaseSessionSet):
-    pass
+class SessionSetAliasDecl(BaseSessionSet):
+    decl: ModuleAliasDecl
 
 
 class BaseSessionReset(BaseSessionCommand):
     __abstract_node__ = True
 
 
-class SessionResetAliasDecl(BaseAlias, BaseSessionReset):
+class SessionResetAliasDecl(BaseSessionReset):
     alias: str
 
 
@@ -299,7 +275,7 @@ class SetConstructorOp(BinOp):
     op: str = 'UNION'
 
 
-class WindowSpec(Clause, OrderByMixin):
+class WindowSpec(Base):
     orderby: typing.List[SortExpr]
     partition: typing.List[Expr]
 
@@ -483,33 +459,13 @@ class Set(Expr):
 #
 
 class Command(Base):
+    """
+    A top-level node that is evaluated by our server and
+    cannot be a part of a sub expression.
+    """
     __abstract_node__ = True
     aliases: typing.Optional[
         typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]] = None
-
-
-class Statement(Command, Expr):
-    __abstract_node__ = True
-
-
-class SubjectMixin(Base):
-    __abstract_node__ = True
-    subject: Expr
-
-
-class ReturningMixin(Base):
-    __abstract_node__ = True
-    result_alias: typing.Optional[str] = None
-    result: Expr
-
-
-class SelectClauseMixin(OrderByMixin, OffsetLimitMixin, FilterMixin):
-    __abstract_node__ = True
-    implicit: bool = False
-    # This is a hack, indicating that rptr should be forwarded through
-    # this select. Used when we generate implicit selects that need to
-    # not interfere with linkprops.
-    rptr_passthrough: bool = False
 
 
 class ShapeOp(s_enum.StrEnum):
@@ -531,7 +487,7 @@ class ShapeOrigin(s_enum.StrEnum):
     MATERIALIZATION = 'MATERIALIZATION'
 
 
-class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
+class ShapeElement(Expr):
     expr: Path
     elements: typing.Optional[typing.List[ShapeElement]] = None
     compexpr: typing.Optional[Expr] = None
@@ -540,18 +496,52 @@ class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
     operation: ShapeOperation = ShapeOperation(op=ShapeOp.ASSIGN)
     origin: ShapeOrigin = ShapeOrigin.EXPLICIT
 
+    where: typing.Optional[Expr] = None
+
+    orderby: typing.Optional[typing.List[SortExpr]] = None
+
+    offset: typing.Optional[Expr] = None
+    limit: typing.Optional[Expr] = None
+
 
 class Shape(Expr):
     expr: typing.Optional[Expr]
     elements: typing.List[ShapeElement]
 
 
-class Query(Statement):
+class Query(Expr):
     __abstract_node__ = True
 
+    aliases: typing.Optional[
+        typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
+    ] = None
 
-class SelectQuery(Query, ReturningMixin, SelectClauseMixin):
-    pass
+
+"""A node that can have a WITH block"""
+Statement = Query | Command
+
+
+class PipelinedQuery(Query):
+    __abstract_node__ = True
+    implicit: bool = False
+
+    where: typing.Optional[Expr] = None
+
+    orderby: typing.Optional[typing.List[SortExpr]] = None
+
+    offset: typing.Optional[Expr] = None
+    limit: typing.Optional[Expr] = None
+
+    # This is a hack, indicating that rptr should be forwarded through
+    # this select. Used when we generate implicit selects that need to
+    # not interfere with linkprops.
+    rptr_passthrough: bool = False
+
+
+class SelectQuery(PipelinedQuery):
+
+    result_alias: typing.Optional[str] = None
+    result: Expr
 
 
 class GroupingIdentList(Base):
@@ -578,17 +568,25 @@ class GroupingOperation(GroupingElement):
     elements: typing.List[GroupingAtom]
 
 
-class GroupQuery(Query, SubjectMixin):
+class GroupQuery(Query):
     subject_alias: typing.Optional[str] = None
     using: typing.Optional[typing.List[AliasedExpr]]
     by: typing.List[GroupingElement]
 
+    subject: Expr
 
-class InternalGroupQuery(
-        GroupQuery, ReturningMixin, FilterMixin, OrderByMixin):
+
+class InternalGroupQuery(GroupQuery):
     group_alias: str
     grouping_alias: typing.Optional[str]
     from_desugaring: bool = False
+
+    result_alias: typing.Optional[str] = None
+    result: Expr
+
+    where: typing.Optional[Expr] = None
+
+    orderby: typing.Optional[typing.List[SortExpr]] = None
 
 
 class InsertQuery(Query):
@@ -598,17 +596,24 @@ class InsertQuery(Query):
         typing.Tuple[typing.Optional[Expr], typing.Optional[Expr]]] = None
 
 
-class UpdateQuery(Query, SubjectMixin, FilterMixin):
+class UpdateQuery(Query):
     shape: typing.List[ShapeElement]
 
+    subject: Expr
 
-class DeleteQuery(Query, SubjectMixin, SelectClauseMixin):
-    pass
+    where: typing.Optional[Expr] = None
 
 
-class ForQuery(Query, ReturningMixin):
+class DeleteQuery(PipelinedQuery):
+    subject: Expr
+
+
+class ForQuery(Query):
     iterator: Expr
     iterator_alias: str
+
+    result_alias: typing.Optional[str] = None
+    result: Expr
 
 
 # Transactions
@@ -1211,7 +1216,7 @@ class IndexCommand(ObjectDDL):
         qltypes.SchemaObjectClass.INDEX)
 
 
-class IndexCode(Clause):
+class IndexCode(Base):
     language: Language
     code: str
 
@@ -1351,7 +1356,7 @@ class Language(s_enum.StrEnum):
     EdgeQL = 'EDGEQL'
 
 
-class FunctionCode(Clause):
+class FunctionCode(Base):
     language: Language = Language.EdgeQL
     code: typing.Optional[str] = None
     nativecode: typing.Optional[Expr] = None
@@ -1385,7 +1390,7 @@ class DropFunction(DropObject, FunctionCommand):
     pass
 
 
-class OperatorCode(Clause):
+class OperatorCode(Base):
     language: Language
     from_operator: typing.Optional[typing.Tuple[str, ...]]
     from_function: typing.Optional[typing.Tuple[str, ...]]
@@ -1416,7 +1421,7 @@ class DropOperator(DropObject, OperatorCommand):
     pass
 
 
-class CastCode(Clause):
+class CastCode(Base):
     language: Language
     from_function: str
     from_expr: bool
@@ -1472,15 +1477,16 @@ class ConfigInsert(ConfigOp):
     shape: typing.List[ShapeElement]
 
 
-class ConfigReset(ConfigOp, FilterMixin):
-    pass
+class ConfigReset(ConfigOp):
+    where: typing.Optional[Expr] = None
 
 
 #
 # Describe
 #
 
-class DescribeStmt(Statement):
+
+class DescribeStmt(Command):
 
     language: qltypes.DescribeLanguage
     object: typing.Union[ObjectRef, DescribeGlobal]
@@ -1491,7 +1497,8 @@ class DescribeStmt(Statement):
 # Explain
 #
 
-class ExplainStmt(Statement):
+
+class ExplainStmt(Command):
 
     args: typing.Optional[NamedTuple]
     query: Query
@@ -1501,7 +1508,7 @@ class ExplainStmt(Statement):
 # Administer
 #
 
-class AdministerStmt(Statement):
+class AdministerStmt(Command):
 
     expr: FunctionCall
 
@@ -1578,3 +1585,15 @@ def has_ddl_subcommand(
     cmdtype: typing.Type[DDLOperation],
 ) -> bool:
     return bool(get_ddl_subcommand(ddlcmd, cmdtype))
+
+
+ReturningQuery = SelectQuery | ForQuery | InternalGroupQuery
+
+
+FilteringQuery = PipelinedQuery | ShapeElement | UpdateQuery | ConfigReset
+
+
+SubjectQuery = DeleteQuery | UpdateQuery | GroupQuery
+
+
+OffsetLimitQuery = PipelinedQuery | ShapeElement

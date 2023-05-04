@@ -148,7 +148,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write(' ')
 
-    def _visit_aliases(self, node: qlast.Command) -> None:
+    def _visit_aliases(self, node: qlast.Statement) -> None:
         if node.aliases:
             self._write_keywords('WITH')
             self._block_ws(1)
@@ -156,16 +156,20 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit_list(node.aliases)
             self._block_ws(-1)
 
-    def _visit_filter(self, node: qlast.FilterMixin,
-                      newlines: bool = True) -> None:
+    def _visit_filter(
+        self, node: qlast.FilteringQuery, newlines: bool = True
+    ) -> None:
         if node.where:
             self._write_keywords('FILTER')
             self._block_ws(1, newlines)
             self.visit(node.where)
             self._block_ws(-1, newlines)
 
-    def _visit_order(self, node: qlast.OrderByMixin,
-                     newlines: bool = True) -> None:
+    def _visit_order(
+        self,
+        node: qlast.SelectQuery | qlast.DeleteQuery,
+        newlines: bool = True,
+    ) -> None:
         if node.orderby:
             self._write_keywords('ORDER BY')
             self._block_ws(1, newlines)
@@ -175,8 +179,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             )
             self._block_ws(-1, newlines)
 
-    def _visit_offset_limit(self, node: qlast.OffsetLimitMixin,
-                            newlines: bool = True) -> None:
+    def _visit_offset_limit(
+        self, node: qlast.OffsetLimitQuery, newlines: bool = True
+    ) -> None:
         if node.offset is not None:
             self._write_keywords('OFFSET')
             self._block_ws(1, newlines)
@@ -2353,15 +2358,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self,
         node: qlast.SessionSetAliasDecl
     ) -> None:
-        self._write_keywords('SET')
-        if node.alias:
-            self._write_keywords(' ALIAS ')
-            self.write(ident_to_str(node.alias))
-            self._write_keywords(' AS MODULE ')
-            self.write(ident_to_str(node.module))
-        else:
-            self._write_keywords(' MODULE ')
-            self.write(ident_to_str(node.module))
+        self._write_keywords('SET ')
+        if node.decl.alias:
+            self._write_keywords('ALIAS ')
+        self.visit_ModuleAliasDecl(node.decl)
 
     def visit_SessionResetAllAliases(
         self,

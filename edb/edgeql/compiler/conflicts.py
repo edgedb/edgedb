@@ -580,7 +580,8 @@ def compile_insert_unless_conflict_on(
 
             # Compile else
             else_ir = dispatch.compile(
-                astutils.ensure_qlstmt(else_branch), ctx=ectx)
+                astutils.ensure_ql_query(else_branch), ctx=ectx
+            )
         assert isinstance(else_ir, irast.Set)
 
     return irast.OnConflictClause(

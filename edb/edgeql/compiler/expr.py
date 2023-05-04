@@ -199,7 +199,8 @@ def compile_Set(
             # literals are equivalent to a binary UNION with
             # an empty set, not to the element.
             return dispatch.compile(
-                astutils.ensure_qlstmt(elements[0]), ctx=ctx)
+                astutils.ensure_ql_query(elements[0]), ctx=ctx
+            )
         else:
             # Turn it into a tree of UNIONs so we only blow up the nesting
             # depth logarithmically.

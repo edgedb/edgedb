@@ -26,6 +26,7 @@ from edb.common import parsing
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
+from edb.edgeql.compiler import astutils as qlastutils
 
 from . import annos as s_anno
 from . import expr as s_expr
@@ -446,8 +447,7 @@ def compile_alias_expr(
     if cached is not None:
         return cached
 
-    if not isinstance(expr, qlast.Statement):
-        expr = qlast.SelectQuery(result=expr)
+    expr = qlastutils.ensure_ql_query(expr)
 
     ir = qlcompiler.compile_ast_to_ir(
         expr,

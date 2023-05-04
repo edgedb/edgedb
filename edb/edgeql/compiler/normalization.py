@@ -64,12 +64,12 @@ def renormalize_compat(
     orig_qltree = qlparser.parse_fragment(orig_text)
 
     norm_aliases: Dict[Optional[str], str] = {}
-    assert isinstance(norm_qltree, qlast.Command)
+    assert isinstance(norm_qltree, (qlast.Query, qlast.Command))
     for alias in (norm_qltree.aliases or ()):
         if isinstance(alias, qlast.ModuleAliasDecl):
             norm_aliases[alias.alias] = alias.module
 
-    if isinstance(orig_qltree, qlast.Command):
+    if isinstance(orig_qltree, (qlast.Query, qlast.Command)):
         orig_aliases: Dict[Optional[str], str] = {}
         for alias in (orig_qltree.aliases or ()):
             if isinstance(alias, qlast.ModuleAliasDecl):
@@ -154,7 +154,7 @@ def normalize_DDL(
 
 
 def _normalize_with_block(
-    node: qlast.Statement,
+    node: qlast.Query,
     *,
     field: str='aliases',
     schema: s_schema.Schema,
@@ -190,7 +190,7 @@ def _normalize_with_block(
 
 
 def _normalize_aliased_field(
-    node: Union[qlast.SubjectMixin, qlast.ReturningMixin, qlast.ForQuery],
+    node: Union[qlast.SubjectQuery, qlast.ReturningQuery],
     fname: str,
     *,
     schema: s_schema.Schema,
