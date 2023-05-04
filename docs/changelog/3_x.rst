@@ -134,14 +134,8 @@ could be replaced with this equivalent one in EdgeDB 3+:
       multi friends: User;
     }
 
-As you're reading through our docs, you'll notice that changing the version
-selector in the sidebar will also switch all SDL examples to the appropriate
-SDL syntax.
-
-.. note::
-
-    SDL syntax in documentation does not change for non-versioned content like
-    guides.
+Selecting "v3" from the version dropdown in the sidebar will update SDL code in
+versioned sections of the documentation to the new syntax.
 
 
 Query plan
