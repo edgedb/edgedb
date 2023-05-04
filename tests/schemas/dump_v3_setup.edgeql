@@ -24,3 +24,23 @@ ONTO m1nnh3uhlwn5vfe7dfhyyxxjafsxniljyuzov6avzqeyddw2qpkw7q {
 };
 
 CREATE TYPE default::Test2;
+
+create type Log {
+    create property message -> str;
+    create property timestamp -> float64 {
+        create rewrite insert, update using (random())
+    };
+    create access policy whatever allow all;
+    create access policy whatever_no deny insert using (false) {
+        set errmessage := "aaaaaa";
+    };
+};
+
+create type Foo {
+    create property name -> str;
+    create trigger log after insert for each do (
+        insert Log {
+            message := __new__.name
+        }
+    );
+};

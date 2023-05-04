@@ -41,7 +41,7 @@ if TYPE_CHECKING:
 
 
 class Trigger(
-    referencing.ReferencedInheritingObject,
+    referencing.NamedReferencedInheritingObject,
     so.InheritingObject,  # Help reflection figure out the right db MRO
     qlkind=qltypes.SchemaObjectClass.TRIGGER,
     data_safe=True,
