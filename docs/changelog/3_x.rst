@@ -390,6 +390,27 @@ Use ``except`` to find members of the first set that are not in the second.
     db> select {1, 2, 3, 4, 5} except {3, 4, 5, 6, 7};
     {1, 2}
 
+These work with sets of anything, including sets of objects.
+
+.. code-block:: edgeql-repl
+
+    db> with big_cities := (select City filter .population > 1000000),
+    ...   s_cities := (select City filter .name like 'S%')
+    ... select (big_cities intersect s_cities) {name};
+    {default::City {name: 'San Antonio'}, default::City {name: 'San Diego'}}
+    db> with big_cities := (select City filter .population > 1000000),
+    ...   s_cities := (select City filter .name like 'S%')
+    ... select (big_cities except s_cities) {name};
+    {
+      default::City {name: 'New York'},
+      default::City {name: 'Los Angeles'},
+      default::City {name: 'Chicago'},
+      default::City {name: 'Houston'},
+      default::City {name: 'Phoenix'},
+      default::City {name: 'Philadelphia'},
+      default::City {name: 'Dallas'}
+    }
+
 
 ``assert`` function
 -------------------
