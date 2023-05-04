@@ -669,6 +669,7 @@ class Compiler:
                 )
                 resolved = pg_resolver.resolve(stmt, schema, options)
                 source = pg_codegen.generate_source(resolved)
+                print(source)
                 unit = dbstate.SQLQueryUnit(query=source)
 
             tx_state.apply(unit)
