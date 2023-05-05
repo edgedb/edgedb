@@ -1380,7 +1380,7 @@ class Server(ha_base.ClusterProtocol):
             metrics.background_errors.inc(1.0, 'on_system_config_reset')
             raise
 
-    def before_system_config(self):
+    def before_alter_system_config(self):
         if self._disable_dynamic_system_config:
             raise errors.ConfigurationError(
                 "Changing the value of system config is disabled"

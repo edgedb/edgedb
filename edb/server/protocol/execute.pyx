@@ -351,7 +351,8 @@ async def execute_system_config(
     dbv: dbview.DatabaseConnectionView,
     query_unit: compiler.QueryUnit,
 ):
-    dbv.server.before_system_config()
+    if query_unit.is_system_config:
+        dbv.server.before_alter_system_config()
     if query_unit.sql:
         if len(query_unit.sql) > 1:
             raise errors.InternalServerError(
