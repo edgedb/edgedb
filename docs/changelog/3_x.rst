@@ -143,8 +143,8 @@ dump-and-restore process.
 
 **Pre-1.0 Instances**
 
-If you're still running pre-1.0 EdgeDB instances (e.g., 1.0-beta3) and want
-to upgrade to 3.0, you would need to upgrade to version 2.x first, followed by
+If you're still running pre-1.0 EdgeDB instances (e.g., 1.0-beta3) and want to
+upgrade to 3.0, we recommend you upgrade to version 2.x first, followed by
 another upgrade to 3.0, both using the same dump-and-restore process.
 
 
