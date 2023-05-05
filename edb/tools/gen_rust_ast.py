@@ -18,20 +18,28 @@ class ASTClass:
     children: typing.List[typing.Type] = dataclasses.field(
         default_factory=list
     )
+    is_base = False
 
 
 @dataclasses.dataclass()
 class ASTUnion:
     name: str
     variants: typing.Sequence[typing.Type | str]
+    for_composition: bool
 
 
-# a global variable storing union types that are to be generated
+# a queue for union types that are to be generated
 union_types: typing.List[ASTUnion] = []
+
+# all discovered AST classes
+ast_classes: typing.Dict[str, ASTClass] = {}
+
+# types that need IntoPython trait implemented
+types_into_python: typing.Set[typing.Type] = set()
 
 
 @edbcommands.command("gen-rust-ast")
-def main():
+def main() -> None:
     f = open('edb/edgeql-parser/src/ast.rs', 'w')
 
     f.write(
@@ -50,7 +58,6 @@ def main():
     )
 
     # discover all nodes
-    ast_classes: typing.Dict[typing.Type, ASTClass] = {}
     for name, typ in qlast.__dict__.items():
         if not isinstance(typ, type) or not hasattr(typ, '_direct_fields'):
             continue
@@ -59,22 +66,34 @@ def main():
             continue
 
         # re-run field collection to correctly handle forward-references
-        typ = typ._collect_direct_fields()
+        typ = typ._collect_direct_fields()  # type: ignore
 
-        ast_classes[typ] = ASTClass(name=name, typ=typ)
+        ast_classes[typ.__name__] = ASTClass(name=name, typ=typ)
 
+    # build inheritance graph
     for ast_class in ast_classes.values():
         for base in ast_class.typ.__bases__:
-            if base not in ast_classes:
+            if base.__name__ == 'Base':
+                ast_class.is_base = True
+            if base.__name__ not in ast_classes:
                 continue
-            ast_classes[base].children.append(ast_class.typ)
+            ast_classes[base.__name__].children.append(ast_class.typ)
 
+    # dry run to populate `types_into_python`
+    for ast_class in ast_classes.values():
+        codegen_struct(ast_class)
+
+        while len(union_types) > 0:
+            codegen_union(union_types.pop(0))
+
+    # generate structs
     for ast_class in ast_classes.values():
         f.write(codegen_struct(ast_class))
 
         while len(union_types) > 0:
             f.write(codegen_union(union_types.pop(0)))
 
+    # generate enums
     for name, typ in chain(qlast.__dict__.items(), qltypes.__dict__.items()):
 
         if not isinstance(typ, type) or not issubclass(typ, s_enum.StrEnum):
@@ -86,12 +105,16 @@ def main():
 def codegen_struct(cls: ASTClass) -> str:
     field_names = set()
     fields = ''
+    doc_comment = ''
+
     for f in typing.cast(typing.List[ast._Field], cls.typ._direct_fields):
 
         if f.hidden:
             continue
 
-        typ = translate_type(f.type, lambda: f'{cls.name}{title_case(f.name)}')
+        union_name = f'{cls.name}{title_case(f.name)}'
+
+        typ = translate_type(f.type, union_name, False)
         if hasattr(cls.typ, '__rust_box__') and f.name in cls.typ.__rust_box__:
             typ = f'Box<{typ}>'
 
@@ -113,11 +136,20 @@ def codegen_struct(cls: ASTClass) -> str:
         if not cls.typ.__abstract_node__:
             variants = list(variants) + ['Plain']
 
-        union_types.append(ASTUnion(name=name, variants=variants))
+        union_types.append(
+            ASTUnion(name=name, variants=variants, for_composition=True)
+        )
         fields += f'    pub {kind_name}: {name},\n'
 
+    if cls.is_base:
+        doc_comment = '/// Base class\n'
+
+    derives = ''
+    if cls.typ in types_into_python:
+        derives += ', IntoPython'
     return (
-        '\n#[derive(Debug, Clone)]\n'
+        f'\n{doc_comment}'
+        + f'#[derive(Debug, Clone{derives})]\n'
         + f'pub struct {cls.name} {"{"}\n'
         + fields
         + '}\n'
@@ -153,7 +185,7 @@ def codegen_union(union: ASTUnion) -> str:
         if isinstance(arg, str):
             fields += f'    {arg},\n'
         else:
-            typ = translate_type(arg, lambda: '???')
+            typ = translate_type(arg, '???', union.for_composition)
             fields += f'    {arg.__name__}({typ}),\n'
 
     annotations = '#[derive(Debug, Clone)]\n'
@@ -161,10 +193,10 @@ def codegen_union(union: ASTUnion) -> str:
 
 
 def translate_type(
-    typ: typing.Type, name_generator: typing.Callable[[], str]
+    typ: typing.Type, union_name: str, for_composition: bool
 ) -> str:
     params = [
-        translate_type(param, name_generator)
+        translate_type(param, union_name, for_composition)
         for param in typing_inspect.get_args(typ)
     ]
 
@@ -173,11 +205,14 @@ def translate_type(
         if hasattr(typ, '_name') and typ._name == 'Optional':
             return f'Option<{params[0]}>'
 
-        name = name_generator()
         union_types.append(
-            ASTUnion(name=name, variants=typing_inspect.get_args(typ))
+            ASTUnion(
+                name=union_name,
+                variants=typing_inspect.get_args(typ),
+                for_composition=for_composition,
+            )
         )
-        return name
+        return union_name
 
     if typing_inspect.is_generic_type(typ) and hasattr(typ, '_name'):
 
@@ -212,5 +247,26 @@ def translate_type(
     if typ.__module__ not in ('edb.edgeql.ast', 'edb.edgeql.qltypes'):
         raise NotImplementedError(f'cannot translate: {typ}')
 
-    # a named AST type: just nest
-    return typ.__name__
+    if for_composition or typ.__name__ not in ast_classes:
+        return typ.__name__
+
+    types_into_python.add(typ)
+    ancestor = find_covering_ancestor(
+        typ, set(f.name for f in typ._fields.values() if not f.hidden)
+    )
+    return ancestor.__name__
+
+
+def find_covering_ancestor(typ: typing.Type, fields: typing.Set[str]):
+    # In Rust, a type will not inherit fields from parent types.
+    # This means that we need to omit some ancestor of this type, which
+    # would include all fields of the type.
+    # We loose a bit of type checking strictness here.
+    for parent in typ.__mro__:
+        if not hasattr(parent, '_direct_fields'):
+            continue
+
+        fields = fields.difference((f.name for f in parent._direct_fields))
+        if len(fields) == 0:
+            return parent
+    raise AssertionError()
