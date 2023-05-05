@@ -862,14 +862,16 @@ class Server(ha_base.ClusterProtocol):
             assert self._dbindex is not None
             if not self._dbindex.has_db(dbname):
                 extensions = await self._introspect_extensions(conn)
-                self._dbindex.register_db(
-                    dbname,
-                    user_schema=None,
-                    db_config=None,
-                    reflection_cache=None,
-                    backend_ids=None,
-                    extensions=extensions,
-                )
+                # Re-check in case we have a concurrent introspection task.
+                if not self._dbindex.has_db(dbname):
+                    self._dbindex.register_db(
+                        dbname,
+                        user_schema=None,
+                        db_config=None,
+                        reflection_cache=None,
+                        backend_ids=None,
+                        extensions=extensions,
+                    )
         finally:
             self.release_pgcon(dbname, conn)
 
