@@ -231,8 +231,8 @@ As your application evolves, directly edit your schema files to reflect your
 desired data model. When you save your changes, ``watch`` will immediately
 begin applying your new schema to the database.
 
-Once you have the schema the way you want it, and you're ready to lock it in
-and commit it to version control, it's time to generate a migration.
+Once you have the schema the way you want it, you're ready to lock it in
+by generating a migration.
 
 
 4. Generate a migration
