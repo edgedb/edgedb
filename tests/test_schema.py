@@ -7850,6 +7850,22 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             module foo { module bar { module baz {} } }
         """])
 
+    def test_schema_migrations_property_aliases(self):
+        self._assert_migration_equivalence([
+            r"""
+                abstract type NamedObject {
+                    required property name: std::str;
+                };
+                type Person extending default::User;
+                type User extending default::NamedObject {
+                    multi link fav_users := (.favorites[is default::User]);
+                    multi link favorites: default::NamedObject;
+                };
+            """,
+            r"""
+            """,
+        ])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
