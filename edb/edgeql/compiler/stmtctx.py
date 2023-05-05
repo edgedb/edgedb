@@ -616,18 +616,6 @@ def compile_anchor(
             s_pointers.PointerDirection.Outbound,
             ctx=ctx)
 
-    elif isinstance(anchor, qlast.SubExpr):
-        with ctx.new() as subctx:
-            if anchor.anchors:
-                subctx.anchors = {}
-                populate_anchors(anchor.anchors, ctx=subctx)
-
-            step = compile_anchor(name, anchor.expr, ctx=subctx)
-            if name in anchor.anchors:
-                show_as_anchor = False
-                step.anchor = None
-                step.show_as_anchor = None
-
     elif isinstance(anchor, qlast.Base):
         step = dispatch.compile(anchor, ctx=ctx)
 

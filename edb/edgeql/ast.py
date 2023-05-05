@@ -140,13 +140,6 @@ class Placeholder(Expr):
     name: str
 
 
-class SubExpr(Base):
-    """A subexpression (used for anchors)."""
-
-    expr: Expr
-    anchors: typing.Dict[str, typing.Any]
-
-
 class SortExpr(Base):
     path: Expr
     direction: typing.Optional[SortOrder] = None
