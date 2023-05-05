@@ -2434,12 +2434,16 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.options)
 
     def visit_Options(self, node: qlast.Options) -> None:
-        for i, opt in enumerate(node.options.values()):
-            if i > 0:
+        first = True
+        for opt in node.options.values():
+            if isinstance(opt, qlast.OptionFlag) and not opt.val:
+                continue
+            if first:
                 self.write(' ')
+            first = False
+
             self.write(opt.name)
-            if not isinstance(opt, qlast.Flag):
-                self.write(f' {opt.val}')
+
 
     # SDL nodes
 

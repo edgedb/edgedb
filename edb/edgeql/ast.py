@@ -100,10 +100,9 @@ class OptionValue(Base):
     """An option value resulting from a syntax."""
 
     name: str
-    val: typing.Any
 
 
-class Flag(OptionValue):
+class OptionFlag(OptionValue):
 
     val: bool
 
@@ -112,13 +111,13 @@ class Options(Base):
 
     options: typing.Dict[str, OptionValue] = ast.field(factory=dict)
 
-    def get_flag(self, k: str) -> Flag:
+    def get_flag(self, k: str) -> OptionFlag:
         try:
             flag = self[k]
         except KeyError:
-            return Flag(name=k, val=False)
+            return OptionFlag(name=k, val=False)
         else:
-            assert isinstance(flag, Flag)
+            assert isinstance(flag, OptionFlag)
             return flag
 
     def __getitem__(self, k: str) -> OptionValue:
