@@ -1349,7 +1349,7 @@ class RenameReferencedInheritingObject(
             # Distinguish between actual local name change and fully-qualified
             # name change due to structural parent rename.
             if orig_ref_lname != new_ref_lname:
-                implicit_bases = scls.get_implicit_bases(schema)
+                implicit_bases = scls.get_implicit_bases(orig_schema)
                 non_renamed_bases = {
                     x for x in implicit_bases if x not in context.renamed_objs}
                 # This object is inherited from one or more ancestors that
