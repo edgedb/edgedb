@@ -84,7 +84,7 @@ class DescribeGlobal(s_enum.StrEnum):
 
 class Base(ast.AST):
     __abstract_node__ = True
-    __ast_hidden__ = {'context'}
+    __ast_hidden__ = {'context', 'system_comment'}
     context: typing.Optional[parsing.ParserContext] = None
     # System-generated comment.
     system_comment: typing.Optional[str] = None
@@ -273,7 +273,7 @@ class WindowSpec(Base):
 
 
 class FunctionCall(Expr):
-    func: typing.Union[tuple, str]
+    func: typing.Union[typing.Tuple[str, str], str]
     args: typing.List[Expr] = ast.field(factory=list)
     kwargs: typing.Dict[str, Expr] = ast.field(factory=dict)
     window: typing.Optional[WindowSpec] = None
