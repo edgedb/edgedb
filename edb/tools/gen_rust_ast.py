@@ -34,9 +34,6 @@ union_types: typing.List[ASTUnion] = []
 # all discovered AST classes
 ast_classes: typing.Dict[str, ASTClass] = {}
 
-# types that need IntoPython trait implemented
-types_into_python: typing.Set[typing.Type] = set()
-
 
 @edbcommands.command("gen-rust-ast")
 def main() -> None:
@@ -78,13 +75,6 @@ def main() -> None:
             if base.__name__ not in ast_classes:
                 continue
             ast_classes[base.__name__].children.append(ast_class.typ)
-
-    # dry run to populate `types_into_python`
-    for ast_class in ast_classes.values():
-        codegen_struct(ast_class)
-
-        while len(union_types) > 0:
-            codegen_union(union_types.pop(0))
 
     # generate structs
     for ast_class in ast_classes.values():
@@ -144,12 +134,9 @@ def codegen_struct(cls: ASTClass) -> str:
     if cls.is_base:
         doc_comment = '/// Base class\n'
 
-    derives = ''
-    if cls.typ in types_into_python:
-        derives += ', IntoPython'
     return (
         f'\n{doc_comment}'
-        + f'#[derive(Debug, Clone{derives})]\n'
+        + f'#[derive(Debug, Clone, IntoPython)]\n'
         + f'pub struct {cls.name} {"{"}\n'
         + fields
         + '}\n'
@@ -188,7 +175,7 @@ def codegen_union(union: ASTUnion) -> str:
             typ = translate_type(arg, '???', union.for_composition)
             fields += f'    {arg.__name__}({typ}),\n'
 
-    annotations = '#[derive(Debug, Clone)]\n'
+    annotations = '#[derive(Debug, Clone, IntoPython)]\n'
     return f'\n{annotations}pub enum {union.name} {"{"}\n{fields}{"}"}\n'
 
 
@@ -250,7 +237,6 @@ def translate_type(
     if for_composition or typ.__name__ not in ast_classes:
         return typ.__name__
 
-    types_into_python.add(typ)
     ancestor = find_covering_ancestor(
         typ, set(f.name for f in typ._fields.values() if not f.hidden)
     )
