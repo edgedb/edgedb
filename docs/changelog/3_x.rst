@@ -40,41 +40,41 @@ To upgrade a remote (hosted) instance, we recommend the following
 dump-and-restore process.
 
 1. Spin up an empty 3.0 instance. You can use one of our :ref:`deployment
-guides <ref_guide_deployment>`, but you will need to modify some of the
-commands to use our testing channel and the beta release.
+   guides <ref_guide_deployment>`, but you will need to modify some of the
+   commands to use our testing channel and the beta release.
 
-    Under Debian/Ubuntu, when adding the EdgeDB package repository, use this
-    command instead:
+   Under Debian/Ubuntu, when adding the EdgeDB package repository, use this
+   command instead:
 
-    .. code-block:: bash
+   .. code-block:: bash
 
-        echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg] \
-          https://packages.edgedb.com/apt \
-          $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) testing \
-          | sudo tee /etc/apt/sources.list.d/edgedb.list
+       $ echo deb [signed-by=/usr/local/share/keyrings/edgedb-keyring.gpg] \
+           https://packages.edgedb.com/apt \
+           $(grep "VERSION_CODENAME=" /etc/os-release | cut -d= -f2) testing \
+           | sudo tee /etc/apt/sources.list.d/edgedb.list
 
-    Use this command for installation under Debian/Ubuntu:
+   Use this command for installation under Debian/Ubuntu:
 
-    .. code-block:: bash
+   .. code-block:: bash
 
-        sudo apt-get update && sudo apt-get install edgedb-3
+       $ sudo apt-get update && sudo apt-get install edgedb-3-beta1
 
-    Under CentOS/RHEL, use this installation command:
+   Under CentOS/RHEL, use this installation command:
 
-    .. code-block:: bash
+   .. code-block:: bash
 
-        sudo yum install edgedb-3
+       $ sudo yum install edgedb-3-beta1
 
-    In any required ``systemctl`` commands, replace ``edgedb-server-2`` with
-    ``edgedb-server-3``.
+   In any required ``systemctl`` commands, replace ``edgedb-server-2`` with
+   ``edgedb-server-3``.
 
-    Under any Docker setups, supply the ``3.0-beta.1`` tag.
+   Under any Docker setups, supply the ``3.0-beta.1`` tag.
 
 2. Take your application offline, then dump your v2.x database with the CLI
 
    .. code-block:: bash
 
-     $ edgedb dump --dsn <old dsn> --all my_database.dump/
+       $ edgedb dump --dsn <old dsn> --all my_database.dump/
 
    This will dump the schema and contents of your current database to a file
    on your local disk called ``my_database.dump``. The file name isn't
@@ -84,12 +84,12 @@ commands to use our testing channel and the beta release.
 
    .. code-block:: bash
 
-     $ edgedb restore --all my_database.dump/ --dsn <new dsn>
+       $ edgedb restore --all my_database.dump/ --dsn <new dsn>
 
    Once the restore is complete, update your application to connect to the new
    instance.
 
-This process will involve some downtime, specifically during steps 2 and 3.
+   This process will involve some downtime, specifically during steps 2 and 3.
 
 **Pre-1.0 Instances**
 
@@ -101,26 +101,10 @@ followed by another dump/restore to 3.0.
 Client libraries
 ----------------
 
-We've released new versions of our JavaScript and Python client libraries that
-support all 3.0 features and implement the updated protocol. These versions
-are backwards compatible with v1.x and v2.x instances, so we encourage all users to
-upgrade.
+Many of the client libraries have gained code generation capabilities since our
+2.0 release. Look for new releases of all of our client libraries soon which
+will support all 3.0 features.
 
-.. list-table::
-
-  * - :ref:`TypeScript/JS <edgedb-js-intro>`
-    - ``edgedb@0.21.0``
-  * - :ref:`Python <edgedb-python-intro>`
-    - ``edgedb@0.24.0``
-  * - `Golang <https://www.edgedb.com/docs/clients/go/index>`_
-    - ``edgedb@0.12.0``
-  * - `Rust <https://github.com/edgedb/edgedb-rust>`_
-    - ``edgedb-tokio@0.3.0``
-  * - `.NET <https://github.com/quinchs/EdgeDB.Net>`_ (community-maintained)
-    - ``EdgeDB.Net.Driver@0.3.0``
-  * - `Elixir <https://github.com/nsidnev/edgedb-elixir>`_
-      (community-maintained)
-    - ``edgedb@0.4.0``
 
 New features
 ============
@@ -133,6 +117,10 @@ databases, we've made our schema definition language (or SDL) easier to use.
 You're no longer required to use the ``property`` or ``link`` keywords for
 non-computed properties and links. Also, we've replaced arrows with colons for
 a cleaner look that's easier to type.
+
+This change paves the way for a future syntax for declaring ad-hoc types in
+queries and functions. (Read more about it in `the free types RFC
+<https://github.com/edgedb/rfcs/blob/master/text/1022-freetypes.rst>`_.)
 
 That means that this type definition:
 
@@ -152,14 +140,113 @@ could be replaced with this equivalent one in EdgeDB 3+:
       multi friends: User;
     }
 
-As you're reading through our docs, you'll notice that changing the version
-selector in the sidebar will also switch all SDL examples to the appropriate
-SDL syntax.
+Selecting "v3" from the version dropdown in the sidebar will update SDL code in
+versioned sections of the documentation to the new syntax.
 
-.. note::
 
-    SDL syntax in documentation does not change for non-versioned content like
-    guides.
+Query plan
+----------
+
+Among other improvements, the UI now includes a visual query planner to help
+you tweak performance on your EdgeQL queries. Just drop the ``analyze`` keyword
+in front of your query in the UI's "Query Editor" tab to see the query planner
+in action.
+
+.. image:: images/v3_ui_query_planner.jpg
+    :width: 100%
+
+Query planning is available in the CLI REPL by prepending your query with
+``analyze`` or using the ``\analyze`` backslash command, and in the CLI
+directly using the ``edgedb analyze <query>`` command.
+
+
+UI improvements
+---------------
+
+The EdgeDB UI got a lot of love in this release. In addition to the visual
+query planning shown above, you'll see a number of improvements.
+
+New UI for setting globals and configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+We've made it easier to set your globals and change configuration.
+
+.. image:: images/v3_ui_query_config.png
+    :width: 100%
+
+New UI REPL
+^^^^^^^^^^^
+
+The UI's redesigned REPL makes it easy to drill into values and copy parts of
+your query results to the clipboard.
+
+.. image:: images/v3_ui_repl.png
+    :width: 100%
+
+Query editor and visual builder
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The query editor has a great new on-demand UI for setting parameters.
+
+.. image:: images/v3_ui_query_editor.png
+    :width: 100%
+
+It also comes with a visual query builder which makes it easy to write queries,
+even when you're just learning EdgeQL.
+
+.. image:: images/v3_ui_query_builder.png
+    :width: 100%
+
+
+``edgedb watch`` and a new development workflow
+-----------------------------------------------
+
+The new ``edgedb watch`` CLI command starts a long-running process that watches
+for changes in schema files in your project's ``dbschema`` directory and
+applies those changes to your database in real time. This command opens up an
+entirely new workflow for prototyping schema that will result in less migration
+clutter in your repositories.
+
+1. Start the ``watch`` command
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+    $ edgedb watch
+    Initialized. Monitoring "/projects/my-edgedb-project".
+
+
+2. Write an initial schema
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Just start writing your schema in your ``default.esdl`` file in your project's
+``dbschema`` directory. Once you save your initial schema, assuming it is
+valid, the ``watch`` command will pick it up and apply it to your database.
+
+
+3. Edit your schema files
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+As your application evolves, directly edit your schema files to reflect your
+desired data model. When you save your changes, ``watch`` will immediately
+begin applying your new schema to the database.
+
+Once you have the schema the way you want it, and you're ready to lock it in
+and commit it to version control, it's time to generate a migration.
+
+
+4. Generate a migration
+^^^^^^^^^^^^^^^^^^^^^^^
+
+To generate a migration that reflects all your changes, run ``edgedb migration
+create``.
+
+.. code-block:: bash
+
+  $ edgedb migration create
+
+This "locks in" the changes you prototyped using the ``watch`` command. Now,
+these are ready to commit and push to your remote to share with your team.
 
 
 Triggers
@@ -186,6 +273,9 @@ transaction along with the original query. These can be defined in your schema.
 The trigger above inserts a ``Log`` object any time a ``Person`` object is
 inserted.
 
+You can read more about our triggers implementation in `the triggers RFC
+<https://github.com/edgedb/rfcs/blob/master/text/1020-triggers.rst>`_.
+
 
 Mutation rewrites
 -----------------
@@ -210,6 +300,9 @@ modified timestamps! When a user inserts or updates a ``Post``, the rewrite
 will set the value of the ``modified`` property to that value of
 ``datetime_of_statement()``. There are tons of other uses too. Give them a try!
 
+Learn about our mutation rewrites implementation in `the mutation rewrites RFC
+<https://github.com/edgedb/rfcs/blob/master/text/1021-rewrites.rst>`_.
+
 
 Splats
 ------
@@ -218,69 +311,46 @@ This is one of the most fun features in 3.0, both to say _and_ to use! With
 splats, you can easily select all properties in your queries without typing all
 of them out.
 
-.. code-block:: edgeql-repl
+Before splats, you would have needed this query to select ``Movie`` objects
+along with all their properties:
 
-    db> select Movie {*};
-    {
-      default::Movie {
-        id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
-        release_year: 2021,
-        title: 'Spiderman: No Way Home',
-      },
-      default::Movie {
-        id: 76998656-b776-11ed-8bef-237907a987fa,
-        release_year: 2008,
-        title: 'Iron Man'
-      },
-    }
+.. code-block:: edgeql
 
-You can even use a double-splat to select a single level of nested objects.
+    select Movie {id, release_year, title, region, director, studio};
+
+Now, you can simplify down to this query instead using a splat:
+
+.. code-block:: edgeql
+
+    select Movie {*};
+
+If you wanted to select the movie and its characters before splats, you would
+have needed this:
+
+.. code-block:: edgeql
+
+    select Movie {
+      id,
+      release_year,
+      title,
+      region,
+      director: {id, name, birth_year},
+      actors: {id, name, birth_year},
+      characters: { id, name }
+    };
+
+Now, you can get it done with just a double-splat to select all the object's
+properties and the properties of any linked objects nested a single layer
+within it.
 
 .. code-block:: edgeql-repl
 
     db> select Movie {**};
-    {
-      default::Movie {
-        id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
-        release_year: 2021,
-        title: 'Spiderman: No Way Home',
-        characters: {
-          default::Hero {
-            id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
-            name: 'Spiderman'
-          },
-          default::Villain {
-            id: efa2c4bc-b777-11ed-99eb-43f835d79384,
-            name: 'Electro'
-          },
-          default::Villain {
-            id: f2c99a96-b775-11ed-8f7e-0b4a4a8e433e,
-            name: 'Green Goblin'
-          },
-          default::Villain {
-            id: f8ca354a-b775-11ed-8bef-273145019e1d,
-            name: 'Doc Ock'
-          },
-        },
-      },
-      default::Movie {
-        id: 76998656-b776-11ed-8bef-237907a987fa,
-        release_year: 2008,
-        title: 'Iron Man',
-        characters: {
-          default::Hero {
-            id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
-            name: 'Iron Man'
-          },
-          default::Villain {
-            id: 335f4104-b777-11ed-81eb-ab4de34e9c36,
-            name: 'Obadiah Stane'
-          },
-        },
-      },
-    }
 
 It's a super-handy way to quickly explore your data.
+
+Read more about splats in `our splats RFC
+<https://github.com/edgedb/rfcs/blob/master/text/1023-splats.rst>`_.
 
 
 Nested modules
@@ -295,11 +365,17 @@ in any way that makes sense to you.
 
 .. code-block:: sdl
 
-    module MommaModule {
-      module BabyModule {
-        <schema-declarations>
+    module momma_module {
+      module baby_module {
+        # <schema-declarations>
       }
     }
+
+In EdgeQL, you can reference entities inside nested modules like this:
+``momma_module::baby_module::<entity-name>``
+
+Aside from giving you additional flexibility, it will also allow us to expand
+our list of standard modules in a backwards-compatible way.
 
 
 ``intersect`` and ``except`` operators
@@ -320,21 +396,70 @@ Use ``except`` to find members of the first set that are not in the second.
     db> select {1, 2, 3, 4, 5} except {3, 4, 5, 6, 7};
     {1, 2}
 
+These work with sets of anything, including sets of objects.
+
+.. code-block:: edgeql-repl
+
+    db> with big_cities := (select City filter .population > 1000000),
+    ...   s_cities := (select City filter .name like 'S%')
+    ... select (big_cities intersect s_cities) {name};
+    {default::City {name: 'San Antonio'}, default::City {name: 'San Diego'}}
+    db> with big_cities := (select City filter .population > 1000000),
+    ...   s_cities := (select City filter .name like 'S%')
+    ... select (big_cities except s_cities) {name};
+    {
+      default::City {name: 'New York'},
+      default::City {name: 'Los Angeles'},
+      default::City {name: 'Chicago'},
+      default::City {name: 'Houston'},
+      default::City {name: 'Phoenix'},
+      default::City {name: 'Philadelphia'},
+      default::City {name: 'Dallas'}
+    }
 
 
-Query plan
-----------
+``assert`` function
+-------------------
 
-Among other improvements, the UI now includes a visual query planner to help
-you tweak performance on your EdgeQL queries. Just drop the ``analyze`` keyword
-in front of your query in the UI's "Query Editor" tab to see the query planner
-in action.
+The new ``assert`` function lets you do handy things like create powerful
+constraints when paired with triggers:
 
-.. image:: images/v3_ui.jpg
-    :width: 100%
+.. code-block:: sdl
 
-Query planning is available in the CLI REPL, also by prepending your query with
-``analyze``.
+      type Person {
+        required name: str;
+        multi friends: User;
+        multi enemies: User;
+
+        trigger prohibit_frenemies after insert, update for each do (
+          assert(
+            not exists (__new__.friends intersect __new__.enemies),
+            message := "Invalid frenemies",
+          )
+        )
+      }
+
+.. code-block:: edgeql-repl
+
+    db> insert Person {name := 'Quincey Morris'};
+    {default::Person {id: e4a55480-d2de-11ed-93bd-9f4224fc73af}}
+    db> insert Person {name := 'Dracula'};
+    {default::Person {id: e7f2cff0-d2de-11ed-93bd-279780478afb}}
+    db> update User
+    ... filter .name = 'Quincey Morris'
+    ... set {
+    ...   enemies := (select Person filter .name = 'Dracula')
+    ... };
+    {default::Person {id: e4a55480-d2de-11ed-93bd-9f4224fc73af}}
+    db> update User
+    ... filter .name = 'Quincey Morris'
+    ... set {
+    ...   friends := (select Person filter .name = 'Dracula')
+    ... };
+    edgedb error: EdgeDBError: Invalid frenemies
+
+You can use it in other contexts too — any time you want to throw an error when
+things don't go as planned.
 
 
 Additional changes
@@ -343,18 +468,20 @@ Additional changes
 EdgeQL
 ------
 
-* Add :eql:func:`assert` function (:eql:gh:`#5040`)
-
 * Support custom user-defined error messages for access policies
   (:eql:gh:`#4529`)
 
   .. code-block:: sdl
 
+    type User {
+      required property email -> str { constraint exclusive; };
+      required property is_admin -> bool { default := false };
       access policy admin_only
         allow all
         using (global current_user.is_admin ?? false) {
           errmessage := 'Only admins may query Users'
         };
+    }
 
 * Support casting a UUID to a type (:eql:gh:`#4469`). This is a handy way to
   select an object, assuming the type you cast into has an object with the UUID
@@ -382,30 +509,67 @@ EdgeQL
       select <tuple<name: str, flag: bool>>$var;
       select <optional tuple<name: str, flag: bool>>$var;
 
+* Add the syntax for abstract indexes (:eql:gh:`#4691`)
+
+  Exposes some Postgres indexes that you can use in your schemas. These are
+  exposed through the ``pg`` module.
+
+  * ``pg::hash``- Index based on a 32-bit hash derived from the indexed value
+
+  * ``pg::btree``- B-tree index can be used to retrieve data in sorted order
+
+  * ``pg::gin``- GIN is an "inverted index" appropriate for data values that
+    contain multiple elements, such as arrays and JSON
+
+  * ``pg::gist``- GIST index can be used to optimize searches involving ranges
+
+  * ``pg::spgist``- SP-GIST index can be used to optimize searches involving
+    ranges and strings
+
+  * ``pg::brin``- BRIN (Block Range INdex) index works with summaries about the
+    values stored in consecutive physical block ranges in the database
+
+  You can use them like this:
+
+  .. code-block:: sdl
+
+      type User {
+        required property name -> str;
+        index pg::spgist on (.name);
+      };
+
 * Implement migration rewrites (:eql:gh:`#4585`)
 
 * Implement schema reset (:eql:gh:`#4714`)
 
-* Support link properties on computed backlinks (:eql:gh`#5227`)
+* Support link properties on computed backlinks (:eql:gh:`#5227`)
+
 
 
 CLI
 ---
 
+* Add the ``edgedb migration update-check`` command
+
+  Checks your schema against the new EdgeDB version. You can add ``--to-version
+  <version>``, ``--to-testing``, ``--to-nightly``, or ``--to-channel
+  <channel>`` to check against a specific version.
+
+* Add the ``--squash`` option to the ``edgedb migration create`` command
+
+  This squashes all your migrations into a single migration.
+
+* Change the backslash command ``\d object <name>`` to ``\d <name>``
+
 * Add the ``edgedb migration edit`` command (:ref:`docs
-  <ref_cli_edgedb_migration_edit>`)
+  <ref_cli_edgedb_migration_edit>`; released in 2.1)
 
+* Add the ``--get`` option to the ``edgedb info`` command (released in 2.1)
 
-Server
-------
-
-* Improvements to top-level server error reporting (:eql:gh:`#5349`)
-
-  * For MultiErrors reported from task groups, don't lose
-    chained exceptions
-  * When an InternalServerError kills the server, produce
-    the "please file a bug" message
-
+  Adding the ``--get`` option followed by a name of one of the info values —
+  ``config-dir``, ``cache-dir``, ``data-dir``, or ``service-dir`` — returns
+  only the requested path. This makes scripting with the ``edgedb info``
+  command more convenient.
 
 
 Bug fixes
@@ -538,3 +702,28 @@ version.
 * edgedb-tokio (Rust) v0.2 or lower
 * EdgeDB.NET v0.2 or lower
 * edgedb-elixir v0.3 or lower
+
+
+New release schedule
+====================
+
+Unfortunately, the 3.0 release will not include full-text search. We have many
+requirements for this new API (see `the FTS RFC
+<https://github.com/edgedb/rfcs/blob/master/text/1015-full-text-search.rst>`_
+for details), and, while we’ve made significant progress, we have unfortunately
+run out of time to be 100% sure that it is ready for prime time.
+
+We don’t want this delay to hold back the release of EdgeDB 3.0, which includes
+many other exciting features that are ready for you to start using right now.
+That’s why we’ve decided to delay only the FTS feature rather than delaying the
+entire 3.0 release.
+
+That said we’re working hard to get FTS ready as soon as possible. After the
+release of 3.0, we'll be moving to a much more frequent release cycle so that
+features like FTS can be in your hands as soon as they're ready.
+
+Going forward, expect EdgeDB releases every four months. These releases will
+naturally incorporate fewer features than our past releases, but we think the
+more predictable cadence will be worth it. Every third release starting with
+3.0 will be a long-term support (LTS) release. These releases will continue to
+recieve support for a year and a half after their initial release.
