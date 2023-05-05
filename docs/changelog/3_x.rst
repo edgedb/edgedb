@@ -410,10 +410,6 @@ Read more about splats in `our splats RFC
 Nested modules
 --------------
 
-"Yo, dawg. We heard you like modules…" (Sorry. We've been working so hard on
-3.0, `we got way way behind on our memes
-<https://knowyourmeme.com/memes/xzibit-yo-dawg>`_.)
-
 You can now put a module inside another module to let you organize your schema
 in any way that makes sense to you.
 
