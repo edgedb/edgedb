@@ -40,6 +40,7 @@
 <% if tgt.platform_libc %>
         PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
 <% endif %>
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
