@@ -88,6 +88,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -111,6 +112,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -134,6 +136,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -157,6 +160,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -226,6 +230,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -249,6 +254,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -272,6 +278,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -295,6 +302,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -318,6 +326,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -341,6 +350,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -364,6 +374,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -387,6 +398,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -410,6 +422,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -435,6 +448,7 @@ jobs:
         BUILD_GENERIC: true
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -460,6 +474,7 @@ jobs:
         BUILD_GENERIC: true
 
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -487,6 +502,7 @@ jobs:
 
         PKG_PLATFORM_LIBC: "musl"
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
@@ -514,6 +530,7 @@ jobs:
 
         PKG_PLATFORM_LIBC: "musl"
 
+        METAPKG_GIT_CACHE: disabled
 
     - uses: actions/upload-artifact@v3
       with:
