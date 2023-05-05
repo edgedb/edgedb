@@ -578,63 +578,33 @@ CLI
 Bug fixes
 ---------
 
-* Some fixes to database repairs (:eql:gh:`#5374`)
-
-* Fix: eql compiler not using context correctly (:eql:gh:`#5371`)
-
-* Fix test_docs to cope with missing test deps again (:eql:gh:`#5370`)
-
-* Type descriptor parsing cleanups (:eql:gh:`#5361`)
-
-* More cleanups in sertypes (:eql:gh:`#5359`)
-
-* Config: Remove mandatory reliance on global config spec (:eql:gh:`#5357`)
-
-* Fix insert default cycle (:eql:gh:`#5355`)
+* Fix crash on cycle between defaults in insert (:eql:gh:`#5355`)
 
 * Improvements to top-level server error reporting (:eql:gh:`#5349`)
 
 * Forbid ranges of user-defined scalars (:eql:gh:`#5345`)
 
-* Fix SQL pg_catalog views Postgres 13 (:eql:gh:`#5343`)
-
-* Fix the edgeql+schema patch kind (:eql:gh:`#5336`)
-
 * Forbid DML in non-scalar function args (:eql:gh:`#5310`)
-
-* Forbid ON CONFLICT on rewritten pointers (:eql:gh:`#5309`)
 
 * Don't let "owned" affect how we calculate backlinks (:eql:gh:`#5306`)
 
-* pg-ext: fix version() to include PostgreSQL (:eql:gh:`#5305`)
-
-* Make DML rewrites work in sdl/migrations (:eql:gh:`#5297`)
-
 * Require inheritance order to be consistent with the specified base order
   (:eql:gh:`#5276`)
-
-* Properly handle overlays in DML inside of triggers (:eql:gh:`#5272`)
 
 * Support using non-strict functions in simple expressions (:eql:gh:`#5271`)
 
 * Don't duplicate the computation of single links with link properties
   (:eql:gh:`#5264`)
 
-* Drop an unnecessary SELECT from BaseObject.id's default (:eql:gh:`#5261`)
-
-* Make downcast consistent with cast in arg order (:eql:gh:`#5260`)
-
 * Properly rebase computed links when changing their definition
   (:eql:gh:`#5222`)
-
-* Fix regression from field normalisation + fix ``suggested_display_ctx_idx``
-  when suggested ctx cannot be found (:eql:gh:`#5213`)
 
 * Fix 3-way unions of certain types with policies (:eql:gh:`#5205`)
 
 * Fix simultaneous deletion of objects related by multi links (:eql:gh:`#5201`)
 
-* Respect enforce_access_policies := false inside functions (:eql:gh:`#5199`)
+* Respect ``enforce_access_policies := false``
+  inside functions (:eql:gh:`#5199`)
 
 * Fix inferred link/property kind when extending abstract link
   (:eql:gh:`#5196`)
@@ -644,50 +614,28 @@ Bug fixes
 
 * Make uuidgen properly set versions in uuid4/uuid5 (:eql:gh:`#5188`)
 
-* pg-ext: Fix attribute error and simple query sync count (:eql:gh:`#5145`)
-
 * Disallow variadic arguments with optional types in user code.
   (:eql:gh:`#5110`)
 
 * Support casting between scalars with a common concrete base (:eql:gh:`#5108`)
 
-* Make ``fail_notes`` propagate from failed tests even when parallelized
-  (:eql:gh:`#5106`)
-
-* Fill in some missing parts of index DDL/SDL (:eql:gh:`#5091`)
-
 * Fix GROUP regression with some query-builder queries (:eql:gh:`#5071`)
 
-* Add a few more retries on serialization errors (:eql:gh:`#5042`)
-
-* Add the pointer name to the required_user_input data (:eql:gh:`#5037`)
-
-* Fix a ISE when using assert_exists and linkprops using query builder
+* Fix a ISE when using ``assert_exists`` and linkprops using query builder
   (:eql:gh:`#5036`)
-
-* Update EDGEDB_CATALOG_VERSION to the right year (:eql:gh:`#5034`)
 
 * Fix bug that dropping non-existing db leaves with unaccessible state
   (:eql:gh:`#5032`)
 
 * Fix non-transactional errors in Postgres 14.7 (:eql:gh:`#5028`)
 
-* Fix quote_string function to quote backslash (:eql:gh:`#5000`)
-
-* More stmtctx.fini_expression fixes (:eql:gh:`#4997`)
-
 * Properly cast to containers of enums when loading from the schema
   (:eql:gh:`#4988`)
 
 * Implement manual error override configuration (:eql:gh:`#4974`)
 
-* Bugfix: update last_state after rollback (:eql:gh:`#4970`)
-
-* pg-ext: bug fixes (:eql:gh:`#4957`)
-
-* Bugfix: update last_state after rollback (:eql:gh:`#4953`)
-
-* Resolver GROUP BY alised column (:eql:gh:`#4946`)
+* Fix protocol state confusion after rollback
+  (:eql:gh:`#4970`), (:eql:gh:`#4953`)
 
 
 Deprecations
