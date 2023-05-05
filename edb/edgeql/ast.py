@@ -361,6 +361,8 @@ class TypeName(TypeExpr):
 
 
 class TypeOp(TypeExpr):
+    __rust_box__ = {'left', 'right'}
+
     left: TypeExpr
     op: str
     right: TypeExpr

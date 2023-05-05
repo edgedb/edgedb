@@ -10,6 +10,13 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct OptionValue {
     pub name: String,
+    pub kind: OptionValueKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum OptionValueKind {
+    OptionFlag(OptionFlag),
+    Plain,
 }
 
 #[derive(Debug, Clone)]
@@ -24,6 +31,34 @@ pub struct Options {
 
 #[derive(Debug, Clone)]
 pub struct Expr {
+    pub kind: ExprKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ExprKind {
+    Placeholder(Placeholder),
+    Anchor(Anchor),
+    DetachedExpr(DetachedExpr),
+    GlobalExpr(GlobalExpr),
+    Indirection(Indirection),
+    BinOp(BinOp),
+    FunctionCall(FunctionCall),
+    BaseConstant(BaseConstant),
+    Parameter(Parameter),
+    UnaryOp(UnaryOp),
+    IsOp(IsOp),
+    Path(Path),
+    TypeCast(TypeCast),
+    Introspect(Introspect),
+    IfElse(IfElse),
+    NamedTuple(NamedTuple),
+    Tuple(Tuple),
+    Array(Array),
+    Set(Set),
+    ShapeElement(ShapeElement),
+    Shape(Shape),
+    Query(Query),
+    ConfigOp(ConfigOp),
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +77,13 @@ pub struct SortExpr {
 pub struct OptionallyAliasedExpr {
     pub alias: Option<String>,
     pub expr: Box<Expr>,
+    pub kind: OptionallyAliasedExprKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum OptionallyAliasedExprKind {
+    AliasedExpr(AliasedExpr),
+    Plain,
 }
 
 #[derive(Debug, Clone)]
@@ -57,10 +99,24 @@ pub struct ModuleAliasDecl {
 
 #[derive(Debug, Clone)]
 pub struct BaseSessionCommand {
+    pub kind: BaseSessionCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum BaseSessionCommandKind {
+    BaseSessionSet(BaseSessionSet),
+    BaseSessionReset(BaseSessionReset),
 }
 
 #[derive(Debug, Clone)]
 pub struct BaseSessionSet {
+    pub kind: BaseSessionSetKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum BaseSessionSetKind {
+    BaseSessionConfigSet(BaseSessionConfigSet),
+    SessionSetAliasDecl(SessionSetAliasDecl),
 }
 
 #[derive(Debug, Clone)]
@@ -75,6 +131,14 @@ pub struct SessionSetAliasDecl {
 
 #[derive(Debug, Clone)]
 pub struct BaseSessionReset {
+    pub kind: BaseSessionResetKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum BaseSessionResetKind {
+    SessionResetAliasDecl(SessionResetAliasDecl),
+    SessionResetModule(SessionResetModule),
+    SessionResetAllAliases(SessionResetAllAliases),
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +156,13 @@ pub struct SessionResetAllAliases {
 
 #[derive(Debug, Clone)]
 pub struct BaseObjectRef {
+    pub kind: BaseObjectRefKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum BaseObjectRefKind {
+    ObjectRef(ObjectRef),
+    PseudoObjectRef(PseudoObjectRef),
 }
 
 #[derive(Debug, Clone)]
@@ -103,6 +174,13 @@ pub struct ObjectRef {
 
 #[derive(Debug, Clone)]
 pub struct PseudoObjectRef {
+    pub kind: PseudoObjectRefKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum PseudoObjectRefKind {
+    AnyType(AnyType),
+    AnyTuple(AnyTuple),
 }
 
 #[derive(Debug, Clone)]
@@ -116,11 +194,25 @@ pub struct AnyTuple {
 #[derive(Debug, Clone)]
 pub struct Anchor {
     pub name: String,
+    pub kind: AnchorKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum AnchorKind {
+    SpecialAnchor(SpecialAnchor),
 }
 
 #[derive(Debug, Clone)]
 pub struct SpecialAnchor {
     pub name: String,
+    pub kind: SpecialAnchorKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum SpecialAnchorKind {
+    Source(Source),
+    Subject(Subject),
+    Plain,
 }
 
 #[derive(Debug, Clone)]
@@ -173,6 +265,13 @@ pub struct BinOp {
     pub op: String,
     pub right: Box<Expr>,
     pub rebalanced: bool,
+    pub kind: BinOpKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum BinOpKind {
+    SetConstructorOp(SetConstructorOp),
+    Plain,
 }
 
 #[derive(Debug, Clone)]
@@ -203,6 +302,15 @@ pub enum FunctionCallFunc {
 #[derive(Debug, Clone)]
 pub struct BaseConstant {
     pub value: String,
+    pub kind: BaseConstantKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum BaseConstantKind {
+    StringConstant(StringConstant),
+    BaseRealConstant(BaseRealConstant),
+    BooleanConstant(BooleanConstant),
+    BytesConstant(BytesConstant),
 }
 
 #[derive(Debug, Clone)]
@@ -213,6 +321,15 @@ pub struct StringConstant {
 #[derive(Debug, Clone)]
 pub struct BaseRealConstant {
     pub is_negative: bool,
+    pub kind: BaseRealConstantKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum BaseRealConstantKind {
+    IntegerConstant(IntegerConstant),
+    FloatConstant(FloatConstant),
+    BigintConstant(BigintConstant),
+    DecimalConstant(DecimalConstant),
 }
 
 #[derive(Debug, Clone)]
@@ -259,6 +376,16 @@ pub struct UnaryOp {
 #[derive(Debug, Clone)]
 pub struct TypeExpr {
     pub name: Option<String>,
+    pub kind: TypeExprKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum TypeExprKind {
+    TypeOf(TypeOf),
+    TypeExprLiteral(TypeExprLiteral),
+    TypeName(TypeName),
+    TypeOp(TypeOp),
+    Plain,
 }
 
 #[derive(Debug, Clone)]
@@ -280,9 +407,9 @@ pub struct TypeName {
 
 #[derive(Debug, Clone)]
 pub struct TypeOp {
-    pub left: TypeExpr,
+    pub left: Box<TypeExpr>,
     pub op: String,
-    pub right: TypeExpr,
+    pub right: Box<TypeExpr>,
 }
 
 #[derive(Debug, Clone)]
@@ -383,12 +510,21 @@ pub struct Set {
 #[derive(Debug, Clone)]
 pub struct Command {
     pub aliases: Option<Vec<CommandAliases>>,
+    pub kind: CommandKind,
 }
 
 #[derive(Debug, Clone)]
 pub enum CommandAliases {
     AliasedExpr(AliasedExpr),
     ModuleAliasDecl(ModuleAliasDecl),
+}
+
+#[derive(Debug, Clone)]
+pub enum CommandKind {
+    DDLCommand(DDLCommand),
+    DescribeStmt(DescribeStmt),
+    ExplainStmt(ExplainStmt),
+    AdministerStmt(AdministerStmt),
 }
 
 #[derive(Debug, Clone)]
@@ -420,12 +556,22 @@ pub struct Shape {
 #[derive(Debug, Clone)]
 pub struct Query {
     pub aliases: Option<Vec<QueryAliases>>,
+    pub kind: QueryKind,
 }
 
 #[derive(Debug, Clone)]
 pub enum QueryAliases {
     AliasedExpr(AliasedExpr),
     ModuleAliasDecl(ModuleAliasDecl),
+}
+
+#[derive(Debug, Clone)]
+pub enum QueryKind {
+    PipelinedQuery(PipelinedQuery),
+    GroupQuery(GroupQuery),
+    InsertQuery(InsertQuery),
+    UpdateQuery(UpdateQuery),
+    ForQuery(ForQuery),
 }
 
 #[derive(Debug, Clone)]
@@ -436,6 +582,13 @@ pub struct PipelinedQuery {
     pub offset: Option<Box<Expr>>,
     pub limit: Option<Box<Expr>>,
     pub rptr_passthrough: bool,
+    pub kind: PipelinedQueryKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum PipelinedQueryKind {
+    SelectQuery(SelectQuery),
+    DeleteQuery(DeleteQuery),
 }
 
 #[derive(Debug, Clone)]
@@ -458,6 +611,14 @@ pub enum GroupingIdentListElements {
 
 #[derive(Debug, Clone)]
 pub struct GroupingElement {
+    pub kind: GroupingElementKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum GroupingElementKind {
+    GroupingSimple(GroupingSimple),
+    GroupingSets(GroupingSets),
+    GroupingOperation(GroupingOperation),
 }
 
 #[derive(Debug, Clone)]
@@ -496,6 +657,13 @@ pub struct GroupQuery {
     pub using: Option<Vec<AliasedExpr>>,
     pub by: Vec<GroupingElement>,
     pub subject: Box<Expr>,
+    pub kind: GroupQueryKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum GroupQueryKind {
+    InternalGroupQuery(InternalGroupQuery),
+    Plain,
 }
 
 #[derive(Debug, Clone)]
@@ -538,6 +706,17 @@ pub struct ForQuery {
 
 #[derive(Debug, Clone)]
 pub struct Transaction {
+    pub kind: TransactionKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum TransactionKind {
+    StartTransaction(StartTransaction),
+    CommitTransaction(CommitTransaction),
+    RollbackTransaction(RollbackTransaction),
+    DeclareSavepoint(DeclareSavepoint),
+    RollbackToSavepoint(RollbackToSavepoint),
+    ReleaseSavepoint(ReleaseSavepoint),
 }
 
 #[derive(Debug, Clone)]
@@ -572,11 +751,31 @@ pub struct ReleaseSavepoint {
 
 #[derive(Debug, Clone)]
 pub struct DDL {
+    pub kind: DDLKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum DDLKind {
+    BasesMixin(BasesMixin),
+    Position(Position),
+    DDLOperation(DDLOperation),
+    NestedQLBlock(NestedQLBlock),
+    IndexType(IndexType),
 }
 
 #[derive(Debug, Clone)]
 pub struct BasesMixin {
     pub bases: Vec<TypeName>,
+    pub kind: BasesMixinKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum BasesMixinKind {
+    AlterAddInherit(AlterAddInherit),
+    AlterDropInherit(AlterDropInherit),
+    CreateExtendingObject(CreateExtendingObject),
+    CreateRole(CreateRole),
+    CreateConcretePointer(CreateConcretePointer),
 }
 
 #[derive(Debug, Clone)]
@@ -588,17 +787,45 @@ pub struct Position {
 #[derive(Debug, Clone)]
 pub struct DDLOperation {
     pub commands: Vec<DDLOperation>,
+    pub kind: DDLOperationKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum DDLOperationKind {
+    DDLCommand(DDLCommand),
+    AlterAddInherit(AlterAddInherit),
+    AlterDropInherit(AlterDropInherit),
+    OnTargetDelete(OnTargetDelete),
+    OnSourceDelete(OnSourceDelete),
+    SetField(SetField),
+    SetAccessPerms(SetAccessPerms),
 }
 
 #[derive(Debug, Clone)]
 pub struct DDLCommand {
     pub aliases: Option<Vec<DDLCommandAliases>>,
+    pub kind: DDLCommandKind,
 }
 
 #[derive(Debug, Clone)]
 pub enum DDLCommandAliases {
     AliasedExpr(AliasedExpr),
     ModuleAliasDecl(ModuleAliasDecl),
+}
+
+#[derive(Debug, Clone)]
+pub enum DDLCommandKind {
+    NamedDDL(NamedDDL),
+    StartMigration(StartMigration),
+    AbortMigration(AbortMigration),
+    PopulateMigration(PopulateMigration),
+    AlterCurrentMigrationRejectProposed(AlterCurrentMigrationRejectProposed),
+    DescribeCurrentMigration(DescribeCurrentMigration),
+    CommitMigration(CommitMigration),
+    ResetSchema(ResetSchema),
+    StartMigrationRewrite(StartMigrationRewrite),
+    AbortMigrationRewrite(AbortMigrationRewrite),
+    CommitMigrationRewrite(CommitMigrationRewrite),
 }
 
 #[derive(Debug, Clone)]
@@ -626,6 +853,7 @@ pub struct SetField {
     pub name: String,
     pub value: SetFieldValue,
     pub special_syntax: bool,
+    pub kind: SetFieldKind,
 }
 
 #[derive(Debug, Clone)]
@@ -633,6 +861,15 @@ pub enum SetFieldValue {
     Expr(Box<Expr>),
     TypeExpr(TypeExpr),
     NoneType(()),
+}
+
+#[derive(Debug, Clone)]
+pub enum SetFieldKind {
+    SetPointerType(SetPointerType),
+    SetPointerCardinality(SetPointerCardinality),
+    SetPointerOptionality(SetPointerOptionality),
+    SetGlobalType(SetGlobalType),
+    Plain,
 }
 
 #[derive(Debug, Clone)]
@@ -660,11 +897,42 @@ pub struct SetPointerOptionality {
 #[derive(Debug, Clone)]
 pub struct NamedDDL {
     pub name: ObjectRef,
+    pub kind: NamedDDLKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum NamedDDLKind {
+    ObjectDDL(ObjectDDL),
+    Rename(Rename),
 }
 
 #[derive(Debug, Clone)]
 pub struct ObjectDDL {
     pub object_class: SchemaObjectClass,
+    pub kind: ObjectDDLKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ObjectDDLKind {
+    CreateObject(CreateObject),
+    AlterObject(AlterObject),
+    DropObject(DropObject),
+    UnqualifiedObjectCommand(UnqualifiedObjectCommand),
+    AnnotationCommand(AnnotationCommand),
+    PseudoTypeCommand(PseudoTypeCommand),
+    ScalarTypeCommand(ScalarTypeCommand),
+    PropertyCommand(PropertyCommand),
+    ObjectTypeCommand(ObjectTypeCommand),
+    AliasCommand(AliasCommand),
+    GlobalCommand(GlobalCommand),
+    LinkCommand(LinkCommand),
+    CallableObjectCommand(CallableObjectCommand),
+    ConstraintCommand(ConstraintCommand),
+    IndexCommand(IndexCommand),
+    AccessPolicyCommand(AccessPolicyCommand),
+    TriggerCommand(TriggerCommand),
+    RewriteCommand(RewriteCommand),
+    CastCommand(CastCommand),
 }
 
 #[derive(Debug, Clone)]
@@ -672,21 +940,125 @@ pub struct CreateObject {
     pub r#abstract: bool,
     pub sdl_alter_if_exists: bool,
     pub create_if_not_exists: bool,
+    pub kind: CreateObjectKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum CreateObjectKind {
+    CreateExtendingObject(CreateExtendingObject),
+    CreateMigration(CreateMigration),
+    CreateDatabase(CreateDatabase),
+    CreateExtensionPackage(CreateExtensionPackage),
+    CreateExtension(CreateExtension),
+    CreateFuture(CreateFuture),
+    CreateModule(CreateModule),
+    CreateRole(CreateRole),
+    CreatePseudoType(CreatePseudoType),
+    CreateConcretePointer(CreateConcretePointer),
+    CreateAlias(CreateAlias),
+    CreateGlobal(CreateGlobal),
+    CreateConcreteConstraint(CreateConcreteConstraint),
+    CreateConcreteIndex(CreateConcreteIndex),
+    CreateAnnotationValue(CreateAnnotationValue),
+    CreateAccessPolicy(CreateAccessPolicy),
+    CreateTrigger(CreateTrigger),
+    CreateRewrite(CreateRewrite),
+    CreateFunction(CreateFunction),
+    CreateOperator(CreateOperator),
+    CreateCast(CreateCast),
+    Plain,
 }
 
 #[derive(Debug, Clone)]
 pub struct AlterObject {
     pub object_class: SchemaObjectClass,
+    pub kind: AlterObjectKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum AlterObjectKind {
+    AlterMigration(AlterMigration),
+    AlterDatabase(AlterDatabase),
+    AlterModule(AlterModule),
+    AlterRole(AlterRole),
+    AlterAnnotation(AlterAnnotation),
+    AlterScalarType(AlterScalarType),
+    AlterProperty(AlterProperty),
+    AlterConcreteProperty(AlterConcreteProperty),
+    AlterObjectType(AlterObjectType),
+    AlterAlias(AlterAlias),
+    AlterGlobal(AlterGlobal),
+    AlterLink(AlterLink),
+    AlterConcreteLink(AlterConcreteLink),
+    AlterConstraint(AlterConstraint),
+    AlterConcreteConstraint(AlterConcreteConstraint),
+    AlterIndex(AlterIndex),
+    AlterConcreteIndex(AlterConcreteIndex),
+    AlterAnnotationValue(AlterAnnotationValue),
+    AlterAccessPolicy(AlterAccessPolicy),
+    AlterTrigger(AlterTrigger),
+    AlterRewrite(AlterRewrite),
+    AlterFunction(AlterFunction),
+    AlterOperator(AlterOperator),
+    AlterCast(AlterCast),
+    Plain,
 }
 
 #[derive(Debug, Clone)]
 pub struct DropObject {
     pub object_class: SchemaObjectClass,
+    pub kind: DropObjectKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum DropObjectKind {
+    DropMigration(DropMigration),
+    DropDatabase(DropDatabase),
+    DropExtensionPackage(DropExtensionPackage),
+    DropExtension(DropExtension),
+    DropFuture(DropFuture),
+    DropModule(DropModule),
+    DropRole(DropRole),
+    DropAnnotation(DropAnnotation),
+    DropScalarType(DropScalarType),
+    DropProperty(DropProperty),
+    DropConcreteProperty(DropConcreteProperty),
+    DropObjectType(DropObjectType),
+    DropAlias(DropAlias),
+    DropGlobal(DropGlobal),
+    DropLink(DropLink),
+    DropConcreteLink(DropConcreteLink),
+    DropConstraint(DropConstraint),
+    DropConcreteConstraint(DropConcreteConstraint),
+    DropIndex(DropIndex),
+    DropConcreteIndex(DropConcreteIndex),
+    DropAnnotationValue(DropAnnotationValue),
+    DropAccessPolicy(DropAccessPolicy),
+    DropTrigger(DropTrigger),
+    DropRewrite(DropRewrite),
+    DropFunction(DropFunction),
+    DropOperator(DropOperator),
+    DropCast(DropCast),
+    Plain,
 }
 
 #[derive(Debug, Clone)]
 pub struct CreateExtendingObject {
     pub r#final: bool,
+    pub kind: CreateExtendingObjectKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum CreateExtendingObjectKind {
+    CreateAnnotation(CreateAnnotation),
+    CreateScalarType(CreateScalarType),
+    CreateProperty(CreateProperty),
+    CreateObjectType(CreateObjectType),
+    CreateLink(CreateLink),
+    CreateConcreteLink(CreateConcreteLink),
+    CreateConstraint(CreateConstraint),
+    CreateIndex(CreateIndex),
+    Plain,
 }
 
 #[derive(Debug, Clone)]
@@ -822,21 +1194,52 @@ pub enum CommitMigrationRewriteAliases {
 #[derive(Debug, Clone)]
 pub struct UnqualifiedObjectCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: UnqualifiedObjectCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum UnqualifiedObjectCommandKind {
+    GlobalObjectCommand(GlobalObjectCommand),
+    ExtensionCommand(ExtensionCommand),
+    FutureCommand(FutureCommand),
+    ModuleCommand(ModuleCommand),
 }
 
 #[derive(Debug, Clone)]
 pub struct GlobalObjectCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: GlobalObjectCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum GlobalObjectCommandKind {
+    ExternalObjectCommand(ExternalObjectCommand),
+    ExtensionPackageCommand(ExtensionPackageCommand),
+    RoleCommand(RoleCommand),
 }
 
 #[derive(Debug, Clone)]
 pub struct ExternalObjectCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: ExternalObjectCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ExternalObjectCommandKind {
+    DatabaseCommand(DatabaseCommand),
 }
 
 #[derive(Debug, Clone)]
 pub struct DatabaseCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: DatabaseCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum DatabaseCommandKind {
+    CreateDatabase(CreateDatabase),
+    AlterDatabase(AlterDatabase),
+    DropDatabase(DropDatabase),
 }
 
 #[derive(Debug, Clone)]
@@ -858,6 +1261,13 @@ pub struct DropDatabase {
 pub struct ExtensionPackageCommand {
     pub object_class: SchemaObjectClass,
     pub version: StringConstant,
+    pub kind: ExtensionPackageCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ExtensionPackageCommandKind {
+    CreateExtensionPackage(CreateExtensionPackage),
+    DropExtensionPackage(DropExtensionPackage),
 }
 
 #[derive(Debug, Clone)]
@@ -875,6 +1285,14 @@ pub struct DropExtensionPackage {
 pub struct ExtensionCommand {
     pub object_class: SchemaObjectClass,
     pub version: Option<StringConstant>,
+    pub kind: ExtensionCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ExtensionCommandKind {
+    CreateExtension(CreateExtension),
+    DropExtension(DropExtension),
+    DropFuture(DropFuture),
 }
 
 #[derive(Debug, Clone)]
@@ -893,6 +1311,12 @@ pub struct DropExtension {
 #[derive(Debug, Clone)]
 pub struct FutureCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: FutureCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum FutureCommandKind {
+    CreateFuture(CreateFuture),
 }
 
 #[derive(Debug, Clone)]
@@ -911,6 +1335,14 @@ pub struct DropFuture {
 #[derive(Debug, Clone)]
 pub struct ModuleCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: ModuleCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ModuleCommandKind {
+    CreateModule(CreateModule),
+    AlterModule(AlterModule),
+    DropModule(DropModule),
 }
 
 #[derive(Debug, Clone)]
@@ -931,6 +1363,14 @@ pub struct DropModule {
 #[derive(Debug, Clone)]
 pub struct RoleCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: RoleCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum RoleCommandKind {
+    CreateRole(CreateRole),
+    AlterRole(AlterRole),
+    DropRole(DropRole),
 }
 
 #[derive(Debug, Clone)]
@@ -951,6 +1391,17 @@ pub struct DropRole {
 #[derive(Debug, Clone)]
 pub struct AnnotationCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: AnnotationCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum AnnotationCommandKind {
+    CreateAnnotation(CreateAnnotation),
+    AlterAnnotation(AlterAnnotation),
+    DropAnnotation(DropAnnotation),
+    CreateAnnotationValue(CreateAnnotationValue),
+    AlterAnnotationValue(AlterAnnotationValue),
+    DropAnnotationValue(DropAnnotationValue),
 }
 
 #[derive(Debug, Clone)]
@@ -972,6 +1423,12 @@ pub struct DropAnnotation {
 #[derive(Debug, Clone)]
 pub struct PseudoTypeCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: PseudoTypeCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum PseudoTypeCommandKind {
+    CreatePseudoType(CreatePseudoType),
 }
 
 #[derive(Debug, Clone)]
@@ -984,6 +1441,14 @@ pub struct CreatePseudoType {
 #[derive(Debug, Clone)]
 pub struct ScalarTypeCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: ScalarTypeCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ScalarTypeCommandKind {
+    CreateScalarType(CreateScalarType),
+    AlterScalarType(AlterScalarType),
+    DropScalarType(DropScalarType),
 }
 
 #[derive(Debug, Clone)]
@@ -1004,6 +1469,17 @@ pub struct DropScalarType {
 #[derive(Debug, Clone)]
 pub struct PropertyCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: PropertyCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum PropertyCommandKind {
+    CreateProperty(CreateProperty),
+    AlterProperty(AlterProperty),
+    DropProperty(DropProperty),
+    CreateConcreteProperty(CreateConcreteProperty),
+    AlterConcreteProperty(AlterConcreteProperty),
+    DropConcreteProperty(DropConcreteProperty),
 }
 
 #[derive(Debug, Clone)]
@@ -1027,6 +1503,7 @@ pub struct CreateConcretePointer {
     pub declared_overloaded: bool,
     pub target: CreateConcretePointerTarget,
     pub cardinality: SchemaCardinality,
+    pub kind: CreateConcretePointerKind,
 }
 
 #[derive(Debug, Clone)]
@@ -1034,6 +1511,14 @@ pub enum CreateConcretePointerTarget {
     Expr(Box<Expr>),
     TypeExpr(TypeExpr),
     NoneType(()),
+}
+
+#[derive(Debug, Clone)]
+pub enum CreateConcretePointerKind {
+    CreateConcreteUnknownPointer(CreateConcreteUnknownPointer),
+    CreateConcreteProperty(CreateConcreteProperty),
+    CreateConcreteLink(CreateConcreteLink),
+    Plain,
 }
 
 #[derive(Debug, Clone)]
@@ -1079,6 +1564,14 @@ pub struct DropConcreteProperty {
 #[derive(Debug, Clone)]
 pub struct ObjectTypeCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: ObjectTypeCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ObjectTypeCommandKind {
+    CreateObjectType(CreateObjectType),
+    AlterObjectType(AlterObjectType),
+    DropObjectType(DropObjectType),
 }
 
 #[derive(Debug, Clone)]
@@ -1099,6 +1592,14 @@ pub struct DropObjectType {
 #[derive(Debug, Clone)]
 pub struct AliasCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: AliasCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum AliasCommandKind {
+    CreateAlias(CreateAlias),
+    AlterAlias(AlterAlias),
+    DropAlias(DropAlias),
 }
 
 #[derive(Debug, Clone)]
@@ -1121,6 +1622,14 @@ pub struct DropAlias {
 #[derive(Debug, Clone)]
 pub struct GlobalCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: GlobalCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum GlobalCommandKind {
+    CreateGlobal(CreateGlobal),
+    AlterGlobal(AlterGlobal),
+    DropGlobal(DropGlobal),
 }
 
 #[derive(Debug, Clone)]
@@ -1159,6 +1668,17 @@ pub struct SetGlobalType {
 #[derive(Debug, Clone)]
 pub struct LinkCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: LinkCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum LinkCommandKind {
+    CreateLink(CreateLink),
+    AlterLink(AlterLink),
+    DropLink(DropLink),
+    CreateConcreteLink(CreateConcreteLink),
+    AlterConcreteLink(AlterConcreteLink),
+    DropConcreteLink(DropConcreteLink),
 }
 
 #[derive(Debug, Clone)]
@@ -1194,11 +1714,29 @@ pub struct DropConcreteLink {
 #[derive(Debug, Clone)]
 pub struct CallableObjectCommand {
     pub params: Vec<FuncParam>,
+    pub kind: CallableObjectCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum CallableObjectCommandKind {
+    CreateConstraint(CreateConstraint),
+    CreateIndex(CreateIndex),
+    FunctionCommand(FunctionCommand),
+    OperatorCommand(OperatorCommand),
 }
 
 #[derive(Debug, Clone)]
 pub struct ConstraintCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: ConstraintCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ConstraintCommandKind {
+    CreateConstraint(CreateConstraint),
+    AlterConstraint(AlterConstraint),
+    DropConstraint(DropConstraint),
+    ConcreteConstraintOp(ConcreteConstraintOp),
 }
 
 #[derive(Debug, Clone)]
@@ -1222,6 +1760,14 @@ pub struct ConcreteConstraintOp {
     pub args: Vec<Box<Expr>>,
     pub subjectexpr: Option<Box<Expr>>,
     pub except_expr: Option<Box<Expr>>,
+    pub kind: ConcreteConstraintOpKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ConcreteConstraintOpKind {
+    CreateConcreteConstraint(CreateConcreteConstraint),
+    AlterConcreteConstraint(AlterConcreteConstraint),
+    DropConcreteConstraint(DropConcreteConstraint),
 }
 
 #[derive(Debug, Clone)]
@@ -1253,6 +1799,15 @@ pub struct IndexType {
 #[derive(Debug, Clone)]
 pub struct IndexCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: IndexCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum IndexCommandKind {
+    CreateIndex(CreateIndex),
+    AlterIndex(AlterIndex),
+    DropIndex(DropIndex),
+    ConcreteIndexCommand(ConcreteIndexCommand),
 }
 
 #[derive(Debug, Clone)]
@@ -1283,6 +1838,14 @@ pub struct ConcreteIndexCommand {
     pub kwargs: HashMap<String, Box<Expr>>,
     pub expr: Box<Expr>,
     pub except_expr: Option<Box<Expr>>,
+    pub kind: ConcreteIndexCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ConcreteIndexCommandKind {
+    CreateConcreteIndex(CreateConcreteIndex),
+    AlterConcreteIndex(AlterConcreteIndex),
+    DropConcreteIndex(DropConcreteIndex),
 }
 
 #[derive(Debug, Clone)]
@@ -1324,6 +1887,14 @@ pub struct DropAnnotationValue {
 #[derive(Debug, Clone)]
 pub struct AccessPolicyCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: AccessPolicyCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum AccessPolicyCommandKind {
+    CreateAccessPolicy(CreateAccessPolicy),
+    AlterAccessPolicy(AlterAccessPolicy),
+    DropAccessPolicy(DropAccessPolicy),
 }
 
 #[derive(Debug, Clone)]
@@ -1353,6 +1924,14 @@ pub struct DropAccessPolicy {
 #[derive(Debug, Clone)]
 pub struct TriggerCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: TriggerCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum TriggerCommandKind {
+    CreateTrigger(CreateTrigger),
+    AlterTrigger(AlterTrigger),
+    DropTrigger(DropTrigger),
 }
 
 #[derive(Debug, Clone)]
@@ -1377,6 +1956,14 @@ pub struct DropTrigger {
 pub struct RewriteCommand {
     pub object_class: SchemaObjectClass,
     pub kinds: Vec<RewriteKind>,
+    pub kind: RewriteCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum RewriteCommandKind {
+    CreateRewrite(CreateRewrite),
+    AlterRewrite(AlterRewrite),
+    DropRewrite(DropRewrite),
 }
 
 #[derive(Debug, Clone)]
@@ -1408,6 +1995,14 @@ pub struct FunctionCode {
 #[derive(Debug, Clone)]
 pub struct FunctionCommand {
     pub object_class: SchemaObjectClass,
+    pub kind: FunctionCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum FunctionCommandKind {
+    CreateFunction(CreateFunction),
+    AlterFunction(AlterFunction),
+    DropFunction(DropFunction),
 }
 
 #[derive(Debug, Clone)]
@@ -1442,6 +2037,14 @@ pub struct OperatorCode {
 pub struct OperatorCommand {
     pub object_class: SchemaObjectClass,
     pub kind: OperatorKind,
+    pub kind1: OperatorCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum OperatorCommandKind {
+    CreateOperator(CreateOperator),
+    AlterOperator(AlterOperator),
+    DropOperator(DropOperator),
 }
 
 #[derive(Debug, Clone)]
@@ -1477,6 +2080,14 @@ pub struct CastCommand {
     pub object_class: SchemaObjectClass,
     pub from_type: TypeName,
     pub to_type: TypeName,
+    pub kind: CastCommandKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum CastCommandKind {
+    CreateCast(CreateCast),
+    AlterCast(AlterCast),
+    DropCast(DropCast),
 }
 
 #[derive(Debug, Clone)]
@@ -1501,14 +2112,17 @@ pub struct DropCast {
 }
 
 #[derive(Debug, Clone)]
-pub struct _Optional {
-    pub expr: Box<Expr>,
-}
-
-#[derive(Debug, Clone)]
 pub struct ConfigOp {
     pub name: ObjectRef,
     pub scope: ConfigScope,
+    pub kind: ConfigOpKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ConfigOpKind {
+    ConfigSet(ConfigSet),
+    ConfigInsert(ConfigInsert),
+    ConfigReset(ConfigReset),
 }
 
 #[derive(Debug, Clone)]
@@ -1552,6 +2166,13 @@ pub struct AdministerStmt {
 
 #[derive(Debug, Clone)]
 pub struct SDL {
+    pub kind: SDLKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum SDLKind {
+    ModuleDeclaration(ModuleDeclaration),
+    Schema(Schema),
 }
 
 #[derive(Debug, Clone)]
