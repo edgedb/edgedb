@@ -1703,8 +1703,7 @@ def _compile_ql_transaction(
     )
 
 
-def _compile_ql_sess_state(ctx: CompileContext,
-                           ql: qlast.SessionCommand):
+def _compile_ql_sess_state(ctx: CompileContext, ql: qlast.SessionCommand):
     current_tx = ctx.state.current_tx()
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
 

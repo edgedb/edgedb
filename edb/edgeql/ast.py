@@ -18,6 +18,7 @@
 
 
 from __future__ import annotations
+
 # Do not import "from typing *"; this module contains
 # AST classes that name-clash with classes from the typing module.
 
@@ -93,6 +94,7 @@ class Base(ast.AST):
 
     def dump_edgeql(self) -> None:
         from edb.common.debug import dump_edgeql
+
         dump_edgeql(self)
 
 
@@ -132,11 +134,13 @@ class Options(Base):
 
 class Expr(Base):
     """Abstract parent for all query expressions."""
+
     __abstract_node__ = True
 
 
 class Placeholder(Expr):
     """An interpolation placeholder used in expression templates."""
+
     name: str
 
 
@@ -251,7 +255,6 @@ class BaseConstant(Expr):
 
 
 class StringConstant(BaseConstant):
-
     @classmethod
     def from_python(cls, s: str) -> StringConstant:
         return cls(value=s)
@@ -279,7 +282,6 @@ class DecimalConstant(BaseRealConstant):
 
 
 class BooleanConstant(BaseConstant):
-
     @classmethod
     def from_python(cls, b: bool) -> BooleanConstant:
         return cls(value=str(b).lower())
@@ -414,14 +416,17 @@ class Set(Expr):
 # Statements
 #
 
+
 class Command(Base):
     """
     A top-level node that is evaluated by our server and
     cannot be a part of a sub expression.
     """
+
     __abstract_node__ = True
     aliases: typing.Optional[
-        typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]] = None
+        typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
+    ] = None
 
 
 class SessionSetAliasDecl(Command):
@@ -573,7 +578,8 @@ class InsertQuery(Query):
     subject: ObjectRef
     shape: typing.List[ShapeElement]
     unless_conflict: typing.Optional[
-        typing.Tuple[typing.Optional[Expr], typing.Optional[Expr]]] = None
+        typing.Tuple[typing.Optional[Expr], typing.Optional[Expr]]
+    ] = None
 
 
 class UpdateQuery(Query):
@@ -599,8 +605,10 @@ class ForQuery(Query):
 # Transactions
 #
 
+
 class Transaction(Base):
     '''Abstract parent for all transaction operations.'''
+
     __abstract_node__ = True
 
 
@@ -636,8 +644,10 @@ class ReleaseSavepoint(Transaction):
 # DDL
 #
 
+
 class DDL(Base):
     '''Abstract parent for all DDL statements.'''
+
     __abstract_node__ = True
 
 
@@ -756,7 +766,8 @@ class MigrationCommand:
 
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.MIGRATION)
+        qltypes.SchemaObjectClass.MIGRATION
+    )
 
 
 class CreateMigration(CreateObject, MigrationCommand):
@@ -838,8 +849,7 @@ class ExternalObjectCommand(GlobalObjectCommand):
 
 class DatabaseCommand(ExternalObjectCommand):
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.DATABASE)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.DATABASE
 
 
 class CreateDatabase(CreateObject, DatabaseCommand):
@@ -858,7 +868,8 @@ class DropDatabase(DropObject, DatabaseCommand):
 class ExtensionPackageCommand(GlobalObjectCommand):
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.EXTENSION_PACKAGE)
+        qltypes.SchemaObjectClass.EXTENSION_PACKAGE
+    )
     version: StringConstant
 
 
@@ -875,7 +886,8 @@ class ExtensionCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.EXTENSION)
+        qltypes.SchemaObjectClass.EXTENSION
+    )
     version: typing.Optional[StringConstant] = None
 
 
@@ -890,8 +902,7 @@ class DropExtension(DropObject, ExtensionCommand):
 class FutureCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.FUTURE)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.FUTURE
 
 
 class CreateFuture(CreateObject, FutureCommand):
@@ -905,8 +916,7 @@ class DropFuture(DropObject, ExtensionCommand):
 class ModuleCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.MODULE)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.MODULE
 
 
 class CreateModule(ModuleCommand, CreateObject):
@@ -923,8 +933,7 @@ class DropModule(ModuleCommand, DropObject):
 
 class RoleCommand(GlobalObjectCommand):
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.ROLE)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.ROLE
 
 
 class CreateRole(CreateObject, BasesMixin, RoleCommand):
@@ -943,7 +952,8 @@ class AnnotationCommand(ObjectDDL):
 
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.ANNOTATION)
+        qltypes.SchemaObjectClass.ANNOTATION
+    )
 
 
 class CreateAnnotation(CreateExtendingObject, AnnotationCommand):
@@ -963,7 +973,8 @@ class PseudoTypeCommand(ObjectDDL):
 
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.PSEUDO_TYPE)
+        qltypes.SchemaObjectClass.PSEUDO_TYPE
+    )
 
 
 class CreatePseudoType(CreateObject, PseudoTypeCommand):
@@ -974,7 +985,8 @@ class ScalarTypeCommand(ObjectDDL):
 
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.SCALAR_TYPE)
+        qltypes.SchemaObjectClass.SCALAR_TYPE
+    )
 
 
 class CreateScalarType(CreateExtendingObject, ScalarTypeCommand):
@@ -992,8 +1004,7 @@ class DropScalarType(DropObject, ScalarTypeCommand):
 class PropertyCommand(ObjectDDL):
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.PROPERTY)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.PROPERTY
 
 
 class CreateProperty(CreateExtendingObject, PropertyCommand):
@@ -1034,8 +1045,7 @@ class DropConcreteProperty(DropObject, PropertyCommand):
 class ObjectTypeCommand(ObjectDDL):
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.TYPE)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.TYPE
 
 
 class CreateObjectType(CreateExtendingObject, ObjectTypeCommand):
@@ -1053,8 +1063,7 @@ class DropObjectType(DropObject, ObjectTypeCommand):
 class AliasCommand(ObjectDDL):
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.ALIAS)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.ALIAS
 
 
 class CreateAlias(CreateObject, AliasCommand):
@@ -1072,8 +1081,7 @@ class DropAlias(DropObject, AliasCommand):
 class GlobalCommand(ObjectDDL):
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.GLOBAL)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.GLOBAL
 
 
 class CreateGlobal(CreateObject, GlobalCommand):
@@ -1101,8 +1109,7 @@ class SetGlobalType(SetField):
 class LinkCommand(ObjectDDL):
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.LINK)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.LINK
 
 
 class CreateLink(CreateExtendingObject, LinkCommand):
@@ -1143,7 +1150,8 @@ class ConstraintCommand(ObjectDDL):
 
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.CONSTRAINT)
+        qltypes.SchemaObjectClass.CONSTRAINT
+    )
 
 
 class CreateConstraint(
@@ -1192,8 +1200,7 @@ class IndexType(DDL):
 class IndexCommand(ObjectDDL):
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.INDEX)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.INDEX
 
 
 class IndexCode(Base):
@@ -1255,7 +1262,8 @@ class AccessPolicyCommand(ObjectDDL):
 
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.ACCESS_POLICY)
+        qltypes.SchemaObjectClass.ACCESS_POLICY
+    )
 
 
 class CreateAccessPolicy(CreateObject, AccessPolicyCommand):
@@ -1281,8 +1289,7 @@ class DropAccessPolicy(DropObject, AccessPolicyCommand):
 class TriggerCommand(ObjectDDL):
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.TRIGGER)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.TRIGGER
 
 
 class CreateTrigger(CreateObject, TriggerCommand):
@@ -1312,9 +1319,7 @@ class RewriteCommand(ObjectDDL):
     """
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.REWRITE
-    )
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.REWRITE
 
     kinds: typing.List[qltypes.RewriteKind]
 
@@ -1347,8 +1352,7 @@ class FunctionCode(Base):
 class FunctionCommand(CallableObjectCommand):
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.FUNCTION)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.FUNCTION
 
 
 class CreateFunction(CreateObject, FunctionCommand):
@@ -1356,8 +1360,7 @@ class CreateFunction(CreateObject, FunctionCommand):
     returning: TypeExpr
     code: FunctionCode
     nativecode: typing.Optional[Expr]
-    returning_typemod: qltypes.TypeModifier = \
-        qltypes.TypeModifier.SingletonType
+    returning_typemod: qltypes.TypeModifier = qltypes.TypeModifier.SingletonType
 
 
 class AlterFunction(AlterObject, FunctionCommand):
@@ -1381,15 +1384,13 @@ class OperatorCode(Base):
 class OperatorCommand(CallableObjectCommand):
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.OPERATOR)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.OPERATOR
     kind: qltypes.OperatorKind
 
 
 class CreateOperator(CreateObject, OperatorCommand):
     returning: TypeExpr
-    returning_typemod: qltypes.TypeModifier = \
-        qltypes.TypeModifier.SingletonType
+    returning_typemod: qltypes.TypeModifier = qltypes.TypeModifier.SingletonType
     code: OperatorCode
 
 
@@ -1412,8 +1413,7 @@ class CastCode(Base):
 class CastCommand(ObjectDDL):
 
     __abstract_node__ = True
-    object_class: qltypes.SchemaObjectClass = (
-        qltypes.SchemaObjectClass.CAST)
+    object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.CAST
     from_type: TypeName
     to_type: TypeName
 
@@ -1488,6 +1488,7 @@ class ExplainStmt(Command):
 # Administer
 #
 
+
 class AdministerStmt(Command):
 
     expr: FunctionCall
@@ -1500,6 +1501,7 @@ class AdministerStmt(Command):
 
 class SDL(Base):
     '''Abstract parent for all SDL statements.'''
+
     __abstract_node__ = True
 
 
