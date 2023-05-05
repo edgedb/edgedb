@@ -15,6 +15,13 @@ To play with the new features, install the CLI using
 
   $ edgedb project init --server-version=testing
 
+.. note::
+
+    Good news, everyone! Upgrades from 3.0 betas to release candidates (RCs)
+    and to the final 3.0 release will *not* require a dump and restore. 🎉
+    You can try out the beta with the assurance that this upgrade to the beta
+    will be the last dump and restore that is required of you.
+
 
 Upgrading
 =========
@@ -22,7 +29,43 @@ Upgrading
 **Local instances**
 
 To upgrade a local project, first upgrade your CLI using ``edgedb cli upgrade
---to-testing``. Then run the following command inside the project directory.
+--to-testing``. Run an upgrade check to make sure your schema will migrate
+cleanly to 3.0.
+
+.. code-block:: bash
+
+    $ edgedb migration upgrade-check
+
+.. note::
+
+    EdgeDB 3.0 fixes a bug that will cause it to care about the ordering of
+    your ancestors in multiple inheritence. This used to work before 3.0:
+
+    .. code-block:: sdl
+
+        type A;
+        type B extending A;
+        type C extending A, B;
+
+    but as of 3.0, the order of ancestors must be changed to match the order of
+    the bases:
+
+    .. code-block:: sdl
+
+        type A;
+        type B extending A;
+        type C extending B, A;
+
+    This is a key instance where schemas may be incompatible with 3.0.
+
+If the upgrade-check finds any problems, fix them in your schema and squash
+your migrations.
+
+.. code-block:: bash
+
+    $ edgedb migration create --squash
+
+Then run the following command inside the project directory.
 
 .. code-block:: bash
 
@@ -252,10 +295,11 @@ these are ready to commit and push to your remote to share with your team.
 Triggers
 --------
 
-Triggers is one of the most anticipated 3.0 features! They allow you to define
-an expression to be executed whenever a given query type is run on an object
-type. The original query will *trigger* your pre-defined expression to run in a
-transaction along with the original query. These can be defined in your schema.
+Our new triggers feature is one of the most anticipated 3.0 features! Triggers
+allow you to define an expression to be executed whenever a given query type is
+run on an object type. The original query will *trigger* your pre-defined
+expression to run in a transaction along with the original query. These can be
+defined in your schema.
 
 .. code-block:: sdl
 
@@ -508,6 +552,8 @@ EdgeQL
       select <optional tuple<str, bool>>$var;
       select <tuple<name: str, flag: bool>>$var;
       select <optional tuple<name: str, flag: bool>>$var;
+      select <array<tuple<int64, str>>>$var;
+      select <optional array<tuple<int64, str>>>$var;
 
 * Add the syntax for abstract indexes (:eql:gh:`#4691`)
 
@@ -552,7 +598,7 @@ EdgeQL
 CLI
 ---
 
-* Add the ``edgedb migration update-check`` command
+* Add the ``edgedb migration upgrade-check`` command
 
   Checks your schema against the new EdgeDB version. You can add ``--to-version
   <version>``, ``--to-testing``, ``--to-nightly``, or ``--to-channel
