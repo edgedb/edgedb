@@ -364,7 +364,8 @@ class TestDocSnippets(unittest.TestCase):
                     'rust',
                     'tsx',
                     'elixir',
-                    'toml'
+                    'toml',
+                    'sql'
                 }:
                     pass
                 elif lang[-5:] == '-diff':
