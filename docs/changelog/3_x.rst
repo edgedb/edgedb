@@ -12,7 +12,7 @@ v3.0 (dev)
 The EdgeDB 3.0 beta was released on May 5th, 2023. We would like to thank our
 community for reporting issues and contributing fixes. You are awesome! ❤️
 
-To play with the new features, install the CLI using
+To play with the new features, install the CLI using `our installation guide
 <https://www.edgedb.com/install>`_, upgrade to the testing channel using
 ``edgedb cli upgrade --to-testing``, and initialize a new project.
 
