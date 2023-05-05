@@ -146,14 +146,9 @@ class SortExpr(Base):
     nones_order: typing.Optional[NonesOrder] = None
 
 
-class OptionallyAliasedExpr(Base):
-    alias: typing.Optional[str]
-    expr: Expr
-
-
-class AliasedExpr(OptionallyAliasedExpr):
-    # alias isn't optional
+class AliasedExpr(Base):
     alias: str
+    expr: Expr
 
 
 class ModuleAliasDecl(Base):
