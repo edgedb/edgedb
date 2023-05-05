@@ -6,10 +6,45 @@
 SQL support
 ===========
 
+
+Connecting
+==========
+
 EdgeDB supports running SQL queries via the Postgres protocol. Any
 Postgres-compatible client can connect to your EdgeDB database by using the
 same port that is used for the EdgeDB protocol and the same database name,
 username, and password you already use for your database.
+
+Here's how you might connect to a local instance on port 10701 (determined by
+running ``edgedb instance list``) with a database ``edgedb`` using the ``psql``
+CLI:
+
+.. code-block:: bash
+
+    $ psql -h localhost -p 10701 -U edgedb -d edgedb
+
+You'll then be prompted for a password. If you don't have it, you can run
+``edgedb instance credentials --insecure-dsn`` and grab it out of the DSN the
+command returns. (It's the string between the second colon and the "at" symbol:
+``edgedb://edgedb:PASSWORD_IS_HERE@<host>:<port>/<database>``)
+
+This works well to test SQL support, but if you are going to be using it on an
+ongoing basis, you may want to create a new role and use it to authenticate
+your SQL clients. Set a password when you create your role. Then, use the role
+name as your user name when you connect via your SQL client.
+
+.. code-block:: edgeql
+
+    create superuser role sql {
+      set password := 'your-password'
+    };
+
+.. code-block:: bash
+
+    $ psql -h localhost -p 10701 -U sql -d edgedb
+
+In this example, when prompted for the password, you would enter
+``your-password``.
 
 .. warning::
 
@@ -18,6 +53,10 @@ username, and password you already use for your database.
     when using EdgeDB's SQL support. Alternatively, you can disable the TLS
     requirement by setting the ``EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY``
     environment variable to ``optional``.
+
+
+Querying
+========
 
 Object types in your EdgeDB schema are exposed as regular SQL tables containing
 all the data you store in your EdgeDB database.
@@ -122,6 +161,7 @@ EdgeDB accomplishes this by emulating the ``information_schema`` and
     expect a true Postgres instance to contain. This may be a source of
     problems when using tools that introspect the database and rely on internal
     Postgres features.
+
 
 Tested SQL tools
 ================
