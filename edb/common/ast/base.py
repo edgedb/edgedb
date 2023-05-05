@@ -122,6 +122,7 @@ class AST:
         cls.__abstract_node__ = bool(dct.get('__abstract_node__'))
 
         if '__annotations__' not in dct:
+            cls._direct_fields = []
             return cls
 
         globalns = sys.modules[cls.__module__].__dict__.copy()
