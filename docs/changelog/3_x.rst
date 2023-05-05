@@ -190,15 +190,15 @@ versioned sections of the documentation to the new syntax.
 Query plan
 ----------
 
-Among other improvements, the UI now includes a visual query planner to help
+Among other improvements, the UI now includes a visual query analyzer to help
 you tweak performance on your EdgeQL queries. Just drop the ``analyze`` keyword
-in front of your query in the UI's "Query Editor" tab to see the query planner
+in front of your query in the UI's "Query Editor" tab to see the query analyzer
 in action.
 
 .. image:: images/v3_ui_query_planner.jpg
     :width: 100%
 
-Query planning is available in the CLI REPL by prepending your query with
+Query analysis is available in the CLI REPL by prepending your query with
 ``analyze`` or using the ``\analyze`` backslash command, and in the CLI
 directly using the ``edgedb analyze <query>`` command.
 
