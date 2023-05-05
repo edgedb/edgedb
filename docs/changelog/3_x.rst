@@ -74,11 +74,11 @@ dump-and-restore process.
 
    .. code-block:: bash
 
-       $ edgedb dump --dsn <old dsn> --all my_database.dump/
+       $ edgedb dump --dsn <old dsn> --all --format dir my_database.dump/
 
-   This will dump the schema and contents of your current database to a file
-   on your local disk called ``my_database.dump``. The file name isn't
-   important.
+   This will dump the schema and contents of your current database to a
+   directory on your local disk called ``my_database.dump``. The directory name
+   isn't important.
 
 3. Restore the empty v3.x instance from the dump
 
@@ -528,6 +528,9 @@ EdgeQL
 
   * ``pg::brin``- BRIN (Block Range INdex) index works with summaries about the
     values stored in consecutive physical block ranges in the database
+
+  Learn more about the index types we expose `in the Postgres documentation
+  <https://www.postgresql.org/docs/current/indexes-types.html>`_.
 
   You can use them like this:
 
