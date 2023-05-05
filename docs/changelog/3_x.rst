@@ -703,4 +703,4 @@ Going forward, expect EdgeDB releases every four months. These releases will
 naturally incorporate fewer features than our past releases, but we think the
 more predictable cadence will be worth it. Every third release starting with
 3.0 will be a long-term support (LTS) release. These releases will continue to
-recieve support for a year and a half after their initial release.
+receive support for a year and a half after their initial release.
