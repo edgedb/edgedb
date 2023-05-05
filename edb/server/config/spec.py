@@ -50,7 +50,6 @@ class Setting:
     report: bool = False
     affects_compilation: bool = False
     enum_values: Optional[List[str]] = None
-    dangerous: bool = False
 
     def __post_init__(self):
         if (self.type not in SETTING_TYPES and
@@ -186,8 +185,6 @@ def load_spec_from_schema(schema):
             enum_values=(
                 ptype.get_enum_values(schema) if ptype.is_enum(schema)
                 else None),
-            dangerous=attributes.get(
-                sn.QualName('cfg', 'dangerous'), False),
         )
 
         settings.append(setting)

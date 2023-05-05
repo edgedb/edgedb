@@ -34,11 +34,6 @@ CREATE ABSTRACT INHERITABLE ANNOTATION cfg::requires_restart;
 # in the binary protocol state.
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::system;
 
-# Changing dangerous config values may cause the database work very
-# differently. You may lose connectivity, consume lots of hardware resources
-# or end up with not enough resources to run normally, if misconfigured.
-CREATE ABSTRACT INHERITABLE ANNOTATION cfg::dangerous;
-
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 
 CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
@@ -116,7 +111,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
 
     CREATE REQUIRED PROPERTY listen_port -> std::int16 {
         CREATE ANNOTATION cfg::system := 'true';
-        CREATE ANNOTATION cfg::dangerous := 'true';
         CREATE ANNOTATION std::description :=
             'The TCP port the server listens on.';
         SET default := 5656;
@@ -124,7 +118,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
 
     CREATE MULTI PROPERTY listen_addresses -> std::str {
         CREATE ANNOTATION cfg::system := 'true';
-        CREATE ANNOTATION cfg::dangerous := 'true';
         CREATE ANNOTATION std::description :=
             'The TCP/IP address(es) on which the server is to listen for \
             connections from client applications.';
@@ -132,7 +125,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
 
     CREATE MULTI LINK auth -> cfg::Auth {
         CREATE ANNOTATION cfg::system := 'true';
-        CREATE ANNOTATION cfg::dangerous := 'true';
     };
 
     CREATE PROPERTY allow_dml_in_functions -> std::bool {
@@ -168,7 +160,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     # from pg_settings in the config_backend CTE.
     CREATE PROPERTY shared_buffers -> cfg::memory {
         CREATE ANNOTATION cfg::system := 'true';
-        CREATE ANNOTATION cfg::dangerous := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"shared_buffers"';
         CREATE ANNOTATION cfg::requires_restart := 'true';
         CREATE ANNOTATION std::description :=
@@ -177,7 +168,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
 
     CREATE PROPERTY query_work_mem -> cfg::memory {
         CREATE ANNOTATION cfg::system := 'true';
-        CREATE ANNOTATION cfg::dangerous := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"work_mem"';
         CREATE ANNOTATION std::description :=
             'The amount of memory used by internal query operations such as \
@@ -186,7 +176,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
 
     CREATE PROPERTY effective_cache_size -> cfg::memory {
         CREATE ANNOTATION cfg::system := 'true';
-        CREATE ANNOTATION cfg::dangerous := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_cache_size"';
         CREATE ANNOTATION std::description :=
             'An estimate of the effective size of the disk cache available \
@@ -195,7 +184,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
 
     CREATE PROPERTY effective_io_concurrency -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
-        CREATE ANNOTATION cfg::dangerous := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_io_concurrency"';
         CREATE ANNOTATION std::description :=
             'The number of concurrent disk I/O operations that can be \
@@ -204,7 +192,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
 
     CREATE PROPERTY default_statistics_target -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
-        CREATE ANNOTATION cfg::dangerous := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"default_statistics_target"';
         CREATE ANNOTATION std::description :=
             'The default data statistics target for the planner.';
@@ -219,7 +206,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
 
     CREATE REQUIRED PROPERTY _pg_prepared_statement_cache_size -> std::int16 {
         CREATE ANNOTATION cfg::system := 'true';
-        CREATE ANNOTATION cfg::dangerous := 'true';
         CREATE ANNOTATION std::description :=
             'The maximum number of prepared statements each backend \
             connection could hold at the same time.';
