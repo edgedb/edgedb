@@ -23,6 +23,7 @@ Reference
     backend_ha
     configuration
     http
+    sql_support
     protocol/index
     bindings/index
     admin/index
