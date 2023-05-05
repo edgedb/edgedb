@@ -193,20 +193,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.limit)
             self._block_ws(-1, newlines)
 
-    def visit_OptionallyAliasedExpr(
-            self, node: qlast.OptionallyAliasedExpr) -> None:
-        if node.alias:
-            self.write(ident_to_str(node.alias))
-            self.write(' := ')
-            self._block_ws(1)
+    def visit_AliasedExpr(self, node: qlast.AliasedExpr) -> None:
+        self.write(ident_to_str(node.alias))
+        self.write(' := ')
+        self._block_ws(1)
 
         self.visit(node.expr)
 
-        if node.alias:
-            self._block_ws(-1)
-
-    def visit_AliasedExpr(self, node: qlast.AliasedExpr) -> None:
-        self.visit_OptionallyAliasedExpr(node)
+        self._block_ws(-1)
 
     def visit_InsertQuery(self, node: qlast.InsertQuery) -> None:
         # need to parenthesise when INSERT appears as an expression
@@ -2444,9 +2438,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
             self.write(opt.name)
 
-
     # SDL nodes
-
     def visit_Schema(self, node: qlast.Schema) -> None:
         sdl_codegen = self.__class__(
             indent_with=self.indent_with,

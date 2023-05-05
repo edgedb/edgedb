@@ -161,39 +161,6 @@ class ModuleAliasDecl(Base):
     alias: typing.Optional[str]
 
 
-class BaseSessionCommand(Base):
-    __abstract_node__ = True
-
-
-class BaseSessionSet(BaseSessionCommand):
-    __abstract_node__ = True
-
-
-class BaseSessionConfigSet(BaseSessionSet):
-    __abstract_node__ = True
-    system: bool = False
-
-
-class SessionSetAliasDecl(BaseSessionSet):
-    decl: ModuleAliasDecl
-
-
-class BaseSessionReset(BaseSessionCommand):
-    __abstract_node__ = True
-
-
-class SessionResetAliasDecl(BaseSessionReset):
-    alias: str
-
-
-class SessionResetModule(BaseSessionReset):
-    pass
-
-
-class SessionResetAllAliases(BaseSessionReset):
-    pass
-
-
 class BaseObjectRef(Base):
     __abstract_node__ = True
 
@@ -460,6 +427,30 @@ class Command(Base):
     __abstract_node__ = True
     aliases: typing.Optional[
         typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]] = None
+
+
+class SessionSetAliasDecl(Command):
+    decl: ModuleAliasDecl
+
+
+class SessionResetAliasDecl(Command):
+    alias: str
+
+
+class SessionResetModule(Command):
+    pass
+
+
+class SessionResetAllAliases(Command):
+    pass
+
+
+SessionCommand = (
+    SessionSetAliasDecl
+    | SessionResetAliasDecl
+    | SessionResetModule
+    | SessionResetAllAliases
+)
 
 
 class ShapeOp(s_enum.StrEnum):
