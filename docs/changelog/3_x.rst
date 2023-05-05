@@ -1,8 +1,15 @@
+.. versionadded:: 3.0
+
 ====
 v3.0
 ====
 
 :edb-alt-title: EdgeDB v3
+
+.. warning::
+
+    The latest stable EdgeDB release is 2.x. EdgeDB 3.0 stable will be released
+    soon.
 
 The EdgeDB 3.0 beta was released on May 5th, 2023. We would like to thank our
 community for reporting issues and contributing fixes. You are awesome! ❤️
