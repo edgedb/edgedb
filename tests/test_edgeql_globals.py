@@ -19,6 +19,7 @@
 
 import dataclasses
 import os.path
+import unittest
 
 import edgedb
 
@@ -72,6 +73,14 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
               array<tuple<tuple<str, bool>, array<int64>>>;
         '''
     ]
+
+    @classmethod
+    def setUpClass(cls):
+        if cls.get_set_up() == 'inplace':
+            raise unittest.SkipTest(
+                'globals schema broken with in place setup'
+            )
+        super().setUpClass()
 
     async def test_edgeql_globals_errors_01(self):
         async with self.assertRaisesRegexTx(
