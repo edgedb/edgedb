@@ -1081,11 +1081,15 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             if script:
                 cls.loop.run_until_complete(cls.con.execute(script))
 
+    @staticmethod
+    def get_set_up():
+        return os.environ.get('EDGEDB_TEST_CASES_SET_UP', 'run')
+
     @classmethod
     def tearDownClass(cls):
         script = ''
 
-        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP', 'run')
+        class_set_up = cls.get_set_up()
 
         if cls.TEARDOWN and class_set_up != 'skip':
             script = cls.TEARDOWN.strip()
@@ -1411,6 +1415,11 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
             await asyncio.to_thread(
                 self.run_cli, '-d', dbname, 'restore', f.name
             )
+
+        # Cycle the connection to avoid state mismatches
+        await self.con.aclose()
+        self.con = await self.connect(database=dbname)
+
         await check_method(self)
 
     async def check_dump_restore(self, check_method):
@@ -1488,6 +1497,9 @@ class StablePGDumpTestCase(BaseQueryTestCase):
             import asyncpg
         except ImportError:
             raise unittest.SkipTest('SQL tests skipped: asyncpg not installed')
+
+        if cls.get_set_up() == 'inplace':
+            raise unittest.SkipTest('SQL dump tests skipped in single db mode')
 
         super().setUpClass()
         conargs = cls.get_connect_args()
