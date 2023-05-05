@@ -123,6 +123,38 @@ Link properties can also be indexed.
       };
     }
 
+Specify a Postgres index type
+-----------------------------
+
+.. versionadded:: 3.0
+
+EdgeDB exposes Postgres indexes that you can use in your schemas. These are
+exposed through the ``pg`` module.
+
+* ``pg::hash``- Index based on a 32-bit hash derived from the indexed value
+
+* ``pg::btree``- B-tree index can be used to retrieve data in sorted order
+
+* ``pg::gin``- GIN is an "inverted index" appropriate for data values that
+  contain multiple elements, such as arrays and JSON
+
+* ``pg::gist``- GIST index can be used to optimize searches involving ranges
+
+* ``pg::spgist``- SP-GIST index can be used to optimize searches involving
+  ranges and strings
+
+* ``pg::brin``- BRIN (Block Range INdex) index works with summaries about the
+  values stored in consecutive physical block ranges in the database
+
+You can use them like this:
+
+.. code-block:: sdl
+
+    type User {
+      required property name -> str;
+      index pg::spgist on (.name);
+    };
+
 Annotate an index
 -----------------
 
