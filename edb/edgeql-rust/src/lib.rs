@@ -6,7 +6,6 @@ use cpython::PyString;
 mod errors;
 mod float;
 mod hash;
-mod into_python;
 mod keywords;
 pub mod normalize;
 mod position;
@@ -17,14 +16,6 @@ use errors::TokenizerError;
 use position::{offset_of_line, SourcePoint};
 use pynormalize::normalize;
 use tokenizer::{get_unpickle_fn, tokenize, Token};
-
-fn demo(py: cpython::Python<'_>) -> cpython::PyResult<cpython::PyObject> {
-    let node = edgeql_parser::ast::ReleaseSavepoint {
-        name: "hello world".to_string(),
-    };
-
-    into_python::IntoPython::into_python(node, py)
-}
 
 py_module_initializer!(
     _edgeql_rust,
@@ -56,7 +47,6 @@ py_module_initializer!(
         m.add(py, "partial_reserved_keywords", keywords.partial)?;
         m.add(py, "future_reserved_keywords", keywords.future)?;
         m.add(py, "current_reserved_keywords", keywords.current)?;
-        m.add(py, "demo", py_fn!(py, demo()))?;
         Ok(())
     }
 );

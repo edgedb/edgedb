@@ -215,6 +215,8 @@ version = "0.1.0"
 dependencies = [
  "base32",
  "combine 4.6.6",
+ "cpython",
+ "edgeql-rust-derive",
  "memchr",
  "serde",
  "sha2",
@@ -236,6 +238,15 @@ dependencies = [
  "edgedb-protocol",
  "edgeql-parser",
  "num-bigint 0.4.3",
+]
+
+[[package]]
+name = "edgeql-rust-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

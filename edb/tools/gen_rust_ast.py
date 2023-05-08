@@ -50,6 +50,9 @@ def main() -> None:
             #![allow(non_camel_case_types)]
 
             use std::collections::HashMap;
+
+            #[cfg(feature = "python")]
+            use edgeql_rust_derive::IntoPython;
             '''
         )
     )
@@ -123,24 +126,25 @@ def codegen_struct(cls: ASTClass) -> str:
         name = f'{cls.name}Kind'
         variants: typing.Sequence[typing.Type | str] = cls.children
 
-        if not cls.typ.__abstract_node__:
-            variants = list(variants) + ['Plain']
+        # if not cls.typ.__abstract_node__:
+        # variants = list(variants) + ['Plain']
 
         union_types.append(
             ASTUnion(name=name, variants=variants, for_composition=True)
         )
-        fields += f'    pub {kind_name}: {name},\n'
+        fields += f'    #[py_child]\n' f'    pub {kind_name}: {name},\n'
 
     if cls.is_base:
         doc_comment = '/// Base class\n'
 
     return (
         f'\n{doc_comment}'
-        + f'#[derive(Debug, Clone, IntoPython)]\n'
+        + f'#[derive(Debug, Clone)]\n'
+        + f'#[cfg_attr(feature = "python", derive(IntoPython))]\n'
         + f'pub struct {cls.name} {"{"}\n'
         + fields
         + '}\n'
-    )
+    ).replace('{\n}', r'{}')
 
 
 def codegen_enum(name: str, cls: typing.Type) -> str:
@@ -148,8 +152,19 @@ def codegen_enum(name: str, cls: typing.Type) -> str:
     for member in cls._member_names_:
         fields += f'    {member},\n'
 
+    if cls.__module__ == 'edb.edgeql.ast':
+        cls_path = f'qlast.{cls.__name__}'
+    elif cls.__module__ == 'edb.edgeql.qltypes':
+        cls_path = f'qltypes.{cls.__name__}'
+    else:
+        raise LookupError(
+            'we only support generating AST from qlast and qltypes modules'
+        )
+
     return (
         '\n#[derive(Debug, Clone)]\n'
+        + f'#[cfg_attr(feature = "python", derive(IntoPython))]\n'
+        + f'#[py_enum({cls_path})]\n'
         + f'pub enum {name} {"{"}\n'
         + fields
         + '}\n'
@@ -175,8 +190,14 @@ def codegen_union(union: ASTUnion) -> str:
             typ = translate_type(arg, '???', union.for_composition)
             fields += f'    {arg.__name__}({typ}),\n'
 
-    annotations = '#[derive(Debug, Clone, IntoPython)]\n'
-    return f'\n{annotations}pub enum {union.name} {"{"}\n{fields}{"}"}\n'
+    attr = 'py_child' if union.for_composition else 'py_union'
+
+    return (
+        '\n#[derive(Debug, Clone)]\n'
+        f'#[cfg_attr(feature = "python", derive(IntoPython))]\n'
+        f'#[{attr}]\n'
+        f'pub enum {union.name} {"{"}\n{fields}{"}"}\n'
+    )
 
 
 def translate_type(
