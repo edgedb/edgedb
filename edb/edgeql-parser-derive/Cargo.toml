@@ -1,5 +1,6 @@
 [package]
-name = "edgeql-rust-derive"
+name = "edgeql-parser-derive"
+description = "Derive macros for IntoPython trait for AST"
 version = "0.1.0"
 edition = "2021"
 

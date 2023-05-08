@@ -216,7 +216,7 @@ dependencies = [
  "base32",
  "combine 4.6.6",
  "cpython",
- "edgeql-rust-derive",
+ "edgeql-parser-derive",
  "memchr",
  "serde",
  "sha2",
@@ -224,6 +224,15 @@ dependencies = [
  "thiserror",
  "unicode-width",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "edgeql-parser-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -238,15 +247,6 @@ dependencies = [
  "edgedb-protocol",
  "edgeql-parser",
  "num-bigint 0.4.3",
-]
-
-[[package]]
-name = "edgeql-rust-derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 
 #[cfg(feature = "python")]
-use edgeql_rust_derive::IntoPython;
+use edgeql_parser_derive::IntoPython;
 
 /// Base class
 #[derive(Debug, Clone)]
