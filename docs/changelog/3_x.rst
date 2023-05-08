@@ -36,9 +36,10 @@ Upgrading
 
 **Local instances**
 
-To upgrade a local project, first upgrade your CLI using ``edgedb project upgrade
---to-testing``. Run an upgrade check to make sure your schema will migrate
-cleanly to 3.0.
+To upgrade a local project, first ensure that your CLI is up to date with
+``edgedb cli upgrade --to-testing`` (and ``edgedb cli upgrade --to-nightly``
+before that if the CLI doesn't recognize the command). Then run an upgrade
+check to make sure your schema will migrate cleanly to 3.0.
 
 .. code-block:: bash
 
