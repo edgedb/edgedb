@@ -83,7 +83,7 @@ Alternatively, specify an instance name if you aren't using a project.
 
 .. code-block:: bash
 
-  $ edgedb project upgrade --to-testing -I my_instance
+  $ edgedb instance upgrade --to-testing -I my_instance
 
 **Hosted instances**
 
