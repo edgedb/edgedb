@@ -928,6 +928,10 @@ _compiler_options = [
         help="Directory to store UNIX domain socket file for IPC, a temporary "
              "directory will be used if not specified.",
     ),
+    click.option(
+        '--metrics-port', type=PortType(),
+        help=f'Port to listen on for metrics HTTP API.',
+    ),
 ]
 
 
