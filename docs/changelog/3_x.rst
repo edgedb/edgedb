@@ -411,6 +411,32 @@ Read more about splats in `our splats RFC
 <https://github.com/edgedb/rfcs/blob/master/text/1023-splats.rst>`_.
 
 
+SQL support
+-----------
+
+EdgeDB supports running read-only SQL queries via the Postgres protocol. Any
+Postgres-compatible client can connect to your EdgeDB database by using the
+same port that is used for the EdgeDB protocol and the same database name,
+username, and password you already use for your database.
+
+.. code-block:: bash
+
+    $ psql -h localhost -p 10701 -U edgedb -d edgedb
+
+Our SQL support has been tested against a number of SQL tools:
+
+- `pg_dump <https://www.postgresql.org/docs/13/app-pgdump.html>`_
+- `Metabase <https://www.metabase.com/>`_
+- `Cluvio <https://www.cluvio.com/>`_
+- `Tableau <https://www.tableau.com/>`_
+- `DataGrip <https://www.jetbrains.com/datagrip/>`_
+- `Airbyte <https://airbyte.com/>`_
+- `Fivetran <https://www.fivetran.com/>`_
+- `Hevo <https://hevodata.com/>`_
+- `Stitch <https://www.stitchdata.com/>`_
+- `dbt <https://www.getdbt.com/>`_
+
+
 Nested modules
 --------------
 
