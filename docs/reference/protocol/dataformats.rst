@@ -138,6 +138,8 @@ means an empty set.
 Sparse Objects
 ==============
 
+.. versionadded:: 2.0
+
 The values are represented as the following structure:
 
 .. code-block:: c
@@ -166,6 +168,8 @@ The values are represented as the following structure:
 
 Ranges
 ====================================
+
+.. versionadded:: 2.0
 
 The ranges are represented as the following structure:
 
@@ -556,6 +560,8 @@ about how to handle different precision when encoding data.
 
 cal::date_duration
 ======================
+
+.. versionadded:: 2.0
 
 The :eql:type:`cal::date_duration` values are represented as the following
 structure:

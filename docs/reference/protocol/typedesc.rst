@@ -296,6 +296,8 @@ Enumeration Type Descriptor
 Input Shape Descriptor
 ======================
 
+.. versionadded:: 2.0
+
 .. code-block:: c
 
     struct InputShapeDescriptor {
@@ -318,6 +320,8 @@ Input objects are encoded on the wire as
 
 Range Type Descriptor
 ===========================
+
+.. versionadded:: 2.0
 
 .. code-block:: c
 

@@ -7,6 +7,30 @@ Binary protocol
 EdgeDB uses a message-based binary protocol for communication between
 clients and servers.  The protocol is supported over TCP/IP.
 
+.. list-table::
+    :widths: auto
+    :header-rows: 1
+
+    * - EdgeDB
+      - Protocol version
+      - Support back to
+      - Notes
+    * - ``1.x``
+      - ``0.13``
+      - ``0.7`` protocol
+      - Document for protocol 0.x is no longer maintained
+    * - ``2.x``
+      - ``1.0``
+      - ``0.13`` protocol
+      -
+    * - ``3.x``
+      - ``1.0``
+      - ``0.13`` protocol
+      - Protocol versions 0.x are :ref:`deprecated <ref_3_x_deprecations>`
+    * - ``4.x``
+      - ``2.0``
+      - ``1.0`` protocol
+      -
 
 .. toctree::
     :maxdepth: 3
@@ -70,7 +94,9 @@ The following data types are used in the descriptions:
       - .. eql:struct:: edb.protocol.KeyValue
 
     * - ``Annotation``
-      - .. eql:struct:: edb.protocol.Annotation
+      - .. versionadded:: 2.0
+
+            .. eql:struct:: edb.protocol.Annotation
 
     * - ``uuid``
       - an array of 16 bytes with no length prefix, equivalent to

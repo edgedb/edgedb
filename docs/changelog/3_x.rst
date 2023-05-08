@@ -720,6 +720,8 @@ Bug fixes
   (:eql:gh:`#4970`), (:eql:gh:`#4953`)
 
 
+.. _ref_3_x_deprecations:
+
 Deprecations
 ------------
 
