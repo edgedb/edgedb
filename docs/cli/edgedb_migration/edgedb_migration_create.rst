@@ -53,3 +53,6 @@ to. For specifying the connection target see :ref:`connection options
 :cli:synopsis:`--schema-dir=<schema-dir>`
     Directory where the schema files are located. Defaults to
     ``./dbschema``.
+
+:cli:synopsis:`--squash`
+    Squashes all your migrations into a single migration.
