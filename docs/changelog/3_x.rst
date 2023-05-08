@@ -14,7 +14,10 @@ community for reporting issues and contributing fixes. You are awesome! ❤️
 
 To play with the new features, install the CLI using `our installation guide
 <https://www.edgedb.com/install>`_, upgrade to the testing channel using
-``edgedb project upgrade --to-testing``, and initialize a new project.
+``edgedb cli upgrade --to-testing``, and initialize a new project.
+
+If the upgrade doesn't work, try updating to nightly first using
+``edgedb cli upgrade --to-nightly``
 
 .. code-block:: bash
 
