@@ -26,6 +26,10 @@ command below.
 
 **Windows (Powershell)**
 
+.. note::
+
+    EdgeDB on Windows requires WSL 2 because the EdgeDB server runs on Linux.
+
 .. code-block::
 
   PS> iwr https://ps1.edgedb.com -useb | iex
