@@ -15102,6 +15102,22 @@ CREATE MIGRATION m14i24uhm6przo3bpl2lqndphuomfrtq3qdjaqdg6fza7h6m7tlbra
             select ObjectType {links: {@owned}};
         """)
 
+    async def test_edgeql_ddl_union_link_target_alter_01(self):
+        await self.con.execute(r"""
+            create type X;
+            create type Y;
+            create type T { create link xy -> X | Y; };
+        """)
+        await self.con.query(r"""
+            alter type X create required property foo -> str;
+        """)
+        await self.con.query(r"""
+            alter type Y create required property foo -> str;
+        """)
+        await self.con.query(r"""
+            alter type X alter property foo set multi;
+        """)
+
     async def test_edgeql_ddl_rebase_views_01(self):
         await self.con.execute(r"""
             CREATE TYPE default::Foo {
