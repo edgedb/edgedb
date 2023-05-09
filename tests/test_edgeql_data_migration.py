@@ -11457,6 +11457,36 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }
         ''')
 
+    async def test_edgeql_migration_property_ref(self):
+        await self.migrate(r'''
+            type Log {
+                body: str;
+                timestamp: datetime {
+                    default := datetime_current();
+                }
+            }
+
+            type Person {
+                required name: str;
+                trigger log_delete after insert for each do (
+                    insert Log { body := __new__.name }
+                );
+            }
+        ''')
+
+        await self.migrate(r'''
+            type Log {
+                body: str;
+            }
+
+            type Person {
+                required name: str;
+                trigger log_delete after insert for each do (
+                    insert Log { body := __new__.name }
+                );
+            }
+        ''')
+
     async def test_edgeql_migration_to_computed_drop_exclusive(self):
         await self.migrate(r'''
             type User {

@@ -2219,6 +2219,16 @@ class DeletePointer(
         ):
             self.add_caused(del_cmd)
 
+        if not context.canonical:
+            # We need to do a propagate here, too, since there could
+            # be backrefs to this pointer that technically reference
+            # us but will be fine if it is deleted.
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=self.get_friendly_description(schema=schema),
+            )
+
         return schema
 
     def _canonicalize(
