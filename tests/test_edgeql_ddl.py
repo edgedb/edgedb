@@ -11348,6 +11348,7 @@ type default::Foo {
                  CREATE PROPERTY num -> int64;
                  CREATE PROPERTY color -> Color;
                  CREATE PROPERTY colors -> array<Color>;
+                 CREATE PROPERTY colorst -> array<tuple<Color>>;
                  CREATE CONSTRAINT expression ON (
                      <str>.num != asdf2()
                  );
@@ -11358,7 +11359,9 @@ type default::Foo {
              };
              INSERT Entry { num := 1, color := "Red" };
              INSERT Entry {
-                 num := 2, color := "Green", colors := ["Red", "Green"] };
+                 num := 2, color := "Green", colors := ["Red", "Green"],
+                 colorst := [("Red",), ("Green",)]
+             };
         ''')
 
         await self.con.execute('''
@@ -11373,10 +11376,14 @@ type default::Foo {
 
         await self.assert_query_result(
             r"""
-                SELECT Entry { num, color } ORDER BY .color;
+                SELECT Entry { num, color, colorst } ORDER BY .color;
             """,
             [
-                {'num': 2, 'color': 'Green'},
+                {
+                    'num': 2,
+                    'color': 'Green',
+                    'colorst': [("Red",), ("Green",)],
+                },
                 {'num': 1, 'color': 'Red'},
             ],
         )
