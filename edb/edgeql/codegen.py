@@ -831,7 +831,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(' ')
             self.visit(node.ref)
 
-    def _ddl_visit_bases(self, node: qlast.BasesMixin) -> None:
+    def _ddl_visit_bases(self, node: qlast.BasedOn) -> None:
         if node.bases:
             self._write_keywords(' EXTENDING ')
             self.visit_list(node.bases, newlines=False)

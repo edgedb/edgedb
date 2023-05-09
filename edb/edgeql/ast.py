@@ -654,11 +654,6 @@ class DDL(Base):
     __rust_ignore__ = True
 
 
-class BasesMixin(DDL):
-    __abstract_node__ = True
-    bases: typing.List[TypeName]
-
-
 class Position(DDL):
     ref: typing.Optional[ObjectRef] = None
     position: str
@@ -673,12 +668,13 @@ class DDLCommand(Command, DDLOperation):
     __abstract_node__ = True
 
 
-class AlterAddInherit(DDLOperation, BasesMixin):
+class AlterAddInherit(DDLOperation):
     position: typing.Optional[Position] = None
+    bases: typing.List[TypeName]
 
 
-class AlterDropInherit(DDLOperation, BasesMixin):
-    pass
+class AlterDropInherit(DDLOperation):
+    bases: typing.List[TypeName]
 
 
 class OnTargetDelete(DDLOperation):
@@ -725,7 +721,7 @@ class NamedDDL(DDLCommand):
 
 
 class ObjectDDL(NamedDDL):
-
+    __ast_hidden__ = {'object_class'}
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass
 
@@ -744,11 +740,12 @@ class DropObject(ObjectDDL):
     pass
 
 
-class CreateExtendingObject(CreateObject, BasesMixin):
+class CreateExtendingObject(CreateObject):
     # final is not currently implemented, and the syntax is not
     # supported except in old dumps. We track it only to allow us to
     # error on it.
     final: bool = False
+    bases: typing.List[TypeName]
 
 
 class Rename(NamedDDL):
@@ -781,7 +778,7 @@ class CreateMigration(CreateObject, MigrationCommand):
     metadata_only: bool = False
 
 
-class CommittedSchema(Base):
+class CommittedSchema(DDL):
     pass
 
 
@@ -951,8 +948,9 @@ class RoleCommand(GlobalObjectCommand):
     object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.ROLE
 
 
-class CreateRole(CreateObject, BasesMixin, RoleCommand):
+class CreateRole(CreateObject, RoleCommand):
     superuser: bool = False
+    bases: typing.List[TypeName]
 
 
 class AlterRole(AlterObject, RoleCommand):
@@ -1038,11 +1036,12 @@ class DropProperty(DropObject, PropertyCommand):
     pass
 
 
-class CreateConcretePointer(CreateObject, BasesMixin):
+class CreateConcretePointer(CreateObject):
     is_required: typing.Optional[bool] = None
     declared_overloaded: bool = False
     target: typing.Optional[typing.Union[Expr, TypeExpr]]
     cardinality: qltypes.SchemaCardinality
+    bases: typing.List[TypeName]
 
 
 class CreateConcreteUnknownPointer(CreateConcretePointer):
@@ -1229,7 +1228,7 @@ class IndexCommand(ObjectDDL):
     object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.INDEX
 
 
-class IndexCode(Base):
+class IndexCode(DDL):
     language: Language
     code: str
 
@@ -1371,7 +1370,7 @@ class Language(s_enum.StrEnum):
     EdgeQL = 'EDGEQL'
 
 
-class FunctionCode(Base):
+class FunctionCode(DDL):
     language: Language = Language.EdgeQL
     code: typing.Optional[str] = None
     nativecode: typing.Optional[Expr] = None
@@ -1404,7 +1403,7 @@ class DropFunction(DropObject, FunctionCommand):
     pass
 
 
-class OperatorCode(Base):
+class OperatorCode(DDL):
     language: Language
     from_operator: typing.Optional[typing.Tuple[str, ...]]
     from_function: typing.Optional[typing.Tuple[str, ...]]
@@ -1434,7 +1433,7 @@ class DropOperator(DropObject, OperatorCommand):
     pass
 
 
-class CastCode(Base):
+class CastCode(DDL):
     language: Language
     from_function: str
     from_expr: bool
@@ -1615,3 +1614,19 @@ SubjectQuery = DeleteQuery | UpdateQuery | GroupQuery
 
 
 OffsetLimitQuery = PipelinedQuery | ShapeElement
+
+
+BasedOn = (
+    AlterAddInherit
+    | AlterDropInherit
+    | CreateExtendingObject
+    | CreateRole
+    | CreateConcretePointer
+)
+BasedOnTuple = (
+    AlterAddInherit,
+    AlterDropInherit,
+    CreateExtendingObject,
+    CreateRole,
+    CreateConcretePointer,
+)
