@@ -83,7 +83,7 @@ def index_parameters(
 
     params = parameters.objects(schema)
 
-    if len(ql_args) > len(params):
+    if not variadic and len(ql_args) > len(params):
         # In error message we discount the implicit __subject__ param.
         raise errors.SchemaDefinitionError(
             f'Expected {len(params) - 1} arguments, but found '
