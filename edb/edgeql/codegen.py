@@ -133,12 +133,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def generic_visit(self, node: qlast.Base,
                       *args: Any, **kwargs: Any) -> None:
-        if isinstance(node, qlast.SDL):
-            raise EdgeQLSourceGeneratorError(
-                f'No method to generate code for {node.__class__.__name__}')
-        else:
-            raise EdgeQLSourceGeneratorError(
-                f'No method to generate code for {node.__class__.__name__}')
+        raise EdgeQLSourceGeneratorError(
+            f'No method to generate code for {node.__class__.__name__}')
 
     def _block_ws(self, change: int, newlines: bool = True) -> None:
         """Block whitespace"""

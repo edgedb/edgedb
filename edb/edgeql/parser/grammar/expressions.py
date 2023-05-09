@@ -1645,15 +1645,15 @@ class PathStepName(Nonterm):
 
 
 class FuncApplication(Nonterm):
-    def reduce_NodeName_LPAREN_OptFuncArgList_RPAREN(self, *kids):
-        module = kids[0].val.module
-        func_name = kids[0].val.name
-        name = func_name if not module else (module, func_name)
+    def reduce_NodeName_LPAREN_OptFuncArgList_RPAREN(self, name, func_args):
+        module = name.val.module
+        func_name = name.val.name
+        func = func_name if not module else (module, func_name)
 
         last_named_seen = None
         args = []
         kwargs = {}
-        for argname, argname_ctx, arg in kids[2].val:
+        for argname, argname_ctx, arg in func_args.val:
             if argname is not None:
                 if argname in kwargs:
                     raise errors.EdgeQLSyntaxError(
@@ -1671,7 +1671,7 @@ class FuncApplication(Nonterm):
                         context=arg.context)
                 args.append(arg)
 
-        self.val = qlast.FunctionCall(func=name, args=args, kwargs=kwargs)
+        self.val = qlast.FunctionCall(func=func, args=args, kwargs=kwargs)
 
 
 class FuncExpr(Nonterm):
@@ -1707,14 +1707,14 @@ class FuncCallArgExpr(Nonterm):
 
 
 class FuncCallArg(Nonterm):
-    def reduce_FuncCallArgExpr_OptFilterClause_OptSortClause(self, *kids):
-        self.val = kids[0].val
+    def reduce_FuncCallArgExpr_OptFilterClause_OptSortClause(self, expr, filter, sort):
+        self.val = expr.val
 
-        if kids[1].val or kids[2].val:
+        if filter.val or sort.val:
             qry = qlast.SelectQuery(
                 result=self.val[2],
-                where=kids[1].val,
-                orderby=kids[2].val,
+                where=filter.val,
+                orderby=sort.val,
                 implicit=True,
             )
             self.val = (self.val[0], self.val[1], qry)
@@ -1725,13 +1725,13 @@ class FuncArgList(ListNonterm, element=FuncCallArg, separator=tokens.T_COMMA):
 
 
 class OptFuncArgList(Nonterm):
-    def reduce_FuncArgList_COMMA(self, *kids):
-        self.val = kids[0].val
+    def reduce_FuncArgList_COMMA(self, arg_list):
+        self.val = arg_list.val
 
-    def reduce_FuncArgList(self, *kids):
-        self.val = kids[0].val
+    def reduce_FuncArgList(self, arg_list):
+        self.val = arg_list.val
 
-    def reduce_empty(self, *kids):
+    def reduce_empty(self):
         self.val = []
 
 
@@ -1801,8 +1801,8 @@ class DottedIdents(
 
 
 class DotName(Nonterm):
-    def reduce_DottedIdents(self, *kids):
-        self.val = '.'.join(part for part in kids[0].val)
+    def reduce_DottedIdents(self, idents):
+        self.val = '.'.join(idents.val)
 
 
 class ModuleName(
@@ -2000,10 +2000,10 @@ class NodeName(Nonterm):
     #
     # This name is safe to be used anywhere as it starts with IDENT only.
 
-    def reduce_BaseName(self, *kids):
+    def reduce_BaseName(self, base_name):
         self.val = qlast.ObjectRef(
-            module='::'.join(kids[0].val[:-1]) or None,
-            name=kids[0].val[-1])
+            module='::'.join(base_name.val[:-1]) or None,
+            name=base_name.val[-1])
 
 
 class NodeNameList(ListNonterm, element=NodeName, separator=tokens.T_COMMA):
