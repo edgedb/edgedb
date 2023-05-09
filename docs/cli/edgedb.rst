@@ -143,8 +143,8 @@ many of the commands:
 - ``-s``- Show system objects
 - ``-c``- Case-sensitive pattern matching
 
-:cli:synopsis:`\\d object [-v] NAME, \\describe object [-v] NAME`
-  Describe schema object specified by *NAME*.
+:cli:synopsis:`\\d [-v] OBJECT-NAME, \\describe [-v] OBJECT-NAME`
+  Describe schema object specified by *OBJECT-NAME*.
 
 :cli:synopsis:`\\ds, \\d schema, \\describe schema`
   Describe the entire schema.
