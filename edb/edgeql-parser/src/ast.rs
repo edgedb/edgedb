@@ -16,7 +16,7 @@ use edgeql_parser_derive::IntoPython;
 pub struct OptionValue {
     pub name: String,
     #[py_child]
-    pub kind: OptionValueKind,
+    pub kind: Option<OptionValueKind>,
 }
 
 #[derive(Debug, Clone)]
@@ -173,7 +173,7 @@ pub enum AnchorKind {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct SpecialAnchor {
     #[py_child]
-    pub kind: SpecialAnchorKind,
+    pub kind: Option<SpecialAnchorKind>,
 }
 
 #[derive(Debug, Clone)]
@@ -247,7 +247,7 @@ pub struct BinOp {
     pub right: Box<Expr>,
     pub rebalanced: bool,
     #[py_child]
-    pub kind: BinOpKind,
+    pub kind: Option<BinOpKind>,
 }
 
 #[derive(Debug, Clone)]
@@ -373,7 +373,7 @@ pub struct UnaryOp {
 pub struct TypeExpr {
     pub name: Option<String>,
     #[py_child]
-    pub kind: TypeExprKind,
+    pub kind: Option<TypeExprKind>,
 }
 
 #[derive(Debug, Clone)]
@@ -744,7 +744,7 @@ pub struct GroupQuery {
     pub by: Vec<GroupingElement>,
     pub subject: Box<Expr>,
     #[py_child]
-    pub kind: GroupQueryKind,
+    pub kind: Option<GroupQueryKind>,
 }
 
 #[derive(Debug, Clone)]
@@ -970,7 +970,7 @@ pub struct SetField {
     pub value: SetFieldValue,
     pub special_syntax: bool,
     #[py_child]
-    pub kind: SetFieldKind,
+    pub kind: Option<SetFieldKind>,
 }
 
 #[derive(Debug, Clone)]
@@ -1073,7 +1073,7 @@ pub struct CreateObject {
     pub sdl_alter_if_exists: bool,
     pub create_if_not_exists: bool,
     #[py_child]
-    pub kind: CreateObjectKind,
+    pub kind: Option<CreateObjectKind>,
 }
 
 #[derive(Debug, Clone)]
@@ -1107,7 +1107,7 @@ pub enum CreateObjectKind {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct AlterObject {
     #[py_child]
-    pub kind: AlterObjectKind,
+    pub kind: Option<AlterObjectKind>,
 }
 
 #[derive(Debug, Clone)]
@@ -1144,7 +1144,7 @@ pub enum AlterObjectKind {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropObject {
     #[py_child]
-    pub kind: DropObjectKind,
+    pub kind: Option<DropObjectKind>,
 }
 
 #[derive(Debug, Clone)]
@@ -1185,7 +1185,7 @@ pub enum DropObjectKind {
 pub struct CreateExtendingObject {
     pub r#final: bool,
     #[py_child]
-    pub kind: CreateExtendingObjectKind,
+    pub kind: Option<CreateExtendingObjectKind>,
 }
 
 #[derive(Debug, Clone)]
@@ -1627,7 +1627,7 @@ pub struct CreateConcretePointer {
     pub target: CreateConcretePointerTarget,
     pub cardinality: SchemaCardinality,
     #[py_child]
-    pub kind: CreateConcretePointerKind,
+    pub kind: Option<CreateConcretePointerKind>,
 }
 
 #[derive(Debug, Clone)]

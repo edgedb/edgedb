@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 
-use syn::{parse_macro_input, Attribute};
+use syn::{parse_macro_input, Attribute, Type, TypePath};
 
 use quote::quote;
 use syn::{self, Fields, Ident};
@@ -116,8 +116,18 @@ fn impl_struct_into_python(struct_: &mut syn::ItemStruct) -> TokenStream {
     }
 
     let init = if let Some(py_child_field) = py_child_field {
-        quote! {
-            self.#py_child_field.into_python(py, Some(kw_args))
+        let field = py_child_field.ident;
+        if py_child_field.is_option {
+            quote! {
+                match self.#field {
+                    Some(kind) => kind.into_python(py, Some(kw_args)),
+                    None => crate::into_python::init_ast_class(py, stringify!(#name), kw_args)
+                }
+            }
+        } else {
+            quote! {
+                self.#field.into_python(py, Some(kw_args))
+            }
         }
     } else {
         quote! {
@@ -144,22 +154,29 @@ fn impl_struct_into_python(struct_: &mut syn::ItemStruct) -> TokenStream {
     .into()
 }
 
-fn infer_fields(r#struct: &mut syn::ItemStruct) -> (Vec<Ident>, Option<Ident>) {
+struct PyChildField {
+    ident: Ident,
+    is_option: bool,
+}
+
+fn infer_fields(r#struct: &mut syn::ItemStruct) -> (Vec<Ident>, Option<PyChildField>) {
     let mut properties = Vec::new();
     let mut py_child = None;
 
     for field in &mut r#struct.fields {
-        let name = field
+        let ident = field
             .ident
             .clone()
             .expect("py_inherit supports only named fields");
 
         if find_attr(&field.attrs, "py_child").is_some() {
-            py_child = Some(name);
+            let is_option = is_option(&field.ty);
+
+            py_child = Some(PyChildField { ident, is_option });
             continue;
         }
 
-        properties.push(name);
+        properties.push(ident);
     }
 
     (properties, py_child)
@@ -172,4 +189,14 @@ fn find_attr<'a>(attrs: &'a [Attribute], name: &'static str) -> Option<&'a Attri
         };
         ident.to_string() == name
     })
+}
+
+fn is_option<'a>(ty: &Type) -> bool {
+    let Type::Path(TypePath { path, .. }) = ty else {
+        return false;
+    };
+    let Some(segment) = path.segments.first() else {
+        return false;
+    };
+    segment.ident.to_string() == "Option"
 }

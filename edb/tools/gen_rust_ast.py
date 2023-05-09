@@ -126,13 +126,16 @@ def codegen_struct(cls: ASTClass) -> str:
         name = f'{cls.name}Kind'
         variants: typing.Sequence[typing.Type | str] = cls.children
 
-        # if not cls.typ.__abstract_node__:
-        # variants = list(variants) + ['Plain']
-
         union_types.append(
             ASTUnion(name=name, variants=variants, for_composition=True)
         )
-        fields += f'    #[py_child]\n' f'    pub {kind_name}: {name},\n'
+
+        if cls.typ.__abstract_node__:
+            field_type = name
+        else:
+            field_type = f'Option<{name}>'
+
+        fields += f'    #[py_child]\n' f'    pub {kind_name}: {field_type},\n'
 
     if cls.is_base:
         doc_comment = '/// Base class\n'
