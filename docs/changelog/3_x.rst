@@ -532,13 +532,13 @@ constraints when paired with triggers:
     db> update Person
     ... filter .name = 'Quincey Morris'
     ... set {
-    ...   enemies := (select Person filter .name = 'Dracula')
+    ...   enemies := (select detached Person filter .name = 'Dracula')
     ... };
     {default::Person {id: e4a55480-d2de-11ed-93bd-9f4224fc73af}}
     db> update Person
     ... filter .name = 'Quincey Morris'
     ... set {
-    ...   friends := (select Person filter .name = 'Dracula')
+    ...   friends := (select detached Person filter .name = 'Dracula')
     ... };
     edgedb error: EdgeDBError: Invalid frenemies
 
