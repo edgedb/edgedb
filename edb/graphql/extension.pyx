@@ -279,6 +279,8 @@ async def _execute(db, server, query, operation_name, variables, globals):
         cache_key2 = (prepared_query, key_vars2, operation_name, dbver)
         entry = query_cache.get(cache_key2, None)
 
+    await db.introspection()
+
     if entry is None:
         if rewritten is not None:
             qug, gql_op = await compile(
