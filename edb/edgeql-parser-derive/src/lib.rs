@@ -96,7 +96,6 @@ fn infer_variants(enum_: &syn::ItemEnum) -> Vec<Variant> {
 /// Information about the struct annotated with IntoPython
 struct Variant {
     name: Ident,
-    // typ: Vec<Path>,
 }
 
 fn impl_struct_into_python(struct_: &mut syn::ItemStruct) -> TokenStream {

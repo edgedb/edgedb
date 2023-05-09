@@ -4,56 +4,21 @@ use cpython::{
     PyBytes, PyDict, PyList, PyObject, PyResult, PyTuple, Python, PythonObject, ToPyObject,
 };
 
-// use crate::ast;
-
+/// Convert into a Python object.
+///
+/// Primitives (i64, String, Option, Vec) have this trait implemented with
+/// calls to [cpython].
+///
+/// Structs have this trait derived to collect all their properties into a
+/// [PyDict] and call constructor of the AST node.
+///
+/// Enums represent either enums, union types or child classes and thus have
+/// three different derive implementations.
+///
+/// See [edgeql_parser_derive] crate.
 pub trait IntoPython: Sized {
     fn into_python(self, py: Python<'_>, parent_kw_args: Option<PyDict>) -> PyResult<PyObject>;
 }
-
-// impl IntoPython for ast::Transaction {
-//     fn into_python(self, py: Python<'_>, parent_kw_args: Option<PyDict>) -> PyResult<PyObject> {
-//         let kw_args = PyDict::new(py);
-//         // here we set fields other than `kind`
-
-//         self.kind.into_python(py, Some(kw_args))
-//     }
-// }
-
-// impl IntoPython for ast::TransactionKind {
-//     fn into_python(self, py: Python<'_>, parent_kw_args: Option<PyDict>) -> PyResult<PyObject> {
-//         match self {
-//             ast::TransactionKind::StartTransaction(x) => x.into_python(py, parent_kw_args),
-//             ast::TransactionKind::CommitTransaction(x) => x.into_python(py, parent_kw_args),
-//             ast::TransactionKind::RollbackTransaction(x) => x.into_python(py, parent_kw_args),
-//             ast::TransactionKind::DeclareSavepoint(x) => x.into_python(py, parent_kw_args),
-//             ast::TransactionKind::RollbackToSavepoint(x) => x.into_python(py, parent_kw_args),
-//             ast::TransactionKind::ReleaseSavepoint(x) => x.into_python(py, parent_kw_args),
-//         }
-//     }
-// }
-
-// impl IntoPython for ast::ReleaseSavepoint {
-//     fn into_python(self, py: Python<'_>, parent_kw_args: Option<PyDict>) -> PyResult<PyObject> {
-//         let kw_args = parent_kw_args.unwrap_or_else(|| PyDict::new(py));
-//         kw_args.set_item(py, "name", PyString::new(py, &self.name))?;
-
-//         init_ast_class(py, "ReleaseSavepoint", kw_args)
-//     }
-// }
-
-// impl<T: ToPyObject> IntoPython for T {
-//     fn into_python(self, py: Python<'_>, parent_kw_args: Option<PyDict>) -> PyResult<PyObject> {
-//         Ok(self.to_py_object(py).into_object())
-//     }
-// }
-
-// impl<T: IntoPython> ToPyObject for T {
-//     type ObjectType = PyObject;
-
-//     fn to_py_object(&self, py: Python) -> Self::ObjectType {
-//         todo!()
-//     }
-// }
 
 impl IntoPython for String {
     fn into_python(self, py: Python<'_>, _: Option<PyDict>) -> PyResult<PyObject> {
