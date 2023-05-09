@@ -5124,11 +5124,10 @@ class SetLinkType(LinkMetaCommand, adapts=s_links.SetLinkType):
     ) -> s_schema.Schema:
         orig_schema = schema
         schema = super()._alter_begin(schema, context)
-        pop = self.get_parent_op(context)
         orig_type = self.scls.get_target(orig_schema)
         new_type = self.scls.get_target(schema)
         if (
-            not pop.maybe_get_object_aux_data('from_alias')
+            has_table(self.scls.get_source(schema), schema)
             and not self.scls.is_pure_computable(schema)
             and (orig_type != new_type or self.cast_expr is not None)
         ):
@@ -5148,7 +5147,6 @@ class AlterLinkUpperCardinality(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         orig_schema = context.current().original_schema
-        pop = self.get_parent_op(context)
 
         # We need to run the parent change *before* the children,
         # or else the view update in the child might fail if a
@@ -5156,7 +5154,7 @@ class AlterLinkUpperCardinality(
         if (
             not self.scls.generic(schema)
             and not self.scls.is_pure_computable(schema)
-            and not pop.maybe_get_object_aux_data('from_alias')
+            and has_table(self.scls.get_source(schema), schema)
         ):
             orig_card = self.scls.get_cardinality(orig_schema)
             new_card = self.scls.get_cardinality(schema)
@@ -5175,7 +5173,6 @@ class AlterLinkLowerCardinality(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        pop = self.get_parent_op(context)
         orig_schema = schema
         schema = super().apply(schema, context)
 
@@ -5183,7 +5180,7 @@ class AlterLinkLowerCardinality(
             orig_required = self.scls.get_required(orig_schema)
             new_required = self.scls.get_required(schema)
             if (
-                not pop.maybe_get_object_aux_data('from_alias')
+                has_table(self.scls.get_source(schema), schema)
                 and not self.scls.is_endpoint_pointer(schema)
                 and not self.scls.is_pure_computable(schema)
                 and orig_required != new_required
@@ -5595,13 +5592,12 @@ class SetPropertyType(PropertyMetaCommand, adapts=s_props.SetPropertyType):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        pop = self.get_parent_op(context)
         orig_schema = schema
         schema = super()._alter_begin(schema, context)
         orig_type = self.scls.get_target(orig_schema)
         new_type = self.scls.get_target(schema)
         if (
-            not pop.maybe_get_object_aux_data('from_alias')
+            has_table(self.scls.get_source(schema), schema)
             and not self.scls.is_pure_computable(schema)
             and not self.scls.is_endpoint_pointer(schema)
             and (orig_type != new_type or self.cast_expr is not None)
@@ -5619,7 +5615,6 @@ class AlterPropertyUpperCardinality(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        pop = self.get_parent_op(context)
         orig_schema = context.current().original_schema
 
         # We need to run the parent change *before* the children,
@@ -5629,7 +5624,7 @@ class AlterPropertyUpperCardinality(
             not self.scls.generic(schema)
             and not self.scls.is_pure_computable(schema)
             and not self.scls.is_endpoint_pointer(schema)
-            and not pop.maybe_get_object_aux_data('from_alias')
+            and has_table(self.scls.get_source(schema), schema)
         ):
             orig_card = self.scls.get_cardinality(orig_schema)
             new_card = self.scls.get_cardinality(schema)
@@ -5648,7 +5643,6 @@ class AlterPropertyLowerCardinality(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        pop = self.get_parent_op(context)
         orig_schema = schema
         schema = super().apply(schema, context)
 
@@ -5656,7 +5650,7 @@ class AlterPropertyLowerCardinality(
             orig_required = self.scls.get_required(orig_schema)
             new_required = self.scls.get_required(schema)
             if (
-                not pop.maybe_get_object_aux_data('from_alias')
+                has_table(self.scls.get_source(schema), schema)
                 and not self.scls.is_endpoint_pointer(schema)
                 and not self.scls.is_pure_computable(schema)
                 and orig_required != new_required
