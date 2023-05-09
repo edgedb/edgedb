@@ -569,20 +569,16 @@ class TupleCommand(MetaCommand):
 
 class CreateTuple(TupleCommand, adapts=s_types.CreateTuple):
 
-    def apply(
-        self,
+    @classmethod
+    def create_tuple(
+        cls,
+        tup: s_types.Tuple,
         schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super().apply(schema, context)
-
-        if self.scls.is_polymorphic(schema):
-            return schema
-
-        elements = self.scls.get_element_types(schema).items(schema)
+    ) -> dbops.Command:
+        elements = tup.get_element_types(schema).items(schema)
 
         ctype = dbops.CompositeType(
-            name=common.get_backend_name(schema, self.scls, catenate=False),
+            name=common.get_backend_name(schema, tup, catenate=False),
             columns=[
                 dbops.Column(
                     name=n,
@@ -593,7 +589,19 @@ class CreateTuple(TupleCommand, adapts=s_types.CreateTuple):
             ]
         )
 
-        self.pgops.add(dbops.CreateCompositeType(type=ctype))
+        return dbops.CreateCompositeType(type=ctype)
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply(schema, context)
+
+        if self.scls.is_polymorphic(schema):
+            return schema
+
+        self.pgops.add(self.create_tuple(self.scls, schema))
 
         return schema
 
@@ -2359,8 +2367,10 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 typs.append(obj)
             elif isinstance(obj, s_types.Collection):
                 wl.extend(schema.get_referrers(obj))
+                seen_other.add(obj)
             elif isinstance(obj, s_funcs.Parameter) and not composite_only:
                 wl.extend(schema.get_referrers(obj))
+                seen_other.add(obj)
             elif isinstance(obj, s_funcs.Function) and not composite_only:
                 wl.extend(schema.get_referrers(obj))
                 seen_other.add(obj)
@@ -2452,6 +2462,10 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                     ConstraintCommand.delete_constraint(obj, schema, context))
             elif isinstance(obj, s_indexes.Index):
                 self.pgops.add(DeleteIndex.delete_index(obj, schema, context))
+            elif isinstance(obj, s_types.Tuple):
+                self.pgops.add(dbops.DropCompositeType(
+                    name=common.get_backend_name(schema, obj, catenate=False),
+                ))
             elif isinstance(obj, s_scalars.ScalarType):
                 self.pgops.add(DeleteScalarType.delete_scalar(
                     obj, schema, context))
@@ -2496,6 +2510,8 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             elif isinstance(obj, s_indexes.Index):
                 self.pgops.add(
                     CreateIndex.create_index(obj, orig_schema, context))
+            elif isinstance(obj, s_types.Tuple):
+                self.pgops.add(CreateTuple.create_tuple(obj, orig_schema))
             elif isinstance(obj, s_scalars.ScalarType):
                 self.pgops.add(
                     CreateScalarType.create_scalar(
