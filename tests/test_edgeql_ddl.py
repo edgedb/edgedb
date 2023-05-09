@@ -11343,6 +11343,8 @@ type default::Foo {
                  <str>(x));
              CREATE FUNCTION asdf2() -> str USING (
                  asdf(<Color>'Red'));
+             CREATE FUNCTION asdf3(x: tuple<Color>) -> str USING (
+                 <str>(x.0));
 
              CREATE TYPE Entry {
                  CREATE PROPERTY num -> int64;

@@ -2558,10 +2558,10 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 typs.append(obj)
             elif isinstance(obj, s_types.Collection):
                 wl.extend(schema.get_referrers(obj))
-                if isinstance(obj, s_types.Tuple) and not composite_only:
-                    seen_other.add(obj)
+                seen_other.add(obj)
             elif isinstance(obj, s_funcs.Parameter) and not composite_only:
                 wl.extend(schema.get_referrers(obj))
+                seen_other.add(obj)
             elif isinstance(obj, s_funcs.Function) and not composite_only:
                 wl.extend(schema.get_referrers(obj))
                 seen_other.add(obj)
