@@ -1162,12 +1162,6 @@ class DropConcreteLink(DropObject, LinkCommand):
     pass
 
 
-class CallableObjectCommand(ObjectDDL):
-
-    __abstract_node__ = True
-    params: typing.List[FuncParam] = ast.field(factory=list)
-
-
 class ConstraintCommand(ObjectDDL):
 
     __abstract_node__ = True
@@ -1179,11 +1173,11 @@ class ConstraintCommand(ObjectDDL):
 
 class CreateConstraint(
     CreateExtendingObject,
-    CallableObjectCommand,
     ConstraintCommand,
 ):
     subjectexpr: typing.Optional[Expr]
     abstract: bool = True
+    params: typing.List[FuncParam] = ast.field(factory=list)
 
 
 class AlterConstraint(AlterObject, ConstraintCommand):
@@ -1235,12 +1229,12 @@ class IndexCode(DDL):
 
 class CreateIndex(
     CreateExtendingObject,
-    CallableObjectCommand,
     IndexCommand,
 ):
     kwargs: typing.Dict[str, Expr] = ast.field(factory=dict)
     index_types: typing.List[IndexType]
     code: typing.Optional[IndexCode] = None
+    params: typing.List[FuncParam] = ast.field(factory=list)
 
 
 class AlterIndex(AlterObject, IndexCommand):
@@ -1378,11 +1372,12 @@ class FunctionCode(DDL):
     from_expr: bool = False
 
 
-class FunctionCommand(CallableObjectCommand):
+class FunctionCommand(DDLCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
     object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.FUNCTION
+    params: typing.List[FuncParam] = ast.field(factory=list)
 
 
 class CreateFunction(CreateObject, FunctionCommand):
@@ -1411,12 +1406,13 @@ class OperatorCode(DDL):
     code: typing.Optional[str]
 
 
-class OperatorCommand(CallableObjectCommand):
+class OperatorCommand(DDLCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
     object_class: qltypes.SchemaObjectClass = qltypes.SchemaObjectClass.OPERATOR
     kind: qltypes.OperatorKind
+    params: typing.List[FuncParam] = ast.field(factory=list)
 
 
 class CreateOperator(CreateObject, OperatorCommand):
@@ -1623,10 +1619,22 @@ BasedOn = (
     | CreateRole
     | CreateConcretePointer
 )
+# TODO: this is required because mypy does support `instanceof(x, A | B)`
 BasedOnTuple = (
     AlterAddInherit,
     AlterDropInherit,
     CreateExtendingObject,
     CreateRole,
     CreateConcretePointer,
+)
+
+CallableObjectCommand = (
+    CreateConstraint | CreateIndex | FunctionCommand | OperatorCommand
+)
+# TODO: this is required because mypy does support `instanceof(x, A | B)`
+CallableObjectCommandTuple = (
+    CreateConstraint,
+    CreateIndex,
+    FunctionCommand,
+    OperatorCommand,
 )
