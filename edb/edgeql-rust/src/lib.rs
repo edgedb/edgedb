@@ -12,6 +12,7 @@ mod position;
 mod pynormalize;
 mod tokenizer;
 
+use edgeql_parser::{into_python::IntoPython, parser};
 use errors::TokenizerError;
 use position::{offset_of_line, SourcePoint};
 use pynormalize::normalize;
@@ -47,6 +48,17 @@ py_module_initializer!(
         m.add(py, "partial_reserved_keywords", keywords.partial)?;
         m.add(py, "future_reserved_keywords", keywords.future)?;
         m.add(py, "current_reserved_keywords", keywords.current)?;
+        m.add(py, "parse", py_fn!(py, parse(data: &PyString)))?;
         Ok(())
     }
 );
+
+fn parse(py: cpython::Python, source: &PyString) -> cpython::PyResult<cpython::PyObject> {
+    let source = source.to_string(py)?;
+
+    // parse
+    let ast_root = parser::parse(&source);
+
+    // convert into a Python object
+    ast_root.into_python(py, None)
+}

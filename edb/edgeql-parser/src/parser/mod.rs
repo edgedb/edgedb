@@ -6,17 +6,15 @@ use chumsky::error::Simple;
 use chumsky::prelude::*;
 use chumsky::{select, Parser};
 
-use cpython::{PyObject, PyResult, Python};
 use indexmap::IndexMap;
 
 use crate::ast::*;
-use crate::into_python::IntoPython;
 use crate::keywords::{CURRENT_RESERVED_KEYWORDS, PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
 use crate::position::Pos;
 use crate::tokenizer::{Kind as Token, Token as TokenData, TokenStream};
 
-pub fn parse(text: String) -> PyResult<PyObject> {
-    let mut token_stream = TokenStream::new(&text);
+pub fn parse(text: &str) -> Expr {
+    let mut token_stream = TokenStream::new(text);
     let mut tokens = Vec::new();
     for res in &mut token_stream {
         match res {
@@ -35,12 +33,7 @@ pub fn parse(text: String) -> PyResult<PyObject> {
     let (out, errors) = expr_stmt().parse_recovery_verbose(stream);
 
     dbg!(errors);
-    let out = dbg!(out.unwrap());
-
-    // convert to Python object
-    let gil = Python::acquire_gil();
-    let py = gil.python();
-    out.into_python(py, None)
+    dbg!(out.unwrap())
 }
 
 fn into_span(start: Pos, end: Pos) -> Range<usize> {
