@@ -414,6 +414,8 @@ def _process_view(
 
     # defaults
     if s_ctx.exprtype.is_insert():
+        # reset we allow leading dots notation in defaults
+        view_scls.disallow_partial_paths = None
         defaults_ptrs = _gen_pointers_from_defaults(
             specified_ptrs, view_scls, ir_set, stype, s_ctx, ctx
         )
