@@ -1713,6 +1713,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             server.release_pgcon(dbname, pgcon)
 
         await server.introspect_db(dbname)
+        execute.signal_side_effects(_dbview, dbview.SideEffects.SchemaChanges)
 
         if _dbview.is_state_desc_changed():
             self.write(self.make_state_data_description_msg())
