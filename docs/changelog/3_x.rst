@@ -24,7 +24,7 @@ If the upgrade doesn't work, try updating to nightly first using
 
 .. code-block:: bash
 
-  $ edgedb project init --server-version=testing
+  $ edgedb project init --server-version=3.0-beta.1
 
 .. note::
 
