@@ -1667,13 +1667,30 @@ cdef class PGConnection:
                             field_type = self.buffer.read_byte()
                             if field_type == b'P':  # Position
                                 msg_buf.write_byte(b'q')  # Internal query
-                                msg_buf.write_bytestring(query)
+                                msg_buf.write_bytestring(unit.input_query.encode('utf8'))
                                 msg_buf.write_byte(b'p')  # Internal position
+                                pos_bytes = self.buffer.read_null_str()
+                                if unit.translation_data:
+                                    pos = int(pos_bytes.decode('utf8'))
+                                    def best_unit(tl_unit):
+                                        bu = None
+                                        for u in tl_unit.children:
+                                            if u.output_start >= pos:
+                                                break
+                                            bu = u
+                                        if bu and bu.output_end > pos:
+                                            return best_unit(bu)
+                                        return tl_unit
+                                    pos = best_unit(unit.translation_data).source_start
+
+                                    # pg uses 1-based indexes
+                                    pos_bytes = str(pos + 1).encode('utf8')
+                                msg_buf.write_bytestring(pos_bytes)
                             else:
                                 msg_buf.write_byte(field_type)
                                 if field_type == b'\0':
                                     break
-                            msg_buf.write_bytestring(self.buffer.read_null_str())
+                                msg_buf.write_bytestring(self.buffer.read_null_str())
                         self.buffer.finish_message()
                         buf.write_buffer(msg_buf.end_message())
                         dbv.on_error()

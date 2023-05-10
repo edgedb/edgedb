@@ -84,7 +84,6 @@ class SQLSourceGeneratorError(errors.InternalServerError):
 
 class SQLSourceGeneratorTranslationData:
     source_start: int
-    source_end: int
     output_start: int
     output_end: int
     children: List[SQLSourceGeneratorTranslationData]
@@ -93,11 +92,9 @@ class SQLSourceGeneratorTranslationData:
         self,
         *,
         source_start: int,
-        source_end: int,
         output_start: int,
     ):
         self.source_start = source_start
-        self.source_end = source_end
         self.output_start = output_start
         self.output_end = -1
         self.children = []
@@ -179,8 +176,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit(self, node): # type: ignore
         if self.with_translation_data:
             translation_data = SQLSourceGeneratorTranslationData(
-                source_start = node.context.start,
-                source_end = node.context.end,
+                source_start = node.context.start if node.context else 0,
                 output_start = self.write_index,
             )
             old_top = self.translation_data
