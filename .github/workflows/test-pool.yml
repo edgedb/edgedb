@@ -33,22 +33,20 @@ jobs:
         path: pool-simulation
         token: ${{ secrets.GITHUB_CI_BOT_TOKEN }}
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-
     - name: Generate requirements.txt
       run: |
         echo 'uvloop==0.15.2' > requirements.txt
         mkdir -p pool-simulation/reports
 
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.1
-      id: venv-cache
+    - name: Set up Python
+      id: py310
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        cache: 'pip'
 
     - name: Install Python dependencies
-      if: steps.venv-cache.outputs.cache-hit != 'true'
+      if: steps.py310.outputs.cache-hit != 'true'
       run: |
         pip install -r requirements.txt
 
@@ -60,7 +58,7 @@ jobs:
       run: |
         python tests/test_server_pool.py
 
-    - uses: EndBug/add-and-commit@v7.0.0
+    - uses: EndBug/add-and-commit@v9.1.3
       if: ${{ always() }}
       continue-on-error: true
       with:
