@@ -46,7 +46,7 @@ jobs:
         cache: 'pip'
 
     - name: Install Python dependencies
-      if: steps.py310.outputs.cache-hit != 'true'
+      if: ${{ !steps.py310.outputs.cache-hit }}
       run: |
         pip install -r requirements.txt
 
