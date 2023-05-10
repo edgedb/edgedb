@@ -1712,8 +1712,8 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self._in_dump_restore = False
             server.release_pgcon(dbname, pgcon)
 
-        await server.introspect_db(dbname)
         execute.signal_side_effects(_dbview, dbview.SideEffects.SchemaChanges)
+        await server.introspect_db(dbname)
 
         if _dbview.is_state_desc_changed():
             self.write(self.make_state_data_description_msg())
