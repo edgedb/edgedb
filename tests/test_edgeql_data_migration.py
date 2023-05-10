@@ -2209,6 +2209,15 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             },
         })
 
+    async def test_edgeql_migration_abs_ptr_01(self):
+        await self.migrate(r"""
+            type T { multi link following := T; }
+        """)
+        await self.migrate(r"""
+            abstract link abs { property foo -> str };
+            type T { multi link following extending abs -> T; }
+        """)
+
     async def test_edgeql_migration_describe_function_01(self):
         await self.migrate('''
             function foo(x: str) -> str using (SELECT <str>random());
@@ -5922,10 +5931,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.interact([
             "did you create object type 'test::HasContent'?",
             "did you alter object type 'test::Post'?",
-            "did you alter constraint 'std::max_len_value' of property "
-            "'content'?",
-            "did you create object type 'test::Reply'?",
             "did you alter property 'content' of object type 'test::Post'?",
+            "did you create object type 'test::Reply'?",
         ])
 
     async def test_edgeql_migration_rebase_03(self):
