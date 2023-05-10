@@ -660,6 +660,8 @@ class Position(DDL):
 
 
 class DDLOperation(DDL):
+    '''A change to schema'''
+
     __abstract_node__ = True
     commands: typing.List[DDLOperation] = ast.field(factory=list)
 
@@ -762,7 +764,7 @@ class NestedQLBlock(DDL):
     text: typing.Optional[str] = None
 
 
-class MigrationCommand:
+class MigrationCommand(DDLCommand):
 
     __abstract_node__ = True
     __rust_ignore__ = True
@@ -782,29 +784,29 @@ class CommittedSchema(DDL):
     pass
 
 
-class StartMigration(DDLCommand, MigrationCommand):
+class StartMigration(MigrationCommand):
 
     target: Schema | CommittedSchema
 
 
-class AbortMigration(DDLCommand, MigrationCommand):
+class AbortMigration(MigrationCommand):
     pass
 
 
-class PopulateMigration(DDLCommand, MigrationCommand):
+class PopulateMigration(MigrationCommand):
     pass
 
 
-class AlterCurrentMigrationRejectProposed(DDLCommand, MigrationCommand):
+class AlterCurrentMigrationRejectProposed(MigrationCommand):
     pass
 
 
-class DescribeCurrentMigration(DDLCommand, MigrationCommand):
+class DescribeCurrentMigration(MigrationCommand):
 
     language: qltypes.DescribeLanguage
 
 
-class CommitMigration(DDLCommand, MigrationCommand):
+class CommitMigration(MigrationCommand):
     pass
 
 
@@ -816,20 +818,20 @@ class DropMigration(DropObject, MigrationCommand):
     pass
 
 
-class ResetSchema(DDLCommand, MigrationCommand):
+class ResetSchema(MigrationCommand):
 
     target: ObjectRef
 
 
-class StartMigrationRewrite(DDLCommand, MigrationCommand):
+class StartMigrationRewrite(MigrationCommand):
     pass
 
 
-class AbortMigrationRewrite(DDLCommand, MigrationCommand):
+class AbortMigrationRewrite(MigrationCommand):
     pass
 
 
-class CommitMigrationRewrite(DDLCommand, MigrationCommand):
+class CommitMigrationRewrite(MigrationCommand):
     pass
 
 
