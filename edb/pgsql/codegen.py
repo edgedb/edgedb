@@ -82,6 +82,7 @@ class SQLSourceGeneratorError(errors.InternalServerError):
             ctx = SQLSourceGeneratorContext(node)
             exceptions.add_context(self, ctx)
 
+
 class SQLSourceGeneratorTranslationData:
     source_start: int
     output_start: int
@@ -101,12 +102,19 @@ class SQLSourceGeneratorTranslationData:
 
 
 class SQLSourceGenerator(codegen.SourceGenerator):
-    def __init__(self, *args, reordered=False, with_translation_data=False, **kwargs):  # type: ignore
+    def __init__(  # type: ignore
+        self,
+        *args,
+        reordered=False,
+        with_translation_data=False,
+        **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.param_index: dict[object, int] = {}
         self.with_translation_data: bool = with_translation_data
         self.write_index: int = 0
-        self.translation_data: Optional[SQLSourceGeneratorTranslationData] = None
+        self.translation_data: Optional[
+            SQLSourceGeneratorTranslationData] = None
         self.reordered = reordered
 
     @classmethod
@@ -172,12 +180,11 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         for new in range(start, len(self.result)):
             self.write_index += len(self.result[new])
 
-
-    def visit(self, node): # type: ignore
+    def visit(self, node):  # type: ignore
         if self.with_translation_data:
             translation_data = SQLSourceGeneratorTranslationData(
-                source_start = node.context.start if node.context else 0,
-                output_start = self.write_index,
+                source_start=node.context.start if node.context else 0,
+                output_start=self.write_index,
             )
             old_top = self.translation_data
             self.translation_data = translation_data
