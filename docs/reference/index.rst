@@ -12,7 +12,6 @@ Reference
 
 
     edgeql/index
-    edgeqlspec/index
     sdl/index
     ddl/index
     connection
@@ -25,6 +24,8 @@ Reference
     http
     protocol/index
     admin/index
+    edgeqlspec/index
+    edgeqlspec/index2
 
 
 This section contains comprehensive reference documentation on the internals of

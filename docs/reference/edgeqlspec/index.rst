@@ -1,6 +1,22 @@
-=====================
 EdgeQL Specification
 =====================
+
+
+EdgeQL is a query language for EdgeDB. 
+EdgeQL query expressions execute against a database and produce a result value set.
+
+.. contents:: Table of Contents
+   :depth: 3
+   :local:
+
+.. toctree::
+    :maxdepth: 3
+    :hidden:
+
+    overview
+    select_hoist
+
+
 
 Introduction
 ------------
@@ -48,15 +64,6 @@ Conclusion
 
 
 
-.. toctree::
-    :hidden:
-
-
-
-    overview
-    select_hoist
-
-
 ef
 
 
@@ -76,11 +83,11 @@ Features Covered and Those Not Covered
 
 The following features are covered:
 
-#. |image|\ **EdgeQL**\ selects, inserts, updates
+selects, inserts, updates
 
 The following features are not covered (or not yet covered):
 
-#. |image|\ **EdgeQL**\ group by, explain, describe
+group by, explain, describe
 
 #. default properties
 
@@ -110,10 +117,10 @@ Type Skeletons
 
 .. math:: \mid \tau_1 \lor \tau_2 \mid \tau_1 \land \tau_2 \mid any \mid some_\mathbb{N}
 
-Any expression in |image|\ **EdgeQL**\ will compute an expression of
+Any expression in EdgeQL will compute an expression of
 type :math:`\tau^{m}` (:math:`m` is explained below).
 
-In |image|\ **EdgeQL**\ IR, [index:types]\ *types* are primitive types,
+In EdgeQL IR, [index:types]\ *types* are primitive types,
 function types, object types, link types with link properties, unnamed
 tuple types, named tuple types, union types, any types and nat-indexed
 some types (can only be used in function typings).
@@ -1530,13 +1537,7 @@ and
 
    :math:`proj(L, \operatorname{\mathsf{{ref}}}(id) :\{L_1^{u_1} := U_1, \dots, L_n^{u_n} := U_n\}) =`
 
-   :math:`\ \ \ \ \ \ {\begin{cases}
-   U_i & \text{if } l = L_i \\
-   U_j' & \text{otherwise, if } S = [\mu_0] \land (\operatorname{\mathsf{{ref}}}(id), N, \{\dots, L^{u_j'} := U_j', \dots\}) \in \mu_0\\
-   U_j' & \text{otherwise, if } S = [\mu_0] \land (\operatorname{\mathsf{{ref}}}(id), N, \dots) \in \mu_0 \land N := T \land
-   \\ & \hspace{3em} L := \operatorname{\mathsf{{comp(x.e, M)}}} \in T \land \mu \parallel^S [\operatorname{\mathsf{{ref}}}(id): \{\dots\}/x]e \searrow\mu\parallel^S U_j'\\
-    \textcolor{teal}{error} & \text{otherwise }
-       \end{cases}}`
+   :math:` `
 
    :math:`proj(l_i, (l_1 := V_1, \dots, l_n := V_n)) = \{V_i\}`
 
@@ -2086,7 +2087,7 @@ arguments (see the case for functions calls below).
 | eq e  & \text{if }    p_i = ? \\ |                                  |
 | e_i \pr                          |                                  |
 | ec e  & \text{if }    p_i = * \\ |                                  |
-|     \end{cases}`                 |                                  |
+| \end{cases}`                     |                                  |
 +----------------------------------+----------------------------------+
 | :math:`x`                        |                                  |
 +----------------------------------+----------------------------------+
@@ -2129,13 +2130,8 @@ arguments (see the case for functions calls below).
 | :math:`\operatorname{\mathsf{    | :math:`e_1 \prec e, e_2 \prec e` |
 | {for}}}(x \leftarrow e_1;  e_2)` |                                  |
 +----------------------------------+----------------------------------+
-| :math:                           | :math:`e_1 \prec e, e_2 \prec e` |
-| `\operatorname{\mathsf{{optional |                                  |
-| \_for}}}(x \leftarrow e_1; e_2)` |                                  |
-+----------------------------------+----------------------------------+
-| :                                | :math:`e_1 \                     |
-| math:`e_2 \mathop{\operatorname{ | sim e, e_2 \prec e, e_3 \prec e` |
-| \mathit{{if}}}} e_1 \mathop{\ope |                                  |
+| :math:`e_2 \mathop{\operatorname{| :math:`e_1 \                     |
+| \mathit{{if}}}} e_1 \mathop{\ope | sim e, e_2 \prec e, e_3 \prec e` |
 | ratorname{\mathit{{else}}}} e_3` |                                  |
 +----------------------------------+----------------------------------+
 | :math:`(e_1, \dots, e_n)`        | :math:`\fora                     |
@@ -2330,7 +2326,7 @@ IR Oprimizations
 ================
 
 This section describes some common transformation that may be used in
-the query optimizer of the |image|\ **EdgeQL**\ IR described in the
+the query optimizer of the EdgeQL IR described in the
 previous section.
 
 The transformation is denoted by the judgment :math:`e\mapsto e'`.
@@ -2427,7 +2423,7 @@ After Path Factoring:
 Concrete Syntax
 ===============
 
-We will present the full surface syntax of |image|\ **EdgeQL**\ in this
+We will present the full surface syntax of EdgeQL in this
 section, and then in the next section, we will present the elaboration
 from the surface syntax into the IR syntax of Section 1.
 
@@ -2787,6 +2783,4 @@ Some standard library function:
 
 #. ``std::sum`` :math:`: [int ^*] \to int^{(=1)}`
 
-:raw-latex:`\cite{Harper16book}`
 
-.. |image| image:: images/edgeql-logo-opaque.eps
