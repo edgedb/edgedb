@@ -48,6 +48,7 @@ class Function(base.DBObject):
         language: str = "sql",
         has_variadic: Optional[bool] = None,
         strict: bool = False,
+        parallel_safe: bool = False,
         set_returning: bool = False,
     ):
         self.name = name
@@ -59,6 +60,7 @@ class Function(base.DBObject):
         self.has_variadic = has_variadic
         self.strict = strict
         self.set_returning = set_returning
+        self.parallel_safe = parallel_safe
 
     def __repr__(self):
         return '<{} {} at 0x{}>'.format(
@@ -143,7 +145,7 @@ class CreateFunction(ddl.DDLOperation, FunctionOperation):
             AS $____funcbody____$
             {text}
             $____funcbody____$
-            LANGUAGE {lang} {volatility} {strict};
+            LANGUAGE {lang} {volatility} {strict} {parallel};
         ''').format_map({
             'replace': 'OR REPLACE' if self.or_replace else '',
             'name': qn(*self.function.name),
@@ -154,39 +156,10 @@ class CreateFunction(ddl.DDLOperation, FunctionOperation):
             'text': textwrap.dedent(self.function.text).strip(),
             'strict': 'STRICT' if self.function.strict else '',
             'setof': 'SETOF' if self.function.set_returning else '',
-        })
-        return code.strip()
-
-
-class CreateOrReplaceFunction(ddl.DDLOperation, FunctionOperation):
-    def __init__(self, function, **kwargs):
-        super().__init__(**kwargs)
-        self.function = function
-
-    def code(self, block: base.PLBlock) -> str:
-        args = self.format_args(self.function.args, self.function.has_variadic)
-        ret = self.function.returns
-        if isinstance(ret, tuple):
-            returns = f'{qi(ret[0])}.{qt(ret[1])}'
-        else:
-            returns = qt(ret)
-
-        code = textwrap.dedent('''
-            CREATE OR REPLACE FUNCTION {name}({args})
-            RETURNS {setof} {returns}
-            AS $____funcbody____$
-            {text}
-            $____funcbody____$
-            LANGUAGE {lang} {volatility} {strict};
-        ''').format_map({
-            'name': qn(*self.function.name),
-            'args': args,
-            'returns': returns,
-            'lang': self.function.language,
-            'volatility': self.function.volatility.upper(),
-            'text': textwrap.dedent(self.function.text).strip(),
-            'strict': 'STRICT' if self.function.strict else '',
-            'setof': 'SETOF' if self.function.set_returning else '',
+            'parallel': (
+                'PARALLEL '
+                + ('SAFE' if self.function.parallel_safe else 'UNSAFE')
+            ),
         })
         return code.strip()
 

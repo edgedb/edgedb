@@ -248,6 +248,66 @@ Use the :eql:op:`union` operator to merge two sets.
   db> select {1, 2} union {3.1, 4.4};
   {1.0, 2.0, 3.1, 4.4}
 
+Finding common members
+----------------------
+
+.. versionadded:: 3.0
+
+Use the :eql:op:`intersect` operator to find common members between two sets.
+
+.. code-block:: edgeql-repl
+
+    db> select {1, 2, 3, 4, 5} intersect {3, 4, 5, 6, 7};
+    {3, 5, 4}
+    db> select {'a', 'b', 'c', 'd', 'e'} intersect {'c', 'd', 'e', 'f', 'g'};
+    {'e', 'd', 'c'}
+
+If set members are repeated in both sets, they will be repeated in the set
+produced by :eql:op:`intersect` the same number of times they are repeated in
+both of the operand sets.
+
+.. code-block:: edgeql-repl
+
+    db> select {0, 1, 1, 1, 2, 3, 3} intersect {1, 3, 3, 3, 3, 3};
+    {1, 3, 3}
+
+In this example, ``1`` appears three times in the first set but only once in
+the second, so it appears only once in the result. ``3`` appears twice in the
+first set and five times in the second. Both ``3`` appearances in the first set
+are overlapped by ``3`` appearances in the second, so they both end up in the
+resulting set.
+
+
+Removing common members
+-----------------------
+
+.. versionadded:: 3.0
+
+Use the :eql:op:`except` operator to leave only the members in the first set
+that do not appear in the second set.
+
+.. code-block:: edgeql-repl
+
+    db> select {1, 2, 3, 4, 5} except {3, 4, 5, 6, 7};
+    {1, 2}
+    db> select {'a', 'b', 'c', 'd', 'e'} except {'c', 'd', 'e', 'f', 'g'};
+    {'b', 'a'}
+
+When :eql:op:`except` eliminates a common member that is repeated, it never
+eliminates more than the number of instances of that member appearing in the
+second set.
+
+.. code-block:: edgeql-repl
+
+    db> select {0, 1, 1, 1, 2, 3, 3} except {1, 3, 3, 3, 3, 3};
+    {0, 1, 1, 2}
+
+In this example, both sets share the member ``1``. The first set contains three
+of them while the second contains only one. The result retains two ``1``
+members from the first set since the sets shared only a single ``1`` in common.
+The second set has five ``3`` members to the first set's two, so both of the
+first set's ``3`` members are eliminated from the resulting set.
+
 
 .. _ref_eql_set_coalesce:
 
@@ -287,18 +347,33 @@ you may declare an abstract object type ``Media`` that is extended by ``Movie``
 and ``TVShow``.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  abstract type Media {
-    required property title -> str;
-  }
+    abstract type Media {
+      required property title -> str;
+    }
 
-  type Movie extending Media {
-    property release_year -> int64;
-  }
+    type Movie extending Media {
+      property release_year -> int64;
+    }
 
-  type TVShow extending Media {
-    property num_seasons -> int64;
-  }
+    type TVShow extending Media {
+      property num_seasons -> int64;
+    }
+
+.. code-block:: sdl
+
+    abstract type Media {
+      required title: str;
+    }
+
+    type Movie extending Media {
+      release_year: int64;
+    }
+
+    type TVShow extending Media {
+      num_seasons: int64;
+    }
 
 A set of type ``Media`` may contain both ``Movie`` and ``TVShow``
 objects.

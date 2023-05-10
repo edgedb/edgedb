@@ -506,7 +506,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             # We need to fence this if the head is a mutating
             # statement, to make sure that the factoring allowlist
             # works right.
-            is_subquery = isinstance(step, qlast.Statement)
+            is_subquery = isinstance(step, qlast.Query)
             with ctx.newscope(fenced=is_subquery) as subctx:
                 subctx.view_rptr = None
                 path_tip = dispatch.compile(step, ctx=subctx)
@@ -540,6 +540,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         if mapped := get_view_map_remapping(path_tip.path_id, ctx):
             path_tip = new_set_from_set(
                 path_tip, path_id=mapped.path_id, ctx=ctx)
+            if path_tip.rptr:
+                path_tip.rptr = path_tip.rptr.replace(target=path_tip)
             # If we are remapping a source path, then we know that
             # the path is visible, so we shouldn't recompile it
             # if it is a computable path.
@@ -707,6 +709,26 @@ def resolve_ptr_with_intersections(
             ctx.env.schema,
             s_name.UnqualName(pointer_name),
         )
+
+        # If we couldn't anything, but the source is a computed backlink,
+        # look for a link property on the reverse side of it. This allows
+        # us to access link properties in both directions on links, including
+        # when the backlink has been stuck in a computed.
+        if (
+            ptr is None
+            and isinstance(near_endpoint, s_pointers.Pointer)
+            and (back := near_endpoint.get_computed_backlink(ctx.env.schema))
+            and isinstance(back, s_links.Link)
+            and (nptr := back.maybe_get_ptr(
+                ctx.env.schema,
+                s_name.UnqualName(pointer_name),
+            ))
+            # We can't handle computeds yet, since we would need to switch
+            # around a bunch of stuff inside them.
+            and not nptr.is_pure_computable(ctx.env.schema)
+        ):
+            ptr = schemactx.derive_ptr(nptr, near_endpoint, ctx=ctx)
+            path_id_ptr = ptr
 
         if ptr is not None:
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
@@ -1041,7 +1063,7 @@ def enum_indirection_set(
         ctx: context.ContextLevel) -> irast.Set:
 
     strref = typegen.type_to_typeref(
-        ctx.env.get_track_schema_type(s_name.QualName('std', 'str')),
+        ctx.env.get_schema_type_and_track(s_name.QualName('std', 'str')),
         env=ctx.env,
     )
 
@@ -1074,7 +1096,7 @@ def tuple_indirection_set(
     ptr = irast.TupleIndirectionPointer(
         source=path_tip,
         target=ti_set,
-        ptrref=downcast(path_id.rptr(), irast.TupleIndirectionPointerRef),
+        ptrref=downcast(irast.TupleIndirectionPointerRef, path_id.rptr()),
         direction=not_none(path_id.rptr_dir()),
     )
 
@@ -1164,7 +1186,7 @@ def type_intersection_set(
     ptr = irast.TypeIntersectionPointer(
         source=source_set,
         target=poly_set,
-        ptrref=downcast(ptrref, irast.TypeIntersectionPointerRef),
+        ptrref=downcast(irast.TypeIntersectionPointerRef, ptrref),
         direction=not_none(poly_set.path_id.rptr_dir()),
         optional=optional,
     )
@@ -1440,7 +1462,7 @@ def computable_ptr_set(
                     target_scls, ctx=ctx),
                 expr=schema_qlexpr,
             )
-        qlexpr = astutils.ensure_qlstmt(schema_qlexpr)
+        qlexpr = astutils.ensure_ql_query(schema_qlexpr)
         qlctx = None
         path_id_ns = None
 
@@ -1960,7 +1982,7 @@ def get_globals_as_json(
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
         normal_els = []
-        full_objs = []
+        full_objs: list[qlast.Expr] = []
 
         json_type = qlast.TypeName(maintype=qlast.ObjectRef(
             module='__std__', name='json'))
@@ -2005,11 +2027,25 @@ def get_globals_as_json(
                     )
                 ))
 
+        # If access policies are disabled, stick a value in the blob
+        # to indicate that.  We do this using a full object so it
+        # works in constraints and the like, where the tuple->json cast
+        # isn't supported yet.
+        if (
+            not ctx.env.options.apply_user_access_policies
+            or not ctx.env.options.apply_query_rewrites
+        ):
+            full_objs.append(qlast.FunctionCall(
+                func=('__std__', 'to_json'),
+                args=[qlast.StringConstant(
+                    value='{"__disable_access_policies": true}'
+                )],
+            ))
+
         full_expr: qlast.Expr
         if not normal_els and not full_objs:
             full_expr = null_expr
         else:
-
             simple_obj = None
             if normal_els or not full_objs:
                 simple_obj = qlast.TypeCast(

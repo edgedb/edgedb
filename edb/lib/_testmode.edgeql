@@ -20,14 +20,14 @@
 # These definitions are picked up if the EdgeDB instance is bootstrapped
 # with --testmode.
 
-CREATE TYPE cfg::TestSessionConfig {
+CREATE TYPE cfg::TestSessionConfig EXTENDING cfg::ConfigObject {
     CREATE REQUIRED PROPERTY name -> std::str {
         CREATE CONSTRAINT std::exclusive;
     }
 };
 
 
-CREATE ABSTRACT TYPE cfg::Base {
+CREATE ABSTRACT TYPE cfg::Base EXTENDING cfg::ConfigObject {
     CREATE REQUIRED PROPERTY name -> std::str
 };
 
@@ -42,7 +42,7 @@ CREATE TYPE cfg::Subclass2 EXTENDING cfg::Base {
 };
 
 
-CREATE TYPE cfg::TestInstanceConfig {
+CREATE TYPE cfg::TestInstanceConfig EXTENDING cfg::ConfigObject {
     CREATE REQUIRED PROPERTY name -> std::str {
         CREATE CONSTRAINT std::exclusive;
     };

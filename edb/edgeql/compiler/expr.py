@@ -199,7 +199,8 @@ def compile_Set(
             # literals are equivalent to a binary UNION with
             # an empty set, not to the element.
             return dispatch.compile(
-                astutils.ensure_qlstmt(elements[0]), ctx=ctx)
+                astutils.ensure_ql_query(elements[0]), ctx=ctx
+            )
         else:
             # Turn it into a tree of UNIONs so we only blow up the nesting
             # depth logarithmically.
@@ -268,7 +269,7 @@ def compile_BaseConstant(
         raise RuntimeError(f'unexpected constant type: {type(expr)}')
 
     ct = typegen.type_to_typeref(
-        ctx.env.get_track_schema_type(std_type),
+        ctx.env.get_schema_type_and_track(std_type),
         env=ctx.env,
     )
     return setgen.ensure_set(node_cls(value=value, typeref=ct), ctx=ctx)
@@ -466,7 +467,7 @@ def compile_UnaryOp(
 @dispatch.compile.register(qlast.GlobalExpr)
 def compile_GlobalExpr(
         expr: qlast.GlobalExpr, *, ctx: context.ContextLevel) -> irast.Set:
-    glob = ctx.env.get_track_schema_object(
+    glob = ctx.env.get_schema_object_and_track(
         s_utils.ast_ref_to_name(expr.name), expr.name,
         modaliases=ctx.modaliases, type=s_globals.Global)
     assert isinstance(glob, s_globals.Global)
@@ -479,14 +480,23 @@ def compile_GlobalExpr(
         qry = qlast.SelectQuery(result=qlast.Path(steps=[obj_ref]))
         return dispatch.compile(qry, ctx=ctx)
 
+    default = glob.get_default(ctx.env.schema)
+
+    # If we are compiling with globals suppressed but still allowed, always
+    # treat it as being empty.
+    if ctx.env.options.make_globals_empty:
+        if default:
+            return dispatch.compile(default.qlast, ctx=ctx)
+        else:
+            return setgen.new_empty_set(
+                stype=glob.get_target(ctx.env.schema), ctx=ctx)
+
     objctx = ctx.env.options.schema_object_context
     if objctx in (s_constr.Constraint, s_indexes.Index):
         typname = objctx.get_schema_class_displayname()
         raise errors.SchemaDefinitionError(
             f'global variables cannot be referenced from {typname}',
             context=expr.context)
-
-    default = glob.get_default(ctx.env.schema)
 
     param_set: qlast.Expr | irast.Set
     present_set: qlast.Expr | irast.Set | None
@@ -562,7 +572,7 @@ def compile_TypeCast(
                     context=expr.expr.context)
 
             typeref = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type(sn.QualName('std', 'json')),
+                ctx.env.get_schema_type_and_track(sn.QualName('std', 'json')),
                 env=ctx.env,
             )
 

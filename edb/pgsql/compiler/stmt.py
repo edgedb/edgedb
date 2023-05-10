@@ -79,7 +79,6 @@ def compile_SelectStmt(
                         path_id=iterator_set.path_id,
                         rvar=iterator_rvar,
                         aspect=aspect,
-                        env=ctx.env,
                     )
                 last_iterator = iterator_set
 
@@ -146,7 +145,7 @@ def compile_InsertStmt(
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
         # Common DML bootstrap.
-        parts = dml.init_dml_stmt(stmt, parent_ctx=parent_ctx, ctx=ctx)
+        parts = dml.init_dml_stmt(stmt, ctx=ctx)
 
         top_typeref = stmt.subject.typeref
         if top_typeref.material_type is not None:
@@ -162,8 +161,7 @@ def compile_InsertStmt(
         )
 
         # Wrap up.
-        return dml.fini_dml_stmt(
-            stmt, ctx.rel, parts, parent_ctx=parent_ctx, ctx=ctx)
+        return dml.fini_dml_stmt(stmt, ctx.rel, parts, ctx=ctx)
 
 
 @dispatch.compile.register(irast.UpdateStmt)
@@ -174,7 +172,7 @@ def compile_UpdateStmt(
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
         # Common DML bootstrap.
-        parts = dml.init_dml_stmt(stmt, parent_ctx=parent_ctx, ctx=ctx)
+        parts = dml.init_dml_stmt(stmt, ctx=ctx)
         range_cte = parts.range_cte
         assert range_cte is not None
 
@@ -191,8 +189,7 @@ def compile_UpdateStmt(
                 ctx=ctx,
             )
 
-        return dml.fini_dml_stmt(
-            stmt, ctx.rel, parts, parent_ctx=parent_ctx, ctx=ctx)
+        return dml.fini_dml_stmt(stmt, ctx.rel, parts, ctx=ctx)
 
 
 @dispatch.compile.register(irast.DeleteStmt)
@@ -203,15 +200,19 @@ def compile_DeleteStmt(
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
         # Common DML bootstrap
-        parts = dml.init_dml_stmt(stmt, parent_ctx=parent_ctx, ctx=ctx)
+        parts = dml.init_dml_stmt(stmt, ctx=ctx)
 
         range_cte = parts.range_cte
         assert range_cte is not None
         ctx.toplevel_stmt.append_cte(range_cte)
 
-        for delete_cte, _ in parts.dml_ctes.values():
-            ctx.toplevel_stmt.append_cte(delete_cte)
+        for typeref, (delete_cte, _) in parts.dml_ctes.items():
+            dml.process_delete_body(
+                ir_stmt=stmt,
+                delete_cte=delete_cte,
+                typeref=typeref,
+                ctx=ctx,
+            )
 
         # Wrap up.
-        return dml.fini_dml_stmt(
-            stmt, ctx.rel, parts, parent_ctx=parent_ctx, ctx=ctx)
+        return dml.fini_dml_stmt(stmt, ctx.rel, parts, ctx=ctx)

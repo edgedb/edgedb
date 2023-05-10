@@ -7158,32 +7158,32 @@ aa \
     async def test_edgeql_expr_setop_14(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidTypeError,
-                r"^set constructor has arguments of incompatible "
-                r"types 'std::float64' and 'std::decimal'$"):
+                r"set constructor has arguments of incompatible "
+                r"types 'std::float64' and 'std::decimal'"):
             await self.con.execute(r'''
                 SELECT {1.0, <decimal>2.0};
             ''')
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidTypeError,
-                r"^set constructor has arguments of incompatible "
-                r"types 'std::float64' and 'std::decimal'$"):
+                r"set constructor has arguments of incompatible "
+                r"types 'std::float64' and 'std::decimal'"):
             await self.con.execute(r'''
                 SELECT {{1.0, 2.0}, {1.0, <decimal>2.0}};
             ''')
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidTypeError,
-                r"^set constructor has arguments of incompatible "
-                r"types 'std::float64' and 'std::decimal'$"):
+                r"set constructor has arguments of incompatible "
+                r"types 'std::float64' and 'std::decimal'"):
             await self.con.execute(r'''
                 SELECT {{1.0, <decimal>2.0}, {1.0, 2.0}};
             ''')
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidTypeError,
-                r"^set constructor has arguments of incompatible "
-                r"types 'std::decimal' and 'std::float64'$"):
+                r"set constructor has arguments of incompatible "
+                r"types 'std::decimal' and 'std::float64'"):
             await self.con.execute(r'''
                 SELECT {1.0, 2.0, 5.0, <decimal>2.0, 3.0, 4.0};
             ''')
@@ -7191,7 +7191,7 @@ aa \
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidTypeError,
                 r"operator 'UNION' cannot be applied to operands of type "
-                r"'std::int64' and 'std::str'$"):
+                r"'std::int64' and 'std::str'"):
             await self.con.execute(r'''
                 SELECT {1, 2, 3, 4 UNION 'a', 5, 6, 7};
             ''')
@@ -7199,7 +7199,7 @@ aa \
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidTypeError,
                 r"operator 'UNION' cannot be applied to operands of type "
-                r"'std::int64' and 'std::str'$"):
+                r"'std::int64' and 'std::str'"):
             await self.con.execute(r'''
                 SELECT {1, 2, 3, {{1, 4} UNION 'a'}, 5, 6, 7};
             ''')

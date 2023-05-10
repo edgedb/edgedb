@@ -99,6 +99,7 @@ class Query(BaseQuery):
     cacheable: bool = True
     is_explain: bool = False
     query_asts: Any = None
+    append_rollback: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -175,6 +176,12 @@ class MigrationControlQuery(BaseQuery):
     user_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
     ddl_stmt_id: Optional[str] = None
+
+
+@dataclasses.dataclass(frozen=True)
+class MaintenanceQuery(BaseQuery):
+
+    is_transactional: bool = True
 
 
 @dataclasses.dataclass(frozen=True)
@@ -307,6 +314,7 @@ class QueryUnit:
 
     is_explain: bool = False
     query_asts: Any = None
+    append_rollback: bool = False
 
     @property
     def has_ddl(self) -> bool:
@@ -714,9 +722,13 @@ class Transaction:
 
     def update_schema(self, new_schema: s_schema.Schema):
         assert isinstance(new_schema, s_schema.ChainedSchema)
+        user_schema = new_schema.get_top_schema()
+        assert isinstance(user_schema, s_schema.FlatSchema)
+        global_schema = new_schema.get_global_schema()
+        assert isinstance(global_schema, s_schema.FlatSchema)
         self._current = self._current._replace(
-            user_schema=new_schema.get_top_schema(),
-            global_schema=new_schema.get_global_schema(),
+            user_schema=user_schema,
+            global_schema=global_schema,
         )
 
     def update_modaliases(self, new_modaliases: immutables.Map):

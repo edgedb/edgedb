@@ -35,12 +35,13 @@ from . import name as sn
 from . import objects as so
 from . import pointers
 from . import referencing
+from . import rewrites as s_rewrites
 from . import sources
+from . import types as s_types
 from . import utils
 
 if TYPE_CHECKING:
     from . import objtypes as s_objtypes
-    from . import types as s_types
     from . import schema as s_schema
 
 
@@ -203,10 +204,13 @@ class LinkSourceCommand(inheriting.InheritingObjectCommand[sources.Source_T]):
     pass
 
 
-class LinkCommandContext(pointers.PointerCommandContext[Link],
-                         constraints.ConsistencySubjectCommandContext,
-                         properties.PropertySourceContext[Link],
-                         sources.SourceCommandContext[Link]):
+class LinkCommandContext(
+    pointers.PointerCommandContext[Link],
+    constraints.ConsistencySubjectCommandContext,
+    properties.PropertySourceContext[Link],
+    sources.SourceCommandContext[Link],
+    s_rewrites.RewriteSubjectCommandContext,
+):
     pass
 
 
@@ -254,10 +258,19 @@ class LinkCommand(
 
         if not target.is_object_type():
             srcctx = self.get_attribute_source_context('target')
+            if isinstance(target, s_types.Array):
+                # Custom error message for link -> array<...>
+                link_dn = scls.get_displayname(schema)
+                el_dn = target.get_subtypes(schema)[0].get_displayname(schema)
+                hint = f"did you mean 'multi link {link_dn} -> {el_dn}'?"
+            else:
+                hint = None
+
             raise errors.InvalidLinkTargetError(
                 f'invalid link target type, expected object type, got '
                 f'{target.get_verbosename(schema)}',
                 context=srcctx,
+                hint=hint,
             )
 
         if target.is_free_object_type(schema):
@@ -277,6 +290,17 @@ class LinkCommand(
                 f'invalid link type: {target.get_displayname(schema)!r}'
                 f' is an expression alias, not a proper object type',
                 context=srcctx,
+            )
+
+        if (
+            scls.get_required(schema) and
+            scls.get_on_target_delete(schema) ==
+                qltypes.LinkTargetDeleteAction.DeferredRestrict
+        ):
+            raise errors.InvalidLinkTargetError(
+                'required links may not use `on target delete '
+                'deferred restrict`',
+                context=self.source_context,
             )
 
     def _get_ast(
@@ -688,26 +712,6 @@ class DeleteLink(
 ):
     astnode = [qlast.DropConcreteLink, qlast.DropLink]
     referenced_astnode = qlast.DropConcreteLink
-
-    # NB: target type cleanup (e.g. target compound type) is done by
-    #     the DeleteProperty handler for the @target property.
-
-    def _delete_begin(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super()._delete_begin(schema, context)
-        if not context.canonical:
-            # We need to do a propagate here, too, since there could
-            # be backrefs to this link that technically reference
-            # us but will be fine if it is deleted.
-            schema = self._propagate_if_expr_refs(
-                schema,
-                context,
-                action=self.get_friendly_description(schema=schema),
-            )
-        return schema
 
     def _get_ast(
         self,

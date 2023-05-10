@@ -259,6 +259,8 @@ def new_compiler_context(
     bootstrap_mode: bool = False,
     internal_schema_mode: bool = False,
     protocol_version: Tuple[int, int] = defines.CURRENT_PROTOCOL,
+    backend_runtime_params: pg_params.BackendRuntimeParams = (
+        pg_params.get_default_runtime_params()),
 ) -> CompileContext:
     """Create and return an ad-hoc compiler context."""
 
@@ -282,6 +284,7 @@ def new_compiler_context(
         bootstrap_mode=bootstrap_mode,
         internal_schema_mode=internal_schema_mode,
         protocol_version=protocol_version,
+        backend_runtime_params=backend_runtime_params,
     )
 
     return ctx
@@ -535,10 +538,10 @@ class Compiler:
         stmts = pg_parser.parse(query_str)
         sql_units = []
         for stmt in stmts:
-            # GOTCHA: a setting is frontend-only regardless of its mutability
-            fe_only = stmt.name in fe_settings_mutable
-
             if isinstance(stmt, pgast.VariableSetStmt):
+                # GOTCHA: setting is frontend-only regardless of its mutability
+                fe_only = stmt.name in fe_settings_mutable
+
                 args = {
                     "query": pg_codegen.generate_source(stmt),
                     "frontend_only": fe_only,
@@ -563,6 +566,7 @@ class Compiler:
                     args["set_vars"] = {stmt.name: value}
                 unit = dbstate.SQLQueryUnit(**args)
             elif isinstance(stmt, pgast.VariableResetStmt):
+                fe_only = stmt.name in fe_settings_mutable
                 if fe_only and not fe_settings_mutable[stmt.name]:
                     raise errors.QueryError(
                         f'parameter "{stmt.name}" cannot be changed',
@@ -581,7 +585,7 @@ class Compiler:
                 unit = dbstate.SQLQueryUnit(
                     query=source,
                     get_var=stmt.name,
-                    frontend_only=fe_only,
+                    frontend_only=stmt.name in fe_settings_mutable,
                 )
             elif isinstance(stmt, pgast.SetTransactionStmt):
                 args = {"query": pg_codegen.generate_source(stmt)}
@@ -984,7 +988,7 @@ class Compiler:
         for schema_object_id, typedesc in blocks:
             schema_object_id = uuidgen.from_bytes(schema_object_id)
             obj = schema.get_by_id(schema_object_id)
-            desc = sertypes.TypeSerializer.parse(typedesc, protocol_version)
+            desc = sertypes.parse(typedesc, protocol_version)
             elided_col_set = set()
             mending_desc = []
 
@@ -1230,6 +1234,7 @@ def _compile_schema_storage_stmt(
             expected_cardinality_one=False,
             bootstrap_mode=ctx.bootstrap_mode,
             protocol_version=ctx.protocol_version,
+            backend_runtime_params=ctx.backend_runtime_params,
         )
 
         source = edgeql.Source.from_string(eql)
@@ -1295,22 +1300,18 @@ def _get_compile_options(
 
     return qlcompiler.CompilerOptions(
         modaliases=ctx.state.current_tx().get_modaliases(),
-        # XXX: All this is_explain checks need to be removed once we
-        # have a real solution to this problem
         implicit_tid_in_shapes=(
             can_have_implicit_fields and ctx.inline_typeids
-            and not is_explain
         ),
         implicit_tname_in_shapes=(
             can_have_implicit_fields and ctx.inline_typenames
-            and not is_explain
         ),
         implicit_id_in_shapes=(
             can_have_implicit_fields and ctx.inline_objectids
         ),
         constant_folding=not disable_constant_folding,
         json_parameters=ctx.json_parameters,
-        implicit_limit=ctx.implicit_limit if not is_explain else 0,
+        implicit_limit=ctx.implicit_limit,
         bootstrap_mode=ctx.bootstrap_mode,
         apply_query_rewrites=(
             not ctx.bootstrap_mode
@@ -1330,22 +1331,72 @@ def _get_compile_options(
     )
 
 
+# Types and default values for EXPLAIN parameters
+EXPLAIN_PARAMS = dict(
+    buffers=('std::bool', False),
+    execute=('std::bool', True),
+)
+
+
 def _compile_ql_explain(
     ctx: CompileContext,
-    ql: qlast.Base,
+    ql: qlast.ExplainStmt,
     *,
     script_info: Optional[irast.ScriptInfo] = None,
 ) -> dbstate.BaseQuery:
-    analyze = 'ANALYZE true, ' if ql.analyze else ''
-    exp_command = f'EXPLAIN ({analyze}FORMAT JSON, VERBOSE true)'
+    args = {k: v for k, (_, v) in EXPLAIN_PARAMS.items()}
+
+    # Evaluate and typecheck arguments
+    if ql.args:
+        current_tx = ctx.state.current_tx()
+        schema = current_tx.get_schema(ctx.compiler_state.std_schema)
+
+        for el in ql.args.elements:
+            name = el.name.name
+            if name not in EXPLAIN_PARAMS:
+                raise errors.QueryError(
+                    f"unknown ANALYZE argument '{name}'",
+                    context=el.context,
+                )
+            arg_ir = qlcompiler.compile_ast_to_ir(
+                el.val,
+                schema=schema,
+                options=qlcompiler.CompilerOptions(
+                    modaliases=current_tx.get_modaliases(),
+                ),
+            )
+            exp_typ = schema.get(EXPLAIN_PARAMS[name][0])
+            if not arg_ir.stype.issubclass(schema, exp_typ):
+                raise errors.QueryError(
+                    f"incorrect type for ANALYZE argument '{name}': "
+                    f"expected '{exp_typ.get_name(schema)}', "
+                    f"got '{arg_ir.stype.get_name(schema)}'",
+                    context=el.context,
+                )
+
+            args[name] = ireval.evaluate_to_python_val(arg_ir.expr, schema)
+
+    analyze = 'ANALYZE true, ' if args['execute'] else ''
+    buffers = 'BUFFERS, ' if args['buffers'] else ''
+    exp_command = f'EXPLAIN ({analyze}{buffers}FORMAT JSON, VERBOSE true)'
+
+    ctx = dataclasses.replace(
+        ctx,
+        inline_typeids=False,
+        inline_typenames=False,
+        implicit_limit=0,
+        output_format=enums.OutputFormat.BINARY,
+    )
+
+    config_vals = _get_compilation_config_vals(ctx)
+    explain_data = (config_vals, args)
 
     query = _compile_ql_query(
         ctx, ql.query, script_info=script_info,
-        is_explain=True, cacheable=False)
+        explain_data=explain_data, cacheable=False)
     assert len(query.sql) == 1
 
-    out_type_data, out_type_id = \
-        sertypes.TypeSerializer.describe_json()
+    out_type_data, out_type_id = sertypes.describe_str()
 
     sql_bytes = exp_command.encode('utf-8') + query.sql[0]
     sql_hash = _hash_sql(
@@ -1357,6 +1408,7 @@ def _compile_ql_explain(
     return dataclasses.replace(
         query,
         is_explain=True,
+        append_rollback=args['execute'],
         cacheable=False,
         sql=(sql_bytes,),
         sql_hash=sql_hash,
@@ -1366,6 +1418,34 @@ def _compile_ql_explain(
     )
 
 
+def _compile_ql_administer(
+    ctx: CompileContext,
+    ql: qlast.AdministerStmt,
+    *,
+    script_info: Optional[irast.ScriptInfo] = None,
+) -> dbstate.BaseQuery:
+    if ql.expr.func == 'statistics_update':
+        if not _is_dev_instance(ctx):
+            raise errors.QueryError(
+                'statistics_update() can only be executed in test mode',
+                context=ql.context)
+
+        if ql.expr.args or ql.expr.kwargs:
+            raise errors.QueryError(
+                'statistics_update() does not take arguments',
+                context=ql.expr.context,
+            )
+
+        return dbstate.MaintenanceQuery(sql=(b'ANALYZE',))
+    elif ql.expr.func == 'repair_schema':
+        return ddl.administer_repair_schema(ctx, ql)
+    else:
+        raise errors.QueryError(
+            'Unknown ADMINISTER function',
+            context=ql.expr.context,
+        )
+
+
 def _compile_ql_query(
     ctx: CompileContext,
     ql: qlast.Base,
@@ -1373,9 +1453,10 @@ def _compile_ql_query(
     script_info: Optional[irast.ScriptInfo] = None,
     cacheable: bool = True,
     migration_block_query: bool = False,
-    is_explain: bool = False,
+    explain_data: object = None,
 ) -> dbstate.BaseQuery:
 
+    is_explain = explain_data is not None
     current_tx = ctx.state.current_tx()
 
     schema = current_tx.get_schema(ctx.compiler_state.std_schema)
@@ -1435,22 +1516,20 @@ def _compile_ql_query(
         out_type_data = sertypes.NULL_TYPE_DESC
         result_cardinality = enums.Cardinality.NO_RESULT
     elif ctx.output_format is enums.OutputFormat.BINARY:
-        out_type_data, out_type_id = sertypes.TypeSerializer.describe(
+        out_type_data, out_type_id = sertypes.describe(
             ir.schema, ir.stype,
             ir.view_shapes, ir.view_shapes_metadata,
             inline_typenames=ctx.inline_typenames,
             protocol_version=ctx.protocol_version)
     else:
-        out_type_data, out_type_id = \
-            sertypes.TypeSerializer.describe_json()
+        out_type_data, out_type_id = sertypes.describe_str()
 
     if ctx.protocol_version >= (0, 12):
-        in_type_data, in_type_id = \
-            sertypes.TypeSerializer.describe_params(
-                schema=ir.schema,
-                params=params,
-                protocol_version=ctx.protocol_version,
-            )
+        in_type_data, in_type_id = sertypes.describe_params(
+            schema=ir.schema,
+            params=params,
+            protocol_version=ctx.protocol_version,
+        )
     else:
         # Legacy protocol support - for restoring pre-0.12 dumps
         if params:
@@ -1467,9 +1546,11 @@ def _compile_ql_query(
                 element_types={},
                 named=has_named_params)
 
-        in_type_data, in_type_id = sertypes.TypeSerializer.describe(
-            pschema, params_type, {}, {},
-            protocol_version=ctx.protocol_version)
+        in_type_data, in_type_id = sertypes.describe(
+            pschema,
+            params_type,
+            protocol_version=ctx.protocol_version,
+        )
 
     sql_hash = _hash_sql(
         sql_bytes,
@@ -1485,7 +1566,7 @@ def _compile_ql_query(
                 global_schema=ir.schema._global_schema,
                 base_schema=s_schema.FlatSchema(),
             )
-        query_asts = pickle.dumps((ql, ir, qtree))
+        query_asts = pickle.dumps((ql, ir, qtree, explain_data))
     else:
         query_asts = None
 
@@ -1578,7 +1659,6 @@ def _compile_ql_transaction(
         action = dbstate.TxAction.DECLARE_SAVEPOINT
 
         sp_name = ql.name
-        sp_id = sp_id
 
     elif isinstance(ql, qlast.ReleaseSavepoint):
         ctx.state.current_tx().release_savepoint(ql.name)
@@ -1625,12 +1705,13 @@ def _compile_ql_sess_state(ctx: CompileContext,
 
     if isinstance(ql, qlast.SessionSetAliasDecl):
         try:
-            schema.get_global(s_mod.Module, ql.module)
+            schema.get_global(s_mod.Module, ql.decl.module)
         except errors.InvalidReferenceError:
             raise errors.UnknownModuleError(
-                f'module {ql.module!r} does not exist') from None
+                f'module {ql.decl.module!r} does not exist'
+            ) from None
 
-        aliases = aliases.set(ql.alias, ql.module)
+        aliases = aliases.set(ql.decl.alias, ql.decl.module)
 
     elif isinstance(ql, qlast.SessionResetModule):
         aliases = aliases.set(None, defines.DEFAULT_MODULE_ALIAS)
@@ -1811,6 +1892,11 @@ def _compile_dispatch_ql(
             caps |= enums.Capability.MODIFICATIONS
         return (query, caps)
 
+    elif isinstance(ql, qlast.AdministerStmt):
+        query = _compile_ql_administer(ctx, ql, script_info=script_info)
+        caps = enums.Capability(0)
+        return (query, caps)
+
     else:
         query = _compile_ql_query(ctx, ql, script_info=script_info)
         caps = enums.Capability(0)
@@ -1963,6 +2049,9 @@ def _try_compile(
                 unit.is_explain = True
                 unit.query_asts = comp.query_asts
 
+            if comp.append_rollback:
+                unit.append_rollback = True
+
             if is_trailing_stmt:
                 unit.cardinality = comp.cardinality
 
@@ -2073,6 +2162,9 @@ def _try_compile(
 
             unit.has_set = True
 
+        elif isinstance(comp, dbstate.MaintenanceQuery):
+            unit.sql = comp.sql
+
         elif isinstance(comp, dbstate.NullQuery):
             pass
 
@@ -2105,12 +2197,11 @@ def _try_compile(
             ctx=ctx)
 
         if ctx.protocol_version >= (0, 12):
-            in_type_data, in_type_id = \
-                sertypes.TypeSerializer.describe_params(
-                    schema=script_info.schema,
-                    params=params,
-                    protocol_version=ctx.protocol_version,
-                )
+            in_type_data, in_type_id = sertypes.describe_params(
+                schema=script_info.schema,
+                params=params,
+                protocol_version=ctx.protocol_version,
+            )
             rv.in_type_id = in_type_id.bytes
             rv.in_type_args = in_type_args
             rv.in_type_data = in_type_data
@@ -2271,11 +2362,9 @@ def _describe_object(
             {'named': True},
         )
 
-        type_data, type_id = sertypes.TypeSerializer.describe(
+        type_data, type_id = sertypes.describe(
             schema,
             prop_tuple,
-            view_shapes={},
-            view_shapes_metadata={},
             follow_links=False,
             protocol_version=protocol_version,
         )
@@ -2309,11 +2398,9 @@ def _describe_object(
             {'named': True},
         )
 
-        type_data, type_id = sertypes.TypeSerializer.describe(
+        type_data, type_id = sertypes.describe(
             schema,
             link_tuple,
-            view_shapes={},
-            view_shapes_metadata={},
             follow_links=False,
             protocol_version=protocol_version,
         )
@@ -2344,11 +2431,10 @@ def _describe_object(
                 ptrdesc.extend(_describe_object(schema, ptr,
                                                 protocol_version))
 
-        type_data, type_id = sertypes.TypeSerializer.describe(
+        type_data, type_id = sertypes.describe(
             schema,
             source,
             view_shapes={source: shape},
-            view_shapes_metadata={},
             follow_links=False,
             protocol_version=protocol_version,
         )
@@ -2490,6 +2576,14 @@ def _get_config_val(
         current_tx.get_system_config(),
         allow_unrecognized=True,
     )
+
+
+def _get_compilation_config_vals(ctx: CompileContext) -> Any:
+    return {
+        k: _get_config_val(ctx, k)
+        for k in ctx.compiler_state.config_spec
+        if ctx.compiler_state.config_spec[k].affects_compilation
+    }
 
 
 _OUTPUT_FORMAT_MAP = {

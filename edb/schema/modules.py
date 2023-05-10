@@ -28,6 +28,7 @@ from edb.edgeql import qltypes
 
 from . import annos as s_anno
 from . import delta as sd
+from . import objects as so
 from . import schema as s_schema
 
 RESERVED_MODULE_NAMES = {
@@ -38,6 +39,7 @@ RESERVED_MODULE_NAMES = {
 
 class Module(
     s_anno.AnnotationSubject,
+    so.Object,  # Help reflection figure out the right db MRO
     qlkind=qltypes.SchemaObjectClass.MODULE,
     data_safe=False,
 ):

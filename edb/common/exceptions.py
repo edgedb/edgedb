@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import sys
 
+from . import multi_error
+
 
 def _get_contexts(ex, *, auto_init=False):
     try:
@@ -90,10 +92,26 @@ class DefaultExceptionContext(ExceptionContext):
 _old_excepthook = sys.excepthook
 
 
+def _is_internal_error(exc):
+    if isinstance(exc, multi_error.MultiError):
+        return any(_is_internal_error(e) for e in exc.__errors__)
+    # This is pretty cheesy but avoids needing to import our edgedb
+    # exceptions or do anything elaborate with contexts.
+    return type(exc).__name__ == 'InternalServerError'
+
+
 def excepthook(exctype, exc, tb):
     try:
         from edb.common import markup
         markup.dump(exc, file=sys.stderr)
+
+        if _is_internal_error(exc):
+            print(
+                f'This is most likely a bug in EdgeDB. '
+                f'Please consider opening an issue ticket '
+                f'at https://github.com/edgedb/edgedb/issues/new'
+                f'?template=bug_report.md'
+            )
 
     except Exception as ex:
         print('!!! exception in edb.excepthook !!!', file=sys.stderr)

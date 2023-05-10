@@ -28,11 +28,22 @@ Sequences
     <ref_datamodel_props>`:
 
     .. code-block:: sdl
+        :version-lt: 3.0
 
         scalar type TicketNo extending sequence;
 
         type Ticket {
             property number -> TicketNo {
+                constraint exclusive;
+            }
+        }
+
+    .. code-block:: sdl
+
+        scalar type TicketNo extending sequence;
+
+        type Ticket {
+            number: TicketNo {
                 constraint exclusive;
             }
         }

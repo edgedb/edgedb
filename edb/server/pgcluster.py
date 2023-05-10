@@ -1039,13 +1039,20 @@ async def get_remote_pg_cluster(
             b"""
             SELECT json_build_object(
                 'user', current_user,
-                'dbname', current_database()
+                'dbname', current_database(),
+                'connlimit', (
+                    select rolconnlimit
+                    from pg_roles
+                    where rolname = current_user
+                )
             )""",
         ))
         user = data["user"]
         dbname = data["dbname"]
         cluster_type, superuser_name = await _get_cluster_type(conn)
-        max_connections = await _get_pg_settings(conn, 'max_connections')
+        max_connections = data["connlimit"]
+        if max_connections == -1:
+            max_connections = await _get_pg_settings(conn, 'max_connections')
         capabilities = await _detect_capabilities(conn)
         if t_id != buildmeta.get_default_tenant_id():
             # GOTCHA: This tenant_id check cannot protect us from running
@@ -1068,6 +1075,15 @@ async def get_remote_pg_cluster(
             raise ClusterError(
                 "remote server did not report its version "
                 "in ParameterStatus")
+
+        ext_schema = await conn.sql_fetch_val(
+            b'''
+            SELECT COALESCE(
+                (SELECT schema_name FROM information_schema.schemata
+                WHERE schema_name = 'heroku_ext'),
+                'edgedbext')
+            ''',
+        )
         instance_params = pgparams.BackendInstanceParams(
             capabilities=capabilities,
             version=buildmeta.parse_pg_version(pg_ver_string),
@@ -1075,6 +1091,7 @@ async def get_remote_pg_cluster(
             max_connections=int(max_connections),
             reserved_connections=await _get_reserved_connections(conn),
             tenant_id=t_id,
+            ext_schema=ext_schema.decode("utf-8"),
         )
     finally:
         conn.terminate()

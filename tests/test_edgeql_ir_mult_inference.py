@@ -35,7 +35,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
                           'cards_ir_inference.esdl')
 
     def run_test(self, *, source, spec, expected):
-        qltree = qlparser.parse(source)
+        qltree = qlparser.parse_query(source)
         ir = compiler.compile_ast_to_ir(
             qltree,
             self.schema,
@@ -575,6 +575,8 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
                 name := x.1,
                 element := 'test',
                 cost := 0,
+                req_awards := {}, # wtvr
+                req_tags := {}, # wtvr
             }
         )
 % OK %

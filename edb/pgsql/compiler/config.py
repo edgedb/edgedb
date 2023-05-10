@@ -412,17 +412,20 @@ def _rewrite_config_insert(
 
     overwrite_query = pgast.SelectStmt()
     id_expr = pgast.FuncCall(
-        name=('edgedbext', 'uuid_generate_v1mc',),
+        name=('edgedb', 'uuid_generate_v1mc'),
         args=[],
     )
     pathctx.put_path_identity_var(
-        overwrite_query, ir_set.path_id, id_expr, force=True, env=ctx.env)
+        overwrite_query, ir_set.path_id, id_expr, force=True
+    )
     pathctx.put_path_value_var(
-        overwrite_query, ir_set.path_id, id_expr, force=True, env=ctx.env)
+        overwrite_query, ir_set.path_id, id_expr, force=True
+    )
     pathctx.put_path_source_rvar(
-        overwrite_query, ir_set.path_id,
+        overwrite_query,
+        ir_set.path_id,
         relctx.rvar_for_rel(pgast.NullRelation(), ctx=ctx),
-        env=ctx.env)
+    )
 
     relctx.add_type_rel_overlay(
         ir_set.typeref,

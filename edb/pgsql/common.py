@@ -219,7 +219,8 @@ def get_scalar_backend_name(id, module_name, catenate=True, *, aspect=None):
         "domain",
         "sequence",
         "enum",
-        "enum-cast",
+        "enum-cast-into-str",
+        "enum-cast-from-str",
         "source-del-imm-otl-f",
         "source-del-imm-otl-t",
     ):
@@ -227,7 +228,9 @@ def get_scalar_backend_name(id, module_name, catenate=True, *, aspect=None):
             f'unexpected aspect for scalar backend name: {aspect!r}')
     name = s_name.QualName(module=module_name, name=str(id))
 
-    if aspect == "enum-cast":
+    if aspect.startswith("enum-cast-"):
+        suffix = "_into_str" if aspect == "enum-cast-into-str" else "_from_str"
+        name = s_name.QualName(name.module, name.name + suffix)
         return get_cast_backend_name(name, catenate, aspect="function")
 
     return convert_name(name, aspect, catenate)

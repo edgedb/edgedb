@@ -143,7 +143,7 @@ def compile_SelectQuery(
         stmt.limit = clauses.compile_limit_offset_clause(
             expr.limit, ctx=sctx)
 
-        result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
 
     return result
 
@@ -222,7 +222,7 @@ def compile_ForQuery(
                 compile_result_clause(
                     # Make sure it is a stmt, so that shapes inside the body
                     # get resolved there.
-                    astutils.ensure_qlstmt(qlstmt.result),
+                    astutils.ensure_ql_query(qlstmt.result),
                     view_scls=ctx.view_scls,
                     view_rptr=ctx.view_rptr,
                     view_name=ctx.toplevel_result_view_name,
@@ -240,7 +240,7 @@ def compile_ForQuery(
                 ctx=sctx,
             )
 
-        result = fini_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
 
     return result
 
@@ -385,7 +385,7 @@ def compile_InternalGroupQuery(
                 )
 
             stmt.result = compile_result_clause(
-                astutils.ensure_qlstmt(expr.result),
+                astutils.ensure_ql_query(expr.result),
                 result_alias=expr.result_alias,
                 ctx=bctx)
 
@@ -394,7 +394,7 @@ def compile_InternalGroupQuery(
             stmt.orderby = clauses.compile_orderby_clause(
                 expr.orderby, ctx=bctx)
 
-        result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=sctx, parent_ctx=ctx)
 
     return result
 
@@ -412,13 +412,6 @@ def compile_GroupQuery(
 def compile_InsertQuery(
         expr: qlast.InsertQuery, *,
         ctx: context.ContextLevel) -> irast.Set:
-
-    if ctx.in_conditional is not None:
-        raise errors.QueryError(
-            'INSERT statements cannot be used inside conditional '
-            'expressions',
-            context=expr.context,
-        )
 
     if ctx.disallow_dml:
         raise errors.QueryError(
@@ -524,7 +517,7 @@ def compile_InsertQuery(
         ):
             stmt.write_policies[mat_stype.id] = pol_condition
 
-        result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
         # If we have an ELSE clause, and this is a toplevel statement,
         # we need to compile_query_subject *again* on the outer query,
@@ -562,12 +555,6 @@ def _get_dunder_type_ptrref(ctx: context.ContextLevel) -> irast.PointerRef:
 @dispatch.compile.register(qlast.UpdateQuery)
 def compile_UpdateQuery(
         expr: qlast.UpdateQuery, *, ctx: context.ContextLevel) -> irast.Set:
-
-    if ctx.in_conditional is not None:
-        raise errors.QueryError(
-            'UPDATE statements cannot be used inside conditional expressions',
-            context=expr.context,
-        )
 
     if ctx.disallow_dml:
         raise errors.QueryError(
@@ -660,7 +647,7 @@ def compile_UpdateQuery(
         stmt.conflict_checks = conflicts.compile_inheritance_conflict_checks(
             stmt, mat_stype, ctx=ictx)
 
-        result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
     return result
 
@@ -668,12 +655,6 @@ def compile_UpdateQuery(
 @dispatch.compile.register(qlast.DeleteQuery)
 def compile_DeleteQuery(
         expr: qlast.DeleteQuery, *, ctx: context.ContextLevel) -> irast.Set:
-
-    if ctx.in_conditional is not None:
-        raise errors.QueryError(
-            'DELETE statements cannot be used inside conditional expressions',
-            context=expr.context,
-        )
 
     if ctx.disallow_dml:
         raise errors.QueryError(
@@ -778,12 +759,32 @@ def compile_DeleteQuery(
             )
 
         for dtype in schemactx.get_all_concrete(mat_stype, ctx=ctx):
+            # Compile policies for every concrete type
             if pol_cond := policies.compile_dml_read_policies(
                 dtype, result, mode=qltypes.AccessKind.Delete, ctx=ictx
             ):
                 stmt.read_policies[dtype.id] = pol_cond
 
-        result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
+            schema = ctx.env.schema
+            # And find any pointers to delete
+            ptrs = []
+            for ptr in dtype.get_pointers(schema).objects(schema):
+                # If there is a pointer that has a real table and doesn't
+                # have a special ON SOURCE DELETE policy, arrange to
+                # delete it in the query itself.
+                if not ptr.is_pure_computable(schema) and (
+                    not ptr.singular(schema)
+                    or ptr.has_user_defined_properties(schema)
+                ) and (
+                    not isinstance(ptr, s_links.Link)
+                    or ptr.get_on_source_delete(schema) ==
+                    s_links.LinkSourceDeleteAction.Allow
+                ):
+                    ptrs.append(typegen.ptr_to_ptrref(ptr, ctx=ctx))
+
+            stmt.links_to_delete[dtype.id] = tuple(ptrs)
+
+        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
     return result
 
@@ -811,7 +812,7 @@ def compile_DescribeStmt(
                     f'cannot describe full schema as {ql.language}')
 
             ct = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type(
+                ctx.env.get_schema_type_and_track(
                     s_name.QualName('std', 'str')),
                 env=ctx.env,
             )
@@ -1034,7 +1035,7 @@ def compile_DescribeStmt(
                 text += masked
 
             ct = typegen.type_to_typeref(
-                ctx.env.get_track_schema_type(
+                ctx.env.get_schema_type_and_track(
                     s_name.QualName('std', 'str')),
                 env=ctx.env,
             )
@@ -1044,7 +1045,7 @@ def compile_DescribeStmt(
                 ctx=ictx,
             )
 
-        result = fini_stmt(stmt, ql, ctx=ictx, parent_ctx=ctx)
+        result = fini_stmt(stmt, ctx=ictx, parent_ctx=ctx)
 
     return result
 
@@ -1054,7 +1055,7 @@ def compile_Shape(
         shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Set:
     shape_expr = shape.expr or qlutils.FREE_SHAPE_EXPR
     with ctx.new() as subctx:
-        subctx.qlstmt = astutils.ensure_qlstmt(shape)
+        subctx.qlstmt = astutils.ensure_ql_query(shape)
         subctx.stmt = stmt = irast.SelectStmt()
         ctx.env.compiled_stmts[subctx.qlstmt] = stmt
         subctx.class_view_overrides = subctx.class_view_overrides.copy()
@@ -1153,10 +1154,11 @@ def init_stmt(
 
 
 def fini_stmt(
-        irstmt: Union[irast.Stmt, irast.Set],
-        qlstmt: qlast.Statement, *,
-        ctx: context.ContextLevel,
-        parent_ctx: context.ContextLevel) -> irast.Set:
+    irstmt: Union[irast.Stmt, irast.Set],
+    *,
+    ctx: context.ContextLevel,
+    parent_ctx: context.ContextLevel,
+) -> irast.Set:
 
     view_name = parent_ctx.toplevel_result_view_name
     t = inference.infer_type(irstmt, ctx.env)
@@ -1165,7 +1167,8 @@ def fini_stmt(
     path_id: Optional[irast.PathId]
 
     if isinstance(irstmt, irast.MutatingStmt):
-        ctx.env.dml_stmts.add(irstmt)
+        ctx.env.dml_stmts.append(irstmt)
+        irstmt.rewrites = ctx.env.dml_rewrites.pop(irstmt.subject, None)
 
     if (isinstance(t, s_pseudo.PseudoType)
             and t.is_any(ctx.env.schema)):

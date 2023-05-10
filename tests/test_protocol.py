@@ -560,6 +560,43 @@ class TestProtocol(ProtocolTestCase):
             message='unsupported array dimensions'
         )
 
+    async def test_proto_global_bad_array(self):
+        await self.con.connect()
+
+        # Use a transaction to avoid interfering with tests that care about
+        # the details of the state
+        await self._execute('START TRANSACTION')
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Create a global
+        await self._execute('CREATE GLOBAL array_glob -> array<str>')
+        sdd1 = await self.con.recv_match(protocol.StateDataDescription)
+        await self.con.recv_match(protocol.CommandComplete)
+        await self.con.recv_match(protocol.ReadyForCommand)
+        self.assertNotEqual(sdd1.typedesc_id, b'\0' * 16)
+
+        # Set an array in the state
+        await self._execute('SET GLOBAL array_glob := ["AAAA", "", "CCCC"]')
+        cc1 = await self.con.recv_match(
+            protocol.CommandComplete,
+            state_typedesc_id=sdd1.typedesc_id,
+        )
+        await self.con.recv_match(protocol.ReadyForCommand)
+
+        # Blow away the empty second string from the encoding and
+        # replace it with NULL
+        cc1.state_data = cc1.state_data.replace(
+            b'AAAA' + b'\x00' * 4, b'AAAA' + b'\xff' * 4
+        )
+
+        # Verify the state is set
+        await self._execute('SELECT 1', data=True, cc=cc1)
+        await self.con.recv_match(
+            protocol.ErrorResponse,
+            message='invalid NULL'
+        )
+
 
 class TestServerCancellation(tb.TestCase):
     @contextlib.asynccontextmanager

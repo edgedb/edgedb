@@ -12,7 +12,7 @@ are designed to hold arbitrary schema-level metadata represented as a
 Standard annotations
 --------------------
 
-There is a number of annotations defined in the standard library.
+There are a number of annotations defined in the standard library.
 The following are the annotations which can be set on any schema item:
 
 - ``title``
@@ -22,12 +22,24 @@ The following are the annotations which can be set on any schema item:
 For example, consider the following declaration:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type Status {
         annotation title := 'Activity status';
         annotation description := 'All possible user activities';
 
         required property name -> str {
+            constraint exclusive
+        }
+    }
+
+.. code-block:: sdl
+
+    type Status {
+        annotation title := 'Activity status';
+        annotation description := 'All possible user activities';
+
+        required name: str {
             constraint exclusive
         }
     }
@@ -61,4 +73,5 @@ and code generation.
   * - :ref:`SDL > Annotations <ref_eql_sdl_annotations>`
   * - :ref:`DDL > Annotations <ref_eql_ddl_annotations>`
   * - :ref:`Cheatsheets > Annotations <ref_cheatsheet_annotations>`
-  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`
+  * - :ref:`Introspection > Object types
+      <ref_datamodel_introspection_object_types>`

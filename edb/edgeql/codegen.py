@@ -148,7 +148,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write(' ')
 
-    def _visit_aliases(self, node: qlast.Command) -> None:
+    def _visit_aliases(self, node: qlast.Statement) -> None:
         if node.aliases:
             self._write_keywords('WITH')
             self._block_ws(1)
@@ -156,16 +156,20 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit_list(node.aliases)
             self._block_ws(-1)
 
-    def _visit_filter(self, node: qlast.FilterMixin,
-                      newlines: bool = True) -> None:
+    def _visit_filter(
+        self, node: qlast.FilteringQuery, newlines: bool = True
+    ) -> None:
         if node.where:
             self._write_keywords('FILTER')
             self._block_ws(1, newlines)
             self.visit(node.where)
             self._block_ws(-1, newlines)
 
-    def _visit_order(self, node: qlast.OrderByMixin,
-                     newlines: bool = True) -> None:
+    def _visit_order(
+        self,
+        node: qlast.SelectQuery | qlast.DeleteQuery,
+        newlines: bool = True,
+    ) -> None:
         if node.orderby:
             self._write_keywords('ORDER BY')
             self._block_ws(1, newlines)
@@ -175,8 +179,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             )
             self._block_ws(-1, newlines)
 
-    def _visit_offset_limit(self, node: qlast.OffsetLimitMixin,
-                            newlines: bool = True) -> None:
+    def _visit_offset_limit(
+        self, node: qlast.OffsetLimitQuery, newlines: bool = True
+    ) -> None:
         if node.offset is not None:
             self._write_keywords('OFFSET')
             self._block_ws(1, newlines)
@@ -837,6 +842,28 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._write_keywords(' EXTENDING ')
             self.visit_list(node.bases, newlines=False)
 
+    PointerNode = TypeVar(
+        'PointerNode',
+        qlast.CreateConcretePointer,
+        qlast.CreateLink,
+        qlast.CreateProperty
+    )
+
+    def _ddl_add_pointer_bases(
+        self,
+        node: PointerNode,
+    ) -> PointerNode:
+        # We very carefully strained EXTENDING clauses out of subcommands
+        # when parsing, but now that we're printing, we want to print it
+        # back in the commands block. Do that by "faking" an extending
+        # node in the subcommands of a scoped copy of this node.
+        if node.bases:
+            return node.replace(commands=(
+                [qlast.AlterAddInherit(bases=node.bases)] + node.commands
+            ))
+        else:
+            return node
+
     def _ddl_clean_up_commands(
         self,
         commands: Sequence[qlast.Base],
@@ -1139,8 +1166,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(self.indent_text(node.body.text))
             self._block_ws(-1)
             self.write('}')
-        elif node.body.commands:
-            self._ddl_visit_body(node.body.commands)
+        elif node.commands or node.body.commands:
+            commands = [*node.commands, *node.body.commands]
+            self._ddl_visit_body(commands)
 
     def visit_StartMigration(self, node: qlast.StartMigration) -> None:
         if isinstance(node.target, qlast.CommittedSchema):
@@ -1613,9 +1641,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_CreateObject(node, *keywords)
 
     def visit_CreateProperty(self, node: qlast.CreateProperty) -> None:
-        after_name = lambda: self._ddl_visit_bases(node)
-        self._visit_CreateObject(node, 'ABSTRACT PROPERTY',
-                                 after_name=after_name)
+        node = self._ddl_add_pointer_bases(node)
+        self._visit_CreateObject(node, 'ABSTRACT PROPERTY')
 
     def visit_AlterProperty(self, node: qlast.AlterProperty) -> None:
         self._visit_AlterObject(node, 'ABSTRACT PROPERTY')
@@ -1690,8 +1717,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'PROPERTY', unqualified=True)
 
     def visit_CreateLink(self, node: qlast.CreateLink) -> None:
-        after_name = lambda: self._ddl_visit_bases(node)
-        self._visit_CreateObject(node, 'ABSTRACT LINK', after_name=after_name)
+        node = self._ddl_add_pointer_bases(node)
+        self._visit_CreateObject(node, 'ABSTRACT LINK')
 
     def visit_AlterLink(self, node: qlast.AlterLink) -> None:
         self._visit_AlterObject(node, 'ABSTRACT LINK')
@@ -1722,7 +1749,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             keywords.append(kind)
 
         def after_name() -> None:
-            self._ddl_visit_bases(node)
             if node.target is not None:
                 if isinstance(node.target, qlast.TypeExpr):
                     self.write(': ')
@@ -1732,6 +1758,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.write(' := (')
                     self.visit(node.target)
                     self.write(')')
+
+        node = self._ddl_add_pointer_bases(node)
 
         pure_computable = (
             len(node.commands) == 0
@@ -2330,15 +2358,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self,
         node: qlast.SessionSetAliasDecl
     ) -> None:
-        self._write_keywords('SET')
-        if node.alias:
-            self._write_keywords(' ALIAS ')
-            self.write(ident_to_str(node.alias))
-            self._write_keywords(' AS MODULE ')
-            self.write(ident_to_str(node.module))
-        else:
-            self._write_keywords(' MODULE ')
-            self.write(ident_to_str(node.module))
+        self._write_keywords('SET ')
+        if node.decl.alias:
+            self._write_keywords('ALIAS ')
+        self.visit_ModuleAliasDecl(node.decl)
 
     def visit_SessionResetAllAliases(
         self,

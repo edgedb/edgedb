@@ -993,21 +993,8 @@ class GraphQLTranslator:
                     # being updated (so that SELECT can be applied if needed)
                     with self._update_path_for_insert_field(field):
                         _, target = self._get_parent_and_current_type()
-
-                        # normalize potential link lists
-                        if isinstance(field.value, gql_ast.ListValueNode):
-                            input_data = field.value.values
-                        else:
-                            input_data = [field.value]
-                        vals = [
-                            self._visit_update_op(fval, eqlpath, target)
-                            for fval in input_data
-                        ]
-
-                        if len(vals) == 1:
-                            vals = vals[0]
-                        else:
-                            vals = qlast.Set(elements=vals)
+                        shapeop, value = self._visit_update_op(
+                            field.value, eqlpath, target)
 
                         result.append(
                             qlast.ShapeElement(
@@ -1020,110 +1007,127 @@ class GraphQLTranslator:
                                         )
                                     ]
                                 ),
-                                compexpr=vals,
+                                operation=qlast.ShapeOperation(op=shapeop),
+                                compexpr=value,
                             )
                         )
 
         return result
 
     def _visit_update_op(self, node, eqlpath, ftype):
-        # the node is an ObjectNode with the update spec
+        # The node is an ObjectNode with the update spec. The fields represent
+        # different oprations that can be performend. Although the spec lists
+        # multiple options exactly one of the options should be present.
 
-        # we're at the beginning of a scalar op
-        for field in node.fields:
-            fname = field.name.value
+        if not node.fields:
+            raise g_errors.GraphQLValidationError(
+                "No update operation was specified.",
+                loc=self.get_loc(node))
 
-            # NOTE: there will be more operations in the future
-            if fname == 'set':
-                return qlast.DetachedExpr(
-                    expr=self._get_input_expr_for_pointer_mutaiton(field))
-            elif fname == 'clear':
-                cond = field.value
-                if isinstance(cond, gql_ast.VariableNode):
-                    var_name = cond.name.value
-                    var = self._context.vars[var_name]
-                    if not var.critical:
-                        self._context.vars[var_name] = \
-                            var._replace(critical=True)
-                    value = var.val
-                elif isinstance(cond, gql_ast.BooleanValueNode):
-                    value = cond.value
-                elif isinstance(cond, gql_ast.NullValueNode):
-                    value = None
-                else:
-                    # We assume that schema was validated,
-                    # so variable is of correct type
-                    raise AssertionError(f"Unexpected node {cond!r}")
+        if len(node.fields) > 1:
+            raise g_errors.GraphQLValidationError(
+                "Too many update operations were specified.",
+                loc=self.get_loc(node))
 
-                if value:
-                    # empty set to clear the value
-                    return qlast.Set(elements=[])
+        field = node.fields[0]
+        fname = field.name.value
+        # by default we expect an assign
+        shapeop = qlast.ShapeOp.ASSIGN
+        ptrname = eqlpath.steps[-1].ptr.name
 
-            elif fname == 'increment':
-                return qlast.BinOp(
-                    left=eqlpath,
-                    op='+',
-                    right=self._visit_insert_value(field.value)
-                )
-            elif fname == 'decrement':
-                return qlast.BinOp(
-                    left=eqlpath,
-                    op='-',
-                    right=self._visit_insert_value(field.value)
-                )
-            elif fname == 'prepend':
-                return qlast.BinOp(
-                    left=self._visit_insert_value(field.value),
-                    op='++',
-                    right=eqlpath
-                )
-            elif fname == 'append':
-                return qlast.BinOp(
-                    left=eqlpath,
-                    op='++',
-                    right=self._visit_insert_value(field.value)
-                )
-            elif fname == 'slice':
-                args = field.value.values
-                num_args = len(args)
-                if num_args == 1:
-                    start = self.visit(args[0])
-                    stop = None
-                elif num_args == 2:
-                    start = self.visit(args[0])
-                    stop = self.visit(args[1])
-                else:
-                    raise g_errors.GraphQLTranslationError(
-                        f'"slice" must be a list of 1 or 2 integers')
+        # NOTE: there will be more operations in the future
+        if fname == 'set':
+            value = self._get_input_expr_for_pointer_mutaiton(field, ptrname)
+            return shapeop, value
 
-                return qlast.Indirection(
-                    arg=eqlpath,
-                    indirection=[qlast.Slice(
-                        start=start,
-                        stop=stop
-                    )]
-                )
-            elif fname == 'add':
-                # this is a set
-                newset = self._visit_insert_value(field.value)
-                newset.elements.append(eqlpath)
-                return qlast.UnaryOp(
-                    op='DISTINCT',
-                    operand=qlast.DetachedExpr(expr=newset),
-                )
-            elif fname == 'remove':
-                alias = f'x{self._context.counter}'
-                return qlast.SelectQuery(
-                    result_alias=alias,
-                    result=eqlpath,
-                    where=qlast.BinOp(
-                        left=qlast.Path(steps=[qlast.ObjectRef(name=alias)]),
-                        op='NOT IN',
-                        right=qlast.DetachedExpr(
-                            expr=self._visit_insert_value(field.value)
-                        )
-                    )
-                )
+        elif fname == 'clear':
+            cond = field.value
+            if isinstance(cond, gql_ast.VariableNode):
+                var_name = cond.name.value
+                var = self._context.vars[var_name]
+                if not var.critical:
+                    self._context.vars[var_name] = \
+                        var._replace(critical=True)
+                value = var.val
+            elif isinstance(cond, gql_ast.BooleanValueNode):
+                value = cond.value
+            elif isinstance(cond, gql_ast.NullValueNode):
+                value = None
+            else:
+                # We assume that schema was validated,
+                # so variable is of correct type
+                raise AssertionError(f"Unexpected node {cond!r}")
+
+            if value:
+                # empty set to clear the value
+                return shapeop, qlast.Set(elements=[])
+
+        elif fname == 'increment':
+            value = qlast.BinOp(
+                left=eqlpath,
+                op='+',
+                right=self._visit_insert_value(field.value)
+            )
+            return shapeop, value
+
+        elif fname == 'decrement':
+            value = qlast.BinOp(
+                left=eqlpath,
+                op='-',
+                right=self._visit_insert_value(field.value)
+            )
+            return shapeop, value
+
+        elif fname == 'prepend':
+            value = qlast.BinOp(
+                left=self._visit_insert_value(field.value),
+                op='++',
+                right=eqlpath
+            )
+            return shapeop, value
+
+        elif fname == 'append':
+            value = qlast.BinOp(
+                left=eqlpath,
+                op='++',
+                right=self._visit_insert_value(field.value)
+            )
+            return shapeop, value
+
+        elif fname == 'slice':
+            args = field.value.values
+            num_args = len(args)
+            if num_args == 1:
+                start = self.visit(args[0])
+                stop = None
+            elif num_args == 2:
+                start = self.visit(args[0])
+                stop = self.visit(args[1])
+            else:
+                raise g_errors.GraphQLTranslationError(
+                    f'"slice" must be a list of 1 or 2 integers')
+
+            value = qlast.Indirection(
+                arg=eqlpath,
+                indirection=[qlast.Slice(
+                    start=start,
+                    stop=stop
+                )]
+            )
+            return shapeop, value
+
+        elif fname == 'add':
+            # This is a set, so no reason to validate cardinality.
+            value = self._get_input_expr_for_pointer_mutaiton(
+                field, ptrname, validate_cardinality=False)
+            shapeop = qlast.ShapeOp.APPEND
+            return shapeop, value
+        elif fname == 'remove':
+            # This is a set, so no reason to validate cardinality.
+            value = self._get_input_expr_for_pointer_mutaiton(
+                field, ptrname, validate_cardinality=False)
+            shapeop = qlast.ShapeOp.SUBTRACT
+            return shapeop, value
 
     def _visit_insert_arguments(self, arguments):
         input_data = []
@@ -1144,7 +1148,8 @@ class GraphQLTranslator:
         for field in node.fields:
             # set-up the current path to point to the thing being inserted
             with self._update_path_for_insert_field(field):
-                compexpr = self._get_input_expr_for_pointer_mutaiton(field)
+                compexpr = self._get_input_expr_for_pointer_mutaiton(
+                    field, field.name.value)
                 result.append(
                     qlast.ShapeElement(
                         expr=qlast.Path(
@@ -1160,25 +1165,38 @@ class GraphQLTranslator:
 
         return result
 
-    def _get_input_expr_for_pointer_mutaiton(self, field):
+    def _get_input_expr_for_pointer_mutaiton(
+        self,
+        field,
+        fname,
+        validate_cardinality=True,
+    ):
         compexpr = self._visit_insert_value(field.value)
 
         # get the type of the value being inserted
-        _, target = self._get_parent_and_current_type()
+        ptype, target = self._get_parent_and_current_type()
 
+        # Object types in mutations potentially need some extra assertions
+        # to validate them.
         if target.is_object_type:
+            if validate_cardinality:
+                card = ptype.get_field_cardinality(fname)
+                if card is qltypes.SchemaCardinality.Many:
+                    # Need to wrap the set into an "assert_distinct()".
+                    compexpr = qlast.FunctionCall(
+                        func='assert_distinct',
+                        args=[compexpr],
+                    )
+                else:
+                    # Singleton object values need to be verified.
+                    compexpr = qlast.FunctionCall(
+                        func='assert_single',
+                        args=[compexpr],
+                    )
+
             # Object types need to be wrapped in a DETACHED in
             # mutations to avoid referencing the root object.
             compexpr = qlast.DetachedExpr(expr=compexpr)
-
-        if (isinstance(field.value, gql_ast.ListValueNode) and
-                target.is_object_type):
-            # Need to wrap the set into an "assert_distinct()" if the
-            # target is an object.
-            compexpr = qlast.FunctionCall(
-                func='assert_distinct',
-                args=[compexpr],
-            )
 
         return compexpr
 

@@ -52,27 +52,51 @@ However most queries are selecting *objects* that live in the database. For
 demonstration purposes, the queries below assume the following schema.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  module default {
-    abstract type Person {
-      required property name -> str { constraint exclusive };
+    module default {
+      abstract type Person {
+        required property name -> str { constraint exclusive };
+      }
+
+      type Hero extending Person {
+        property secret_identity -> str;
+        multi link villains := .<nemesis[is Villain];
+      }
+
+      type Villain extending Person {
+        link nemesis -> Hero;
+      }
+
+      type Movie {
+        required property title -> str { constraint exclusive };
+        required property release_year -> int64;
+        multi link characters -> Person;
+      }
     }
 
-    type Hero extending Person {
-      property secret_identity -> str;
-      multi link villains := .<nemesis[is Villain];
-    }
+.. code-block:: sdl
 
-    type Villain extending Person {
-      link nemesis -> Hero;
-    }
+    module default {
+      abstract type Person {
+        required name: str { constraint exclusive };
+      }
 
-    type Movie {
-      required property title -> str { constraint exclusive };
-      required property release_year -> int64;
-      multi link characters -> Person;
+      type Hero extending Person {
+        secret_identity: str;
+        multi link villains := .<nemesis[is Villain];
+      }
+
+      type Villain extending Person {
+        nemesis: Hero;
+      }
+
+      type Movie {
+        required title: str { constraint exclusive };
+        required release_year: int64;
+        multi characters: Person;
+      }
     }
-  }
 
 Let's start by selecting all ``Villain`` objects in the database. In this
 example, there are only three. Remember, ``Villain`` is a :ref:`reference
@@ -165,6 +189,261 @@ identically to concrete/non-computed links like ``Villain.nemesis``.
     },
     ...
   }
+
+
+.. _ref_eql_select_splats:
+
+Splats
+^^^^^^
+
+.. versionadded:: 3.0
+
+Splats allow you to select all properties of a type using the asterisk (``*``)
+or all properties of the type and a single level of linked types with a double
+asterisk (``**``).
+
+If you have this schema:
+
+.. code-block:: sdl
+
+    module default {
+      abstract type Person {
+        required name: str { constraint exclusive };
+      }
+
+      type Hero extending Person {
+        secret_identity: str;
+        multi link villains := .<nemesis[is Villain];
+      }
+
+      type Villain extending Person {
+        nemesis: Hero;
+      }
+
+      type Movie {
+        required title: str { constraint exclusive };
+        required release_year: int64;
+        multi characters: Person;
+      }
+    }
+
+splats will help you more easily select all properties when using the REPL. You
+can select all of an object's properties using the single splat:
+
+.. code-block:: edgeql-repl
+
+    db> select Movie {*};
+    {
+      default::Movie {
+        id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
+        release_year: 2021,
+        title: 'Spiderman: No Way Home',
+      },
+      default::Movie {
+        id: 76998656-b776-11ed-8bef-237907a987fa,
+        release_year: 2008,
+        title: 'Iron Man'
+      },
+    }
+
+or you can select all of an object's properties and the properties of a single
+level of nested objects with the double splat:
+
+.. code-block:: edgeql-repl
+
+    db> select Movie {**};
+    {
+      default::Movie {
+        id: 6fe5c3ec-b776-11ed-8bef-3b2fba99fe8a,
+        release_year: 2021,
+        title: 'Spiderman: No Way Home',
+        characters: {
+          default::Hero {
+            id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+            name: 'Spiderman'
+          },
+          default::Villain {
+            id: efa2c4bc-b777-11ed-99eb-43f835d79384,
+            name: 'Electro'
+          },
+          default::Villain {
+            id: f2c99a96-b775-11ed-8f7e-0b4a4a8e433e,
+            name: 'Green Goblin'
+          },
+          default::Villain {
+            id: f8ca354a-b775-11ed-8bef-273145019e1d,
+            name: 'Doc Ock'
+          },
+        },
+      },
+      default::Movie {
+        id: 76998656-b776-11ed-8bef-237907a987fa,
+        release_year: 2008,
+        title: 'Iron Man',
+        characters: {
+          default::Hero {
+            id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+            name: 'Iron Man'
+          },
+          default::Villain {
+            id: 335f4104-b777-11ed-81eb-ab4de34e9c36,
+            name: 'Obadiah Stane'
+          },
+        },
+      },
+    }
+
+.. note::
+
+    Splats are not yet supported in function bodies.
+
+The splat expands all properties defined on the type as well as inherited
+properties. Given the same schema shown above:
+
+.. code-block:: edgeql-repl
+
+    db> select Hero {*};
+    {
+      default::Hero {
+        id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+        name: 'Spiderman',
+        secret_identity: 'Peter Parker'
+      },
+      default::Hero {
+        id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+        name: 'Iron Man',
+        secret_identity: 'Tony Stark'
+      },
+    }
+
+The splat here expands the heroes' names even though the ``name`` property is
+not defined on the ``Hero`` type but on the ``Person`` type it extends. If we
+want to select heroes but get only properties defined on the ``Person`` type,
+we can do this instead:
+
+.. code-block:: edgeql-repl
+
+    db> select Hero {Person.*};
+    {
+      default::Hero {
+        id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+        name: 'Spiderman'
+      },
+      default::Hero {
+        id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+        name: 'Iron Man'
+      },
+    }
+
+If there are links on our ``Person`` type, we can use ``Person.**`` in a
+similar fashion to get all properties and one level of linked object
+properties, but only for links and properties that are defined on the
+``Person`` type.
+
+You can use the splat to expand properties using a :ref:`type intersection
+<ref_eql_types_intersection>`. Maybe we want to select all ``Person`` objects
+with their names but also get any properties defined on the ``Hero`` for those
+``Person`` objects which are also ``Hero`` objects:
+
+.. code-block:: edgeql-repl
+
+    db> select Person {
+    ...   name,
+    ...   [is Hero].*
+    ... };
+    {
+      default::Hero {
+        id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+        name: 'Spiderman'
+        secret_identity: 'Peter Parker'
+      },
+      default::Hero {
+        id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+        name: 'Iron Man'
+        secret_identity: 'Tony Stark'
+      },
+      default::Villain {
+        id: efa2c4bc-b777-11ed-99eb-43f835d79384,
+        name: 'Electro'
+      },
+      default::Villain {
+        id: f2c99a96-b775-11ed-8f7e-0b4a4a8e433e,
+        name: 'Green Goblin'
+      },
+      default::Villain {
+        id: f8ca354a-b775-11ed-8bef-273145019e1d,
+        name: 'Doc Ock'
+      },
+      default::Villain {
+        id: 335f4104-b777-11ed-81eb-ab4de34e9c36,
+        name: 'Obadiah Stane'
+      },
+    }
+
+The double splat also works with type intersection expansion to expand both
+properties and links on the specified type.
+
+.. code-block:: edgeql-repl
+
+    db> select Person {
+    ...   name,
+    ...   [is Hero].**
+    ... };
+    {
+      default::Hero {
+        id: 01d9cc22-b776-11ed-8bef-73f84c7e91e7,
+        name: 'Spiderman'
+        secret_identity: 'Peter Parker',
+        villains: {
+          default::Villain {
+            id: efa2c4bc-b777-11ed-99eb-43f835d79384,
+            name: 'Electro'
+          },
+          default::Villain {
+            id: f2c99a96-b775-11ed-8f7e-0b4a4a8e433e,
+            name: 'Green Goblin'
+          },
+          default::Villain {
+            id: f8ca354a-b775-11ed-8bef-273145019e1d,
+            name: 'Doc Ock'
+          }
+        }
+      },
+      default::Hero {
+        id: 48edcf8c-b776-11ed-8bef-c7d61b6780d2,
+        name: 'Iron Man'
+        secret_identity: 'Tony Stark'
+        villains: {
+          default::Villain {
+            id: 335f4104-b777-11ed-81eb-ab4de34e9c36,
+            name: 'Obadiah Stane'
+          }
+        }
+      },
+      default::Villain {
+        id: efa2c4bc-b777-11ed-99eb-43f835d79384,
+        name: 'Electro'
+      },
+      default::Villain {
+        id: f2c99a96-b775-11ed-8f7e-0b4a4a8e433e,
+        name: 'Green Goblin'
+      },
+      default::Villain {
+        id: f8ca354a-b775-11ed-8bef-273145019e1d,
+        name: 'Doc Ock'
+      },
+      default::Villain {
+        id: 335f4104-b777-11ed-81eb-ab4de34e9c36,
+        name: 'Obadiah Stane'
+      },
+    }
+
+With this query, we get ``name`` for each ``Person`` and all the properties and
+one level of links on the ``Hero`` objects. We don't get ``Villain`` objects'
+nemeses because that link is not covered by our double splat which only
+expans ``Hero`` links. If the ``Villain`` type had properties defined on it, we
+wouldn't get those with this query either.
+
 
 .. _ref_eql_select_filter:
 
@@ -451,17 +730,27 @@ Instead of re-declaring backlinks inside every query where they're needed, it's
 common to add them directly into your schema as computed links.
 
 .. code-block:: sdl-diff
+    :version-lt: 3.0
 
-    abstract type Person {
-      required property name -> str {
-        constraint exclusive;
-      };
-  +   multi link movies := .<characters[is Movie]
-    }
+      abstract type Person {
+        required property name -> str {
+          constraint exclusive;
+        };
+    +   multi link movies := .<characters[is Movie]
+      }
+
+.. code-block:: sdl-diff
+
+      abstract type Person {
+        required name: str {
+          constraint exclusive;
+        };
+    +   multi link movies := .<characters[is Movie]
+      }
 
 .. note::
 
-  In the example above, the ``Person.movies`` is a ``multi link``. Including
+  In the example above, the ``Person.movies`` is a ``multi`` link. Including
   these keywords is optional, since EdgeDB can infer this from the assigned
   expression ``.<characters[is Movie]``. However, it's a good practice to
   include the explicit keywords to make the schema more readable and "sanity

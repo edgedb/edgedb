@@ -32,20 +32,26 @@ from . import static
 Context = context.ResolverContextLevel
 
 
+def infer_alias(res_target: pgast.ResTarget) -> Optional[str]:
+    if res_target.name:
+        return res_target.name
+
+    # if just name has been selected, use it as the alias
+    if isinstance(res_target.val, pgast.ColumnRef):
+        name = res_target.val.name
+        if isinstance(name[-1], str):
+            return name[-1]
+
+    return None
+
+
 # this function cannot go though dispatch,
 # because it may return multiple nodes, due to * notation
 def resolve_ResTarget(
     res_target: pgast.ResTarget, *, ctx: Context
 ) -> Tuple[Sequence[pgast.ResTarget], Sequence[context.Column]]:
 
-    alias = res_target.name
-
-    # if just name has been selected, use it as the alias
-    if not alias and isinstance(res_target.val, pgast.ColumnRef):
-        name = res_target.val.name
-        last_name_part = name[len(name) - 1]
-        if isinstance(last_name_part, str):
-            alias = last_name_part
+    alias = infer_alias(res_target)
 
     # special case for ColumnRef for handing wildcards
     if not alias and isinstance(res_target.val, pgast.ColumnRef):
@@ -71,6 +77,14 @@ def resolve_ResTarget(
     # base case
     val = dispatch.resolve(res_target.val, ctx=ctx)
 
+    # special case for statically-evaluated FuncCall
+    if (
+        not alias
+        and isinstance(val, pgast.StringConstant)
+        and isinstance(res_target.val, pgast.FuncCall)
+    ):
+        alias = static.name_in_pg_catalog(res_target.val.name)
+
     col = context.Column(name=alias, reference_as=alias)
     return (pgast.ResTarget(val=val, name=alias),), (col,)
 
@@ -80,11 +94,13 @@ def resolve_ColumnRef(
     column_ref: pgast.ColumnRef, *, ctx: Context
 ) -> pgast.ColumnRef:
     res = _lookup_column(column_ref, ctx)
-    if len(res) != 1:
-        raise errors.QueryError(
-            f'bad use of `*` column name', context=column_ref.context
-        )
     table, column = res[0]
+
+    if len(res) != 1:
+        # Lookup can have multiple results only when using *.
+        assert table.reference_as
+        return pgast.ColumnRef(name=(table.reference_as, pgast.Star()))
+
     assert column.reference_as
 
     if table.name:
@@ -231,7 +247,9 @@ def resolve_TypeCast(
     expr: pgast.TypeCast,
     *,
     ctx: Context,
-) -> pgast.TypeCast:
+) -> pgast.BaseExpr:
+    if res := static.eval_TypeCast(expr, ctx=ctx):
+        return res
     return pgast.TypeCast(
         arg=dispatch.resolve(expr.arg, ctx=ctx),
         type_name=expr.type_name,
@@ -285,55 +303,38 @@ def resolve_SortBy(
     )
 
 
+func_calls_remapping: Dict[Tuple[str, ...], Tuple[str, ...]] = {
+    ('information_schema', '_pg_truetypid'): ('edgedbsql', '_pg_truetypid'),
+    ('information_schema', '_pg_truetypmod'): ('edgedbsql', '_pg_truetypmod'),
+    ('pg_catalog', 'format_type'): ('edgedb', '_format_type'),
+}
+
+
 @dispatch._resolve.register
 def resolve_FuncCall(
-    expr: pgast.FuncCall,
+    call: pgast.FuncCall,
     *,
     ctx: Context,
 ) -> pgast.BaseExpr:
-    # TODO: which functions do we want to expose on the outside?
-    if expr.name in {
-        ("set_config",),
-        ("pg_catalog", "set_config"),
-    }:
-        # HACK: allow set_config('search_path', '', false) to support pg_dump
-        if args := static.eval_list(expr.args, ctx=ctx):
-            name, value, is_local = args
-            if (
-                isinstance(name, pgast.StringConstant)
-                and isinstance(value, pgast.StringConstant)
-                and isinstance(is_local, pgast.BooleanConstant)
-            ):
-                if (
-                    name.val == "search_path"
-                    and value.val == ""
-                    and not is_local.val
-                ):
-                    return value
-        raise errors.QueryError(
-            "function set_config is not supported", context=expr.context
-        )
-    if expr.name in {
-        ("current_setting",),
-        ("pg_catalog", "current_setting"),
-    }:
-        raise errors.QueryError(
-            "function pg_catalog.current_setting is not supported",
-            context=expr.context,
-        )
 
-    if res := static.eval_FuncCall(expr, ctx=ctx):
+    # Special case: some function calls (mostly from pg_catalog) are
+    # intercepted and statically evaluated.
+    if res := static.eval_FuncCall(call, ctx=ctx):
         return res
 
+    # Remap function name and default to the original name.
+    # Effectively, this exposes all non-remapped functions.
+    name = func_calls_remapping.get(call.name, call.name)
+
     return pgast.FuncCall(
-        name=expr.name,
-        args=dispatch.resolve_list(expr.args, ctx=ctx),
-        agg_order=dispatch.resolve_opt_list(expr.agg_order, ctx=ctx),
-        agg_filter=dispatch.resolve_opt(expr.agg_filter, ctx=ctx),
-        agg_star=expr.agg_star,
-        agg_distinct=expr.agg_distinct,
-        over=dispatch.resolve_opt(expr.over, ctx=ctx),
-        with_ordinality=expr.with_ordinality,
+        name=name,
+        args=dispatch.resolve_list(call.args, ctx=ctx),
+        agg_order=dispatch.resolve_opt_list(call.agg_order, ctx=ctx),
+        agg_filter=dispatch.resolve_opt(call.agg_filter, ctx=ctx),
+        agg_star=call.agg_star,
+        agg_distinct=call.agg_distinct,
+        over=dispatch.resolve_opt(call.over, ctx=ctx),
+        with_ordinality=call.with_ordinality,
     )
 
 
@@ -393,6 +394,17 @@ def resolve_ImplicitRowExpr(
     ctx: Context,
 ) -> pgast.ImplicitRowExpr:
     return pgast.ImplicitRowExpr(
+        args=dispatch.resolve_list(expr.args, ctx=ctx),
+    )
+
+
+@dispatch._resolve.register
+def resolve_RowExpr(
+    expr: pgast.RowExpr,
+    *,
+    ctx: Context,
+) -> pgast.RowExpr:
+    return pgast.RowExpr(
         args=dispatch.resolve_list(expr.args, ctx=ctx),
     )
 

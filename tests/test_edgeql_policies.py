@@ -65,6 +65,7 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                       (global cur_user IN __subject__.watchers.name) ?? false
                   )
             };
+            create function count_Issue() -> int64 using (count(Issue));
 
             create type CurOnly extending Dictionary {
                 create access policy cur_only allow all
@@ -940,6 +941,93 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                     owner := {}};
             ''')
 
+    async def test_edgeql_policies_volatile_01(self):
+        await self.con.execute('''
+            create type Bar {
+                create required property r -> float64;
+                create access policy ok allow all;
+                create access policy no deny
+                    update write, insert using (.r <= 0.5);
+            };
+        ''')
+
+        for _ in range(10):
+            async with self._run_and_rollback():
+                try:
+                    await self.con.execute('''
+                        insert Bar { r := random() };
+                    ''')
+                except edgedb.AccessPolicyError:
+                    # If it failed, nothing to do, keep trying
+                    pass
+                else:
+                    r = (await self.con.query('''
+                        select Bar.r
+                    '''))[0]
+                    self.assertGreater(r, 0.5)
+
+        await self.con.execute('''
+            insert Bar { r := 1.0 };
+        ''')
+        for _ in range(10):
+            async with self._run_and_rollback():
+                try:
+                    await self.con.execute('''
+                        update Bar set { r := random() };
+                    ''')
+                except edgedb.AccessPolicyError:
+                    # If it failed, nothing to do, keep trying
+                    pass
+                else:
+                    r = (await self.con.query('''
+                        select Bar.r
+                    '''))[0]
+                    self.assertGreater(r, 0.5)
+
+    async def test_edgeql_policies_volatile_02(self):
+        # Same as above but multi
+        await self.con.execute('''
+            create type Bar {
+                create required multi property r -> float64;
+                create access policy ok allow all;
+                create access policy no deny
+                    update write, insert using (all(.r <= 0.5));
+            };
+        ''')
+
+        for _ in range(10):
+            async with self._run_and_rollback():
+                try:
+                    await self.con.execute('''
+                        insert Bar { r := random() };
+                    ''')
+                except edgedb.AccessPolicyError:
+                    # If it failed, nothing to do, keep trying
+                    pass
+                else:
+                    r = (await self.con.query('''
+                        select Bar.r
+                    '''))[0]
+                    self.assertGreater(r, 0.5)
+
+        await self.con.execute('''
+            insert Bar { r := 1.0 };
+        ''')
+        for _ in range(10):
+            async with self._run_and_rollback():
+                try:
+                    await self.con.execute('''
+                        update Bar set { r := random() };
+                    ''')
+                except edgedb.AccessPolicyError:
+                    # If it failed, nothing to do, keep trying
+                    pass
+                else:
+                    r = (await self.con.query('''
+                        select Bar.r
+                    '''))[0]
+                    self.assertGreater(r, 0.5)
+
     async def test_edgeql_policies_messages(self):
         await self.con.execute(
             '''
@@ -1019,4 +1107,72 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
         await self.assert_query_result(
             r'''select X''',
             [{}],
+        )
+
+    async def test_edgeql_policies_function_01(self):
+        await self.con.execute('''
+            set global filter_owned := true;
+        ''')
+        await self.assert_query_result(
+            r'''select (count(Issue), count_Issue())''',
+            [(0, 0)],
+        )
+
+        await self.con.execute('''
+            configure session set apply_access_policies := false;
+        ''')
+        await self.assert_query_result(
+            r'''select (count(Issue), count_Issue())''',
+            [(4, 4)],
+        )
+
+    async def test_edgeql_policies_complex_01(self):
+        await self.migrate(
+            """
+            abstract type Auditable {
+                access policy auditable_default
+                    allow all ;
+                access policy auditable_prohibit_hard_deletes
+                    deny delete  {
+                        errmessage := 'hard deletes are disallowed';
+                    };
+                delegated constraint std::expression on
+                    ((.updated_at >= .created_at))
+                    except (NOT (EXISTS (.updated_at)));
+                delegated constraint std::expression on
+                    ((.deleted_at > .created_at))
+                    except (NOT (EXISTS (.deleted_at)));
+                required property created_at: std::datetime {
+                    default := (std::datetime_of_statement());
+                    readonly := true;
+                };
+                property deleted_at: std::datetime;
+                required property uid: std::str {
+                    default := <str>random();
+                    readonly := true;
+                    constraint std::exclusive;
+                };
+                property updated_at: std::datetime {
+                    rewrite
+                        update
+                        using (std::datetime_of_statement());
+                };
+            };
+            type Avatar extending default::Auditable {
+                link owner := (.<avatar[is default::Member]);
+                required property url: std::str;
+            };
+            type Member extending default::Auditable {
+                link avatar: default::Avatar {
+                    on source delete delete target if orphan;
+                    on target delete allow;
+                    constraint std::exclusive;
+                };
+            };
+            """
+        )
+        await self.con.execute(
+            '''
+            update Avatar set {deleted_at:=datetime_of_statement()};
+            '''
         )

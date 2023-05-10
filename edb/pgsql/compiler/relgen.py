@@ -102,7 +102,7 @@ def new_stmt_set_rvar(
     if aspects is not None:
         aspects = tuple(aspects)
     else:
-        aspects = pathctx.list_path_aspects(stmt, ir_set.path_id, env=ctx.env)
+        aspects = pathctx.list_path_aspects(stmt, ir_set.path_id)
     return new_simple_set_rvar(ir_set, rvar, aspects=aspects)
 
 
@@ -246,7 +246,6 @@ def get_set_rvar(
                 path_id,
                 result_rvar,
                 aspect=aspect,
-                env=ctx.env,
             )
 
     return result_rvar
@@ -297,7 +296,6 @@ def _process_toplevel_query(
                 ir_set.path_id,
                 result_rvar,
                 aspect=aspect,
-                env=ctx.env,
             )
     else:
         result_rvar = rvars.main.rvar
@@ -446,9 +444,9 @@ def ensure_source_rvar(
             else:
                 rvar = relctx.new_root_rvar(ir_set, lateral=True, ctx=ctx)
                 relctx.include_rvar(
-                    scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx)
-            pathctx.put_path_rvar(
-                stmt, ir_set.path_id, rvar, aspect='source', env=ctx.env)
+                    scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx
+                )
+            pathctx.put_path_rvar(stmt, ir_set.path_id, rvar, aspect='source')
 
     return rvar
 
@@ -662,8 +660,8 @@ def finalize_optional_rel(
 
         for aspect in rvars.main.aspects:
             pathctx.put_path_rvar_if_not_exists(
-                setrel, ir_set.path_id, rvars.main.rvar,
-                aspect=aspect, env=subctx.env)
+                setrel, ir_set.path_id, rvars.main.rvar, aspect=aspect
+            )
 
         lvar = pathctx.get_path_value_var(
             setrel, path_id=ir_set.path_id, env=subctx.env)
@@ -769,7 +767,8 @@ def process_set_as_link_property_ref(
             src_rvar, ir_source.path_id, aspect='value', env=ctx.env)
 
         pathctx.put_rvar_path_output(
-            src_rvar, ir_set.path_id, aspect='value', var=val, env=ctx.env)
+            src_rvar, ir_set.path_id, aspect='value', var=val
+        )
 
         return SetRVars(
             main=SetRVar(rvar=src_rvar, path_id=ir_set.path_id), new=[])
@@ -796,7 +795,8 @@ def process_set_as_link_property_ref(
             ir_source.path_id, ctx=newctx)
 
         link_rvar = pathctx.maybe_get_path_rvar(
-            source_scope_stmt, link_path_id, aspect='source', env=ctx.env)
+            source_scope_stmt, link_path_id, aspect='source'
+        )
 
         if link_rvar is None:
             src_rvar = get_set_rvar(ir_source, ctx=newctx)
@@ -828,7 +828,7 @@ def process_set_as_link_property_ref(
                     assert isinstance(rvar, pgast.PathRangeVar)
                     if ptr_ids is None or rvar.schema_object_id in ptr_ids:
                         pathctx.put_path_source_rvar(
-                            subquery, orig_link_path_id, rvar, env=ctx.env
+                            subquery, orig_link_path_id, rvar
                         )
                         continue
                 # Spare get_path_var() from attempting to rebalance
@@ -844,7 +844,6 @@ def process_set_as_link_property_ref(
                                 ir_set.typeref),
                         ),
                     ),
-                    env=ctx.env,
                 )
 
         rvars.append(SetRVar(
@@ -938,7 +937,6 @@ def process_set_as_path_type_intersection(
                 ir_source.path_id,
                 source_rvar,
                 aspect=aspect,
-                env=ctx.env,
             )
 
             pathctx.put_path_rvar(
@@ -946,7 +944,6 @@ def process_set_as_path_type_intersection(
                 ir_set.path_id,
                 int_rvar,
                 aspect=aspect,
-                env=ctx.env,
             )
 
     return new_stmt_set_rvar(
@@ -1129,6 +1126,14 @@ def process_set_as_path(
             # If this is a link that is stored inline, make sure
             # the source aspect is actually accessible (not just value).
             src_rvar = ensure_source_rvar(ir_source, stmt, ctx=ctx)
+            # In case the source is visible (so the codepath below
+            # that uses the current statement doesn't trigger) but the
+            # source aspect wasn't available, make sure we include it
+            # in our return. This can come up with __old__ in triggers.
+            if source_is_visible:
+                rvars.append(SetRVar(
+                    src_rvar, path_id=ir_source.path_id, aspects=['source']
+                ))
         else:
             aspects = ['value', 'source']
             src_rvar = get_set_rvar(ir_source, ctx=ctx)
@@ -1195,8 +1200,7 @@ def _new_subquery_stmt_set_rvar(
     *,
     ctx: context.CompilerContextLevel,
 ) -> SetRVars:
-    aspects = pathctx.list_path_aspects(
-        stmt, ir_set.path_id, env=ctx.env)
+    aspects = pathctx.list_path_aspects(stmt, ir_set.path_id)
     if ir_set.path_id.is_tuple_path():
         # If we are wrapping a tuple expression, make sure not to
         # over-represent it in terms of the exposed aspects.
@@ -1404,8 +1408,7 @@ def process_set_as_subquery(
     # If the inner set also exposes a pointer path source, we need to
     # also expose a pointer path source. See tests like
     # test_edgeql_select_linkprop_rebind_01
-    if pathctx.maybe_get_path_rvar(
-            stmt, inner_id.ptr_path(), aspect='source', env=ctx.env):
+    if pathctx.maybe_get_path_rvar(stmt, inner_id.ptr_path(), aspect='source'):
         rvars.new.append(
             SetRVar(
                 rvars.main.rvar,
@@ -1510,7 +1513,7 @@ def process_set_as_membership_expr(
                     set_expr, pgast.BooleanConstant(val=empty_val)])
 
             pathctx.put_path_value_var_if_not_exists(
-                ctx.rel, ir_set.path_id, set_expr, env=ctx.env
+                ctx.rel, ir_set.path_id, set_expr
             )
 
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
@@ -1540,10 +1543,9 @@ def process_set_as_setop(
             pathctx.put_path_id_map(rarg, ir_set.path_id, right.path_id)
             dispatch.visit(right, ctx=scopectx)
 
-    aspects = (
-        pathctx.list_path_aspects(larg, left.path_id, env=ctx.env)
-        & pathctx.list_path_aspects(rarg, right.path_id, env=ctx.env)
-    )
+    aspects = pathctx.list_path_aspects(
+        larg, left.path_id
+    ) & pathctx.list_path_aspects(rarg, right.path_id)
 
     with ctx.subrel() as subctx:
         subqry = subctx.rel
@@ -1646,7 +1648,6 @@ def process_set_as_ifelse(
                 subctx.rel,
                 ir_set.path_id,
                 set_expr,
-                env=ctx.env,
             )
             sub_rvar = relctx.rvar_for_rel(
                 subctx.rel,
@@ -1689,10 +1690,9 @@ def process_set_as_ifelse(
                 astutils.new_unop('NOT', condref)
             )
 
-        aspects = (
-            pathctx.list_path_aspects(larg, if_expr.path_id, env=ctx.env)
-            & pathctx.list_path_aspects(rarg, else_expr.path_id, env=ctx.env)
-        )
+        aspects = pathctx.list_path_aspects(
+            larg, if_expr.path_id
+        ) & pathctx.list_path_aspects(rarg, else_expr.path_id)
 
         with ctx.subrel() as subctx:
             subqry = subctx.rel
@@ -1744,7 +1744,6 @@ def process_set_as_coalesce(
                 ctx.rel,
                 ir_set.path_id,
                 set_expr,
-                env=newctx.env,
             )
 
         elif right_card is qltypes.Cardinality.AT_MOST_ONE and not is_object:
@@ -1776,7 +1775,8 @@ def process_set_as_coalesce(
                 set_expr = pgast.CoalesceExpr(args=[left, right])
 
                 pathctx.put_path_value_var_if_not_exists(
-                    subctx.rel, ir_set.path_id, set_expr, env=ctx.env)
+                    subctx.rel, ir_set.path_id, set_expr
+                )
 
                 sub_rvar = relctx.rvar_for_rel(
                     subctx.rel,
@@ -1892,11 +1892,9 @@ def process_set_as_coalesce(
                     )
                 )
 
-            aspects = (
-                pathctx.list_path_aspects(larg, left_ir.path_id, env=ctx.env)
-                & pathctx.list_path_aspects(
-                    rarg, right_ir.path_id, env=ctx.env)
-            )
+            aspects = pathctx.list_path_aspects(
+                larg, left_ir.path_id
+            ) & pathctx.list_path_aspects(rarg, right_ir.path_id)
 
             subrvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=newctx)
 
@@ -1954,7 +1952,8 @@ def process_set_as_tuple(
 
             el_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
             aspects = pathctx.list_path_aspects(
-                newctx.rel, element.val.path_id, env=ctx.env)
+                newctx.rel, element.val.path_id
+            )
             # update_mask=False because we are doing this solely to remap
             # elements individually and don't want to affect the mask.
             relctx.include_rvar(
@@ -1981,8 +1980,7 @@ def process_set_as_tuple(
                 stmt, element.val.path_id,
                 aspect='serialized', env=subctx.env)
             if var is not None:
-                pathctx.put_path_var(stmt, path_id, var,
-                                     aspect='serialized', env=subctx.env)
+                pathctx.put_path_var(stmt, path_id, var, aspect='serialized')
 
         set_expr = pgast.TupleVarBase(
             elements=elements,
@@ -1991,7 +1989,7 @@ def process_set_as_tuple(
         )
 
     relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
-    pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
+    pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr)
 
     # This is an unfortunate hack. If any of those types that we
     # contain are an object, then force the computation of the
@@ -2058,7 +2056,8 @@ def process_set_as_tuple_indirection(
             )
 
             pathctx.put_path_var_if_not_exists(
-                stmt, ir_set.path_id, set_expr, aspect='value', env=subctx.env)
+                stmt, ir_set.path_id, set_expr, aspect='value'
+            )
 
             rvar = relctx.new_rel_rvar(ir_set, stmt, ctx=subctx)
 
@@ -2107,12 +2106,12 @@ def process_set_as_type_cast(
                         env=subctx.env)
 
                 pathctx.put_path_value_var(
-                    stmt, inner_set.path_id, serialized,
-                    force=True, env=subctx.env)
+                    stmt, inner_set.path_id, serialized, force=True
+                )
 
                 pathctx.put_path_serialized_var(
-                    stmt, inner_set.path_id, serialized,
-                    force=True, env=subctx.env)
+                    stmt, inner_set.path_id, serialized, force=True
+                )
 
             subctx.env.output_format = orig_output_format
         else:
@@ -2126,8 +2125,7 @@ def process_set_as_type_cast(
             # populated above.
             stmt.view_path_id_map.pop(ir_set.path_id)
 
-    pathctx.put_path_value_var_if_not_exists(
-        stmt, ir_set.path_id, set_expr, env=ctx.env)
+    pathctx.put_path_value_var_if_not_exists(stmt, ir_set.path_id, set_expr)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
@@ -2188,7 +2186,7 @@ def process_set_as_oper_expr(
         oper_expr = exprcomp.compile_operator(expr, args, ctx=newctx)
 
     pathctx.put_path_value_var_if_not_exists(
-        ctx.rel, ir_set.path_id, oper_expr, env=ctx.env
+        ctx.rel, ir_set.path_id, oper_expr
     )
 
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
@@ -2212,9 +2210,7 @@ def process_set_as_expr(
         assert ir_set.expr is not None
         set_expr = dispatch.compile(ir_set.expr, ctx=newctx)
 
-    pathctx.put_path_value_var_if_not_exists(
-        ctx.rel, ir_set.path_id, set_expr, env=ctx.env
-    )
+    pathctx.put_path_value_var_if_not_exists(ctx.rel, ir_set.path_id, set_expr)
 
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
 
@@ -2236,7 +2232,7 @@ def process_set_as_singleton_assertion(
         # If the argument has been statically proven to be a singleton,
         # elide the entire assertion.
         arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
-        pathctx.put_path_value_var(stmt, ir_set.path_id, arg_ref, env=ctx.env)
+        pathctx.put_path_value_var(stmt, ir_set.path_id, arg_ref)
         pathctx.put_path_id_map(stmt, ir_set.path_id, ir_arg_set.path_id)
         return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
@@ -2309,12 +2305,12 @@ def process_set_as_singleton_assertion(
         )
 
         pathctx.put_path_var_if_not_exists(
-            newctx.rel, ir_set.path_id, arg_val, aspect='value', env=ctx.env)
+            newctx.rel, ir_set.path_id, arg_val, aspect='value'
+        )
 
         pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg_set.path_id)
 
-    aspects = pathctx.list_path_aspects(
-        newctx.rel, ir_arg_set.path_id, env=ctx.env)
+    aspects = pathctx.list_path_aspects(newctx.rel, ir_arg_set.path_id)
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
                         aspects=aspects, ctx=ctx)
@@ -2340,7 +2336,7 @@ def process_set_as_existence_assertion(
         # If the argument has been statically proven to be non empty,
         # elide the entire assertion.
         arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
-        pathctx.put_path_value_var(stmt, ir_set.path_id, arg_ref, env=ctx.env)
+        pathctx.put_path_value_var(stmt, ir_set.path_id, arg_ref)
         pathctx.put_path_id_map(stmt, ir_set.path_id, ir_arg_set.path_id)
         return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
@@ -2384,7 +2380,6 @@ def process_set_as_existence_assertion(
             ir_arg_set.path_id,
             set_expr,
             force=True,
-            env=newctx.env,
         )
         other_aspect = (
             'identity' if ir_set.path_id.is_objtype_path() else 'serialized')
@@ -2394,7 +2389,6 @@ def process_set_as_existence_assertion(
             set_expr,
             force=True,
             aspect=other_aspect,
-            env=newctx.env,
         )
 
     # It is important that we do not provide source, which could allow
@@ -2426,9 +2420,7 @@ def process_set_as_multiplicity_assertion(
         # If the argument has been statically proven to be distinct,
         # elide the entire assertion.
         arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
-        pathctx.put_path_value_var(
-            ctx.rel, ir_set.path_id, arg_ref, env=ctx.env
-        )
+        pathctx.put_path_value_var(ctx.rel, ir_set.path_id, arg_ref)
         pathctx.put_path_id_map(ctx.rel, ir_set.path_id, ir_arg_set.path_id)
         return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
 
@@ -2458,8 +2450,7 @@ def process_set_as_multiplicity_assertion(
             arg_val = output.output_as_value(arg_ref, env=newctx.env)
             sub_rvar = relctx.new_rel_rvar(ir_arg_set, subctx.rel, ctx=subctx)
 
-            aspects = pathctx.list_path_aspects(
-                subctx.rel, ir_arg_set.path_id, env=ctx.env)
+            aspects = pathctx.list_path_aspects(subctx.rel, ir_arg_set.path_id)
             relctx.include_rvar(
                 newctx.rel, sub_rvar, ir_arg_set.path_id,
                 aspects=aspects, ctx=subctx,
@@ -2541,7 +2532,6 @@ def process_set_as_multiplicity_assertion(
             ir_set.path_id,
             check_expr,
             aspect='value',
-            env=ctx.env,
         )
 
         if newctx.rel.sort_clause is None:
@@ -2616,20 +2606,27 @@ def process_set_as_simple_enumerate(
 
         for element in set_expr.elements:
             pathctx.put_path_value_var(
-                newctx.rel, element.path_id, element.val, env=newctx.env)
+                newctx.rel, element.path_id, element.val
+            )
 
         var = pathctx.maybe_get_path_var(
             newctx.rel, ir_arg.path_id,
             aspect='serialized', env=newctx.env)
         if var is not None:
-            pathctx.put_path_var(newctx.rel, set_expr.elements[1].path_id, var,
-                                 aspect='serialized', env=newctx.env)
+            pathctx.put_path_var(
+                newctx.rel,
+                set_expr.elements[1].path_id,
+                var,
+                aspect='serialized',
+            )
 
         pathctx.put_path_var_if_not_exists(
-            newctx.rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
+            newctx.rel, ir_set.path_id, set_expr, aspect='value'
+        )
 
-    aspects = pathctx.list_path_aspects(
-        newctx.rel, ir_arg.path_id, env=ctx.env) | {'source'}
+    aspects = pathctx.list_path_aspects(newctx.rel, ir_arg.path_id) | {
+        'source'
+    }
 
     pathctx.put_path_id_map(newctx.rel, expr.tuple_path_ids[1], ir_arg.path_id)
 
@@ -2849,7 +2846,7 @@ def process_set_as_std_range(
         defresult=non_empty_range,
     )
 
-    pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr, env=ctx.env)
+    pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr)
 
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
 
@@ -2961,15 +2958,13 @@ def _process_set_func_with_ordinality(
     )
 
     for element in set_expr.elements:
-        pathctx.put_path_value_var(
-            ctx.rel, element.path_id, element.val, env=ctx.env)
+        pathctx.put_path_value_var(ctx.rel, element.path_id, element.val)
 
     if arg_is_tuple:
         arg_tuple = set_expr.elements[1].val
         assert isinstance(arg_tuple, pgast.TupleVar)
         for element in arg_tuple.elements:
-            pathctx.put_path_value_var(
-                ctx.rel, element.path_id, element.val, env=ctx.env)
+            pathctx.put_path_value_var(ctx.rel, element.path_id, element.val)
 
     # If there is a shape specified on the argument to enumerate, we need
     # to compile it here manually, since we are skipping the normal
@@ -2982,8 +2977,9 @@ def _process_set_func_with_ordinality(
     var = pathctx.maybe_get_path_var(
         ctx.rel, ir_set.path_id, aspect='serialized', env=ctx.env)
     if var is not None:
-        pathctx.put_path_var(ctx.rel, set_expr.elements[1].path_id, var,
-                             aspect='serialized', env=ctx.env)
+        pathctx.put_path_var(
+            ctx.rel, set_expr.elements[1].path_id, var, aspect='serialized'
+        )
 
     return set_expr
 
@@ -3061,7 +3057,8 @@ def _process_set_func(
 
         for element in set_expr.elements:
             pathctx.put_path_value_var_if_not_exists(
-                ctx.rel, element.path_id, element.val, env=ctx.env)
+                ctx.rel, element.path_id, element.val
+            )
 
     return set_expr
 
@@ -3078,7 +3075,8 @@ def _compile_func_epilogue(
         relctx.apply_volatility_ref(func_rel, ctx=ctx)
 
     pathctx.put_path_var_if_not_exists(
-        func_rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
+        func_rel, ir_set.path_id, set_expr, aspect='value'
+    )
 
     aspects: Tuple[str, ...] = ('value',)
 
@@ -3382,7 +3380,6 @@ def process_set_as_agg_expr_inner(
                             ctx.rel,
                             ir_arg.path_id,
                             aspect='value',
-                            env=argctx.env,
                         )
                         query = qrvar.query
                         assert isinstance(query, pgast.SelectStmt)
@@ -3482,9 +3479,7 @@ def process_set_as_agg_expr_inner(
             with ctx.new() as ivctx:
                 iv = dispatch.compile(iv_ir, ctx=ivctx)
 
-        pathctx.put_path_var(
-            stmt, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env
-        )
+        pathctx.put_path_var(stmt, ir_set.path_id, set_expr, aspect=aspect)
         out = pathctx.get_path_output(
             stmt, ir_set.path_id, aspect=aspect, env=ctx.env
         )
@@ -3502,19 +3497,18 @@ def process_set_as_agg_expr_inner(
         set_expr = pgast.CoalesceExpr(
             args=[val, iv], ser_safe=serialization_safe)
 
-        pathctx.put_path_var(
-            wrapper, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env)
+        pathctx.put_path_var(wrapper, ir_set.path_id, set_expr, aspect=aspect)
         stmt = wrapper
 
     pathctx.put_path_var_if_not_exists(
-        stmt, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env
+        stmt, ir_set.path_id, set_expr, aspect=aspect
     )
     # Cheat a little bit: as discussed above, pretend the serialized
     # value is also really a value. Eta-expansion should ensure this
     # only happens when we don't really need the value again.
     if aspect == 'serialized':
         pathctx.put_path_var_if_not_exists(
-            stmt, ir_set.path_id, set_expr, aspect='value', env=ctx.env
+            stmt, ir_set.path_id, set_expr, aspect='value'
         )
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
@@ -3571,17 +3565,15 @@ def process_set_as_exists_expr(
         ir_expr = expr.args[0].expr
         set_ref = dispatch.compile(ir_expr, ctx=subctx)
 
-        pathctx.put_path_value_var(
-            wrapper, ir_set.path_id, set_ref, env=ctx.env)
-        pathctx.get_path_value_output(
-            wrapper, ir_set.path_id, env=ctx.env)
+        pathctx.put_path_value_var(wrapper, ir_set.path_id, set_ref)
+        pathctx.get_path_value_output(wrapper, ir_set.path_id, env=ctx.env)
 
         wrapper.where_clause = astutils.extend_binop(
             wrapper.where_clause, pgast.NullTest(arg=set_ref, negated=True))
 
         set_expr = pgast.SubLink(operator="EXISTS", expr=wrapper)
 
-    pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr, env=ctx.env)
+    pathctx.put_path_value_var(ctx.rel, ir_set.path_id, set_expr)
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
 
 
@@ -3620,9 +3612,7 @@ def process_set_as_json_object_pack(
 
     # declare that the 'aspect=value' of ir_set (original set)
     # can be found by in ctx.rel, by using set_expr
-    pathctx.put_path_value_var_if_not_exists(
-        ctx.rel, ir_set.path_id, set_expr, env=ctx.env
-    )
+    pathctx.put_path_value_var_if_not_exists(ctx.rel, ir_set.path_id, set_expr)
 
     # return subquery as set_rvar
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
@@ -3709,15 +3699,11 @@ def process_set_as_array_expr(
                 )
             )
 
-        pathctx.put_path_serialized_var(
-            ctx.rel, ir_set.path_id, set_expr, env=ctx.env
-        )
+        pathctx.put_path_serialized_var(ctx.rel, ir_set.path_id, set_expr)
     else:
         set_expr = build_array_expr(expr, elements, ctx=ctx)
 
-    pathctx.put_path_value_var_if_not_exists(
-        ctx.rel, ir_set.path_id, set_expr, env=ctx.env
-    )
+    pathctx.put_path_value_var_if_not_exists(ctx.rel, ir_set.path_id, set_expr)
 
     return new_stmt_set_rvar(ir_set, ctx.rel, ctx=ctx)
 
@@ -3741,7 +3727,8 @@ def process_encoded_param(
             # from a subquery below.
             arg_val = output.output_as_value(arg_ref, env=sctx.env)
             pathctx.put_path_value_var(
-                sctx.rel, decoder.path_id, arg_val, env=sctx.env, force=True)
+                sctx.rel, decoder.path_id, arg_val, force=True
+            )
 
             param_cte = pgast.CommonTableExpr(
                 name=ctx.env.aliases.get('p'),

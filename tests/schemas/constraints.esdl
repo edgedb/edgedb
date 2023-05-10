@@ -70,8 +70,8 @@ scalar type constraint_my_enum extending str {
 
 
 abstract link translated_label {
-    property lang -> str;
-    property prop1 -> str;
+    lang: str;
+    prop1: str;
 }
 
 abstract link link_with_unique_property {
@@ -103,6 +103,9 @@ type Object {
     property c_length_2 -> constraint_length_2;
     property c_length_3 -> constraint_length_2 {
         constraint min_len_value(10);
+    }
+    property c_one_of -> str {
+        constraint one_of('foo', 'bar');
     }
 
     property c_minmax -> constraint_minmax;

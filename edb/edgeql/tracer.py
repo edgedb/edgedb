@@ -510,7 +510,7 @@ def alias_context(
 @contextmanager
 def result_alias_context(
     ctx: TracerContext,
-    node: Union[qlast.ReturningMixin, qlast.SubjectMixin],
+    node: Union[qlast.ReturningQuery, qlast.SubjectQuery],
     obj: Optional[ObjectLike],
 ) -> Generator[TracerContext, None, None]:
 
@@ -1186,6 +1186,14 @@ def trace_DescribeStmt(
 @trace.register
 def trace_ExplainStmt(
     node: qlast.ExplainStmt, *,
+    ctx: TracerContext,
+) -> None:
+    pass
+
+
+@trace.register
+def trace_AdministerStmt(
+    node: qlast.AdministerStmt, *,
     ctx: TracerContext,
 ) -> None:
     pass

@@ -2863,7 +2863,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
         })
 
     def test_graphql_mutation_update_link_03(self):
-        # test set ops for update
+        # test set ops for update of multi link
         self.assert_graphql_query_result(r"""
             mutation update_User {
                 update_User(
@@ -2962,6 +2962,351 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             }]
         })
 
+    def test_graphql_mutation_update_link_04(self):
+        # test set ops for update of multi link with singleton values
+        # (omitting the wrapping [...])
+        self.assert_graphql_query_result(r"""
+            mutation update_User {
+                update_User(
+                    filter: {
+                        name: {eq: "Jane"}
+                    },
+                    data: {
+                        groups: {
+                            add: {
+                                filter: {
+                                    name: {eq: "basic"}
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    name
+                    groups(order: {name: {dir: ASC}}) {
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_User": [{
+                'name': 'Jane',
+                'groups': [{
+                    'name': 'basic'
+                }, {
+                    'name': 'upgraded'
+                }],
+            }]
+        })
+
+        # add an existing group
+        self.assert_graphql_query_result(r"""
+            mutation update_User {
+                update_User(
+                    filter: {
+                        name: {eq: "Jane"}
+                    },
+                    data: {
+                        groups: {
+                            add: {
+                                filter: {
+                                    name: {eq: "basic"}
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    name
+                    groups(order: {name: {dir: ASC}}) {
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_User": [{
+                'name': 'Jane',
+                'groups': [{
+                    'name': 'basic'
+                }, {
+                    'name': 'upgraded'
+                }],
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_User {
+                update_User(
+                    filter: {
+                        name: {eq: "Jane"}
+                    },
+                    data: {
+                        groups: {
+                            remove: {
+                                filter: {
+                                    name: {eq: "basic"}
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    name
+                    groups(order: {name: {dir: ASC}}) {
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_User": [{
+                'name': 'Jane',
+                'groups': [{
+                    'name': 'upgraded'
+                }],
+            }]
+        })
+
+        # set a specific group
+        self.assert_graphql_query_result(r"""
+            mutation update_User {
+                update_User(
+                    filter: {
+                        name: {eq: "Jane"}
+                    },
+                    data: {
+                        groups: {
+                            set: {
+                                filter: {
+                                    name: {eq: "unused"}
+                                }
+                            }
+                        }
+                    }
+                ) {
+                    name
+                    groups(order: {name: {dir: ASC}}) {
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_User": [{
+                'name': 'Jane',
+                'groups': [{
+                    'name': 'unused'
+                }],
+            }]
+        })
+
+    def test_graphql_mutation_update_link_05(self):
+        # updating a single link
+        orig_data = {
+            'name': 'Alice',
+            'profile': {
+                'name': 'Alice profile'
+            },
+        }
+        data1 = {
+            'name': 'Alice',
+            'profile': None,
+        }
+
+        validation_query = r"""
+            query {
+                User(
+                    filter: {
+                        name: {eq: "Alice"}
+                    }
+                ) {
+                    name
+                    profile {
+                        name
+                    }
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(validation_query, {
+            "User": [orig_data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_User {
+                update_User(
+                    data: {
+                        profile: {
+                            clear: true
+                        }
+                    },
+                    filter: {
+                        name: {eq: "Alice"}
+                    }
+                ) {
+                    name
+                    profile {
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_User": [data1]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "User": [data1]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_User {
+                update_User(
+                    data: {
+                        profile: {
+                            set: {
+                                filter: {
+                                    name: {eq: "Alice profile"}
+                                }
+                            }
+                        }
+                    },
+                    filter: {
+                        name: {eq: "Alice"}
+                    }
+                ) {
+                    name
+                    profile {
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_User": [orig_data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "User": [orig_data]
+        })
+
+    def test_graphql_mutation_update_link_06(self):
+        # updating a single link targeting a type union
+        orig_data = {
+            'name': 'combo 0',
+            'data': None,
+        }
+        data1 = {
+            'name': 'combo 0',
+            'data': {
+                "__typename": "Setting_Type",
+                "name": "perks",
+            },
+        }
+        data2 = {
+            'name': 'combo 0',
+            'data': {
+                "__typename": "Profile_Type",
+                "name": "Bob profile",
+            },
+        }
+
+        validation_query = r"""
+            query {
+                Combo(
+                    filter: {name: {eq: "combo 0"}}
+                ) {
+                    name
+                    data {
+                        __typename
+                        name
+                    }
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(validation_query, {
+            "Combo": [orig_data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_Combo {
+                update_Combo(
+                    data: {
+                        data: {
+                            set: {
+                                filter: {name: {eq: "perks"}}
+                            }
+                        }
+                    },
+                    filter: {
+                        name: {eq: "combo 0"}
+                    }
+                ) {
+                    name
+                    data {
+                        __typename
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_Combo": [data1]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "Combo": [data1]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_Combo {
+                update_Combo(
+                    data: {
+                        data: {
+                            set: {
+                                filter: {name: {eq: "Bob profile"}}
+                            }
+                        }
+                    },
+                    filter: {
+                        name: {eq: "combo 0"}
+                    }
+                ) {
+                    name
+                    data {
+                        __typename
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_Combo": [data2]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "Combo": [data2]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_Combo {
+                update_Combo(
+                    data: {
+                        data: {
+                            clear: true
+                        }
+                    },
+                    filter: {
+                        name: {eq: "combo 0"}
+                    }
+                ) {
+                    name
+                    data {
+                        __typename
+                        name
+                    }
+                }
+            }
+        """, {
+            "update_Combo": [orig_data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "Combo": [orig_data]
+        })
+
     def test_graphql_mutation_update_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -2976,6 +3321,52 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     ) {
                         name
                         value
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_update_bad_02(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"No update operation was specified"):
+            self.graphql_query(r"""
+                mutation update_User {
+                    update_User(
+                        data: {
+                            groups: {
+                            }
+                        }
+                    ) {
+                        name
+                        groups {
+                            name
+                        }
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_update_bad_03(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"Too many update operations were specified"):
+            self.graphql_query(r"""
+                mutation update_User {
+                    update_User(
+                        data: {
+                            groups: {
+                                set: {
+                                    filter: {
+                                        name: {like: "%"}
+                                    }
+                                },
+                                clear: true
+                            }
+                        }
+                    ) {
+                        name
+                        groups {
+                            name
+                        }
                     }
                 }
             """)

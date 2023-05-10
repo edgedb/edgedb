@@ -144,6 +144,37 @@ def compile_pol(
         return dispatch.compile(expr, ctx=dctx)
 
 
+def get_extra_function_rewrite_filter(ctx: context.ContextLevel) -> qlast.Expr:
+    # Functions need to check whether access policies are disabled,
+    # which is signalled through a field in globals json object.
+    # It's only populated when policies are disabled.
+    #
+    # We could also have done this by checking
+    # cfg::Config.apply_access_policies, but that's probably slower,
+    # and we have this mechanism anyway.
+    json_type = qlast.TypeName(maintype=qlast.ObjectRef(
+        module='__std__', name='json'))
+    glob_set = setgen.get_func_global_json_arg(ctx=ctx)
+    func_override = qlast.FunctionCall(
+        func=('__std__', 'json_get'),
+        args=[
+            ctx.create_anchor(glob_set, 'a'),
+            qlast.StringConstant(value="__disable_access_policies"),
+        ],
+        kwargs={
+            'default': qlast.TypeCast(
+                expr=qlast.BooleanConstant(value="false"),
+                type=json_type,
+            )
+        },
+    )
+    return qlast.TypeCast(
+        expr=func_override,
+        type=qlast.TypeName(maintype=qlast.ObjectRef(
+            module='__std__', name='bool'))
+    )
+
+
 def get_rewrite_filter(
     stype: s_objtypes.ObjectType, *,
     mode: qltypes.AccessKind,
@@ -162,13 +193,16 @@ def get_rewrite_filter(
             continue
 
         ir_set = compile_pol(pol, ctx=ctx)
-        expr = ctx.create_anchor(ir_set)
+        expr: qlast.Expr = ctx.create_anchor(ir_set)
 
         is_allow = pol.get_action(schema) == qltypes.AccessPolicyAction.Allow
         if is_allow:
             allow.append(expr)
         else:
             deny.append(expr)
+
+    if ctx.env.options.func_params is not None:
+        allow.append(get_extra_function_rewrite_filter(ctx))
 
     if allow:
         filter_expr = astutils.extend_binop(None, *allow, op='OR')

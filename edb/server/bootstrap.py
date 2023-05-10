@@ -513,6 +513,34 @@ def _get_schema_object_ids(delta: sd.Command) -> Mapping[
     return schema_object_ids
 
 
+def prepare_repair_patch(
+    stdschema: s_schema.Schema,
+    reflschema: s_schema.Schema,
+    userschema: s_schema.Schema,
+    globalschema: s_schema.Schema,
+    schema_class_layout: s_refl.SchemaClassLayout,
+    backend_params: params.BackendRuntimeParams,
+    config: Any,
+) -> tuple[bytes, ...]:
+    compiler = edbcompiler.new_compiler(
+        std_schema=stdschema,
+        reflection_schema=reflschema,
+        schema_class_layout=schema_class_layout
+    )
+
+    compilerctx = edbcompiler.new_compiler_context(
+        compiler_state=compiler.state,
+        global_schema=globalschema,
+        user_schema=userschema,
+    )
+    res = edbcompiler.repair_schema(compilerctx)
+    if not res:
+        return ()
+    sql, _, _ = res
+
+    return sql
+
+
 def prepare_patch(
     num: int,
     kind: str,
@@ -520,8 +548,8 @@ def prepare_patch(
     schema: s_schema.Schema,
     reflschema: s_schema.Schema,
     schema_class_layout: s_refl.SchemaClassLayout,
-    backend_params: params.BackendRuntimeParams
-) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, Any]]:
+    backend_params: params.BackendRuntimeParams,
+) -> tuple[tuple[str, ...], tuple[str, ...], dict[str, Any], bool]:
     val = f'{pg_common.quote_literal(json.dumps(num + 1))}::jsonb'
     # TODO: This is an INSERT because 2.0 shipped without num_patches.
     # We can just make this an UPDATE for 3.0
@@ -534,7 +562,11 @@ def prepare_patch(
 
     # Pure SQL patches are simple
     if kind == 'sql':
-        return (patch, update), (), {}
+        return (patch, update), (), {}, False
+
+    if kind == 'repair':
+        assert not patch
+        return (update,), (), {}, True
 
     # EdgeQL and reflection schema patches need to be compiled.
     current_block = dbops.PLTopBlock()
@@ -605,13 +637,32 @@ def prepare_patch(
 
         # This part is wildly hinky
         # We need to delete all the support views and recreate them at the end
-        support_view_commands = metaschema.get_support_views(
-            reflschema, backend_params)
-        for cv in reversed(list(support_view_commands)):
-            dv = dbops.DropView(
-                cv.view.name,
-                conditions=[dbops.ViewExists(cv.view.name)],
+        support_view_commands = dbops.CommandGroup()
+        support_view_commands.add_commands([
+            dbops.CreateView(view)
+            for view in metaschema._generate_schema_alias_views(
+                reflschema, sn.UnqualName('schema')
             )
+        ])
+        support_view_commands.add_commands(
+            metaschema._generate_sql_information_schema())
+
+        for cv in reversed(list(support_view_commands)):
+            dv: Any
+            if isinstance(cv, dbops.CreateView):
+                dv = dbops.DropView(
+                    cv.view.name,
+                    conditions=[dbops.ViewExists(cv.view.name)],
+                )
+            elif isinstance(cv, dbops.CreateFunction):
+                dv = dbops.DropFunction(
+                    cv.function.name,
+                    args=cv.function.args or (),
+                    has_variadic=bool(cv.function.has_variadic),
+                    if_exists=True,
+                )
+            else:
+                raise AssertionError(f'unsupported support view command {cv}')
             dv.generate(preblock)
 
         support_view_commands.generate(subblock)
@@ -671,7 +722,7 @@ def prepare_patch(
                 DO UPDATE SET text = {val};
             ''',)
 
-    return (patch, update), sys_updates, updates
+    return (patch, update), sys_updates, updates, False
 
 
 class StdlibBits(NamedTuple):
@@ -716,7 +767,8 @@ async def _make_stdlib(
         std_texts.append(s_std.get_std_module_text(modname))
 
     if testmode:
-        std_texts.append(s_std.get_std_module_text(sn.UnqualName('_testmode')))
+        for modname in s_schema.TESTMODE_SOURCES:
+            std_texts.append(s_std.get_std_module_text(modname))
 
     ddl_text = '\n'.join(std_texts)
     types: Set[uuid.UUID] = set()
@@ -777,11 +829,13 @@ async def _make_stdlib(
         schema_class_layout=reflection.class_layout,  # type: ignore
     )
 
+    backend_runtime_params = ctx.cluster.get_runtime_params()
     compilerctx = edbcompiler.new_compiler_context(
         compiler_state=compiler.state,
         user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
+        backend_runtime_params=backend_runtime_params,
     )
 
     for std_plan in std_plans:
@@ -797,6 +851,7 @@ async def _make_stdlib(
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
         internal_schema_mode=True,
+        backend_runtime_params=backend_runtime_params,
     )
     edbcompiler.compile_schema_storage_in_delta(
         ctx=compilerctx,
@@ -957,7 +1012,8 @@ async def _init_stdlib(
         stdlib = await _make_stdlib(ctx, in_dev_mode or testmode, global_ids)
 
     logger.info('Creating the necessary PostgreSQL extensions...')
-    await metaschema.create_pg_extensions(conn)
+    backend_params = cluster.get_runtime_params()
+    await metaschema.create_pg_extensions(conn, backend_params)
 
     config_spec = config.load_spec_from_schema(stdlib.stdschema)
     config.set_settings(config_spec)
@@ -975,7 +1031,11 @@ async def _init_stdlib(
                 f"edgedb.get_database_backend_name({ql(tpl_db_name)})")
             tpldbdump = await cluster.dump_database(
                 tpl_pg_db_name,
-                exclude_schemas=['edgedbinstdata', 'edgedbext'],
+                exclude_schemas=[
+                    'edgedbinstdata',
+                    'edgedbext',
+                    backend_params.instance_params.ext_schema,
+                ],
                 dump_object_owners=False,
             )
 
@@ -1057,12 +1117,13 @@ async def _init_stdlib(
 
     if not in_dev_mode and testmode:
         # Running tests on a production build.
-        stdlib, testmode_sql = await _amend_stdlib(
-            ctx,
-            s_std.get_std_module_text(sn.UnqualName('_testmode')),
-            stdlib,
-        )
-        await conn.sql_execute(testmode_sql.encode("utf-8"))
+        for modname in s_schema.TESTMODE_SOURCES:
+            stdlib, testmode_sql = await _amend_stdlib(
+                ctx,
+                s_std.get_std_module_text(modname),
+                stdlib,
+            )
+            await conn.sql_execute(testmode_sql.encode("utf-8"))
         # _testmode includes extra config settings, so make sure
         # those are picked up.
         config_spec = config.load_spec_from_schema(stdlib.stdschema)
@@ -1093,6 +1154,12 @@ async def _init_stdlib(
         t = schema.get_by_id(uuidgen.UUID(entry['id']))
         schema = t.set_field_value(
             schema, 'backend_id', entry['backend_id'])
+
+    if backend_params.instance_params.ext_schema != "edgedbext":
+        # Patch functions referring to extensions, because
+        # some backends require extensions to be hosted in
+        # hardcoded schemas (e.g. Heroku)
+        await metaschema.patch_pg_extensions(conn, backend_params)
 
     stdlib = stdlib._replace(stdschema=schema)
     version_key = patches.get_version_key(len(patches.PATCHES))
@@ -1307,6 +1374,15 @@ async def _compile_sys_queries(
     )
 
     queries['sysconfig'] = sql
+
+    _, sql = compile_bootstrap_script(
+        compiler,
+        schema,
+        "SELECT cfg::get_config_json(max_source := 'postgres client')",
+        expected_cardinality_one=True,
+    )
+
+    queries['sysconfig_default'] = sql
 
     _, sql = compile_bootstrap_script(
         compiler,

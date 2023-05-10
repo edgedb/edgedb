@@ -27,9 +27,10 @@ COLUMNS = {
     'jsonb_array_elements_text': ['value'],
     'jsonb_each': ['key', 'value'],
     'jsonb_each_text': ['key', 'value'],
+    'pg_options_to_table': ['option_name', 'option_value']
 }
 
-# retieved with
+# retrieved with
 r'''
 WITH
     procedures AS (

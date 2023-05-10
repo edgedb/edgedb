@@ -75,9 +75,13 @@ class ObjectTypeRefMixin(so.Object):
 
 
 class ObjectType(
-    s_types.InheritingType,
     sources.Source,
     constraints.ConsistencySubject,
+    s_types.InheritingType,
+
+    so.InheritingObject,  # Help reflection figure out the right db MRO
+    s_types.Type,  # Help reflection figure out the right db MRO
+    s_anno.AnnotationSubject,  # Help reflection figure out the right db MRO
     ObjectTypeRefMixin,
     s_abc.ObjectType,
     qlkind=qltypes.SchemaObjectClass.TYPE,
@@ -191,7 +195,11 @@ class ObjectType(
             if (
                 lnk.get_shortname(schema).name == name
                 and not lnk.get_source_type(schema).is_view(schema)
-                and lnk.get_owned(schema)
+                # Only grab the "base" pointers
+                and all(
+                    b.generic(schema)
+                    for b in lnk.get_bases(schema).objects(schema)
+                )
                 and (not sources or lnk.get_source_type(schema) in sources)
             )
         }
@@ -203,7 +211,11 @@ class ObjectType(
                 if (
                     lnk.get_shortname(schema).name == name
                     and not lnk.get_source_type(schema).is_view(schema)
-                    and lnk.get_owned(schema)
+                    # Only grab the "base" pointers
+                    and all(
+                        b.generic(schema)
+                        for b in lnk.get_bases(schema).objects(schema)
+                    )
                     and (not sources or lnk.get_source_type(schema) in sources)
                 )
             )

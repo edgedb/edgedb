@@ -32,7 +32,7 @@ CREATE ABSTRACT LINK std::link;
 
 CREATE ABSTRACT TYPE std::BaseObject {
     CREATE REQUIRED PROPERTY id EXTENDING std::id -> std::uuid {
-        SET default := (SELECT std::uuid_generate_v1mc());
+        SET default := std::uuid_generate_v1mc();
         SET readonly := True;
         CREATE CONSTRAINT std::exclusive;
     };

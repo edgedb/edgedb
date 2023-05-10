@@ -15,8 +15,8 @@ execute them directly from the browser.
 .. note::
 
   The examples below also demonstrate how to express the query with the
-  :ref:`TypeScript query builder <edgedb-js-qb>`, which lets you express
-  arbitrary EdgeQL queries in a code-first, typesafe way.
+  :ref:`TypeScript client's <edgedb-js-intro>` query builder, which lets you
+  express arbitrary EdgeQL queries in a code-first, typesafe way.
 
 
 Scalar literals
@@ -457,8 +457,8 @@ like any good programming language.
 
   .. code-tab:: typescript
 
-    const newMovie = e.insert({
-      title := "The Marvels"
+    const newMovie = e.insert(e.Movie, {
+      title: "The Marvels"
     });
     const query = e.select(newMovie, () => ({
       id: true,
@@ -799,18 +799,33 @@ Polymorphic queries
 Consider the following schema.
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
-  abstract type Content {
-    required property title -> str;
-  }
+    abstract type Content {
+      required property title -> str;
+    }
 
-  type Movie extending Content {
-    property release_year -> int64;
-  }
+    type Movie extending Content {
+      property release_year -> int64;
+    }
 
-  type TVShow extending Content {
-    property num_seasons -> int64;
-  }
+    type TVShow extending Content {
+      property num_seasons -> int64;
+    }
+
+.. code-block:: sdl
+
+    abstract type Content {
+      required title: str;
+    }
+
+    type Movie extending Content {
+      release_year: int64;
+    }
+
+    type TVShow extending Content {
+      num_seasons: int64;
+    }
 
 We can ``select`` the abstract type ``Content`` to simultaneously fetch all
 objects that extend it, and use the ``[is <type>]`` syntax to select

@@ -55,6 +55,9 @@ type Card extending Named {
     multi link owners := .<deck[IS User];
     # computable property
     property elemental_cost := <str>.cost ++ ' ' ++ .element;
+
+    required multi link req_awards -> Award;
+    required multi property req_tags -> str;
 }
 
 type SpecialCard extending Card;

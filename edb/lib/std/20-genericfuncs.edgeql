@@ -546,12 +546,11 @@ std::contains(haystack: array<anytype>, needle: anytype) -> std::bool
     CREATE ANNOTATION std::description :=
         'A polymorphic function to test if a sequence contains a certain element.';
     SET volatility := 'Immutable';
+    # Postgres only manages to inline this function if it isn't marked strict,
+    # and we want it to be inlined so that pg::gin indexes work with it.
+    SET impl_is_strict := false;
     USING SQL $$
-    SELECT
-        CASE
-            WHEN "needle" IS NULL THEN NULL
-            ELSE array_position("haystack", "needle") IS NOT NULL
-        END;
+	SELECT "haystack" @> ARRAY["needle"]
     $$;
 };
 

@@ -5922,10 +5922,8 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.interact([
             "did you create object type 'test::HasContent'?",
             "did you alter object type 'test::Post'?",
-            "did you alter constraint 'std::max_len_value' of property "
-            "'content'?",
+            "did you alter object type 'test::Post'?",
             "did you create object type 'test::Reply'?",
-            "did you alter property 'content' of object type 'test::Post'?",
         ])
 
     async def test_edgeql_migration_rebase_03(self):
@@ -9804,6 +9802,38 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             ]
         )
 
+        # And changing a property to computed is NOT!
+        await self.start_migration('''
+            type Obj11 {
+                single property name := "test";
+            }
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'proposed': {
+                'data_safe': False,
+            },
+        })
+
+        await self.fast_forward_describe_migration()
+
+        # But just changing a computed is
+        await self.start_migration('''
+            type Obj11 {
+                single property name := "fffff";
+            }
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'proposed': {
+                'data_safe': True,
+            },
+        })
+
+        await self.fast_forward_describe_migration()
+
     async def test_edgeql_migration_prompt_id_01(self):
         await self.start_migration('''
             type Bar { link spam -> Spam };
@@ -11181,6 +11211,33 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.migrate(schema)
         await self.migrate(schema)
 
+    async def test_edgeql_migration_dml_rewrites_01(self):
+        await self.migrate(r"""
+            type Post {
+              required title: str;
+              modified: datetime {
+                rewrite insert, update using (datetime_of_statement())
+              }
+            }
+        """)
+        await self.migrate(r"""
+            type BlogPost {
+              required title: str;
+              modified: datetime {
+                rewrite insert, update using (datetime_of_statement())
+              }
+            }
+        """)
+        await self.migrate(r"""
+            type BlogPost {
+              required title: str;
+              modified: datetime {
+                rewrite insert, update using (datetime_of_transaction())
+              }
+            }
+        """)
+        await self.migrate('')
+
     async def test_edgeql_migration_globals_02(self):
         await self.migrate(r"""
             global current_user_id -> uuid;
@@ -11384,6 +11441,173 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         """)
 
         await self.migrate("")
+
+    async def test_edgeql_migration_backlink_overloaded(self):
+        await self.migrate(r'''
+            type Target {
+                multi link meta_sources := .<target[is MetaSource];
+            }
+            abstract type MetaSource {
+                link target -> Target;
+            }
+
+            type Source extending MetaSource;
+            type ExternalSource extending MetaSource {
+                overloaded link target -> Target;
+            }
+        ''')
+
+    async def test_edgeql_migration_property_ref(self):
+        await self.migrate(r'''
+            type Log {
+                body: str;
+                timestamp: datetime {
+                    default := datetime_current();
+                }
+            }
+
+            type Person {
+                required name: str;
+                trigger log_delete after insert for each do (
+                    insert Log { body := __new__.name }
+                );
+            }
+        ''')
+
+        await self.migrate(r'''
+            type Log {
+                body: str;
+            }
+
+            type Person {
+                required name: str;
+                trigger log_delete after insert for each do (
+                    insert Log { body := __new__.name }
+                );
+            }
+        ''')
+
+    async def test_edgeql_migration_to_computed_drop_exclusive(self):
+        await self.migrate(r'''
+            type User {
+              multi posts: Post {
+                constraint exclusive;
+              }
+              multi foo: int64 {
+                constraint exclusive;
+              }
+            }
+            type Post;
+        ''')
+
+        await self.migrate(r'''
+            type User {
+              multi link posts := .<user[is Post];
+              multi property foo := Post.num;
+            }
+            type Post {
+              user: User;
+              num: int64;
+            }
+        ''')
+
+    async def test_edgeql_migration_alias_new_computed_01(self):
+        await self.migrate(r'''
+            global a_id -> str;
+            global current_user := (
+              select User filter .x_id = global a_id);
+
+            type User {
+                required property x_id -> str {
+                  constraint exclusive;
+              }
+            }
+        ''')
+
+        await self.migrate(r'''
+            global a_id -> str;
+            global current_user := (
+              select User filter .x_id = global a_id);
+
+            type User {
+                required property x_id -> str {
+                  constraint exclusive;
+              }
+              required property a_id := .x_id;
+            }
+        ''')
+
+    async def test_edgeql_migration_alias_new_computed_02(self):
+        await self.migrate(r'''
+            global a_id -> str;
+            alias current_user := (
+              select User filter .x_id = global a_id);
+
+            type User {
+                required property x_id -> str {
+                  constraint exclusive;
+              }
+            }
+        ''')
+
+        await self.migrate(r'''
+            global a_id -> str;
+            alias current_user := (
+              select User filter .x_id = global a_id);
+
+            type User {
+                required property x_id -> str {
+                  constraint exclusive;
+              }
+              required property a_id := .x_id;
+            }
+        ''')
+
+    async def test_edgeql_migration_trigger_shift_01(self):
+        await self.migrate(r'''
+            type Log {
+                body: str;
+                timestamp: datetime {
+                    default := datetime_current();
+                }
+            }
+
+
+            abstract type Named {
+                required name: str;
+            }
+
+            type Person extending Named {
+                trigger log_insert after insert for each do (
+                    insert Log {
+                        body := __new__.__type__.name ++ ' ' ++ __new__.name,
+                    }
+                );
+            }
+        ''')
+
+        await self.migrate(r'''
+            type Log {
+                body: str;
+                timestamp: datetime {
+                    default := datetime_current();
+                }
+            }
+
+
+            abstract type Named {
+                required name: str;
+
+                trigger log_insert after insert for each do (
+                    insert Log {
+                        body := __new__.__type__.name ++ ' ' ++ __new__.name,
+                    }
+                );
+            }
+
+            type Person extending Named {
+            }
+        ''')
 
 
 class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
@@ -11725,7 +11949,11 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
             {'script': 'CREATE TYPE default::A;', 'generated_by': None},
             {'script': 'CREATE TYPE B;', 'generated_by': None},
             {'script': 'create type C;', 'generated_by': None},
-            {'script': 'CREATE TYPE D;', 'generated_by': 'DDLStatement'},
+            {'script': (
+                'SET generated_by '
+                ':= (schema::MigrationGeneratedBy.DDLStatement);\n'
+                'CREATE TYPE D;'
+            ), 'generated_by': 'DDLStatement'},
         ])
 
     async def test_edgeql_migration_rewrite_02(self):
@@ -11811,9 +12039,12 @@ class TestEdgeQLMigrationRewrite(EdgeQLMigrationRewriteTestCase):
             commit migration rewrite
         """)
 
+        gby = (
+            'SET generated_by := (schema::MigrationGeneratedBy.DDLStatement);'
+        )
         await self.assert_migration_history([
-            {'script': 'CREATE TYPE B;'},
-            {'script': 'CREATE TYPE A;'},
+            {'script': gby + '\n' + 'CREATE TYPE B;'},
+            {'script': gby + '\n' + 'CREATE TYPE A;'},
         ])
 
     async def test_edgeql_migration_rewrite_05(self):

@@ -2081,6 +2081,11 @@ class DerivableObject(QualifiedObject):
 
 
 class Shell:
+    """
+    Shells mimic objects, but are not part of the schema.
+    They are construced from AST and are used to hold object data
+    before it is commited to the schema.
+    """
 
     def resolve(self, schema: s_schema.Schema) -> Any:
         raise NotImplementedError
@@ -3326,7 +3331,7 @@ def _merge_lineage(
                 break
         else:
             raise errors.SchemaError(
-                f"Could not find consistent ancestor order for {subject_name}"
+                f"could not find consistent ancestor order for {subject_name}"
             )
 
         result.append(candidate)
@@ -3346,6 +3351,7 @@ def _compute_lineage(
 
     for base in bases:
         lineage.append(_compute_lineage(schema, base, subject_name))
+    lineage.append(list(bases))
 
     return _merge_lineage(lineage, subject_name)
 
@@ -3358,8 +3364,15 @@ def compute_lineage(
     lineage = []
     for base in bases:
         lineage.append(_compute_lineage(schema, base, subject_name))
+    lineage.append(list(bases))
 
-    return _merge_lineage(lineage, subject_name)
+    try:
+        return _merge_lineage(lineage, subject_name)
+    except errors.SchemaError as e:
+        sbases = ', '.join(str(base.get_name(schema)) for base in bases)
+        details = f'type has specified bases: {sbases}'
+        e.set_hint_and_details(hint=e.hint, details=details)
+        raise
 
 
 def compute_ancestors(

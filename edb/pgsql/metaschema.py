@@ -3107,11 +3107,13 @@ class SysConfigSourceType(dbops.Enum):
                 'postgres default',
                 'postgres environment variable',
                 'postgres configuration file',
+                'environment variable',
+                'command line',
                 'postgres command line',
                 'postgres global',
+                'postgres client',
                 'system override',
                 'database',
-                'postgres client',
                 'postgres override',
                 'postgres interactive',
                 'postgres test',
@@ -3528,12 +3530,16 @@ class SysConfigFullFunction(dbops.Function):
             SELECT
                 s.name AS name,
                 s.value AS value,
-                'session' AS source,
-                FALSE AS from_backend  -- 'C' is for non-backend settings
+                (CASE
+                    WHEN s.type = 'A' THEN 'command line'
+                    WHEN s.type = 'E' THEN 'environment variable'
+                    ELSE 'session'
+                END) AS source,
+                FALSE AS from_backend  -- only 'B' is for backend settings
             FROM
                 _edgecon_state s
             WHERE
-                s.type = 'C'
+                s.type != 'B'
         ),
 
         pg_db_setting AS (
@@ -4362,9 +4368,101 @@ class FTSNormalizeDocFunction(dbops.Function):
         )
 
 
+class FormatTypeFunction(dbops.Function):
+    """Used instead of pg_catalog.format_type in pg_dump."""
+
+    text = r'''
+    SELECT
+        CASE WHEN t.typcategory = 'A'
+        THEN (
+            SELECT
+                quote_ident(nspname) || '.' ||
+                quote_ident(el.typname) || tm.mod || '[]'
+            FROM edgedbsql.pg_namespace
+            WHERE oid = el.typnamespace
+        )
+        ELSE (
+            SELECT
+                quote_ident(nspname) || '.' ||
+                quote_ident(t.typname) || tm.mod
+            FROM edgedbsql.pg_namespace
+            WHERE oid = t.typnamespace
+        )
+        END
+    FROM
+        (
+            SELECT
+                CASE WHEN typemod >= 0
+                THEN '(' || typemod::text || ')'
+                ELSE ''
+                END AS mod
+        ) as tm,
+        edgedbsql.pg_type t
+    LEFT JOIN edgedbsql.pg_type el ON t.typelem = el.oid
+    WHERE t.oid = typeoid
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_format_type'),
+            args=[
+                ('typeoid', ('oid',)),
+                ('typemod', ('integer',)),
+            ],
+            returns=('text',),
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class UuidGenerateV1mcFunction(dbops.Function):
+    def __init__(self, ext_schema: str) -> None:
+        super().__init__(
+            name=('edgedb', 'uuid_generate_v1mc'),
+            args=[],
+            returns=('uuid',),
+            volatility='volatile',
+            language='sql',
+            strict=True,
+            parallel_safe=True,
+            text=f'SELECT "{ext_schema}".uuid_generate_v1mc();'
+        )
+
+
+class UuidGenerateV4Function(dbops.Function):
+    def __init__(self, ext_schema: str) -> None:
+        super().__init__(
+            name=('edgedb', 'uuid_generate_v4'),
+            args=[],
+            returns=('uuid',),
+            volatility='volatile',
+            language='sql',
+            strict=True,
+            parallel_safe=True,
+            text=f'SELECT "{ext_schema}".uuid_generate_v4();'
+        )
+
+
+class UuidGenerateV5Function(dbops.Function):
+    def __init__(self, ext_schema: str) -> None:
+        super().__init__(
+            name=('edgedb', 'uuid_generate_v5'),
+            args=[
+                ('namespace', ('uuid',)),
+                ('name', ('text',)),
+            ],
+            returns=('uuid',),
+            volatility='immutable',
+            language='sql',
+            strict=True,
+            parallel_safe=True,
+            text=f'SELECT "{ext_schema}".uuid_generate_v5(namespace, name);'
+        )
+
+
 async def bootstrap(
     conn: pgcon.PGConnection,
-    config_spec: edbconfig.Spec
+    config_spec: edbconfig.Spec,
 ) -> None:
     cmds = [
         dbops.CreateSchema(name='edgedb'),
@@ -4376,6 +4474,9 @@ async def bootstrap(
         dbops.CreateTable(DBConfigTable()),
         dbops.CreateTable(DMLDummyTable()),
         dbops.Query(DMLDummyTable.SETUP_QUERY),
+        dbops.CreateFunction(UuidGenerateV1mcFunction('edgedbext')),
+        dbops.CreateFunction(UuidGenerateV4Function('edgedbext')),
+        dbops.CreateFunction(UuidGenerateV5Function('edgedbext')),
         dbops.CreateFunction(IntervalToMillisecondsFunction()),
         dbops.CreateFunction(SafeIntervalCastFunction()),
         dbops.CreateFunction(QuoteIdentFunction()),
@@ -4492,13 +4593,37 @@ async def bootstrap(
     await _execute_block(conn, block)
 
 
-async def create_pg_extensions(conn: pgcon.PGConnection) -> None:
+async def create_pg_extensions(
+    conn: pgcon.PGConnection,
+    backend_params: params.BackendRuntimeParams,
+) -> None:
+    ext_schema = backend_params.instance_params.ext_schema
     commands = dbops.CommandGroup()
     commands.add_commands([
-        dbops.CreateSchema(name='edgedbext'),
+        dbops.CreateSchema(name=ext_schema, conditional=True),
         dbops.CreateExtension(
-            dbops.Extension(name='uuid-ossp', schema='edgedbext'),
+            dbops.Extension(name='uuid-ossp', schema=ext_schema),
         ),
+    ])
+    block = dbops.PLTopBlock()
+    commands.generate(block)
+    await _execute_block(conn, block)
+
+
+async def patch_pg_extensions(
+    conn: pgcon.PGConnection,
+    backend_params: params.BackendRuntimeParams,
+) -> None:
+    ext_schema = backend_params.instance_params.ext_schema
+    commands = dbops.CommandGroup()
+    commands.add_commands([
+        dbops.CreateSchema(name=ext_schema, conditional=True),
+        dbops.CreateFunction(
+            UuidGenerateV1mcFunction(ext_schema), or_replace=True),
+        dbops.CreateFunction(
+            UuidGenerateV4Function(ext_schema), or_replace=True),
+        dbops.CreateFunction(
+            UuidGenerateV5Function(ext_schema), or_replace=True),
     ])
     block = dbops.PLTopBlock()
     commands.generate(block)
@@ -5288,9 +5413,15 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             AND prop.internal IS NOT TRUE
             AND prop.cardinality = 'Many'
         ))
-        SELECT at.id, schema_name, table_name, sm.id as module_id
+        SELECT
+            at.id,
+            schema_name,
+            table_name,
+            sm.id AS module_id,
+            pt.oid AS backend_id
         FROM all_tables at
         JOIN edgedb."_SchemaModule" sm ON sm.name = at.module_name
+        LEFT JOIN pg_type pt ON pt.typname = at.id::text
         WHERE schema_name not in ('cfg', 'sys', 'schema', 'std')
         '''
     )
@@ -5315,6 +5446,93 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 ('x' || substring(id::text, 2, 7))::bit(28)::bigint
                  + 40000)::oid;
         """
+    )
+    long_name = dbops.Function(
+        name=('edgedbsql', '_long_name'),
+        args=[
+            ('origname', ('text',)),
+            ('longname', ('text',)),
+        ],
+        returns=('text',),
+        volatility='stable',
+        text=r'''
+            SELECT CASE WHEN length(longname) > 63
+                THEN left(longname, 55) || left(origname, 8)
+                ELSE longname
+                END
+        '''
+    )
+    type_rename = dbops.Function(
+        name=('edgedbsql', '_pg_type_rename'),
+        args=[
+            ('typeoid', ('oid',)),
+            ('typename', ('name',)),
+        ],
+        returns=('name',),
+        volatility='stable',
+        text=r'''
+            SELECT COALESCE (
+                -- is the nmae in virtual_tables?
+                (
+                    SELECT vt.table_name::name
+                    FROM edgedbsql.virtual_tables vt
+                    WHERE vt.backend_id = typeoid
+                ),
+                -- is this a scalar or tuple?
+                (
+                    SELECT name::name
+                    FROM (
+                        -- get the built-in scalars
+                        SELECT
+                            split_part(name, '::', 2) AS name,
+                            backend_id
+                        FROM edgedb."_SchemaScalarType"
+                        WHERE NOT builtin
+                        UNION ALL
+                        -- get the tuples
+                        SELECT
+                            edgedbsql._long_name(typename, name),
+                            backend_id
+                        FROM edgedb."_SchemaTuple"
+                    ) x
+                    WHERE x.backend_id = typeoid
+                ),
+                typename
+            )
+        '''
+    )
+    namespace_rename = dbops.Function(
+        name=('edgedbsql', '_pg_namespace_rename'),
+        args=[
+            ('typeoid', ('oid',)),
+            ('typens', ('oid',)),
+        ],
+        returns=('oid',),
+        volatility='stable',
+        text=r'''
+            WITH
+                nspub AS (
+                    SELECT oid FROM pg_namespace WHERE nspname = 'edgedbpub'
+                ),
+                nsdef AS (
+                    SELECT edgedbsql.uuid_to_oid(id) AS oid
+                    FROM edgedb."_SchemaModule"
+                    WHERE name = 'default'
+                )
+            SELECT COALESCE (
+                (
+                    SELECT edgedbsql.uuid_to_oid(vt.module_id)
+                    FROM edgedbsql.virtual_tables vt
+                    WHERE vt.backend_id = typeoid
+                ),
+                -- just replace "edgedbpub" with "public"
+                (SELECT nsdef.oid WHERE typens = nspub.oid),
+                typens
+            )
+            FROM
+                nspub,
+                nsdef
+        '''
     )
 
     sql_ident = 'information_schema.sql_identifier'
@@ -5418,9 +5636,14 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
         SELECT oid, nspname, nspowner, nspacl,
             tableoid, xmin, cmin, xmax, cmax, ctid
         FROM pg_namespace
-        WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
+        WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
+                          'edgedb', 'edgedbstd')
         UNION ALL
-        SELECT edgedbsql.uuid_to_oid(t.module_id), t.schema_name, 10, NULL,
+        SELECT
+            edgedbsql.uuid_to_oid(t.module_id),
+            t.schema_name,
+            (SELECT oid FROM pg_roles WHERE rolname = CURRENT_USER LIMIT 1),
+            NULL,
             NULL, NULL, NULL, NULL, NULL, NULL
         FROM (
             SELECT DISTINCT schema_name, module_id
@@ -5433,21 +5656,17 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             query="""
         SELECT
             pt.oid,
-            pt.typname,
-            pt.typnamespace,
+            edgedbsql._pg_type_rename(pt.oid, pt.typname)
+                AS typname,
+            edgedbsql._pg_namespace_rename(pt.oid, pt.typnamespace)
+                AS typnamespace,
             {0},
             pt.tableoid, pt.xmin, pt.cmin, pt.xmax, pt.cmax, pt.ctid
         FROM pg_type pt
         JOIN pg_namespace pn ON pt.typnamespace = pn.oid
-        WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
-        UNION ALL
-        SELECT pt.oid,
-            vt.table_name,
-            edgedbsql.uuid_to_oid(vt.module_id) as typnamespace,
-            {0},
-            pt.tableoid, pt.xmin, pt.cmin, pt.xmax, pt.cmax, pt.ctid
-        FROM pg_type pt
-        join edgedbsql.virtual_tables vt ON vt.id::text = pt.typname
+        WHERE
+            nspname IN ('pg_catalog', 'pg_toast', 'information_schema',
+                        'edgedb', 'edgedbstd', 'edgedbpub')
         """.format(
                 ",".join(
                     f"pt.{col}"
@@ -5455,14 +5674,95 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
                 )
             ),
         ),
+        # TODO: Should we try to filter here, and fix up some stuff
+        # elsewhere, instead of overriding pg_get_constraintdef?
+        dbops.View(
+            name=("edgedbsql", "pg_constraint"),
+            query="""
+        SELECT
+            pc.*,
+            pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
+        FROM pg_constraint pc
+        JOIN pg_namespace pn ON pc.connamespace = pn.oid
+        WHERE NOT (pn.nspname = 'edgedbpub' AND pc.conbin IS NOT NULL)
+        """
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_index"),
+            query="""
+        SELECT pi.*, pi.tableoid, pi.xmin, pi.cmin, pi.xmax, pi.cmax, pi.ctid
+        FROM pg_index pi
+        LEFT JOIN pg_class pr ON pi.indrelid = pr.oid
+        LEFT JOIN pg_catalog.pg_namespace pn ON pr.relnamespace = pn.oid
+        WHERE pn.nspname <> 'edgedbpub'
+        """,
+        ),
         dbops.View(
             name=("edgedbsql", "pg_class"),
             query="""
+        WITH
+            nsdef AS (
+                SELECT edgedbsql.uuid_to_oid(id) AS oid
+                FROM edgedb."_SchemaModule"
+                WHERE name = 'default'
+            )
+        -- Postgres tables
         SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
         FROM pg_class pc
         JOIN pg_namespace pn ON pc.relnamespace = pn.oid
         WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
+
         UNION ALL
+
+        -- get all the tuples
+        SELECT
+            pc.oid,
+            edgedbsql._long_name(pc.reltype::text, tup.name) as relname,
+            nsdef.oid as relnamespace,
+            pc.reltype,
+            pc.reloftype,
+            pc.relowner,
+            pc.relam,
+            pc.relfilenode,
+            pc.reltablespace,
+            pc.relpages,
+            pc.reltuples,
+            pc.relallvisible,
+            pc.reltoastrelid,
+            pc.relhasindex,
+            pc.relisshared,
+            pc.relpersistence,
+            pc.relkind,
+            pc.relnatts,
+            0 as relchecks, -- don't care about CHECK constraints
+            pc.relhasrules,
+            pc.relhastriggers,
+            pc.relhassubclass,
+            pc.relrowsecurity,
+            pc.relforcerowsecurity,
+            pc.relispopulated,
+            pc.relreplident,
+            pc.relispartition,
+            pc.relrewrite,
+            pc.relfrozenxid,
+            pc.relminmxid,
+            pc.relacl,
+            pc.reloptions,
+            pc.relpartbound,
+            pc.tableoid,
+            pc.xmin,
+            pc.cmin,
+            pc.xmax,
+            pc.cmax,
+            pc.ctid
+        FROM
+            nsdef,
+            pg_class pc
+        JOIN edgedb."_SchemaTuple" tup ON tup.backend_id = pc.reltype
+
+        UNION ALL
+
+        -- user-defined tables
         SELECT
             oid,
             vt.table_name as relname,
@@ -5482,7 +5782,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             relpersistence,
             relkind,
             relnatts,
-            relchecks,
+            0 as relchecks, -- don't care about CHECK constraints
             relhasrules,
             relhastriggers,
             relhassubclass,
@@ -5504,7 +5804,14 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             pc.cmax,
             pc.ctid
         FROM pg_class pc
-        JOIN edgedbsql.virtual_tables vt ON vt.id::text = pc.relname
+        JOIN edgedbsql.virtual_tables vt ON vt.backend_id = pc.reltype
+
+        UNION
+
+        -- indexes
+        SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
+        FROM pg_class pc
+        JOIN edgedbsql.pg_index pi ON pc.oid = pi.indexrelid
         """,
         ),
         dbops.View(
@@ -5542,9 +5849,13 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             pa.cmax,
             pa.ctid
         FROM pg_attribute pa
-        JOIN pg_class pc ON pa.atttypid = pc.oid
+        JOIN pg_class pc ON pa.attrelid = pc.oid
         JOIN pg_namespace pn ON pc.relnamespace = pn.oid
-        WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
+        LEFT JOIN edgedb."_SchemaTuple" tup ON tup.backend_id = pc.reltype
+        WHERE
+            nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
+            OR
+            tup.backend_id IS NOT NULL
         UNION ALL
         SELECT attrelid,
             COALESCE(
@@ -5562,7 +5873,8 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             attstorage,
             attalign,
             attnotnull,
-            atthasdef,
+            -- Always report no default, to avoid expr trouble
+            false as atthasdef,
             atthasmissing,
             attidentity,
             attgenerated,
@@ -5582,20 +5894,10 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             pa.ctid
         FROM pg_attribute pa
         JOIN pg_class pc ON pc.oid = pa.attrelid
-        JOIN edgedbsql.virtual_tables vt ON vt.id::text = pc.relname
+        JOIN edgedbsql.virtual_tables vt ON vt.backend_id = pc.reltype
         LEFT JOIN edgedb."_SchemaPointer" sp ON sp.id::text = pa.attname
         LEFT JOIN edgedb."_SchemaLink" sl ON sl.id::text = pa.attname
         WHERE pa.attname NOT IN ('__type__')
-        """,
-        ),
-        dbops.View(
-            name=("edgedbsql", "pg_range"),
-            query="""
-        SELECT pr.*, pr.tableoid, pr.xmin, pr.cmin, pr.xmax, pr.cmax, pr.ctid
-        FROM pg_range pr
-        JOIN pg_type pt ON pt.oid = pr.rngtypid
-        JOIN pg_namespace pn ON pt.typnamespace = pn.oid
-        WHERE nspname IN ('pg_catalog', 'pg_toast', 'information_schema')
         """,
         ),
         dbops.View(
@@ -5619,6 +5921,176 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             tableoid, xmin, cmin, xmax, cmax, ctid
         FROM pg_database
         WHERE datname LIKE '%_edgedb'
+        """,
+        ),
+
+        # HACK: there were problems with pg_dump when exposing this table, so
+        # I've added WHERE FALSE. The query could be simplified, but it may
+        # be needed in the future. Its EXPLAIN cost is 0..0 anyway.
+        dbops.View(
+            name=("edgedbsql", "pg_stats"),
+            query="""
+        SELECT n.nspname AS schemaname,
+            c.relname AS tablename,
+            a.attname,
+            s.stainherit AS inherited,
+            s.stanullfrac AS null_frac,
+            s.stawidth AS avg_width,
+            s.stadistinct AS n_distinct,
+            NULL::real[] AS most_common_vals,
+            s.stanumbers1 AS most_common_freqs,
+            s.stanumbers1 AS histogram_bounds,
+            s.stanumbers1[1] AS correlation,
+            NULL::real[] AS most_common_elems,
+            s.stanumbers1 AS most_common_elem_freqs,
+            s.stanumbers1 AS elem_count_histogram
+        FROM pg_statistic s
+        JOIN pg_class c ON c.oid = s.starelid
+        JOIN pg_attribute a ON c.oid = a.attrelid and a.attnum = s.staattnum
+        LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE FALSE
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_statistic"),
+            query="""
+        SELECT
+            starelid,
+            staattnum,
+            stainherit,
+            stanullfrac,
+            stawidth,
+            stadistinct,
+            stakind1,
+            stakind2,
+            stakind3,
+            stakind4,
+            stakind5,
+            staop1,
+            staop2,
+            staop3,
+            staop4,
+            staop5,
+            stacoll1,
+            stacoll2,
+            stacoll3,
+            stacoll4,
+            stacoll5,
+            stanumbers1,
+            stanumbers2,
+            stanumbers3,
+            stanumbers4,
+            stanumbers5,
+            NULL::real[] AS stavalues1,
+            NULL::real[] AS stavalues2,
+            NULL::real[] AS stavalues3,
+            NULL::real[] AS stavalues4,
+            NULL::real[] AS stavalues5,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_statistic
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_statistic_ext"),
+            query="""
+        SELECT
+            oid,
+            stxrelid,
+            stxname,
+            stxnamespace,
+            stxowner,
+            stxstattarget,
+            stxkeys,
+            stxkind,
+            NULL::pg_node_tree as stxexprs,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_statistic_ext
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_statistic_ext_data"),
+            query="""
+        SELECT
+            stxoid,
+            stxdndistinct,
+            stxddependencies,
+            stxdmcv,
+            NULL::oid AS stxdexpr,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_statistic_ext_data
+        """,
+        ),
+        dbops.View(
+            name=("edgedbsql", "pg_rewrite"),
+            query="""
+        SELECT pr.*, pr.tableoid, pr.xmin, pr.cmin, pr.xmax, pr.cmax, pr.ctid
+        FROM pg_rewrite pr
+        JOIN edgedbsql.pg_class pn ON pr.ev_class = pn.oid
+        """,
+        ),
+
+        # HACK: Automatically generated cast function for ranges/multiranges
+        # was causing issues for pg_dump. So at the end of the day we opt for
+        # not exposing any casts at all here since there is no real reason for
+        # this compatibility layer that is read-only to have elaborate casts
+        # present.
+        dbops.View(
+            name=("edgedbsql", "pg_cast"),
+            query="""
+        SELECT pc.*, pc.tableoid, pc.xmin, pc.cmin, pc.xmax, pc.cmax, pc.ctid
+        FROM pg_cast pc
+        WHERE FALSE
+        """,
+        ),
+        # Omit all funcitons for now.
+        dbops.View(
+            name=("edgedbsql", "pg_proc"),
+            query="""
+        SELECT *, tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_proc
+        WHERE FALSE
+        """,
+        ),
+        # Omit all operators for now.
+        dbops.View(
+            name=("edgedbsql", "pg_operator"),
+            query="""
+        SELECT *, tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_operator
+        WHERE FALSE
+        """,
+        ),
+        # Omit all triggers for now.
+        dbops.View(
+            name=("edgedbsql", "pg_trigger"),
+            query="""
+        SELECT *, tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_trigger
+        WHERE FALSE
+        """,
+        ),
+        # Omit all subscriptions for now.
+        # This table is queried by pg_dump with COUNT(*) when user does not
+        # have permissions to access it. This should be allowed, but the
+        # view expands the query to all columns, which is not allowed.
+        # So we have to construct an empty view with correct signature that
+        # does not reference pg_subscription.
+        dbops.View(
+            name=("edgedbsql", "pg_subscription"),
+            query="""
+        SELECT
+            NULL::oid AS oid,
+            NULL::oid AS subdbid,
+            NULL::name AS subname,
+            NULL::oid AS subowner,
+            NULL::boolean AS subenabled,
+            NULL::text AS subconninfo,
+            NULL::name AS subslotname,
+            NULL::text AS subsynccommit,
+            NULL::oid AS subpublications,
+            tableoid, xmin, cmin, xmax, cmax, ctid
+        FROM pg_namespace
+        WHERE FALSE
         """,
         ),
     ]
@@ -5661,7 +6133,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_opfamily',
             'pg_partitioned_table',
             'pg_policy',
-            'pg_proc',
             'pg_publication',
             'pg_publication_rel',
             'pg_range',
@@ -5675,7 +6146,6 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             'pg_statistic',
             'pg_statistic_ext',
             'pg_statistic_ext_data',
-            'pg_subscription',
             'pg_subscription_rel',
             'pg_tablespace',
             'pg_transform',
@@ -5702,43 +6172,205 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
     # views that expose the actual data.
     # I've been cautious about exposing too much data, for example limiting
     # pg_type to pg_catalog and pg_toast namespaces.
-    views = [virtual_tables] + tables_and_columns + [
-        dbops.View(
-            name=("edgedbsql", table_name),
-            query="SELECT {} LIMIT 0".format(
-                ",".join(
-                    f"NULL::information_schema.{type} AS {name}"
-                    for name, type in columns
-                )
-            ),
+    views = []
+    views.extend(tables_and_columns)
+
+    for table_name, columns in sql_introspection.INFORMATION_SCHEMA.items():
+        if table_name in ["tables", "columns"]:
+            continue
+        views.append(
+            dbops.View(
+                name=("edgedbsql", table_name),
+                query="SELECT {} LIMIT 0".format(
+                    ",".join(
+                        f"NULL::information_schema.{type} AS {name}"
+                        for name, type in columns
+                    )
+                ),
+            )
         )
-        for table_name, columns in sql_introspection.INFORMATION_SCHEMA.items()
-        if table_name not in ['tables', 'columns']
-    ] + pg_catalog_views + [
-        construct_pg_view(table_name, [c for c, _ in columns])
-        for table_name, columns in sql_introspection.PG_CATALOG.items()
-        if table_name not in [
+
+    views.extend(pg_catalog_views)
+
+    for table_name, columns in sql_introspection.PG_CATALOG.items():
+        if table_name in [
             'pg_type',
             'pg_attribute',
             'pg_namespace',
-            'pg_range',
             'pg_class',
             'pg_database',
-
-            # Some tables contain abstract columns (i.e. anyarray) so they
-            # cannot be created into a view. So let's just hide these tables.
+            'pg_proc',
+            'pg_operator',
             'pg_pltemplate',
             'pg_stats',
             'pg_stats_ext_exprs',
             'pg_statistic',
             'pg_statistic_ext',
             'pg_statistic_ext_data',
-        ]
+            'pg_rewrite',
+            'pg_cast',
+            'pg_index',
+            'pg_constraint',
+            'pg_trigger',
+            'pg_subscription',
+        ]:
+            continue
+
+        views.append(construct_pg_view(table_name, [c for c, _ in columns]))
+
+    util_functions = [
+        dbops.Function(
+            name=('edgedbsql', 'has_schema_privilege'),
+            args=(
+                ('schema_name', 'text'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+            SELECT COALESCE((
+                SELECT has_schema_privilege(oid, privilege)
+                FROM edgedbsql.pg_namespace
+                WHERE nspname = schema_name
+            ), TRUE);
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', 'has_schema_privilege'),
+            args=(
+                ('schema_oid', 'oid'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT COALESCE(
+                    has_schema_privilege(schema_oid, privilege), TRUE
+                )
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', 'has_table_privilege'),
+            args=(
+                ('table_name', 'text'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_table_privilege(oid, privilege)
+                FROM edgedbsql.pg_class
+                WHERE relname = table_name;
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', 'has_table_privilege'),
+            args=(
+                ('schema_oid', 'oid'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_table_privilege(schema_oid, privilege)
+            """
+        ),
+
+        dbops.Function(
+            name=('edgedbsql', 'has_column_privilege'),
+            args=(
+                ('tbl', 'oid'),
+                ('col', 'smallint'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_column_privilege(tbl, col, privilege)
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', 'has_column_privilege'),
+            args=(
+                ('tbl', 'text'),
+                ('col', 'smallint'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_column_privilege(oid, col, privilege)
+                FROM edgedbsql.pg_class
+                WHERE relname = tbl;
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', 'has_column_privilege'),
+            args=(
+                ('tbl', 'oid'),
+                ('col', 'text'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_column_privilege(tbl, attnum, privilege)
+                FROM edgedbsql.pg_attribute pa
+                WHERE attrelid = tbl AND attname = col
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', 'has_column_privilege'),
+            args=(
+                ('tbl', 'text'),
+                ('col', 'text'),
+                ('privilege', 'text'),
+            ),
+            returns=('bool',),
+            text="""
+                SELECT has_column_privilege(pc.oid, attnum, privilege)
+                FROM edgedbsql.pg_class pc
+                JOIN edgedbsql.pg_attribute pa ON pa.attrelid = pc.oid
+                WHERE pc.relname = tbl AND pa.attname = col;
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', '_pg_truetypid'),
+            args=(
+                ('att', ('edgedbsql', 'pg_attribute')),
+                ('typ', ('edgedbsql', 'pg_type')),
+            ),
+            returns=('oid',),
+            volatility='IMMUTABLE',
+            strict=True,
+            text="""
+                SELECT CASE
+                    WHEN typ.typtype = 'd' THEN typ.typbasetype
+                    ELSE att.atttypid
+                END
+            """
+        ),
+        dbops.Function(
+            name=('edgedbsql', '_pg_truetypmod'),
+            args=(
+                ('att', ('edgedbsql', 'pg_attribute')),
+                ('typ', ('edgedbsql', 'pg_type')),
+            ),
+            returns=('int4',),
+            volatility='IMMUTABLE',
+            strict=True,
+            text="""
+                SELECT CASE
+                    WHEN typ.typtype = 'd' THEN typ.typtypmod
+                    ELSE att.atttypmod
+                END
+            """
+        ),
     ]
 
     return (
-        [dbops.CreateFunction(uuid_to_oid)]
+        [cast(dbops.Command, dbops.CreateFunction(uuid_to_oid))]
+        + [dbops.CreateView(virtual_tables)]
+        + [
+            cast(dbops.Command, dbops.CreateFunction(long_name)),
+            cast(dbops.Command, dbops.CreateFunction(type_rename)),
+            cast(dbops.Command, dbops.CreateFunction(namespace_rename)),
+        ]
         + [dbops.CreateView(view) for view in views]
+        + [dbops.CreateFunction(func) for func in util_functions]
     )
 
 
@@ -5770,7 +6402,12 @@ def get_support_views(
 
     conf = schema.get('cfg::Config', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
-        schema, conf, scope=None, path=[], rptr=None)
+        schema,
+        conf,
+        scope=None,
+        path=[],
+        rptr=None,
+    )
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -5778,7 +6415,12 @@ def get_support_views(
 
     conf = schema.get('cfg::InstanceConfig', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
-        schema, conf, scope=qltypes.ConfigScope.INSTANCE, path=[], rptr=None)
+        schema,
+        conf,
+        scope=qltypes.ConfigScope.INSTANCE,
+        path=[],
+        rptr=None,
+    )
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -5786,7 +6428,12 @@ def get_support_views(
 
     conf = schema.get('cfg::DatabaseConfig', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
-        schema, conf, scope=qltypes.ConfigScope.DATABASE, path=[], rptr=None)
+        schema,
+        conf,
+        scope=qltypes.ConfigScope.DATABASE,
+        path=[],
+        rptr=None,
+    )
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -5839,6 +6486,7 @@ async def generate_support_functions(
         dbops.CreateFunction(IssubclassFunction()),
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(GetSchemaObjectNameFunction()),
+        dbops.CreateFunction(FormatTypeFunction()),
     ])
 
     block = dbops.PLTopBlock()
@@ -6253,7 +6901,7 @@ def _build_key_expr(key_components: List[str]) -> str:
         (SELECT
             (CASE WHEN array_position(q.v, NULL) IS NULL
              THEN
-                 edgedbext.uuid_generate_v5(
+                 edgedb.uuid_generate_v5(
                      '{DATABASE_ID_NAMESPACE}'::uuid,
                      array_to_string(q.v, ';')
                  )

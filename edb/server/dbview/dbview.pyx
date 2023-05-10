@@ -44,6 +44,10 @@ from edb.pgsql import dbops
 
 cimport cython
 
+from edb.server.protocol.args_ser cimport (
+    recode_global,
+)
+
 __all__ = ('DatabaseIndex', 'DatabaseConnectionView', 'SideEffects')
 
 cdef DEFAULT_MODALIASES = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
@@ -675,7 +679,7 @@ cdef class DatabaseConnectionView:
         globals_ = immutables.Map({
             k: config.SettingValue(
                 name=k,
-                value=self.recode_global(serializer, k, v),
+                value=recode_global(self, v, serializer.get_global_type_rep(k)),
                 source='global',
                 scope=qltypes.ConfigScope.GLOBAL,
             ) for k, v in state.get('globals', {}).items()
@@ -686,17 +690,6 @@ cdef class DatabaseConnectionView:
         self._session_state_cache = (
             aliases, session_config, globals_, type_id, data
         )
-
-    cdef inline recode_global(self, serializer, k, v):
-        if v and v[:4] == b'\x00\x00\x00\x01':
-            array_type_id = serializer.get_global_array_type_id(k)
-            if array_type_id:
-                va = bytearray(v)
-                va[8:12] = INT32_PACKER(
-                    self.resolve_backend_type_id(array_type_id)
-                )
-                v = bytes(va)
-        return v
 
     property txid:
         def __get__(self):
@@ -1103,11 +1096,20 @@ cdef class DatabaseConnectionView:
 
 cdef class DatabaseIndex:
 
-    def __init__(self, server, *, std_schema, global_schema, sys_config):
+    def __init__(
+        self,
+        server,
+        *,
+        std_schema,
+        global_schema,
+        sys_config,
+        default_sysconfig,  # system config without system override
+    ):
         self._dbs = {}
         self._server = server
         self._std_schema = std_schema
         self._global_schema = global_schema
+        self._default_sysconfig = default_sysconfig
         self.update_sys_config(sys_config)
         self._factory = sertypes.StateSerializerFactory(std_schema)
 
@@ -1126,6 +1128,9 @@ cdef class DatabaseIndex:
         return self._comp_sys_config
 
     def update_sys_config(self, sys_config):
+        with self._default_sysconfig.mutate() as mm:
+            mm.update(sys_config)
+            sys_config = mm.finish()
         self._sys_config = sys_config
         self._comp_sys_config = config.get_compilation_config(sys_config)
 
@@ -1204,13 +1209,15 @@ cdef class DatabaseIndex:
         await conn.sql_execute(block.to_string().encode())
 
     async def apply_system_config_op(self, conn, op):
-        op_value = op.get_setting(config.get_settings())
+        spec = config.get_settings()
+        op_value = op.get_setting(spec)
         if op.opcode is not None:
             allow_missing = (
                 op.opcode is config.OpCode.CONFIG_REM
                 or op.opcode is config.OpCode.CONFIG_RESET
             )
-            op_value = op.coerce_value(op_value, allow_missing=allow_missing)
+            op_value = op.coerce_value(
+                spec, op_value, allow_missing=allow_missing)
 
         # _save_system_overrides *must* happen before
         # the callbacks below, because certain config changes

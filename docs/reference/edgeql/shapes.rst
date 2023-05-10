@@ -65,10 +65,18 @@ names associated with the given user" in a database defined by the
 following schema:
 
 .. code-block:: sdl
+    :version-lt: 3.0
 
     type User {
         required property name -> str;
         multi link friends -> User;
+    }
+
+.. code-block:: sdl
+
+    type User {
+        required name: str;
+        multi friends: User;
     }
 
 If we only concern ourselves with getting the values, then a

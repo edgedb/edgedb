@@ -1003,8 +1003,6 @@ coding GET. Import the newly generated queries and write the GET endpoint in
             return events
         else:
             event = await get_event_by_name_qry.get_event_by_name(client, name=name)
-                client, name=name
-            )
             if not event:
                 raise HTTPException(
                     status_code=HTTPStatus.NOT_FOUND,

@@ -194,6 +194,15 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
             'A hook to force all queries to produce an error.';
     };
 
+    CREATE REQUIRED PROPERTY _pg_prepared_statement_cache_size -> std::int16 {
+        CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION std::description :=
+            'The maximum number of prepared statements each backend \
+            connection could hold at the same time.';
+        CREATE CONSTRAINT std::min_value(1);
+        SET default := 100;
+    };
+
 };
 
 

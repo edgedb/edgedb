@@ -783,7 +783,9 @@ class build_parsers(setuptools.Command):
     sources = [
         "edb.edgeql.parser.grammar.single",
         "edb.edgeql.parser.grammar.block",
+        "edb.edgeql.parser.grammar.fragment",
         "edb.edgeql.parser.grammar.sdldocument",
+        "edb.edgeql.parser.grammar.migration_body",
     ]
 
     def initialize_options(self):

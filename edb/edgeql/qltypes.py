@@ -20,6 +20,8 @@
 from __future__ import annotations
 from typing import *
 
+import enum
+
 from edb.common import enum as s_enum
 
 
@@ -312,3 +314,9 @@ class ConfigScope(s_enum.StrEnum):
             return 'CURRENT DATABASE'
         else:
             return str(self)
+
+
+class TypeTag(enum.IntEnum):
+    SCALAR = 0
+    TUPLE = 1
+    ARRAY = 2

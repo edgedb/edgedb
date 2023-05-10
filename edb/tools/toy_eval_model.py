@@ -441,7 +441,9 @@ def update_path(
 ) -> Optional[qlast.Path]:
     if query is None:
         return None
-    elif subject and isinstance(query, qlast.SubjectMixin):
+    elif subject and isinstance(
+        query, (qlast.DeleteQuery, qlast.UpdateQuery, qlast.GroupQuery)
+    ):
         if (
             isinstance(query, qlast.GroupQuery)
             and query.subject_alias is not None
@@ -450,7 +452,9 @@ def update_path(
                 steps=[qlast.ObjectRef(name=query.subject_alias)])
         else:
             query = query.subject
-    elif isinstance(query, qlast.ReturningMixin):
+    elif isinstance(
+        query, (qlast.SelectQuery, qlast.ForQuery, qlast.InternalGroupQuery)
+    ):
         if query.result_alias is not None:
             return qlast.Path(steps=[
                 qlast.ObjectRef(name=query.result_alias)
@@ -475,8 +479,8 @@ def ptr_name(ptr: qlast.Ptr) -> str:
     return name
 
 
-def ensure_qlstmt(expr: qlast.Expr) -> qlast.Statement:
-    if not isinstance(expr, qlast.Statement):
+def ensure_ql_query(expr: qlast.Expr) -> qlast.Query:
+    if not isinstance(expr, qlast.Query):
         expr = qlast.SelectQuery(
             result=expr,
             implicit=True,

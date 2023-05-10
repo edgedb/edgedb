@@ -17,6 +17,8 @@
 #
 
 
+import itertools
+
 import edgedb
 
 from edb.testbase import server as tb
@@ -527,6 +529,73 @@ class TestDelete(tb.QueryTestCase):
             """,
             [{}, {}],
         )
+
+    async def test_edgeql_delete_multi_simultaneous_01(self):
+        await self.con.execute(r"""
+            with
+              a := (insert DeleteTest { name := '1' }),
+              b := (insert DeleteTest { name := '2' }),
+              c := (insert LinkingType { objs := {a, b} })
+            select c;
+        """)
+
+        dels = {
+            'a': '(DELETE DeleteTest)',
+            'b': '(DELETE LinkingType)',
+        }
+
+        # We want to try all the different permutations of deletion
+        # binding order and order that the variables are referenced in
+        # the body. (Somewhat upsettingly, the order that the delete CTEs
+        # are included into the SQL union affected the behavior.)
+        # All the queries look like some variant on:
+        #
+        #      with
+        #        a := (DELETE DeleteTest),
+        #        b := (DELETE LinkingType),
+        #      select {a, b};
+
+        for binds, uses in itertools.product(
+            list(itertools.permutations(dels.keys())),
+            list(itertools.permutations(dels.keys())),
+        ):
+            bind_q = '\n'.join(
+                ' ' * 18 + f'{k} := {dels[k]},' for k in binds
+            ).lstrip()
+            q = f'''
+                with
+                  {bind_q}
+                select {{{', '.join(uses)}}};
+            '''
+
+            async with self._run_and_rollback():
+                with self.annotate(binds=binds, uses=uses):
+                    await self.con.execute(q)
+
+    async def test_edgeql_delete_multi_simultaneous_02(self):
+        populate = r"""
+            with
+              a := (insert DeleteTest { name := '1' }),
+              b := (insert DeleteTest2 { name := '2' }),
+              c := (insert LinkingType { objs := {a, b} })
+            select c;
+        """
+
+        await self.con.execute(populate)
+        await self.con.execute(r"""
+             with
+               a := (DELETE AbstractDeleteTest),
+               b := (DELETE LinkingType),
+             select {a, b};
+        """)
+
+        await self.con.execute(populate)
+        await self.con.execute(r"""
+             with
+               a := (DELETE AbstractDeleteTest),
+               b := (DELETE LinkingType),
+             select {b, a};
+        """)
 
     async def test_edgeql_delete_where_order_dml(self):
         async with self.assertRaisesRegexTx(

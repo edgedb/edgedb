@@ -34,6 +34,7 @@ from . import name as sn
 from . import objects as so
 from . import pointers
 from . import referencing
+from . import rewrites as s_rewrites
 from . import sources
 from . import types as s_types
 from . import utils
@@ -203,8 +204,11 @@ class PropertySourceCommand(
     pass
 
 
-class PropertyCommandContext(pointers.PointerCommandContext[Property],
-                             constraints.ConsistencySubjectCommandContext):
+class PropertyCommandContext(
+    pointers.PointerCommandContext[Property],
+    constraints.ConsistencySubjectCommandContext,
+    s_rewrites.RewriteCommandContext,
+):
     pass
 
 
@@ -455,22 +459,6 @@ class DeleteProperty(
                qlast.DropProperty]
 
     referenced_astnode = qlast.DropConcreteProperty
-
-    def _delete_begin(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super()._delete_begin(schema, context)
-        if (
-            not context.canonical
-            and (target := self.scls.get_target(schema)) is not None
-            and not self.scls.is_link_source_property(schema)
-            and (del_cmd := target.as_type_delete_if_dead(schema)) is not None
-        ):
-            self.add_caused(del_cmd)
-
-        return schema
 
     def _get_ast(
         self,

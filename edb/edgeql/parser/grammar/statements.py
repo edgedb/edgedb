@@ -34,22 +34,27 @@ from . import tokens
 
 
 class Stmt(Nonterm):
-    def reduce_TransactionStmt(self, *kids):
-        self.val = kids[0].val
 
-    def reduce_DescribeStmt(self, *kids):
+    def reduce_TransactionStmt(self, stmt):
+        self.val = stmt.val
+
+    def reduce_DescribeStmt(self, stmt):
         # DESCRIBE
-        self.val = kids[0].val
+        self.val = stmt.val
 
-    def reduce_ExplainStmt(self, *kids):
-        # Explain
-        self.val = kids[0].val
+    def reduce_AnalyzeStmt(self, stmt):
+        # ANALYZE
+        self.val = stmt.val
 
-    def reduce_ExprStmt(self, *kids):
-        self.val = kids[0].val
+    def reduce_AdministerStmt(self, stmt):
+        self.val = stmt.val
+
+    def reduce_ExprStmt(self, stmt):
+        self.val = stmt.val
 
 
 class TransactionMode(Nonterm):
+
     def reduce_ISOLATION_SERIALIZABLE(self, *kids):
         self.val = (qltypes.TransactionIsolationLevel.SERIALIZABLE,
                     kids[0].context)
@@ -77,6 +82,7 @@ class TransactionModeList(ListNonterm, element=TransactionMode,
 
 
 class OptTransactionModeList(Nonterm):
+
     def reduce_TransactionModeList(self, *kids):
         self.val = kids[0].val
 
@@ -85,6 +91,7 @@ class OptTransactionModeList(Nonterm):
 
 
 class TransactionStmt(Nonterm):
+
     def reduce_START_TRANSACTION_OptTransactionModeList(self, *kids):
         modes = kids[2].val
 
@@ -135,6 +142,7 @@ class TransactionStmt(Nonterm):
 
 
 class DescribeFmt(typing.NamedTuple):
+
     language: typing.Optional[qltypes.DescribeLanguage] = None
     options: typing.Optional[qlast.Options] = None
 
@@ -258,6 +266,7 @@ class DescribeStmt(Nonterm):
 
 
 class OptAnalyze(Nonterm):
+
     def reduce_ANALYZE(self, *kids):
         self.val = True
 
@@ -265,10 +274,24 @@ class OptAnalyze(Nonterm):
         self.val = False
 
 
-class ExplainStmt(Nonterm):
+class AnalyzeStmt(Nonterm):
 
-    def reduce_EXPLAIN_OptAnalyze_ExprStmt(self, *kids):
+    def reduce_ANALYZE_NamedTuple_ExprStmt(self, *kids):
+        _, args, stmt = kids
         self.val = qlast.ExplainStmt(
-            analyze=kids[1].val,
-            query=kids[2].val,
+            args=args.val,
+            query=stmt.val,
         )
+
+    def reduce_ANALYZE_ExprStmt(self, *kids):
+        _, stmt = kids
+        self.val = qlast.ExplainStmt(
+            query=stmt.val,
+        )
+
+
+class AdministerStmt(Nonterm):
+
+    def reduce_ADMINISTER_FuncExpr(self, *kids):
+        _, expr = kids
+        self.val = qlast.AdministerStmt(expr=expr.val)

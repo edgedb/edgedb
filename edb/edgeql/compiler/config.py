@@ -49,6 +49,8 @@ from . import context
 from . import dispatch
 from . import inference
 from . import setgen
+from . import compile_ast_to_ir
+from . import options
 
 
 class SettingInfo(NamedTuple):
@@ -177,7 +179,7 @@ def compile_ConfigInsert(
             f'CONFIGURE {expr.scope} INSERT is not supported'
         )
 
-    subject = ctx.env.get_track_schema_object(
+    subject = ctx.env.get_schema_object_and_track(
         sn.QualName('cfg', expr.name.name), expr.name, default=None)
     if subject is None:
         raise errors.ConfigurationError(
@@ -266,7 +268,7 @@ def _validate_config_object(
 def _validate_global_op(
         expr: qlast.ConfigOp, *,
         ctx: context.ContextLevel) -> SettingInfo:
-    glob = ctx.env.get_track_schema_object(
+    glob = ctx.env.get_schema_object_and_track(
         s_utils.ast_ref_to_name(expr.name), expr.name,
         modaliases=ctx.modaliases, type=s_globals.Global)
     assert isinstance(glob, s_globals.Global)
@@ -296,7 +298,7 @@ def _validate_op(
         )
 
     name = expr.name.name
-    cfg_host_type = ctx.env.get_track_schema_type(
+    cfg_host_type = ctx.env.get_schema_type_and_track(
         sn.QualName('cfg', 'AbstractConfig'))
     assert isinstance(cfg_host_type, s_objtypes.ObjectType)
     cfg_type = None
@@ -315,7 +317,7 @@ def _validate_op(
             )
 
         # expr.name is the name of the configuration type
-        cfg_type = ctx.env.get_track_schema_type(
+        cfg_type = ctx.env.get_schema_type_and_track(
             sn.QualName('cfg', name), default=None)
         if cfg_type is None:
             raise errors.ConfigurationError(
@@ -388,6 +390,28 @@ def _validate_op(
             json.loads(compilation_attr.get_value(ctx.env.schema)))
     else:
         affects_compilation = False
+
+    if isinstance(expr, qlast.ConfigSet):
+        constraints = ptr.get_constraints(ctx.env.schema)
+        for constraint in constraints.objects(ctx.env.schema):
+            subject = expr.expr
+            opts = options.CompilerOptions(
+                anchors={qlast.Subject().name: subject},
+                path_prefix_anchor=qlast.Subject().name,
+                apply_query_rewrites=False,
+                schema_object_context=type(constraint),
+            )
+            final_expr = constraint.get_finalexpr(ctx.env.schema)
+            assert final_expr is not None and final_expr.qlast is not None
+            ir = compile_ast_to_ir(
+                final_expr.qlast, ctx.env.schema, options=opts
+            )
+            result = ireval.evaluate(ir.expr, schema=ctx.env.schema)
+            assert isinstance(result, irast.BooleanConstant)
+            if result.value != 'true':
+                raise errors.ConfigurationError(
+                    f'invalid setting value for {name!r}'
+                )
 
     if system and expr.scope is not qltypes.ConfigScope.INSTANCE:
         raise errors.ConfigurationError(

@@ -67,6 +67,7 @@ cdef class DatabaseIndex:
         object _std_schema
         object _global_schema
         object _factory
+        object _default_sysconfig
 
 
 cdef class Database:
@@ -210,4 +211,3 @@ cdef class DatabaseConnectionView:
     cdef describe_state(self)
     cdef encode_state(self)
     cdef decode_state(self, type_id, data)
-    cdef inline recode_global(self, serializer, k, v)

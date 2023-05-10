@@ -73,9 +73,12 @@ STD_SOURCES = (
     sn.UnqualName('sys'),
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
-    sn.UnqualName('fts'),
     sn.UnqualName('ext'),
     sn.UnqualName('pg'),
+)
+TESTMODE_SOURCES = (
+    sn.UnqualName('fts'),
+    sn.UnqualName('_testmode'),
 )
 
 Schema_T = TypeVar('Schema_T', bound='Schema')
@@ -161,6 +164,7 @@ class Schema(abc.ABC):
         ] = so.NoDefault,
         *,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
+        disallow_module: Optional[Callable[[str], bool]] = None,
     ) -> Tuple[s_func.Function, ...]:
         raise NotImplementedError
 
@@ -173,6 +177,7 @@ class Schema(abc.ABC):
         ] = so.NoDefault,
         *,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
+        disallow_module: Optional[Callable[[str], bool]] = None,
     ) -> Tuple[s_oper.Operator, ...]:
         raise NotImplementedError
 
@@ -422,7 +427,11 @@ class Schema(abc.ABC):
         condition: Optional[Callable[[so.Object], bool]],
         label: Optional[str],
         sourcectx: Optional[parsing.ParserContext],
+        disallow_module: Optional[Callable[[str], bool]] = None,
     ) -> Optional[so.Object]:
+        raise NotImplementedError
+
+    def _get_object_ids(self) -> Iterable[uuid.UUID]:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -505,6 +514,9 @@ class FlatSchema(Schema):
         self._globalname_to_id = immu.Map()
         self._refs_to = immu.Map()
         self._generation = 0
+
+    def _get_object_ids(self) -> Iterable[uuid.UUID]:
+        return self._id_to_type.keys()
 
     def _replace(
         self,
@@ -1562,18 +1574,25 @@ class ChainedSchema(Schema):
 
     def __init__(
         self,
-        base_schema: FlatSchema,
-        top_schema: FlatSchema,
-        global_schema: FlatSchema
+        base_schema: Schema,
+        top_schema: Schema,
+        global_schema: Schema
     ) -> None:
         self._base_schema = base_schema
         self._top_schema = top_schema
         self._global_schema = global_schema
 
-    def get_top_schema(self) -> FlatSchema:
+    def _get_object_ids(self) -> Iterable[uuid.UUID]:
+        return itertools.chain(
+            self._base_schema._get_object_ids(),
+            self._top_schema._get_object_ids(),
+            self._global_schema._get_object_ids(),
+        )
+
+    def get_top_schema(self) -> Schema:
         return self._top_schema
 
-    def get_global_schema(self) -> FlatSchema:
+    def get_global_schema(self) -> Schema:
         return self._global_schema
 
     def add_raw(
@@ -1755,13 +1774,26 @@ class ChainedSchema(Schema):
         ] = so.NoDefault,
         *,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
+        disallow_module: Optional[Callable[[str], bool]] = None,
     ) -> Tuple[s_func.Function, ...]:
         objs = self._top_schema.get_functions(
-            name, module_aliases=module_aliases, default=())
+            name,
+            module_aliases=module_aliases,
+            default=(),
+            disallow_module=disallow_module,
+        )
         if not objs:
+            if disallow_module is not None:
+                dm = disallow_module
+                disallow_module = (
+                    lambda s: dm(s) or self._top_schema.has_module(s))
+            else:
+                disallow_module = self._top_schema.has_module
             objs = self._base_schema.get_functions(
-                name, default=default, module_aliases=module_aliases,
-                disallow_module=self._top_schema.has_module,
+                name,
+                default=default,
+                module_aliases=module_aliases,
+                disallow_module=disallow_module,
             )
         return objs
 
@@ -1773,13 +1805,26 @@ class ChainedSchema(Schema):
         ] = so.NoDefault,
         *,
         module_aliases: Optional[Mapping[Optional[str], str]] = None,
+        disallow_module: Optional[Callable[[str], bool]] = None,
     ) -> Tuple[s_oper.Operator, ...]:
         objs = self._top_schema.get_operators(
-            name, module_aliases=module_aliases, default=())
+            name,
+            module_aliases=module_aliases,
+            default=(),
+            disallow_module=disallow_module,
+        )
         if not objs:
+            if disallow_module is not None:
+                dm = disallow_module
+                disallow_module = (
+                    lambda s: dm(s) or self._top_schema.has_module(s))
+            else:
+                disallow_module = self._top_schema.has_module
             objs = self._base_schema.get_operators(
-                name, default=default, module_aliases=module_aliases,
-                disallow_module=self._top_schema.has_module,
+                name,
+                default=default,
+                module_aliases=module_aliases,
+                disallow_module=disallow_module,
             )
         return objs
 
@@ -1831,7 +1876,7 @@ class ChainedSchema(Schema):
         field_name: Optional[str] = None,
     ) -> FrozenSet[so.Object_T]:
         return (
-            self._base_schema.get_referrers(
+            self._base_schema.get_referrers(  # type: ignore [return-value]
                 scls,
                 scls_type=scls_type,
                 field_name=field_name,
@@ -1841,7 +1886,7 @@ class ChainedSchema(Schema):
                 scls_type=scls_type,
                 field_name=field_name,
             )
-            | self._global_schema.get_referrers(
+            | self._global_schema.get_referrers(  # type: ignore [operator]
                 scls,
                 scls_type=scls_type,
                 field_name=field_name,
@@ -1911,6 +1956,7 @@ class ChainedSchema(Schema):
         condition: Optional[Callable[[so.Object], bool]],
         label: Optional[str],
         sourcectx: Optional[parsing.ParserContext],
+        disallow_module: Optional[Callable[[str], bool]] = None,
     ) -> Optional[so.Object]:
         obj = self._top_schema._get(
             name,
@@ -1920,8 +1966,15 @@ class ChainedSchema(Schema):
             condition=condition,
             label=label,
             sourcectx=sourcectx,
+            disallow_module=disallow_module,
         )
         if obj is None:
+            if disallow_module is not None:
+                dm = disallow_module
+                disallow_module = (
+                    lambda s: dm(s) or self._top_schema.has_module(s))
+            else:
+                disallow_module = self._top_schema.has_module
             return self._base_schema._get(
                 name,
                 default=default,
@@ -1930,7 +1983,7 @@ class ChainedSchema(Schema):
                 condition=condition,
                 label=label,
                 sourcectx=sourcectx,
-                disallow_module=self._top_schema.has_module,
+                disallow_module=disallow_module,
             )
         else:
             return obj
@@ -1969,11 +2022,7 @@ class ChainedSchema(Schema):
     ) -> SchemaIterator[so.Object_T]:
         return SchemaIterator[so.Object_T](
             self,
-            itertools.chain(
-                self._base_schema._id_to_type,
-                self._top_schema._id_to_type,
-                self._global_schema._id_to_type,
-            ),
+            self._get_object_ids(),
             exclude_global=exclude_global,
             exclude_stdlib=exclude_stdlib,
             exclude_internal=exclude_internal,

@@ -28,17 +28,23 @@ CREATE SCALAR TYPE sys::VersionStage
     EXTENDING enum<dev, alpha, beta, rc, final>;
 
 
-CREATE ABSTRACT TYPE sys::SystemObject EXTENDING schema::AnnotationSubject;
+CREATE ABSTRACT TYPE sys::SystemObject EXTENDING schema::Object;
+
+CREATE ABSTRACT TYPE sys::ExternalObject EXTENDING sys::SystemObject;
 
 
-CREATE TYPE sys::Database EXTENDING sys::SystemObject {
+CREATE TYPE sys::Database EXTENDING
+        sys::ExternalObject,
+        schema::AnnotationSubject {
     ALTER PROPERTY name {
         CREATE CONSTRAINT std::exclusive;
     };
 };
 
 
-CREATE TYPE sys::ExtensionPackage EXTENDING sys::SystemObject {
+CREATE TYPE sys::ExtensionPackage EXTENDING
+        sys::SystemObject,
+        schema::AnnotationSubject {
     CREATE REQUIRED PROPERTY script -> str;
     CREATE REQUIRED PROPERTY version -> tuple<
                                             major: std::int64,
@@ -57,7 +63,10 @@ ALTER TYPE schema::Extension {
 };
 
 
-CREATE TYPE sys::Role EXTENDING sys::SystemObject {
+CREATE TYPE sys::Role EXTENDING
+        sys::SystemObject,
+        schema::InheritingObject,
+        schema::AnnotationSubject {
     ALTER PROPERTY name {
         CREATE CONSTRAINT std::exclusive;
     };

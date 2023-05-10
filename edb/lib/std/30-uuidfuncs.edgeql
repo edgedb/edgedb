@@ -24,7 +24,7 @@ CREATE FUNCTION
 std::uuid_generate_v1mc() -> std::uuid {
     CREATE ANNOTATION std::description := 'Return a version 1 UUID.';
     SET volatility := 'Volatile';
-    USING SQL FUNCTION 'edgedbext.uuid_generate_v1mc';
+    USING SQL FUNCTION 'edgedb.uuid_generate_v1mc';
 };
 
 
@@ -32,7 +32,7 @@ CREATE FUNCTION
 std::uuid_generate_v4() -> std::uuid {
     CREATE ANNOTATION std::description := 'Return a version 4 UUID.';
     SET volatility := 'Volatile';
-    USING SQL FUNCTION 'edgedbext.uuid_generate_v4';
+    USING SQL FUNCTION 'edgedb.uuid_generate_v4';
 };
 
 
