@@ -39,14 +39,14 @@ jobs:
         mkdir -p pool-simulation/reports
 
     - name: Set up Python
-      id: py310
+      id: python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
         cache: 'pip'
 
     - name: Install Python dependencies
-      if: ${{ !steps.py310.outputs.cache-hit }}
+      if: ${{ !steps.python.outputs.cache-hit }}
       run: |
         pip install -r requirements.txt
 
@@ -58,7 +58,7 @@ jobs:
       run: |
         python tests/test_server_pool.py
 
-    - uses: EndBug/add-and-commit@v9.1.3
+    - uses: EndBug/add-and-commit@1bad3abcf0d6ec49a5857d124b0bfb52dc7bb081 # v9.1.3
       if: ${{ always() }}
       continue-on-error: true
       with:

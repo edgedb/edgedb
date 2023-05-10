@@ -29,7 +29,7 @@ jobs:
         submodules: true
 
     - name: Set up Python
-      id: py310
+      id: python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
@@ -39,7 +39,7 @@ jobs:
           pyproject.toml
 
     - name: Install Python dependencies
-      if: ${{ !steps.py310.outputs.cache-hit }}
+      if: ${{ !steps.python.outputs.cache-hit }}
       shell: bash
       run: |
         set -e
