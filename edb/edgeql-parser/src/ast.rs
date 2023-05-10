@@ -10,7 +10,6 @@ use std::collections::HashMap;
 #[cfg(feature = "python")]
 use edgeql_parser_derive::IntoPython;
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct OptionValue {
@@ -32,14 +31,12 @@ pub struct OptionFlag {
     pub val: bool,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Options {
     pub options: HashMap<String, OptionValue>,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Expr {
@@ -82,7 +79,6 @@ pub struct Placeholder {
     pub name: String,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct SortExpr {
@@ -91,7 +87,6 @@ pub struct SortExpr {
     pub nones_order: Option<NonesOrder>,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct AliasedExpr {
@@ -99,7 +94,6 @@ pub struct AliasedExpr {
     pub expr: Box<Expr>,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct ModuleAliasDecl {
@@ -107,7 +101,6 @@ pub struct ModuleAliasDecl {
     pub alias: Option<String>,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct BaseObjectRef {
@@ -209,14 +202,12 @@ pub struct GlobalExpr {
     pub name: ObjectRef,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Index {
     pub index: Box<Expr>,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Slice {
@@ -263,7 +254,6 @@ pub struct SetConstructorOp {
     pub op: String,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct WindowSpec {
@@ -367,7 +357,6 @@ pub struct UnaryOp {
     pub operand: Box<Expr>,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct TypeExpr {
@@ -414,7 +403,6 @@ pub struct TypeOp {
     pub right: Box<TypeExpr>,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct FuncParam {
@@ -433,14 +421,12 @@ pub struct IsOp {
     pub right: TypeExpr,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct TypeIntersection {
     pub r#type: TypeExpr,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Ptr {
@@ -449,7 +435,6 @@ pub struct Ptr {
     pub r#type: Option<String>,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Splat {
@@ -498,7 +483,6 @@ pub struct IfElse {
     pub else_expr: Box<Expr>,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct TupleElement {
@@ -530,7 +514,6 @@ pub struct Set {
     pub elements: Vec<Box<Expr>>,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Command {
@@ -581,7 +564,6 @@ pub struct SessionResetModule {}
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct SessionResetAllAliases {}
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct ShapeOperation {
@@ -666,7 +648,6 @@ pub struct SelectQuery {
     pub result: Box<Expr>,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct GroupingIdentList {
@@ -682,7 +663,6 @@ pub enum GroupingIdentListElements {
     GroupingIdentList(GroupingIdentList),
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct GroupingElement {
@@ -797,7 +777,6 @@ pub struct ForQuery {
     pub result: Box<Expr>,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Transaction {
@@ -851,44 +830,6 @@ pub struct ReleaseSavepoint {
     pub name: String,
 }
 
-/// Base class
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct DDL {
-    #[py_child]
-    pub kind: DDLKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum DDLKind {
-    BasesMixin(BasesMixin),
-    Position(Position),
-    DDLOperation(DDLOperation),
-    NestedQLBlock(NestedQLBlock),
-    IndexType(IndexType),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct BasesMixin {
-    pub bases: Vec<TypeExpr>,
-    #[py_child]
-    pub kind: BasesMixinKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum BasesMixinKind {
-    AlterAddInherit(AlterAddInherit),
-    AlterDropInherit(AlterDropInherit),
-    CreateExtendingObject(CreateExtendingObject),
-    CreateRole(CreateRole),
-    CreateConcretePointer(CreateConcretePointer),
-}
-
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Position {
@@ -929,27 +870,20 @@ pub struct DDLCommand {
 #[py_child]
 pub enum DDLCommandKind {
     NamedDDL(NamedDDL),
-    StartMigration(StartMigration),
-    AbortMigration(AbortMigration),
-    PopulateMigration(PopulateMigration),
-    AlterCurrentMigrationRejectProposed(AlterCurrentMigrationRejectProposed),
-    DescribeCurrentMigration(DescribeCurrentMigration),
-    CommitMigration(CommitMigration),
-    ResetSchema(ResetSchema),
-    StartMigrationRewrite(StartMigrationRewrite),
-    AbortMigrationRewrite(AbortMigrationRewrite),
-    CommitMigrationRewrite(CommitMigrationRewrite),
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct AlterAddInherit {
     pub position: Option<Position>,
+    pub bases: Vec<TypeExpr>,
 }
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct AlterDropInherit {}
+pub struct AlterDropInherit {
+    pub bases: Vec<TypeExpr>,
+}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
@@ -1036,7 +970,6 @@ pub enum NamedDDLKind {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct ObjectDDL {
-    pub object_class: SchemaObjectClass,
     #[py_child]
     pub kind: ObjectDDLKind,
 }
@@ -1048,22 +981,6 @@ pub enum ObjectDDLKind {
     CreateObject(CreateObject),
     AlterObject(AlterObject),
     DropObject(DropObject),
-    UnqualifiedObjectCommand(UnqualifiedObjectCommand),
-    AnnotationCommand(AnnotationCommand),
-    PseudoTypeCommand(PseudoTypeCommand),
-    ScalarTypeCommand(ScalarTypeCommand),
-    PropertyCommand(PropertyCommand),
-    ObjectTypeCommand(ObjectTypeCommand),
-    AliasCommand(AliasCommand),
-    GlobalCommand(GlobalCommand),
-    LinkCommand(LinkCommand),
-    CallableObjectCommand(CallableObjectCommand),
-    ConstraintCommand(ConstraintCommand),
-    IndexCommand(IndexCommand),
-    AccessPolicyCommand(AccessPolicyCommand),
-    TriggerCommand(TriggerCommand),
-    RewriteCommand(RewriteCommand),
-    CastCommand(CastCommand),
 }
 
 #[derive(Debug, Clone)]
@@ -1184,6 +1101,7 @@ pub enum DropObjectKind {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateExtendingObject {
     pub r#final: bool,
+    pub bases: Vec<TypeExpr>,
     #[py_child]
     pub kind: Option<CreateExtendingObjectKind>,
 }
@@ -1223,7 +1141,6 @@ pub struct CreateMigration {
     pub metadata_only: bool,
 }
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CommittedSchema {}
@@ -1292,70 +1209,6 @@ pub struct CommitMigrationRewrite {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct UnqualifiedObjectCommand {
-    #[py_child]
-    pub kind: UnqualifiedObjectCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum UnqualifiedObjectCommandKind {
-    GlobalObjectCommand(GlobalObjectCommand),
-    ExtensionCommand(ExtensionCommand),
-    FutureCommand(FutureCommand),
-    ModuleCommand(ModuleCommand),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct GlobalObjectCommand {
-    #[py_child]
-    pub kind: GlobalObjectCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum GlobalObjectCommandKind {
-    ExternalObjectCommand(ExternalObjectCommand),
-    ExtensionPackageCommand(ExtensionPackageCommand),
-    RoleCommand(RoleCommand),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct ExternalObjectCommand {
-    #[py_child]
-    pub kind: ExternalObjectCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum ExternalObjectCommandKind {
-    DatabaseCommand(DatabaseCommand),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct DatabaseCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: DatabaseCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum DatabaseCommandKind {
-    CreateDatabase(CreateDatabase),
-    AlterDatabase(AlterDatabase),
-    DropDatabase(DropDatabase),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateDatabase {
     pub template: Option<ObjectRef>,
 }
@@ -1370,23 +1223,6 @@ pub struct DropDatabase {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct ExtensionPackageCommand {
-    pub object_class: SchemaObjectClass,
-    pub version: BaseConstant,
-    #[py_child]
-    pub kind: ExtensionPackageCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum ExtensionPackageCommandKind {
-    CreateExtensionPackage(CreateExtensionPackage),
-    DropExtensionPackage(DropExtensionPackage),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateExtensionPackage {
     pub body: NestedQLBlock,
 }
@@ -1394,24 +1230,6 @@ pub struct CreateExtensionPackage {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropExtensionPackage {}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct ExtensionCommand {
-    pub object_class: SchemaObjectClass,
-    pub version: Option<BaseConstant>,
-    #[py_child]
-    pub kind: ExtensionCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum ExtensionCommandKind {
-    CreateExtension(CreateExtension),
-    DropExtension(DropExtension),
-    DropFuture(DropFuture),
-}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
@@ -1423,43 +1241,11 @@ pub struct DropExtension {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct FutureCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: FutureCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum FutureCommandKind {
-    CreateFuture(CreateFuture),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateFuture {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropFuture {}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct ModuleCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: ModuleCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum ModuleCommandKind {
-    CreateModule(CreateModule),
-    AlterModule(AlterModule),
-    DropModule(DropModule),
-}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
@@ -1475,25 +1261,9 @@ pub struct DropModule {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct RoleCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: RoleCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum RoleCommandKind {
-    CreateRole(CreateRole),
-    AlterRole(AlterRole),
-    DropRole(DropRole),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateRole {
     pub superuser: bool,
+    pub bases: Vec<TypeExpr>,
 }
 
 #[derive(Debug, Clone)]
@@ -1503,26 +1273,6 @@ pub struct AlterRole {}
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropRole {}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct AnnotationCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: AnnotationCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum AnnotationCommandKind {
-    CreateAnnotation(CreateAnnotation),
-    AlterAnnotation(AlterAnnotation),
-    DropAnnotation(DropAnnotation),
-    CreateAnnotationValue(CreateAnnotationValue),
-    AlterAnnotationValue(AlterAnnotationValue),
-    DropAnnotationValue(DropAnnotationValue),
-}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
@@ -1541,39 +1291,7 @@ pub struct DropAnnotation {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct PseudoTypeCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: PseudoTypeCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum PseudoTypeCommandKind {
-    CreatePseudoType(CreatePseudoType),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreatePseudoType {}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct ScalarTypeCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: ScalarTypeCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum ScalarTypeCommandKind {
-    CreateScalarType(CreateScalarType),
-    AlterScalarType(AlterScalarType),
-    DropScalarType(DropScalarType),
-}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
@@ -1586,26 +1304,6 @@ pub struct AlterScalarType {}
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropScalarType {}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct PropertyCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: PropertyCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum PropertyCommandKind {
-    CreateProperty(CreateProperty),
-    AlterProperty(AlterProperty),
-    DropProperty(DropProperty),
-    CreateConcreteProperty(CreateConcreteProperty),
-    AlterConcreteProperty(AlterConcreteProperty),
-    DropConcreteProperty(DropConcreteProperty),
-}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
@@ -1626,6 +1324,7 @@ pub struct CreateConcretePointer {
     pub declared_overloaded: bool,
     pub target: CreateConcretePointerTarget,
     pub cardinality: SchemaCardinality,
+    pub bases: Vec<TypeExpr>,
     #[py_child]
     pub kind: Option<CreateConcretePointerKind>,
 }
@@ -1666,23 +1365,6 @@ pub struct DropConcreteProperty {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct ObjectTypeCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: ObjectTypeCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum ObjectTypeCommandKind {
-    CreateObjectType(CreateObjectType),
-    AlterObjectType(AlterObjectType),
-    DropObjectType(DropObjectType),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateObjectType {}
 
 #[derive(Debug, Clone)]
@@ -1695,23 +1377,6 @@ pub struct DropObjectType {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct AliasCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: AliasCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum AliasCommandKind {
-    CreateAlias(CreateAlias),
-    AlterAlias(AlterAlias),
-    DropAlias(DropAlias),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateAlias {}
 
 #[derive(Debug, Clone)]
@@ -1721,23 +1386,6 @@ pub struct AlterAlias {}
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropAlias {}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct GlobalCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: GlobalCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum GlobalCommandKind {
-    CreateGlobal(CreateGlobal),
-    AlterGlobal(AlterGlobal),
-    DropGlobal(DropGlobal),
-}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
@@ -1776,26 +1424,6 @@ pub struct SetGlobalType {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct LinkCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: LinkCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum LinkCommandKind {
-    CreateLink(CreateLink),
-    AlterLink(AlterLink),
-    DropLink(DropLink),
-    CreateConcreteLink(CreateConcreteLink),
-    AlterConcreteLink(AlterConcreteLink),
-    DropConcreteLink(DropConcreteLink),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateLink {}
 
 #[derive(Debug, Clone)]
@@ -1820,45 +1448,10 @@ pub struct DropConcreteLink {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct CallableObjectCommand {
-    pub params: Vec<FuncParam>,
-    #[py_child]
-    pub kind: CallableObjectCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum CallableObjectCommandKind {
-    CreateConstraint(CreateConstraint),
-    CreateIndex(CreateIndex),
-    FunctionCommand(FunctionCommand),
-    OperatorCommand(OperatorCommand),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct ConstraintCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: ConstraintCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum ConstraintCommandKind {
-    CreateConstraint(CreateConstraint),
-    AlterConstraint(AlterConstraint),
-    DropConstraint(DropConstraint),
-    ConcreteConstraintOp(ConcreteConstraintOp),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateConstraint {
     pub r#abstract: bool,
     pub subjectexpr: Option<Box<Expr>>,
+    pub params: Vec<FuncParam>,
 }
 
 #[derive(Debug, Clone)]
@@ -1868,25 +1461,6 @@ pub struct AlterConstraint {}
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropConstraint {}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct ConcreteConstraintOp {
-    pub args: Vec<Box<Expr>>,
-    pub subjectexpr: Option<Box<Expr>>,
-    pub except_expr: Option<Box<Expr>>,
-    #[py_child]
-    pub kind: ConcreteConstraintOpKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum ConcreteConstraintOpKind {
-    CreateConcreteConstraint(CreateConcreteConstraint),
-    AlterConcreteConstraint(AlterConcreteConstraint),
-    DropConcreteConstraint(DropConcreteConstraint),
-}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
@@ -1912,25 +1486,6 @@ pub struct IndexType {
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct IndexCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: IndexCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum IndexCommandKind {
-    CreateIndex(CreateIndex),
-    AlterIndex(AlterIndex),
-    DropIndex(DropIndex),
-    ConcreteIndexCommand(ConcreteIndexCommand),
-}
-
-/// Base class
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct IndexCode {
     pub language: Language,
     pub code: String,
@@ -1942,6 +1497,7 @@ pub struct CreateIndex {
     pub kwargs: HashMap<String, Box<Expr>>,
     pub index_types: Vec<IndexType>,
     pub code: Option<IndexCode>,
+    pub params: Vec<FuncParam>,
 }
 
 #[derive(Debug, Clone)]
@@ -1951,25 +1507,6 @@ pub struct AlterIndex {}
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropIndex {}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct ConcreteIndexCommand {
-    pub kwargs: HashMap<String, Box<Expr>>,
-    pub expr: Box<Expr>,
-    pub except_expr: Option<Box<Expr>>,
-    #[py_child]
-    pub kind: ConcreteIndexCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum ConcreteIndexCommandKind {
-    CreateConcreteIndex(CreateConcreteIndex),
-    AlterConcreteIndex(AlterConcreteIndex),
-    DropConcreteIndex(DropConcreteIndex),
-}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
@@ -2001,23 +1538,6 @@ pub struct DropAnnotationValue {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct AccessPolicyCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: AccessPolicyCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum AccessPolicyCommandKind {
-    CreateAccessPolicy(CreateAccessPolicy),
-    AlterAccessPolicy(AlterAccessPolicy),
-    DropAccessPolicy(DropAccessPolicy),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateAccessPolicy {
     pub condition: Option<Box<Expr>>,
     pub action: AccessPolicyAction,
@@ -2042,23 +1562,6 @@ pub struct DropAccessPolicy {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct TriggerCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: TriggerCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum TriggerCommandKind {
-    CreateTrigger(CreateTrigger),
-    AlterTrigger(AlterTrigger),
-    DropTrigger(DropTrigger),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateTrigger {
     pub timing: TriggerTiming,
     pub kinds: Vec<TriggerKind>,
@@ -2076,24 +1579,6 @@ pub struct DropTrigger {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct RewriteCommand {
-    pub object_class: SchemaObjectClass,
-    pub kinds: Vec<RewriteKind>,
-    #[py_child]
-    pub kind: RewriteCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum RewriteCommandKind {
-    CreateRewrite(CreateRewrite),
-    AlterRewrite(AlterRewrite),
-    DropRewrite(DropRewrite),
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateRewrite {
     pub expr: Box<Expr>,
 }
@@ -2106,7 +1591,6 @@ pub struct AlterRewrite {}
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropRewrite {}
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct FunctionCode {
@@ -2115,23 +1599,6 @@ pub struct FunctionCode {
     pub nativecode: Option<Box<Expr>>,
     pub from_function: Option<String>,
     pub from_expr: bool,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct FunctionCommand {
-    pub object_class: SchemaObjectClass,
-    #[py_child]
-    pub kind: FunctionCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum FunctionCommandKind {
-    CreateFunction(CreateFunction),
-    AlterFunction(AlterFunction),
-    DropFunction(DropFunction),
 }
 
 #[derive(Debug, Clone)]
@@ -2154,7 +1621,6 @@ pub struct AlterFunction {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropFunction {}
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct OperatorCode {
@@ -2163,24 +1629,6 @@ pub struct OperatorCode {
     pub from_function: Option<Vec<String>>,
     pub from_expr: bool,
     pub code: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct OperatorCommand {
-    pub object_class: SchemaObjectClass,
-    pub kind: OperatorKind,
-    #[py_child]
-    pub kind1: OperatorCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum OperatorCommandKind {
-    CreateOperator(CreateOperator),
-    AlterOperator(AlterOperator),
-    DropOperator(DropOperator),
 }
 
 #[derive(Debug, Clone)]
@@ -2199,7 +1647,6 @@ pub struct AlterOperator {}
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct DropOperator {}
 
-/// Base class
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CastCode {
@@ -2208,25 +1655,6 @@ pub struct CastCode {
     pub from_expr: bool,
     pub from_cast: bool,
     pub code: String,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct CastCommand {
-    pub object_class: SchemaObjectClass,
-    pub from_type: TypeExpr,
-    pub to_type: TypeExpr,
-    #[py_child]
-    pub kind: CastCommandKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum CastCommandKind {
-    CreateCast(CreateCast),
-    AlterCast(AlterCast),
-    DropCast(DropCast),
 }
 
 #[derive(Debug, Clone)]
@@ -2308,22 +1736,6 @@ pub struct ExplainStmt {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct AdministerStmt {
     pub expr: FunctionCall,
-}
-
-/// Base class
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-pub struct SDL {
-    #[py_child]
-    pub kind: SDLKind,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "python", derive(IntoPython))]
-#[py_child]
-pub enum SDLKind {
-    ModuleDeclaration(ModuleDeclaration),
-    Schema(Schema),
 }
 
 #[derive(Debug, Clone)]

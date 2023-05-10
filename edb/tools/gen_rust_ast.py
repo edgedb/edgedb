@@ -15,10 +15,7 @@ from edb.tools.edb import edbcommands
 class ASTClass:
     name: str
     typ: typing.Type
-    children: typing.List[typing.Type] = dataclasses.field(
-        default_factory=list
-    )
-    is_base = False
+    children: typing.List[typing.Type] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass()
@@ -62,7 +59,7 @@ def main() -> None:
         if not isinstance(typ, type) or not hasattr(typ, '_direct_fields'):
             continue
 
-        if name == 'Base' or name.startswith('_'):
+        if hasattr(typ, '__rust_ignore__') and typ.__rust_ignore__:
             continue
 
         # re-run field collection to correctly handle forward-references
@@ -73,8 +70,6 @@ def main() -> None:
     # build inheritance graph
     for ast_class in ast_classes.values():
         for base in ast_class.typ.__bases__:
-            if base.__name__ == 'Base':
-                ast_class.is_base = True
             if base.__name__ not in ast_classes:
                 continue
             ast_classes[base.__name__].children.append(ast_class.typ)
@@ -136,9 +131,6 @@ def codegen_struct(cls: ASTClass) -> str:
             field_type = f'Option<{name}>'
 
         fields += f'    #[py_child]\n' f'    pub {kind_name}: {field_type},\n'
-
-    if cls.is_base:
-        doc_comment = '/// Base class\n'
 
     return (
         f'\n{doc_comment}'

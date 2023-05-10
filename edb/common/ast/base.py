@@ -120,6 +120,7 @@ class AST:
     def _collect_direct_fields(cls):
         dct = cls.__dict__
         cls.__abstract_node__ = bool(dct.get('__abstract_node__'))
+        cls.__rust_ignore__ = bool(dct.get('__rust_ignore__'))
 
         if '__annotations__' not in dct:
             cls._direct_fields = []
