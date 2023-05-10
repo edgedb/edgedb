@@ -926,3 +926,30 @@ class TestRewrites(tb.QueryTestCase):
                 ]
             ),
         )
+
+    async def test_edgeql_rewrites_23(self):
+        await self.con.execute(
+            '''
+            alter type Person {
+                alter property first_name {
+                    create rewrite update using ('updated');
+                };
+            };
+            insert Person { first_name := 'initial' };
+            '''
+        )
+        await self.assert_query_result(
+            'select Person { first_name }',
+            [{'first_name': 'initial'}],
+        )
+
+        await self.con.execute(
+            '''
+            with A := Person
+            update A set {};
+            '''
+        )
+        await self.assert_query_result(
+            'select Person { first_name }',
+            [{'first_name': 'updated'}],
+        )
