@@ -1269,7 +1269,10 @@ def _compile_qlexpr(
         source_set = setgen.fixup_computable_source_set(
             ir_source, ctx=shape_expr_ctx
         )
-        shape_expr_ctx.partial_path_prefix = source_set
+
+        # do not allow leading dot notation in insert shapes
+        if not s_ctx.exprtype.is_insert():
+            shape_expr_ctx.partial_path_prefix = source_set
 
         # if view_scls.disallow_partial_paths is None:
         #     shape_expr_ctx.partial_path_prefix = source_set
