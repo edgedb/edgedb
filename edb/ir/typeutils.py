@@ -323,8 +323,10 @@ def type_to_typeref(
         else:
             ancestors = None
 
+        sql_type = None
         needs_custom_json_cast = False
         if isinstance(t, s_scalars.ScalarType):
+            sql_type = t.get_sql_type(schema)
             if material_typeref is None:
                 cast_name = s_casts.get_cast_fullname_from_names(
                     orig_name_hint or name_hint,
@@ -350,6 +352,7 @@ def type_to_typeref(
             is_view=t.is_view(schema),
             is_opaque_union=t.get_is_opaque_union(schema),
             needs_custom_json_cast=needs_custom_json_cast,
+            sql_type=sql_type,
         )
     elif isinstance(t, s_types.Tuple) and t.is_named(schema):
         schema, material_type = t.material_type(schema)

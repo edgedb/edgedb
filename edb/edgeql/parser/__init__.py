@@ -127,6 +127,21 @@ def parse_migration_body_block(
     return parser.parse(tsource)
 
 
+def parse_extension_package_body_block(
+    source: str,
+) -> tuple[qlast.NestedQLBlock, list[qlast.SetField]]:
+    # For parser-internal technical reasons, we don't have a
+    # production that means "just the *inside* of a migration block
+    # (without braces)", so we just hack around this by adding braces.
+    # This is only really workable because we only use this in a place
+    # where the source contexts don't matter anyway.
+    source = '{' + source + '}'
+
+    tsource = qltokenizer.Source.from_string(source)
+    parser = qlparser.EdgeQLExtensionPackageBodyParser()
+    return parser.parse(tsource)
+
+
 def parse_sdl(expr: str):
     parser = qlparser.EdgeSDLParser()
     return parser.parse(expr)

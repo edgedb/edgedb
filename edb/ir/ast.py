@@ -177,6 +177,8 @@ class TypeRef(ImmutableBase):
     is_opaque_union: bool = False
     # Does this need to call a custom json cast function
     needs_custom_json_cast: bool = False
+    # If this has a schema-configured backend type, what is it
+    sql_type: typing.Optional[str] = None
 
     def __repr__(self) -> str:
         return f'<ir.TypeRef \'{self.name_hint}\' at 0x{id(self):x}>'
