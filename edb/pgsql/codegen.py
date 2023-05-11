@@ -152,7 +152,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         indent_with: str = ' ' * 4,
         add_line_information: bool = False,
         pretty: bool = True,
-        reordered: bool = True,
+        reordered: bool = False,
     ) -> Tuple[str, SQLSourceGeneratorTranslationData]:
         try:
             generator = cls(
