@@ -31,10 +31,11 @@ from edb.common import ast
 
 from edb.schema import constraints as s_constr
 from edb.schema import indexes as s_indexes
+from edb.schema import name as sn
 from edb.schema import objects as so
 from edb.schema import pointers as s_pointers
-from edb.schema import schema as s_schema
 
+from edb.server.compiler import explain
 from edb.server.compiler.explain import casefold
 from edb.server.compiler.explain import to_json
 
@@ -54,7 +55,7 @@ class FromJson(ast.AST, to_json.ToJson):
     def from_json(
         cls: Type[FromJsonT],
         json: dict[str, Any],
-        schema: s_schema.Schema,
+        ctx: explain.AnalyzeContext,
     ) -> FromJsonT:
         annotations = get_type_hints(cls)
         result = cls()
@@ -74,18 +75,18 @@ class FromJson(ast.AST, to_json.ToJson):
                     continue
 
             if prop is Index:
-                setattr(result, name, _translate_index(value, schema))
+                setattr(result, name, _translate_index(value, ctx))
             elif prop is Relation:
-                setattr(result, name, _translate_relation(value, schema))
+                setattr(result, name, _translate_relation(value, ctx))
             elif get_origin(prop) is list:
                 inner = get_args(prop)[0]
                 if type(inner) is type and issubclass(inner, FromJson):
                     setattr(result, name,
-                            [inner.from_json(v, schema) for v in value])
+                            [inner.from_json(v, ctx) for v in value])
                 else:
                     setattr(result, name, value)
             elif type(prop) is type and issubclass(prop, FromJson):
-                setattr(result, name, prop.from_json(value, schema))
+                setattr(result, name, prop.from_json(value, ctx))
             else:
                 setattr(result, name, value)
 
@@ -107,25 +108,34 @@ class FromJson(ast.AST, to_json.ToJson):
 
 
 def _obj_to_name(
-        sobj: so.Object, schema: s_schema.Schema, dotted: bool=False) -> str:
+    sobj: so.Object,
+    ctx: explain.AnalyzeContext,
+    dotted: bool=False,
+) -> str:
     if isinstance(sobj, s_pointers.Pointer):
         # If a pointer is on the RHS of a dot, just use
         # the short name. But otherwise, grab the source
         # and link it up
-        s = str(sobj.get_shortname(schema).name)
-        if sobj.is_link_property(schema):
+        s = str(sobj.get_shortname(ctx.schema).name)
+        if sobj.is_link_property(ctx.schema):
             s = f'@{s}'
-        if not dotted and (src := sobj.get_source(schema)):
-            src_name = src.get_name(schema)
+        if not dotted and (src := sobj.get_source(ctx.schema)):
+            src_name = _translate_name(
+                src.get_name(ctx.schema),
+                ctx.reverse_mod_aliases,
+            )
             s = f'{src_name}.{s}'
     elif isinstance(sobj, s_constr.Constraint):
-        s = sobj.get_verbosename(schema, with_parent=True)
+        s = sobj.get_verbosename(ctx.schema, with_parent=True)
     elif isinstance(sobj, s_indexes.Index):
-        s = sobj.get_verbosename(schema, with_parent=True)
-        if expr := sobj.get_expr(schema):
+        s = sobj.get_verbosename(ctx.schema, with_parent=True)
+        if expr := sobj.get_expr(ctx.schema):
             s += f' on ({expr.text})'
     else:
-        s = str(sobj.get_name(schema))
+        s = _translate_name(
+            sobj.get_name(ctx.schema),
+            ctx.reverse_mod_aliases,
+        )
 
     if dotted:
         s = '.' + s
@@ -133,16 +143,16 @@ def _obj_to_name(
     return s
 
 
-def _translate_index(name: str, schema: s_schema.Schema) -> Index:
+def _translate_index(name: str, ctx: explain.AnalyzeContext) -> Index:
     # Try to replace all ids with textual names
     had_index = False
     for (full, m) in uuid_re.findall(name):
         uid = uuid.UUID(m)
-        sobj = schema.get_by_id(uid, default=None)
+        sobj = ctx.schema.get_by_id(uid, default=None)
         if sobj:
             had_index |= isinstance(sobj, s_indexes.Index)
             dotted = full[0] == '.'
-            s = _obj_to_name(sobj, schema, dotted=dotted)
+            s = _obj_to_name(sobj, ctx, dotted=dotted)
             name = uuid_re.sub(s, name, count=1)
 
     name = name.replace('_source_target_key', ' forward link index')
@@ -158,14 +168,44 @@ def _translate_index(name: str, schema: s_schema.Schema) -> Index:
     return Index(name)
 
 
-def _translate_relation(name: str, schema: s_schema.Schema) -> Relation:
+def _translate_relation(name: str, ctx: explain.AnalyzeContext) -> Relation:
     try:
         id = uuid.UUID(name)
     except ValueError:
         # For introspection queries there are tables are named pg_*
         return Relation(name)
-    return Relation(str(schema.get_by_id(id).get_name(schema)))
+    return Relation(_obj_to_name(ctx.schema.get_by_id(id), ctx))
 
+
+def _translate_name(
+    name: sn.Name,
+    reverse_mod_aliases: dict[str, Optional[str]],
+) -> str:
+    if not isinstance(name, sn.QualName):
+        return str(name)
+    if name.module in reverse_mod_aliases:
+        module = reverse_mod_aliases[name.module]
+        if module is None:
+            return name.name
+        else:
+            return f"{module}::{name.name}"
+    else:
+        module = name.module
+        suffix = f"::{name.name}"
+        while True:
+            # looking for the longest prefix first
+            try:
+                prefix, submodule = module.rsplit("::", 1)
+            except ValueError:
+                return str(name)
+            suffix = f"::{submodule}{suffix}"
+
+            # Note: we don't strip default alias here so only absolute paths
+            # are generated
+            if aliased := reverse_mod_aliases.get(prefix):
+                return aliased + suffix
+
+            module = prefix
 
 # Legend:
 # * show, shown -- something visible in the text explain
@@ -174,6 +214,7 @@ def _translate_relation(name: str, schema: s_schema.Schema) -> Relation:
 #   (we do not use enums, because no exhaustivity guarantee)
 # * `kB` is unit for these values
 # * no key with list == empty list
+
 
 Expr = NewType('Expr', str)
 Kbytes = NewType('Kbytes', int)
@@ -312,13 +353,13 @@ class Plan(FromJson, CostMixin):
     def from_json(
         cls,
         json: dict[str, Any],
-        schema: s_schema.Schema,
+        ctx: explain.AnalyzeContext,
     ) -> Plan:
         copy = json.copy()
         copy['plan_id'] = uuid.uuid4()
         node_type = casefold.to_camel_case(copy.pop("Node Type"))
         subclass = cls.__subclasses.get(node_type, cls)
-        return super(Plan, subclass).from_json(copy, schema)
+        return super(Plan, subclass).from_json(copy, ctx)
 
     @classmethod
     def get_props(cls) -> dict[str, PropInfo]:
