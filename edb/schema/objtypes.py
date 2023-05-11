@@ -108,9 +108,6 @@ class ObjectType(
         default=False,
     )
 
-    disallow_partial_paths: Optional[str] = None
-    """set to error location description if a partial paths are disallowed"""
-
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'object type'

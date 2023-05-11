@@ -542,6 +542,9 @@ class ContextLevel(compiler.ContextLevel):
     """Whether we are currently in a place where no dml is allowed,
         if not None, then it is of the form `in a FILTER clause`  """
 
+    disallow_partial_paths: Optional[str]
+    """set to error location description if a partial paths are disallowed"""
+
     active_rewrites: FrozenSet[s_objtypes.ObjectType]
     """For detecting cycles in rewrite rules"""
 
@@ -605,6 +608,7 @@ class ContextLevel(compiler.ContextLevel):
             self.active_defaults = frozenset()
 
             self.disallow_dml = None
+            self.disallow_partial_paths = None
 
         else:
             self.env = prevlevel.env
@@ -647,6 +651,7 @@ class ContextLevel(compiler.ContextLevel):
             self.active_defaults = prevlevel.active_defaults
 
             self.disallow_dml = prevlevel.disallow_dml
+            self.disallow_partial_paths = prevlevel.disallow_partial_paths
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()

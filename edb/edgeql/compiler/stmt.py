@@ -472,6 +472,9 @@ def compile_InsertQuery(
             bodyctx.implicit_tid_in_shapes = False
             bodyctx.implicit_tname_in_shapes = False
             bodyctx.implicit_limit = 0
+            bodyctx.disallow_partial_paths = (
+                    "in the shape of an INSERT statement"
+                )
 
             stmt.subject = compile_query_subject(
                 subject,

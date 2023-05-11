@@ -414,8 +414,6 @@ def _process_view(
 
     # defaults
     if s_ctx.exprtype.is_insert():
-        # reset we allow leading dots notation in defaults
-        view_scls.disallow_partial_paths = None
         defaults_ptrs = _gen_pointers_from_defaults(
             specified_ptrs, view_scls, ir_set, stype, s_ctx, ctx
         )
@@ -1271,9 +1269,10 @@ def _compile_qlexpr(
         source_set = setgen.fixup_computable_source_set(
             ir_source, ctx=shape_expr_ctx
         )
+        shape_expr_ctx.partial_path_prefix = source_set
 
-        if view_scls.disallow_partial_paths is None:
-            shape_expr_ctx.partial_path_prefix = source_set
+        # if view_scls.disallow_partial_paths is None:
+        #     shape_expr_ctx.partial_path_prefix = source_set
 
         if s_ctx.exprtype.is_mutation() and ptrcls is not None:
             shape_expr_ctx.expr_exposed = context.Exposure.EXPOSED

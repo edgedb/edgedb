@@ -252,10 +252,10 @@ def derive_view(
                 transient=True,
                 attrs=attrs,
             )
-            if exprtype == s_types.ExprType.Insert \
-                    and isinstance(derived, s_objtypes.ObjectType):
-                derived.disallow_partial_paths = \
-                    "in the shape of an INSERT statement"
+            # if exprtype == s_types.ExprType.Insert \
+            #         and isinstance(derived, s_objtypes.ObjectType):
+            #     derived.disallow_partial_paths = \
+            #         "in the shape of an INSERT statement"
 
         if (
             stype.is_view(ctx.env.schema)
