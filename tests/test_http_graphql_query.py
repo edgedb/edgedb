@@ -1413,11 +1413,11 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
     def test_graphql_functional_arguments_22(self):
         with self.assertRaisesRegex(
-                edgedb.QueryError,
+                edgedb.InvalidValueError,
                 # this error message is subpar, but this is what we get
                 # from postgres, because we transfer bigint values to postgres
                 # as strings
-                r'invalid input syntax for type bigint: "aaaaa"',
+                r'invalid input syntax for type Int64: "aaaaa"',
                 # _line=5, _col=32,
         ):
             self.graphql_query(r"""
@@ -2545,7 +2545,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         """, {
             "ScalarTest": [{
                 'p_bool': True,
-                'p_str': 'Hello',
+                'p_str': 'Hello world',
                 'p_datetime': '2018-05-07T20:01:22.306916+00:00',
                 'p_local_datetime': '2018-05-07T20:01:22.306916',
                 'p_local_date': '2018-05-07',
@@ -3268,8 +3268,8 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
     def test_graphql_functional_variables_33(self):
         with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'expected JSON string'):
+                edgedb.InvalidValueError,
+                r'expected JSON string or null; got JSON number'):
 
             self.graphql_query(
                 r"""
@@ -3407,7 +3407,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     # error message expressed in terms of GraphQL types.
     def test_graphql_functional_variables_39(self):
         with self.assertRaisesRegex(
-                edgedb.QueryError,
+                edgedb.InvalidValueError,
                 r'expected JSON number.+got JSON string'):
             self.graphql_query(
                 r"""
@@ -4134,6 +4134,58 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 },
             ]
         })
+
+    def test_graphql_functional_edgedb_errors_01(self):
+        with self.assertRaisesRegex(
+            edgedb.DivisionByZeroError,
+            r"division by zero"
+        ):
+            self.graphql_query(r"""
+                query {
+                    ErrorTest {
+                        div_by_val
+                    }
+                }
+            """)
+
+    def test_graphql_functional_edgedb_errors_02(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r"LIMIT must not be negative"
+        ):
+            self.graphql_query(r"""
+                query {
+                    ErrorTest(first: -2) {
+                        text
+                    }
+                }
+            """)
+
+    def test_graphql_functional_edgedb_errors_03(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r"OFFSET must not be negative"
+        ):
+            self.graphql_query(r"""
+                query {
+                    ErrorTest(after: "-2") {
+                        text
+                    }
+                }
+            """)
+
+    def test_graphql_functional_edgedb_errors_04(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r"invalid regular expression"
+        ):
+            self.graphql_query(r"""
+                query {
+                    ErrorTest {
+                        re_text
+                    }
+                }
+            """)
 
     def test_graphql_globals_01(self):
         Q = r'''query { GlobalTest { gstr, garray, gid, gdef, gdef2 } }'''
