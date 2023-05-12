@@ -1183,15 +1183,23 @@ class GraphQLTranslator:
                 card = ptype.get_field_cardinality(fname)
                 if card is qltypes.SchemaCardinality.Many:
                     # Need to wrap the set into an "assert_distinct()".
+                    msg = f'objects provided for {fname!r} are not distinct'
                     compexpr = qlast.FunctionCall(
                         func='assert_distinct',
                         args=[compexpr],
+                        kwargs={
+                            'message': qlast.StringConstant.from_python(msg)
+                        }
                     )
                 else:
                     # Singleton object values need to be verified.
+                    msg = f'more than one object provided for {fname!r}'
                     compexpr = qlast.FunctionCall(
                         func='assert_single',
                         args=[compexpr],
+                        kwargs={
+                            'message': qlast.StringConstant.from_python(msg)
+                        }
                     )
 
             # Object types need to be wrapped in a DETACHED in

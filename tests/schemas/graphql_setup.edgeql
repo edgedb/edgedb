@@ -108,7 +108,7 @@ INSERT Foo {
 
 INSERT ScalarTest {
     p_bool := True,
-    p_str := 'Hello',
+    p_str := 'Hello world',
     p_datetime := <datetime>'2018-05-07T20:01:22.306916+00:00',
     p_local_datetime := <cal::local_datetime>'2018-05-07T20:01:22.306916',
     p_local_date := <cal::local_date>'2018-05-07',
@@ -132,6 +132,8 @@ INSERT ScalarTest {
 
     p_tuple := (123, 'test'),
     p_array_tuple := [('hello', true), ('world', false)],
+
+    p_short_str := 'hello',
 };
 
 # Inheritance tests
@@ -201,4 +203,9 @@ INSERT Combo {
 INSERT Combo {
     name := 'combo 2',
     data := assert_single((SELECT Profile FILTER .name = 'Alice profile')),
+};
+
+INSERT ErrorTest {
+    text := ')error(',
+    val := 0,
 };
