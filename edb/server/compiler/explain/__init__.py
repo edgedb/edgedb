@@ -25,6 +25,8 @@ import json
 import logging
 import pickle
 
+import immutables
+
 from edb import buildmeta
 from edb.common import debug
 from edb.edgeql import ast as qlast
@@ -55,6 +57,13 @@ class Arguments(to_json.ToJson):
     buffers: bool
 
 
+@dataclasses.dataclass(frozen=True)
+class AnalyzeContext:
+    schema: s_schema.Schema
+    modaliases: immutables.Map[Optional[str], str]
+    reverse_mod_aliases: dict[str, Optional[str]]
+
+
 def analyze_explain_output(
     query_asts_pickled: bytes,
     data: list[list[bytes]],
@@ -66,7 +75,8 @@ def analyze_explain_output(
     ql: qlast.Base
     ir: irast.Statement
     pg: pgast.Base
-    ql, ir, pg, (config_vals, args) = pickle.loads(query_asts_pickled)
+    ql, ir, pg, explain_data = pickle.loads(query_asts_pickled)
+    config_vals, args, modaliases = explain_data
     args = Arguments(**args)
 
     schema = ir.schema
@@ -87,8 +97,14 @@ def analyze_explain_output(
     fg_tree = None
     cg_tree = None
     try:
-        info = ir_analyze.analyze_queries(ql, ir, pg, schema=schema)
-        debug_tree = pg_tree.Plan.from_json(plan, schema)
+        ctx = AnalyzeContext(
+            schema=schema,
+            modaliases=modaliases,
+            # This has last alias wins strategy. Do we need reverse?
+            reverse_mod_aliases={v: k for k, v in modaliases.items()},
+        )
+        info = ir_analyze.analyze_queries(ql, ir, pg, ctx)
+        debug_tree = pg_tree.Plan.from_json(plan, ctx)
         fg_tree, index = fine_grained.build(debug_tree, info, args)
         if debug.flags.edgeql_explain:
             debug.dump(fg_tree)
@@ -112,6 +128,7 @@ def analyze_explain_output(
     output = {
         'config_vals': config_vals,
         'globals_used': globals_used,
+        'module_aliases': dict(modaliases),
         'arguments': args,
         'version': buildmeta.get_version_string(),
         'buffers': buffers,

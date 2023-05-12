@@ -1389,7 +1389,8 @@ def _compile_ql_explain(
     )
 
     config_vals = _get_compilation_config_vals(ctx)
-    explain_data = (config_vals, args)
+    modaliases = ctx.state.current_tx().get_modaliases()
+    explain_data = (config_vals, args, modaliases)
 
     query = _compile_ql_query(
         ctx, ql.query, script_info=script_info,

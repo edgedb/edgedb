@@ -26,11 +26,11 @@ from edb.common import debug
 from edb.edgeql import ast as qlast
 
 from edb.ir import ast as irast
-from edb.schema import schema as s_schema
 
 from edb.pgsql import ast as pgast
 from edb.pgsql.compiler import astutils
 
+from edb.server.compiler import explain
 from edb.server.compiler.explain import to_json
 
 
@@ -123,8 +123,10 @@ class VisitShapes(ast.NodeVisitor):
 # info than we actually consume, since we are still in a somewhat
 # exploratory phase.
 def analyze_queries(
-    ql: qlast.Base, ir: irast.Statement, pg: pgast.Base,
-    *, schema: s_schema.Schema,
+    ql: qlast.Base,
+    ir: irast.Statement,
+    pg: pgast.Base,
+    ctx: explain.AnalyzeContext,
 ) -> AnalysisInfo:
     debug_spew = debug.flags.edgeql_explain
 
