@@ -74,12 +74,7 @@ def compile_orderby_clause(
 
     with ctx.new() as subctx:
         subctx.expr_exposed = context.Exposure.UNEXPOSED
-
         subctx.disallow_dml = "in an ORDER BY clause"
-
-        # we allow partial paths in where and order by clauses
-        subctx.disallow_partial_paths = None
-
         for sortexpr in sortexprs:
             with subctx.newscope(fenced=True) as exprctx:
                 exprctx.path_scope.unnest_fence = True

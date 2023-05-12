@@ -605,7 +605,6 @@ class ContextLevel(compiler.ContextLevel):
             self.active_defaults = frozenset()
 
             self.disallow_dml = None
-            self.disallow_partial_paths = None
 
         else:
             self.env = prevlevel.env
@@ -648,7 +647,6 @@ class ContextLevel(compiler.ContextLevel):
             self.active_defaults = prevlevel.active_defaults
 
             self.disallow_dml = prevlevel.disallow_dml
-            self.disallow_partial_paths = prevlevel.disallow_partial_paths
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()
