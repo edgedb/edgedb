@@ -41,6 +41,13 @@ to. For specifying the connection target see :ref:`connection options
     revisions are applied on top.
 
 :cli:synopsis:`--dev-mode`
+    .. TODO: 3.0 release
+    .. Remove this note
+    .. note::
+
+        The ``--dev-mod`` option is compatible with EdgeDB server 3.0 and
+        above.
+
     Apply the current schema changes on top of the current migration history,
     without having created a new migration. This works the same way as
     :ref:`ref_cli_edgedb_watch` but without starting a long-running watch

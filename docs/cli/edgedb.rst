@@ -180,7 +180,15 @@ many of the commands:
 
 .. rubric:: Query Analysis
 
+
 :cli:synopsis:`\\analyze QUERY`
+  .. TODO: 3.0 release
+  .. Remove this note
+
+  .. note::
+
+      This backslash command is compatible with EdgeDB server 3.0 and above.
+
   Run a query performance analysis on the given query.
 
 .. rubric:: Data Operations
