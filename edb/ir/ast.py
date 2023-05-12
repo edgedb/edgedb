@@ -175,6 +175,8 @@ class TypeRef(ImmutableBase):
     in_schema: bool = False
     # True, if this describes an opaque union type
     is_opaque_union: bool = False
+    # Does this need to call a custom json cast function
+    needs_custom_json_cast: bool = False
 
     def __repr__(self) -> str:
         return f'<ir.TypeRef \'{self.name_hint}\' at 0x{id(self):x}>'
