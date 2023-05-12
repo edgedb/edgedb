@@ -166,7 +166,8 @@ class SimpleSelect(Nonterm):
         r"%reduce SELECT OptionallyAliasedExpr \
                   OptFilterClause OptSortClause OptSelectLimit"
 
-        _, expr, filter, sort, (offset, limit) = kids
+        _, expr, filter, sort, offset_limit = kids
+        offset, limit = offset_limit.val
 
         if offset is not None or limit is not None:
             subj = qlast.SelectQuery(
@@ -1645,7 +1646,8 @@ class PathStepName(Nonterm):
 
 
 class FuncApplication(Nonterm):
-    def reduce_NodeName_LPAREN_OptFuncArgList_RPAREN(self, name, func_args):
+    def reduce_NodeName_LPAREN_OptFuncArgList_RPAREN(self, *kids):
+        name, _, func_args, _ = kids
         module = name.val.module
         func_name = name.val.name
         func = func_name if not module else (module, func_name)
@@ -1725,7 +1727,7 @@ class FuncArgList(ListNonterm, element=FuncCallArg, separator=tokens.T_COMMA):
 
 
 class OptFuncArgList(Nonterm):
-    def reduce_FuncArgList_COMMA(self, arg_list):
+    def reduce_FuncArgList_COMMA(self, arg_list, _):
         self.val = arg_list.val
 
     def reduce_FuncArgList(self, arg_list):

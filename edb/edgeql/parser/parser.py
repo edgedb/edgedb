@@ -28,7 +28,6 @@ from .grammar import expressions as gr_exprs
 from .grammar import commondl as gr_commondl
 from .grammar import keywords as gr_keywords
 
-
 class EdgeQLParserBase(parsing.Parser):
     def get_debug(self):
         return debug.flags.edgeql_parser
@@ -295,6 +294,9 @@ class EdgeQLBlockParser(EdgeQLParserBase):
         from .grammar import block
         return block
 
+    def parse(self, input, filename=None):
+        from edb.edgeql import tokenizer
+        return tokenizer.parse(input)
 
 class EdgeQLMigrationBodyParser(EdgeQLParserBase):
     def get_parser_spec_module(self):

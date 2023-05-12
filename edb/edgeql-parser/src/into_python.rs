@@ -108,7 +108,10 @@ pub fn init_ast_class(
     class_name: &'static str,
     kw_args: PyDict,
 ) -> Result<PyObject, cpython::PyErr> {
+    let qlast = py.import("edb.edgeql.ast")?;
+
     let locals = PyDict::new(py);
+    locals.set_item(py, "qlast", qlast)?;
     locals.set_item(py, "kw_args", kw_args)?;
 
     let code = format!("qlast.{class_name}(**kw_args)");

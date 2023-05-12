@@ -24,15 +24,19 @@ import hashlib
 
 from edb._edgeql_rust import tokenize as _tokenize, TokenizerError, Token
 from edb._edgeql_rust import normalize as _normalize, Entry
+from edb._edgeql_rust import parse_single as _parse_single
+from edb._edgeql_rust import parse_block as _parse_block
 
 from edb import errors
+from edb.common import context as pctx
+
+from . import ast as qlast
 
 
 TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
 
 
 class Source:
-
     def __init__(self, text: str, tokens: List[Token]) -> None:
         self._cache_key = hashlib.blake2b(text.encode('utf-8')).digest()
         self._text = text
@@ -68,7 +72,6 @@ class Source:
 
 
 class NormalizedSource(Source):
-
     def __init__(self, normalized: Entry, text: str) -> None:
         self._text = text
         self._cache_key = normalized.key()
@@ -111,7 +114,8 @@ def tokenize(eql: str) -> List[Token]:
         message, position = e.args
         hint = _derive_hint(eql, message, position)
         raise errors.EdgeQLSyntaxError(
-            message, position=position, hint=hint) from e
+            message, position=position, hint=hint
+        ) from e
 
 
 def normalize(eql: str) -> Entry:
@@ -121,7 +125,33 @@ def normalize(eql: str) -> Entry:
         message, position = e.args
         hint = _derive_hint(eql, message, position)
         raise errors.EdgeQLSyntaxError(
-            message, position=position, hint=hint) from e
+            message, position=position, hint=hint
+        ) from e
+
+
+def parse(eql: str, filename: Optional[str] = None) -> Sequence[qlast.Expr]:
+    # WARN: These two imports are used for instantiation of AST nodes from Rust.
+    from . import ast as qlast  # NoQA
+    from . import qltypes  # NoQA
+
+    ast, error_list = _parse_block(eql)
+
+    if error_list:
+        # TODO: return multiple errors instead of the only one here
+        error = error_list[0]
+
+        message, start, end = error
+
+        filename = filename or '<string>'
+        raise errors.EdgeQLSyntaxError(
+            message,
+            position=(None, None, start, end),
+            context=pctx.ParserContext(
+                name=filename, buffer=eql, start=start, end=end
+            ),
+        )
+
+    return ast
 
 
 def _derive_hint(
