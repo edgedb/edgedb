@@ -271,17 +271,11 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
     if expr.partial:
         if ctx.partial_path_prefix is not None:
-            # if ctx.disallow_partial_paths:
-            #     raise errors.QueryError(
-            #         f"partial paths are not allowed "
-            #         f"{ctx.disallow_partial_paths}",
-            #         context=expr.context)
-            # else:
             path_tip = ctx.partial_path_prefix
         else:
-                raise errors.QueryError(
-                    'could not resolve partial path ',
-                    context=expr.context)
+            raise errors.QueryError(
+                'could not resolve partial path ',
+                context=expr.context)
 
     computables: list[irast.Set] = []
     path_sets: list[irast.Set] = []

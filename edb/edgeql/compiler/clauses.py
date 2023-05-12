@@ -53,10 +53,6 @@ def compile_where_clause(
         subctx.expr_exposed = context.Exposure.UNEXPOSED
         subctx.path_scope.unnest_fence = True
         subctx.disallow_dml = "in a FILTER clause"
-
-        # we allow partial paths in where and order by clauses
-        subctx.disallow_partial_paths = None
-
         ir_expr = dispatch.compile(where, ctx=subctx)
         bool_t = ctx.env.get_schema_type_and_track(sn.QualName('std', 'bool'))
         ir_set = setgen.scoped_set(ir_expr, typehint=bool_t, ctx=subctx)
