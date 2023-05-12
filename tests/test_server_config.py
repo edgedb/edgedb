@@ -1741,7 +1741,10 @@ class TestStaticServerConfig(tb.TestCase):
 
     @test.xfail("static config args not supported")
     async def test_server_config_args_02(self):
-        with self.assertRaises(cluster.ClusterError):
+        with self.assertRaisesRegex(
+            cluster.ClusterError,
+            "invalid input syntax for type std::duration",
+        ):
             async with tb.start_edgedb_server(
                 extra_args=[
                     "--config-cfg::session_idle_timeout",
@@ -1750,9 +1753,8 @@ class TestStaticServerConfig(tb.TestCase):
             ):
                 pass
 
-    @test.xfail("static config args not supported")
     async def test_server_config_args_03(self):
-        with self.assertRaises(cluster.ClusterError):
+        with self.assertRaisesRegex(cluster.ClusterError, "no such option"):
             async with tb.start_edgedb_server(
                 extra_args=["--config-cfg::non_exist"]
             ):
@@ -1792,13 +1794,19 @@ class TestStaticServerConfig(tb.TestCase):
         env = {
             "EDGEDB_SERVER_CONFIG_cfg::allow_bare_ddl": "illegal_input"
         }
-        with self.assertRaises(cluster.ClusterError):
+        with self.assertRaisesRegex(
+            cluster.ClusterError,
+            "can only be one of: AlwaysAllow, NeverAllow"
+        ):
             async with tb.start_edgedb_server(env=env):
                 pass
 
     async def test_server_config_env_03(self):
         env = {"EDGEDB_SERVER_CONFIG_cfg::apply_access_policies": "on"}
-        with self.assertRaises(cluster.ClusterError):
+        with self.assertRaisesRegex(
+            cluster.ClusterError,
+            "can only be one of: true, false",
+        ):
             async with tb.start_edgedb_server(env=env):
                 pass
 
