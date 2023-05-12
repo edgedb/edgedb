@@ -768,7 +768,7 @@ def initialize_static_cfg(
                 else:
                     where = "as an environment variable"
                 raise server.StartupError(
-                    f"Can't set config {name:r} {where} when using "
+                    f"Can't set config {name!r} {where} when using "
                     f"a remote Postgres cluster"
                 )
         value = _coerce_cfg_value(setting, value)
@@ -808,7 +808,7 @@ def initialize_static_cfg(
         env_value = env_value.lower()
         if choices is not None and env_value not in choices:
             raise server.StartupError(
-                f"Environment variable {env_name:r} can only be one of: " +
+                f"Environment variable {env_name!r} can only be one of: " +
                 ", ".join(choices)
             )
         if setting.type == bool:
