@@ -20,10 +20,20 @@
 CREATE MODULE cfg;
 
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::backend_setting;
+
+# If report is set to 'true', that *system* config will be included
+# in the `system_config` ParameterStatus on each connection.
+# Non-system config cannot be reported.
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::report;
+
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::internal;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::requires_restart;
+
+# System config means that config value can only be modified using
+# CONFIGURE INSTANCE command. System config is therefore *not* included
+# in the binary protocol state.
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::system;
+
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 
 CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;

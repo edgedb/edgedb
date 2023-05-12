@@ -119,6 +119,7 @@ class SessionStateQuery(BaseQuery):
     config_scope: Optional[qltypes.ConfigScope] = None
     is_backend_setting: bool = False
     requires_restart: bool = False
+    is_system_config: bool = False
     config_op: Optional[config.Operation] = None
     is_transactional: bool = True
     single_unit: bool = False
@@ -299,6 +300,9 @@ class QueryUnit:
     # Set only when this unit contains a CONFIGURE command which
     # alters a backend configuration setting.
     backend_config: bool = False
+    # Set only when this unit contains a CONFIGURE command which
+    # alters a system configuration setting.
+    is_system_config: bool = False
     config_ops: List[config.Operation] = (
         dataclasses.field(default_factory=list))
     modaliases: Optional[immutables.Map] = None
