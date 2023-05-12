@@ -1846,3 +1846,42 @@ class TestStaticServerConfig(tb.TestCase):
                 )
             finally:
                 await conn.aclose()
+
+
+class TestDynamicSystemConfig(tb.TestCase):
+    async def test_server_dynamic_system_config(self):
+        async with tb.start_edgedb_server(
+            extra_args=["--disable-dynamic-system-config"]
+        ) as sd:
+            conn = await sd.connect()
+            try:
+                conf, sess = await conn.query_single('''
+                    SELECT (
+                        cfg::Config.__internal_testvalue,
+                        cfg::Config.__internal_sess_testvalue
+                    ) LIMIT 1
+                ''')
+
+                with self.assertRaisesRegex(
+                    edgedb.ConfigurationError, "disabled"
+                ):
+                    await conn.query(f'''
+                        CONFIGURE INSTANCE
+                        SET __internal_testvalue := {conf + 1};
+                    ''')
+
+                await conn.query(f'''
+                    CONFIGURE INSTANCE
+                    SET __internal_sess_testvalue := {sess + 1};
+                ''')
+
+                conf2, sess2 = await conn.query_single('''
+                    SELECT (
+                        cfg::Config.__internal_testvalue,
+                        cfg::Config.__internal_sess_testvalue
+                    ) LIMIT 1
+                ''')
+                self.assertEqual(conf, conf2)
+                self.assertEqual(sess + 1, sess2)
+            finally:
+                await conn.aclose()

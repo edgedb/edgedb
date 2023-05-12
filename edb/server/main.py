@@ -199,6 +199,7 @@ async def _run_server(
             new_instance=new_instance,
             admin_ui=args.admin_ui,
             instance_name=args.instance_name,
+            disable_dynamic_system_config=args.disable_dynamic_system_config,
         )
         await sc.wait_for(ss.init())
 
