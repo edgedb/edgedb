@@ -1205,6 +1205,43 @@ class TestServerConfig(tb.QueryTestCase):
         finally:
             await con2.aclose()
 
+    async def test_server_proto_orphan_rollback_state(self):
+        con1 = self.con
+        con2 = await self.connect(database=con1.dbname)
+        try:
+            await con2.execute('''
+                CONFIGURE SESSION SET __internal_sess_testvalue := 2;
+            ''')
+            await con1.execute('''
+                CONFIGURE SESSION SET __internal_sess_testvalue := 1;
+            ''')
+            self.assertEqual(
+                await con2.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                2,
+            )
+            self.assertEqual(
+                await con1.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                1,
+            )
+
+            # an orphan ROLLBACK must not change the last_state,
+            # because the implicit transaction is rolled back
+            await con2.execute("ROLLBACK")
+
+            # ... so that we can actually do the state sync again here
+            self.assertEqual(
+                await con2.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                2,
+            )
+        finally:
+            await con2.aclose()
+
     async def test_server_proto_configure_error(self):
         con1 = self.con
         con2 = await self.connect(database=con1.dbname)
