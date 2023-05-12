@@ -1,16 +1,16 @@
-.. _ref_intro_migrations:
+:orphan:
+
+.. _ref_intro_migrations_v3:
 
 ==========
-Migrations
+EdgeDB 3.0
 ==========
 
+:edb-alt-title: Migrations in EdgeDB 3.0 Beta
 
-:index: migrations fill_expr cast_expr
-
-EdgeDB’s baked-in migration system lets you painlessly evolve your schema
-throughout the development process. If you want to work along with this guide,
-start a new project with ``edgedb project init``. This will create a new
-instance and create some empty schema files to get you started.
+This is the new recommended migrations workflow for the EdgeDB 3.0 beta. If
+you're running the stable version of EdgeDB (2.x), follow :ref:`the migrations
+workflow for 2.x <ref_intro_migrations>` instead.
 
 
 1. Start the ``watch`` command
@@ -191,10 +191,10 @@ property to our ``Post`` type:
     }
 
 If we hadn't added any ``Post`` objects to our database before this, everything
-will work fine, but it's likely that, in testing out our schema, we *did* add a
-``Post`` object. It does not have a ``body`` property, but now we've told the
-database this property is required on all ``Post`` objects. The database can't
-apply this change because existing data would break it.
+would have worked fine, but it's likely that, in testing out our schema, we
+*did* add a ``Post`` object. It does not have a ``body`` property, but now
+we've told the database this property is required on all ``Post`` objects. The
+database can't apply this change because existing data would break it.
 
 We have a couple of options here. We could delete all the offending objects.
 
@@ -289,7 +289,6 @@ following EdgeQL features are often useful:
       .. code-block::
 
         cast_expr> <bigint>.xp
-
 
 
 Further reading
