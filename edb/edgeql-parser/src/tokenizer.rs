@@ -848,7 +848,79 @@ impl<'a> TokenStream<'a> {
 
 impl<'a> fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}[{:?}]", self.value, self.kind)
+        let kind_str = match self.kind {
+            Kind::Assign => ":=",
+            Kind::SubAssign => "-=",
+            Kind::AddAssign => "+=",
+            Kind::Arrow => "->",
+            Kind::Coalesce => "??",
+            Kind::Namespace => "::",
+            Kind::BackwardLink => ".<",
+            Kind::FloorDiv => "//",
+            Kind::Concat => "++",
+            Kind::GreaterEq => ">=",
+            Kind::LessEq => "<=",
+            Kind::NotEq => "!=",
+            Kind::NotDistinctFrom => "?=",
+            Kind::DistinctFrom => "?!=",
+            Kind::Comma => ",",
+            Kind::OpenParen => "(",
+            Kind::CloseParen => ")",
+            Kind::OpenBracket => "[",
+            Kind::CloseBracket => "]",
+            Kind::OpenBrace => "{",
+            Kind::CloseBrace => "}",
+            Kind::Dot => ".",
+            Kind::Semicolon => ";",
+            Kind::Colon => ":",
+            Kind::Add => "+",
+            Kind::Sub => "-",
+            Kind::DoubleSplat => "**",
+            Kind::Mul => "*",
+            Kind::Div => "/",
+            Kind::Modulo => "%",
+            Kind::Pow => "^",
+            Kind::Less => "<",
+            Kind::Greater => ">",
+            Kind::Eq => "=",
+            Kind::Ampersand => "&",
+            Kind::Pipe => "|",
+            Kind::At => "@",
+            Kind::Argument => {
+                return write!(f, "argument {}", self.value);
+            }
+            Kind::DecimalConst => {
+                return write!(f, "decimal {}", self.value);
+            }
+            Kind::FloatConst => {
+                return write!(f, "float {}", self.value);
+            }
+            Kind::IntConst => {
+                return write!(f, "int {}", self.value);
+            }
+            Kind::BigIntConst => {
+                return write!(f, "big int {}", self.value);
+            }
+            Kind::BinStr => {
+                return write!(f, "bytes {}", self.value);
+            }
+            Kind::Str => {
+                return write!(f, "string {}", self.value);
+            }
+            Kind::BacktickName => {
+                return write!(f, "backtick name `{}`", self.value);
+            }
+            Kind::Substitution => {
+                return write!(f, "substitution `{}`", self.value);
+            }
+            Kind::Keyword => {
+                return write!(f, "keyword `{}`", self.value);
+            }
+            Kind::Ident => {
+                return write!(f, "ident `{}`", self.value);
+            }
+        };
+        write!(f, "`{kind_str}`")
     }
 }
 

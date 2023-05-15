@@ -233,7 +233,40 @@ fn expr<'a>() -> impl Parser<TokenData<'a>, Expr, Error = Simple<TokenData<'a>>>
                     // empty tuple
                     ExprKind::Tuple(Tuple { elements: vec![] })
                 }
-            });
+            })
+            .recover_with(nested_delimiters(
+                TokenData {
+                    kind: Token::OpenParen,
+                    value: "(",
+                },
+                TokenData {
+                    kind: Token::CloseParen,
+                    value: ")",
+                },
+                [
+                    (
+                        TokenData {
+                            kind: Token::OpenBracket,
+                            value: "[",
+                        },
+                        TokenData {
+                            kind: Token::CloseBracket,
+                            value: "]",
+                        },
+                    ),
+                    (
+                        TokenData {
+                            kind: Token::OpenBrace,
+                            value: "{",
+                        },
+                        TokenData {
+                            kind: Token::CloseBrace,
+                            value: "}",
+                        },
+                    ),
+                ],
+                |_| ExprKind::SyntaxErrorExpr(SyntaxErrorExpr {}),
+            ));
 
         let func_call_arg_expr = tree
             .clone()

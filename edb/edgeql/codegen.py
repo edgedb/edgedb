@@ -2459,6 +2459,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._block_ws(-1)
         self.write('}')
 
+    def visit_SyntaxErrorExpr(self, _: qlast.SyntaxErrorExpr) -> None:
+        self.write('<ERROR>')
+
     @classmethod
     def to_source(  # type: ignore
         cls,

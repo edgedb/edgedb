@@ -48,6 +48,7 @@ pub struct Expr {
 #[cfg_attr(feature = "python", derive(IntoPython))]
 #[py_child]
 pub enum ExprKind {
+    SyntaxErrorExpr(SyntaxErrorExpr),
     Placeholder(Placeholder),
     Anchor(Anchor),
     DetachedExpr(DetachedExpr),
@@ -72,6 +73,10 @@ pub enum ExprKind {
     Query(Query),
     ConfigOp(ConfigOp),
 }
+
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "python", derive(IntoPython))]
+pub struct SyntaxErrorExpr {}
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]

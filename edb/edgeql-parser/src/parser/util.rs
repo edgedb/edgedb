@@ -2,8 +2,7 @@ use std::collections::hash_map::RandomState;
 use std::collections::HashSet;
 use std::ops::Range;
 
-use chumsky::error::Simple;
-use chumsky::{select, Parser};
+use chumsky::prelude::*;
 
 use crate::position::Pos;
 use crate::tokenizer::{Kind as Token, Token as TokenData, TokenStream};
@@ -11,9 +10,18 @@ use crate::tokenizer::{Kind as Token, Token as TokenData, TokenStream};
 use super::Error;
 
 pub fn token<'a>(knd: Token) -> impl Parser<TokenData<'a>, &'a str, Error = Simple<TokenData<'a>>> {
-    select! {
-        TokenData { kind, value } if kind == knd => value
-    }
+    filter_map(move |span, x| match x {
+        TokenData { kind, value } if kind == knd => Ok(value),
+        _ => Err(chumsky::Error::expected_input_found(
+            span,
+            [Some(TokenData {
+                kind: knd,
+                value: "",
+            })]
+            .into_iter(),
+            Some(x),
+        )),
+    })
 }
 
 pub fn token_choice<'a, const N: usize>(
@@ -25,10 +33,23 @@ pub fn token_choice<'a, const N: usize>(
     }
 }
 
-pub fn keyword(kw: &'_ str) -> impl Parser<TokenData<'_>, &'_ str, Error = Simple<TokenData<'_>>> {
-    select! {
-        TokenData { kind, value } if kind == Token::Keyword && value.to_lowercase() == kw => value
-    }
+pub fn keyword<'a>(
+    kw: &'static str,
+) -> impl Parser<TokenData<'a>, &'a str, Error = Simple<TokenData<'a>>> {
+    filter_map(move |span, x| match x {
+        TokenData { kind, value } if kind == Token::Keyword && value.to_lowercase() == kw => {
+            Ok(value)
+        }
+        _ => Err(chumsky::Error::expected_input_found(
+            span,
+            [Some(TokenData {
+                kind: Token::Keyword,
+                value: kw,
+            })]
+            .into_iter(),
+            Some(x),
+        )),
+    })
 }
 
 pub fn ident(ident: &'_ str) -> impl Parser<TokenData<'_>, String, Error = Simple<TokenData<'_>>> {
@@ -44,10 +65,37 @@ pub fn convert_errors(errors: Vec<Simple<TokenData>>) -> Vec<Error> {
             let span = e.span();
             let span = (span.start as u64)..(span.end as u64);
 
-            Error {
-                message: e.to_string(),
-                span,
-            }
+            let found = e
+                .found()
+                .map(|x| x.to_string())
+                .unwrap_or_else(|| "end of input".to_string());
+
+            let message = match e.expected().len() {
+                1 => format!(
+                    "found {found} but expected {}",
+                    match e.expected().next().unwrap() {
+                        Some(x) => format!("{:}", x.to_string()),
+                        None => "end of input".to_string(),
+                    },
+                ),
+                2..=6_ => {
+                    format!(
+                        "found {found} but expected one of {}",
+                        e.expected()
+                            .map(|expected| match expected {
+                                Some(x) => format!("{:}", x.to_string()),
+                                None => "end of input".to_string(),
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                }
+                _ => {
+                    format!("unexpected {found}")
+                }
+            };
+
+            Error { message, span }
         })
         .collect()
 }

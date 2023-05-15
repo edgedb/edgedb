@@ -140,6 +140,10 @@ class Expr(Base):
     __abstract_node__ = True
 
 
+class SyntaxErrorExpr(Expr):
+    """A node that represents a syntax error in the AST."""
+
+
 class Placeholder(Expr):
     """An interpolation placeholder used in expression templates."""
 
