@@ -147,15 +147,13 @@ def compile_cast(
             cardinality_mod=cardinality_mod, ctx=ctx)
 
     else:
-        if (new_stype.issubclass(ctx.env.schema, json_t) and
-                ir_set.path_id.is_objtype_path()):
+        if (
+            new_stype.issubclass(ctx.env.schema, json_t)
+            and ir_set.path_id.is_objtype_path()
+        ):
             # JSON casts of objects are special: we want the full shape
             # and not just an identity.
-            with ctx.new() as subctx:
-                subctx.implicit_id_in_shapes = False
-                subctx.implicit_tid_in_shapes = False
-                subctx.implicit_tname_in_shapes = False
-                viewgen.late_compile_view_shapes(ir_set, ctx=subctx)
+            viewgen.late_compile_view_shapes(ir_set, ctx=ctx)
         elif (orig_stype.issubclass(ctx.env.schema, json_t)
               and new_stype.is_enum(ctx.env.schema)):
             # Casts from json to enums need some special handling
