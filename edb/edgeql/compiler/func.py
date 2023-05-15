@@ -551,13 +551,15 @@ def compile_operator(
         ctx=ctx,
     )
 
-    if str_oper_name in {'std::UNION', 'std::IF'} and rtype.is_object_type():
-        # Special case for the UNION and IF operators, instead of common
+    if str_oper_name in {
+        'std::UNION', 'std::IF', 'std::??'
+    } and rtype.is_object_type():
+        # Special case for the UNION, IF and ?? operators: instead of common
         # parent type, we return a union type.
-        if str_oper_name == 'std::UNION':
-            larg, rarg = (a.expr for a in final_args)
-        else:
+        if str_oper_name == 'std::IF':
             larg, _, rarg = (a.expr for a in final_args)
+        else:
+            larg, rarg = (a.expr for a in final_args)
 
         left_type = setgen.get_set_type(larg, ctx=ctx)
         right_type = setgen.get_set_type(rarg, ctx=ctx)
