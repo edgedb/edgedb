@@ -67,7 +67,7 @@ Options
 
 :cli:synopsis:`-P <port>, --port=<port>`
     Specifies the TCP port on which the server is listening for connections.
-    Defaults to the value of the ``EDGEDB_PORT`` environment variable or, 
+    Defaults to the value of the ``EDGEDB_PORT`` environment variable or,
     if not set, to ``5656``.
 
 :cli:synopsis:`-u <username>, --user=<username>`
@@ -177,6 +177,19 @@ many of the commands:
 
 :cli:synopsis:`\\database create [NAME]`
   Create a new database.
+
+.. rubric:: Query Analysis
+
+
+:cli:synopsis:`\\analyze QUERY`
+  .. TODO: 3.0 release
+  .. Remove this note
+
+  .. note::
+
+      This backslash command is compatible with EdgeDB server 3.0 and above.
+
+  Run a query performance analysis on the given query.
 
 .. rubric:: Data Operations
 

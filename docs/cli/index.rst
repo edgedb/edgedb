@@ -148,6 +148,7 @@ The ``cli.toml`` has the following structure. All fields are optional:
     edgedb_describe/index
     edgedb_list
     edgedb_query
+    edgedb_analyze
     edgedb_ui
     edgedb_info
     edgedb_project/index
