@@ -53,3 +53,13 @@ to. For specifying the connection target see :ref:`connection options
 :cli:synopsis:`--schema-dir=<schema-dir>`
     Directory where the schema files are located. Defaults to
     ``./dbschema``.
+
+:cli:synopsis:`--squash`
+    .. TODO: 3.0 release
+    .. Remove this note
+
+    .. note::
+
+        This CLI feature is compatible with EdgeDB server 3.0 and above.
+
+    Squashes all your migrations into a single migration.
