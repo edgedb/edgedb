@@ -1,3 +1,4 @@
+import itertools
 import typing
 import typing_inspect
 import dataclasses
@@ -46,7 +47,7 @@ def main() -> None:
             //! Abstract Syntax Tree for EdgeQL
             #![allow(non_camel_case_types)]
 
-            use std::collections::HashMap;
+            use std::collections::BTreeMap;
 
             #[cfg(feature = "python")]
             use edgeql_parser_derive::IntoPython;
@@ -59,7 +60,7 @@ def main() -> None:
         if not isinstance(typ, type) or not hasattr(typ, '_direct_fields'):
             continue
 
-        if hasattr(typ, '__rust_ignore__') and typ.__rust_ignore__:
+        if not issubclass(typ, qlast.Base) or typ.__rust_ignore__:
             continue
 
         # re-run field collection to correctly handle forward-references
@@ -113,7 +114,8 @@ def codegen_struct(cls: ASTClass) -> str:
 
     if len(cls.children) > 0:
 
-        for i in range(0, 10):
+        # find an unused name for the py_child field
+        for i in itertools.count(0, 1):
             kind_name = 'kind' if i == 0 else f'kind{i}'
             if kind_name not in field_names:
                 break
@@ -223,7 +225,7 @@ def translate_type(
             return f'Vec<{params[0]}>'
 
         if typ._name == 'Dict':
-            return f'HashMap<{params[0]}, {params[1]}>'
+            return f'BTreeMap<{params[0]}, {params[1]}>'
 
     if not hasattr(typ, '__name__'):
         return str(typ)
@@ -263,7 +265,7 @@ def find_covering_ancestor(typ: typing.Type, fields: typing.Set[str]):
     # In Rust, a type will not inherit fields from parent types.
     # This means that we need to omit some ancestor of this type, which
     # would include all fields of the type.
-    # We loose a bit of type checking strictness here.
+    # We lose a bit of type checking strictness here.
     for parent in typ.__mro__:
         if not hasattr(parent, '_direct_fields'):
             continue
@@ -271,4 +273,4 @@ def find_covering_ancestor(typ: typing.Type, fields: typing.Set[str]):
         fields = fields.difference((f.name for f in parent._direct_fields))
         if len(fields) == 0:
             return parent
-    raise AssertionError()
+    raise AssertionError('unreachable')

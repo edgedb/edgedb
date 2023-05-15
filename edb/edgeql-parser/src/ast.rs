@@ -5,7 +5,7 @@
 //! Abstract Syntax Tree for EdgeQL
 #![allow(non_camel_case_types)]
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 #[cfg(feature = "python")]
 use edgeql_parser_derive::IntoPython;
@@ -34,7 +34,7 @@ pub struct OptionFlag {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct Options {
-    pub options: HashMap<String, OptionValue>,
+    pub options: BTreeMap<String, OptionValue>,
 }
 
 #[derive(Debug, Clone)]
@@ -266,7 +266,7 @@ pub struct WindowSpec {
 pub struct FunctionCall {
     pub func: FunctionCallFunc,
     pub args: Vec<Box<Expr>>,
-    pub kwargs: HashMap<String, Box<Expr>>,
+    pub kwargs: BTreeMap<String, Box<Expr>>,
     pub window: Option<WindowSpec>,
 }
 
@@ -1481,7 +1481,7 @@ pub struct DropConcreteConstraint {}
 pub struct IndexType {
     pub name: ObjectRef,
     pub args: Vec<Box<Expr>>,
-    pub kwargs: HashMap<String, Box<Expr>>,
+    pub kwargs: BTreeMap<String, Box<Expr>>,
 }
 
 #[derive(Debug, Clone)]
@@ -1494,7 +1494,7 @@ pub struct IndexCode {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "python", derive(IntoPython))]
 pub struct CreateIndex {
-    pub kwargs: HashMap<String, Box<Expr>>,
+    pub kwargs: BTreeMap<String, Box<Expr>>,
     pub index_types: Vec<IndexType>,
     pub code: Option<IndexCode>,
     pub params: Vec<FuncParam>,
