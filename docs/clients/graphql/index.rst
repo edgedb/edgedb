@@ -219,14 +219,6 @@ There are also some additional limitations:
   of using camel-case names for user types is not followed in EdgeDB.
 
 
-Backendless mode
-^^^^^^^^^^^^^^^^
-
-EdgeDB 2.0 added support for object-level security (i.e., :ref:`access policies
-<ref_datamodel_access_policies>`) which means you can run EdgeDB as a
-standalone backend without the need for an API server to do authentication and
-authorization.
-
 .. __: http://graphql.org/docs/queries/
 
 .. _`GraphiQL`: https://github.com/graphql/graphiql
