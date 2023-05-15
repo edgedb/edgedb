@@ -1245,7 +1245,7 @@ def _compile_qlexpr(
     ptrsource: s_sources.Source,
     ptr_name: sn.QualName,
     is_linkprop: bool,
-    do_not_set_partial_prefix: bool,
+    should_set_partial_prefix: bool,
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, context.ViewRPtr]:
@@ -1270,8 +1270,7 @@ def _compile_qlexpr(
             ir_source, ctx=shape_expr_ctx
         )
 
-        # always set parital path prefix unless otherwise requested
-        if do_not_set_partial_prefix is False:
+        if should_set_partial_prefix is False:
             shape_expr_ctx.partial_path_prefix = source_set
 
         if s_ctx.exprtype.is_mutation() and ptrcls is not None:
@@ -1442,7 +1441,7 @@ def _normalize_view_ptr_expr(
                 ptrsource=ptrsource,
                 ptr_name=ptr_name,
                 is_linkprop=is_linkprop,
-                do_not_set_partial_prefix=False,
+                should_set_partial_prefix=True,
                 s_ctx=s_ctx,
                 ctx=ctx,
             )
@@ -1528,8 +1527,8 @@ def _normalize_view_ptr_expr(
             is_linkprop=is_linkprop,
             # do not set partial path prefix if in the insert
             # shape but not in defaults
-            do_not_set_partial_prefix=(
-                s_ctx.exprtype.is_insert() and not from_default),
+            should_set_partial_prefix=(
+                not s_ctx.exprtype.is_insert() or from_default),
             s_ctx=s_ctx,
             ctx=ctx,
         )
