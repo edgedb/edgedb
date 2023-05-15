@@ -151,11 +151,7 @@ def compile_cast(
     ):
         # JSON casts of objects are special: we want the full shape
         # and not just an identity.
-        with ctx.new() as subctx:
-            subctx.implicit_id_in_shapes = False
-            subctx.implicit_tid_in_shapes = False
-            subctx.implicit_tname_in_shapes = False
-            viewgen.late_compile_view_shapes(ir_set, ctx=subctx)
+        viewgen.late_compile_view_shapes(ir_set, ctx=ctx)
     else:
         if orig_stype.issubclass(ctx.env.schema, json_t) and new_stype.is_enum(
             ctx.env.schema

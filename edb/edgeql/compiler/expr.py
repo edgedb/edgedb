@@ -545,11 +545,7 @@ def compile_TypeCast(
     target_typeref = typegen.type_to_typeref(target_stype, env=ctx.env)
     ir_expr: Union[irast.Set, irast.Expr]
 
-    if (isinstance(expr.expr, qlast.Array) and not expr.expr.elements and
-            irtyputils.is_array(target_typeref)):
-        ir_expr = irast.Array(elements=[], typeref=target_typeref)
-
-    elif isinstance(expr.expr, qlast.Parameter):
+    if isinstance(expr.expr, qlast.Parameter):
         pt = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
 
         param_name = expr.expr.name
@@ -628,20 +624,32 @@ def compile_TypeCast(
 
         return param
 
-    else:
-        with ctx.new() as subctx:
-            if target_stype.contains_json(subctx.env.schema):
-                # JSON wants type shapes and acts as an output sink.
-                subctx.expr_exposed = context.Exposure.EXPOSED
-                subctx.inhibit_implicit_limit = True
-                subctx.implicit_id_in_shapes = False
-                subctx.implicit_tid_in_shapes = False
-                subctx.implicit_tname_in_shapes = False
+    with ctx.new() as subctx:
+        if target_stype.contains_json(subctx.env.schema):
+            # JSON wants type shapes and acts as an output sink.
+            subctx.expr_exposed = context.Exposure.EXPOSED
+            subctx.inhibit_implicit_limit = True
+            subctx.implicit_id_in_shapes = False
+            subctx.implicit_tid_in_shapes = False
+            subctx.implicit_tname_in_shapes = False
+
+        if (
+            isinstance(expr.expr, qlast.Array)
+            and not expr.expr.elements
+            and irtyputils.is_array(target_typeref)
+        ):
+            ir_expr = irast.Array(elements=[], typeref=target_typeref)
+        else:
             ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
-    res = casts.compile_cast(
-        ir_expr, target_stype, cardinality_mod=expr.cardinality_mod,
-        ctx=ctx, srcctx=expr.expr.context)
+        res = casts.compile_cast(
+            ir_expr,
+            target_stype,
+            cardinality_mod=expr.cardinality_mod,
+            ctx=subctx,
+            srcctx=expr.expr.context,
+        )
+
     return stmt.maybe_add_view(res, ctx=ctx)
 
 
