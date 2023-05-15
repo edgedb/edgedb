@@ -1,18 +1,15 @@
-
 use std::collections::hash_map::RandomState;
 use std::collections::{HashSet};
 use std::ops::Range;
 
-use chumsky::error::Simple;
 use chumsky::prelude::*;
 use chumsky::{select, Parser};
 use indexmap::IndexMap;
 
+use super::util::*;
 use crate::ast::*;
 use crate::keywords::{CURRENT_RESERVED_KEYWORDS, PARTIAL_RESERVED_KEYWORDS, UNRESERVED_KEYWORDS};
 use crate::tokenizer::{Kind as Token, Token as TokenData};
-use super::util::*;
-
 
 pub fn expr_stmt<'a>() -> impl Parser<TokenData<'a>, Expr, Error = Simple<TokenData<'a>>> {
     keyword("select")

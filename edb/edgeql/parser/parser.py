@@ -296,7 +296,7 @@ class EdgeQLBlockParser(EdgeQLParserBase):
 
     def parse(self, input, filename=None):
         from edb.edgeql import tokenizer
-        return tokenizer.parse(input)
+        return tokenizer.parse(input, filename=filename)
 
 class EdgeQLMigrationBodyParser(EdgeQLParserBase):
     def get_parser_spec_module(self):

@@ -1,4 +1,4 @@
-use cpython::{PyObject, PyResult, PyString, PyTuple, Python, PythonObject, ToPyObject};
+use cpython::{PyObject, PyResult, PyString, PyTuple, Python, ToPyObject};
 use edgeql_parser::{into_python::IntoPython, parser};
 
 pub fn parse_block(py: Python, source: &PyString) -> PyResult<PyTuple> {
@@ -36,15 +36,9 @@ fn compose_result(py: Python, ast: PyObject, errors: Vec<parser::Error>) -> PyRe
         .collect::<Vec<_>>()
         .into_py_object(py);
 
-    let elements = [ast.into_object(), errors.into_object()];
-    Ok(PyTuple::new(py, &elements))
+    Ok((ast, errors).into_py_object(py))
 }
 
 fn err_to_py_object(err: parser::Error, py: Python) -> PyTuple {
-    let elements = [
-        err.message.to_py_object(py).into_object(),
-        err.span.start.to_py_object(py).into_object(),
-        err.span.end.to_py_object(py).into_object(),
-    ];
-    PyTuple::new(py, &elements)
+    (err.message, err.span.start, err.span.end).into_py_object(py)
 }

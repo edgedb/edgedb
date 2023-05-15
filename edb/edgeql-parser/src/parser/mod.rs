@@ -3,8 +3,7 @@ mod util;
 
 use std::ops::Range;
 
-use chumsky::error::Simple;
-use chumsky::Parser;
+use chumsky::prelude::*;
 
 use crate::ast::*;
 use crate::tokenizer::{Kind as Token, Token as TokenData};
@@ -51,7 +50,8 @@ pub struct Error {
 fn edgeql_block<'a>() -> impl Parser<TokenData<'a>, Vec<Expr>, Error = Simple<TokenData<'a>>> {
     single_stmt()
         .separated_by(token(Token::Semicolon))
-        .allow_trailing()
+        .then_ignore(token(Token::Semicolon).repeated())
+        .then_ignore(end())
 }
 
 fn single_stmt<'a>() -> impl Parser<TokenData<'a>, Expr, Error = Simple<TokenData<'a>>> {
