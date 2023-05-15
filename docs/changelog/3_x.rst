@@ -9,6 +9,9 @@ v3.0 (dev)
     The latest stable EdgeDB release is 2.x. EdgeDB 3.0 stable will be released
     soon.
 
+.. image:: images/v3_betelgeuse.jpg
+    :width: 100%
+
 The EdgeDB 3.0 beta was released on May 5th, 2023. We would like to thank our
 community for reporting issues and contributing fixes. You are awesome! ❤️
 
@@ -21,7 +24,7 @@ If the upgrade doesn't work, try updating to nightly first using
 
 .. code-block:: bash
 
-  $ edgedb project init --server-version=testing
+  $ edgedb project init --server-version=3.0-beta.1
 
 .. note::
 
@@ -409,6 +412,33 @@ It's a super-handy way to quickly explore your data.
 
 Read more about splats in `our splats RFC
 <https://github.com/edgedb/rfcs/blob/master/text/1023-splats.rst>`_.
+
+
+SQL support
+-----------
+
+EdgeDB supports running read-only SQL queries via the Postgres protocol to
+enable connecting EdgeDB to existing BI and analytics solutions. Any
+Postgres-compatible client can connect to your EdgeDB database by using the
+same port that is used for the EdgeDB protocol and the same database name,
+username, and password you already use for your database.
+
+.. code-block:: bash
+
+    $ psql -h localhost -p 10701 -U edgedb -d edgedb
+
+Our SQL support has been tested against a number of SQL tools:
+
+- `pg_dump <https://www.postgresql.org/docs/13/app-pgdump.html>`_
+- `Metabase <https://www.metabase.com/>`_
+- `Cluvio <https://www.cluvio.com/>`_
+- `Tableau <https://www.tableau.com/>`_
+- `DataGrip <https://www.jetbrains.com/datagrip/>`_
+- `Airbyte <https://airbyte.com/>`_
+- `Fivetran <https://www.fivetran.com/>`_
+- `Hevo <https://hevodata.com/>`_
+- `Stitch <https://www.stitchdata.com/>`_
+- `dbt <https://www.getdbt.com/>`_
 
 
 Nested modules

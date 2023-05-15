@@ -11343,11 +11343,14 @@ type default::Foo {
                  <str>(x));
              CREATE FUNCTION asdf2() -> str USING (
                  asdf(<Color>'Red'));
+             CREATE FUNCTION asdf3(x: tuple<Color>) -> str USING (
+                 <str>(x.0));
 
              CREATE TYPE Entry {
                  CREATE PROPERTY num -> int64;
                  CREATE PROPERTY color -> Color;
                  CREATE PROPERTY colors -> array<Color>;
+                 CREATE PROPERTY colorst -> array<tuple<Color>>;
                  CREATE CONSTRAINT expression ON (
                      <str>.num != asdf2()
                  );
@@ -11358,7 +11361,9 @@ type default::Foo {
              };
              INSERT Entry { num := 1, color := "Red" };
              INSERT Entry {
-                 num := 2, color := "Green", colors := ["Red", "Green"] };
+                 num := 2, color := "Green", colors := ["Red", "Green"],
+                 colorst := [("Red",), ("Green",)]
+             };
         ''')
 
         await self.con.execute('''
@@ -11373,10 +11378,14 @@ type default::Foo {
 
         await self.assert_query_result(
             r"""
-                SELECT Entry { num, color } ORDER BY .color;
+                SELECT Entry { num, color, colorst } ORDER BY .color;
             """,
             [
-                {'num': 2, 'color': 'Green'},
+                {
+                    'num': 2,
+                    'color': 'Green',
+                    'colorst': [("Red",), ("Green",)],
+                },
                 {'num': 1, 'color': 'Red'},
             ],
         )
@@ -15393,6 +15402,22 @@ DDLStatement);
         """)
         await self.con.query(r"""
             select ObjectType {links: {@owned}};
+        """)
+
+    async def test_edgeql_ddl_union_link_target_alter_01(self):
+        await self.con.execute(r"""
+            create type X;
+            create type Y;
+            create type T { create link xy -> X | Y; };
+        """)
+        await self.con.query(r"""
+            alter type X create required property foo -> str;
+        """)
+        await self.con.query(r"""
+            alter type Y create required property foo -> str;
+        """)
+        await self.con.query(r"""
+            alter type X alter property foo set multi;
         """)
 
     async def test_edgeql_ddl_rebase_views_01(self):

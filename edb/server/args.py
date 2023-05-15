@@ -190,6 +190,7 @@ class ServerConfig(NamedTuple):
     temp_dir: bool
     auto_shutdown_after: float
     readiness_state_file: Optional[str]
+    disable_dynamic_system_config: bool
 
     startup_script: Optional[StartupScript]
     status_sinks: List[Callable[[str], None]]
@@ -886,6 +887,12 @@ _server_options = [
         ),
         default='default',
         help='Enable admin UI.'),
+    click.option(
+        '--disable-dynamic-system-config', is_flag=True,
+        envvar="EDGEDB_SERVER_DISABLE_DYNAMIC_SYSTEM_CONFIG",
+        cls=EnvvarResolver,
+        help="Disable dynamic configuration of system config values",
+    )
 ]
 
 
@@ -927,6 +934,10 @@ _compiler_options = [
         '--runstate-dir', type=PathPath(), default=None,
         help="Directory to store UNIX domain socket file for IPC, a temporary "
              "directory will be used if not specified.",
+    ),
+    click.option(
+        '--metrics-port', type=PortType(),
+        help=f'Port to listen on for metrics HTTP API.',
     ),
 ]
 

@@ -929,6 +929,7 @@ cdef class PGConnection:
                 await self._parse_apply_state_resp(2 if state is None else 3)
             finally:
                 await self.wait_for_sync()
+            self.last_state = state
         else:
             await self._parse_apply_state_resp(2 if state is None else 3)
 
@@ -1424,6 +1425,7 @@ cdef class PGConnection:
         out = WriteBuffer.new()
 
         if state is not None:
+            # Only used in legacy protocol binary_v0
             self._build_apply_state_req(state, out)
             # We must use SYNC and not FLUSH here, as otherwise
             # scripts that contain `SET TRANSACTION ISOLATION LEVEL` would
@@ -1444,6 +1446,8 @@ cdef class PGConnection:
         if state is not None:
             await self._parse_apply_state_resp(3)
             await self.wait_for_sync()
+            if not self.in_tx():
+                self.last_state = state
 
         while True:
             if not self.buffer.take_message():

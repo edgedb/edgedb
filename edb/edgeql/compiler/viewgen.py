@@ -883,6 +883,8 @@ def _compile_rewrites(
     schema = ctx.env.schema
     by_type: Dict[irast.TypeRef, irast.RewritesOfType] = {}
     for ty, rewrites_of_type in rewrites_by_type.items():
+        ty = ty.real_material_type
+
         by_type[ty] = {}
         for element in rewrites_of_type.values():
             target = element.target_set

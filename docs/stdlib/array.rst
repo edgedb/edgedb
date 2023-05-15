@@ -297,11 +297,16 @@ Reference
     .. note::
 
         The ordering of the returned set is not guaranteed.
+        However, if it is wrapped in a call to :eql:func:`enumerate`,
+        the assigned indexes are guaranteed to match the array.
 
     .. code-block:: edgeql-repl
 
         db> select array_unpack([2, 3, 5]);
         {3, 2, 5}
+
+        db> select enumerate(array_unpack([2, 3, 5]));
+        {(1, 3), (0, 2), (2, 5)}
 
 
 ----------
@@ -330,7 +335,7 @@ Reference
 
     Returns an array of the specified size, filled with the provided value.
 
-    Create anarray of size *n* where every element has the value *val*.
+    Create an array of size *n* where every element has the value *val*.
 
     .. code-block:: edgeql-repl
 

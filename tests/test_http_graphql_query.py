@@ -4092,6 +4092,49 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
+    def test_graphql_functional_type_union_01(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                Combo(
+                    order: {name: {dir: ASC}}
+                ) {
+                    name
+                    data {
+                        __typename
+                        name
+                        value
+                        ... on Profile {
+                            tags
+                        }
+                    }
+                }
+            }
+        """, {
+            "Combo": [
+                {
+                    "name": "combo 0",
+                    "data": None,
+                },
+                {
+                    "name": "combo 1",
+                    "data": {
+                        "__typename": "Setting_Type",
+                        "name": "template",
+                        "value": "blue",
+                    },
+                },
+                {
+                    "name": "combo 2",
+                    "data": {
+                        "__typename": "Profile_Type",
+                        "name": "Alice profile",
+                        "value": "special",
+                        "tags": ['1st', '2nd'],
+                    },
+                },
+            ]
+        })
+
     def test_graphql_globals_01(self):
         Q = r'''query { GlobalTest { gstr, garray, gid, gdef, gdef2 } }'''
 

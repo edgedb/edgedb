@@ -186,3 +186,19 @@ INSERT LinkedList {
         LIMIT 1
     )
 };
+
+INSERT Combo {
+    name := 'combo 0',
+};
+
+INSERT Combo {
+    name := 'combo 1',
+    data := assert_single((
+        SELECT Setting FILTER .name = 'template' AND .value = 'blue'
+    )),
+};
+
+INSERT Combo {
+    name := 'combo 2',
+    data := assert_single((SELECT Profile FILTER .name = 'Alice profile')),
+};

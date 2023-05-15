@@ -1727,3 +1727,18 @@ class TestConstraintsDDL(tb.DDLTestCase):
         await self.con.execute("""
             insert X { a := ['foo', 'bar', 'baz'], b := {} };
         """)
+
+    async def test_constraints_bad_args(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError, "Expected 0 arguments, but found 1"
+        ):
+            await self.con.execute(
+                """
+                create type X {
+                    create property a -> bool;
+                    create link parent -> X {
+                        create constraint expression (false);
+                    }
+                };
+            """
+            )

@@ -10,7 +10,7 @@ displays the filesystem paths used by EdgeDB.
 
 .. cli:synopsis::
 
-	edgedb info
+	edgedb info [<options>]
 
 
 .. _ref_cli_edgedb_paths:
@@ -30,3 +30,9 @@ directory", "EdgeDB data directory", etc.
 - **Service**: the home for running processes/daemons.
 - **Cache**: a catchall for logs and various caches.
 
+Options
+=======
+
+:cli:synopsis:`--get <path-name>`
+    Return only a single path. ``<path-name>`` can be any of ``config-dir``,
+    ``cache-dir``, ``data-dir``, or ``service-dir``.

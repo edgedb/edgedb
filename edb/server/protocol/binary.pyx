@@ -767,8 +767,6 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             else:
                 assert query_unit.tx_rollback
                 _dbview.abort_tx()
-            if not _dbview.in_tx():
-                conn.last_state = _dbview.serialize_state()
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -1712,6 +1710,7 @@ cdef class EdgeConnection(frontend.FrontendConnection):
             self._in_dump_restore = False
             server.release_pgcon(dbname, pgcon)
 
+        execute.signal_side_effects(_dbview, dbview.SideEffects.SchemaChanges)
         await server.introspect_db(dbname)
 
         if _dbview.is_state_desc_changed():

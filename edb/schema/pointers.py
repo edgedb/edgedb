@@ -1584,6 +1584,22 @@ class PointerCommand(
 
         is_computable = scls.is_pure_computable(schema)
         is_owned = scls.get_owned(schema)
+
+        if is_computable:
+            if any(
+                b.generic(schema)
+                and not str(b.get_name(schema)) in (
+                    'std::link', 'std::property')
+                for b in scls.get_bases(schema).objects(schema)
+            ):
+                raise errors.SchemaDefinitionError(
+                    f'it is illegal for the computed '
+                    f'{scls.get_verbosename(schema, with_parent=True)} '
+                    f'to extend an abstract '
+                    f'{scls.get_schema_class_displayname()}',
+                    context=self.source_context,
+                )
+
         # Get the non-generic, explicitly declared ancestors as the
         # limitations on computables apply to explicitly declared
         # pointers, not just a long chain of inherited ones.
@@ -2218,6 +2234,16 @@ class DeletePointer(
             and (del_cmd := target.as_type_delete_if_dead(schema)) is not None
         ):
             self.add_caused(del_cmd)
+
+        if not context.canonical:
+            # We need to do a propagate here, too, since there could
+            # be backrefs to this pointer that technically reference
+            # us but will be fine if it is deleted.
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=self.get_friendly_description(schema=schema),
+            )
 
         return schema
 

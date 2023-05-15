@@ -199,6 +199,7 @@ async def _run_server(
             new_instance=new_instance,
             admin_ui=args.admin_ui,
             instance_name=args.instance_name,
+            disable_dynamic_system_config=args.disable_dynamic_system_config,
         )
         await sc.wait_for(ss.init())
 
@@ -767,7 +768,7 @@ def initialize_static_cfg(
                 else:
                     where = "as an environment variable"
                 raise server.StartupError(
-                    f"Can't set config {name:r} {where} when using "
+                    f"Can't set config {name!r} {where} when using "
                     f"a remote Postgres cluster"
                 )
         value = _coerce_cfg_value(setting, value)
@@ -807,7 +808,7 @@ def initialize_static_cfg(
         env_value = env_value.lower()
         if choices is not None and env_value not in choices:
             raise server.StartupError(
-                f"Environment variable {env_name:r} can only be one of: " +
+                f"Environment variable {env_name!r} can only be one of: " +
                 ", ".join(choices)
             )
         if setting.type == bool:

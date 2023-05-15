@@ -1389,7 +1389,8 @@ def _compile_ql_explain(
     )
 
     config_vals = _get_compilation_config_vals(ctx)
-    explain_data = (config_vals, args)
+    modaliases = ctx.state.current_tx().get_modaliases()
+    explain_data = (config_vals, args, modaliases)
 
     query = _compile_ql_query(
         ctx, ql.query, script_info=script_info,
@@ -1769,6 +1770,7 @@ def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
 
     is_backend_setting = bool(getattr(ir, 'backend_setting', None))
     requires_restart = bool(getattr(ir, 'requires_restart', False))
+    is_system_config = bool(getattr(ir, 'is_system_config', False))
 
     sql_text, _ = pg_compiler.compile_ir_to_sql(
         ir,
@@ -1814,6 +1816,7 @@ def _compile_ql_config_op(ctx: CompileContext, ql: qlast.Base):
     return dbstate.SessionStateQuery(
         sql=sql,
         is_backend_setting=is_backend_setting,
+        is_system_config=is_system_config,
         config_scope=ql.scope,
         requires_restart=requires_restart,
         single_unit=single_unit,
@@ -2154,6 +2157,8 @@ def _try_compile(
                 unit.backend_config = True
             if comp.requires_restart:
                 unit.config_requires_restart = True
+            if comp.is_system_config:
+                unit.is_system_config = True
 
             unit.modaliases = ctx.state.current_tx().get_modaliases()
 

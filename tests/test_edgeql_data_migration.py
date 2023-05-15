@@ -2209,6 +2209,15 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             },
         })
 
+    async def test_edgeql_migration_abs_ptr_01(self):
+        await self.migrate(r"""
+            type T { multi link following := T; }
+        """)
+        await self.migrate(r"""
+            abstract link abs { property foo: str };
+            type T { multi link following extending abs -> T; }
+        """)
+
     async def test_edgeql_migration_describe_function_01(self):
         await self.migrate('''
             function foo(x: str) -> str using (SELECT <str>random());
@@ -5922,7 +5931,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.interact([
             "did you create object type 'test::HasContent'?",
             "did you alter object type 'test::Post'?",
-            "did you alter object type 'test::Post'?",
+            "did you alter property 'content' of object type 'test::Post'?",
             "did you create object type 'test::Reply'?",
         ])
 
@@ -11454,6 +11463,36 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             type Source extending MetaSource;
             type ExternalSource extending MetaSource {
                 overloaded link target -> Target;
+            }
+        ''')
+
+    async def test_edgeql_migration_property_ref(self):
+        await self.migrate(r'''
+            type Log {
+                body: str;
+                timestamp: datetime {
+                    default := datetime_current();
+                }
+            }
+
+            type Person {
+                required name: str;
+                trigger log_delete after insert for each do (
+                    insert Log { body := __new__.name }
+                );
+            }
+        ''')
+
+        await self.migrate(r'''
+            type Log {
+                body: str;
+            }
+
+            type Person {
+                required name: str;
+                trigger log_delete after insert for each do (
+                    insert Log { body := __new__.name }
+                );
             }
         ''')
 

@@ -61,6 +61,7 @@ class SettingInfo(NamedTuple):
     requires_restart: bool
     backend_setting: str | None
     affects_compilation: bool
+    is_system_config: bool
 
 
 @dispatch.compile.register
@@ -113,6 +114,7 @@ def compile_ConfigSet(
         scope=expr.scope,
         requires_restart=info.requires_restart,
         backend_setting=info.backend_setting,
+        is_system_config=info.is_system_config,
         context=expr.context,
         expr=param_val,
         backend_expr=backend_expr,
@@ -162,6 +164,7 @@ def compile_ConfigReset(
         scope=expr.scope,
         requires_restart=info.requires_restart,
         backend_setting=info.backend_setting,
+        is_system_config=info.is_system_config,
         context=expr.context,
         selector=select_ir,
     )
@@ -215,6 +218,7 @@ def compile_ConfigInsert(
             scope=expr.scope,
             requires_restart=info.requires_restart,
             backend_setting=info.backend_setting,
+            is_system_config=info.is_system_config,
             expr=insert_subject,
             context=expr.context,
         ),
@@ -281,6 +285,7 @@ def _validate_global_op(
                        required=glob.get_required(ctx.env.schema),
                        requires_restart=False,
                        backend_setting=None,
+                       is_system_config=False,
                        affects_compilation=False)
 
 
@@ -382,6 +387,14 @@ def _validate_op(
     else:
         backend_setting = None
 
+    system_attr = ptr.get_annotations(ctx.env.schema).get(
+        ctx.env.schema, sn.QualName('cfg', 'system'), None)
+
+    is_system_config = (
+        system_attr is not None
+        and system_attr.get_value(ctx.env.schema) == 'true'
+    )
+
     compilation_attr = ptr.get_annotations(ctx.env.schema).get(
         ctx.env.schema, sn.QualName('cfg', 'affects_compilation'), None)
 
@@ -424,4 +437,5 @@ def _validate_op(
                        required=False,
                        requires_restart=requires_restart,
                        backend_setting=backend_setting,
+                       is_system_config=is_system_config,
                        affects_compilation=affects_compilation)

@@ -148,4 +148,8 @@ Casting Table
 
 - ``<>`` - can be cast explicitly
 - ``:=`` - assignment cast is supported
-- "impl" - implicit cast is supported
+- ``impl`` - implicit cast is supported
+- ``*``- When casting a float type to an integer type, the fractional value
+  naturally cannot be preserved after the cast. When executing this cast, we
+  round to the nearest integer, rounding ties to the nearest even (e.g., 1.5 is
+  rounded up to 2; 2.5 is also rounded to 2).

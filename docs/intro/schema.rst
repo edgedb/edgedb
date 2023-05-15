@@ -271,7 +271,7 @@ queries. The example below defines a backlink.
       # returns all movies with same title
       multi link same_title := (
         with t := .title
-        select Movie filter .title = t
+        select detached Movie filter .title = t
       )
     }
 
@@ -284,7 +284,7 @@ queries. The example below defines a backlink.
       # returns all movies with same title
       multi link same_title := (
         with t := .title
-        select Movie filter .title = t
+        select detached Movie filter .title = t
       )
     }
 

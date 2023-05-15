@@ -1205,6 +1205,43 @@ class TestServerConfig(tb.QueryTestCase):
         finally:
             await con2.aclose()
 
+    async def test_server_proto_orphan_rollback_state(self):
+        con1 = self.con
+        con2 = await self.connect(database=con1.dbname)
+        try:
+            await con2.execute('''
+                CONFIGURE SESSION SET __internal_sess_testvalue := 2;
+            ''')
+            await con1.execute('''
+                CONFIGURE SESSION SET __internal_sess_testvalue := 1;
+            ''')
+            self.assertEqual(
+                await con2.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                2,
+            )
+            self.assertEqual(
+                await con1.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                1,
+            )
+
+            # an orphan ROLLBACK must not change the last_state,
+            # because the implicit transaction is rolled back
+            await con2.execute("ROLLBACK")
+
+            # ... so that we can actually do the state sync again here
+            self.assertEqual(
+                await con2.query_single('''
+                    SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+                '''),
+                2,
+            )
+        finally:
+            await con2.aclose()
+
     async def test_server_proto_configure_error(self):
         con1 = self.con
         con2 = await self.connect(database=con1.dbname)
@@ -1741,7 +1778,10 @@ class TestStaticServerConfig(tb.TestCase):
 
     @test.xfail("static config args not supported")
     async def test_server_config_args_02(self):
-        with self.assertRaises(cluster.ClusterError):
+        with self.assertRaisesRegex(
+            cluster.ClusterError,
+            "invalid input syntax for type std::duration",
+        ):
             async with tb.start_edgedb_server(
                 extra_args=[
                     "--config-cfg::session_idle_timeout",
@@ -1750,9 +1790,8 @@ class TestStaticServerConfig(tb.TestCase):
             ):
                 pass
 
-    @test.xfail("static config args not supported")
     async def test_server_config_args_03(self):
-        with self.assertRaises(cluster.ClusterError):
+        with self.assertRaisesRegex(cluster.ClusterError, "no such option"):
             async with tb.start_edgedb_server(
                 extra_args=["--config-cfg::non_exist"]
             ):
@@ -1792,13 +1831,19 @@ class TestStaticServerConfig(tb.TestCase):
         env = {
             "EDGEDB_SERVER_CONFIG_cfg::allow_bare_ddl": "illegal_input"
         }
-        with self.assertRaises(cluster.ClusterError):
+        with self.assertRaisesRegex(
+            cluster.ClusterError,
+            "can only be one of: AlwaysAllow, NeverAllow"
+        ):
             async with tb.start_edgedb_server(env=env):
                 pass
 
     async def test_server_config_env_03(self):
         env = {"EDGEDB_SERVER_CONFIG_cfg::apply_access_policies": "on"}
-        with self.assertRaises(cluster.ClusterError):
+        with self.assertRaisesRegex(
+            cluster.ClusterError,
+            "can only be one of: true, false",
+        ):
             async with tb.start_edgedb_server(env=env):
                 pass
 
@@ -1844,5 +1889,44 @@ class TestStaticServerConfig(tb.TestCase):
                     """),
                     p1,
                 )
+            finally:
+                await conn.aclose()
+
+
+class TestDynamicSystemConfig(tb.TestCase):
+    async def test_server_dynamic_system_config(self):
+        async with tb.start_edgedb_server(
+            extra_args=["--disable-dynamic-system-config"]
+        ) as sd:
+            conn = await sd.connect()
+            try:
+                conf, sess = await conn.query_single('''
+                    SELECT (
+                        cfg::Config.__internal_testvalue,
+                        cfg::Config.__internal_sess_testvalue
+                    ) LIMIT 1
+                ''')
+
+                with self.assertRaisesRegex(
+                    edgedb.ConfigurationError, "disabled"
+                ):
+                    await conn.query(f'''
+                        CONFIGURE INSTANCE
+                        SET __internal_testvalue := {conf + 1};
+                    ''')
+
+                await conn.query(f'''
+                    CONFIGURE INSTANCE
+                    SET __internal_sess_testvalue := {sess + 1};
+                ''')
+
+                conf2, sess2 = await conn.query_single('''
+                    SELECT (
+                        cfg::Config.__internal_testvalue,
+                        cfg::Config.__internal_sess_testvalue
+                    ) LIMIT 1
+                ''')
+                self.assertEqual(conf, conf2)
+                self.assertEqual(sess + 1, sess2)
             finally:
                 await conn.aclose()

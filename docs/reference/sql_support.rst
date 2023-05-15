@@ -10,7 +10,8 @@ SQL support
 Connecting
 ==========
 
-EdgeDB supports running read-only SQL queries via the Postgres protocol. Any
+EdgeDB supports running read-only SQL queries via the Postgres protocol to
+enable connecting EdgeDB to existing BI and analytics solutions. Any
 Postgres-compatible client can connect to your EdgeDB database by using the
 same port that is used for the EdgeDB protocol and the same database name,
 username, and password you already use for your database.
