@@ -554,7 +554,7 @@ def compile_operator(
     if str_oper_name in {
         'std::UNION', 'std::IF', 'std::??'
     } and rtype.is_object_type():
-        # Special case for the UNION and IF operators, instead of common
+        # Special case for the UNION, IF and ?? operators: instead of common
         # parent type, we return a union type.
         if str_oper_name == 'std::IF':
             larg, _, rarg = (a.expr for a in final_args)
