@@ -21,6 +21,20 @@ instance and creating a corresponding credentials file in
 ``<edgedb_config_dir>`` on your machine.
 
 
+EdgeDB Cloud
+------------
+
+.. TODO: Cloud release
+.. Update this after Cloud has released
+
+Users with access to the EdgeDB Cloud beta may use this command to create a
+Cloud instance after logging in using :ref:`ref_cli_edgedb_cloud_login`.
+
+To create a Cloud instance, your instance name should be in the format
+``<github-username>/<instance-name>``. Cloud instance names may contain
+alphanumeric characters and hyphens (i.e., ``-``).
+
+
 Options
 =======
 

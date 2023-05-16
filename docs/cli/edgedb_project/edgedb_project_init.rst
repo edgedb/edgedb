@@ -22,6 +22,22 @@ project. Typically this tool will prompt for specific details about
 how the project should be setup.
 
 
+EdgeDB Cloud
+------------
+
+.. TODO: Cloud release
+.. Update this after Cloud has released
+
+Users with access to the EdgeDB Cloud beta may use this command to create a
+Cloud instance after logging in using :ref:`ref_cli_edgedb_cloud_login`.
+
+To create a Cloud instance, your instance name should be in the format
+``<github-username>/<instance-name>``. Cloud instance names may contain
+alphanumeric characters and hyphens (i.e., ``-``). You can provide this Cloud
+instance name through the interactive project initiation by running ``edgedb
+project init`` or by providing it via the ``--server-instance`` option.
+
+
 Options
 =======
 

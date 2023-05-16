@@ -154,4 +154,5 @@ The ``cli.toml`` has the following structure. All fields are optional:
     edgedb_project/index
     edgedb_instance/index
     edgedb_server/index
+    edgedb_cloud/index
     edgedb_cli_upgrade
