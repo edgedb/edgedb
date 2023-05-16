@@ -885,7 +885,7 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            internal_position="12"
+            position="12"
         ):
             await self.scon.execute("SELECT 1 + 'foo'")
 
@@ -893,7 +893,7 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            internal_position="10"
+            position="10"
         ):
             await self.scon.execute("SELECT 1+'foo'")
 
@@ -901,7 +901,7 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            internal_position="28"
+            position="28"
         ):
             await self.scon.execute("""SELECT 1 +
                 'foo'""")
@@ -910,7 +910,7 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            internal_position="12"
+            position="12"
         ):
             await self.scon.execute(
                 '''SELECT 1 + 'foo' FROM "Movie" ORDER BY id''')
@@ -919,7 +919,50 @@ class TestSQL(tb.SQLQueryTestCase):
         with self.assertRaisesRegex(
             asyncpg.InvalidTextRepresentationError,
             "type integer",
-            internal_position="28"
+            position="28"
         ):
             await self.scon.execute('''SELECT 1 +
+                'foo' FROM "Movie" ORDER BY id''')
+
+    async def test_sql_query_error_06(self):
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            "type integer",
+            position="12"
+        ):
+            await self.scon.fetch("SELECT 1 + 'foo'")
+
+    async def test_sql_query_error_07(self):
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            "type integer",
+            position="10"
+        ):
+            await self.scon.fetch("SELECT 1+'foo'")
+
+    async def test_sql_query_error_08(self):
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            "type integer",
+            position="28"
+        ):
+            await self.scon.fetch("""SELECT 1 +
+                'foo'""")
+
+    async def test_sql_query_error_09(self):
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            "type integer",
+            position="12"
+        ):
+            await self.scon.fetch(
+                '''SELECT 1 + 'foo' FROM "Movie" ORDER BY id''')
+
+    async def test_sql_query_error_10(self):
+        with self.assertRaisesRegex(
+            asyncpg.InvalidTextRepresentationError,
+            "type integer",
+            position="28"
+        ):
+            await self.scon.fetch('''SELECT 1 +
                 'foo' FROM "Movie" ORDER BY id''')

@@ -396,7 +396,6 @@ class QueryUnitGroup:
 @dataclasses.dataclass
 class SQLQueryUnit:
     query: str
-    input_query: Optional[str] = None
     translation_data: Optional[SQLSourceGeneratorTranslationData] = None
 
     tx_action: Optional[TxAction] = None

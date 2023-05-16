@@ -675,7 +675,6 @@ class Compiler:
 
                 unit = dbstate.SQLQueryUnit(
                     query=source,
-                    input_query=query_str,
                     translation_data=tl_data)
 
             tx_state.apply(unit)
