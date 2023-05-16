@@ -86,9 +86,7 @@ fn hash(text: &str) -> [u8; 64] {
     return result;
 }
 
-pub fn normalize<'x>(text: &'x str)
-    -> Result<Entry<'x>, Error>
-{
+pub fn normalize(text: &str) -> Result<Entry, Error> {
     use combine::easy::Error::*;
     let mut token_stream = TokenStream::new(&text);
     let mut tokens = Vec::new();

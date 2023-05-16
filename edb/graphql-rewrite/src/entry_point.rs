@@ -65,8 +65,7 @@ impl<'a> From<combine::easy::Error<Token<'a>,Token<'a>>> for Error {
     }
 }
 
-fn token_array<'a>(s: &'a str)
-    -> Result<(Vec<(Token<'a>, Pos)>, Pos), Error> {
+fn token_array(s: &str) -> Result<(Vec<(Token, Pos)>, Pos), Error> {
     let mut lexer = TokenStream::new(s);
     let mut tokens = Vec::new();
     let mut pos = lexer.position();

@@ -60,8 +60,7 @@ pub fn quote_string(s: &str) -> String {
     return buf;
 }
 
-pub fn unquote_string<'a>(value: &'a str) -> Result<Cow<'a, str>, UnquoteError>
-{
+pub fn unquote_string(value: &str) -> Result<Cow<str>, UnquoteError> {
     if value.starts_with('r') {
         Ok(value[2..value.len()-1].into())
     } else if value.starts_with('$') {
@@ -75,7 +74,7 @@ pub fn unquote_string<'a>(value: &'a str) -> Result<Cow<'a, str>, UnquoteError>
     }
 }
 
-fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
+fn _unquote_string(s: &str) -> Result<String, String> {
     let mut res = String::with_capacity(s.len());
     let mut chars = s.chars();
     while let Some(c) = chars.next() {
