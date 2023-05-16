@@ -57,6 +57,7 @@ from edb.pgsql import common as pgcommon
 from edb.pgsql.common import quote_ident as pg_qi
 from edb.pgsql.common import quote_literal as pg_ql
 from edb.pgsql import params as pg_params
+from edb.pgsql.codegen import SQLSourceGeneratorTranslationData
 
 from edb.server.pgproto cimport hton
 from edb.server.pgproto cimport pgproto
@@ -1670,14 +1671,17 @@ cdef class PGConnection:
                         while True:
                             field_type = self.buffer.read_byte()
                             if field_type == b'P':  # Position
-                                msg_buf.write_byte(b'q')  # Internal query
-                                msg_buf.write_bytestring(query)
-                                msg_buf.write_byte(b'p')  # Internal position
+                                self._write_error_position(
+                                    msg_buf,
+                                    query,
+                                    self.buffer.read_null_str(),
+                                    unit.translation_data
+                                )
                             else:
                                 msg_buf.write_byte(field_type)
                                 if field_type == b'\0':
                                     break
-                            msg_buf.write_bytestring(self.buffer.read_null_str())
+                                msg_buf.write_bytestring(self.buffer.read_null_str())
                         self.buffer.finish_message()
                         buf.write_buffer(msg_buf.end_message())
                         dbv.on_error()
@@ -2058,6 +2062,26 @@ cdef class PGConnection:
             fe_conn.write(buf)
         return rv
 
+    def _write_error_position(
+        self,
+        msg_buf: WriteBuffer,
+        query: bytes,
+        pos_bytes: bytes,
+        translation_data: Optional[SQLSourceGeneratorTranslationData]
+    ):
+        if translation_data:
+            pos = int(pos_bytes.decode('utf8'))
+            pos = translation_data.translate(pos)
+            # pg uses 1-based indexes
+            pos += 1
+            pos_bytes = str(pos).encode('utf8')
+            msg_buf.write_byte(b'P') # Position
+        else:
+            msg_buf.write_byte(b'q')  # Internal query
+            msg_buf.write_bytestring(query)
+            msg_buf.write_byte(b'p')  # Internal position
+        msg_buf.write_bytestring(pos_bytes)
+
     cdef _rewrite_sql_error_response(self, PGMessage action, WriteBuffer buf):
         cdef WriteBuffer msg_buf
 
@@ -2066,12 +2090,15 @@ cdef class PGConnection:
             while True:
                 field_type = self.buffer.read_byte()
                 if field_type == b'P':  # Position
-                    # Internal query
-                    msg_buf.write_byte(b'q')
-                    # Compiled SQL
-                    msg_buf.write_bytestring(action.args[0])
-                    # Internal position
-                    msg_buf.write_byte(b'p')
+                    qu = (action.query_unit.translation_data
+                          if action.query_unit else None)
+                    self._write_error_position(
+                        msg_buf,
+                        action.args[0],
+                        self.buffer.read_null_str(),
+                        qu
+                    )
+                    continue
                 else:
                     msg_buf.write_byte(field_type)
                     if field_type == b'\0':
@@ -2104,6 +2131,15 @@ cdef class PGConnection:
                     msg_buf.write_byte(field_type)
                     msg_buf.write_bytestring(
                         message.encode('utf-8')
+                    )
+                elif field_type == b'P':
+                    qu = (action.query_unit.translation_data
+                          if action.query_unit else None)
+                    self._write_error_position(
+                        msg_buf,
+                        action.args[0],
+                        self.buffer.read_null_str(),
+                        qu
                     )
                 else:
                     msg_buf.write_byte(field_type)
