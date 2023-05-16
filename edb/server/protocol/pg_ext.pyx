@@ -408,7 +408,8 @@ cdef class PgConnection(frontend.FrontendConnection):
             if exc.line >= 0:
                 args['L'] = str(exc.line)
             if exc.position >= 0:
-                args['P'] = str(exc.position)
+                # pg uses 1 based indexes for showing errors.
+                args['P'] = str(exc.position + 1)
             exc = pgerror.new(
                 exc.pgext_code or pgerror.ERROR_INTERNAL_ERROR,
                 str(exc),
