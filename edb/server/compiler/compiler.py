@@ -668,8 +668,14 @@ class Compiler:
                     **args
                 )
                 resolved = pg_resolver.resolve(stmt, schema, options)
-                source = pg_codegen.generate_source(resolved)
-                unit = dbstate.SQLQueryUnit(query=source)
+                source, tl_data = (
+                    pg_codegen.generate_source_with_translation_data(
+                        resolved
+                    ))
+
+                unit = dbstate.SQLQueryUnit(
+                    query=source,
+                    translation_data=tl_data)
 
             tx_state.apply(unit)
             unit.stmt_name = b"s" + hashlib.sha1(

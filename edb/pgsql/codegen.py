@@ -83,10 +83,48 @@ class SQLSourceGeneratorError(errors.InternalServerError):
             exceptions.add_context(self, ctx)
 
 
+class SQLSourceGeneratorTranslationData:
+    source_start: int
+    output_start: int
+    output_end: int
+    children: List[SQLSourceGeneratorTranslationData]
+
+    def __init__(
+        self,
+        *,
+        source_start: int,
+        output_start: int,
+    ):
+        self.source_start = source_start
+        self.output_start = output_start
+        self.output_end = -1
+        self.children = []
+
+    def translate(self, pos: int) -> int:
+        bu = None
+        for u in self.children:
+            if u.output_start >= pos:
+                break
+            bu = u
+        if bu and bu.output_end > pos:
+            return bu.translate(pos)
+        return self.source_start
+
+
 class SQLSourceGenerator(codegen.SourceGenerator):
-    def __init__(self, *args, reordered=False, **kwargs):  # type: ignore
+    def __init__(  # type: ignore
+        self,
+        *args,
+        reordered=False,
+        with_translation_data=False,
+        **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.param_index: dict[object, int] = {}
+        self.with_translation_data: bool = with_translation_data
+        self.write_index: int = 0
+        self.translation_data: Optional[
+            SQLSourceGeneratorTranslationData] = None
         self.reordered = reordered
 
     @classmethod
@@ -116,6 +154,57 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         generator = cls()
         generator.gen_ctes(ctes)
         return ''.join(generator.result)
+
+    @classmethod
+    def to_source_with_translation(
+        cls,
+        node: pgast.Base,
+        indent_with: str = ' ' * 4,
+        add_line_information: bool = False,
+        pretty: bool = True,
+        reordered: bool = False,
+    ) -> Tuple[str, SQLSourceGeneratorTranslationData]:
+        try:
+            generator = cls(
+                indent_with=indent_with,
+                add_line_information=add_line_information,
+                pretty=pretty,
+                reordered=reordered,
+                with_translation_data=True,
+            )
+            generator.visit(node)
+            assert generator.translation_data
+            return ''.join(generator.result), generator.translation_data
+        except SQLSourceGeneratorError as e:
+            ctx = SQLSourceGeneratorContext(node)
+            exceptions.add_context(e, ctx)
+            raise
+
+    def write(
+        self,
+        *x: str,
+        delimiter: Optional[str] = None,
+    ) -> None:
+        start = len(self.result)
+        super().write(*x, delimiter=delimiter)
+        for new in range(start, len(self.result)):
+            self.write_index += len(self.result[new])
+
+    def visit(self, node):  # type: ignore
+        if self.with_translation_data:
+            translation_data = SQLSourceGeneratorTranslationData(
+                source_start=node.context.start if node.context else 0,
+                output_start=self.write_index,
+            )
+            old_top = self.translation_data
+            self.translation_data = translation_data
+        super().visit(node)
+        if self.with_translation_data:
+            assert self.translation_data == translation_data
+            self.translation_data.output_end = self.write_index
+            if old_top:
+                old_top.children.append(self.translation_data)
+                self.translation_data = old_top
 
     def generic_visit(self, node):  # type: ignore
         raise SQLSourceGeneratorError(
@@ -1172,3 +1261,5 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
 
 generate_source = SQLSourceGenerator.to_source
+generate_source_with_translation_data = (SQLSourceGenerator.
+                                         to_source_with_translation)

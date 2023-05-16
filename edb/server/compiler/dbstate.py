@@ -39,6 +39,8 @@ from edb.schema import schema as s_schema
 
 from edb.server import config
 
+from edb.pgsql.codegen import SQLSourceGeneratorTranslationData
+
 from . import enums
 from . import sertypes
 
@@ -398,6 +400,7 @@ class QueryUnitGroup:
 @dataclasses.dataclass
 class SQLQueryUnit:
     query: str
+    translation_data: Optional[SQLSourceGeneratorTranslationData] = None
 
     tx_action: Optional[TxAction] = None
     tx_chain: bool = False

@@ -52,6 +52,7 @@ def resolve_BaseRangeVar(
 
     # general case
     node, table = _resolve_range_var(range_var, alias, ctx=ctx)
+    node = node.replace(context=range_var.context)
 
     # infer public name and internal alias
     table.alias = range_var.alias.aliasname
@@ -242,6 +243,7 @@ def resolve_CommonTableExpr(
 
     node = pgast.CommonTableExpr(
         name=cte.name,
+        context=cte.context,
         aliascolnames=reference_as,
         query=query,
         recursive=cte.recursive,
