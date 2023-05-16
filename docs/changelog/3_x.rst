@@ -12,8 +12,8 @@ v3.0 (dev)
 .. image:: images/v3_betelgeuse.jpg
     :width: 100%
 
-The EdgeDB 3.0 beta was released on May 5th, 2023. We would like to thank our
-community for reporting issues and contributing fixes. You are awesome! ❤️
+EdgeDB 3.0 is currently in pre-release. We would like to thank our community
+for reporting issues and contributing fixes. You are awesome! ❤️
 
 To play with the new features, install the CLI using `our installation guide
 <https://www.edgedb.com/install>`_, upgrade to the testing channel using
@@ -24,14 +24,15 @@ If the upgrade doesn't work, try updating to nightly first using
 
 .. code-block:: bash
 
-  $ edgedb project init --server-version=3.0-beta.1
+  $ edgedb project init --server-version=3.0-rc.1
 
 .. note::
 
-    Good news, everyone! Upgrades from 3.0 betas to release candidates (RCs)
-    and to the final 3.0 release will *not* require a dump and restore. 🎉
-    You can try out the beta with the assurance that this upgrade to the beta
-    will be the last dump and restore that is required of you.
+    Good news, everyone! Upgrades across pre-release versions of 3.0 and then
+    from pre-release 3.0 to the final 3.0 release will *not* require a dump and
+    restore. 🎉 You can try out 3.0 with the assurance that your initial
+    upgrade to any 3.0 pre-release version will be the last dump and restore
+    that is required of you.
 
 
 Upgrading
@@ -123,7 +124,7 @@ dump-and-restore process.
    In any required ``systemctl`` commands, replace ``edgedb-server-2`` with
    ``edgedb-server-3``.
 
-   Under any Docker setups, supply the ``3.0-beta.1`` tag.
+   Under any Docker setups, supply the ``3.0-rc.1`` tag.
 
 2. Take your application offline, then dump your v2.x database with the CLI
 
