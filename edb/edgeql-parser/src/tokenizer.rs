@@ -760,7 +760,7 @@ impl<'a> TokenStream<'a> {
             } else {
                 "123"
             };
-            if suffix.chars().next() == Some('O') {
+            if suffix.starts_with('O') {
                 return Err(Error::unexpected_format(
                     format_args!("suffix {:?} is invalid for \
                         numbers, perhaps mixed up letter `O` \
