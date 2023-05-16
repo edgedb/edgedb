@@ -14,7 +14,7 @@ py_class!(pub class Hasher |py| {
     @staticmethod
     def start_migration(parent_id: &PyString) -> PyResult<Hasher> {
         let hasher = hash::Hasher::start_migration(&parent_id.to_string(py)?);
-        Ok(Hasher::create_instance(py, RefCell::new(Some(hasher)))?)
+        Hasher::create_instance(py, RefCell::new(Some(hasher)))
     }
     def add_source(&self, data: &PyString) -> PyResult<PyObject> {
         let text = data.to_string(py)?;

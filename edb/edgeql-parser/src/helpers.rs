@@ -60,8 +60,7 @@ pub fn quote_string(s: &str) -> String {
     return buf;
 }
 
-pub fn unquote_string<'a>(value: &'a str) -> Result<Cow<'a, str>, UnquoteError>
-{
+pub fn unquote_string(value: &str) -> Result<Cow<str>, UnquoteError> {
     if value.starts_with('r') {
         Ok(value[2..value.len()-1].into())
     } else if value.starts_with('$') {
@@ -75,7 +74,7 @@ pub fn unquote_string<'a>(value: &'a str) -> Result<Cow<'a, str>, UnquoteError>
     }
 }
 
-fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
+fn _unquote_string(s: &str) -> Result<String, String> {
     let mut res = String::with_capacity(s.len());
     let mut chars = s.chars();
     while let Some(c) = chars.next() {
@@ -98,7 +97,7 @@ fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
                         }).ok_or_else(|| {
                             format!("invalid string literal: \
                                 invalid escape sequence '\\x{}'",
-                                hex.unwrap_or_else(|| chars.as_str())
+                                hex.unwrap_or(chars.as_str())
                                 .escape_debug())
                         })?;
                         if code > 0x7f || code == 0 {
@@ -115,14 +114,14 @@ fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
                         let ch = hex.and_then(|s| {
                                 u32::from_str_radix(s, 16).ok()
                             })
-                            .and_then(|code| char::from_u32(code))
+                            .and_then(char::from_u32)
                             .and_then(|c| {
                                 if c == '\0' { None } else { Some(c) }
                             })
                             .ok_or_else(|| {
                                 format!("invalid string literal: \
                                     invalid escape sequence '\\u{}'",
-                                    hex.unwrap_or_else(|| chars.as_str())
+                                    hex.unwrap_or(chars.as_str())
                                     .escape_debug())
                             })?;
                         res.push(ch);
@@ -133,14 +132,14 @@ fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
                         let ch = hex.and_then(|s| {
                                 u32::from_str_radix(s, 16).ok()
                             })
-                            .and_then(|code| char::from_u32(code))
+                            .and_then(char::from_u32)
                             .and_then(|c| {
                                 if c == '\0' { None } else { Some(c) }
                             })
                             .ok_or_else(|| {
                                 format!("invalid string literal: \
                                     invalid escape sequence '\\U{}'",
-                                    hex.unwrap_or_else(|| chars.as_str())
+                                    hex.unwrap_or(chars.as_str())
                                     .escape_debug())
                             })?;
                         res.push(ch);

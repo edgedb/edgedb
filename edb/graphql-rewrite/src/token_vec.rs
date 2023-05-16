@@ -15,16 +15,13 @@ impl<'a> TokenVec<'a> {
             consumed: 0,
         }
     }
-    pub fn drain<'x>(&'x mut self, n: usize)
-        -> impl Iterator<Item=&(Token, Pos)> + 'x
-    {
+    pub fn drain(&mut self, n: usize) -> impl Iterator<Item=&(Token, Pos)> {
         let pos = self.consumed;
         self.consumed += n;
         assert!(n <= self.tokens.len(), "attempt to more tokens than exist");
         self.tokens[pos..][..n].iter()
     }
-    pub fn drain_to<'x>(&'x mut self, end: usize)
-        -> impl Iterator<Item=&(Token, Pos)> + 'x
+    pub fn drain_to(&mut self, end: usize) -> impl Iterator<Item=&(Token, Pos)>
     {
         let n = end.checked_sub(self.consumed)
             .expect("drain_to with index smaller than current");

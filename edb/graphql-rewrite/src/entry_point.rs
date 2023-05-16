@@ -65,8 +65,7 @@ impl<'a> From<combine::easy::Error<Token<'a>,Token<'a>>> for Error {
     }
 }
 
-fn token_array<'a>(s: &'a str)
-    -> Result<(Vec<(Token<'a>, Pos)>, Pos), Error> {
+fn token_array(s: &str) -> Result<(Vec<(Token, Pos)>, Pos), Error> {
     let mut lexer = TokenStream::new(s);
     let mut tokens = Vec::new();
     let mut pos = lexer.position();
@@ -224,7 +223,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
     let mut key_vars = BTreeSet::new();
     let mut value_positions = HashSet::new();
 
-    visit_directives(&mut key_vars, &mut value_positions, &oper);
+    visit_directives(&mut key_vars, &mut value_positions, oper);
 
     for var in &oper.variable_definitions {
         if var.name.starts_with("_edb_arg__") {
