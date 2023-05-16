@@ -246,6 +246,7 @@ class AST:
             try:
                 object.__setattr__(copied, field, value)
             except AttributeError:
+                # don't mind not setting getter_only attrs.
                 continue
         return copied
 

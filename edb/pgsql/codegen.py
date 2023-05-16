@@ -100,6 +100,16 @@ class SQLSourceGeneratorTranslationData:
         self.output_end = -1
         self.children = []
 
+    def translate(self, pos: int) -> int:
+        bu = None
+        for u in self.children:
+            if u.output_start >= pos:
+                break
+            bu = u
+        if bu and bu.output_end > pos:
+            return bu.translate(pos)
+        return self.source_start
+
 
 class SQLSourceGenerator(codegen.SourceGenerator):
     def __init__(  # type: ignore
@@ -1251,5 +1261,5 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
 
 generate_source = SQLSourceGenerator.to_source
-generate_source_with_translation_data = \
-    SQLSourceGenerator.to_source_with_translation
+generate_source_with_translation_data = (SQLSourceGenerator.
+                                         to_source_with_translation)
