@@ -169,7 +169,7 @@ impl<'a> TokenStream<'a> {
     pub fn new_at(s: &str, position: Pos) -> TokenStream {
         let mut me = TokenStream {
             buf: s,
-            position: position,
+            position,
             off: 0,
             dot: false,
             next_state: None,
