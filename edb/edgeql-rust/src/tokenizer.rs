@@ -708,7 +708,7 @@ fn _unquote_bytes<'a>(s: &'a str) -> Result<Vec<u8>, String> {
                         }).ok_or_else(|| {
                             format!("invalid bytes literal: \
                                 invalid escape sequence '\\x{}'",
-                                hex.unwrap_or_else(|| tail).escape_debug())
+                                hex.unwrap_or(tail).escape_debug())
                         })?;
                         res.push(code);
                         bytes.nth(1);

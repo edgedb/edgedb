@@ -98,7 +98,7 @@ fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
                         }).ok_or_else(|| {
                             format!("invalid string literal: \
                                 invalid escape sequence '\\x{}'",
-                                hex.unwrap_or_else(|| chars.as_str())
+                                hex.unwrap_or(chars.as_str())
                                 .escape_debug())
                         })?;
                         if code > 0x7f || code == 0 {
@@ -122,7 +122,7 @@ fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
                             .ok_or_else(|| {
                                 format!("invalid string literal: \
                                     invalid escape sequence '\\u{}'",
-                                    hex.unwrap_or_else(|| chars.as_str())
+                                    hex.unwrap_or(chars.as_str())
                                     .escape_debug())
                             })?;
                         res.push(ch);
@@ -140,7 +140,7 @@ fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
                             .ok_or_else(|| {
                                 format!("invalid string literal: \
                                     invalid escape sequence '\\U{}'",
-                                    hex.unwrap_or_else(|| chars.as_str())
+                                    hex.unwrap_or(chars.as_str())
                                     .escape_debug())
                             })?;
                         res.push(ch);
