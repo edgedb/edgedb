@@ -186,7 +186,7 @@ fn find_attr<'a>(attrs: &'a [Attribute], name: &'static str) -> Option<&'a Attri
         let Some(ident) = a.path.get_ident() else {
             return false;
         };
-        ident.to_string() == name
+        *ident == name
     })
 }
 
@@ -197,5 +197,5 @@ fn is_option<'a>(ty: &Type) -> bool {
     let Some(segment) = path.segments.first() else {
         return false;
     };
-    segment.ident.to_string() == "Option"
+    segment.ident == "Option"
 }
