@@ -18,11 +18,14 @@
 
 import edgedb
 
+import unittest
 import json
 import os.path
 
 from edb.testbase import server as tb
 from edb.common import assert_data_shape
+from edb.schema import name as sn
+from edb.server.compiler.explain import pg_tree
 
 
 class TestEdgeQLExplain(tb.QueryTestCase):
@@ -734,7 +737,7 @@ class TestEdgeQLExplain(tb.QueryTestCase):
                                     "important": False,
                                     "title": "index_name",
                                     "type": "index",
-                                    "value": "default::Issue.owner index",
+                                    "value": "Issue.owner index",
                                 },
                                 {
                                     "important": False,
@@ -1226,3 +1229,75 @@ class TestEdgeQLExplain(tb.QueryTestCase):
             await self.con.query_single('''
                 analyze (execute := "hell yeah") select User
             ''')
+
+
+class NameTranslation(unittest.TestCase):
+
+    def test_name_default(self):
+        raliases = {'default': None}
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('default', 'Type1'), raliases),
+            "Type1",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('mod1', 'Type2'), raliases),
+            "mod1::Type2",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('m1::m2', 'Type3'), raliases),
+            "m1::m2::Type3",
+        )
+
+    def test_name_aliases_01(self):
+        raliases = {'mod1': None, 'mod2': 'main'}
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('default', 'Type1'), raliases),
+            "default::Type1",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('mod1', 'Type2'), raliases),
+            "Type2",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('mod2', 'Type3'), raliases),
+            "main::Type3",
+        )
+
+    def test_name_aliases_nested_01(self):
+        raliases = {'mod1': None, 'mod2': 'main', 'mod3::mod4': 'aux'}
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('default', 'Type1'), raliases),
+            "default::Type1",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('mod1::mod2', 'Type2'),
+                                    raliases),
+            # default module is not replaced if there is nesting
+            "mod1::mod2::Type2",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(sn.QualName('mod3::mod4::mod5', 'Type3'),
+                                    raliases),
+            "aux::mod5::Type3",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(
+                sn.QualName('mod3::mod4::mod5::mod6', 'Type4'),
+                raliases,
+            ),
+            "aux::mod5::mod6::Type4",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(
+                sn.QualName('mod3::mod7', 'Type5'),
+                raliases,
+            ),
+            "mod3::mod7::Type5",
+        )
+        self.assertEqual(
+            pg_tree._translate_name(
+                sn.QualName('mod2::mod3::mod4', 'Type6'),
+                raliases,
+            ),
+            "main::mod3::mod4::Type6",
+        )

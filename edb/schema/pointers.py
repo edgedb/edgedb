@@ -1584,6 +1584,22 @@ class PointerCommand(
 
         is_computable = scls.is_pure_computable(schema)
         is_owned = scls.get_owned(schema)
+
+        if is_computable:
+            if any(
+                b.generic(schema)
+                and not str(b.get_name(schema)) in (
+                    'std::link', 'std::property')
+                for b in scls.get_bases(schema).objects(schema)
+            ):
+                raise errors.SchemaDefinitionError(
+                    f'it is illegal for the computed '
+                    f'{scls.get_verbosename(schema, with_parent=True)} '
+                    f'to extend an abstract '
+                    f'{scls.get_schema_class_displayname()}',
+                    context=self.source_context,
+                )
+
         # Get the non-generic, explicitly declared ancestors as the
         # limitations on computables apply to explicitly declared
         # pointers, not just a long chain of inherited ones.

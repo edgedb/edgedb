@@ -224,7 +224,7 @@ def reconstruct_tree(
             isinstance(op, sd.DeleteObject)
             or (
                 isinstance(op, sd.AlterObject)
-                and op.get_nonattr_special_subcommand_count() == 0
+                and op.get_nonattr_subcommand_count() == 0
             )
         ):
             return False
@@ -248,6 +248,7 @@ def reconstruct_tree(
                 isinstance(parents[op], sd.DeltaRoot)
                 != isinstance(parents[alter_op], sd.DeltaRoot)
             )
+            or bool(alter_op.get_subcommands(type=sd.RenameObject))
         ):
             return False
 

@@ -341,6 +341,16 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "illegal for the computed link.*to extend an abstract link",
+    )
+    def test_schema_bad_link_06(self):
+        """
+            abstract link abs { property foo: str };
+            type T { multi link following extending abs -> T {using (T)} }
+        """
+
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
