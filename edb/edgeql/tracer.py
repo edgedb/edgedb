@@ -456,37 +456,34 @@ class TracerContext:
         return refs
 
 
+def _fork_context(ctx: TracerContext) -> TracerContext:
+    nctx = TracerContext(
+        schema=ctx.schema,
+        module=ctx.module,
+        objects=dict(ctx.objects),
+        anchors=ctx.anchors,
+        path_prefix=ctx.path_prefix,
+        modaliases=dict(ctx.modaliases),
+        params=ctx.params,
+        visited=ctx.visited,
+        local_modules=ctx.local_modules,
+    )
+    nctx.refs = ctx.refs
+
+    return nctx
+
+
 @contextmanager
 def alias_context(
     ctx: TracerContext,
     aliases: Optional[
         Sequence[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]]],
 ) -> Generator[TracerContext, None, None]:
-    nctx = None
-
-    def _fork_context() -> TracerContext:
-        nonlocal nctx
-
-        if nctx is None:
-            nctx = TracerContext(
-                schema=ctx.schema,
-                module=ctx.module,
-                objects=dict(ctx.objects),
-                anchors=ctx.anchors,
-                path_prefix=ctx.path_prefix,
-                modaliases=dict(ctx.modaliases),
-                params=ctx.params,
-                visited=ctx.visited,
-                local_modules=ctx.local_modules,
-            )
-            nctx.refs = ctx.refs
-
-        return nctx
+    ctx = _fork_context(ctx)
 
     for alias in (aliases or ()):
         # module and modalias in ctx needs to be amended
         if isinstance(alias, qlast.ModuleAliasDecl):
-            ctx = _fork_context()
             if alias.alias:
                 ctx.modaliases[alias.alias] = alias.module
             else:
@@ -494,7 +491,6 @@ def alias_context(
                 ctx.module = alias.module
 
         elif isinstance(alias, qlast.AliasedExpr):
-            ctx = _fork_context()
             obj = trace(alias.expr, ctx=ctx)
             # Regardless of whether tracing the expression produces an
             # object, record the alias.
@@ -997,6 +993,13 @@ def trace_ShapeElement(node: qlast.ShapeElement, *,
     trace(node.compexpr, ctx=ctx)
 
 
+def _update_path_prefix(tip: Optional[ObjectLike], ctx: TracerContext) -> None:
+    if tip is not None:
+        tip_name = tip.get_name(ctx.schema)
+        assert isinstance(tip_name, sn.QualName)
+        ctx.path_prefix = tip_name
+
+
 @trace.register
 def trace_Select(
     node: qlast.SelectQuery,
@@ -1005,10 +1008,7 @@ def trace_Select(
 ) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.result, ctx=ctx)
-        if tip is not None:
-            tip_name = tip.get_name(ctx.schema)
-            assert isinstance(tip_name, sn.QualName)
-            ctx.path_prefix = tip_name
+        _update_path_prefix(tip, ctx=ctx)
 
         # potentially SELECT uses an alias for the main result
         with result_alias_context(ctx, node, tip) as nctx:
@@ -1096,7 +1096,8 @@ def trace_SortExpr(node: qlast.SortExpr, *, ctx: TracerContext) -> None:
 @trace.register
 def trace_InsertQuery(node: qlast.InsertQuery, *, ctx: TracerContext) -> None:
     with alias_context(ctx, node.aliases) as ctx:
-        trace(qlast.Path(steps=[node.subject]), ctx=ctx)
+        tip = trace(qlast.Path(steps=[node.subject]), ctx=ctx)
+        _update_path_prefix(tip, ctx=ctx)
 
         for element in node.shape:
             trace(element, ctx=ctx)
@@ -1110,13 +1111,7 @@ def trace_UpdateQuery(
 ) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.subject, ctx=ctx)
-
-        if tip is None:
-            return None
-
-        tip_name = tip.get_name(ctx.schema)
-        assert isinstance(tip_name, sn.QualName)
-        ctx.path_prefix = tip_name
+        _update_path_prefix(tip, ctx=ctx)
 
         # potentially UPDATE uses an alias for the main result
         with result_alias_context(ctx, node, tip) as nctx:
@@ -1136,10 +1131,7 @@ def trace_DeleteQuery(
 ) -> Optional[ObjectLike]:
     with alias_context(ctx, node.aliases) as ctx:
         tip = trace(node.subject, ctx=ctx)
-        if tip is not None:
-            tip_name = tip.get_name(ctx.schema)
-            assert isinstance(tip_name, sn.QualName)
-            ctx.path_prefix = tip_name
+        _update_path_prefix(tip, ctx=ctx)
 
         # potentially DELETE uses an alias for the main result
         with result_alias_context(ctx, node, tip) as nctx:
