@@ -115,7 +115,7 @@ fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
                         let ch = hex.and_then(|s| {
                                 u32::from_str_radix(s, 16).ok()
                             })
-                            .and_then(|code| char::from_u32(code))
+                            .and_then(char::from_u32)
                             .and_then(|c| {
                                 if c == '\0' { None } else { Some(c) }
                             })
@@ -133,7 +133,7 @@ fn _unquote_string<'a>(s: &'a str) -> Result<String, String> {
                         let ch = hex.and_then(|s| {
                                 u32::from_str_radix(s, 16).ok()
                             })
-                            .and_then(|code| char::from_u32(code))
+                            .and_then(char::from_u32)
                             .and_then(|c| {
                                 if c == '\0' { None } else { Some(c) }
                             })
