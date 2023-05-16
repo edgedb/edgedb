@@ -240,7 +240,7 @@ pub fn convert_tokens(py: Python, rust_tokens: Vec<CowToken<'_>>,
     let mut buf = Vec::with_capacity(rust_tokens.len());
     let mut tok_iter = rust_tokens.iter().peekable();
     while let Some(tok) = tok_iter.next() {
-        let (name, text, value) = convert(py, &tokens, &mut cache,
+        let (name, text, value) = convert(py, tokens, &mut cache,
                                           tok, &mut tok_iter)?;
         let py_tok = Token::create_instance(py, name, text, value,
             tok.start, tok.end)?;

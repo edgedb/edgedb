@@ -88,7 +88,7 @@ fn hash(text: &str) -> [u8; 64] {
 
 pub fn normalize(text: &str) -> Result<Entry, Error> {
     use combine::easy::Error::*;
-    let mut token_stream = TokenStream::new(&text);
+    let mut token_stream = TokenStream::new(text);
     let mut tokens = Vec::new();
     for res in &mut token_stream {
         match res {

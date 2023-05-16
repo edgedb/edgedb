@@ -223,7 +223,7 @@ pub fn rewrite(operation: Option<&str>, s: &str) -> Result<Entry, Error> {
     let mut key_vars = BTreeSet::new();
     let mut value_positions = HashSet::new();
 
-    visit_directives(&mut key_vars, &mut value_positions, &oper);
+    visit_directives(&mut key_vars, &mut value_positions, oper);
 
     for var in &oper.variable_definitions {
         if var.name.starts_with("_edb_arg__") {
