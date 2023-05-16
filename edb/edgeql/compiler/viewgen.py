@@ -1270,7 +1270,7 @@ def _compile_qlexpr(
             ir_source, ctx=shape_expr_ctx
         )
 
-        if should_set_partial_prefix is False:
+        if should_set_partial_prefix:
             shape_expr_ctx.partial_path_prefix = source_set
 
         if s_ctx.exprtype.is_mutation() and ptrcls is not None:
