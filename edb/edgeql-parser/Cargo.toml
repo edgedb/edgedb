@@ -20,6 +20,7 @@ thiserror = "1.0.23"
 unicode-width = "0.1.8"
 edgeql-parser-derive = { path = "../edgeql-parser-derive", optional = true }
 cpython = { version = "0.7.0", optional = true }
+indexmap = "1.9.3"
 
 [features]
 default = ["python"]

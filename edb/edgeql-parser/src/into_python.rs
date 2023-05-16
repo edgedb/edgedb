@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use indexmap::IndexMap;
 
 use cpython::{
     PyBytes, PyDict, PyList, PyObject, PyResult, PyTuple, Python, PythonObject, ToPyObject,
@@ -79,7 +79,7 @@ impl<T1: IntoPython, T2: IntoPython> IntoPython for (T1, T2) {
     }
 }
 
-impl<K: IntoPython, V: IntoPython> IntoPython for BTreeMap<K, V> {
+impl<K: IntoPython, V: IntoPython> IntoPython for IndexMap<K, V> {
     fn into_python(self, py: Python<'_>, _: Option<PyDict>) -> PyResult<PyObject> {
         let dict = PyDict::new(py);
         for (key, value) in self {

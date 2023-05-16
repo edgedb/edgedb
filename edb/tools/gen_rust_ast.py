@@ -47,7 +47,7 @@ def main() -> None:
             //! Abstract Syntax Tree for EdgeQL
             #![allow(non_camel_case_types)]
 
-            use std::collections::BTreeMap;
+            use indexmap::IndexMap;
 
             #[cfg(feature = "python")]
             use edgeql_parser_derive::IntoPython;
@@ -225,7 +225,7 @@ def translate_type(
             return f'Vec<{params[0]}>'
 
         if typ._name == 'Dict':
-            return f'BTreeMap<{params[0]}, {params[1]}>'
+            return f'IndexMap<{params[0]}, {params[1]}>'
 
     if not hasattr(typ, '__name__'):
         return str(typ)
