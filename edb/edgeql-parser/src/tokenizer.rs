@@ -202,10 +202,7 @@ impl<'a> TokenStream<'a> {
         // note we may want to get rid of "update_position" here as it's
         // faster to update 'as you go', but this is easier to get right first
         self.update_position(len);
-        self.dot = match kind {
-            Kind::Dot => true,
-            _ => false,
-        };
+        self.dot = matches!(kind, Kind::Dot);
         let value = &self.buf[self.off-len..self.off];
         let end = self.position;
 
