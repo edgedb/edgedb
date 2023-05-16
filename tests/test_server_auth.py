@@ -16,7 +16,14 @@
 # limitations under the License.
 #
 
+import asyncio
+import os
+import pathlib
+import signal
+import tempfile
 import unittest
+
+import jwcrypto.jwk
 
 import edgedb
 
@@ -303,3 +310,75 @@ class TestServerAuth(tb.ConnectedTestCase):
             await self.con.query("""
                 CONFIGURE INSTANCE RESET Auth FILTER .comment = 'test'
             """)
+
+    async def test_server_auth_jwt_2(self):
+        jwk_fd, jwk_file = tempfile.mkstemp()
+
+        key = jwcrypto.jwk.JWK(generate='EC')
+        with open(jwk_fd, "wb") as f:
+            f.write(key.export_to_pem(private_key=True, password=None))
+
+        allowlist_fd, allowlist_file = tempfile.mkstemp()
+        os.close(allowlist_fd)
+
+        revokelist_fd, revokelist_file = tempfile.mkstemp()
+        os.close(revokelist_fd)
+
+        subject = "test"
+        key_id = "foobar"
+
+        async with tb.start_edgedb_server(
+            jws_key_file=jwk_file,
+            jwt_sub_allowlist_file=allowlist_file,
+            jwt_revocation_list_file=revokelist_file,
+        ) as sd:
+
+            jwk = secretkey.load_secret_key(pathlib.Path(jwk_file))
+
+            # enable JWT
+            conn = await sd.connect()
+            await conn.query("""
+                CONFIGURE INSTANCE INSERT Auth {
+                    comment := 'test',
+                    priority := 0,
+                    method := (INSERT JWT {
+                        transports := cfg::ConnectionTransport.TCP
+                    }),
+                }
+            """)
+            await conn.aclose()
+
+            # Try connecting with "test" not being in the allowlist.
+            sk = secretkey.generate_secret_key(
+                jwk,
+                subject=subject,
+                key_id=key_id,
+            )
+            with self.assertRaisesRegex(
+                edgedb.AuthenticationError,
+                'authentication failed: unauthorized subject',
+            ):
+                await sd.connect(secret_key=sk)
+
+            # Now add it to the allowlist.
+            with open(allowlist_file, "w") as f:
+                f.write(subject)
+            os.kill(sd.pid, signal.SIGHUP)
+
+            await asyncio.sleep(1)
+
+            conn = await sd.connect(secret_key=sk)
+            await conn.aclose()
+
+            # Now revoke the key
+            with open(revokelist_file, "w") as f:
+                f.write(key_id)
+            os.kill(sd.pid, signal.SIGHUP)
+
+            await asyncio.sleep(1)
+
+            with self.assertRaisesRegex(
+                edgedb.AuthenticationError,
+                'authentication failed: revoked key',
+            ):
+                await sd.connect(secret_key=sk)
