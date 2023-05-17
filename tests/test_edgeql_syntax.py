@@ -3165,6 +3165,12 @@ aa';
         );
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError)
+    def test_edgeql_syntex_insert_23(self):
+        """
+        INSERT { oops := "uhoh" };
+        """
+
     def test_edgeql_syntax_delete_01(self):
         """
         DELETE Foo;
