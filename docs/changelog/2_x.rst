@@ -1047,6 +1047,45 @@ Other changes
 * Fix adding certain computed links to a type with an alias
   (:eql:gh:`#5329`)
 
+2.15
+====
+* In multi-server instances, properly reload schema after a restore
+  (:eql:gh:`#5463`)
+
+* Fix several bugs synchronizing configuration state
+
+* Fix dropping a pointer's constraint and making it computed at the same time
+  (:eql:gh:`#5411`)
+
+* Don't claim that making a pointer computed is data-safe
+  (:eql:gh:`#5412`)
+
+* Prohibit NUL character in query source
+  (:eql:gh:`#5414`)
+
+* Fix migration that delete an link alias computed in a parent and child
+  (:eql:gh:`#5428`)
+
+* Fix GraphQL updates for multi links.
+  (:eql:gh:`#4260`)
+
+* Fix altering enum that is used in a tuple
+  (:eql:gh:`#5445`)
+
+* Fix changing cardinality of properties on types used in unions
+  (:eql:gh:`#5457`)
+
+* Enable GraphQL support for type unions.
+
+* Fix making pointer non-computed and giving it an abstract base at the
+  same time
+  (:eql:gh:`#5458`)
+
+* Make json casts of object arrays not include extra fields
+  (:eql:gh:`#5484`)
+
+* Make coalesce infer a union type
+  (:eql:gh:`#5472`)
 
 .. lint-off
 
