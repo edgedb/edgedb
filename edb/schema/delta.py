@@ -2130,7 +2130,8 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         # so sort by dependency order.
         objs_to_cmds = {}
         for delta, cmd, refdesc in context.affected_finalization.get(self, []):
-            objs_to_cmds[cmd.scls] = delta, cmd, refdesc
+            if schema.has_object(cmd.scls.id):
+                objs_to_cmds[cmd.scls] = delta, cmd, refdesc
         objs = sort_by_cross_refs(schema, objs_to_cmds.keys())
 
         for obj in reversed(objs):
