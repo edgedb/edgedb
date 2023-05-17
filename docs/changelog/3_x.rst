@@ -786,6 +786,9 @@ Changes to new 3.0 features
 * Produce correct error source locations in the SQL interface
   (:eql:gh:`#5462`)
 
+* Fix deleting a pointer with rewrites in a migration
+  (:eql:gh:`#5503`)
+
 
 Other changes and fixes
 -----------------------
