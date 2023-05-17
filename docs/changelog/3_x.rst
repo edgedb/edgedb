@@ -838,3 +838,9 @@ Other changes and fixes
 
 * Produce a proper error for too many constraint args
   (:eql:gh:`#5454`)
+
+* Prevent using leading dot notation in inserts
+  (:eql:gh:`#5142`)
+
+* Fix operations on single link with only computable link properties
+  (:eql:gh:`#5499`)
