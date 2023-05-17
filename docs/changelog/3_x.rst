@@ -780,7 +780,7 @@ Changes to new 3.0 features
 * Do nicer translation of relation names in ``ANALYZE``
   (:eql:gh:`#5467`)
 
-* Fix schema ordering bug when ``INSERT``s appear in triggers
+* Fix schema ordering bug when ``INSERT`` appears in triggers
   (:eql:gh:`#5489`)
 
 * Produce correct error source locations in the SQL interface
