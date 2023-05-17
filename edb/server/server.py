@@ -160,6 +160,7 @@ class Server(ha_base.ClusterProtocol):
             srvargs.DEFAULT_AUTH_METHODS),
         admin_ui: bool = False,
         instance_name: str,
+        disable_dynamic_system_config: bool = False,
     ):
         self.__loop = asyncio.get_running_loop()
         self._config_settings = config.get_settings()
@@ -285,6 +286,8 @@ class Server(ha_base.ClusterProtocol):
 
         self._file_watch_handles = []
         self._tls_certs_reload_retry_handle = None
+
+        self._disable_dynamic_system_config = disable_dynamic_system_config
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -1376,6 +1379,12 @@ class Server(ha_base.ClusterProtocol):
         except Exception:
             metrics.background_errors.inc(1.0, 'on_system_config_reset')
             raise
+
+    def before_alter_system_config(self):
+        if self._disable_dynamic_system_config:
+            raise errors.ConfigurationError(
+                "Changing the value of system config is disabled"
+            )
 
     async def _after_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;

@@ -3595,6 +3595,44 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_trigger_01(self):
+        schema = '''
+            type User {
+              trigger logInsert after insert for each do (
+                insert Log {
+                  user := __new__,
+                  action := 'Insert',
+                }
+              );
+            }
+
+            type Log {
+              required link user -> User;
+              required property action -> str;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_trigger_02(self):
+        schema = '''
+            type User {
+              trigger logInsert after insert for each do (
+                update Log set {
+                  user := __new__,
+                  action := 'Insert',
+                }
+              );
+            }
+
+            type Log {
+              required link user -> User;
+              required property action -> str;
+            }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_pointer_kind_infer_01(self):
         tschema = r'''
         type Bar;

@@ -25,8 +25,8 @@ reflected in the GraphQL schema.
 Setting up the extension
 ------------------------
 
-In order to set up GraphQL access to the database add the following to
-the schema:
+In order to set up GraphQL access to the database, add the following to the
+schema:
 
 .. code-block:: sdl
 
@@ -39,8 +39,8 @@ Then create a new migration and apply it.
   $ edgedb migration create
   $ edgedb migrate
 
-Refer to the :ref:`connection docs <edgedb_client_connection>` for information
-on how to run these commands against remotely-hosted instances.
+Refer to the :ref:`connection docs <edgedb_client_connection>` for various
+methods of running these commands against remotely-hosted instances.
 
 Connection
 ----------
@@ -50,10 +50,10 @@ GraphQL queries via HTTP at the following URL.
 
 ``http://127.0.0.1:<instance-port>/db/<database-name>/graphql``
 
-The value of ``<database-name>`` is almost certainly ``edgedb``, which is the
-name of the default database that is created when an instance is first
-created. (If you've manually created additional databases, specify the
-name of the database you'd like to query.)
+The value of ``<database-name>`` is probably ``edgedb``, which is the name of
+the default database that is created when an instance is first created. (If
+you've manually created additional databases, use the name of the database
+you'd like to query instead.)
 
 To find the port number associated with a local instance, run ``edgedb
 instance list``.
@@ -69,8 +69,9 @@ instance list``.
   │ local  │ inst3        │ 10703    │ 2.x           │ running     │
   └────────┴──────────────┴──────────┴───────────────┴─────────────┘
 
-To execute a GraphQL query against the instance named ``inst2``, we would send
-an HTTP request to ``http://localhost:10702/db/edgedb/graphql``.
+To execute a GraphQL query against the database ``edgedb`` on the instance
+named ``inst2``, we would send an HTTP request to
+``http://localhost:10702/db/edgedb/graphql``.
 
 .. note::
 
@@ -87,19 +88,20 @@ But what kind of HTTP request should this be? And what data should it contain?
 The protocol
 ------------
 
-EdgeDB can recieve GraphQL queries via both ``GET`` and ``POST`` requests. The
-request can contain the following fields:
+EdgeDB can recieve GraphQL queries via both ``GET`` and ``POST`` requests.
+Requests can contain the following fields:
 
 - ``query`` - the GraphQL query string
 - ``variables`` - a JSON object containing a set of variables. **Optional**
-  unless the GraphQL query string contains variables, in which case it is
+  If the GraphQL query string contains variables, the ``variables`` object is
   required.
 - ``globals`` - a JSON object containing global variables. **Optional**. The
   keys must be the fully qualified names of the globals to set (e.g.,
-  ``default::current_user`` if the global is in the ``default`` module).
+  ``default::current_user`` for the global ``current_user`` in the ``default``
+  module).
 - ``operationName`` - the name of the operation that must be
-  executed. **Optional** unless the GraphQL query contains several named
-  operations, in which case it is required.
+  executed. **Optional** If the GraphQL query contains several named
+  operations, it is required.
 
 .. note::
 
@@ -153,7 +155,7 @@ URL.
 Response format
 ^^^^^^^^^^^^^^^
 
-The body of the response is JSON with the following form:
+The body of the response is JSON in the following format:
 
 .. code-block::
 
@@ -190,7 +192,7 @@ We provide this GraphQL extension to support users who are accustomed to
 writing queries in GraphQL. That said, GraphQL is quite limited and verbose
 relative to EdgeQL.
 
-There are also some additional limitations
+There are also some additional limitations:
 
 - Variables can only correspond to *scalar types*; you can't use
   GraphQL ``input`` types. Under the hood, query variables are mapped onto
@@ -200,7 +202,7 @@ There are also some additional limitations
   property for a GraphQL insertion mutation, which can make queries more
   verbose.
 
-- Due to the differences between EdgeQL and GraphQL syntax
+- Due to the differences between EdgeQL and GraphQL syntax,
   :eql:type:`enum <std::enum>` types which have values that cannot be
   represented as GraphQL identifiers (e.g. ```N/A``` or ```NOT
   APPLICABLE```) cannot be properly reflected into GraphQL enums.
@@ -211,24 +213,11 @@ There are also some additional limitations
   GraphQL has no such concept.
 
 - Every non-abstract EdgeDB object type is simultaneously an interface
-  and an object in terms of the GraphQL type system, which means that for
-  every one object type name two names are needed in reflected
+  and an object in terms of the GraphQL type system, which means that, for
+  every one object type name, two names are needed in reflected
   GraphQL. This potentially results in name clashes if the convention
   of using camel-case names for user types is not followed in EdgeDB.
 
-
-Backendless mode
-^^^^^^^^^^^^^^^^
-
-At the moment, EdgeDB is not intended for use as a standalone backend. You
-should not expose your EdgeDB instance directly to your application's
-frontend; that's insecure and will give all users full read/write access to
-your database.
-
-EdgeDB 2.0 will include support for object-level security (in-database
-access control) which means you'll be able to run EdgeDB as a standalone
-backend, without the need for an API server to do authentication and
-authorization.
 
 .. __: http://graphql.org/docs/queries/
 

@@ -6531,6 +6531,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [True],
         )
 
+    async def test_edgeql_select_json_02(self):
+        # See issue #4705
+        [json_res] = await self.con._fetchall(
+            r'''
+            SELECT <json>array_agg(Issue)
+            ''',
+            __typenames__=True,
+        )
+        self.assertNotIn('__tname__', json_res)
+
     async def test_edgeql_select_bad_reference_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,

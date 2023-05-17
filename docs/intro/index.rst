@@ -5,6 +5,11 @@
 Get Started
 ===========
 
+.. TODO: 3.0 release
+.. When 3.0 is released and after intro/migrations/index.rst content is
+   replaced and the file is renamed back to intro/migrations.rst, this TOC will
+   need to be updated to reflect the new name and path.
+
 .. toctree::
     :maxdepth: 3
     :hidden:
@@ -14,7 +19,7 @@ Get Started
     instances
     projects
     schema
-    migrations
+    migrations/index
     edgeql
     clients
 

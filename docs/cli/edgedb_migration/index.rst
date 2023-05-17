@@ -21,6 +21,7 @@ Using the migration tools is the recommended way to make schema changes.
     edgedb_migration_log
     edgedb_migration_status
     edgedb_migration_edit
+    edgedb_migration_upgrade_check
 
 Setup
 =====

@@ -1,14 +1,25 @@
 .. _ref_intro_migrations:
 
+.. TODO: 3.0 release
+.. When 3.0 is released, this page's content will need to be replaced with the
+   content of intro/migrations/v3.rst. That page can then be deleted, the
+   intro/migrations directory can be deleted, and this file can be renamed
+   intro/migrations.rst.
+
 ==========
 Migrations
 ==========
 
-
 :index: migrations fill_expr cast_expr
 
 EdgeDB’s baked-in migration system lets you painlessly evolve your schema
-throughout the development process.
+throughout the development process. If you want to work along with this guide,
+start a new project with ``edgedb project init``. This will create a new
+instance and create some empty schema files to get you started.
+
+The recommended workflow has been improved in version 3.0, so if you're running
+our beta, try :ref:`the new workflow <ref_intro_migrations_v3>` instead.
+
 
 1. Write an initial schema
 --------------------------
@@ -152,7 +163,6 @@ That's it! You've created and applied your first EdgeDB migration. Your
 instance is now using the latest schema.
 
 
-
 Data migrations
 ---------------
 
@@ -261,7 +271,6 @@ following EdgeQL features are often useful:
       .. code-block::
 
         cast_expr> <bigint>.xp
-
 
 
 Further reading

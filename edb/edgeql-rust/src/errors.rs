@@ -9,15 +9,15 @@ pub struct TokenizerError(PyObject);
 pyobject_newtype!(TokenizerError);
 
 impl TokenizerError {
-    pub fn new<'p, T: ToPyObject>(py: Python<'p>, args: T) -> PyErr {
+    pub fn new<T: ToPyObject>(py: Python, args: T) -> PyErr {
         PyErr::new::<TokenizerError, T>(py, args)
     }
 }
 
 impl cpython::PythonObjectWithCheckedDowncast for TokenizerError {
     #[inline]
-    fn downcast_from<'p>(py: Python<'p>, obj: PyObject)
-        -> Result<TokenizerError, cpython::PythonObjectDowncastError<'p>>
+    fn downcast_from(py: Python, obj: PyObject)
+        -> Result<TokenizerError, cpython::PythonObjectDowncastError>
     {
         if TokenizerError::type_object(py).is_instance(py, &obj) {
             Ok(unsafe { PythonObject::unchecked_downcast_from(obj) })

@@ -132,7 +132,7 @@ pub fn serialize_all(py: Python<'_>, variables: &[Vec<Variable>])
                        -> Result<PyList, String> {
     let mut buf = Vec::with_capacity(variables.len());
     for vars in variables {
-        let bytes = serialize_extra(&vars)?;
+        let bytes = serialize_extra(vars)?;
         let pybytes = PyBytes::new(py, &bytes).into_object();
         buf.push(pybytes);
     }

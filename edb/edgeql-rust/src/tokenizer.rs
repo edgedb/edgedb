@@ -240,7 +240,7 @@ pub fn convert_tokens(py: Python, rust_tokens: Vec<CowToken<'_>>,
     let mut buf = Vec::with_capacity(rust_tokens.len());
     let mut tok_iter = rust_tokens.iter().peekable();
     while let Some(tok) = tok_iter.next() {
-        let (name, text, value) = convert(py, &tokens, &mut cache,
+        let (name, text, value) = convert(py, tokens, &mut cache,
                                           tok, &mut tok_iter)?;
         let py_tok = Token::create_instance(py, name, text, value,
             tok.start, tok.end)?;
@@ -674,20 +674,20 @@ impl<'a> From<SpannedToken<'a>> for CowToken<'a> {
     }
 }
 
-fn unquote_bytes<'a>(value: &'a str) -> Result<Vec<u8>, String> {
+fn unquote_bytes(value: &str) -> Result<Vec<u8>, String> {
     let idx = value.find(|c| c == '\'' || c == '"')
         .ok_or_else(|| "invalid bytes literal: missing quotes".to_string())?;
     let prefix = &value[..idx];
     match prefix {
         "br" | "rb" => Ok(value[3..value.len() -1].as_bytes().to_vec()),
-        "b" => Ok(_unquote_bytes(&value[2..value.len()-1])?.into()),
+        "b" => Ok(_unquote_bytes(&value[2..value.len()-1])?),
         _ => return Err(format_args!(
                 "prefix {:?} is not allowed for bytes, allowed: `b`, `rb`",
                 prefix).to_string()),
     }
 }
 
-fn _unquote_bytes<'a>(s: &'a str) -> Result<Vec<u8>, String> {
+fn _unquote_bytes(s: &str) -> Result<Vec<u8>, String> {
     let mut res = Vec::with_capacity(s.len());
     let mut bytes = s.as_bytes().iter();
     while let Some(&c) = bytes.next() {
@@ -708,7 +708,7 @@ fn _unquote_bytes<'a>(s: &'a str) -> Result<Vec<u8>, String> {
                         }).ok_or_else(|| {
                             format!("invalid bytes literal: \
                                 invalid escape sequence '\\x{}'",
-                                hex.unwrap_or_else(|| tail).escape_debug())
+                                hex.unwrap_or(tail).escape_debug())
                         })?;
                         res.push(code);
                         bytes.nth(1);

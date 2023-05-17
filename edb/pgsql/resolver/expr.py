@@ -86,7 +86,11 @@ def resolve_ResTarget(
         alias = static.name_in_pg_catalog(res_target.val.name)
 
     col = context.Column(name=alias, reference_as=alias)
-    return (pgast.ResTarget(val=val, name=alias),), (col,)
+    new_target = pgast.ResTarget(
+        val=val,
+        name=alias,
+        context=res_target.context)
+    return (new_target,), (col,)
 
 
 @dispatch._resolve.register

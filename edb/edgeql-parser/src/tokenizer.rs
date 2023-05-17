@@ -169,7 +169,7 @@ impl<'a> TokenStream<'a> {
     pub fn new_at(s: &str, position: Pos) -> TokenStream {
         let mut me = TokenStream {
             buf: s,
-            position: position,
+            position,
             off: 0,
             dot: false,
             next_state: None,
@@ -202,10 +202,7 @@ impl<'a> TokenStream<'a> {
         // note we may want to get rid of "update_position" here as it's
         // faster to update 'as you go', but this is easier to get right first
         self.update_position(len);
-        self.dot = match kind {
-            Kind::Dot => true,
-            _ => false,
-        };
+        self.dot = matches!(kind, Kind::Dot);
         let value = &self.buf[self.off-len..self.off];
         let end = self.position;
 
@@ -760,7 +757,7 @@ impl<'a> TokenStream<'a> {
             } else {
                 "123"
             };
-            if suffix.chars().next() == Some('O') {
+            if suffix.starts_with('O') {
                 return Err(Error::unexpected_format(
                     format_args!("suffix {:?} is invalid for \
                         numbers, perhaps mixed up letter `O` \

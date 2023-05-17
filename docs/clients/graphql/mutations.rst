@@ -18,7 +18,7 @@ Basically, it works the same way as a query, using the
 :ref:`pagination parameters <ref_graphql_overview_pagination>` to
 define a set of objects to be deleted. These objects are also
 returned as the result of the delete mutation. Each object type
-has a corresponding ``delete_`` mutation:
+has a corresponding ``delete_<type>`` mutation:
 
 .. table::
     :class: codeblocks
@@ -86,7 +86,7 @@ new objects and supports nested insertions, too. The objects to be
 inserted are specified via the ``data`` parameter, which takes a list
 of specifications. Each such specification has the same structure as
 the object being inserted with required and optional fields (although
-if a field is required in the object, but has a default it's optional
+if a field is required in the object but has a default, it's optional
 in the insert specification):
 
 .. table::
@@ -111,7 +111,7 @@ in the insert specification):
     |     }                           |                                 |
     +---------------------------------+---------------------------------+
 
-It's possible to insert a nested structure all at once (e.g. a new
+It's possible to insert a nested structure all at once (e.g., a new
 book and a new author):
 
 .. table::
