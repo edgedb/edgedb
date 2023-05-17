@@ -847,3 +847,6 @@ Other changes and fixes
 
 * Fix operations on single link with only computable link properties
   (:eql:gh:`#5499`)
+
+* Don't ISE on free shape in insert
+  (:eql:gh:`#5438`)
