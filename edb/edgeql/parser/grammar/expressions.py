@@ -264,6 +264,11 @@ class SimpleInsert(Nonterm):
         unless_conflict = kids[2].val
 
         if isinstance(subj, qlast.Shape):
+            if not subj.expr:
+                raise errors.EdgeQLSyntaxError(
+                    "insert shape expressions must have a type name",
+                    context=subj.context
+                )
             subj_path = subj.expr
             shape = subj.elements
         else:
