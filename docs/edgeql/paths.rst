@@ -24,6 +24,11 @@ Consider the following schema:
       required link author -> User;
     }
 
+    type Comment {
+      required property text -> str;
+      required link author -> User;
+    }
+
 .. code-block:: sdl
 
     type User {
@@ -35,6 +40,56 @@ Consider the following schema:
       required title: str;
       required author: User;
     }
+
+    type Comment {
+      required property text: str;
+      required link author: User;
+    }
+
+A few simple inserts will allow some experimentation with paths.
+
+Start with a first user:
+
+.. code-block:: edgeql
+  db> insert User {
+  email := "user1@email.com",
+  };
+
+Along comes another user who adds the first user as a friend:
+
+.. code-block:: edgeql
+
+  db> insert User {
+  email := "user2@email.com",
+  friends := (select detached User filter .email = "user1@email.com")
+  };
+
+The first user reciprocates, adding the new user as a friend:
+
+.. code-block:: edgeql
+
+  db> update User filter .email = "user1@email.com" 
+    set { 
+      friends += (select detached User filter .email = "user2@email.com")
+  };
+
+The second user writes a blog post about how nice EdgeDB is:
+
+.. code-block:: edgeql
+
+  db> insert BlogPost {
+  title := "EdgeDB is awesome",
+  author := assert_single((select User filter .email = "user2@email.com"))
+  };
+
+And the first user follows it up with a comment below the post:
+
+.. code-block:: edgeql
+
+  db> insert Comment {
+    text := "Nice post, user2!",
+    author := assert_single((select User filter .email = "user1@email.com"))
+  };
 
 The simplest path is simply ``User``. This is a :ref:`set reference
 <ref_eql_set_references>` that refers to all ``User`` objects in the database.
@@ -51,10 +106,13 @@ friend of another User*.
   select User.friends;
 
 Paths can traverse to an arbitrary depth in a series of nested links.
+The ``select`` below ends up showing the author of the BlogPost
+(The friend of the friend of the BlogPost, which is the author)
 
 .. code-block:: edgeql
 
-  select BlogPost.author.friends.friends;
+  select BlogPost.author; # The author
+  select BlogPost.author.friends.friends; # The author again
 
 Paths can terminate with a property reference.
 
@@ -80,56 +138,73 @@ Starting from each user, the path below traverses all *incoming* links labeled
 
   select User.<author;
 
+This query works, showing both the ``BlogPost`` and the ``Comment`` in the
+database. However, we can't impose a shape on it:
+
+.. code-block:: edgeql
+
+  select User.<author { text };
+
 As written, EdgeDB infers the *type* of this expression to be
-:eql:type:`BaseObject`, not ``BlogPost``. Why? Because in theory, there may be
-several links named ``author`` that point to ``User``.
+:eql:type:`BaseObject`. Why? Because in theory, there may be
+several links named ``author`` that point to ``User``. And there
+is no guarantee that each of these links will have a property
+called ``text``.
 
 .. note::
   ``BaseObject`` is the root ancestor of all object types and it only contains
   a single property, ``id``.
 
-Consider the following addition to the schema:
-
-.. code-block:: sdl-diff
-    :version-lt: 3.0
-
-      type User {
-        # as before
-      }
-
-      type BlogPost {
-        required link author -> User;
-      }
-
-    + type Comment {
-    +   required link author -> User;
-    + }
-
-.. code-block:: sdl-diff
-
-      type User {
-        # as before
-      }
-
-      type BlogPost {
-        required author: User;
-      }
-
-    + type Comment {
-    +   required author: User;
-    + }
-
-
-With the above schema, the path ``User.<author`` would return a mixed set of
-``BlogPost`` and ``Comment`` objects. This may be desirable in some cases, but
-commonly you'll want to narrow the results to a particular type. To do so, use
-the :eql:op:`type intersection <isintersect>` operator: ``[is Foo]``:
+As such, commonly you'll want to narrow the results to a particular type.
+To do so, use the :eql:op:`type intersection <isintersect>` operator: 
+``[is Foo]``:
 
 .. code-block:: edgeql
 
     select User.<author[is BlogPost]; # returns all blog posts
     select User.<author[is Comment]; # returns all comments
 
+Backlinks can be inserted into a schema with the same format, except
+that the type name (in this case ``User``) doesn't need to be specified.
+
+.. code-block:: sdl-diff
+    :version-lt: 3.0
+    
+  type User {
+    required property email -> str;
+    multi link friends -> User;
+  + link all_links := .<author;
+  + link blog_links := .<author[is BlogPost];
+  + link comment_links := .<author[is Comment];
+  }
+
+  type BlogPost {
+    required property title -> str;
+    required link author -> User;
+  }
+  type Comment {
+    required property text -> str;
+    required link author -> User;
+  }
+
+.. code-block:: sdl-diff
+
+  type User {
+    required email: str;
+    multi friends: User;
+  + link all_links := .<author;
+  + link blog_links := .<author[is BlogPost];
+  + link comment_links := .<author[is Comment];
+  }
+
+  type BlogPost {
+    required title: str;
+    required author: User;
+  }
+  type Comment {
+    required text: str;
+    required author: User;
+  }
 
 .. _ref_eql_paths_link_props:
 
