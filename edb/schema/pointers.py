@@ -2363,7 +2363,9 @@ class SetPointerType(
                 placeholder=placeholder_name,
                 prompt=prompt,
                 old_type=str(old_type.get_name(schema)) if old_type else None,
+                old_type_is_object=old_type and old_type.is_object_type(),
                 new_type=str(new_type.get_name(schema)),
+                new_type_is_object=new_type.is_object_type(),
                 pointer_name=self.get_displayname(),
             ))
 
