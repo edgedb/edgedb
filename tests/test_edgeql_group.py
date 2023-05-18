@@ -125,6 +125,32 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ])
         )
 
+    async def test_edgeql_group_simple_04(self):
+        await self.assert_query_result(
+            r'''
+            WITH snapshots := cards::Card
+            GROUP snapshots {} BY .element;
+            ''',
+            tb.bag([
+                {
+                    "elements": tb.bag([{}, {}]),
+                    "key": {"element": "Water"}
+                },
+                {
+                    "elements": tb.bag([{}, {}]),
+                    "key": {"element": "Fire"}
+                },
+                {
+                    "elements": tb.bag([{}, {}]),
+                    "key": {"element": "Earth"}
+                },
+                {
+                    "elements": tb.bag([{}, {}, {}]),
+                    "key": {"element": "Air"}
+                }
+            ])
+        )
+
     async def test_edgeql_group_simple_no_id_output_01(self):
         # the implicitly injected id was making it into the output
         # in native mode at one point
