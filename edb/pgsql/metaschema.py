@@ -64,9 +64,6 @@ from . import delta
 from . import types
 from . import params
 
-if TYPE_CHECKING:
-    from edb.server import pgcon
-
 
 q = common.qname
 qi = common.quote_ident
@@ -77,6 +74,39 @@ qt = common.quote_type
 DATABASE_ID_NAMESPACE = uuidgen.UUID('0e6fed66-204b-11e9-8666-cffd58a5240b')
 CONFIG_ID_NAMESPACE = uuidgen.UUID('a48b38fa-349b-11e9-a6be-4f337f82f5ad')
 CONFIG_ID = uuidgen.UUID('172097a4-39f4-11e9-b189-9321eb2f4b97')
+
+
+class PGConnection(Protocol):
+
+    async def sql_execute(
+        self,
+        sql: bytes | tuple[bytes, ...],
+    ) -> None:
+        ...
+
+    async def sql_fetch(
+        self,
+        sql: bytes | tuple[bytes, ...],
+        *,
+        args: tuple[bytes, ...] | list[bytes] = (),
+    ) -> list[tuple[bytes, ...]]:
+        ...
+
+    async def sql_fetch_val(
+        self,
+        sql: bytes,
+        *,
+        args: tuple[bytes, ...] | list[bytes] = (),
+    ) -> bytes:
+        ...
+
+    async def sql_fetch_col(
+        self,
+        sql: bytes,
+        *,
+        args: tuple[bytes, ...] | list[bytes] = (),
+    ) -> list[bytes]:
+        ...
 
 
 class DBConfigTable(dbops.Table):
@@ -4003,8 +4033,8 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
 
 
 async def bootstrap(
-    conn: pgcon.PGConnection,
-    config_spec: edbconfig.Spec
+    conn: PGConnection,
+    config_spec: edbconfig.Spec,
 ) -> None:
     commands = dbops.CommandGroup()
     commands.add_commands([
@@ -4125,7 +4155,7 @@ async def bootstrap(
     await _execute_block(conn, block)
 
 
-async def create_pg_extensions(conn: pgcon.PGConnection) -> None:
+async def create_pg_extensions(conn: PGConnection) -> None:
     commands = dbops.CommandGroup()
     commands.add_commands([
         dbops.CreateSchema(name='edgedbext'),
@@ -4964,7 +4994,7 @@ def get_support_views(
 
 
 async def generate_support_views(
-    conn: pgcon.PGConnection,
+    conn: PGConnection,
     schema: s_schema.Schema,
     backend_params: params.BackendRuntimeParams,
 ) -> None:
@@ -4975,7 +5005,7 @@ async def generate_support_views(
 
 
 async def generate_support_functions(
-    conn: pgcon.PGConnection,
+    conn: PGConnection,
     schema: s_schema.Schema,
 ) -> None:
     commands = dbops.CommandGroup()
@@ -4992,7 +5022,7 @@ async def generate_support_functions(
 
 
 async def generate_more_support_functions(
-    conn: pgcon.PGConnection,
+    conn: PGConnection,
     compiler: edbcompiler.Compiler,
     schema: s_schema.Schema,
     testmode: bool,
@@ -5784,14 +5814,14 @@ def _generate_config_type_view(
 
 
 async def _execute_block(
-    conn: pgcon.PGConnection,
+    conn: PGConnection,
     block: dbops.SQLBlock,
 ) -> None:
     await execute_sql_script(conn, block.to_string())
 
 
 async def execute_sql_script(
-    conn: pgcon.PGConnection,
+    conn: PGConnection,
     sql_text: str,
 ) -> None:
     from edb.server import pgcon
