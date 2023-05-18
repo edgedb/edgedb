@@ -318,6 +318,97 @@ using arbitrary EdgeQL expressions. The example below uses the built-in
     );
   }
 
+
+Constraints and object inheritence
+----------------------------------
+
+If you define a constraint on a parent type, the constraint will apply to all
+types that extend it.
+
+.. code-block:: sdl
+    :version-lt: 3.0
+
+    abstract type User {
+      required property name -> str {
+        constraint exclusive;
+      }
+    }
+    type Administrator extending User;
+    type Moderator extending User;
+
+.. code-block:: sdl
+
+    abstract type User {
+      required name: str {
+        constraint exclusive;
+      }
+    }
+    type Administrator extending User;
+    type Moderator extending User;
+
+.. code-block:: edgeql-repl
+
+    db> insert Administrator {
+    ...   name := 'Jan'
+    ... };
+    {default::Administrator {id: 7aeaa146-f5a5-11ed-a598-53ddff476532}}
+    db> insert Moderator {
+    ...   name := 'Jan'
+    ... };
+    edgedb error: ConstraintViolationError: name violates exclusivity
+    constraint
+      Detail: value of property 'name' of object type 'default::Moderator'
+      violates exclusivity constraint
+
+As you can see, the constraints on the parent are applied globally across
+objects of the extending types. That means if an object of one of the extending
+types has a value for a property that is exclusive, an object of a different
+extending type cannot have the same value.
+
+If that's not what you want, you can instead delegate the constraint to the
+inheriting types by prepending the ``delegated`` keyword to the constraint.
+This is akin to applying the constraint individually to each extending type.
+
+.. code-block:: sdl
+    :version-lt: 3.0
+
+    abstract type User {
+      required property name -> str {
+        delegated constraint exclusive;
+      }
+    }
+    type Administrator extending User;
+    type Moderator extending User;
+
+.. code-block:: sdl
+
+    abstract type User {
+      required name: str {
+        delegated constraint exclusive;
+      }
+    }
+    type Administrator extending User;
+    type Moderator extending User;
+
+.. code-block:: edgeql-repl
+
+    db> insert Administrator {
+    ...   name := 'Jan'
+    ... };
+    {default::Administrator {id: 7aeaa146-f5a5-11ed-a598-53ddff476532}}
+    db> insert Moderator {
+    ...   name := 'Jan'
+    ... };
+    {default::Moderator {id: d3012a3f-0f16-40a8-8884-7203f393b63d}}
+    db> insert Moderator {
+    ...   name := 'Jan'
+    ... };
+    edgedb error: ConstraintViolationError: name violates exclusivity
+    constraint
+      Detail: value of property 'name' of object type 'default::Moderator'
+      violates exclusivity constraint
+
+
 .. list-table::
   :class: seealso
 
