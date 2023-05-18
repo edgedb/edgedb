@@ -1693,7 +1693,18 @@ async def _create_edgedb_database(
     )
     tpl_db = ctx.cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
     dbops.CreateDatabase(db, template=tpl_db).generate(block)
-    await _execute_block(ctx.conn, block)
+
+    # Background tasks on some hosted provides like DO seem to sometimes make
+    # their own connections to the template DB, so do a retry loop on it.
+    rloop = retryloop.RetryLoop(
+        backoff=retryloop.exp_backoff(),
+        timeout=10.0,
+        ignore=pgcon.errors.BackendError,
+    )
+    async for iteration in rloop:
+        async with iteration:
+            await _execute_block(ctx.conn, block)
+
     return objid
 
 
