@@ -1722,7 +1722,7 @@ class Server(ha_base.ClusterProtocol):
                 try:
                     conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
                     break
-                except (ConnectionError, TimeoutError):
+                except OSError:
                     # Keep retrying as far as:
                     #   1. The EdgeDB server is still serving,
                     #   2. We still cannot connect to the Postgres cluster, or
