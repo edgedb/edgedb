@@ -53,8 +53,9 @@ class RetryLoop:
         *,
         backoff: Callable[[int], float] = const_backoff(0.5),
         timeout: float,
-        ignore: Optional[Type[Exception] | Tuple[Type[Exception]]] = None,
-        wait_for: Optional[Type[Exception] | Tuple[Type[Exception]]] = None,
+        ignore: Type[Exception] | Tuple[Type[Exception], ...] | None = None,
+        wait_for: Type[Exception] | Tuple[Type[Exception], ...] | None = None,
+        retry_cb: Callable[[Optional[BaseException]], None] | None = None,
     ) -> None:
         self._iteration = 0
         self._backoff = backoff
@@ -63,6 +64,7 @@ class RetryLoop:
         self._wait_for = wait_for
         self._started_at = 0.0
         self._stop_request = False
+        self._retry_cb = retry_cb
 
     def __aiter__(self) -> RetryLoop:
         return self
@@ -114,6 +116,9 @@ class RetryIteration:
             if elapsed > self._loop._timeout:
                 # Propagate -- we've run it enough times.
                 return False
+
+            if self._loop._retry_cb is not None:
+                self._loop._retry_cb(e)
 
             # Ignore the exception until next run.
             return True
