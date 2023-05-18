@@ -848,3 +848,6 @@ Other changes and fixes
 
 * Work around postgres server crashes on Digital Ocean during edgedb setup
   (:eql:gh:`#5505`)
+
+* Always set cardinality of derived __tname__ and __tid__ pointers
+  (:eql:gh:`#5508`)
