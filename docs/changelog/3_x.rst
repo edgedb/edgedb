@@ -850,3 +850,6 @@ Other changes and fixes
 
 * Don't ISE on free shape in insert
   (:eql:gh:`#5438`)
+
+* Work around postgres server crashes on Digital Ocean during edgedb setup
+  (:eql:gh:`#5505`)
