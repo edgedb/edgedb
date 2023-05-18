@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *
 
+import dataclasses
 import enum
 import json
 import logging
@@ -28,6 +29,7 @@ import pathlib
 import pickle
 import re
 import struct
+import sys
 import textwrap
 
 from edb import buildmeta
@@ -39,6 +41,7 @@ from edb.edgeql import ast as qlast
 
 from edb.common import debug
 from edb.common import devmode
+from edb.common import retryloop
 from edb.common import uuidgen
 
 from edb.schema import ddl as s_ddl
@@ -83,7 +86,8 @@ class ClusterMode(enum.IntEnum):
     single_database = 3
 
 
-class BootstrapContext(NamedTuple):
+@dataclasses.dataclass
+class BootstrapContext:
 
     cluster: pgcluster.BaseCluster
     conn: pgcon.PGConnection
@@ -1585,7 +1589,18 @@ async def _create_edgedb_database(
     )
     tpl_db = ctx.cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
     dbops.CreateDatabase(db, template=tpl_db).generate(block)
-    await _execute_block(ctx.conn, block)
+
+    # A template DB connection from earlier in bootstrap might still
+    # not have fully gone away, so do a retry loop on it.
+    rloop = retryloop.RetryLoop(
+        backoff=retryloop.exp_backoff(),
+        timeout=10.0,
+        ignore=pgcon.errors.BackendError,
+    )
+    async for iteration in rloop:
+        async with iteration:
+            await _execute_block(ctx.conn, block)
+
     return objid
 
 
@@ -1828,27 +1843,36 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
     else:
         superuser_uid = uuidgen.uuid1mc()
 
+    if backend_params.has_create_database:
+        new_template_db_id = await _create_edgedb_template_database(ctx)
+        tpl_db = cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
+        conn = await cluster.connect(database=tpl_db)
+
+        # HACK: When bootstrapping against managed Digital Ocean
+        # databases, the database occasionally had a server process
+        # crash if we kept our main connection open while initializing
+        # the template DB (!).
+        # So we close the connection now, and we'll reopen it once
+        # we've finished with the template DB.
+        ctx.conn.terminate()
+        ctx.conn = None  # type: ignore
+    else:
+        new_template_db_id = uuidgen.uuid1mc()
+
+    if backend_params.has_create_database:
+        tpl_ctx = dataclasses.replace(ctx, conn=conn)
+        conn.add_log_listener(_pg_log_listener)
+    else:
+        tpl_ctx = ctx
+
     in_dev_mode = devmode.is_in_dev_mode()
     # Protect against multiple EdgeDB tenants from trying to bootstrap
     # on the same cluster in devmode, as that is both a waste of resources
     # and might result in broken stdlib cache.
     if in_dev_mode:
-        await ctx.conn.sql_execute(b"SELECT pg_advisory_lock(3987734529)")
-
-    if backend_params.has_create_database:
-        new_template_db_id = await _create_edgedb_template_database(ctx)
-        tpl_db = cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
-        conn = await cluster.connect(database=tpl_db)
-    else:
-        new_template_db_id = uuidgen.uuid1mc()
+        await tpl_ctx.conn.sql_execute(b"SELECT pg_advisory_lock(3987734529)")
 
     try:
-        if backend_params.has_create_database:
-            tpl_ctx = ctx._replace(conn=conn)
-            conn.add_log_listener(_pg_log_listener)
-        else:
-            tpl_ctx = ctx
-
         # Some of the views need access to the _edgecon_state table,
         # so set it up.
         tmp_table_query = pgcon.SETUP_TEMP_TABLE_SCRIPT
@@ -1878,9 +1902,14 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
         # with up-to-date statistics.
         await tpl_ctx.conn.sql_execute(b"ANALYZE")
 
+        # Restablish the connection to the default database.
+        if backend_params.has_create_database:
+            ctx.conn = await cluster.connect()
+            ctx.conn.add_log_listener(_pg_log_listener)
+
     finally:
-        if in_dev_mode:
-            await ctx.conn.sql_execute(
+        if in_dev_mode and not sys.exc_info()[0]:
+            await tpl_ctx.conn.sql_execute(
                 b"SELECT pg_advisory_unlock(3987734529)",
             )
 
@@ -1901,7 +1930,7 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
         try:
             conn.add_log_listener(_pg_log_listener)
             await _configure(
-                ctx._replace(conn=conn),
+                dataclasses.replace(ctx, conn=conn),
                 config_spec=config_spec,
                 schema=schema,
                 compiler=compiler,
@@ -1970,7 +1999,7 @@ async def ensure_bootstrapped(
 
     try:
         mode = await _get_cluster_mode(ctx)
-        ctx = ctx._replace(mode=mode)
+        ctx = dataclasses.replace(ctx, mode=mode)
         if mode == ClusterMode.pristine:
             await _bootstrap(ctx)
             return True
