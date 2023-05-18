@@ -16,11 +16,7 @@ EdgeDB 3.0 is currently in pre-release. We would like to thank our community
 for reporting issues and contributing fixes. You are awesome! ❤️
 
 To play with the new features, install the CLI using `our installation guide
-<https://www.edgedb.com/install>`_, upgrade to the testing channel using
-``edgedb cli upgrade --to-testing``, and initialize a new project.
-
-If the upgrade doesn't work, try updating to nightly first using
-``edgedb cli upgrade --to-nightly``
+<https://www.edgedb.com/install>`_ and initialize a new project.
 
 .. code-block:: bash
 
@@ -41,9 +37,8 @@ Upgrading
 **Local instances**
 
 To upgrade a local project, first ensure that your CLI is up to date with
-``edgedb cli upgrade --to-testing`` (and ``edgedb cli upgrade --to-nightly``
-before that if the CLI doesn't recognize the command). Then run an upgrade
-check to make sure your schema will migrate cleanly to 3.0.
+``edgedb cli upgrade``. Then run an upgrade check to make sure your schema will
+migrate cleanly to 3.0.
 
 .. code-block:: bash
 
