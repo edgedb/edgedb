@@ -851,3 +851,6 @@ Other changes and fixes
 
 * Always set cardinality of derived __tname__ and __tid__ pointers
   (:eql:gh:`#5508`)
+
+* Make failovers more resilient
+  (:eql:gh:`#5511`)
