@@ -2920,9 +2920,9 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         context: CommandContext,
     ) -> None:
         # Check if functions by this name exist
-        fn = self.get_attribute_value('name')
-        if fn is not None and not sn.is_fullname(str(fn)):
-            funcs = schema.get_functions(fn, tuple())
+        obj_name = self.get_attribute_value('name')
+        if obj_name is not None and not sn.is_fullname(str(obj_name)):
+            funcs = schema.get_functions(obj_name, tuple())
             if funcs:
                 raise errors.SchemaError(
                     f'{funcs[0].get_verbosename(schema)} already exists')
