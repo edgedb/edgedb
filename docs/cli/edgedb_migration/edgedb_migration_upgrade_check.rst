@@ -13,6 +13,10 @@ to check against a specific version.
 
     edgedb migration update-check [<options>]
 
+.. note::
+
+    The upgrade check is performed automatically when you perform an upgrade.
+
 Options
 =======
 

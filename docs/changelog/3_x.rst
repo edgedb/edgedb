@@ -37,12 +37,21 @@ Upgrading
 **Local instances**
 
 To upgrade a local project, first ensure that your CLI is up to date with
-``edgedb cli upgrade``. Then run an upgrade check to make sure your schema will
-migrate cleanly to 3.0.
+``edgedb cli upgrade``. Then run the following command inside the project
+directory.
 
 .. code-block:: bash
 
-    $ edgedb migration upgrade-check
+  $ edgedb project upgrade --to-testing
+
+Alternatively, specify an instance name if you aren't using a project.
+
+.. code-block:: bash
+
+  $ edgedb instance upgrade --to-testing -I my_instance
+
+The CLI will first check to see if your schema will migrate cleanly to EdgeDB
+3.0.
 
 .. note::
 
@@ -66,24 +75,26 @@ migrate cleanly to 3.0.
 
     This is a key instance where schemas may be incompatible with 3.0.
 
-If the upgrade-check finds any problems, fix them in your schema and squash
-your migrations.
+If the upgrade check finds any problems, it will report them back to you.
+If you receive the following error, you will need to check the syntax of your
+schema:
 
 .. code-block:: bash
 
-    $ edgedb migration create --squash
+    SchemaError: <some error>
+    Schema incompatibilities found. Please fix the errors above to proceed.
+    Hint: For faster feedback loop use:
+        edgedb migration upgrade-check --watch
 
-Then run the following command inside the project directory.
+You might also receive a different error which indicates the issue is within
+your migrations. In this case, the error can be fixed by squashing, as
+indicated by the error:
 
 .. code-block:: bash
 
-  $ edgedb project upgrade --to-testing
-
-Alternatively, specify an instance name if you aren't using a project.
-
-.. code-block:: bash
-
-  $ edgedb instance upgrade --to-testing -I my_instance
+    The current schema is compatible. But some of the migrations are outdated.
+    Please squash all migrations to fix the issue:
+        edgedb migration create --squash
 
 **Hosted instances**
 
