@@ -79,7 +79,7 @@ If the upgrade check finds any problems, it will report them back to you.
 If you receive the following error, you will need to check the syntax of your
 schema:
 
-.. code-block:: bash
+.. code-block::
 
     SchemaError: <some error>
     Schema incompatibilities found. Please fix the errors above to proceed.
@@ -90,7 +90,7 @@ You might also receive a different error which indicates the issue is within
 your migrations. In this case, the error can be fixed by squashing, as
 indicated by the error:
 
-.. code-block:: bash
+.. code-block::
 
     The current schema is compatible. But some of the migrations are outdated.
     Please squash all migrations to fix the issue:
