@@ -5,6 +5,10 @@
 edgedb cloud
 ============
 
+.. note::
+
+    These CLI commands require CLI version 3.0 or later.
+
 In addition to managing your own local and remote instances, the EdgeDB CLI
 offers tools to manage your instances running on our EdgeDB Cloud.
 

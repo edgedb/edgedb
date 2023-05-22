@@ -5,6 +5,10 @@
 edgedb cloud secretkey
 ======================
 
+.. note::
+
+    These CLI commands require CLI version 3.0 or later.
+
 Manage your secret keys
 
 .. toctree::

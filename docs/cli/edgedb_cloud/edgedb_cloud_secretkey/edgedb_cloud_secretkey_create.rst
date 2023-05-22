@@ -5,6 +5,10 @@
 edgedb cloud secretkey create
 =============================
 
+.. note::
+
+    This CLI command requires CLI version 3.0 or later.
+
 Create a new secret key
 
 .. cli:synopsis::
