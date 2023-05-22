@@ -322,8 +322,9 @@ using arbitrary EdgeQL expressions. The example below uses the built-in
 Constraints and type inheritence
 --------------------------------
 
-If you define a constraint on a parent type, the constraint will apply to all
-types that extend it.
+If you define a constraint on a type and then extend that type, the constraint
+will *not* be applied individually to each extending type. Instead, it will
+apply globally across all the types that inherited the constraint.
 
 .. code-block:: sdl
     :version-lt: 3.0
