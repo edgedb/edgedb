@@ -5,6 +5,10 @@
 edgedb cloud login
 ==================
 
+.. note::
+
+    This CLI command requires CLI version 3.0 or later.
+
 Authenticate to the EdgeDB Cloud and remember the secret key locally
 
 .. cli:synopsis::

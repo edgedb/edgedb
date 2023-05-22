@@ -5,6 +5,10 @@
 edgedb cloud secretkey revoke
 =============================
 
+.. note::
+
+    This CLI command requires CLI version 3.0 or later.
+
 Revoke a secret key
 
 .. cli:synopsis::

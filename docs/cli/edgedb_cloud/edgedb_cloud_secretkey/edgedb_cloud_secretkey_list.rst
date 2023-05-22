@@ -5,6 +5,10 @@
 edgedb cloud secretkey list
 ===========================
 
+.. note::
+
+    This CLI command requires CLI version 3.0 or later.
+
 List existing secret keys
 
 .. cli:synopsis::
