@@ -27,23 +27,17 @@ jobs:
         submodules: true
 
     - name: Set up Python
+      id: python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-
-    # Build virtualenv
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
+        cache: 'pip'
+        cache-dependency-path: |
           setup.py
           pyproject.toml
-        custom_cache_key_element: v2
 
     - name: Install Python dependencies
-      if: steps.venv-cache.outputs.cache-hit != 'true'
+      if: ${{ !steps.python.outputs.cache-hit }}
       shell: bash
       run: |
         set -e
@@ -367,18 +361,14 @@ jobs:
         submodules: true
 
     - name: Set up Python
+      id: python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
+        cache: 'pip'
+        cache-dependency-path: |
           setup.py
           pyproject.toml
-        custom_cache_key_element: v2
 
     # Restore the artifacts and environment variables
 

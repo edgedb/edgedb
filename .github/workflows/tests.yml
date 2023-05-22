@@ -329,21 +329,17 @@ jobs:
         submodules: false
 
     - name: Set up Python
+      id: python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.2
-      id: venv-cache
-      with:
-        requirement_files: |
+        cache: 'pip'
+        cache-dependency-path: |
           setup.py
           pyproject.toml
-        custom_cache_key_element: v2
 
     - name: Stop if we cannot retrieve the cache
-      if: steps.venv-cache.outputs.cache-hit != 'true'
+      if: ${{ !steps.python.outputs.cache-hit }}
       run: |
         echo ::error::Cannot retrieve venv cache.
         exit 1
@@ -405,18 +401,14 @@ jobs:
         submodules: true
 
     - name: Set up Python
+      id: python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
+        cache: 'pip'
+        cache-dependency-path: |
           setup.py
           pyproject.toml
-        custom_cache_key_element: v2
 
     # Restore the artifacts and environment variables
 
@@ -540,18 +532,14 @@ jobs:
         submodules: true
 
     - name: Set up Python
+      id: python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
+        cache: 'pip'
+        cache-dependency-path: |
           setup.py
           pyproject.toml
-        custom_cache_key_element: v2
 
     # Restore the artifacts and environment variables
 

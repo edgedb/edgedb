@@ -10,31 +10,21 @@
         submodules: true
 
     - name: Set up Python
+      id: python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-<%- endmacro %>
-
-<% macro _init_venv() -%>
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1
-      id: venv-cache
-      with:
-        requirement_files: |
+        cache: 'pip'
+        cache-dependency-path: |
           setup.py
           pyproject.toml
-        custom_cache_key_element: v2
-<%- endmacro -%>
+<%- endmacro %>
 
 <% macro build() %>
     << _init() >>
 
-    # Build virtualenv
-
-    << _init_venv() >>
-
     - name: Install Python dependencies
-      if: steps.venv-cache.outputs.cache-hit != 'true'
+      if: ${{ !steps.python.outputs.cache-hit }}
       shell: bash
       run: |
         set -e
@@ -309,8 +299,6 @@
 
 <% macro restore_cache() %>
     << _init() >>
-
-    << _init_venv() >>
 
     # Restore the artifacts and environment variables
 
