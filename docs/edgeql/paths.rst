@@ -63,7 +63,7 @@ Along comes another user who adds the first user as a friend:
     db> insert User {
     ... email := "user2@me.com",
     ... friends := (select detached User filter .email = "user1@me.com")
-    };
+    ... };
 
 The first user reciprocates, adding the new user as a friend:
 
@@ -72,7 +72,7 @@ The first user reciprocates, adding the new user as a friend:
     db> update User filter .email = "user1@me.com" 
     ... set { 
     ... friends += (select detached User filter .email = "user2@me.com")
-    };
+    ... };
 
 The second user writes a blog post about how nice EdgeDB is:
 
@@ -81,7 +81,7 @@ The second user writes a blog post about how nice EdgeDB is:
     db> insert BlogPost {
     ... title := "EdgeDB is awesome",
     ... author := assert_single((select User filter .email = "user2@me.com"))
-    };
+    ... };
 
 And the first user follows it up with a comment below the post:
 
@@ -90,7 +90,7 @@ And the first user follows it up with a comment below the post:
     db> insert Comment {
     ... text := "Nice post, user2!",
     ... author := assert_single((select User filter .email = "user1@me.com"))
-    };
+    ... };
 
 The simplest path is simply ``User``. This is a :ref:`set reference
 <ref_eql_set_references>` that refers to all ``User`` objects in the database.
