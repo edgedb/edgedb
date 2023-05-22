@@ -347,3 +347,13 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 ['foo'],
                 use_http_post=use_http_post,
             )
+
+    def test_http_edgeql_query_duration_01(self):
+        Q = r"""select <duration>'15m' < <duration>'1h'"""
+
+        for use_http_post in [True, False]:
+            self.assert_edgeql_query_result(
+                Q,
+                [True],
+                use_http_post=use_http_post,
+            )

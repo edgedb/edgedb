@@ -188,7 +188,13 @@ def evaluate_OperatorCall(
 
         args.append(arg_val)
 
-    value = eval_func(*args)
+    try:
+        value = eval_func(*args)
+    except TypeError:
+        raise UnsupportedExpressionError(
+            f'operator {opcall.func_shortname} not actually supported on '
+            f'input types',
+            context=opcall.context)
     qlconst: qlast.BaseConstant
     if isinstance(value, str):
         qlconst = qlast.StringConstant.from_python(value)
