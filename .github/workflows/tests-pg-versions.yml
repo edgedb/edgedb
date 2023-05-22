@@ -42,7 +42,6 @@ jobs:
         echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
 
     - name: Install Python dependencies
-      if: steps.python.outputs.cache-hit != 'true'
       shell: bash
       run: |
         set -e
