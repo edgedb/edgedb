@@ -20,8 +20,20 @@
           pyproject.toml
 <%- endmacro %>
 
+<%- macro _init_venv() -%>
+    - name: Initialize venv
+      run: |
+        python -m venv test-venv
+        source ./test-venv/bin/activate
+        echo "VIRTUAL_ENV: $VIRTUAL_ENV"
+        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+
+<%- endmacro -%>
+
 <% macro build() %>
     << _init() >>
+
+    << _init_venv() >>
 
     - name: Install Python dependencies
       if: steps.python.outputs.cache-hit != 'true'
@@ -299,6 +311,8 @@
 
 <% macro restore_cache() %>
     << _init() >>
+
+    << _init_venv() >>
 
     # Restore the artifacts and environment variables
 

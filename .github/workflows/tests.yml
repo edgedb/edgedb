@@ -38,6 +38,13 @@ jobs:
           setup.py
           pyproject.toml
 
+    - name: Initialize venv
+      run: |
+        python -m venv test-venv
+        source ./test-venv/bin/activate
+        echo "VIRTUAL_ENV: $VIRTUAL_ENV"
+        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+
     - name: Install Python dependencies
       if: steps.python.outputs.cache-hit != 'true'
       shell: bash
@@ -410,6 +417,13 @@ jobs:
           setup.py
           pyproject.toml
 
+    - name: Initialize venv
+      run: |
+        python -m venv test-venv
+        source ./test-venv/bin/activate
+        echo "VIRTUAL_ENV: $VIRTUAL_ENV"
+        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+
     # Restore the artifacts and environment variables
 
     - name: Download shared artifacts
@@ -540,6 +554,13 @@ jobs:
         cache-dependency-path: |
           setup.py
           pyproject.toml
+
+    - name: Initialize venv
+      run: |
+        python -m venv test-venv
+        source ./test-venv/bin/activate
+        echo "VIRTUAL_ENV: $VIRTUAL_ENV"
+        echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
 
     # Restore the artifacts and environment variables
 
