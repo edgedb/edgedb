@@ -29,6 +29,8 @@ from edb import errors
 from edb.common import levenshtein
 from edb.edgeql import ast as qlast
 
+from edb.ir import statypes
+
 from . import name as sn
 from . import objects as so
 
@@ -1147,7 +1149,7 @@ MAX_INT64 = 2 ** 63 - 1
 MIN_INT64 = -2 ** 63
 
 
-def const_ast_from_python(val: Any) -> qlast.BaseConstant:
+def const_ast_from_python(val: Any) -> qlast.Expr:
     if isinstance(val, str):
         return qlast.StringConstant.from_python(val)
     elif isinstance(val, bool):
@@ -1163,6 +1165,13 @@ def const_ast_from_python(val: Any) -> qlast.BaseConstant:
         return qlast.FloatConstant(value=str(val))
     elif isinstance(val, bytes):
         return qlast.BytesConstant.from_python(val)
+    elif isinstance(val, statypes.Duration):
+        return qlast.TypeCast(
+            type=qlast.TypeName(
+                maintype=qlast.ObjectRef(module='__std__', name='duration'),
+            ),
+            expr=qlast.StringConstant(value=val.to_iso8601()),
+        )
     else:
         raise ValueError(f'unexpected constant type: {type(val)!r}')
 
