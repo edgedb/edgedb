@@ -1,3 +1,4 @@
+# invalidate-cache: v2
 [project]
 name = "edgedb-server"
 description = "EdgeDB Server"
