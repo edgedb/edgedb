@@ -37,7 +37,7 @@ jobs:
           pyproject.toml
 
     - name: Install Python dependencies
-      if: ${{ !steps.python.outputs.cache-hit }}
+      if: steps.python.outputs.cache-hit != 'true'
       shell: bash
       run: |
         set -e
