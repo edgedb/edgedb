@@ -74,8 +74,8 @@ these commands:
 -----------------------------
 
 For your production deployment, generate a dedicated secret key for your
-instance with :ref:`ref_edgedb_cloud_secretkey_create`. Create two environment
-variables accessible to your production application:
+instance with :ref:`ref_cli_edgedb_cloud_secretkey_create`. Create two
+environment variables accessible to your production application:
 
 * ``EDGEDB_SECRET_KEY``- contains the secret key you generated
 * ``EDGEDB_INSTANCE``- the name of your EdgeDB Cloud instance
