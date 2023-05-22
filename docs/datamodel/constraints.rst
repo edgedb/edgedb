@@ -329,7 +329,7 @@ apply globally across all the types that inherited the constraint.
 .. code-block:: sdl
     :version-lt: 3.0
 
-    abstract type User {
+    type User {
       required property name -> str {
         constraint exclusive;
       }
@@ -339,7 +339,7 @@ apply globally across all the types that inherited the constraint.
 
 .. code-block:: sdl
 
-    abstract type User {
+    type User {
       required name: str {
         constraint exclusive;
       }
@@ -360,20 +360,28 @@ apply globally across all the types that inherited the constraint.
     constraint
       Detail: value of property 'name' of object type 'default::Moderator'
       violates exclusivity constraint
+    db> insert User {
+    ...   name := 'Jan'
+    ... };
+    edgedb error: ConstraintViolationError: name violates exclusivity
+    constraint
+      Detail: value of property 'name' of object type 'default::User'
+      violates exclusivity constraint
 
-As you can see, the constraints on the parent are applied globally across
-objects of the extending types. That means if an object of one of the extending
+
+As this example demonstrates, this means if an object of one of the extending
 types has a value for a property that is exclusive, an object of a different
 extending type cannot have the same value.
 
 If that's not what you want, you can instead delegate the constraint to the
 inheriting types by prepending the ``delegated`` keyword to the constraint.
-This is akin to applying the constraint individually to each extending type.
+The constraint would then be applied just as if it were declared individually
+on each of the inheriting types.
 
 .. code-block:: sdl
     :version-lt: 3.0
 
-    abstract type User {
+    type User {
       required property name -> str {
         delegated constraint exclusive;
       }
@@ -383,7 +391,7 @@ This is akin to applying the constraint individually to each extending type.
 
 .. code-block:: sdl
 
-    abstract type User {
+    type User {
       required name: str {
         delegated constraint exclusive;
       }
@@ -397,6 +405,10 @@ This is akin to applying the constraint individually to each extending type.
     ...   name := 'Jan'
     ... };
     {default::Administrator {id: 7aeaa146-f5a5-11ed-a598-53ddff476532}}
+    db> insert User {
+    ...   name := 'Jan'
+    ... };
+    {default::User {id: a6e3fdaf-c44b-4080-b39f-6a07496de66b}}
     db> insert Moderator {
     ...   name := 'Jan'
     ... };
@@ -408,6 +420,11 @@ This is akin to applying the constraint individually to each extending type.
     constraint
       Detail: value of property 'name' of object type 'default::Moderator'
       violates exclusivity constraint
+
+With the addition of ``delegated`` to the constraints, the inserts were
+successful for each of the types. In this case, we did not hit a constraint
+violation until we tried to insert a second ``Moderator`` object with the same
+name as the one we had just inserted.
 
 
 .. list-table::
