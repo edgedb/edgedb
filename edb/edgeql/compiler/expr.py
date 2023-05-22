@@ -147,25 +147,6 @@ def compile_IsOp(
     return setgen.ensure_set(op_node, ctx=ctx)
 
 
-@dispatch.compile.register(qlast.Parameter)
-def compile_Parameter(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
-
-    if ctx.env.options.func_params is not None:
-        if ctx.env.options.schema_object_context is s_constr.Constraint:
-            raise errors.InvalidConstraintDefinitionError(
-                f'dollar-prefixed "$parameters" cannot be used here',
-                context=expr.context)
-        else:
-            raise errors.InvalidFunctionDefinitionError(
-                f'dollar-prefixed "$parameters" cannot be used here',
-                context=expr.context)
-
-    raise errors.QueryError(
-        f'missing a type cast before the parameter',
-        context=expr.context)
-
-
 @dispatch.compile.register(qlast.DetachedExpr)
 def compile_DetachedExpr(
     expr: qlast.DetachedExpr,
