@@ -346,7 +346,7 @@ jobs:
           pyproject.toml
 
     - name: Stop if we cannot retrieve the cache
-      if: ${{ !steps.python.outputs.cache-hit }}
+      if: steps.python.outputs.cache-hit != 'true'
       run: |
         echo ::error::Cannot retrieve venv cache.
         exit 1
