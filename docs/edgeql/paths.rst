@@ -50,45 +50,46 @@ A few simple inserts will allow some experimentation with paths.
 
 Start with a first user:
 
-.. code-block:: edgeql
+.. code-block:: edgeql-repl
+
   db> insert User {
-  email := "user1@email.com",
-  };
+  ... email := "user1@email.com",
+  ... };
 
 Along comes another user who adds the first user as a friend:
 
-.. code-block:: edgeql
+.. code-block:: edgeql-repl
 
   db> insert User {
-  email := "user2@email.com",
-  friends := (select detached User filter .email = "user1@email.com")
+  ... email := "user2@email.com",
+  ... friends := (select detached User filter .email = "user1@email.com")
   };
 
 The first user reciprocates, adding the new user as a friend:
 
-.. code-block:: edgeql
+.. code-block:: edgeql-repl
 
   db> update User filter .email = "user1@email.com" 
-    set { 
-      friends += (select detached User filter .email = "user2@email.com")
+  ... set { 
+  ... friends += (select detached User filter .email = "user2@email.com")
   };
 
 The second user writes a blog post about how nice EdgeDB is:
 
-.. code-block:: edgeql
+.. code-block:: edgeql-repl
 
   db> insert BlogPost {
-  title := "EdgeDB is awesome",
-  author := assert_single((select User filter .email = "user2@email.com"))
+  ... title := "EdgeDB is awesome",
+  ... author := assert_single((select User filter .email = "user2@email.com"))
   };
 
 And the first user follows it up with a comment below the post:
 
-.. code-block:: edgeql
+.. code-block:: edgeql-repl
 
   db> insert Comment {
-    text := "Nice post, user2!",
-    author := assert_single((select User filter .email = "user1@email.com"))
+  ... text := "Nice post, user2!",
+  ... author := assert_single((select User filter .email = "user1@email.com"))
   };
 
 The simplest path is simply ``User``. This is a :ref:`set reference
