@@ -379,7 +379,7 @@ The following subcommands are allowed in the ``alter constraint`` block:
 :eql:synopsis:`set not delegated`
     If set, the constraint is defined as *not delegated*, which means that it
     will be enforced globally across the type it's declared on and any
-    extending types type.
+    extending types.
 
 :eql:synopsis:`rename to <newname>`
     Change the name of the constraint to :eql:synopsis:`<newname>`.
