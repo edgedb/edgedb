@@ -86,6 +86,15 @@ class TestInsert(tb.QueryTestCase):
                 INSERT Person.notes { name := "note1" };
             ''')
 
+    async def test_edgeql_insert_fail_6(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"could not resolve partial path",
+        ):
+            await self.con.execute('''
+                INSERT Person { name := .name };
+            ''')
+
     async def test_edgeql_insert_simple_01(self):
         await self.con.execute(r"""
             INSERT InsertTest {

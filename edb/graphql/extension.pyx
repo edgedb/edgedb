@@ -41,6 +41,9 @@ from edb.server import compiler
 from edb.server import defines as edbdef
 from edb.server.pgcon import errors as pgerrors
 from edb.server.protocol import execute
+from edb.server.compiler import errormech
+
+from edb.schema import schema as s_schema
 
 from edb.common import debug
 from edb.common import markup
@@ -174,10 +177,28 @@ async def handle_request(
             markup.dump(ex)
 
         ex_type = type(ex)
-        if issubclass(ex_type, (gql_errors.GraphQLError,
-                                pgerrors.BackendError)):
+        if issubclass(ex_type, gql_errors.GraphQLError):
             # XXX Fix this when LSP "location" objects are implemented
             ex_type = errors.QueryError
+        elif issubclass(ex_type, pgerrors.BackendError):
+            static_exc = errormech.static_interpret_backend_error(
+                ex.fields, from_graphql=True)
+
+            # only use the backend if schema is required
+            if static_exc is errormech.SchemaRequired:
+                ex = errormech.interpret_backend_error(
+                    s_schema.ChainedSchema(
+                        server._std_schema,
+                        db.user_schema,
+                        server.get_global_schema(),
+                    ),
+                    ex.fields,
+                    from_graphql=True,
+                )
+            else:
+                ex = static_exc
+
+            ex_type = type(ex)
 
         err_dct = {
             'message': f'{ex_type.__name__}: {ex}',

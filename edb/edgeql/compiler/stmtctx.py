@@ -30,6 +30,7 @@ from edb.ir import ast as irast
 from edb.ir import utils as irutils
 from edb.ir import typeutils as irtyputils
 
+from edb.schema import constraints as s_constr
 from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
@@ -616,18 +617,6 @@ def compile_anchor(
             s_pointers.PointerDirection.Outbound,
             ctx=ctx)
 
-    elif isinstance(anchor, qlast.SubExpr):
-        with ctx.new() as subctx:
-            if anchor.anchors:
-                subctx.anchors = {}
-                populate_anchors(anchor.anchors, ctx=subctx)
-
-            step = compile_anchor(name, anchor.expr, ctx=subctx)
-            if name in anchor.anchors:
-                show_as_anchor = False
-                step.anchor = None
-                step.show_as_anchor = None
-
     elif isinstance(anchor, qlast.Base):
         step = dispatch.compile(anchor, ctx=ctx)
 
@@ -803,6 +792,24 @@ def check_params(params: Dict[str, irast.Param]) -> None:
                 f'{"s" if len(missing_args) > 1 else ""}')
 
 
+def throw_on_loose_param(
+    param: qlast.Parameter,
+    ctx: context.ContextLevel
+) -> None:
+    if ctx.env.options.func_params is not None:
+        if ctx.env.options.schema_object_context is s_constr.Constraint:
+            raise errors.InvalidConstraintDefinitionError(
+                f'dollar-prefixed "$parameters" cannot be used here',
+                context=param.context)
+        else:
+            raise errors.InvalidFunctionDefinitionError(
+                f'dollar-prefixed "$parameters" cannot be used here',
+                context=param.context)
+    raise errors.QueryError(
+        f'missing a type cast before the parameter',
+        context=param.context)
+
+
 def preprocess_script(
     stmts: List[qlast.Base],
     *,
@@ -813,10 +820,19 @@ def preprocess_script(
     Doing this in advance makes it easy to check that they have
     consistent types.
     """
-    casts = [
-        cast
+    param_lists = [
+        astutils.find_parameters(stmt, ctx.modaliases)
         for stmt in stmts
-        for cast in astutils.find_parameters(stmt, ctx.modaliases)
+    ]
+
+    if loose_params := [
+        loose for _, loose_list in param_lists
+        for loose in loose_list
+    ]:
+        throw_on_loose_param(loose_params[0], ctx)
+
+    casts = [
+        cast for cast_lists, _ in param_lists for cast in cast_lists
     ]
     params = {}
     for cast, modaliases in casts:

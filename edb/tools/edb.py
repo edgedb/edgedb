@@ -71,4 +71,5 @@ from . import test  # noqa
 from . import wipe  # noqa
 from . import gen_test_dumps  # noqa
 from . import gen_sql_introspection  # noqa
+from . import gen_rust_ast  # noqa
 from .profiling import cli as prof_cli  # noqa

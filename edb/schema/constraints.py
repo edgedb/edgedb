@@ -958,7 +958,7 @@ class CreateConstraint(
         *,
         param_offset: int=0
     ) -> List[s_func.ParameterDesc]:
-        if not isinstance(astnode, qlast.CallableObjectCommand):
+        if not isinstance(astnode, qlast.CallableObjectCommandTuple):
             # Concrete constraint.
             return []
 

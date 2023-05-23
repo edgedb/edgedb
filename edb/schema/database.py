@@ -99,7 +99,8 @@ class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
-        super().validate_create(schema, context)
+        # no call to super().validate_create() as we don't want to enforce
+        # rules that hold for any other schema objects
         self._validate_name(schema, context)
 
 

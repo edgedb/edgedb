@@ -46,4 +46,19 @@ class CreateExtension(ddl.DDLOperation):
         self.opid = extension.name
 
     def code(self, block: base.PLBlock) -> str:
-        return self.extension.code(block)
+        ext = self.extension
+        name = qi(ext.get_extension_name())
+        schema = qi(ext.schema)
+        return f'CREATE EXTENSION {name} WITH SCHEMA {schema}'
+
+
+class DropExtension(ddl.DDLOperation):
+    def __init__(self, extension, *, conditions=None, neg_conditions=None):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions)
+        self.extension = extension
+        self.opid = extension.name
+
+    def code(self, block: base.PLBlock) -> str:
+        ext = self.extension
+        name = qi(ext.get_extension_name())
+        return f'DROP EXTENSION {name}'

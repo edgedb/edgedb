@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "edb/edgeql-parser",
+    "edb/edgeql-parser-derive",
     "edb/edgeql-rust",
     "edb/graphql-rewrite",
 ]

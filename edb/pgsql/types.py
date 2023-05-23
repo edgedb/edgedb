@@ -146,9 +146,11 @@ def get_scalar_base(schema, scalar) -> Tuple[str, ...]:
         if not ancestor.get_abstract(schema):
             # Check if base is fundamental, if not, then it is
             # another domain.
-            try:
-                base = base_type_name_map[ancestor.id]
-            except KeyError:
+            if base := base_type_name_map.get(ancestor.id):
+                pass
+            elif typstr := ancestor.get_sql_type(schema):
+                base = tuple(typstr.split('.'))
+            else:
                 base = common.get_backend_name(
                     schema, ancestor, catenate=False)
 
@@ -165,16 +167,11 @@ def pg_type_from_scalar(
     if scalar.is_polymorphic(schema):
         return ('anynonarray',)
 
-    is_enum = scalar.is_enum(schema)
-
-    if is_enum:
-        base = scalar
-    else:
-        base = get_scalar_base(schema, scalar)
-
     column_type = base_type_name_map.get(scalar.id)
     if column_type:
-        column_type = base
+        pass
+    elif typstr := scalar.get_sql_type(schema):
+        column_type = tuple(typstr.split('.'))
     else:
         column_type = common.get_backend_name(schema, scalar, catenate=False)
 
@@ -295,6 +292,8 @@ def pg_type_from_ir_typeref(
                 return ('uuid',)
         elif irtyputils.is_abstract(material):
             return ('anynonarray',)
+        elif material.sql_type:
+            return tuple(material.sql_type.split('.'))
         else:
             pg_type = base_type_name_map.get(material.id)
             if pg_type is None:

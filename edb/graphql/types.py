@@ -395,7 +395,8 @@ class GQLCoreSchema:
     def graphql_schema(self) -> GraphQLSchema:
         return self._gql_schema
 
-    def get_gql_name(self, name: s_name.QualName) -> str:
+    @classmethod
+    def get_gql_name(cls, name: s_name.QualName) -> str:
         module, shortname = name.module, name.name
 
         # Adjust the shortname.
@@ -412,7 +413,7 @@ class GQLCoreSchema:
             names = []
             for part in shortname[1:-1].split(' | '):
                 names.append(
-                    self.get_gql_name(s_name.QualName(*part.split(':', 1))))
+                    cls.get_gql_name(s_name.QualName(*part.split(':', 1))))
             shortname = '_OR_'.join(names)
 
         if module in {'default', 'std'}:

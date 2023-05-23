@@ -59,6 +59,9 @@ class ScalarType(
         coerce=True, compcoef=0.8,
     )
 
+    sql_type = so.SchemaField(
+        str, default=None, compcoef=0.9)
+
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'scalar type'
@@ -337,6 +340,7 @@ class ScalarTypeCommand(
             and not context.stdmode
             and not abstract
             and not enum
+            and not self.get_attribute_value('sql_type')
         ):
             if not ancestors:
                 hint = (
@@ -439,7 +443,7 @@ class CreateScalarType(
             if is_enum:
                 # This is an enumerated type.
                 if len(bases) > 1:
-                    assert isinstance(astnode, qlast.BasesMixin)
+                    assert isinstance(astnode, qlast.BasedOnTuple)
                     raise errors.SchemaError(
                         f'invalid scalar type definition, enumeration must be'
                         f' the only supertype specified',
@@ -512,7 +516,7 @@ class CreateScalarType(
         elif op.property == 'bases':
             enum_values = self.get_local_attribute_value('enum_values')
             if enum_values:
-                assert isinstance(node, qlast.BasesMixin)
+                assert isinstance(node, qlast.BasedOnTuple)
                 node.bases = [
                     qlast.TypeName(
                         maintype=qlast.ObjectRef(name='enum'),

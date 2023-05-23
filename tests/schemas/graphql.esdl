@@ -113,6 +113,10 @@ type ScalarTest {
 
     property p_tuple -> tuple<int64, str>;
     property p_array_tuple -> array<tuple<str, bool>>;
+
+    property p_short_str -> str {
+        constraint max_len_value(5);
+    }
 }
 type BigIntTest {
     property value -> bigint;
@@ -180,3 +184,36 @@ type Combo {
     # as non-inherited ones.
     link data -> Setting | Profile;
 };
+
+abstract constraint error_test_constraint extending expression {
+    errmessage :=
+        '{__subject__} cannot have val equal to the length of text field.';
+}
+
+# Used to test run-time errors.
+type ErrorTest {
+    required property text -> str {
+        # rewrite empty string as empty set
+        rewrite update using (
+            .text if len(.text) > 0 else <str>{}
+        );
+    }
+    required property val -> int64 {
+        # force values of 10 or more cause an error
+        rewrite update using (
+            .val if .val < 10 else .val // 0
+        );
+    }
+
+    property div_by_val := 1 / .val;
+    property re_text := re_match(.text, 'test');
+
+    access policy access_all
+        allow all
+        using (true);
+    access policy deny_negative_val
+        deny update write
+        using (.val < 0);
+
+    constraint error_test_constraint on (len(.text) != .val);
+}

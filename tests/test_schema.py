@@ -7914,6 +7914,19 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             """,
         ])
 
+    def test_schema_migrations_rewrites_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                type User {
+                    name: str {
+                        rewrite update, insert using (.name ++ "!")
+                    }
+                };
+            """,
+            r"""
+            """,
+        ])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""

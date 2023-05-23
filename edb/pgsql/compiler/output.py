@@ -27,8 +27,9 @@ import itertools
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
-from edb.schema import defines as s_defs
 from edb.schema import casts as s_casts
+from edb.schema import defines as s_defs
+from edb.schema import name as sn
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common
@@ -566,14 +567,15 @@ def serialize_expr_to_json(
     elif irtyputils.is_collection(styperef) and not expr.ser_safe:
         val = coll_as_json_object(expr, styperef=styperef, env=env)
 
-    # TODO: We'll probably want to generalize this to other custom JSON
-    # casts once they exist.
     elif (
-        irtyputils.is_bytes(styperef)
+        styperef.real_base_type.needs_custom_json_cast
         and not expr.ser_safe
     ):
+        base = styperef.real_base_type
         cast_name = s_casts.get_cast_fullname_from_names(
-            'std', 'std::bytes', 'std::json')
+            base.orig_name_hint or base.name_hint,
+            sn.QualName('std', 'json'),
+        )
         val = pgast.FuncCall(
             name=common.get_cast_backend_name(cast_name, aspect='function'),
             args=[expr], null_safe=True, ser_safe=True)

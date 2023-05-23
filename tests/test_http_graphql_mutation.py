@@ -1522,6 +1522,152 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                 }
             """)
 
+    def test_graphql_mutation_insert_bad_03(self):
+        with self.assertRaisesRegex(
+            edgedb.ConstraintViolationError,
+            r"objects provided for 'settings' are not distinct"
+        ):
+            self.graphql_query(r"""
+                mutation insert_UserGroup {
+                    insert_UserGroup(
+                        data: [{
+                            name: "Bad UserGroup03",
+                            settings: [{
+                                filter: {name: {like: "%"}}
+                            }, {
+                                filter: {name: {like: "perks"}}
+                            }]
+                        }]
+                    ) {
+                        name
+                        settings {
+                            name
+                            value
+                        }
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_insert_bad_04(self):
+        with self.assertRaisesRegex(
+            edgedb.CardinalityViolationError,
+            r"more than one object provided for 'profile'"
+        ):
+            self.graphql_query(r"""
+                mutation insert_User {
+                    insert_User(
+                        data: [{
+                            name: "Bad User04",
+                            active: true,
+                            age: 33,
+                            score: 33.33,
+                            profile: {
+                                filter: {name: {like: "%"}}
+                            },
+                        }]
+                    ) {
+                        name
+                        age
+                        score
+                        profile {
+                            name
+                        }
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_insert_bad_05(self):
+        with self.assertRaisesRegex(
+            edgedb.ConstraintViolationError,
+            r"settings violates exclusivity constraint"
+        ):
+            self.graphql_query(r"""
+                mutation insert_UserGroup {
+                    insert_UserGroup(
+                        data: [{
+                            name: "Bad UserGroup05",
+                            settings: {
+                                filter: {name: {like: "perks"}}
+                            }
+                        }]
+                    ) {
+                        name
+                        settings {
+                            name
+                            value
+                        }
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_insert_bad_06(self):
+        with self.assertRaisesRegex(
+            edgedb.ConstraintViolationError,
+            r"Minimum allowed value for positive_int_t is 0"
+        ):
+            self.graphql_query(r"""
+                mutation insert_ScalarTest {
+                    insert_ScalarTest(
+                        data: [{
+                            p_posint: -42,
+                        }]
+                    ) {
+                        p_posint
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_insert_bad_07(self):
+        with self.assertRaisesRegex(
+            edgedb.ConstraintViolationError,
+            r"p_short_str must be no longer than 5 characters"
+        ):
+            self.graphql_query(r"""
+                mutation insert_ScalarTest {
+                    insert_ScalarTest(
+                        data: [{
+                            p_short_str: "too long",
+                        }]
+                    ) {
+                        p_short_str
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_insert_bad_08(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r"invalid input syntax for type String: '2023/05/07'"
+        ):
+            self.graphql_query(r"""
+                mutation insert_ScalarTest {
+                    insert_ScalarTest(
+                        data: [{
+                            p_local_date: "2023/05/07",
+                        }]
+                    ) {
+                        p_local_date
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_insert_bad_09(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            r'String/String field value out of range: "2023-05-77"'
+        ):
+            self.graphql_query(r"""
+                mutation insert_ScalarTest {
+                    insert_ScalarTest(
+                        data: [{
+                            p_local_date: "2023-05-77",
+                        }]
+                    ) {
+                        p_local_date
+                    }
+                }
+            """)
+
     def test_graphql_mutation_insert_multiple_01(self):
         # Issue #1566
         # Test multiple mutations.
@@ -1670,7 +1816,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
     def test_graphql_mutation_update_scalars_01(self):
         orig_data = {
             'p_bool': True,
-            'p_str': 'Hello',
+            'p_str': 'Hello world',
             'p_datetime': '2018-05-07T20:01:22.306916+00:00',
             'p_local_datetime': '2018-05-07T20:01:22.306916',
             'p_local_date': '2018-05-07',
@@ -1849,12 +1995,14 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
 
     def test_graphql_mutation_update_scalars_02(self):
         orig_data = {
-            'p_str': 'Hello',
+            'p_str': 'Hello world',
             'p_posint': 42,
+            'p_short_str': 'hello',
         }
         data = {
             'p_str': 'Update ScalarTest02',
             'p_posint': 9999,
+            'p_short_str': 'hi',
         }
 
         validation_query = rf"""
@@ -1870,6 +2018,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                 ) {{
                     p_str
                     p_posint
+                    p_short_str
                 }}
             }}
         """
@@ -1884,10 +2033,12 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                     data: {
                         p_str: {set: "Update ScalarTest02"},
                         p_posint: {set: 9999},
+                        p_short_str: {set: "hi"},
                     }
                 ) {
                     p_str
                     p_posint
+                    p_short_str
                 }
             }
         """, {
@@ -1902,15 +2053,18 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             mutation update_ScalarTest(
                 $p_str: String,
                 $p_posint: Int64,
+                $p_short_str: String,
             ) {
                 update_ScalarTest(
                     data: {
                         p_str: {set: $p_str},
                         p_posint: {set: $p_posint},
+                        p_short_str: {set: $p_short_str},
                     }
                 ) {
                     p_str
                     p_posint
+                    p_short_str
                 }
             }
         """, {
@@ -1924,7 +2078,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
 
     def test_graphql_mutation_update_scalars_03(self):
         orig_data = {
-            'p_str': 'Hello',
+            'p_str': 'Hello world',
             'p_json': {"foo": [1, None, "bar"]},
         }
         data = {
@@ -3371,6 +3525,204 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                 }
             """)
 
+    def test_graphql_mutation_update_bad_04(self):
+        with self.assertRaisesRegex(
+            edgedb.ConstraintViolationError,
+            r"objects provided for 'settings' are not distinct"
+        ):
+            self.graphql_query(r"""
+                mutation update_UserGroup {
+                    update_UserGroup(
+                        filter: {
+                            name: {eq: "basic"}
+                        },
+                        data: {
+                            settings: {
+                                set: [{
+                                    filter: {name: {like: "%"}}
+                                }, {
+                                    filter: {name: {like: "perks"}}
+                                }]
+                            }
+                        }
+                    ) {
+                        name
+                        settings {
+                            name
+                            value
+                        }
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_update_bad_05(self):
+        with self.assertRaisesRegex(
+            edgedb.CardinalityViolationError,
+            r"more than one object provided for 'profile'"
+        ):
+            self.graphql_query(r"""
+                mutation update_User {
+                    update_User(
+                        filter: {name: {eq: "Alice"}},
+                        data: {
+                            profile: {
+                                set: {
+                                    filter: {name: {like: "%"}}
+                                }
+                            }
+                        }
+                    ) {
+                        name
+                        age
+                        score
+                        profile {
+                            name
+                        }
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_update_bad_06(self):
+        with self.assertRaisesRegex(
+            edgedb.ConstraintViolationError,
+            r"settings violates exclusivity constraint"
+        ):
+            self.graphql_query(r"""
+                mutation update_UserGroup {
+                    update_UserGroup(
+                        filter: {name: {eq: "unused"}},
+                        data: {
+                            settings: {
+                                set : {filter: {name: {like: "perks"}}}
+                            }
+                        }
+                    ) {
+                        name
+                        settings {
+                            name
+                            value
+                        }
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_update_bad_07(self):
+        with self.assertRaisesRegex(
+            edgedb.ConstraintViolationError,
+            r"Minimum allowed value for positive_int_t is 0"
+        ):
+            self.graphql_query(r"""
+                mutation update_ScalarTest {
+                    update_ScalarTest(
+                        filter: {p_str: {eq: "Hello world"}}
+                        data: {
+                            p_posint: {set: -42},
+                        }
+                    ) {
+                        p_posint
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_update_bad_08(self):
+        with self.assertRaisesRegex(
+            edgedb.ConstraintViolationError,
+            r"p_short_str must be no longer than 5 characters"
+        ):
+            self.graphql_query(r"""
+                mutation update_ScalarTest {
+                    update_ScalarTest(
+                        filter: {p_str: {eq: "Hello world"}}
+                        data: {
+                            p_short_str: {set: "too long"},
+                        }
+                    ) {
+                        p_short_str
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_update_bad_09(self):
+        with self.assertRaisesRegex(
+            edgedb.NumericOutOfRangeError,
+            r"Int out of range"
+        ):
+            self.graphql_query(r"""
+                mutation update_ScalarTest {
+                    update_ScalarTest(
+                        filter: {p_str: {eq: "Hello world"}}
+                        data: {
+                            p_int32: {increment: 1234567890},
+                        }
+                    ) {
+                        p_int32
+                    }
+                }
+            """)
+
+    def test_graphql_mutation_update_bad_10(self):
+        with self.assertRaisesRegex(
+            edgedb.AccessPolicyError,
+            r"access policy violation on update of ErrorTest"
+        ):
+            self.graphql_query(r"""
+                mutation update_ErrorTest {
+                    update_ErrorTest(
+                        data: {val: {set: -5}}
+                    ) {
+                        text
+                    }
+                }
+        """)
+
+    def test_graphql_mutation_update_bad_11(self):
+        # We expect a rewrite rule to cause a division by 0 error.
+        with self.assertRaisesRegex(
+            edgedb.DivisionByZeroError,
+            r"division by zero"
+        ):
+            self.graphql_query(r"""
+                mutation update_ErrorTest {
+                    update_ErrorTest(
+                        data: {val: {set: 15}}
+                    ) {
+                        text
+                    }
+                }
+        """)
+
+    def test_graphql_mutation_update_bad_12(self):
+        # We expect a rewrite rule to convert "" to empty set.
+        with self.assertRaisesRegex(
+            edgedb.MissingRequiredError,
+            r"missing value for required property 'text' of object "
+            r"type 'ErrorTest'"
+        ):
+            self.graphql_query(r"""
+                mutation update_ErrorTest {
+                    update_ErrorTest(
+                        data: {text: {set: ""}}
+                    ) {
+                        text
+                    }
+                }
+        """)
+
+    def test_graphql_mutation_update_bad_13(self):
+        with self.assertRaisesRegex(
+            edgedb.ConstraintViolationError,
+            r"ErrorTest cannot have val equal to the length of text field"
+        ):
+            self.graphql_query(r"""
+                mutation update_ErrorTest {
+                    update_ErrorTest(
+                        data: {val: {set: 7}}
+                    ) {
+                        text
+                    }
+                }
+        """)
+
     def test_graphql_mutation_update_multiple_01(self):
         # Issue #1566
         # Test multiple mutations.
@@ -3728,6 +4080,20 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
         """, {
             "SettingAlias": []
         })
+
+    def test_graphql_mutation_delete_bad_01(self):
+        # We expext a rewrite rule to cause a division by 0 error.
+        with self.assertRaisesRegex(
+            edgedb.ConstraintViolationError,
+            r"deletion of UserGroup .+is prohibited by link target policy"
+        ):
+            self.graphql_query(r"""
+                mutation delete_UserGroup {
+                    delete_UserGroup {
+                        name
+                    }
+                }
+        """)
 
     def test_graphql_mutation_bigint(self):
         self.assert_graphql_query_result(r"""

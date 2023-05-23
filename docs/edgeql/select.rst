@@ -638,6 +638,32 @@ by name).
     default::Villain {name: 'Winter Soldier'}, # no Zemo
   }
 
+You may pass the empty set to ``limit`` or ``offset``. Passing the empty set is
+effectively the same as excluding ``limit`` or ``offset`` from your query
+(i.e., no limit or no offset). This is useful if you need to parameterize
+``limit`` and/or ``offset`` but may still need to execute your query without
+providing one or the other.
+
+.. code-block:: edgeql-repl
+
+  db> select Villain {name}
+  ... order by .name
+  ... offset <optional int64>$offset
+  ... limit <optional int64>$limit;
+  Parameter <int64>$offset (Ctrl+D for empty set `{}`):
+  Parameter <int64>$limit (Ctrl+D for empty set `{}`):
+  {
+    default::Villain {name: 'Abomination'},
+    default::Villain {name: 'Doc Ock'},
+    ...
+  }
+
+.. note::
+
+    If you parameterize ``limit`` and ``offset`` and want to reserve the option
+    to pass the empty set, make sure those parameters are ``optional`` as shown
+    in the example above.
+
 
 .. _ref_eql_select_computeds:
 

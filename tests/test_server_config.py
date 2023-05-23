@@ -1715,6 +1715,14 @@ class TestSeparateCluster(tb.TestCase):
         ) as sd:
             conn = await sd.connect()
 
+            KEY = 'edgedb_server_backend_connections_aborted_total'
+
+            data = sd.fetch_metrics()
+            orig_aborted = 0.0
+            for line in data.split('\n'):
+                if line.startswith(KEY):
+                    orig_aborted += float(line.split(' ')[1])
+
             await conn.execute('''
                 configure session set
                     query_execution_timeout :=
@@ -1737,10 +1745,11 @@ class TestSeparateCluster(tb.TestCase):
             await conn.aclose()
 
             data = sd.fetch_metrics()
-            self.assertNotIn(
-                '\nedgedb_server_backend_connections_aborted_total',
-                data
-            )
+            new_aborted = 0.0
+            for line in data.split('\n'):
+                if line.startswith(KEY):
+                    new_aborted += float(line.split(' ')[1])
+            self.assertEqual(orig_aborted, new_aborted)
 
 
 class TestStaticServerConfig(tb.TestCase):

@@ -8092,3 +8092,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 select { foo := 1 } order by
                         (DELETE User filter .name = 't1')
             ''')
+
+    async def test_edgeql_select_params_01(self):
+        with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
+            await self.con.query("select ($0, $1)")
+
+    async def test_edgeql_select_params_02(self):
+        with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
+            await self.con.query("select ($0, 5)")
+
+    async def test_edgeql_select_params_03(self):
+        with self.assertRaisesRegex(edgedb.QueryError, "missing a type cast"):
+            await self.con.query("select ($0, <std::int64>$0)")

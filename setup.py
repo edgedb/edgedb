@@ -786,6 +786,7 @@ class build_parsers(setuptools.Command):
         "edb.edgeql.parser.grammar.fragment",
         "edb.edgeql.parser.grammar.sdldocument",
         "edb.edgeql.parser.grammar.migration_body",
+        "edb.edgeql.parser.grammar.extension_package_body",
     ]
 
     def initialize_options(self):

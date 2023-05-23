@@ -1550,3 +1550,28 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ''',
             [True],
         )
+
+    async def test_edgeql_pure_computed_linkprops_01(self):
+        await self.con.execute(r'''
+            CREATE TYPE default::Test3 {
+                CREATE PROPERTY name: std::str {
+                    SET default := 'test3';
+                };
+            };
+            CREATE TYPE default::Test4 {
+                CREATE LINK test3ref: default::Test3 {
+                    CREATE PROPERTY note := (.name);
+                };
+                CREATE PROPERTY name: std::str {
+                    SET default := 'test4';
+                };
+            };
+            insert Test3;
+        ''')
+
+        await self.assert_query_result(
+            '''
+            insert Test4 { test3ref := (select Test3 limit 1)};
+            ''',
+            [{}],
+        )

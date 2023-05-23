@@ -1245,6 +1245,7 @@ def _compile_qlexpr(
     ptrsource: s_sources.Source,
     ptr_name: sn.QualName,
     is_linkprop: bool,
+    should_set_partial_prefix: bool,
     s_ctx: ShapeContext,
     ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, context.ViewRPtr]:
@@ -1268,7 +1269,9 @@ def _compile_qlexpr(
         source_set = setgen.fixup_computable_source_set(
             ir_source, ctx=shape_expr_ctx
         )
-        shape_expr_ctx.partial_path_prefix = source_set
+
+        if should_set_partial_prefix:
+            shape_expr_ctx.partial_path_prefix = source_set
 
         if s_ctx.exprtype.is_mutation() and ptrcls is not None:
             shape_expr_ctx.expr_exposed = context.Exposure.EXPOSED
@@ -1438,6 +1441,7 @@ def _normalize_view_ptr_expr(
                 ptrsource=ptrsource,
                 ptr_name=ptr_name,
                 is_linkprop=is_linkprop,
+                should_set_partial_prefix=True,
                 s_ctx=s_ctx,
                 ctx=ctx,
             )
@@ -1521,6 +1525,10 @@ def _normalize_view_ptr_expr(
             ptrsource=ptrsource,
             ptr_name=ptr_name,
             is_linkprop=is_linkprop,
+            # do not set partial path prefix if in the insert
+            # shape but not in defaults
+            should_set_partial_prefix=(
+                not s_ctx.exprtype.is_insert() or from_default),
             s_ctx=s_ctx,
             ctx=ctx,
         )
@@ -2082,6 +2090,9 @@ def _inline_type_computable(
                 s_ctx=ShapeContext(),
                 ctx=scopectx
             )
+
+        ctx.env.schema = ptr.set_field_value(
+            ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.One)
 
     view_shape = ctx.env.view_shapes[stype]
     view_shape_ptrs = {p for p, _ in view_shape}

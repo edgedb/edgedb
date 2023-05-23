@@ -12,26 +12,23 @@ v3.0 (dev)
 .. image:: images/v3_betelgeuse.jpg
     :width: 100%
 
-The EdgeDB 3.0 beta was released on May 5th, 2023. We would like to thank our
-community for reporting issues and contributing fixes. You are awesome! ❤️
+EdgeDB 3.0 is currently in pre-release. We would like to thank our community
+for reporting issues and contributing fixes. You are awesome! ❤️
 
 To play with the new features, install the CLI using `our installation guide
-<https://www.edgedb.com/install>`_, upgrade to the testing channel using
-``edgedb cli upgrade --to-testing``, and initialize a new project.
-
-If the upgrade doesn't work, try updating to nightly first using
-``edgedb cli upgrade --to-nightly``
+<https://www.edgedb.com/install>`_ and initialize a new project.
 
 .. code-block:: bash
 
-  $ edgedb project init --server-version=3.0-beta.1
+  $ edgedb project init --server-version=3.0-rc.1
 
 .. note::
 
-    Good news, everyone! Upgrades from 3.0 betas to release candidates (RCs)
-    and to the final 3.0 release will *not* require a dump and restore. 🎉
-    You can try out the beta with the assurance that this upgrade to the beta
-    will be the last dump and restore that is required of you.
+    Good news, everyone! Upgrades across pre-release versions of 3.0 and then
+    from pre-release 3.0 to the final 3.0 release will *not* require a dump and
+    restore. 🎉 You can try out 3.0 with the assurance that your initial
+    upgrade to any 3.0 pre-release version will be the last dump and restore
+    that is required of you.
 
 
 Upgrading
@@ -40,13 +37,21 @@ Upgrading
 **Local instances**
 
 To upgrade a local project, first ensure that your CLI is up to date with
-``edgedb cli upgrade --to-testing`` (and ``edgedb cli upgrade --to-nightly``
-before that if the CLI doesn't recognize the command). Then run an upgrade
-check to make sure your schema will migrate cleanly to 3.0.
+``edgedb cli upgrade``. Then run the following command inside the project
+directory.
 
 .. code-block:: bash
 
-    $ edgedb migration upgrade-check
+  $ edgedb project upgrade --to-testing
+
+Alternatively, specify an instance name if you aren't using a project.
+
+.. code-block:: bash
+
+  $ edgedb instance upgrade --to-testing -I my_instance
+
+The CLI will first check to see if your schema will migrate cleanly to EdgeDB
+3.0.
 
 .. note::
 
@@ -70,24 +75,26 @@ check to make sure your schema will migrate cleanly to 3.0.
 
     This is a key instance where schemas may be incompatible with 3.0.
 
-If the upgrade-check finds any problems, fix them in your schema and squash
-your migrations.
+If the upgrade check finds any problems, it will report them back to you.
+If you receive the following error, you will need to check the syntax of your
+schema:
 
-.. code-block:: bash
+.. code-block::
 
-    $ edgedb migration create --squash
+    SchemaError: <some error>
+    Schema incompatibilities found. Please fix the errors above to proceed.
+    Hint: For faster feedback loop use:
+        edgedb migration upgrade-check --watch
 
-Then run the following command inside the project directory.
+You might also receive a different error which indicates the issue is within
+your migrations. In this case, the error can be fixed by squashing, as
+indicated by the error:
 
-.. code-block:: bash
+.. code-block::
 
-  $ edgedb project upgrade --to-testing
-
-Alternatively, specify an instance name if you aren't using a project.
-
-.. code-block:: bash
-
-  $ edgedb instance upgrade --to-testing -I my_instance
+    The current schema is compatible. But some of the migrations are outdated.
+    Please squash all migrations to fix the issue:
+        edgedb migration create --squash
 
 **Hosted instances**
 
@@ -112,18 +119,18 @@ dump-and-restore process.
 
    .. code-block:: bash
 
-       $ sudo apt-get update && sudo apt-get install edgedb-3-beta1
+       $ sudo apt-get update && sudo apt-get install edgedb-3-rc1
 
    Under CentOS/RHEL, use this installation command:
 
    .. code-block:: bash
 
-       $ sudo yum install edgedb-3-beta1
+       $ sudo yum install edgedb-3-rc1
 
    In any required ``systemctl`` commands, replace ``edgedb-server-2`` with
    ``edgedb-server-3``.
 
-   Under any Docker setups, supply the ``3.0-beta.1`` tag.
+   Under any Docker setups, supply the ``3.0-rc.1`` tag.
 
 2. Take your application offline, then dump your v2.x database with the CLI
 
@@ -764,3 +771,97 @@ naturally incorporate fewer features than our past releases, but we think the
 more predictable cadence will be worth it. Every third release starting with
 3.0 will be a long-term support (LTS) release. These releases will continue to
 receive support for a year and a half after their initial release.
+
+3.0 RC 1
+========
+
+Changes to new 3.0 features
+---------------------------
+* Fix indirect references to properties in triggers
+  (:eql:gh:`#5450`)
+
+* Fix rewrites of aliases types
+  (:eql:gh:`#5461`)
+
+* Do nicer translation of relation names in ``ANALYZE``
+  (:eql:gh:`#5467`)
+
+* Fix schema ordering bug when ``INSERT`` appears in triggers
+  (:eql:gh:`#5489`)
+
+* Produce correct error source locations in the SQL interface
+  (:eql:gh:`#5462`)
+
+* Fix deleting a pointer with rewrites in a migration
+  (:eql:gh:`#5503`)
+
+
+Other changes and fixes
+-----------------------
+* Support disabling dynamic configuration of system config
+  (:eql:gh:`#5425`)
+
+* In multi-server instances, properly reload schema after a restore
+  (:eql:gh:`#5463`)
+
+* Fix several bugs synchronizing configuration state
+
+* Fix dropping a pointer's constraint and making it computed at the same time
+  (:eql:gh:`#5411`)
+
+* Don't claim that making a pointer computed is data-safe
+  (:eql:gh:`#5412`)
+
+* Prohibit NUL character in query source
+  (:eql:gh:`#5414`)
+
+* Fix migration that delete an link alias computed in a parent and child
+  (:eql:gh:`#5428`)
+
+* Fix GraphQL updates for multi links.
+  (:eql:gh:`#4260`)
+
+* Fix altering enum that is used in a tuple
+  (:eql:gh:`#5445`)
+
+* Fix changing cardinality of properties on types used in unions
+  (:eql:gh:`#5457`)
+
+* Enable GraphQL support for type unions.
+
+* Fix making pointer non-computed and giving it an abstract base at the
+  same time
+  (:eql:gh:`#5458`)
+
+* Make json casts of object arrays not include extra fields
+  (:eql:gh:`#5484`)
+
+* Make coalesce infer a union type
+  (:eql:gh:`#5472`)
+
+* Fix graphql queries made against a freshly started server
+  (:eql:gh:`#5456`)
+
+* Fix version for project init
+  (:eql:gh:`#5460`)
+
+* Produce a proper error for too many constraint args
+  (:eql:gh:`#5454`)
+
+* Prevent using leading dot notation in inserts
+  (:eql:gh:`#5142`)
+
+* Fix operations on single link with only computable link properties
+  (:eql:gh:`#5499`)
+
+* Don't ISE on free shape in insert
+  (:eql:gh:`#5438`)
+
+* Work around postgres server crashes on Digital Ocean during edgedb setup
+  (:eql:gh:`#5505`)
+
+* Always set cardinality of derived __tname__ and __tid__ pointers
+  (:eql:gh:`#5508`)
+
+* Make failovers more resilient
+  (:eql:gh:`#5511`)

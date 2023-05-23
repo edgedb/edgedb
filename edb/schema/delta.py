@@ -2130,7 +2130,8 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         # so sort by dependency order.
         objs_to_cmds = {}
         for delta, cmd, refdesc in context.affected_finalization.get(self, []):
-            objs_to_cmds[cmd.scls] = delta, cmd, refdesc
+            if schema.has_object(cmd.scls.id):
+                objs_to_cmds[cmd.scls] = delta, cmd, refdesc
         objs = sort_by_cross_refs(schema, objs_to_cmds.keys())
 
         for obj in reversed(objs):
@@ -2919,9 +2920,9 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         context: CommandContext,
     ) -> None:
         # Check if functions by this name exist
-        fn = self.get_attribute_value('name')
-        if fn is not None and not sn.is_fullname(str(fn)):
-            funcs = schema.get_functions(fn, tuple())
+        obj_name = self.get_attribute_value('name')
+        if obj_name is not None and not sn.is_fullname(str(obj_name)):
+            funcs = schema.get_functions(obj_name, tuple())
             if funcs:
                 raise errors.SchemaError(
                     f'{funcs[0].get_verbosename(schema)} already exists')

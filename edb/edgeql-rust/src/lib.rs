@@ -1,28 +1,34 @@
-#[macro_use] extern crate cpython;
+#[macro_use]
+extern crate cpython;
 
 use cpython::PyString;
 
 mod errors;
 mod float;
-mod keywords;
-mod tokenizer;
-pub mod normalize;
-mod pynormalize;
 mod hash;
+mod keywords;
+pub mod normalize;
 mod position;
+mod pynormalize;
+mod tokenizer;
 
 use errors::TokenizerError;
-use tokenizer::{Token, tokenize, get_unpickle_fn};
+use position::{offset_of_line, SourcePoint};
 use pynormalize::normalize;
-use position::{SourcePoint, offset_of_line};
-
+use tokenizer::{get_unpickle_fn, tokenize, Token};
 
 py_module_initializer!(
-    _edgeql_rust, init_edgeql_rust, PyInit__edgeql_rust,
+    _edgeql_rust,
+    init_edgeql_rust,
+    PyInit__edgeql_rust,
     |py, m| {
         tokenizer::init_module(py);
         let keywords = keywords::get_keywords(py)?;
-        m.add(py, "__doc__", "Rust enhancements for edgeql language parser")?;
+        m.add(
+            py,
+            "__doc__",
+            "Rust enhancements for edgeql language parser",
+        )?;
 
         m.add(py, "tokenize", py_fn!(py, tokenize(data: &PyString)))?;
         m.add(py, "_unpickle_token", get_unpickle_fn(py))?;
@@ -31,12 +37,16 @@ py_module_initializer!(
         m.add(py, "Entry", py.get_type::<pynormalize::Entry>())?;
         m.add(py, "SourcePoint", py.get_type::<SourcePoint>())?;
         m.add(py, "normalize", py_fn!(py, normalize(query: &PyString)))?;
-        m.add(py, "offset_of_line",
-            py_fn!(py, offset_of_line(text: &str, line: usize)))?;
+        m.add(
+            py,
+            "offset_of_line",
+            py_fn!(py, offset_of_line(text: &str, line: usize)),
+        )?;
         m.add(py, "Hasher", py.get_type::<hash::Hasher>())?;
         m.add(py, "unreserved_keywords", keywords.unreserved)?;
         m.add(py, "partial_reserved_keywords", keywords.partial)?;
         m.add(py, "future_reserved_keywords", keywords.future)?;
         m.add(py, "current_reserved_keywords", keywords.current)?;
         Ok(())
-    });
+    }
+);
