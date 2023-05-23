@@ -566,11 +566,12 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assertEqual(res, [['24']])
 
     async def test_sql_query_introspection_00(self):
+        dbname = self.con.dbname
         res = await self.squery_values(
-            '''
+            f'''
             SELECT table_schema, table_name
             FROM information_schema.tables
-            WHERE table_catalog = 'sql' AND table_schema ILIKE 'public%'
+            WHERE table_catalog = '{dbname}' AND table_schema ILIKE 'public%'
             ORDER BY table_schema, table_name
             '''
         )
@@ -740,7 +741,7 @@ class TestSQL(tb.SQLQueryTestCase):
         self.assertEqual(res, [['blah']])
 
         res = await self.squery_values('select current_catalog;')
-        self.assertEqual(res, [['sql']])
+        self.assertEqual(res, [[self.con.dbname]])
 
         res = await self.squery_values('select current_schemas(true);')
         self.assertEqual(res, [[['pg_catalog', 'blah', 'foo']]])
