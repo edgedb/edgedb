@@ -39,29 +39,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-        submodules: false
-
-    - name: Set up Python
-      id: python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-
-    - name: Retrieve virtualenv cache
-      id: venv-cache
-      uses: actions/cache/restore@v3
-      with:
-        path: ./test-venv
-        key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
-
-    - name: Stop if we cannot retrieve the cache
-      if: steps.venv-cache.outputs.cache-hit != 'true'
-      run: |
-        echo ::error::Cannot retrieve venv cache.
-        exit 1
+    <<- restore_cache() >>
 
     - name: Download cache key
       uses: actions/download-artifact@v3

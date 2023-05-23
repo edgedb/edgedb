@@ -34,8 +34,7 @@ jobs:
       id: venv-cache
       uses: actions/cache@v3
       with:
-        path: |
-          ./test-venv
+        path: ./test-venv
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Create virtualenv if not cached
@@ -389,8 +388,7 @@ jobs:
       id: venv-cache
       uses: actions/cache@v3
       with:
-        path: |
-          ./test-venv
+        path: ./test-venv
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Create virtualenv if not cached
@@ -603,8 +601,7 @@ jobs:
       id: venv-cache
       uses: actions/cache@v3
       with:
-        path: |
-          ./test-venv
+        path: ./test-venv
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Create virtualenv if not cached
@@ -865,8 +862,7 @@ jobs:
       id: venv-cache
       uses: actions/cache@v3
       with:
-        path: |
-          ./test-venv
+        path: ./test-venv
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Create virtualenv if not cached
@@ -1093,8 +1089,7 @@ jobs:
       id: venv-cache
       uses: actions/cache@v3
       with:
-        path: |
-          ./test-venv
+        path: ./test-venv
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Create virtualenv if not cached
@@ -1309,8 +1304,7 @@ jobs:
       id: venv-cache
       uses: actions/cache@v3
       with:
-        path: |
-          ./test-venv
+        path: ./test-venv
         key: virtualenv-${{ runner.os }}-python-${{ steps.python.outputs.python-version }}-${{ hashFiles('setup.py', 'pyproject.toml') }}
 
     - name: Create virtualenv if not cached
