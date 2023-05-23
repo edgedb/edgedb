@@ -32,6 +32,7 @@ from edb.schema import objects as s_obj
 
 from edb.pgsql import common
 from edb.pgsql import dbops
+from edb.pgsql import schemamech
 
 
 class SchemaDBObjectMeta(adapter.Adapter):  # type: ignore
@@ -84,9 +85,9 @@ class SchemaConstraintDomainConstraint(
 
     def constraint_code(self, block: dbops.PLBlock) -> str:
         if len(self._exprdata) == 1:
-            expr = self._exprdata[0]['exprdata']['plain']
+            expr = self._exprdata[0].exprdata.plain
         else:
-            exprs = [e['plain'] for e in self._exprdata['exprdata']]
+            exprs = [e.plain for e in self._exprdata.exprdata]
             expr = '(' + ') AND ('.join(exprs) + ')'
 
         return f'CHECK ({expr})'
@@ -103,8 +104,8 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         table_name,
         *,
         constraint,
-        exprdata,
-        origin_exprdata,
+        exprdata: List[schemamech.ExprData],
+        origin_exprdata: List[schemamech.ExprData],
         scope,
         type,
         except_data,
@@ -118,19 +119,19 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         self._type = type
         self._except_data = except_data
 
-    def constraint_code(self, block: dbops.PLBlock) -> str:
+    def constraint_code(self, block: dbops.PLBlock) -> str | List[str]:
         if self._scope == 'row':
             if len(self._exprdata) == 1:
-                expr = self._exprdata[0]['exprdata']['plain']
+                expr = self._exprdata[0].exprdata.plain
             else:
-                exprs = [e['exprdata']['plain'] for e in self._exprdata]
+                exprs = [e.exprdata.plain for e in self._exprdata]
                 expr = '(' + ') AND ('.join(exprs) + ')'
 
             if self._except_data:
-                cond = self._except_data['plain']
+                cond = self._except_data.plain
                 expr = f'({expr}) OR ({cond}) is true'
 
-            expr = f'CHECK ({expr})'
+            return f'CHECK ({expr})'
 
         else:
             if self._type != 'unique':
@@ -139,30 +140,28 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
 
             constr_exprs = []
 
-            for expr in self._exprdata:
-                if expr['is_trivial'] and not self._except_data:
+            for exprdata in self._exprdata:
+                if exprdata.is_trivial and not self._except_data:
                     # A constraint that contains one or more
                     # references to columns, and no expressions.
                     #
-                    expr = ', '.join(expr['exprdata']['plain_chunks'])
+                    expr = ', '.join(exprdata.exprdata.plain_chunks)
                     expr = 'UNIQUE ({})'.format(expr)
                 else:
                     # Complex constraint with arbitrary expressions
                     # needs to use EXCLUDE.
                     #
-                    chunks = expr['exprdata']['plain_chunks']
+                    chunks = exprdata.exprdata.plain_chunks
                     expr = ', '.join(
                         "{} WITH =".format(chunk) for chunk in chunks)
                     expr = f'EXCLUDE ({expr})'
                     if self._except_data:
-                        cond = self._except_data['plain']
+                        cond = self._except_data.plain
                         expr = f'{expr} WHERE (({cond}) is not true)'
 
                 constr_exprs.append(expr)
 
-            expr = constr_exprs
-
-        return expr
+            return constr_exprs
 
     def numbered_constraint_name(self, i, quote=True):
         raw_name = self.raw_constraint_name()
@@ -178,8 +177,8 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
 
         for expr in self._exprdata:
             condition = '{old_expr} IS DISTINCT FROM {new_expr}'.format(
-                old_expr=expr['exprdata']['old'],
-                new_expr=expr['exprdata']['new'])
+                old_expr=expr.exprdata.old, new_expr=expr.exprdata.new
+            )
             chunks.append(condition)
 
         if len(chunks) == 1:
@@ -199,21 +198,21 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         for expr, origin_expr in zip(
             itertools.cycle(self._exprdata), self._origin_exprdata
         ):
-            exprdata = expr['exprdata']
-            origin_exprdata = origin_expr['exprdata']
+            exprdata = expr.exprdata
+            origin_exprdata = origin_expr.exprdata
 
             except_data = self._except_data
-            origin_except_data = origin_expr['origin_except_data']
+            origin_except_data = origin_expr.origin_except_data
 
             if self._except_data:
                 except_part = f'''
-                    AND ({origin_except_data['plain']} is not true)
-                    AND ({except_data['new']} is not true)
+                    AND ({origin_except_data.plain} is not true)
+                    AND ({except_data.new} is not true)
                 '''
             else:
                 except_part = ''
 
-            schemaname, tablename = origin_expr['origin_subject_db_name']
+            schemaname, tablename = origin_expr.origin_subject_db_name
             text = '''
                 PERFORM
                     TRUE
@@ -231,11 +230,11 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                           DETAIL = {detail};
                 END IF;
             '''.format(
-                plain_expr=origin_exprdata['plain'],
+                plain_expr=origin_exprdata.plain,
                 detail=common.quote_literal(
-                    f"Key ({origin_exprdata['plain']}) already exists."
+                    f"Key ({origin_exprdata.plain}) already exists."
                 ),
-                new_expr=exprdata['new'],
+                new_expr=exprdata.new,
                 except_part=except_part,
                 table=common.qname(
                     schemaname,
@@ -303,6 +302,7 @@ class AlterTableAddMultiConstraint(dbops.AlterTableAddConstraint):
         if isinstance(exprs, list) and len(exprs) > 1:
             chunks = []
 
+            assert isinstance(self.constraint, SchemaConstraintTableConstraint)
             for i, expr in enumerate(exprs):
                 name = self.constraint.numbered_constraint_name(i)
                 chunk = f'ADD CONSTRAINT {name} {expr}'

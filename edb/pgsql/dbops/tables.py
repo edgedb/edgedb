@@ -508,7 +508,7 @@ class TableConstraintExists(base.Condition):
 
 
 class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
-    def __init__(self, constraint):
+    def __init__(self, constraint: TableConstraint):
         assert not isinstance(constraint, list)
         self.constraint = constraint
 
@@ -519,6 +519,7 @@ class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
             code += f'CONSTRAINT {name} '
 
         constr_code = self.constraint.constraint_code(block)
+        assert isinstance(constr_code, str)
 
         if not isinstance(constr_code, base.PLExpression):
             # Static declaration
