@@ -15500,7 +15500,7 @@ DDLStatement);
         """)
 
 
-class TestConsecutiveMigrations(tb.DDLTestCase):
+class TestDDLNonIsolated(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
 
     async def test_edgeql_ddl_consecutive_create_migration_01(self):
@@ -15519,3 +15519,99 @@ class TestConsecutiveMigrations(tb.DDLTestCase):
             CREATE TYPE default::B;
         };
         ''')
+
+    async def _extension_test(self):
+        await self.con.execute('''
+            create extension ltree
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select ltree::nlevel(
+                  <ltree::ltree><json><ltree::ltree>'foo.bar');
+            ''',
+            [2],
+        )
+        await self.assert_query_result(
+            '''
+                select <str>(
+                  <ltree::ltree><json><ltree::ltree>'foo.bar');
+            ''',
+            ['foo.bar'],
+        )
+        await self.assert_query_result(
+            '''
+                select <ltree::ltree><json><ltree::ltree>'foo.bar';
+            ''',
+            [['foo', 'bar']],
+            json_only=True,
+        )
+
+        await self.con.execute('''
+            create type Foo { create property x -> ltree::ltree };
+            insert Foo { x := <ltree::ltree>'foo.bar.baz' };
+        ''')
+
+        await self.assert_query_result(
+            '''
+                select Foo.x;
+            ''',
+            [['foo', 'bar', 'baz']],
+            json_only=True,
+        )
+
+        await self.con.execute('''
+            drop type Foo;
+            drop extension ltree;
+        ''')
+
+    async def test_edgeql_ddl_extensions(self):
+        # Make an extension that wraps a tiny bit of the ltree package.
+        await self.con.execute('''
+        create extension package ltree VERSION '1.0' {
+          set ext_module := "ltree";
+          set sql_extensions := ["ltree"];
+          create module ltree;
+          create scalar type ltree::ltree {
+            set sql_type := "ltree.ltree";
+          };
+          create cast from ltree::ltree to std::str {
+            SET volatility := 'Immutable';
+            USING SQL CAST;
+          };
+          create cast from std::str to ltree::ltree {
+            SET volatility := 'Immutable';
+            USING SQL CAST;
+          };
+
+          # Use a non-trivial json representation just to show that we can.
+          create cast from ltree::ltree to std::json {
+            SET volatility := 'Immutable';
+            USING SQL $$
+              select to_jsonb(string_to_array("val"::text, '.'));
+            $$
+          };
+          create cast from std::json to ltree::ltree {
+            SET volatility := 'Immutable';
+            USING SQL $$
+              select string_agg(edgedb.raise_on_null(
+                edgedbstd."std|cast@std|json@std|str_f"(z.z),
+                'invalid_parameter_value', 'invalid null value in cast'),
+              '.')::ltree.ltree
+              from unnest(
+                edgedbstd."std|cast@std|json@array<std||json>_f"("val"))
+                as z(z);
+            $$
+          };
+          create function ltree::nlevel(v: ltree::ltree) -> std::int32 {
+            using sql function 'ltree.nlevel';
+          };
+        };
+        ''')
+        try:
+            async with self._run_and_rollback():
+                await self._extension_test()
+        finally:
+            await self.con.execute('''
+                drop extension package ltree VERSION '1.0'
+            ''')

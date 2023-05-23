@@ -25,6 +25,7 @@ import uuid
 
 from edb.edgeql import qltypes
 
+from edb.schema import casts as s_casts
 from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import properties as s_props
@@ -322,6 +323,18 @@ def type_to_typeref(
         else:
             ancestors = None
 
+        sql_type = None
+        needs_custom_json_cast = False
+        if isinstance(t, s_scalars.ScalarType):
+            sql_type = t.get_sql_type(schema)
+            if material_typeref is None:
+                cast_name = s_casts.get_cast_fullname_from_names(
+                    orig_name_hint or name_hint,
+                    s_name.QualName('std', 'json'))
+                jcast = schema.get(cast_name, type=s_casts.Cast, default=None)
+                if jcast:
+                    needs_custom_json_cast = bool(jcast.get_code(schema))
+
         result = irast.TypeRef(
             id=t.id,
             name_hint=name_hint,
@@ -338,6 +351,8 @@ def type_to_typeref(
             is_abstract=t.get_abstract(schema),
             is_view=t.is_view(schema),
             is_opaque_union=t.get_is_opaque_union(schema),
+            needs_custom_json_cast=needs_custom_json_cast,
+            sql_type=sql_type,
         )
     elif isinstance(t, s_types.Tuple) and t.is_named(schema):
         schema, material_type = t.material_type(schema)

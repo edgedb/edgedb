@@ -28,7 +28,10 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 from edb.edgeql import parser as qlparser
 
+from edb.common import checked
+
 from . import annos as s_anno
+from . import casts as s_casts
 from . import delta as sd
 from . import name as sn
 from . import objects as so
@@ -51,6 +54,17 @@ class ExtensionPackage(
         str,
         compcoef=0.9,
     )
+
+    sql_extensions = so.SchemaField(
+        checked.FrozenCheckedSet[str],
+        default=so.DEFAULT_CONSTRUCTOR,
+        coerce=True,
+        inheritable=False,
+        compcoef=0.9,
+    )
+
+    ext_module = so.SchemaField(
+        str, default=None, coerce=True, compcoef=0.9)
 
     @classmethod
     def get_schema_class_displayname(cls) -> str:
@@ -119,6 +133,12 @@ class ExtensionPackageCommand(
         return super()._cmd_tree_from_ast(schema, astnode, context)
 
 
+# XXX: Trying to CREATE/DROP these from within a transaction managed
+# to get me stuck getting "Cannot serialize global DDL" errors.
+#
+# I'm haven't fully investigated whether it is actually sensible to do
+# this kind of global command in a transaction, but we currently allow
+# it and some tests do it.
 class CreateExtensionPackage(
     ExtensionPackageCommand,
     sd.CreateObject[ExtensionPackage],
@@ -197,6 +217,20 @@ class CreateExtension(
 ):
     astnode = qlast.CreateExtension
 
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        testmode = context.testmode
+        context.testmode = True
+
+        schema = super().apply(schema, context)
+
+        context.testmode = testmode
+
+        return schema
+
     @classmethod
     def _cmd_tree_from_ast(
         cls,
@@ -213,6 +247,26 @@ class CreateExtension(
             cmd.set_attribute_value('version', parsed_version)
 
         return cmd
+
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._create_begin(schema, context)
+
+        if not context.canonical:
+            package = self.scls.get_package(schema)
+            script = package.get_script(schema)
+            if script:
+                block, _ = qlparser.parse_extension_package_body_block(script)
+                for subastnode in block.commands:
+                    subcmd = sd.compile_ddl(
+                        schema, subastnode, context=context)
+                    if subcmd is not None:
+                        self.add(subcmd)
+
+        return schema
 
     def canonicalize_attributes(
         self,
@@ -255,6 +309,7 @@ class CreateExtension(
         self.set_attribute_value('package', pkgs[0])
         return schema
 
+    # XXX: I think this is wrong, but it might not matter ever.
     def _get_ast(
         self,
         schema: s_schema.Schema,
@@ -278,3 +333,57 @@ class DeleteExtension(
 ):
 
     astnode = qlast.DropExtension
+
+    def _delete_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        module = self.scls.get_package(schema).get_ext_module(schema)
+        schema = super()._delete_begin(schema, context)
+
+        if context.canonical or not module:
+            return schema
+
+        # If the extension included a module, delete everything in it.
+        from . import ddl as s_ddl
+
+        module_name = sn.UnqualName(module)
+
+        def _name_in_mod(name: sn.Name) -> bool:
+            return (
+                (isinstance(name, sn.QualName) and name.module == module)
+                or name == module_name
+            )
+
+        # Clean up the casts separately for annoying reasons
+        for obj in schema.get_objects(
+            included_modules=(sn.UnqualName('__derived__'),),
+            type=s_casts.Cast,
+        ):
+            if (
+                _name_in_mod(obj.get_from_type(schema).get_name(schema))
+                or _name_in_mod(obj.get_to_type(schema).get_name(schema))
+            ):
+                drop = obj.init_delta_command(
+                    schema,
+                    sd.DeleteObject,
+                )
+                self.add(drop)
+
+        def filt(schema: s_schema.Schema, obj: so.Object) -> bool:
+            return not _name_in_mod(obj.get_name(schema)) or obj == self.scls
+
+        # We handle deleting the module contents in a heavy-handed way:
+        # do a schema diff.
+        delta = s_ddl.delta_schemas(
+            schema, schema,
+            included_modules=[
+                sn.UnqualName(module),
+            ],
+            schema_b_filters=[filt],
+            linearize_delta=True,
+        )
+        self.update(delta.get_subcommands())
+
+        return schema

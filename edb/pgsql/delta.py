@@ -1958,6 +1958,7 @@ class DeleteCast(CastCommand, adapts=s_casts.DeleteCast):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        orig_schema = schema
         cast = schema.get(self.classname, type=s_casts.Cast)
         cast_language = cast.get_language(schema)
         cast_code = cast.get_code(schema)
@@ -1965,7 +1966,7 @@ class DeleteCast(CastCommand, adapts=s_casts.DeleteCast):
         schema = super().apply(schema, context)
 
         if cast_language is ql_ast.Language.SQL and cast_code:
-            cast_func = self.make_cast_function(cast, schema)
+            cast_func = self.make_cast_function(cast, orig_schema)
             self.pgops.add(dbops.DropFunction(
                 cast_func.name, cast_func.args))
 
@@ -2453,6 +2454,8 @@ class CreateScalarType(ScalarTypeMetaCommand,
             return schema
 
         if types.is_builtin_scalar(schema, scalar):
+            return schema
+        if scalar.get_sql_type(schema):
             return schema
 
         default = self.get_resolved_attribute_value(
@@ -6963,6 +6966,8 @@ class CreateExtensionPackage(
                 'version': version,
                 'builtin': self.scls.get_builtin(schema),
                 'internal': self.scls.get_internal(schema),
+                'ext_module': str(self.scls.get_ext_module(schema)),
+                'sql_extensions': list(self.scls.get_sql_extensions(schema)),
             }
         }
 
@@ -7049,11 +7054,62 @@ class ExtensionCommand(MetaCommand):
 
 
 class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
-    pass
+    def _create_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        # XXX
+        schema = super()._create_begin(schema, context)
+        # backend_params = self._get_backend_params(context)
+        # ext_schema = backend_params.instance_params.ext_schema
+
+        package = self.scls.get_package(schema)
+
+        for ext in package.get_sql_extensions(schema):
+            # XXX: heroku!?
+            self.pgops.add(
+                dbops.CreateSchema(name=ext, conditional=True),
+            )
+            self.pgops.add(
+                dbops.CreateExtension(
+                    dbops.Extension(
+                        name=ext,
+                        schema=ext,
+                        # XXX?
+                        # schema=ext_schema,
+                    ),
+                )
+            )
+
+        return schema
 
 
 class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
-    pass
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        extension = schema.get_global(s_exts.Extension, self.classname)
+        package = extension.get_package(schema)
+
+        schema = super().apply(schema, context)
+
+        for ext in package.get_sql_extensions(schema):
+            self.pgops.add(
+                dbops.DropExtension(
+                    dbops.Extension(
+                        name=ext,
+                        schema=ext,
+                    ),
+                )
+            )
+            self.pgops.add(
+                dbops.DropSchema(name=ext),
+            )
+
+        return schema
 
 
 class FutureBehaviorCommand(MetaCommand, s_futures.FutureBehaviorCommand):

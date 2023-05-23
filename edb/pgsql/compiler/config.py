@@ -25,6 +25,7 @@ from edb.ir import ast as irast
 from edb.edgeql import qltypes
 
 from edb.schema import casts as s_casts
+from edb.schema import name as sn
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import common
@@ -534,7 +535,7 @@ def _compile_config_value(
             ],
         )
         cast_name = s_casts.get_cast_fullname_from_names(
-            'std', 'std::bytes', 'std::json')
+            sn.QualName('std', 'bytes'), sn.QualName('std', 'json'))
         val = pgast.FuncCall(
             name=common.get_cast_backend_name(cast_name, aspect='function'),
             args=[val],

@@ -1351,7 +1351,8 @@ async def _init_stdlib(
                 backend_id := sys::_get_pg_type_for_edgedb_type(
                     .id,
                     .__type__.name,
-                    <uuid>{}
+                    <uuid>{},
+                    <str>{},
                 )
             }
             ''',
@@ -1372,6 +1373,7 @@ async def _init_stdlib(
                     .id,
                     .__type__.name,
                     .element_type.id,
+                    <str>{},
                 )
             }
             ''',

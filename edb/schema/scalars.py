@@ -59,6 +59,9 @@ class ScalarType(
         coerce=True, compcoef=0.8,
     )
 
+    sql_type = so.SchemaField(
+        str, default=None, compcoef=0.9)
+
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'scalar type'
@@ -337,6 +340,7 @@ class ScalarTypeCommand(
             and not context.stdmode
             and not abstract
             and not enum
+            and not self.get_attribute_value('sql_type')
         ):
             if not ancestors:
                 hint = (
