@@ -48,6 +48,7 @@ jobs:
         source ./test-venv/bin/activate
         echo "VIRTUAL_ENV: $VIRTUAL_ENV"
         echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+        pip list
 
     - name: Install Python dependencies
       shell: bash
@@ -394,6 +395,7 @@ jobs:
         source ./test-venv/bin/activate
         echo "VIRTUAL_ENV: $VIRTUAL_ENV"
         echo "VIRTUAL_ENV=$VIRTUAL_ENV" >> $GITHUB_ENV
+        pip list
 
     # Restore the artifacts and environment variables
 
