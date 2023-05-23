@@ -34,10 +34,8 @@ from . import functions as s_func
 from . import name as sn
 from . import objects as so
 from . import types as s_types
+from . import schema as s_schema
 from . import utils
-
-if TYPE_CHECKING:
-    from edb.schema import schema as s_schema
 
 
 _NOT_REACHABLE = 10000000
@@ -174,11 +172,21 @@ def is_castable(
 
 
 def get_cast_fullname_from_names(
-    module: str,
-    from_type: str,
-    to_type: str,
+    from_type: sn.Name,
+    to_type: sn.Name,
 ) -> sn.QualName:
-    quals = [from_type, to_type]
+    std = not (
+        (
+            isinstance(from_type, sn.QualName)
+            and sn.UnqualName(from_type.module) not in s_schema.STD_MODULES
+        ) or (
+            isinstance(to_type, sn.QualName)
+            and sn.UnqualName(to_type.module) not in s_schema.STD_MODULES
+        )
+    )
+    module = 'std' if std else '__derived__'
+
+    quals = [str(from_type), str(to_type)]
     shortname = sn.QualName(module, 'cast')
     return sn.QualName(
         module=shortname.module,
@@ -188,14 +196,12 @@ def get_cast_fullname_from_names(
 
 def get_cast_fullname(
     schema: s_schema.Schema,
-    module: str,
     from_type: s_types.TypeShell[s_types.Type],
     to_type: s_types.TypeShell[s_types.Type],
 ) -> sn.QualName:
     return get_cast_fullname_from_names(
-        module,
-        str(from_type.get_name(schema)),
-        str(to_type.get_name(schema)),
+        from_type.get_name(schema),
+        to_type.get_name(schema),
     )
 
 
@@ -293,8 +299,7 @@ class CastCommand(sd.QualifiedObjectCommand[Cast],
             schema=schema,
         )
 
-        module = 'std' if context.stdmode else '__derived__'
-        return get_cast_fullname(schema, module, from_type, to_type)
+        return get_cast_fullname(schema, from_type, to_type)
 
     def canonicalize_attributes(
         self,
