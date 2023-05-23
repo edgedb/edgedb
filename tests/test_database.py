@@ -83,6 +83,13 @@ class TestDatabase(tb.ConnectedTestCase):
         # create database name that conflicts with names in schema
         await self.con.execute('CREATE DATABASE range;')
 
+        conn = await self.connect(database='range')
+
+        res = await conn.query('select range(5, 10)')
+        self.assertEqual(res, [edgedb.Range(5, 10)])
+
+        await conn.aclose()
+
         await tb.drop_db(self.con, 'range')
 
     async def test_database_drop_01(self):
