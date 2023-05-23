@@ -126,6 +126,7 @@ class FindParams(ast.NodeVisitor):
         super().__init__()
         self.params: List[
             Tuple[qlast.TypeCast, Dict[Optional[str], str]]] = []
+        self.loose_params: List[qlast.Parameter] = []
         self.modaliases = modaliases
 
     def visit_Command(self, n: qlast.Command) -> None:
@@ -150,16 +151,28 @@ class FindParams(ast.NodeVisitor):
     def visit_TypeCast(self, n: qlast.TypeCast) -> None:
         if isinstance(n.expr, qlast.Parameter):
             self.params.append((n, self.modaliases))
-        self.generic_visit(n)
+        else:
+            self.generic_visit(n)
+
+    def visit_Parameter(self, n: qlast.Parameter) -> None:
+        self.loose_params.append(n)
+
+    def visit_CreateFunction(self, n: qlast.CreateFunction) -> None:
+        pass
+
+    def visit_CreateConstraint(self, n: qlast.CreateFunction) -> None:
+        pass
 
 
 def find_parameters(
     ql: qlast.Base, modaliases: Dict[Optional[str], str]
-) -> List[Tuple[qlast.TypeCast, Dict[Optional[str], str]]]:
+) -> Tuple[
+        List[Tuple[qlast.TypeCast, Dict[Optional[str], str]]],
+        List[qlast.Parameter]]:
     """Get all query parameters"""
     v = FindParams(modaliases)
     v.visit(ql)
-    return v.params
+    return v.params, v.loose_params
 
 
 class alias_view(
