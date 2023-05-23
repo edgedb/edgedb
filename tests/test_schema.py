@@ -9691,3 +9691,14 @@ class TestCreateMigration(tb.BaseSchemaTest):
                 }};
             '''
         )
+
+    @tb.must_fail(errors.InvalidDefinitionError,
+                  "cannot create a link property on a property")
+    def test_schema_link_prop_on_prop_10(self):
+        """
+        type Test1 {
+            title : str {
+                sub_title : str
+            }
+        }
+        """
