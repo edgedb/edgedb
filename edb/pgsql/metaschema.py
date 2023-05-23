@@ -5943,7 +5943,7 @@ def _generate_sql_information_schema() -> List[dbops.Command]:
             datistemplate,
             datallowconn,
             datconnlimit,
-            datlastsysoid,
+            0::oid AS datlastsysoid,
             datfrozenxid,
             datminmxid,
             dattablespace,
